@@ -1,13 +1,1024 @@
-<!DOCTYPE html>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CashSouk — Financial Data (User + Admin)</title>
+    <style>
+      :root {
+        --bg: #ffffff;
+        --surface: #ffffff;
+        --muted: #f6f7f9;
+        --text: #0f172a;
+        --subtext: #475569;
+        --border: #e5e7eb;
+
+        /* CashSouk-ish red */
+        --primary: #8a0304;
+        --primary-2: #ce2922;
+
+        --radius: 14px;
+        --shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
+        --shadow-2: 0 6px 16px rgba(15, 23, 42, 0.06);
+        --focus: 0 0 0 3px rgba(138, 3, 4, 0.18);
+        --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+          "Courier New", monospace;
+        --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
+          "Apple Color Emoji", "Segoe UI Emoji";
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: var(--sans);
+        color: var(--text);
+        background: linear-gradient(180deg, #fafafa, #ffffff);
+      }
+
+      .container {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 28px 18px 60px;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 16px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-2);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+      }
+
+      .logo {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        background: radial-gradient(circle at 30% 30%, var(--primary-2), var(--primary));
+        box-shadow: 0 10px 16px rgba(138, 3, 4, 0.18);
+      }
+
+      .seg {
+        display: inline-flex;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        overflow: hidden;
+        background: #fff;
+      }
+
+      .seg button {
+        border: 0;
+        background: transparent;
+        padding: 10px 12px;
+        cursor: pointer;
+        font-weight: 650;
+        color: var(--subtext);
+      }
+
+      .seg button.active {
+        background: rgba(138, 3, 4, 0.08);
+        color: var(--primary);
+      }
+
+      .grid {
+        margin-top: 18px;
+        display: grid;
+        grid-template-columns: 1.05fr 0.95fr;
+        gap: 16px;
+      }
+
+      @media (max-width: 980px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .card {
+        border: 1px solid var(--border);
+        background: var(--surface);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+
+      .card-header {
+        padding: 16px 16px 12px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .card-title {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 780;
+        letter-spacing: -0.01em;
+      }
+
+      .card-subtitle {
+        margin: 6px 0 0;
+        color: var(--subtext);
+        font-size: 13px;
+        line-height: 1.35;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--muted);
+        color: var(--subtext);
+        font-size: 12px;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+
+      .pill .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: #94a3b8;
+      }
+
+      .card-body {
+        padding: 16px;
+      }
+
+      .section {
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: calc(var(--radius) - 2px);
+        background: #fff;
+        margin-bottom: 12px;
+      }
+
+      .section h3 {
+        margin: 0 0 10px;
+        font-size: 13px;
+        font-weight: 800;
+        color: #111827;
+      }
+
+      .row {
+        display: grid;
+        grid-template-columns: 1fr 220px;
+        gap: 10px;
+        align-items: center;
+        padding: 8px 0;
+        border-bottom: 1px dashed #f1f5f9;
+      }
+
+      .row:last-child {
+        border-bottom: 0;
+      }
+
+      .label {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+
+      .label b {
+        font-size: 13px;
+      }
+
+      .label span {
+        font-size: 12px;
+        color: var(--subtext);
+      }
+
+      .input,
+      .select {
+        width: 100%;
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        outline: none;
+        font-size: 14px;
+        background: #fff;
+      }
+
+      .input:focus,
+      .select:focus {
+        box-shadow: var(--focus);
+        border-color: rgba(138, 3, 4, 0.35);
+      }
+
+      .input[readonly] {
+        background: #f8fafc;
+        color: #0f172a;
+      }
+
+      .hint {
+        margin-top: 10px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(138, 3, 4, 0.06);
+        border: 1px solid rgba(138, 3, 4, 0.12);
+        color: #7f1d1d;
+        font-size: 12px;
+        line-height: 1.4;
+      }
+
+      .btn {
+        border: 1px solid rgba(138, 3, 4, 0.22);
+        background: rgba(138, 3, 4, 0.1);
+        color: var(--primary);
+        padding: 10px 12px;
+        border-radius: 12px;
+        font-weight: 780;
+        cursor: pointer;
+      }
+
+      .btn.primary {
+        border: 0;
+        background: var(--primary);
+        color: #fff;
+        box-shadow: 0 10px 18px rgba(138, 3, 4, 0.18);
+      }
+
+      .btn.primary:hover {
+        background: #760203;
+      }
+
+      .btn:active {
+        transform: translateY(1px);
+      }
+
+      .btn-row {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        padding-top: 12px;
+      }
+
+      /* Admin table */
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+      }
+
+      .toolbar .left {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: #fff;
+        color: var(--subtext);
+        font-size: 12px;
+        font-weight: 750;
+      }
+
+      .badge code {
+        font-family: var(--mono);
+        font-size: 11px;
+        background: #f8fafc;
+        border: 1px solid var(--border);
+        padding: 2px 6px;
+        border-radius: 999px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+        background: #fff;
+      }
+
+      th,
+      td {
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: top;
+        font-size: 13px;
+      }
+
+      th {
+        background: #f8fafc;
+        text-align: left;
+        font-weight: 850;
+        color: #0f172a;
+      }
+
+      td.num,
+      th.num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+
+      tr:last-child td {
+        border-bottom: 0;
+      }
+
+      .source-tag {
+        display: inline-flex;
+        align-items: center;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 800;
+        border: 1px solid var(--border);
+        background: #fff;
+      }
+      .source-tag.user {
+        color: #0f766e;
+        background: rgba(15, 118, 110, 0.08);
+        border-color: rgba(15, 118, 110, 0.18);
+      }
+      .source-tag.ctos {
+        color: #7c2d12;
+        background: rgba(124, 45, 18, 0.08);
+        border-color: rgba(124, 45, 18, 0.18);
+      }
+
+      .muted-note {
+        margin-top: 12px;
+        color: var(--subtext);
+        font-size: 12px;
+        line-height: 1.4;
+      }
+
+      .hidden {
+        display: none;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+      <div class="topbar">
+        <div class="brand">
+          <div class="logo"></div>
+          <div>
+            CashSouk <span style="color: #64748b; font-weight: 700">/ Financial Data</span>
+          </div>
+        </div>
+
+        <div class="seg" role="tablist" aria-label="Mode selector">
+          <button id="tabUser" class="active" role="tab" aria-selected="true">User input UI</button>
+          <button id="tabAdmin" role="tab" aria-selected="false">Admin review UI</button>
+        </div>
+      </div>
+
+      <!-- USER VIEW -->
+      <div id="viewUser" class="grid">
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">Step: Financial information</h2>
+              <p class="card-subtitle">
+                Enter your company’s financial numbers for the most recent year. We will calculate the ratios
+                automatically.
+              </p>
+            </div>
+            <div class="pill" title="This is entered by the issuer">
+              <span class="dot"></span>
+              Issuer input
+            </div>
+          </div>
+
+          <div class="card-body">
+            <div class="section">
+              <h3>Year</h3>
+              <div class="row">
+                <div class="label">
+                  <b>Financial year</b>
+                  <span>Example: 2024</span>
+                </div>
+                <input class="input" type="number" value="2024" min="2000" max="2100" />
+              </div>
+
+              <div class="row">
+                <div class="label">
+                  <b>Financial year end (PLDD)</b>
+                  <span>The last day of that financial year</span>
+                </div>
+                <input class="input" type="date" value="2024-12-31" />
+              </div>
+
+              <div class="row">
+                <div class="label">
+                  <b>Balance sheet date (BSDD)</b>
+                  <span>Usually same as financial year end</span>
+                </div>
+                <input class="input" type="date" value="2024-12-31" />
+              </div>
+            </div>
+
+            <div class="section">
+              <h3>Balance sheet (what you own vs what you owe)</h3>
+
+              <div class="row">
+                <div class="label">
+                  <b>Fixed assets</b>
+                  <span>Example: machines, vehicles</span>
+                </div>
+                <input class="input money" data-key="bsfatot" value="100000" inputmode="decimal" />
+              </div>
+
+              <div class="row">
+                <div class="label">
+                  <b>Other assets</b>
+                  <span>Anything else not listed</span>
+                </div>
+                <input class="input money" data-key="othass" value="5000" inputmode="decimal" />
+              </div>
+
+              <div class="row">
+                <div class="label">
+                  <b>Current assets</b>
+                  <span>Cash, bank, inventory</span>
+                </div>
+                <input class="input money" data-key="bscatot" value="80000" inputmode="decimal" />
+              </div>
+
+              <div class="row">
+                <div class="label">
+                  <b>Non-current assets</b>
+                  <span>Long-term assets</span>
+                </div>
+                <input class="input money" data-key="bsclbank" value="20000" inputmode="decimal" />
+              </div>
+
+              <div class="row">
+                <div class="label">
+                  <b>Total assets</b>
+                  <span>Auto-calculated from the assets above</span>
+                </div>
+                <input class="input" id="totass" readonly value="205000" />
+              </div>
+
+              <div class="row">
+                <div class="label">
+                  <b>Current liability</b>
+                  <span>Bills/debts due soon</span>
+                </div>
+                <input class="input money" data-key="curlib" value="25000" inputmode="decimal" />
+              </div>
+
+              <div class="row">
+                <div class="label">
+                  <b>Long-term liability</b>
+                  <span>Loans due later</span>
+                </div>
+                <input class="input money" data-key="bsslltd" value="30000" inputmode="decimal" />
+              </div>
+
+              <div class="row">
+                <div class="label">
+                  <b>Other / non-current liability</b>
+                  <span>Other debts</span>
+                </div>
+                <input class="input money" data-key="bsclstd" value="8000" inputmode="decimal" />
+              </div>
+
+              <div class="row">
+                <div class="label">
+                  <b>Total liabilities</b>
+                  <span>Auto-calculated</span>
+                </div>
+                <input class="input" id="totlib" readonly value="63000" />
+              </div>
+
+              <div class="row">
+                <div class="label">
+                  <b>Paid up capital</b>
+                  <span>How much the owner put into the business</span>
+                </div>
+                <input class="input money" data-key="bsqpuc" value="120000" inputmode="decimal" />
+              </div>
+            </div>
+
+            <div class="section">
+              <h3>Profit & business performance</h3>
+
+              <div class="row">
+                <div class="label">
+                  <b>Turnover (sales)</b>
+                  <span>Total revenue for the year</span>
+                </div>
+                <input class="input money" data-key="turnover" value="500000" inputmode="decimal" />
+              </div>
+
+              <div class="row">
+                <div class="label">
+                  <b>Profit before tax</b>
+                  <span>Profit before government tax</span>
+                </div>
+                <input class="input money" data-key="plnpbt" value="120000" inputmode="decimal" />
+              </div>
+
+              <div class="row">
+                <div class="label">
+                  <b>Profit after tax</b>
+                  <span>Net profit after tax</span>
+                </div>
+                <input class="input money" data-key="plnpat" value="100000" inputmode="decimal" />
+              </div>
+
+              <div class="row">
+                <div class="label">
+                  <b>Net dividend</b>
+                  <span>Money paid to shareholders</span>
+                </div>
+                <input class="input money" data-key="plnetdiv" value="10000" inputmode="decimal" />
+              </div>
+
+              <div class="row">
+                <div class="label">
+                  <b>Profit / loss of the year</b>
+                  <span>Usually same as net profit</span>
+                </div>
+                <input class="input money" data-key="plyear" value="100000" inputmode="decimal" />
+              </div>
+            </div>
+
+            <div class="hint">
+              <b>Important:</b> The “ratios” below are calculated automatically. You don’t need to type them.
+              CashSouk will compute them using your numbers.
+            </div>
+
+            <div class="btn-row">
+              <button class="btn" type="button">Back</button>
+              <button class="btn primary" type="button">Save and continue</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <h2 class="card-title">Auto-calculated (read-only)</h2>
+              <p class="card-subtitle">
+                These are derived from your numbers. We calculate them when you save.
+              </p>
+            </div>
+            <div class="pill" title="Calculated by system">
+              <span class="dot" style="background: var(--primary)"></span>
+              Calculated
+            </div>
+          </div>
+
+          <div class="card-body">
+            <div class="section">
+              <h3>Health checks</h3>
+
+              <div class="row">
+                <div class="label">
+                  <b>Profit margin</b>
+                  <span>profit after tax / turnover</span>
+                </div>
+                <input class="input" id="profit_margin" readonly value="20.00%" />
+              </div>
+
+              <div class="row">
+                <div class="label">
+                  <b>Return on equity</b>
+                  <span>profit after tax / paid up capital</span>
+                </div>
+                <input class="input" id="return_of_equity" readonly value="83.33%" />
+              </div>
+
+              <div class="row">
+                <div class="label">
+                  <b>Current ratio</b>
+                  <span>current assets / current liabilities</span>
+                </div>
+                <input class="input" id="currat" readonly value="3.20" />
+              </div>
+
+              <div class="row">
+                <div class="label">
+                  <b>Working capital</b>
+                  <span>current assets - current liabilities</span>
+                </div>
+                <input class="input" id="workcap" readonly value="55,000" />
+              </div>
+
+              <div class="row">
+                <div class="label">
+                  <b>Turnover growth</b>
+                  <span>Needs previous year to compare</span>
+                </div>
+                <input class="input" id="turnover_growth" readonly value="—" />
+              </div>
+            </div>
+
+            <div class="muted-note">
+              <b>Why is turnover growth “—”?</b><br />
+              Because growth needs last year’s turnover. Once admin fetches CTOS (or user enters last year too),
+              we can compute it.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ADMIN VIEW -->
+      <div id="viewAdmin" class="hidden">
+        <div class="grid" style="grid-template-columns: 1fr">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h2 class="card-title">Financial tab (Admin)</h2>
+                <p class="card-subtitle">
+                  Shows issuer input and CTOS last 3 years. CTOS columns are empty until you click “Request CTOS”.
+                </p>
+              </div>
+              <div class="pill">
+                <span class="dot" style="background: var(--primary-2)"></span>
+                Admin review
+              </div>
+            </div>
+
+            <div class="card-body">
+              <div class="toolbar">
+                <div class="left">
+                  <span class="badge">Application <code>#00001234</code></span>
+                  <span class="badge">Issuer <code>ABC Sdn Bhd</code></span>
+                  <span class="badge">SSM <code>201612345678</code></span>
+                </div>
+
+                <div style="display: flex; gap: 10px; align-items: center">
+                  <button class="btn" id="btnRequestCtos" type="button">Request CTOS (last 3 years)</button>
+                  <button class="btn primary" type="button">Approve</button>
+                </div>
+              </div>
+
+              <table aria-label="Financial data table">
+                <thead>
+                  <tr>
+                    <th style="width: 34%">Field</th>
+                    <th class="num" style="width: 22%">
+                      2024
+                      <div style="margin-top: 6px">
+                        <span class="source-tag user">USER</span>
+                      </div>
+                    </th>
+                    <th class="num" style="width: 22%">
+                      2023
+                      <div style="margin-top: 6px">
+                        <span class="source-tag ctos">CTOS</span>
+                      </div>
+                    </th>
+                    <th class="num" style="width: 22%">
+                      2022
+                      <div style="margin-top: 6px">
+                        <span class="source-tag ctos">CTOS</span>
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  <!-- Dates -->
+                  <tr>
+                    <td>
+                      <b>Financial year end (PLDD)</b><br />
+                      <span style="color: var(--subtext); font-size: 12px">Store as DateTime</span>
+                    </td>
+                    <td class="num">2024-12-31</td>
+                    <td class="num ctos-cell">—</td>
+                    <td class="num ctos-cell">—</td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      <b>Balance sheet date (BSDD)</b><br />
+                      <span style="color: var(--subtext); font-size: 12px">Store as DateTime</span>
+                    </td>
+                    <td class="num">2024-12-31</td>
+                    <td class="num ctos-cell">—</td>
+                    <td class="num ctos-cell">—</td>
+                  </tr>
+
+                  <!-- Balance sheet -->
+                  <tr>
+                    <td><b>Fixed assets</b> (Bsfatot)</td>
+                    <td class="num">100,000</td>
+                    <td class="num ctos-cell">—</td>
+                    <td class="num ctos-cell">—</td>
+                  </tr>
+
+                  <tr>
+                    <td><b>Other assets</b> (Othass)</td>
+                    <td class="num">5,000</td>
+                    <td class="num ctos-cell">—</td>
+                    <td class="num ctos-cell">—</td>
+                  </tr>
+
+                  <tr>
+                    <td><b>Current assets</b> (Bscatot)</td>
+                    <td class="num">80,000</td>
+                    <td class="num ctos-cell">—</td>
+                    <td class="num ctos-cell">—</td>
+                  </tr>
+
+                  <tr>
+                    <td><b>Non-current assets</b> (Bsclbank)</td>
+                    <td class="num">20,000</td>
+                    <td class="num ctos-cell">—</td>
+                    <td class="num ctos-cell">—</td>
+                  </tr>
+
+                  <tr>
+                    <td><b>Total assets</b> (Totass)</td>
+                    <td class="num">205,000</td>
+                    <td class="num ctos-cell">—</td>
+                    <td class="num ctos-cell">—</td>
+                  </tr>
+
+                  <tr>
+                    <td><b>Current liability</b> (Curlib)</td>
+                    <td class="num">25,000</td>
+                    <td class="num ctos-cell">—</td>
+                    <td class="num ctos-cell">—</td>
+                  </tr>
+
+                  <tr>
+                    <td><b>Long-term liability</b> (Bsslltd)</td>
+                    <td class="num">30,000</td>
+                    <td class="num ctos-cell">—</td>
+                    <td class="num ctos-cell">—</td>
+                  </tr>
+
+                  <tr>
+                    <td><b>Non-current / other liability</b> (Bsclstd)</td>
+                    <td class="num">8,000</td>
+                    <td class="num ctos-cell">—</td>
+                    <td class="num ctos-cell">—</td>
+                  </tr>
+
+                  <tr>
+                    <td><b>Total liabilities</b> (Totlib)</td>
+                    <td class="num">63,000</td>
+                    <td class="num ctos-cell">—</td>
+                    <td class="num ctos-cell">—</td>
+                  </tr>
+
+                  <tr>
+                    <td><b>Paid up capital</b> (Bsqpuc)</td>
+                    <td class="num">120,000</td>
+                    <td class="num ctos-cell">—</td>
+                    <td class="num ctos-cell">—</td>
+                  </tr>
+
+                  <!-- Profit -->
+                  <tr>
+                    <td><b>Turnover</b> (Turnover)</td>
+                    <td class="num">500,000</td>
+                    <td class="num ctos-cell">—</td>
+                    <td class="num ctos-cell">—</td>
+                  </tr>
+
+                  <tr>
+                    <td><b>Profit before tax</b> (Plnpbt)</td>
+                    <td class="num">120,000</td>
+                    <td class="num ctos-cell">—</td>
+                    <td class="num ctos-cell">—</td>
+                  </tr>
+
+                  <tr>
+                    <td><b>Profit after tax</b> (Plnpat)</td>
+                    <td class="num">100,000</td>
+                    <td class="num ctos-cell">—</td>
+                    <td class="num ctos-cell">—</td>
+                  </tr>
+
+                  <tr>
+                    <td><b>Net dividend</b> (Plnetdiv)</td>
+                    <td class="num">10,000</td>
+                    <td class="num ctos-cell">—</td>
+                    <td class="num ctos-cell">—</td>
+                  </tr>
+
+                  <tr>
+                    <td><b>Profit/Loss of year</b> (Plyear)</td>
+                    <td class="num">100,000</td>
+                    <td class="num ctos-cell">—</td>
+                    <td class="num ctos-cell">—</td>
+                  </tr>
+
+                  <!-- Calculated (for admin display only) -->
+                  <tr>
+                    <td>
+                      <b>Profit margin</b> (calculated)<br />
+                      <span style="color: var(--subtext); font-size: 12px">plnpat / turnover</span>
+                    </td>
+                    <td class="num">20.00%</td>
+                    <td class="num ctos-cell">—</td>
+                    <td class="num ctos-cell">—</td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      <b>Current ratio</b> (calculated)<br />
+                      <span style="color: var(--subtext); font-size: 12px">bscatot / curlib</span>
+                    </td>
+                    <td class="num">3.20</td>
+                    <td class="num ctos-cell">—</td>
+                    <td class="num ctos-cell">—</td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      <b>Working capital</b> (calculated)<br />
+                      <span style="color: var(--subtext); font-size: 12px">bscatot - curlib</span>
+                    </td>
+                    <td class="num">55,000</td>
+                    <td class="num ctos-cell">—</td>
+                    <td class="num ctos-cell">—</td>
+                  </tr>
+
+                  <tr>
+                    <td>
+                      <b>Turnover growth</b> (calculated)<br />
+                      <span style="color: var(--subtext); font-size: 12px">(this year - last year) / last year</span>
+                    </td>
+                    <td class="num">—</td>
+                    <td class="num ctos-cell">—</td>
+                    <td class="num ctos-cell">—</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div class="muted-note">
+                <b>How this works:</b><br />
+                • Issuer fills the 2024 column (USER).<br />
+                • Admin clicks “Request CTOS” and the system stores CTOS rows for 2023 + 2022 (CTOS).<br />
+                • Ratios are calculated on-the-fly in code (not stored).
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Simple tab switch
+      const tabUser = document.getElementById("tabUser");
+      const tabAdmin = document.getElementById("tabAdmin");
+      const viewUser = document.getElementById("viewUser");
+      const viewAdmin = document.getElementById("viewAdmin");
+
+      function setTab(which) {
+        const isUser = which === "user";
+        tabUser.classList.toggle("active", isUser);
+        tabAdmin.classList.toggle("active", !isUser);
+        tabUser.setAttribute("aria-selected", String(isUser));
+        tabAdmin.setAttribute("aria-selected", String(!isUser));
+        viewUser.classList.toggle("hidden", !isUser);
+        viewAdmin.classList.toggle("hidden", isUser);
+      }
+
+      tabUser.addEventListener("click", () => setTab("user"));
+      tabAdmin.addEventListener("click", () => setTab("admin"));
+
+      // Helper to parse numbers safely
+      function num(v) {
+        const x = Number(String(v).replace(/,/g, "").trim());
+        return Number.isFinite(x) ? x : 0;
+      }
+      function fmt(n) {
+        return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+      }
+      function pct(n) {
+        return (n * 100).toFixed(2) + "%";
+      }
+
+      // Live-ish calculations (for demo)
+      const moneyInputs = document.querySelectorAll(".money");
+      function recalc() {
+        // Assets
+        const bsfatot = num(document.querySelector('[data-key="bsfatot"]').value);
+        const othass = num(document.querySelector('[data-key="othass"]').value);
+        const bscatot = num(document.querySelector('[data-key="bscatot"]').value);
+        const bsclbank = num(document.querySelector('[data-key="bsclbank"]').value);
+        const totass = bsfatot + othass + bscatot + bsclbank;
+
+        // Liabilities
+        const curlib = num(document.querySelector('[data-key="curlib"]').value);
+        const bsslltd = num(document.querySelector('[data-key="bsslltd"]').value);
+        const bsclstd = num(document.querySelector('[data-key="bsclstd"]').value);
+        const totlib = curlib + bsslltd + bsclstd;
+
+        // Profit
+        const turnover = num(document.querySelector('[data-key="turnover"]').value);
+        const plnpat = num(document.querySelector('[data-key="plnpat"]').value);
+        const paidUp = num(document.querySelector('[data-key="bsqpuc"]').value);
+
+        // Outputs
+        document.getElementById("totass").value = fmt(totass);
+        document.getElementById("totlib").value = fmt(totlib);
+
+        // Ratios
+        const profitMargin = turnover > 0 ? plnpat / turnover : 0;
+        const roe = paidUp > 0 ? plnpat / paidUp : 0;
+        const currat = curlib > 0 ? bscatot / curlib : 0;
+        const workcap = bscatot - curlib;
+
+        document.getElementById("profit_margin").value = turnover > 0 ? pct(profitMargin) : "—";
+        document.getElementById("return_of_equity").value = paidUp > 0 ? pct(roe) : "—";
+        document.getElementById("currat").value = curlib > 0 ? currat.toFixed(2) : "—";
+        document.getElementById("workcap").value = fmt(workcap);
+
+        // Growth needs previous year - leave blank in this demo
+        document.getElementById("turnover_growth").value = "—";
+      }
+
+      moneyInputs.forEach((el) => el.addEventListener("input", recalc));
+      recalc();
+
+      // Fake "Request CTOS" demo fill
+      const btnRequestCtos = document.getElementById("btnRequestCtos");
+      btnRequestCtos.addEventListener("click", () => {
+        const ctosCells = document.querySelectorAll(".ctos-cell");
+        // Fill in fake CTOS values for demo purposes
+        const fake = [
+          // 2023 then 2022 values, repeated row-by-row (simple)
+          ["2023-12-31", "2022-12-31"],
+          ["2023-12-31", "2022-12-31"],
+          ["95,000", "90,000"],
+          ["4,000", "3,000"],
+          ["70,000", "65,000"],
+          ["18,000", "16,000"],
+          ["187,000", "174,000"],
+          ["22,000", "20,000"],
+          ["28,000", "26,000"],
+          ["7,000", "6,500"],
+          ["57,000", "52,500"],
+          ["110,000", "110,000"],
+          ["460,000", "420,000"],
+          ["110,000", "90,000"],
+          ["90,000", "70,000"],
+          ["9,000", "7,000"],
+          ["90,000", "70,000"],
+          ["19.57%", "16.67%"],
+          ["3.18", "3.25"],
+          ["48,000", "45,000"],
+          ["—", "—"],
+        ];
+
+        // Each row has 2 CTOS cells (2023 and 2022)
+        // So ctosCells is [row1_2023,row1_2022,row2_2023,row2_2022,...]
+        let i = 0;
+        for (let r = 0; r < fake.length; r++) {
+          ctosCells[i++].textContent = fake[r][0];
+          ctosCells[i++].textContent = fake[r][1];
+        }
+
+        btnRequestCtos.textContent = "CTOS requested ✓";
+        btnRequestCtos.disabled = true;
+        btnRequestCtos.style.opacity = "0.75";
+        btnRequestCtos.style.cursor = "not-allowed";
+      });
+    </script>
+  </body>
+</html><!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>Financial Statements</title>
+
 <style>
 
 body{
   font-family: Inter, Arial, sans-serif;
-  background:#f7f7f7;
+  background:#f6f6f6;
   margin:0;
 }
 
@@ -30,11 +1041,11 @@ h1{
 }
 
 .section{
-  margin-top:32px;
+  margin-top:40px;
 }
 
 .section h3{
-  margin-bottom:16px;
+  margin-bottom:18px;
 }
 
 .grid{
@@ -82,6 +1093,12 @@ input{
   background:#f2f2f2;
 }
 
+.auto{
+  font-size:11px;
+  color:#999;
+  margin-top:3px;
+}
+
 .buttons{
   margin-top:40px;
   display:flex;
@@ -93,7 +1110,6 @@ button{
   border:none;
   border-radius:6px;
   cursor:pointer;
-  font-size:14px;
 }
 
 .back{
@@ -106,15 +1122,17 @@ button{
 }
 
 </style>
+
 </head>
 <body>
 
 <div class="container">
 
 <h1>Financial Statements</h1>
-<p class="subtitle">Tell us about your company's financial performance</p>
+<p class="subtitle">Enter your company's financial information</p>
 
 <!-- Financial Year -->
+
 <div class="section">
 <h3>Financial Year</h3>
 
@@ -133,8 +1151,8 @@ button{
 </div>
 </div>
 
-
 <!-- Assets -->
+
 <div class="section">
 <h3>Assets</h3>
 
@@ -162,14 +1180,15 @@ button{
 
 <div class="field currency input readonly">
 <label>Total Assets</label>
-<input type="number" readonly>
+<input readonly>
+<span class="auto">Auto calculated</span>
 </div>
 
 </div>
 </div>
-
 
 <!-- Liabilities -->
+
 <div class="section">
 <h3>Liabilities</h3>
 
@@ -192,14 +1211,15 @@ button{
 
 <div class="field currency input readonly">
 <label>Total Liability</label>
-<input type="number" readonly>
+<input readonly>
+<span class="auto">Auto calculated</span>
 </div>
 
 </div>
 </div>
-
 
 <!-- Equity -->
+
 <div class="section">
 <h3>Equity</h3>
 
@@ -213,8 +1233,8 @@ button{
 </div>
 </div>
 
-
 <!-- Profit -->
+
 <div class="section">
 <h3>Profit & Loss</h3>
 
@@ -246,15 +1266,15 @@ button{
 </div>
 
 <div class="field currency input">
-<label>Profit & Loss Of The Year</label>
+<label>Profit & Loss of the Year</label>
 <input type="number">
 </div>
 
 </div>
 </div>
 
+<!-- Financial Ratios -->
 
-<!-- Ratios -->
 <div class="section">
 <h3>Financial Ratios</h3>
 
@@ -262,36 +1282,40 @@ button{
 
 <div class="field readonly">
 <label>Turnover Growth</label>
-<input readonly>
+<input value="N/A" readonly>
+<span class="auto">Requires previous year data</span>
 </div>
 
 <div class="field readonly">
 <label>Profit Margin</label>
 <input readonly>
+<span class="auto">Auto calculated</span>
 </div>
 
 <div class="field readonly">
 <label>Return Of Equity</label>
 <input readonly>
+<span class="auto">Auto calculated</span>
 </div>
 
 <div class="field readonly">
 <label>Current Ratio</label>
 <input readonly>
+<span class="auto">Auto calculated</span>
 </div>
 
 <div class="field readonly">
 <label>Working Capital</label>
 <input readonly>
+<span class="auto">Auto calculated</span>
 </div>
 
 </div>
 </div>
-
 
 <div class="buttons">
 <button class="back">Back</button>
-<button class="save">Save and continue</button>
+<button class="save">Save and Continue</button>
 </div>
 
 </div>

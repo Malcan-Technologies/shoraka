@@ -3,9 +3,9 @@
 /**
  * Imports
  *
- * What: Financial statements step UI.
- * Why: Issuers enter financial statement data; computed fields are readonly.
- * Data: Loads from application.financial_statements.input; sends only input to API.
+ * What: Financial statements step UI. Flat storage; only input fields shown.
+ * Why: Issuers enter raw data; computed metrics calculated on-demand in admin/analytics.
+ * Data: Loads from application.financial_statements (flat); sends flat payload to API.
  */
 import * as React from "react";
 import { useApplication } from "@/hooks/use-applications";
@@ -22,51 +22,90 @@ import { MoneyInput } from "@/app/applications/components/money-input";
 import { parseMoney, formatMoney } from "@/app/applications/components/money";
 import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
 import { FinancialStatementsSkeleton } from "@/app/applications/components/financial-statements-skeleton";
-import { calculateFinancialMetrics } from "@cashsouk/types";
+import { FINANCIAL_FIELD_LABELS } from "@cashsouk/types";
 
 /**
  * FINANCIAL STATEMENTS STEP
  *
- * Form for financial statement data. Computed fields update live in UI.
- * Backend computes and stores both input and computed.
+ * Form for financial statement data. Only input fields; no computed metrics in issuer UI.
+ * Backend stores flat JSON; computed metrics calculated on-demand via shared utility.
  */
 
+const INPUT_KEYS = [
+  "pldd",
+  "bsdd",
+  "bsfatot",
+  "othass",
+  "bscatot",
+  "bsclbank",
+  "curlib",
+  "bsslltd",
+  "bsclstd",
+  "bsqpuc",
+  "turnover",
+  "plnpbt",
+  "plnpat",
+  "plminin",
+  "plnetdiv",
+  "plyear",
+] as const;
+
+type FinancialStatementsInputKey = (typeof INPUT_KEYS)[number];
+
 interface FinancialStatementsInput {
-  financing_year_end: string;
-  balance_sheet_financial_year: string;
-  fixed_assets: number;
-  other_assets: number;
-  current_assets: number;
-  non_current_assets: number;
-  current_liability: number;
-  long_term_liability: number;
-  non_current_liability: number;
-  paid_up: number;
+  pldd: string;
+  bsdd: string;
+  bsfatot: number;
+  othass: number;
+  bscatot: number;
+  bsclbank: number;
+  curlib: number;
+  bsslltd: number;
+  bsclstd: number;
+  bsqpuc: number;
   turnover: number;
-  profit_before_tax: number;
-  profit_after_tax: number;
-  minority_interest: number;
-  net_dividend: number;
-  profit_and_loss_year: number;
+  plnpbt: number;
+  plnpat: number;
+  plminin: number;
+  plnetdiv: number;
+  plyear: number;
 }
 
 const defaultInput: FinancialStatementsInput = {
-  financing_year_end: "",
-  balance_sheet_financial_year: "",
-  fixed_assets: 0,
-  other_assets: 0,
-  current_assets: 0,
-  non_current_assets: 0,
-  current_liability: 0,
-  long_term_liability: 0,
-  non_current_liability: 0,
-  paid_up: 0,
+  pldd: "",
+  bsdd: "",
+  bsfatot: 0,
+  othass: 0,
+  bscatot: 0,
+  bsclbank: 0,
+  curlib: 0,
+  bsslltd: 0,
+  bsclstd: 0,
+  bsqpuc: 0,
   turnover: 0,
-  profit_before_tax: 0,
-  profit_after_tax: 0,
-  minority_interest: 0,
-  net_dividend: 0,
-  profit_and_loss_year: 0,
+  plnpbt: 0,
+  plnpat: 0,
+  plminin: 0,
+  plnetdiv: 0,
+  plyear: 0,
+};
+
+const OLD_TO_NEW: Record<string, FinancialStatementsInputKey> = {
+  financing_year_end: "pldd",
+  balance_sheet_financial_year: "bsdd",
+  fixed_assets: "bsfatot",
+  other_assets: "othass",
+  current_assets: "bscatot",
+  non_current_assets: "bsclbank",
+  current_liability: "curlib",
+  long_term_liability: "bsslltd",
+  non_current_liability: "bsclstd",
+  paid_up: "bsqpuc",
+  profit_before_tax: "plnpbt",
+  profit_after_tax: "plnpat",
+  minority_interest: "plminin",
+  net_dividend: "plnetdiv",
+  profit_and_loss_year: "plyear",
 };
 
 function toNum(v: unknown): number {
@@ -77,48 +116,39 @@ function toNum(v: unknown): number {
 
 function fromSaved(saved: unknown): FinancialStatementsInput {
   const raw = saved as { input?: Record<string, unknown> } | Record<string, unknown> | null | undefined;
-  const input = (raw && typeof raw === "object" && "input" in raw ? raw.input : raw) as Record<string, unknown> | null | undefined;
-  if (!input || typeof input !== "object") return { ...defaultInput };
+  const data = (raw && typeof raw === "object" && "input" in raw ? raw.input : raw) as Record<string, unknown> | null | undefined;
+  if (!data || typeof data !== "object") return { ...defaultInput };
 
-  return {
-    financing_year_end: String(input.financing_year_end ?? ""),
-    balance_sheet_financial_year: String(input.balance_sheet_financial_year ?? ""),
-    fixed_assets: toNum(input.fixed_assets),
-    other_assets: toNum(input.other_assets),
-    current_assets: toNum(input.current_assets),
-    non_current_assets: toNum(input.non_current_assets),
-    current_liability: toNum(input.current_liability),
-    long_term_liability: toNum(input.long_term_liability),
-    non_current_liability: toNum(input.non_current_liability),
-    paid_up: toNum(input.paid_up),
-    turnover: toNum(input.turnover),
-    profit_before_tax: toNum(input.profit_before_tax),
-    profit_after_tax: toNum(input.profit_after_tax),
-    minority_interest: toNum(input.minority_interest),
-    net_dividend: toNum(input.net_dividend),
-    profit_and_loss_year: toNum(input.profit_and_loss_year),
-  };
+  const out = { ...defaultInput };
+  for (const newKey of INPUT_KEYS) {
+    const val = data[newKey];
+    if (val !== undefined && val !== null) {
+      if (newKey === "pldd" || newKey === "bsdd") {
+        (out as Record<string, unknown>)[newKey] = String(val);
+      } else {
+        (out as Record<string, unknown>)[newKey] = toNum(val);
+      }
+    }
+  }
+  for (const [oldKey, newKey] of Object.entries(OLD_TO_NEW)) {
+    const val = data[oldKey];
+    if (val !== undefined && val !== null && out[newKey] === defaultInput[newKey]) {
+      if (newKey === "pldd" || newKey === "bsdd") {
+        (out as Record<string, unknown>)[newKey] = String(val);
+      } else {
+        (out as Record<string, unknown>)[newKey] = toNum(val);
+      }
+    }
+  }
+  return out;
 }
 
 function toApiPayload(input: FinancialStatementsInput): Record<string, unknown> {
-  return {
-    financing_year_end: input.financing_year_end,
-    balance_sheet_financial_year: input.balance_sheet_financial_year,
-    fixed_assets: input.fixed_assets,
-    other_assets: input.other_assets,
-    current_assets: input.current_assets,
-    non_current_assets: input.non_current_assets,
-    current_liability: input.current_liability,
-    long_term_liability: input.long_term_liability,
-    non_current_liability: input.non_current_liability,
-    paid_up: input.paid_up,
-    turnover: input.turnover,
-    profit_before_tax: input.profit_before_tax,
-    profit_after_tax: input.profit_after_tax,
-    minority_interest: input.minority_interest,
-    net_dividend: input.net_dividend,
-    profit_and_loss_year: input.profit_and_loss_year,
-  };
+  const out: Record<string, unknown> = {};
+  for (const k of INPUT_KEYS) {
+    out[k] = input[k];
+  }
+  return out;
 }
 
 interface FinancialStatementsStepProps {
@@ -134,11 +164,6 @@ const rowGridClassName =
   "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 w-full max-w-[1200px] items-start px-3";
 const sectionWrapperClassName = "w-full max-w-[1200px]";
 const formOuterClassName = "w-full max-w-[1200px] flex flex-col gap-10 px-3";
-
-function formatNumForDisplay(v: number | null): string {
-  if (v === null) return "";
-  return formatMoney(v);
-}
 
 export function FinancialStatementsStep({
   applicationId,
@@ -165,22 +190,6 @@ export function FinancialStatementsStep({
     setIsInitialized(true);
   }, [application, isInitialized]);
 
-  const computed = React.useMemo(
-    () =>
-      calculateFinancialMetrics({
-        fixed_assets: input.fixed_assets,
-        other_assets: input.other_assets,
-        current_assets: input.current_assets,
-        non_current_assets: input.non_current_assets,
-        current_liability: input.current_liability,
-        long_term_liability: input.long_term_liability,
-        non_current_liability: input.non_current_liability,
-        paid_up: input.paid_up,
-        turnover: input.turnover,
-        profit_after_tax: input.profit_after_tax,
-      }),
-    [input]
-  );
   const apiPayload = React.useMemo(() => toApiPayload(input), [input]);
 
   const hasPendingChanges = React.useMemo(() => {
@@ -202,9 +211,11 @@ export function FinancialStatementsStep({
   };
 
   const moneyValue = (n: number) => (n === 0 ? "" : formatMoney(n));
-  const setMoney = (key: keyof FinancialStatementsInput) => (v: string) => {
+  const setMoney = (key: FinancialStatementsInputKey) => (v: string) => {
     update({ [key]: v === "" ? 0 : parseMoney(v) });
   };
+
+  const label = (key: FinancialStatementsInputKey) => FINANCIAL_FIELD_LABELS[key] ?? key;
 
   if (isLoadingApp || !isInitialized || debugSkeletonMode) {
     return (
@@ -225,22 +236,22 @@ export function FinancialStatementsStep({
             <div className="border-b border-border mt-2 mb-4" />
           </div>
           <div className={rowGridClassName}>
-            <Label htmlFor="financing-year-end" className={labelClassName}>
-              Financing Year End
+            <Label htmlFor="pldd" className={labelClassName}>
+              {label("pldd")}
             </Label>
             <DateInput
-              value={input.financing_year_end}
-              onChange={(v) => update({ financing_year_end: v })}
+              value={input.pldd}
+              onChange={(v) => update({ pldd: v })}
               disabled={readOnly}
               className={cn(inputClassName, readOnly && formInputDisabledClassName)}
               placeholder="Enter date"
             />
-            <Label htmlFor="balance-sheet-financial-year" className={labelClassName}>
-              Balance Sheet Financial Year
+            <Label htmlFor="bsdd" className={labelClassName}>
+              {label("bsdd")}
             </Label>
             <DateInput
-              value={input.balance_sheet_financial_year}
-              onChange={(v) => update({ balance_sheet_financial_year: v })}
+              value={input.bsdd}
+              onChange={(v) => update({ bsdd: v })}
               disabled={readOnly}
               className={cn(inputClassName, readOnly && formInputDisabledClassName)}
               placeholder="Enter date"
@@ -255,59 +266,21 @@ export function FinancialStatementsStep({
             <div className="border-b border-border mt-2 mb-4" />
           </div>
           <div className={rowGridClassName}>
-            <Label htmlFor="fixed-assets" className={labelClassName}>
-              Fixed Assets
-            </Label>
-            <MoneyInput
-              value={moneyValue(input.fixed_assets)}
-              onValueChange={(v) => setMoney("fixed_assets")(v)}
-              placeholder="0.00"
-              prefix="RM"
-              inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
-              disabled={readOnly}
-            />
-            <Label htmlFor="other-assets" className={labelClassName}>
-              Other Assets
-            </Label>
-            <MoneyInput
-              value={moneyValue(input.other_assets)}
-              onValueChange={(v) => setMoney("other_assets")(v)}
-              placeholder="0.00"
-              prefix="RM"
-              inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
-              disabled={readOnly}
-            />
-            <Label htmlFor="current-assets" className={labelClassName}>
-              Current Assets
-            </Label>
-            <MoneyInput
-              value={moneyValue(input.current_assets)}
-              onValueChange={(v) => setMoney("current_assets")(v)}
-              placeholder="0.00"
-              prefix="RM"
-              inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
-              disabled={readOnly}
-            />
-            <Label htmlFor="non-current-assets" className={labelClassName}>
-              Non Current Assets
-            </Label>
-            <MoneyInput
-              value={moneyValue(input.non_current_assets)}
-              onValueChange={(v) => setMoney("non_current_assets")(v)}
-              placeholder="0.00"
-              prefix="RM"
-              inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
-              disabled={readOnly}
-            />
-            <Label htmlFor="total-assets" className={labelClassName}>
-              Total Assets
-            </Label>
-            <Input
-              id="total-assets"
-              readOnly
-              value={formatNumForDisplay(computed.total_assets)}
-              className={cn(inputClassName, formInputDisabledClassName, "bg-muted")}
-            />
+            {(["bsfatot", "othass", "bscatot", "bsclbank"] as const).map((key) => (
+              <React.Fragment key={key}>
+                <Label htmlFor={key} className={labelClassName}>
+                  {label(key)}
+                </Label>
+                <MoneyInput
+                  value={moneyValue(input[key])}
+                  onValueChange={(v) => setMoney(key)(v)}
+                  placeholder="0.00"
+                  prefix="RM"
+                  inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
+                  disabled={readOnly}
+                />
+              </React.Fragment>
+            ))}
           </div>
         </section>
 
@@ -318,48 +291,21 @@ export function FinancialStatementsStep({
             <div className="border-b border-border mt-2 mb-4" />
           </div>
           <div className={rowGridClassName}>
-            <Label htmlFor="current-liability" className={labelClassName}>
-              Current Liability
-            </Label>
-            <MoneyInput
-              value={moneyValue(input.current_liability)}
-              onValueChange={(v) => setMoney("current_liability")(v)}
-              placeholder="0.00"
-              prefix="RM"
-              inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
-              disabled={readOnly}
-            />
-            <Label htmlFor="long-term-liability" className={labelClassName}>
-              Long Term Liability
-            </Label>
-            <MoneyInput
-              value={moneyValue(input.long_term_liability)}
-              onValueChange={(v) => setMoney("long_term_liability")(v)}
-              placeholder="0.00"
-              prefix="RM"
-              inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
-              disabled={readOnly}
-            />
-            <Label htmlFor="non-current-liability" className={labelClassName}>
-              Non Current Liability
-            </Label>
-            <MoneyInput
-              value={moneyValue(input.non_current_liability)}
-              onValueChange={(v) => setMoney("non_current_liability")(v)}
-              placeholder="0.00"
-              prefix="RM"
-              inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
-              disabled={readOnly}
-            />
-            <Label htmlFor="total-liability" className={labelClassName}>
-              Total Liability
-            </Label>
-            <Input
-              id="total-liability"
-              readOnly
-              value={formatNumForDisplay(computed.total_liability)}
-              className={cn(inputClassName, formInputDisabledClassName, "bg-muted")}
-            />
+            {(["curlib", "bsslltd", "bsclstd"] as const).map((key) => (
+              <React.Fragment key={key}>
+                <Label htmlFor={key} className={labelClassName}>
+                  {label(key)}
+                </Label>
+                <MoneyInput
+                  value={moneyValue(input[key])}
+                  onValueChange={(v) => setMoney(key)(v)}
+                  placeholder="0.00"
+                  prefix="RM"
+                  inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
+                  disabled={readOnly}
+                />
+              </React.Fragment>
+            ))}
           </div>
         </section>
 
@@ -370,12 +316,12 @@ export function FinancialStatementsStep({
             <div className="border-b border-border mt-2 mb-4" />
           </div>
           <div className={rowGridClassName}>
-            <Label htmlFor="paid-up" className={labelClassName}>
-              Paid Up
+            <Label htmlFor="bsqpuc" className={labelClassName}>
+              {label("bsqpuc")}
             </Label>
             <MoneyInput
-              value={moneyValue(input.paid_up)}
-              onValueChange={(v) => setMoney("paid_up")(v)}
+              value={moneyValue(input.bsqpuc)}
+              onValueChange={(v) => setMoney("bsqpuc")(v)}
               placeholder="0.00"
               prefix="RM"
               inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
@@ -392,7 +338,7 @@ export function FinancialStatementsStep({
           </div>
           <div className={rowGridClassName}>
             <Label htmlFor="turnover" className={labelClassName}>
-              Turnover
+              {label("turnover")}
             </Label>
             <MoneyInput
               value={moneyValue(input.turnover)}
@@ -402,119 +348,64 @@ export function FinancialStatementsStep({
               inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
               disabled={readOnly}
             />
-            <Label htmlFor="profit-before-tax" className={labelClassName}>
-              Profit Before Tax
+            <Label htmlFor="plnpbt" className={labelClassName}>
+              {label("plnpbt")}
             </Label>
             <MoneyInput
-              value={moneyValue(input.profit_before_tax)}
-              onValueChange={(v) => setMoney("profit_before_tax")(v)}
+              value={moneyValue(input.plnpbt)}
+              onValueChange={(v) => setMoney("plnpbt")(v)}
               placeholder="0.00"
               prefix="RM"
               inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
               disabled={readOnly}
             />
-            <Label htmlFor="profit-after-tax" className={labelClassName}>
-              Profit After Tax
+            <Label htmlFor="plnpat" className={labelClassName}>
+              {label("plnpat")}
             </Label>
             <MoneyInput
-              value={moneyValue(input.profit_after_tax)}
-              onValueChange={(v) => setMoney("profit_after_tax")(v)}
+              value={moneyValue(input.plnpat)}
+              onValueChange={(v) => setMoney("plnpat")(v)}
               placeholder="0.00"
               prefix="RM"
               inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
               disabled={readOnly}
             />
-            <Label htmlFor="minority-interest" className={labelClassName}>
-              Minority Interest
+            <Label htmlFor="plminin" className={labelClassName}>
+              {label("plminin")}
             </Label>
             <MoneyInput
-              value={moneyValue(input.minority_interest)}
-              onValueChange={(v) => setMoney("minority_interest")(v)}
+              value={moneyValue(input.plminin)}
+              onValueChange={(v) => setMoney("plminin")(v)}
               placeholder="0.00"
               prefix="RM"
               inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
               disabled={readOnly}
             />
-            <Label htmlFor="net-dividend" className={labelClassName}>
-              Net Dividend
+            <Label htmlFor="plnetdiv" className={labelClassName}>
+              {label("plnetdiv")}
             </Label>
             <MoneyInput
-              value={moneyValue(input.net_dividend)}
-              onValueChange={(v) => setMoney("net_dividend")(v)}
+              value={moneyValue(input.plnetdiv)}
+              onValueChange={(v) => setMoney("plnetdiv")(v)}
               placeholder="0.00"
               prefix="RM"
               inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
               disabled={readOnly}
             />
-            <Label htmlFor="profit-and-loss-year" className={labelClassName}>
-              Profit and Loss Year
+            <Label htmlFor="plyear" className={labelClassName}>
+              {label("plyear")}
             </Label>
             <Input
-              id="profit-and-loss-year"
+              id="plyear"
               type="number"
-              value={input.profit_and_loss_year === 0 ? "" : input.profit_and_loss_year}
+              value={input.plyear === 0 ? "" : input.plyear}
               onChange={(e) => {
                 const v = e.target.value;
-                update({ profit_and_loss_year: v === "" ? 0 : parseInt(v, 10) || 0 });
+                update({ plyear: v === "" ? 0 : parseInt(v, 10) || 0 });
               }}
               placeholder="e.g. 2024"
               className={cn(inputClassName, readOnly && formInputDisabledClassName)}
               disabled={readOnly}
-            />
-          </div>
-        </section>
-
-        {/* Financial Ratios (readonly) */}
-        <section className={`${sectionWrapperClassName} space-y-3`}>
-          <div>
-            <h3 className={sectionHeaderClassName}>Financial Ratios</h3>
-            <div className="border-b border-border mt-2 mb-4" />
-          </div>
-          <div className={rowGridClassName}>
-            <Label htmlFor="turnover-growth" className={labelClassName}>
-              Turnover Growth
-            </Label>
-            <Input
-              id="turnover-growth"
-              readOnly
-              value={computed.turnover_growth === null ? "" : formatNumForDisplay(computed.turnover_growth)}
-              className={cn(inputClassName, formInputDisabledClassName, "bg-muted")}
-            />
-            <Label htmlFor="profit-margin" className={labelClassName}>
-              Profit Margin
-            </Label>
-            <Input
-              id="profit-margin"
-              readOnly
-              value={computed.profit_margin === null ? "" : formatNumForDisplay(computed.profit_margin)}
-              className={cn(inputClassName, formInputDisabledClassName, "bg-muted")}
-            />
-            <Label htmlFor="return-of-equity" className={labelClassName}>
-              Return Of Equity
-            </Label>
-            <Input
-              id="return-of-equity"
-              readOnly
-              value={computed.return_of_equity === null ? "" : formatNumForDisplay(computed.return_of_equity)}
-              className={cn(inputClassName, formInputDisabledClassName, "bg-muted")}
-            />
-            <Label htmlFor="current-ratio" className={labelClassName}>
-              Current Ratio
-            </Label>
-            <Input
-              id="current-ratio"
-              readOnly
-              value={computed.current_ratio === null ? "" : formatNumForDisplay(computed.current_ratio)}
-              className={cn(inputClassName, formInputDisabledClassName, "bg-muted")}
-            />
-            <Label htmlFor="working-capital" className={labelClassName}>
-              Working Capital
-            </Label>
-            <Input
-              id="working-capital"
-              readOnly
-              value={formatNumForDisplay(computed.working_capital)}
-              className={cn(inputClassName, formInputDisabledClassName, "bg-muted")}
             />
           </div>
         </section>

@@ -7,7 +7,7 @@ import * as React from "react";
  *
  * What: Loading skeleton matching financial-statements-step layout.
  * Why: Prevents layout shift; matches exact spacing, grid, and field heights.
- * Data: 6 sections (Financial Year, Assets, Liabilities, Equity, P&L, Financial Ratios)
+ * Data: 5 sections (Financial Year, Assets, Liabilities, Equity, P&L) — no Financial Ratios.
  */
 
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,14 +34,14 @@ export function FinancialStatementsSkeleton() {
         </div>
       </section>
 
-      {/* Assets */}
+      {/* Assets (4 fields) */}
       <section className={`${sectionWrapperClassName} space-y-4`}>
         <div>
           <Skeleton className="h-6 w-[80px]" />
           <div className="mt-2 h-px bg-border" />
         </div>
         <div className={rowGridClassName}>
-          {[1, 2, 3, 4, 5].map((i) => (
+          {[1, 2, 3, 4].map((i) => (
             <React.Fragment key={i}>
               <Skeleton className="h-5 w-[180px]" />
               <Skeleton className="h-11 w-full rounded-xl" />
@@ -50,14 +50,14 @@ export function FinancialStatementsSkeleton() {
         </div>
       </section>
 
-      {/* Liabilities */}
+      {/* Liabilities (3 fields) */}
       <section className={`${sectionWrapperClassName} space-y-4`}>
         <div>
           <Skeleton className="h-6 w-[100px]" />
           <div className="mt-2 h-px bg-border" />
         </div>
         <div className={rowGridClassName}>
-          {[1, 2, 3, 4].map((i) => (
+          {[1, 2, 3].map((i) => (
             <React.Fragment key={i}>
               <Skeleton className="h-5 w-[180px]" />
               <Skeleton className="h-11 w-full rounded-xl" />
@@ -86,22 +86,6 @@ export function FinancialStatementsSkeleton() {
         </div>
         <div className={rowGridClassName}>
           {[1, 2, 3, 4, 5, 6].map((i) => (
-            <React.Fragment key={i}>
-              <Skeleton className="h-5 w-[180px]" />
-              <Skeleton className="h-11 w-full rounded-xl" />
-            </React.Fragment>
-          ))}
-        </div>
-      </section>
-
-      {/* Financial Ratios */}
-      <section className={`${sectionWrapperClassName} space-y-4`}>
-        <div>
-          <Skeleton className="h-6 w-[130px]" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
-        <div className={rowGridClassName}>
-          {[1, 2, 3, 4, 5].map((i) => (
             <React.Fragment key={i}>
               <Skeleton className="h-5 w-[180px]" />
               <Skeleton className="h-11 w-full rounded-xl" />

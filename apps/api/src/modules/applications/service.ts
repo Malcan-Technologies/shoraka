@@ -8,7 +8,6 @@ import {
   businessDetailsDataSchema,
   financialStatementsInputSchema,
 } from "./schemas";
-import { calculateFinancialMetrics } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 import { Application, Prisma } from "@prisma/client";
 import {
@@ -515,31 +514,24 @@ export class ApplicationService {
         return Number.isNaN(n) ? 0 : n;
       };
 
-      const inputNormalized = {
-        financing_year_end: String(raw.financing_year_end ?? ""),
-        balance_sheet_financial_year: String(raw.balance_sheet_financial_year ?? ""),
-        fixed_assets: toNum(raw.fixed_assets),
-        other_assets: toNum(raw.other_assets),
-        current_assets: toNum(raw.current_assets),
-        non_current_assets: toNum(raw.non_current_assets),
-        current_liability: toNum(raw.current_liability),
-        long_term_liability: toNum(raw.long_term_liability),
-        non_current_liability: toNum(raw.non_current_liability),
-        paid_up: toNum(raw.paid_up),
-        turnover: toNum(raw.turnover),
-        profit_before_tax: toNum(raw.profit_before_tax),
-        profit_after_tax: toNum(raw.profit_after_tax),
-        minority_interest: toNum(raw.minority_interest),
-        net_dividend: toNum(raw.net_dividend),
-        profit_and_loss_year: toNum(raw.profit_and_loss_year),
-      };
-
-      const computed = calculateFinancialMetrics(inputNormalized);
-
       dataToStore = {
-        input: inputNormalized,
-        computed: computed as unknown as Prisma.InputJsonValue,
-      };
+        pldd: String(raw.pldd ?? ""),
+        bsdd: String(raw.bsdd ?? ""),
+        bsfatot: toNum(raw.bsfatot),
+        othass: toNum(raw.othass),
+        bscatot: toNum(raw.bscatot),
+        bsclbank: toNum(raw.bsclbank),
+        curlib: toNum(raw.curlib),
+        bsslltd: toNum(raw.bsslltd),
+        bsclstd: toNum(raw.bsclstd),
+        bsqpuc: toNum(raw.bsqpuc),
+        turnover: toNum(raw.turnover),
+        plnpbt: toNum(raw.plnpbt),
+        plnpat: toNum(raw.plnpat),
+        plminin: toNum(raw.plminin),
+        plnetdiv: toNum(raw.plnetdiv),
+        plyear: toNum(raw.plyear),
+      } as Prisma.InputJsonValue;
     }
 
     const updateData: Prisma.ApplicationUpdateInput = {

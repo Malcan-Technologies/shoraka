@@ -1,29 +1,30 @@
 /**
  * Shared financial calculator utility.
- * Single source of truth for financial metric formulas used by backend and frontend.
+ * Used by admin dashboards or analytics when financial ratios are needed.
+ * Input uses canonical field keys; computed metrics are never stored.
  */
 
 export interface FinancialStatementsInput {
-  fixed_assets?: number;
-  other_assets?: number;
-  current_assets?: number;
-  non_current_assets?: number;
-  current_liability?: number;
-  long_term_liability?: number;
-  non_current_liability?: number;
-  paid_up?: number;
+  bsfatot?: number;
+  othass?: number;
+  bscatot?: number;
+  bsclbank?: number;
+  curlib?: number;
+  bsslltd?: number;
+  bsclstd?: number;
+  bsqpuc?: number;
   turnover?: number;
-  profit_after_tax?: number;
+  plnpat?: number;
 }
 
 export interface FinancialStatementsComputed {
-  total_assets: number;
-  total_liability: number;
+  totass: number;
+  totlib: number;
   profit_margin: number | null;
   return_of_equity: number | null;
-  current_ratio: number | null;
-  working_capital: number;
-  turnover_growth: null;
+  currat: number | null;
+  workcap: number;
+  turnover_growth: number | null;
 }
 
 function toNum(v: unknown): number {
@@ -41,24 +42,24 @@ function safeNum(input: FinancialStatementsInput, key: keyof FinancialStatements
  * Divide-by-zero safe; missing values default to 0.
  */
 export function calculateFinancialMetrics(input: FinancialStatementsInput): FinancialStatementsComputed {
-  const fa = safeNum(input, "fixed_assets");
-  const oa = safeNum(input, "other_assets");
-  const ca = safeNum(input, "current_assets");
-  const nca = safeNum(input, "non_current_assets");
-  const cl = safeNum(input, "current_liability");
-  const ltl = safeNum(input, "long_term_liability");
-  const ncl = safeNum(input, "non_current_liability");
-  const paidUp = safeNum(input, "paid_up");
+  const bsfatot = safeNum(input, "bsfatot");
+  const othass = safeNum(input, "othass");
+  const bscatot = safeNum(input, "bscatot");
+  const bsclbank = safeNum(input, "bsclbank");
+  const curlib = safeNum(input, "curlib");
+  const bsslltd = safeNum(input, "bsslltd");
+  const bsclstd = safeNum(input, "bsclstd");
+  const bsqpuc = safeNum(input, "bsqpuc");
   const turnover = safeNum(input, "turnover");
-  const pat = safeNum(input, "profit_after_tax");
+  const plnpat = safeNum(input, "plnpat");
 
   return {
-    total_assets: fa + oa + ca + nca,
-    total_liability: cl + ltl + ncl,
+    totass: bsfatot + othass + bscatot + bsclbank,
+    totlib: curlib + bsslltd + bsclstd,
     turnover_growth: null,
-    profit_margin: turnover !== 0 ? pat / turnover : null,
-    return_of_equity: paidUp !== 0 ? pat / paidUp : null,
-    current_ratio: cl !== 0 ? ca / cl : null,
-    working_capital: ca - cl,
+    profit_margin: turnover !== 0 ? plnpat / turnover : null,
+    return_of_equity: bsqpuc !== 0 ? plnpat / bsqpuc : null,
+    currat: curlib !== 0 ? bscatot / curlib : null,
+    workcap: bscatot - curlib,
   };
 }

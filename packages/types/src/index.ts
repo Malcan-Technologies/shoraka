@@ -240,4 +240,5 @@ export * from "./activity-config";
 export * from "./admin";
 export * from "./application-steps";
 export * from "./financial-calculator";
+export * from "./financial-field-labels";
 export * from "./review-scope";
