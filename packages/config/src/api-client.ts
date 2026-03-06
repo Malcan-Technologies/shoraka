@@ -345,6 +345,9 @@ export class ApiClient {
     queryParams.append("pageSize", String(params.pageSize));
     if (params.search) queryParams.append("search", params.search);
     if (params.status) queryParams.append("status", params.status);
+    if (params.statuses && params.statuses.length > 0) {
+      queryParams.append("statuses", params.statuses.join(","));
+    }
     if (params.productId) queryParams.append("productId", params.productId);
 
     return this.get<AdminApplicationsResponse>(`/v1/admin/applications?${queryParams.toString()}`);
@@ -359,6 +362,13 @@ export class ApiClient {
     status: string
   ): Promise<ApiResponse<any> | ApiError> {
     return this.patch<any>(`/v1/admin/applications/${id}/status`, { status });
+  }
+
+  async reopenAdminApplicationForCorrection(
+    id: string,
+    reason: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(`/v1/admin/applications/${id}/reopen-for-correction`, { reason });
   }
 
   async approveReviewSection(

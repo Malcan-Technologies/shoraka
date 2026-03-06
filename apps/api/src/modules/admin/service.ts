@@ -3868,7 +3868,7 @@ export class AdminService {
 
   /**
    * Update AR financing application status.
-   * For APPROVED/REJECTED, current status must be reviewable (not already terminal).
+   * Restricts transitions to explicit admin review actions.
    */
   async updateApplicationStatus(
     id: string,
@@ -3882,12 +3882,39 @@ export class AdminService {
     }
 
     const currentStatus = application.status as ApplicationStatus;
+    const allowedTargets = new Set<ApplicationStatus>([
+      ApplicationStatus.UNDER_REVIEW,
+      ApplicationStatus.APPROVED,
+      ApplicationStatus.REJECTED,
+    ]);
+    if (!allowedTargets.has(status)) {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        `Unsupported admin status transition target: ${status}`
+      );
+    }
+
     if (status === ApplicationStatus.APPROVED || status === ApplicationStatus.REJECTED) {
-      if (!this.isReviewable(currentStatus)) {
+      if (!this.isFinalizable(currentStatus)) {
         throw new AppError(
           400,
           "INVALID_STATE",
-          "Application is already in a terminal state; cannot change status"
+          "Application must be in an active review state before final decision"
+        );
+      }
+    }
+
+    if (status === ApplicationStatus.UNDER_REVIEW) {
+      if (currentStatus !== ApplicationStatus.AMENDMENT_REQUESTED) {
+        const correctionGuidance =
+          currentStatus === ApplicationStatus.APPROVED || currentStatus === ApplicationStatus.REJECTED
+            ? ` ${this.getCorrectionFlowGuidance()}`
+            : "";
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          `Reset to UNDER_REVIEW is only allowed from AMENDMENT_REQUESTED.${correctionGuidance}`
         );
       }
     }
@@ -3934,17 +3961,71 @@ export class AdminService {
     return updatedApplication;
   }
 
+  async reopenApplicationForCorrection(
+    id: string,
+    userId: string,
+    reason: string
+  ) {
+    const repository = new AdminRepository();
+    const application = await repository.getApplicationById(id);
+    if (!application) {
+      throw new AppError(404, "NOT_FOUND", "Application not found");
+    }
+
+    const currentStatus = application.status as ApplicationStatus;
+    if (currentStatus !== ApplicationStatus.APPROVED && currentStatus !== ApplicationStatus.REJECTED) {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        "Only approved or rejected applications can be reopened for correction"
+      );
+    }
+
+    const updatedApplication = await repository.updateApplicationStatus(
+      id,
+      ApplicationStatus.UNDER_REVIEW
+    );
+
+    await logApplicationActivity({
+      userId,
+      applicationId: id,
+      level: ActivityLevel.APPLICATION,
+      target: ActivityTarget.APPLICATION,
+      action: ActivityAction.RESET,
+      remark: reason,
+      portal: ActivityPortal.ADMIN,
+      eventType: "APPLICATION_REOPENED_FOR_CORRECTION",
+      metadata: {
+        previous_status: currentStatus,
+        reason,
+      },
+    });
+
+    logger.info(
+      { applicationId: id, previousStatus: currentStatus, newStatus: ApplicationStatus.UNDER_REVIEW, reason },
+      "Application reopened for correction by admin"
+    );
+
+    return updatedApplication;
+  }
+
   private static readonly REVIEWABLE_STATUSES: ApplicationStatus[] = [
     ApplicationStatus.SUBMITTED,
     ApplicationStatus.UNDER_REVIEW,
     ApplicationStatus.RESUBMITTED,
     ApplicationStatus.AMENDMENT_REQUESTED,
-    ApplicationStatus.REJECTED,
-    ApplicationStatus.APPROVED,
   ];
 
   private isReviewable(status: ApplicationStatus): boolean {
     return AdminService.REVIEWABLE_STATUSES.includes(status);
+  }
+
+  private isFinalizable(status: ApplicationStatus): boolean {
+    return this.isReviewable(status);
+  }
+
+  private getCorrectionFlowGuidance(): string {
+    return "Terminal corrections must use a dedicated audited correction flow";
   }
 
   /**

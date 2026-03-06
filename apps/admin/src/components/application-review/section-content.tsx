@@ -8,7 +8,6 @@ import { ContractSection } from "./sections/contract-section";
 import { InvoiceSection } from "./sections/invoice-section";
 import type { ReviewSectionId } from "./section-types";
 import type { ReviewTabDescriptor } from "./review-registry";
-import { unstable_isUnrecognizedActionError } from "next/dist/client/components/navigation.react-server";
 
 export interface SectionCommentRecord {
   id: string;

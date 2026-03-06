@@ -26,6 +26,7 @@ import {
   updateSophisticatedStatusSchema,
   getAdminApplicationsQuerySchema,
   updateApplicationStatusSchema,
+  reopenApplicationForCorrectionSchema,
   reviewSectionSchema,
   reviewSectionApproveSchema,
   reviewSectionRejectSchema,
@@ -1460,7 +1461,7 @@ router.post(
  *         name: status
  *         schema:
  *           type: string
- *           enum: [PENDING_SSM_REVIEW, PENDING_ONBOARDING, PENDING_APPROVAL, PENDING_AML, APPROVED, REJECTED, EXPIRED]
+ *           enum: [PENDING_ALL, PENDING_ONBOARDING, PENDING_APPROVAL, PENDING_AML, PENDING_SSM_REVIEW, PENDING_FINAL_APPROVAL, COMPLETED, REJECTED, EXPIRED, CANCELLED]
  *     responses:
  *       200:
  *         description: Onboarding applications list with pagination
@@ -1821,7 +1822,12 @@ router.post(
  *         name: status
  *         schema:
  *           type: string
- *           enum: [DRAFT, SUBMITTED, APPROVED, REJECTED, ARCHIVED]
+ *           enum: [DRAFT, SUBMITTED, UNDER_REVIEW, AMENDMENT_REQUESTED, RESUBMITTED, APPROVED, REJECTED, ARCHIVED]
+ *       - in: query
+ *         name: statuses
+ *         schema:
+ *           type: string
+ *         description: Comma-separated application statuses for multi-select filtering (e.g. SUBMITTED,UNDER_REVIEW,RESUBMITTED)
  *       - in: query
  *         name: productId
  *         schema:
@@ -1911,7 +1917,7 @@ router.get(
  *             properties:
  *               status:
  *                 type: string
- *                 enum: [DRAFT, SUBMITTED, APPROVED, REJECTED, ARCHIVED]
+ *                 enum: [UNDER_REVIEW, APPROVED, REJECTED]
  *     responses:
  *       200:
  *         description: Application status updated
@@ -1928,6 +1934,59 @@ router.patch(
         id,
         validated.status,
         req.user.user_id
+      );
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/applications/{id}/reopen-for-correction:
+ *   post:
+ *     summary: Reopen approved/rejected application for correction (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [reason]
+ *             properties:
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Application reopened to under review
+ */
+router.post(
+  "/applications/:id/reopen-for-correction",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id } = req.params;
+      const validated = reopenApplicationForCorrectionSchema.parse(req.body);
+      const result = await adminService.reopenApplicationForCorrection(
+        id,
+        req.user.user_id,
+        validated.reason
       );
 
       res.json({

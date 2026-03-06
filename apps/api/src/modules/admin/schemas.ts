@@ -243,16 +243,45 @@ export const getOnboardingApplicationsQuerySchema = z.object({
 export type GetOnboardingApplicationsQuery = z.infer<typeof getOnboardingApplicationsQuerySchema>;
 
 // Admin Applications query schema
+const applicationStatusesQueryParam = z
+  .union([z.string(), z.array(z.string())])
+  .optional()
+  .transform((value) => {
+    if (!value) return undefined;
+    const rawValues = Array.isArray(value) ? value : [value];
+    const normalized = rawValues
+      .flatMap((entry) => entry.split(","))
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+
+    if (normalized.length === 0) return undefined;
+    return normalized.map((entry) => ApplicationStatus[entry as keyof typeof ApplicationStatus]);
+  })
+  .refine(
+    (statuses) => !statuses || statuses.every((status) => status !== undefined),
+    "Invalid application status in statuses filter"
+  )
+  .transform((statuses) => statuses as ApplicationStatus[] | undefined);
+
 export const getAdminApplicationsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(10),
   search: z.string().optional(),
   status: z.nativeEnum(ApplicationStatus).optional(),
+  statuses: applicationStatusesQueryParam,
   productId: z.string().optional(),
 });
 
 export const updateApplicationStatusSchema = z.object({
-  status: z.nativeEnum(ApplicationStatus),
+  status: z.enum([
+    ApplicationStatus.UNDER_REVIEW,
+    ApplicationStatus.APPROVED,
+    ApplicationStatus.REJECTED,
+  ]),
+});
+
+export const reopenApplicationForCorrectionSchema = z.object({
+  reason: z.string().trim().min(1, "Reason is required"),
 });
 
 export type GetAdminApplicationsQuery = z.infer<typeof getAdminApplicationsQuerySchema>;

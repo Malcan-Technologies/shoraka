@@ -18,6 +18,8 @@ import type {
   GetAdminApplicationsParams,
 } from "@cashsouk/types";
 
+const DEFAULT_STATUS_FILTERS = ["SUBMITTED", "UNDER_REVIEW", "RESUBMITTED"];
+
 export default function DynamicApplicationsPage() {
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -31,7 +33,7 @@ export default function DynamicApplicationsPage() {
 
   // Filters
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [statusFilter, setStatusFilter] = React.useState("SUBMITTED");
+  const [statusFilters, setStatusFilters] = React.useState<string[]>(DEFAULT_STATUS_FILTERS);
 
   // Pagination
   const [currentPage, setCurrentPage] = React.useState(1);
@@ -49,12 +51,12 @@ export default function DynamicApplicationsPage() {
       p.search = searchQuery;
     }
 
-    if (statusFilter !== "all") {
-      p.status = statusFilter;
+    if (statusFilters.length > 0) {
+      p.statuses = statusFilters;
     }
 
     return p;
-  }, [currentPage, pageSize, searchQuery, statusFilter, productKey]);
+  }, [currentPage, pageSize, searchQuery, statusFilters, productKey]);
 
   const {
     data,
@@ -68,14 +70,14 @@ export default function DynamicApplicationsPage() {
 
   const handleClearFilters = () => {
     setSearchQuery("");
-    setStatusFilter("all");
+    setStatusFilters([]);
     setCurrentPage(1);
   };
 
   // Reset pagination when filters change
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, statusFilter]);
+  }, [searchQuery, statusFilters]);
 
   const applications = data?.applications || [];
   const totalApplications = data?.pagination.totalCount || 0;
@@ -122,8 +124,8 @@ export default function DynamicApplicationsPage() {
             <ApplicationsTableToolbar
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
-              statusFilter={statusFilter}
-              onStatusFilterChange={setStatusFilter}
+              statusFilters={statusFilters}
+              onStatusFiltersChange={setStatusFilters}
               totalCount={totalApplications}
               filteredCount={totalApplications}
               onClearFilters={handleClearFilters}

@@ -10,7 +10,10 @@ import { Skeleton } from "@cashsouk/ui";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { useApplicationDetail } from "@/hooks/use-application-detail";
-import { useUpdateApplicationStatus } from "@/hooks/use-update-application-status";
+import {
+  useReopenApplicationForCorrection,
+  useUpdateApplicationStatus,
+} from "@/hooks/use-update-application-status";
 import {
   useApproveReviewSection,
   useRejectReviewSection,
@@ -91,6 +94,7 @@ export default function DynamicApplicationDetailPage() {
 
   const { data: app, isLoading, error } = useApplicationDetail(applicationId);
   const updateStatus = useUpdateApplicationStatus();
+  const reopenForCorrection = useReopenApplicationForCorrection();
 
   // Fetch products to get the current product name
   const { data: productsData } = useProducts({ page: 1, pageSize: 100 });
@@ -126,6 +130,7 @@ export default function DynamicApplicationDetailPage() {
   const removePendingAmendment = useRemovePendingAmendment();
   const submitAmendmentRequest = useSubmitAmendmentRequest();
   const [amendmentModalOpen, setAmendmentModalOpen] = React.useState(false);
+  const [reopenDialogOpen, setReopenDialogOpen] = React.useState(false);
 
   const [noteDialog, setNoteDialog] = React.useState<
     | { open: boolean; action: "reject" | "amend"; section: ReviewSectionId }
@@ -134,8 +139,8 @@ export default function DynamicApplicationDetailPage() {
     | { open: boolean; action: "approve"; itemType: "invoice" | "document"; itemId: string }
   >({ open: false, action: "reject", section: "financial" });
 
-  const REVIEWABLE_STATUSES = ["SUBMITTED", "UNDER_REVIEW", "RESUBMITTED", "AMENDMENT_REQUESTED", "REJECTED", "APPROVED"];
-  const isReviewable = app && REVIEWABLE_STATUSES.includes(app.status);
+  const REVIEWABLE_STATUSES = ["SUBMITTED", "UNDER_REVIEW", "RESUBMITTED", "AMENDMENT_REQUESTED"];
+  const isReviewable = !!app && REVIEWABLE_STATUSES.includes(app.status);
   const { getAccessToken } = useAuthToken();
   const [viewDocumentPending, setViewDocumentPending] = React.useState(false);
 
@@ -465,10 +470,10 @@ export default function DynamicApplicationDetailPage() {
                     </div>
                     <ApplicationStatusBadge status={app.status} size="lg" />
                   </div>
-                  {isReviewable && (
+                  {isReviewable ? (
                     <TooltipProvider>
                       <div className="flex flex-wrap items-center justify-end gap-3">
-                        {(app.status === "APPROVED" || app.status === "REJECTED" || app.status === "AMENDMENT_REQUESTED") && (
+                        {app.status === "AMENDMENT_REQUESTED" && (
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <span className="inline-flex">
@@ -573,6 +578,27 @@ export default function DynamicApplicationDetailPage() {
                         </Tooltip>
                       </div>
                     </TooltipProvider>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="text-sm text-muted-foreground">
+                        Review actions are locked for{" "}
+                        <span className="font-medium">
+                          {app.status.toLowerCase().replace(/_/g, " ")}
+                        </span>{" "}
+                        applications.
+                      </div>
+                      {(app.status === "APPROVED" || app.status === "REJECTED") && (
+                        <Button
+                          variant="outline"
+                          size="default"
+                          className="gap-2"
+                          onClick={() => setReopenDialogOpen(true)}
+                        >
+                          <ArrowPathIcon className="h-4 w-4" />
+                          Reopen for Correction
+                        </Button>
+                      )}
+                    </div>
                   )}
               </div>
 
@@ -646,7 +672,7 @@ export default function DynamicApplicationDetailPage() {
                       <SectionContent
                         descriptor={descriptor}
                         app={app}
-                        isReviewable={!!isReviewable}
+                        isReviewable={isReviewable}
                         approveSectionPending={approveSection.isPending}
                         approveItemPending={approveItem.isPending}
                         viewDocumentPending={viewDocumentPending}
@@ -745,6 +771,22 @@ export default function DynamicApplicationDetailPage() {
         optional={noteDialog?.action === "approve"}
         onConfirm={handleNoteDialogConfirm}
         isPending={noteDialogPending}
+      />
+
+      <ApplicationReviewRemarkDialog
+        open={reopenDialogOpen}
+        onOpenChange={setReopenDialogOpen}
+        title="Reopen Application for Correction"
+        description="Provide a reason for reopening this application. This reason is recorded in the activity log."
+        remarkLabel="Correction reason (required)"
+        remarkPlaceholder="Explain why this approved/rejected application needs to be reopened."
+        submitLabel="Reopen Application"
+        variant="default"
+        onConfirm={async (reason) => {
+          await reopenForCorrection.mutateAsync({ id: applicationId, reason });
+          toast.success("Application reopened for correction");
+        }}
+        isPending={reopenForCorrection.isPending}
       />
 
       <AmendmentReviewModal

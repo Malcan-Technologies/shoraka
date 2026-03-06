@@ -1,24 +1,15 @@
 "use client";
 
 import * as React from "react";
-import {
-  ArrowTopRightOnSquareIcon,
-  ChevronDownIcon,
-} from "@heroicons/react/24/outline";
+import { ArrowTopRightOnSquareIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
 import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
 import { ItemActionDropdown } from "@/components/application-review/item-action-dropdown";
 import { ReviewStepStatusBadge } from "@/components/application-review/review-step-status-badge";
 import { REVIEW_EMPTY_LABEL } from "@/components/application-review/review-section-styles";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -123,25 +114,28 @@ export function InvoiceList({
     });
   }, [invoices, readOnlyInvoiceIds]);
   const [offeredByInvoice, setOfferedByInvoice] = React.useState<Record<string, OfferedState>>({});
-
   const toggleExpanded = React.useCallback((invoiceId: string) => {
     setExpandedById((prev) => ({ ...prev, [invoiceId]: !prev[invoiceId] }));
   }, []);
 
-  const setOffered = React.useCallback((invoiceId: string, updates: Partial<OfferedState>) => {
-    setOfferedByInvoice((prev) => {
-      const current = prev[invoiceId] ?? { ratio: invoiceRatioLimits.min, profitRate: 12 };
-      return { ...prev, [invoiceId]: { ...current, ...updates } };
-    });
-  }, [invoiceRatioLimits.min]);
+  const setOffered = React.useCallback(
+    (invoiceId: string, updates: Partial<OfferedState>) => {
+      setOfferedByInvoice((prev) => {
+        const current = prev[invoiceId] ?? { ratio: invoiceRatioLimits.min, profitRate: 12 };
+        return { ...prev, [invoiceId]: { ...current, ...updates } };
+      });
+    },
+    [invoiceRatioLimits.min]
+  );
 
   const getOffered = React.useCallback(
     (invoiceId: string, issuerRatio: number | null): OfferedState => {
       const stored = offeredByInvoice[invoiceId];
       if (stored) return stored;
-      const ratio = issuerRatio != null
-        ? Math.max(invoiceRatioLimits.min, Math.min(invoiceRatioLimits.max, issuerRatio))
-        : invoiceRatioLimits.min;
+      const ratio =
+        issuerRatio != null
+          ? Math.max(invoiceRatioLimits.min, Math.min(invoiceRatioLimits.max, issuerRatio))
+          : invoiceRatioLimits.min;
       return { ratio, profitRate: 12 };
     },
     [offeredByInvoice, invoiceRatioLimits]
@@ -192,14 +186,18 @@ export function InvoiceList({
                       type="button"
                       onClick={() => toggleExpanded(inv.id)}
                       className="inline-flex h-7 w-7 items-center justify-center rounded-lg hover:bg-muted"
-                      aria-label={isExpanded ? "Collapse invoice details" : "Expand invoice details"}
+                      aria-label={
+                        isExpanded ? "Collapse invoice details" : "Expand invoice details"
+                      }
                     >
                       <ChevronDownIcon
                         className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? "rotate-180" : ""}`}
                       />
                     </button>
                   </TableCell>
-                  <TableCell className="text-center text-sm font-semibold text-foreground">{invoiceNo}</TableCell>
+                  <TableCell className="text-center text-sm font-semibold text-foreground">
+                    {invoiceNo}
+                  </TableCell>
                   <TableCell className="text-center text-sm font-semibold text-foreground">
                     {invoiceValue !== null ? formatCurrency(invoiceValue) : REVIEW_EMPTY_LABEL}
                   </TableCell>
@@ -207,7 +205,9 @@ export function InvoiceList({
                     {financingRatio !== null ? `${financingRatio}%` : REVIEW_EMPTY_LABEL}
                   </TableCell>
                   <TableCell className="text-center text-sm font-semibold text-foreground">
-                    {issuerFinancingAmount !== null ? formatCurrency(issuerFinancingAmount) : REVIEW_EMPTY_LABEL}
+                    {issuerFinancingAmount !== null
+                      ? formatCurrency(issuerFinancingAmount)
+                      : REVIEW_EMPTY_LABEL}
                   </TableCell>
                   <TableCell className="text-center">
                     <ReviewStepStatusBadge status={status} size="sm" />
@@ -248,42 +248,51 @@ export function InvoiceList({
                                 isRowReadOnly
                                   ? "md:pl-3 space-y-3 opacity-60 pointer-events-none select-none"
                                   : "md:pl-3 space-y-3"
-                              }>
-                            <p className="text-sm font-semibold text-foreground">
-                              Invoice details
-                            </p>
-                            <div className="mt-2 space-y-2">
-                              <div>
-                                <p className="text-xs text-muted-foreground">Maturity date</p>
-                                <p className="text-sm font-medium">{formatDateValue(maturityDate)}</p>
-                              </div>
-                              <div>
-                                <p className="text-xs text-muted-foreground">Document</p>
-                                <div className="mt-1 flex items-center gap-2">
-                                  <p className="text-sm font-medium truncate">{documentName}</p>
-                                  {details?.document?.s3_key ? (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-7 rounded-lg gap-1 px-2"
-                                      onClick={() => onViewDocument(details.document!.s3_key!)}
-                                      disabled={isViewDocumentPending}
-                                    >
-                                      <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
-                                      View
-                                    </Button>
-                                  ) : null}
+                              }
+                            >
+                              <p className="text-sm font-semibold text-foreground">
+                                Invoice details
+                              </p>
+                              <div className="mt-2 space-y-2">
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Maturity date</p>
+                                  <p className="text-sm font-medium">
+                                    {formatDateValue(maturityDate)}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Document</p>
+                                  <div className="mt-1 flex items-center gap-2">
+                                    <p className="text-sm font-medium truncate">{documentName}</p>
+                                    {details?.document?.s3_key ? (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 rounded-lg gap-1 px-2"
+                                        onClick={() => onViewDocument(details.document!.s3_key!)}
+                                        disabled={isViewDocumentPending}
+                                      >
+                                        <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
+                                        View
+                                      </Button>
+                                    ) : null}
+                                  </div>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-muted-foreground">
+                                    Estimated disbursement date
+                                  </p>
+                                  <p className="text-sm font-medium">
+                                    {PLACEHOLDER.estDisbursementDate}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-muted-foreground">
+                                    Estimated period (Days)
+                                  </p>
+                                  <p className="text-sm font-medium">{PLACEHOLDER.estPeriodDays}</p>
                                 </div>
                               </div>
-                              <div>
-                                <p className="text-xs text-muted-foreground">Estimated disbursement date</p>
-                                <p className="text-sm font-medium">{PLACEHOLDER.estDisbursementDate}</p>
-                              </div>
-                              <div>
-                                <p className="text-xs text-muted-foreground">Estimated period (Days)</p>
-                                <p className="text-sm font-medium">{PLACEHOLDER.estPeriodDays}</p>
-                              </div>
-                            </div>
                             </div>
 
                             <div
@@ -291,7 +300,8 @@ export function InvoiceList({
                                 isRowReadOnly
                                   ? "md:pl-3 space-y-3 opacity-60 pointer-events-none select-none"
                                   : "md:pl-3 space-y-3"
-                              }>
+                              }
+                            >
                               <p className="text-sm font-semibold text-foreground">
                                 Requested by Issuer
                               </p>
@@ -299,13 +309,17 @@ export function InvoiceList({
                                 <div>
                                   <p className="text-xs text-muted-foreground">Financing ratio</p>
                                   <p className="text-sm font-medium">
-                                    {financingRatio !== null ? `${financingRatio}%` : REVIEW_EMPTY_LABEL}
+                                    {financingRatio !== null
+                                      ? `${financingRatio}%`
+                                      : REVIEW_EMPTY_LABEL}
                                   </p>
                                 </div>
                                 <div>
                                   <p className="text-xs text-muted-foreground">Financing amount</p>
                                   <p className="text-sm font-medium tabular-nums">
-                                    {issuerFinancingAmount !== null ? formatCurrency(issuerFinancingAmount) : REVIEW_EMPTY_LABEL}
+                                    {issuerFinancingAmount !== null
+                                      ? formatCurrency(issuerFinancingAmount)
+                                      : REVIEW_EMPTY_LABEL}
                                   </p>
                                 </div>
                               </div>
@@ -329,12 +343,14 @@ export function InvoiceList({
                                     : null;
                                 const estimatedProfit =
                                   offeredAmount !== null
-                                    ? (offeredAmount * (offered.profitRate / 100))
+                                    ? offeredAmount * (offered.profitRate / 100)
                                     : null;
                                 return (
                                   <>
                                     <div>
-                                      <p className="text-xs text-muted-foreground mb-1">Financing ratio</p>
+                                      <p className="text-xs text-muted-foreground mb-1">
+                                        Financing ratio
+                                      </p>
                                       <div className="flex items-center gap-2">
                                         <span className="text-sm font-medium tabular-nums w-10">
                                           {offered.ratio}%
@@ -357,16 +373,24 @@ export function InvoiceList({
                                       </div>
                                     </div>
                                     <div>
-                                      <p className="text-xs text-muted-foreground">Financing amount</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        Financing amount
+                                      </p>
                                       <p className="text-sm font-medium tabular-nums">
-                                        {offeredAmount !== null ? formatCurrency(offeredAmount) : REVIEW_EMPTY_LABEL}
+                                        {offeredAmount !== null
+                                          ? formatCurrency(offeredAmount)
+                                          : REVIEW_EMPTY_LABEL}
                                       </p>
                                     </div>
                                     <div>
-                                      <p className="text-xs text-muted-foreground mb-1">Profit rate</p>
+                                      <p className="text-xs text-muted-foreground mb-1">
+                                        Profit rate
+                                      </p>
                                       <Select
                                         value={String(offered.profitRate)}
-                                        onValueChange={(v) => setOffered(inv.id, { profitRate: parseInt(v, 10) })}
+                                        onValueChange={(v) =>
+                                          setOffered(inv.id, { profitRate: parseInt(v, 10) })
+                                        }
                                         disabled={!isReviewable || isRowReadOnly}
                                       >
                                         <SelectTrigger className="h-8 w-full max-w-[100px]">
@@ -382,9 +406,13 @@ export function InvoiceList({
                                       </Select>
                                     </div>
                                     <div>
-                                      <p className="text-xs text-muted-foreground">Estimated profit</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        Estimated profit
+                                      </p>
                                       <p className="text-sm font-medium tabular-nums">
-                                        {estimatedProfit !== null ? formatCurrency(estimatedProfit) : REVIEW_EMPTY_LABEL}
+                                        {estimatedProfit !== null
+                                          ? formatCurrency(estimatedProfit)
+                                          : REVIEW_EMPTY_LABEL}
                                       </p>
                                     </div>
                                   </>
