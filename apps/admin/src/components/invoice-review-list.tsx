@@ -162,6 +162,8 @@ export function InvoiceList({
             const scopeKey = buildInvoiceScopeKey(idx, invoiceNo);
             const status = getItemStatus(inv, reviewItems, scopeKey);
             const isRowReadOnly = readOnlyInvoiceIds?.has(inv.id) ?? false;
+            const isTabLocked = !!isActionLocked || !isReviewable;
+            const isRowGreyedOut = isRowReadOnly || isTabLocked;
             const isExpanded = Boolean(expandedById[inv.id]);
             const invoiceValue = toNumber(details?.value);
             const financingRatio = toNumber(details?.financing_ratio_percent);
@@ -176,7 +178,7 @@ export function InvoiceList({
               <React.Fragment key={inv.id}>
                 <TableRow
                   className={
-                    isRowReadOnly
+                    isRowGreyedOut
                       ? "bg-muted/20 text-muted-foreground hover:bg-muted/30"
                       : "odd:bg-muted/30 hover:bg-muted/50"
                   }
@@ -214,12 +216,12 @@ export function InvoiceList({
                   </TableCell>
                   <TableCell
                     className={
-                      isRowReadOnly
+                      isRowGreyedOut
                         ? "bg-muted/40 text-center text-muted-foreground"
                         : "text-center"
                     }
                   >
-                    {isReviewable && !isRowReadOnly ? (
+                    {isReviewable && !isRowGreyedOut ? (
                       <ItemActionDropdown
                         itemId={scopeKey}
                         status={status}
@@ -245,7 +247,7 @@ export function InvoiceList({
                           <div className="grid gap-4 md:grid-cols-3">
                             <div
                               className={
-                                isRowReadOnly
+                                isRowGreyedOut
                                   ? "md:pl-3 space-y-3 opacity-60 pointer-events-none select-none"
                                   : "md:pl-3 space-y-3"
                               }
@@ -297,7 +299,7 @@ export function InvoiceList({
 
                             <div
                               className={
-                                isRowReadOnly
+                                isRowGreyedOut
                                   ? "md:pl-3 space-y-3 opacity-60 pointer-events-none select-none"
                                   : "md:pl-3 space-y-3"
                               }
@@ -327,7 +329,7 @@ export function InvoiceList({
 
                             <div
                               className={
-                                isRowReadOnly
+                                isRowGreyedOut
                                   ? "md:pl-3 space-y-3 opacity-60 pointer-events-none select-none"
                                   : "md:pl-3 space-y-3"
                               }
@@ -361,7 +363,7 @@ export function InvoiceList({
                                           step={1}
                                           value={[offered.ratio]}
                                           onValueChange={(v) => setOffered(inv.id, { ratio: v[0] })}
-                                          disabled={!isReviewable || isRowReadOnly}
+                                          disabled={isRowGreyedOut}
                                           className="flex-1 max-w-[140px]
                                             [&_[data-orientation=horizontal]]:h-1.5
                                             [&_[data-orientation=horizontal]>span]:bg-primary
@@ -391,7 +393,7 @@ export function InvoiceList({
                                         onValueChange={(v) =>
                                           setOffered(inv.id, { profitRate: parseInt(v, 10) })
                                         }
-                                        disabled={!isReviewable || isRowReadOnly}
+                                        disabled={isRowGreyedOut}
                                       >
                                         <SelectTrigger className="h-8 w-full max-w-[100px]">
                                           <SelectValue />
