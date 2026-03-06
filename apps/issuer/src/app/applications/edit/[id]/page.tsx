@@ -1013,6 +1013,12 @@ export default function EditApplicationPage() {
         }
       }
 
+      // FINANCIAL STATEMENTS validation — all fields required (step passes isValid)
+      if (currentStepKey === "financial_statements" && (rawData as Record<string, unknown>)?.isValid === false) {
+        toast.error("Please fill in all required fields before saving");
+        return;
+      }
+
       // No data case
       if (dataToSave === null) {
         toast.success("Step completed");

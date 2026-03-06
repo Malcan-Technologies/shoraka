@@ -377,14 +377,29 @@ export function FinancialStatementsStep({
     return JSON.stringify(apiPayload) !== initialPayloadRef.current;
   }, [apiPayload, isInitialized]);
 
+  /** All fields required. Save and Continue disabled until every field has a value. */
+  const isValid = React.useMemo(() => {
+    const dateFields: (keyof FinancialStatementsPayload)[] = ["pldd", "bsdd"];
+    const moneyFields: (keyof FinancialStatementsPayload)[] = [
+      "bsfatot", "othass", "bscatot", "bsclbank", "curlib", "bsslltd", "bsclstd", "bsqpuc",
+      "turnover", "plnpbt", "plnpat", "plminin", "plnetdiv",
+    ];
+    const hasValue = (v: unknown) => String(v ?? "").trim() !== "";
+    if (!dateFields.every((k) => hasValue(form[k]))) return false;
+    if (!moneyFields.every((k) => hasValue(form[k]))) return false;
+    if (profitLossType !== "profit" && profitLossType !== "loss") return false;
+    if (!hasValue(profitLossAmount)) return false;
+    return true;
+  }, [form, profitLossType, profitLossAmount]);
+
   React.useEffect(() => {
     if (!onDataChangeRef.current || !isInitialized) return;
     onDataChangeRef.current({
       ...apiPayload,
       hasPendingChanges,
-      isValid: true,
+      isValid,
     });
-  }, [apiPayload, hasPendingChanges, isInitialized]);
+  }, [apiPayload, hasPendingChanges, isValid, isInitialized]);
 
   const getLabel = (key: keyof FinancialStatementsPayload) => FINANCIAL_FIELD_LABELS[key] ?? key;
 
