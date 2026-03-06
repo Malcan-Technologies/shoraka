@@ -13,10 +13,12 @@ export interface UpdateProductData {
   workflow?: unknown[];
   /** When true, replace workflow without incrementing version (used only for the first update right after create). */
   completeCreate?: boolean;
+  offer_expiry_days?: number | null;
 }
 
 export interface CreateProductData {
   workflow: unknown[];
+  offer_expiry_days?: number | null;
 }
 
 export interface LogContext {
@@ -102,6 +104,7 @@ export class ProductRepository {
           workflow: data.workflow as Prisma.InputJsonValue,
           category_display_order: categoryDisplayOrder,
           product_display_order: nextProductOrder,
+          offer_expiry_days: data.offer_expiry_days ?? undefined,
         },
       } as any);
 
@@ -133,9 +136,9 @@ export class ProductRepository {
     });
   }
 
-  /** Update product. When completeCreate is true, workflow is replaced without incrementing (create flow). When workflow is unchanged, return current product without writing or incrementing. Otherwise version is incremented (edit flow with changes). */
+  /** Update product. When completeCreate is true, workflow is replaced without incrementing (create flow). When workflow is unchanged and offer_expiry_days unchanged, return current product without writing or incrementing. Otherwise version is incremented (edit flow with changes). */
   async update(id: string, data: UpdateProductData, logContext?: LogContext): Promise<Product> {
-    if (data.workflow === undefined) {
+    if (data.workflow === undefined && data.offer_expiry_days === undefined) {
       return prisma.product.findUniqueOrThrow({ where: { id } });
     }
     const current = await prisma.product.findUnique({ where: { id } });
@@ -143,10 +146,51 @@ export class ProductRepository {
       throw new Error("Product not found");
     }
     const currentWorkflow = current.workflow as unknown;
-    if (workflowDeepEqual(data.workflow, currentWorkflow)) {
+    const workflowUnchanged = data.workflow === undefined || workflowDeepEqual(data.workflow, currentWorkflow);
+    const currentOfferExpiry = (current as { offer_expiry_days?: number | null }).offer_expiry_days ?? null;
+    const offerExpiryUnchanged =
+      data.offer_expiry_days === undefined ||
+      (data.offer_expiry_days === currentOfferExpiry || (data.offer_expiry_days == null && currentOfferExpiry == null));
+    if (workflowUnchanged && offerExpiryUnchanged) {
       return current;
     }
     const skipIncrement = data.completeCreate === true;
+    const workflowPayload = data.workflow as Prisma.InputJsonValue | undefined;
+    const offerExpiryPayload = data.offer_expiry_days !== undefined ? data.offer_expiry_days : undefined;
+
+    // When only offer_expiry_days changes, skip category logic
+    if (data.workflow === undefined) {
+      const updated = await prisma.product.update({
+        where: { id },
+        data: {
+          offer_expiry_days: offerExpiryPayload ?? null,
+          ...(skipIncrement ? {} : { version: { increment: 1 } }),
+        },
+      } as any);
+      if (logContext?.userId) {
+        await prisma.productLog.create({
+          data: {
+            user_id: logContext.userId,
+            product_id: updated.id,
+            event_type: "PRODUCT_UPDATED",
+            ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
+            user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
+            device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
+            metadata: {
+              workflow: JSON.parse(JSON.stringify((updated as any).workflow)),
+              category_display_order: (updated as any).category_display_order ?? null,
+              product_display_order: (updated as any).product_display_order ?? null,
+              offer_expiry_days: (updated as any).offer_expiry_days ?? null,
+              version: (updated as any).version,
+              product_created_at: (updated as any).created_at.toISOString(),
+              product_updated_at: (updated as any).updated_at.toISOString(),
+            } as Prisma.InputJsonValue,
+          },
+        });
+      }
+      return updated;
+    }
+
     // Determine if category changed; extract category from new workflow
     const newWorkflow = data.workflow as unknown[];
     const newFinancingStep = (newWorkflow || []).find((step: any) =>
@@ -193,7 +237,8 @@ export class ProductRepository {
         const updated = await tx.product.update({
           where: { id },
           data: {
-            workflow: data.workflow as Prisma.InputJsonValue,
+            workflow: workflowPayload,
+            ...(offerExpiryPayload !== undefined ? { offer_expiry_days: offerExpiryPayload } : {}),
             ...(skipIncrement ? {} : { version: { increment: 1 } }),
             category_display_order: categoryDisplayOrder,
             product_display_order: nextProductOrder,
@@ -231,7 +276,8 @@ export class ProductRepository {
     const updated = await prisma.product.update({
       where: { id },
       data: {
-        workflow: data.workflow as Prisma.InputJsonValue,
+        workflow: workflowPayload,
+        ...(offerExpiryPayload !== undefined ? { offer_expiry_days: offerExpiryPayload } : {}),
         ...(skipIncrement ? {} : { version: { increment: 1 } }),
       },
     } as any);

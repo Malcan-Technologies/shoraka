@@ -62,6 +62,7 @@ export const createProductBodySchema = z.object({
         return false;
       }
     }, { message: "workflow[0].config.category is required and must be a non-empty string" }),
+  offer_expiry_days: z.number().int().positive().optional().nullable(),
 });
 
 export type CreateProductBody = z.infer<typeof createProductBodySchema>;
@@ -81,6 +82,7 @@ export const updateProductBodySchema = z.object({
       }
     }, { message: "workflow[0].config.category is required and must be a non-empty string" }),
   completeCreate: z.boolean().optional(),
+  offer_expiry_days: z.number().int().positive().optional().nullable(),
 });
 
 export type UpdateProductBody = z.infer<typeof updateProductBodySchema>;

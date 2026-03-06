@@ -24,6 +24,7 @@ import {
   DialogFooter,
 } from "../../../../components/ui/dialog";
 import { Button } from "../../../../components/ui/button";
+import { Input } from "../../../../components/ui/input";
 import { Label } from "../../../../components/ui/label";
 import { Skeleton } from "../../../../components/ui/skeleton";
 import {
@@ -76,6 +77,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
   const [pendingSupportingDocTemplates, setPendingSupportingDocTemplates] = useState<Record<string, File>>({});
   const [saveInProgress, setSaveInProgress] = useState(false);
   const [saveTriggered, setSaveTriggered] = useState(false);
+  const [offerExpiryDays, setOfferExpiryDays] = useState<string>("");
   /** In edit mode, workflow as loaded from product (normalized). Used to disable Save when nothing changed. */
   const initialWorkflowRef = useRef<unknown[]>([]);
 
@@ -136,6 +138,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       setPendingSupportingDocTemplates({});
       setSaveInProgress(false);
       setSaveTriggered(false);
+      setOfferExpiryDays("");
       initialWorkflowRef.current = [];
       return;
     }
@@ -150,10 +153,13 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       initialWorkflowRef.current = normalizeWorkflow(
         buildPayloadFromSteps(stepsToSet)
       );
+      const days = (product as { offer_expiry_days?: number | null }).offer_expiry_days;
+      setOfferExpiryDays(days != null ? String(days) : "");
     } else {
       const [firstStep, lastStep] = getRequiredFirstAndLastSteps();
       setSteps([firstStep, lastStep]);
       initialWorkflowRef.current = [];
+      setOfferExpiryDays("");
     }
   }, [open, isEdit, product]);
 
@@ -272,8 +278,16 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       if (isEdit && product) {
         productId = product.id;
       } else {
+        const offerExpiryNum =
+          offerExpiryDays.trim() !== ""
+            ? (() => {
+                const n = Number(offerExpiryDays);
+                return !Number.isNaN(n) && n > 0 ? n : null;
+              })()
+            : null;
         const created = await createProduct.mutateAsync({
           workflow: buildPayloadFromSteps(steps),
+          offer_expiry_days: offerExpiryNum,
         });
         productId = created.id;
       }
@@ -287,11 +301,24 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       await uploadTemplatesAndMerge(productId, nextSteps);
 
       const payload = buildPayloadFromSteps(nextSteps);
+      const offerExpiryNum =
+        offerExpiryDays.trim() !== ""
+          ? (() => {
+              const n = Number(offerExpiryDays);
+              return !Number.isNaN(n) && n > 0 ? n : null;
+            })()
+          : null;
       if (isEdit && product) {
-        await updateProduct.mutateAsync({ id: product.id, data: { workflow: payload } });
+        await updateProduct.mutateAsync({
+          id: product.id,
+          data: { workflow: payload, offer_expiry_days: offerExpiryNum },
+        });
         toast.success("Product updated");
       } else {
-        await updateProduct.mutateAsync({ id: productId, data: { workflow: payload, completeCreate: true } });
+        await updateProduct.mutateAsync({
+          id: productId,
+          data: { workflow: payload, completeCreate: true, offer_expiry_days: offerExpiryNum },
+        });
         toast.success("Product created");
       }
       onOpenChange(false);
@@ -338,10 +365,23 @@ console.log("INITIAL INVOICE CONFIG:", (initialInvoice as any)?.config);
 console.log("CURRENT INVOICE CONFIG:", (currentInvoice as any)?.config);
 console.log("====================================");
 
+/** Offer expiry validation: must be number > 0. Returns error message or null. */
+const offerExpiryError = (() => {
+  const v = offerExpiryDays.trim();
+  if (v === "") return "Offer expiry is required";
+  const num = Number(v);
+  if (Number.isNaN(num) || num <= 0) return "Offer expiry is required";
+  return null;
+})();
+
 const hasChanges = !isEdit
   ? true
   : Boolean(pendingImageFile ?? pendingImageFileRef.current) ||
     Object.keys(pendingSupportingDocTemplates).length > 0 ||
+    (isEdit &&
+      product &&
+      (product as { offer_expiry_days?: number | null }).offer_expiry_days !==
+        (offerExpiryDays.trim() === "" ? null : Number(offerExpiryDays))) ||
     !isEqual;
 
   /** In edit mode, step ids that have unsaved changes (for "Edited" badge on cards). */
@@ -544,9 +584,33 @@ const hasChanges = !isEdit
                 </div>
               </div>
 
+              {/* Offer settings — below workflow steps */}
+              <div className="grid gap-2 shrink-0 min-w-0">
+                <Label className="text-sm font-medium">Offer settings</Label>
+                <div className="grid gap-2 min-w-0">
+                  <Label htmlFor="offer-expiry-days" className="text-sm font-normal text-muted-foreground">
+                    Offer expiry (days)
+                  </Label>
+                  <Input
+                    id="offer-expiry-days"
+                    type="number"
+                    min={1}
+                    value={offerExpiryDays}
+                    onChange={(e) => setOfferExpiryDays(e.target.value)}
+                    placeholder="3"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    This defines how long an issuer has to accept the offer after it is generated.
+                  </p>
+                </div>
+              </div>
+
               <div className="flex-1 min-h-0 overflow-y-auto">
                 {steps.length > 0 && !isSaving && !saveTriggered && (() => {
-                  const requiredErrors = getRequiredStepErrors(steps);
+                  const requiredErrors = [
+                    ...getRequiredStepErrors(steps),
+                    ...(offerExpiryError ? ["Offer settings: " + offerExpiryError] : []),
+                  ];
                   if (requiredErrors.length === 0) return null;
 
                   return (
@@ -597,6 +661,7 @@ const hasChanges = !isEdit
                   isSaving ||
                   steps.length === 0 ||
                   getRequiredStepErrors(steps).length > 0 ||
+                  !!offerExpiryError ||
                   (isEdit && !hasChanges)
                 }
               >

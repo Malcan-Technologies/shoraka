@@ -155,6 +155,7 @@ export interface Product {
   id: string;
   version: number;
   workflow: any[];
+  offer_expiry_days?: number | null;
   created_at: string;
   updated_at: string;
 }

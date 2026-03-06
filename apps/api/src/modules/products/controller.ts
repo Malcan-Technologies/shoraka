@@ -44,6 +44,7 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
             workflow: p.workflow as unknown[],
             category_display_order: (p as any).category_display_order ?? null,
             product_display_order: (p as any).product_display_order ?? null,
+            offer_expiry_days: (p as any).offer_expiry_days ?? null,
             created_at: p.created_at.toISOString(),
             updated_at: p.updated_at.toISOString(),
           })),
@@ -77,7 +78,10 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
     const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || null;
     const deviceInfo = (req as any).deviceInfo ?? null;
     const product = await productRepository.create(
-      { workflow: validated.workflow },
+      {
+        workflow: validated.workflow,
+        offer_expiry_days: validated.offer_expiry_days ?? undefined,
+      },
       { userId, ipAddress: ip as string | null, userAgent: req.headers["user-agent"] as string | undefined, deviceInfo: deviceInfo ?? null }
     );
     res.status(201).json({
@@ -86,6 +90,7 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
         id: product.id,
         version: product.version,
         workflow: product.workflow as unknown[],
+        offer_expiry_days: (product as { offer_expiry_days?: number | null }).offer_expiry_days ?? null,
         created_at: product.created_at.toISOString(),
         updated_at: product.updated_at.toISOString(),
       },
@@ -117,6 +122,7 @@ router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
           id: product.id,
           version: product.version,
           workflow: product.workflow as unknown[],
+          offer_expiry_days: (product as { offer_expiry_days?: number | null }).offer_expiry_days ?? null,
           created_at: product.created_at.toISOString(),
           updated_at: product.updated_at.toISOString(),
         },
@@ -154,6 +160,7 @@ router.patch("/:id", async (req: Request, res: Response, next: NextFunction) => 
       {
         workflow: validated.workflow,
         completeCreate: validated.completeCreate,
+        offer_expiry_days: validated.offer_expiry_days,
       },
       { userId, ipAddress: ip as string | null, userAgent: req.headers["user-agent"] as string | undefined, deviceInfo }
     );
@@ -172,6 +179,7 @@ router.patch("/:id", async (req: Request, res: Response, next: NextFunction) => 
         id: product.id,
         version: product.version,
         workflow: product.workflow as unknown[],
+        offer_expiry_days: (product as { offer_expiry_days?: number | null }).offer_expiry_days ?? null,
         created_at: product.created_at.toISOString(),
         updated_at: product.updated_at.toISOString(),
       },
