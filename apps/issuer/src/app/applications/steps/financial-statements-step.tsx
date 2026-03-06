@@ -9,8 +9,8 @@
  */
 import * as React from "react";
 import { useApplication } from "@/hooks/use-applications";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { DateInput } from "@/app/applications/components/date-input";
 import { cn } from "@/lib/utils";
 import {
@@ -173,6 +173,8 @@ export function FinancialStatementsStep({
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
   const [input, setInput] = React.useState<FinancialStatementsInput>(defaultInput);
+  const [profitLossType, setProfitLossType] = React.useState<"profit" | "loss">("profit");
+  const [profitLossAmount, setProfitLossAmount] = React.useState<number>(0);
   const [isInitialized, setIsInitialized] = React.useState(false);
   const initialPayloadRef = React.useRef<string>("");
 
@@ -186,6 +188,13 @@ export function FinancialStatementsStep({
     const saved = (application as unknown as Record<string, unknown>)?.financial_statements;
     const initial = fromSaved(saved);
     setInput(initial);
+    if (initial.plyear < 0) {
+      setProfitLossType("loss");
+      setProfitLossAmount(Math.abs(initial.plyear));
+    } else {
+      setProfitLossType("profit");
+      setProfitLossAmount(initial.plyear);
+    }
     initialPayloadRef.current = JSON.stringify(toApiPayload(initial));
     setIsInitialized(true);
   }, [application, isInitialized]);
@@ -213,6 +222,18 @@ export function FinancialStatementsStep({
   const moneyValue = (n: number) => (n === 0 ? "" : formatMoney(n));
   const setMoney = (key: FinancialStatementsInputKey) => (v: string) => {
     update({ [key]: v === "" ? 0 : parseMoney(v) });
+  };
+
+  const setProfitLossTypeAndUpdate = (type: "profit" | "loss") => {
+    setProfitLossType(type);
+    const amount = profitLossAmount;
+    update({ plyear: type === "loss" ? -amount : amount });
+  };
+
+  const setProfitLossAmountAndUpdate = (v: string) => {
+    const amount = v === "" ? 0 : parseMoney(v);
+    setProfitLossAmount(amount);
+    update({ plyear: profitLossType === "loss" ? -amount : amount });
   };
 
   const label = (key: FinancialStatementsInputKey) => FINANCIAL_FIELD_LABELS[key] ?? key;
@@ -392,21 +413,44 @@ export function FinancialStatementsStep({
               inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
               disabled={readOnly}
             />
-            <Label htmlFor="plyear" className={labelClassName}>
-              {label("plyear")}
-            </Label>
-            <Input
-              id="plyear"
-              type="number"
-              value={input.plyear === 0 ? "" : input.plyear}
-              onChange={(e) => {
-                const v = e.target.value;
-                update({ plyear: v === "" ? 0 : parseInt(v, 10) || 0 });
-              }}
-              placeholder="e.g. 2024"
-              className={cn(inputClassName, readOnly && formInputDisabledClassName)}
-              disabled={readOnly}
-            />
+            <Label className={labelClassName}>Profit / Loss of the Year</Label>
+            <div className="space-y-4">
+              <div>
+                <span className="text-sm text-muted-foreground">Type</span>
+                <RadioGroup
+                  value={profitLossType}
+                  onValueChange={(v) => !readOnly && setProfitLossTypeAndUpdate(v as "profit" | "loss")}
+                  className="flex gap-6 mt-2"
+                  disabled={readOnly}
+                >
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="profit" id="plyear-profit" />
+                    <Label htmlFor="plyear-profit" className={cn("cursor-pointer font-normal", profitLossType === "profit" ? "text-foreground" : "text-muted-foreground")}>
+                      Profit
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="loss" id="plyear-loss" />
+                    <Label htmlFor="plyear-loss" className={cn("cursor-pointer font-normal", profitLossType === "loss" ? "text-foreground" : "text-muted-foreground")}>
+                      Loss
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+              <div>
+                <Label htmlFor="plyear-amount" className={cn(labelClassName, "block mb-2")}>
+                  Amount
+                </Label>
+                <MoneyInput
+                  value={moneyValue(profitLossAmount)}
+                  onValueChange={(v) => setProfitLossAmountAndUpdate(v)}
+                  placeholder="0.00"
+                  prefix="RM"
+                  inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
+                  disabled={readOnly}
+                />
+              </div>
+            </div>
           </div>
         </section>
       </div>
