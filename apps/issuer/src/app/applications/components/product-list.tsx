@@ -77,20 +77,21 @@ interface ProductCardProps {
   imageS3Key: string;
   isSelected: boolean;
   onSelect: (id: string) => void;
+  disabled?: boolean;
 }
 
-function ProductCard({ id, name, description, imageS3Key, isSelected, onSelect }: ProductCardProps) {
+function ProductCard({ id, name, description, imageS3Key, isSelected, onSelect, disabled }: ProductCardProps) {
   return (
     <SelectionCard
       title={name}
       description={description}
       isSelected={isSelected}
-      onClick={() => onSelect(id)}
+      onClick={disabled ? () => {} : () => onSelect(id)}
+      disabled={disabled}
       leading={<ProductImagePreview s3Key={imageS3Key} alt={name} />}
       className="space-y-0"
     />
   );
-
 }
 
 
@@ -113,9 +114,10 @@ interface ProductListProps {
   selectedProductId: string;
   onProductSelect: (productId: string) => void;
   isLoading: boolean;
+  disabled?: boolean;
 }
 
-export function ProductList({ products, selectedProductId, onProductSelect, isLoading }: ProductListProps) {
+export function ProductList({ products, selectedProductId, onProductSelect, isLoading, disabled }: ProductListProps) {
   /**
    * Group products by category_name and sort by display order fields.
    * Falls back to workflow config if category fields missing.
@@ -255,6 +257,7 @@ export function ProductList({ products, selectedProductId, onProductSelect, isLo
                     imageS3Key={product.imageUrl}
                     isSelected={selectedProductId === product.id}
                     onSelect={onProductSelect}
+                    disabled={disabled}
                   />
                 ))}
               </div>

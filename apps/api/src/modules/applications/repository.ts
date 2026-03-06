@@ -52,6 +52,10 @@ export class ApplicationRepository {
     return prisma.application.findMany({
       where: { issuer_organization_id: organizationId },
       orderBy: { created_at: "desc" },
+      include: {
+        contract: true,
+        invoices: true,
+      },
     });
   }
 }

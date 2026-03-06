@@ -93,6 +93,49 @@ export class ApplicationService {
   }
 
   /**
+   * Load allowed sections from amendment remarks. Only sections/items with REQUEST_AMENDMENT remarks can be updated.
+   */
+  private async getAmendmentAllowedSections(applicationId: string): Promise<{ allowedSections: Set<string>; allowedItemKeys: Set<string> }> {
+    const remarks = await prisma.applicationReviewRemark.findMany({
+      where: {
+        application_id: applicationId,
+        action_type: "REQUEST_AMENDMENT",
+        submitted_at: { not: null },
+      } as any,
+    });
+
+    const allowedSections = new Set<string>();
+    const allowedItemKeys = new Set<string>();
+
+    for (const r of remarks) {
+      if (r.scope === "section" && r.scope_key) {
+        allowedSections.add(r.scope_key);
+      } else if (r.scope === "item" && r.scope_key) {
+        const stepKey = r.scope_key.split(":")[0];
+        allowedSections.add(stepKey);
+        allowedItemKeys.add(r.scope_key);
+      }
+    }
+
+    if (process.env.NODE_ENV !== "production") {
+      console.debug("[AMENDMENT GUARD]", "allowedSections:", Array.from(allowedSections));
+    }
+
+    return { allowedSections, allowedItemKeys };
+  }
+
+  /**
+   * Throw if application status does not allow editing (only DRAFT or AMENDMENT_REQUESTED).
+   */
+  private verifyApplicationEditable(application: Application | null): void {
+    if (!application) return;
+    const status = (application as any).status as string;
+    if (status !== "DRAFT" && status !== "AMENDMENT_REQUESTED") {
+      throw new AppError(403, "EDIT_NOT_ALLOWED", "Application cannot be edited in its current status");
+    }
+  }
+
+  /**
    * Verify that user has access to an application
    * User must be either the owner or a member of the organization that owns the application
    */
@@ -171,6 +214,56 @@ export class ApplicationService {
 
   }
 
+  /**
+   * List applications for an issuer organization (used by issuer dashboard).
+   */
+  async listByOrganization(organizationId: string, userId: string) {
+    // Verify membership
+    const member = await this.organizationRepository.getOrganizationMember(
+      organizationId,
+      userId,
+      "issuer"
+    );
+    if (!member) {
+      throw new AppError(403, "FORBIDDEN", "You do not have access to this organization");
+    }
+
+    return this.repository.listByOrganization(organizationId);
+  }
+
+  /**
+   * Get amendment context for an application (for issuer edit page).
+   * Returns application, review_cycle, and active remarks for the current review_cycle.
+   */
+  async getAmendmentContext(id: string, userId: string) {
+    await this.verifyApplicationAccess(id, userId);
+    const application = await this.repository.findById(id);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+
+    // Load all active amendment remarks for this application (admin tables are not versioned)
+    const remarks = await prisma.applicationReviewRemark.findMany({
+      where: {
+        application_id: id,
+        action_type: "REQUEST_AMENDMENT",
+        submitted_at: { not: null },
+      } as any,
+      orderBy: { created_at: "asc" },
+    });
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[AMENDMENT][API] Application ID:", id);
+      console.log("[AMENDMENT][API] Raw remarks from DB:", JSON.stringify(remarks, null, 2));
+    }
+
+    return {
+      application,
+      review_cycle: (application as any).review_cycle ?? 1,
+      remarks,
+    };
+  }
+
   async getApplicationLogs(id: string, userId: string) {
     await this.verifyApplicationAccess(id, userId);
 
@@ -202,16 +295,181 @@ export class ApplicationService {
   }
 
   /**
+   * Acknowledge a workflowId during amendment mode.
+   * Appends workflowId to application's amendment_acknowledged_workflow_ids if missing.
+   */
+  async acknowledgeWorkflow(applicationId: string, userId: string, workflowId: string) {
+    await this.verifyApplicationAccess(applicationId, userId);
+    const application = await this.repository.findById(applicationId);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+    this.verifyApplicationEditable(application);
+    if ((application as any).status !== "AMENDMENT_REQUESTED") {
+      throw new AppError(400, "INVALID_STATE", "Acknowledgement allowed only in AMENDMENT_REQUESTED state");
+    }
+
+    const existing: string[] = ((application as any).amendment_acknowledged_workflow_ids as string[]) ?? [];
+    const deduped = new Set(existing);
+    deduped.add(workflowId);
+
+    const updated = await this.repository.update(applicationId, {
+      amendment_acknowledged_workflow_ids: Array.from(deduped),
+      updated_at: new Date(),
+    } as any);
+
+    return updated;
+  }
+
+  /**
+   * Resubmit an application after amendments are acknowledged.
+   * 1. Delete only REQUEST_AMENDMENT review records
+   * 2. Create application revision snapshot
+   * 3. Set status to RESUBMITTED
+   * Does not modify contracts, invoices, documents, or other business data.
+   */
+  async resubmitApplication(applicationId: string, userId: string) {
+    await this.verifyApplicationAccess(applicationId, userId);
+    const application = await this.repository.findById(applicationId);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+    if ((application as any).status !== "AMENDMENT_REQUESTED") {
+      throw new AppError(400, "INVALID_STATE", "Resubmit allowed only in AMENDMENT_REQUESTED state");
+    }
+
+    const remarks = await prisma.applicationReviewRemark.findMany({
+      where: {
+        application_id: applicationId,
+        action_type: "REQUEST_AMENDMENT",
+        submitted_at: { not: null },
+      } as any,
+    });
+
+    const requiredSectionKeys = new Set<string>();
+    for (const r of remarks) {
+      if (r.scope === "section") {
+        requiredSectionKeys.add(r.scope_key);
+      } else if (r.scope === "item") {
+        requiredSectionKeys.add(r.scope_key.split(":")[0]);
+      }
+    }
+
+    const acknowledgedRaw: string[] = ((application as any).amendment_acknowledged_workflow_ids as string[]) ?? [];
+    const acknowledgedStepKeys = new Set(acknowledgedRaw.map((id) => id.replace(/_\d+$/, "")));
+
+    const missing: string[] = [];
+    for (const req of requiredSectionKeys) {
+      if (req.startsWith("financial")) continue;
+      if (!acknowledgedStepKeys.has(req)) missing.push(req);
+    }
+    if (missing.length > 0) {
+      throw new AppError(400, "MISSING_ACKNOWLEDGEMENTS", "All amendment steps must be completed before resubmitting");
+    }
+
+    const appFullCurrent = await prisma.application.findUnique({
+      where: { id: applicationId },
+      include: { contract: true, invoices: true, issuer_organization: true },
+    });
+
+    const previousCycle = (application as any).review_cycle ?? 1;
+    const newCycle = previousCycle + 1;
+
+    await prisma.$transaction(async (tx) => {
+      /** 1. Delete only REQUEST_AMENDMENT records — do not touch APPROVED or REJECTED */
+      await tx.applicationReviewRemark.deleteMany({
+        where: {
+          application_id: applicationId,
+          action_type: "REQUEST_AMENDMENT",
+        } as any,
+      });
+
+      await tx.applicationReviewItem.deleteMany({
+        where: {
+          application_id: applicationId,
+          status: "AMENDMENT_REQUESTED",
+        } as any,
+      });
+
+      await tx.applicationReview.deleteMany({
+        where: {
+          application_id: applicationId,
+          status: "AMENDMENT_REQUESTED",
+        } as any,
+      });
+
+      /** 2. Create application revision snapshot (unchanged) */
+      if (appFullCurrent) {
+        const snapshot = {
+          product: {
+            id: (appFullCurrent as any).financing_type?.product_id ?? null,
+            version: (appFullCurrent as any).product_version ?? null,
+          },
+          application: {
+            financing_type: appFullCurrent.financing_type,
+            financing_structure: appFullCurrent.financing_structure,
+            company_details: appFullCurrent.company_details,
+            business_details: appFullCurrent.business_details,
+            supporting_documents: appFullCurrent.supporting_documents,
+            declarations: appFullCurrent.declarations,
+            review_and_submit: appFullCurrent.review_and_submit,
+            last_completed_step: appFullCurrent.last_completed_step,
+            contract_id: appFullCurrent.contract_id,
+          },
+          contract: appFullCurrent.contract ?? null,
+          invoices: appFullCurrent.invoices ?? [],
+          issuer_organization: appFullCurrent.issuer_organization ?? null,
+        };
+
+        await (tx as any).applicationRevision.create({
+          data: {
+            application_id: applicationId,
+            review_cycle: newCycle,
+            snapshot,
+            submitted_at: new Date(),
+          },
+        });
+      }
+
+      /** 3. Set status RESUBMITTED, clear acknowledgements */
+      await tx.application.update({
+        where: { id: applicationId },
+        data: ({
+          review_cycle: newCycle,
+          amendment_acknowledged_workflow_ids: [],
+          status: "RESUBMITTED",
+          updated_at: new Date(),
+        } as any),
+      });
+    });
+
+    logger.info({ applicationId }, "Application resubmitted: cleared amendment flags, created revision");
+
+    await prisma.applicationLog.create({
+      data: {
+        user_id: userId,
+        application_id: applicationId,
+        event_type: "APPLICATION_RESUBMITTED",
+        review_cycle: newCycle,
+        created_at: new Date(),
+      } as any,
+    });
+
+    const updatedApplication = await this.repository.findById(applicationId);
+    return updatedApplication!;
+  }
+
+  /**
    * Update a specific step in the application
    */
   async updateStep(id: string, input: UpdateApplicationStepInput, userId: string): Promise<Application> {
-    // Verify user has access to this application
     await this.verifyApplicationAccess(id, userId);
 
     const application = await this.repository.findById(id);
     if (!application) {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
     }
+    this.verifyApplicationEditable(application);
 
     const fieldName = this.getFieldNameForStepId(input.stepId);
     if (!fieldName) {
@@ -221,17 +479,24 @@ export class ApplicationService {
         updated_at: new Date(),
       };
 
-      if (input.forceRewindToStep !== undefined) {
-        updateData.last_completed_step = input.forceRewindToStep;
-      } else {
-        updateData.last_completed_step = Math.max(
-          application.last_completed_step,
-          input.stepNumber
-        );
+      // Do not modify last_completed_step during amendment mode
+      if ((application as any).status !== "AMENDMENT_REQUESTED") {
+        if (input.forceRewindToStep !== undefined) {
+          updateData.last_completed_step = input.forceRewindToStep;
+        } else {
+          updateData.last_completed_step = Math.max(application.last_completed_step, input.stepNumber);
+        }
       }
 
-
       return this.repository.update(id, updateData);
+    }
+
+    /** Enforce amendment boundaries: only flagged sections/items can be updated. */
+    if ((application as any).status === "AMENDMENT_REQUESTED") {
+      const { allowedSections } = await this.getAmendmentAllowedSections(id);
+      if (!allowedSections.has(fieldName)) {
+        throw new AppError(403, "AMENDMENT_LOCKED", "This section is locked during amendment review");
+      }
     }
 
     if (fieldName === "company_details") {
@@ -299,13 +564,13 @@ export class ApplicationService {
     }
 
     // Update last_completed_step if this is a new step
-    if (input.forceRewindToStep !== undefined) {
-      updateData.last_completed_step = input.forceRewindToStep;
-    } else {
-      updateData.last_completed_step = Math.max(
-        application.last_completed_step,
-        input.stepNumber
-      );
+    // Do not update last_completed_step when in amendment mode
+    if ((application as any).status !== "AMENDMENT_REQUESTED") {
+      if (input.forceRewindToStep !== undefined) {
+        updateData.last_completed_step = input.forceRewindToStep;
+      } else {
+        updateData.last_completed_step = Math.max(application.last_completed_step, input.stepNumber);
+      }
     }
 
     return this.repository.update(id, updateData);
@@ -349,8 +614,17 @@ export class ApplicationService {
     existingS3Key?: string;
     userId: string;
   }): Promise<{ uploadUrl: string; s3Key: string; expiresIn: number }> {
-    // Verify user has access to this application
     await this.verifyApplicationAccess(params.applicationId, params.userId);
+    const application = await this.repository.findById(params.applicationId);
+    this.verifyApplicationEditable(application);
+
+    if ((application as any).status === "AMENDMENT_REQUESTED") {
+      const { allowedSections } = await this.getAmendmentAllowedSections(params.applicationId);
+      if (!allowedSections.has("supporting_documents")) {
+        throw new AppError(403, "AMENDMENT_LOCKED", "This section is locked during amendment review");
+      }
+    }
+
     // Validate file type (PDF only)
     if (params.contentType !== "application/pdf") {
       throw new AppError(400, "VALIDATION_ERROR", "File type not allowed. Please upload PDF files only.");
@@ -414,8 +688,17 @@ export class ApplicationService {
    * Delete an application document from S3
    */
   async deleteDocument(applicationId: string, s3Key: string, userId: string): Promise<void> {
-    // Verify user has access to this application
     await this.verifyApplicationAccess(applicationId, userId);
+    const application = await this.repository.findById(applicationId);
+    this.verifyApplicationEditable(application);
+
+    if ((application as any).status === "AMENDMENT_REQUESTED") {
+      const { allowedSections } = await this.getAmendmentAllowedSections(applicationId);
+      if (!allowedSections.has("supporting_documents")) {
+        throw new AppError(403, "AMENDMENT_LOCKED", "This section is locked during amendment review");
+      }
+    }
+
     try {
       await deleteS3Object(s3Key);
       logger.info({ s3Key }, "Deleted application document from S3");
@@ -429,13 +712,13 @@ export class ApplicationService {
    * Update application status and perform cleanup
    */
   async updateApplicationStatus(id: string, status: string, userId: string): Promise<Application> {
-    // Verify user has access to this application
     await this.verifyApplicationAccess(id, userId);
 
     const application = await this.repository.findById(id);
     if (!application) {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
     }
+    this.verifyApplicationEditable(application);
 
     const currentStatus = application.status as string;
     if (status === "RESUBMITTED" && currentStatus !== "AMENDMENT_REQUESTED") {
@@ -451,30 +734,44 @@ export class ApplicationService {
       updated_at: new Date(),
     };
 
-    // Resubmission after amendment: reset all section/item statuses for full re-review
-    if (currentStatus === "AMENDMENT_REQUESTED" && status === "RESUBMITTED") {
-      await prisma.applicationReview.updateMany({
-        where: { application_id: id },
-        data: { status: "PENDING", reviewer_user_id: null, reviewed_at: null },
+    // Create revision on initial submit (DRAFT -> SUBMITTED)
+    if (status === "SUBMITTED" && currentStatus === "DRAFT") {
+      const appFull = await prisma.application.findUnique({
+        where: { id },
+        include: { contract: true, invoices: true },
       });
-      await prisma.applicationReviewItem.updateMany({
-        where: { application_id: id },
-        data: { status: "PENDING", reviewer_user_id: null, reviewed_at: null },
-      });
-      await prisma.applicationReviewRemark.deleteMany({
-        where: {
-          application_id: id,
-          action_type: "REQUEST_AMENDMENT",
-          submitted_at: null,
-        },
-      });
-      if (application.contract_id) {
-        await prisma.contract.updateMany({
-          where: { id: application.contract_id, status: "AMENDMENT_REQUESTED" },
-          data: { status: "SUBMITTED" },
+      if (appFull) {
+        const snapshot = {
+          application: {
+            financing_type: appFull.financing_type,
+            financing_structure: appFull.financing_structure,
+            company_details: appFull.company_details,
+            business_details: appFull.business_details,
+            supporting_documents: appFull.supporting_documents,
+            declarations: appFull.declarations,
+            review_and_submit: appFull.review_and_submit,
+            last_completed_step: appFull.last_completed_step,
+            contract_id: appFull.contract_id,
+          },
+          contract: appFull.contract ?? null,
+          invoices: appFull.invoices ?? [],
+        };
+        await (prisma as any).applicationRevision.create({
+          data: {
+            application_id: id,
+            review_cycle: (appFull as any).review_cycle ?? 1,
+            snapshot,
+            submitted_at: new Date(),
+          },
         });
       }
-      logger.info({ applicationId: id, userId }, "Application resubmitted: all section/item statuses reset for re-review");
+    }
+
+    // Resubmit flow is handled by dedicated resubmitApplication method to keep behavior deterministic.
+    if (currentStatus === "AMENDMENT_REQUESTED" && status === "RESUBMITTED") {
+      const res = await this.resubmitApplication(id, userId);
+      // return updated application
+      return res as any;
     }
 
     // If submitting, perform cleanup of unused steps

@@ -39,11 +39,13 @@ type FinancingStructureType = "new_contract" | "existing_contract" | "invoice_on
 interface FinancingStructureStepProps {
   applicationId: string;
   onDataChange?: (data: any) => void;
+  readOnly?: boolean;
 }
 
 export function FinancingStructureStep({
   applicationId,
   onDataChange,
+  readOnly = false,
 }: FinancingStructureStepProps) {
   // DEBUG: Toggle skeleton mode
   const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
@@ -236,7 +238,8 @@ export function FinancingStructureStep({
           title="Submit a new contract"
           description="My invoice is under a contract that hasn't been approved by Cashsouk"
           isSelected={selectedStructure === "new_contract"}
-          onClick={() => handleStructureSelect("new_contract")}
+          onClick={readOnly ? () => {} : () => handleStructureSelect("new_contract")}
+          disabled={readOnly}
         />
 
         {/* Option 2: Use an existing contract */}
@@ -244,10 +247,11 @@ export function FinancingStructureStep({
           title="Use an existing contract"
           description="My invoice is under a contract already approved by Cashsouk"
           isSelected={selectedStructure === "existing_contract"}
-          onClick={() => handleStructureSelect("existing_contract")}
+          onClick={readOnly ? () => {} : () => handleStructureSelect("existing_contract")}
+          disabled={readOnly}
           trailing={
             hasApprovedContracts ? (
-              <Select value={selectedContractId} onValueChange={handleContractSelect}>
+              <Select value={selectedContractId} onValueChange={handleContractSelect} disabled={readOnly}>
                 <SelectTrigger
                   className={formSelectTriggerClassName + " w-[280px]"}
                   onClick={(e) => {
@@ -285,7 +289,8 @@ export function FinancingStructureStep({
           title="Invoice-only financing"
           description="I want to finance my invoice(s) without a contract"
           isSelected={selectedStructure === "invoice_only"}
-          onClick={() => handleStructureSelect("invoice_only")}
+          onClick={readOnly ? () => {} : () => handleStructureSelect("invoice_only")}
+          disabled={readOnly}
         />
       </div>
     </div>

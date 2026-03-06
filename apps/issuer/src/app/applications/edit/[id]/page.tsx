@@ -25,12 +25,15 @@
 
 import * as React from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { useAuthToken } from "@cashsouk/config";
 import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useApplication,
   useUpdateApplicationStep,
   useUpdateApplicationStatus,
+  useResubmitApplication,
 } from "@/hooks/use-applications";
 import { useProducts } from "@/hooks/use-products";
 import { toast } from "sonner";
@@ -41,6 +44,7 @@ import {
   type ApplicationStepKey,
 } from "@cashsouk/types";
 import { ProgressIndicator } from "../../components/progress-indicator";
+import { AmendmentRemarkCard } from "../../components/amendment-remark-card";
 import { useHeader } from "@cashsouk/ui";
 import { FinancingTypeStep } from "../../steps/financing-type-step";
 import { FinancingStructureStep } from "../../steps/financing-structure-step";
@@ -112,6 +116,7 @@ export default function EditApplicationPage() {
   const stepFromUrl = parseInt(searchParams.get("step") || "1");
 
   /** Load application from DB */
+  const queryClient = useQueryClient();
   const {
     data: application,
     isLoading: isLoadingApp,
@@ -163,17 +168,141 @@ export default function EditApplicationPage() {
    LOCK EDITING IF NOT DRAFT
    ================================================================ */
 
+  /** Block edit access when status is not DRAFT or AMENDMENT_REQUESTED. */
+  const isEditBlocked =
+    application &&
+    application.status !== "DRAFT" &&
+    application.status !== "AMENDMENT_REQUESTED";
+
   React.useEffect(() => {
     if (!application) return;
-
-    // Allow staying during active submit flow
     if (isSubmittingRef.current) return;
-
-    if (application.status !== "DRAFT") {
-      router.replace("/");
+    if (application.status !== "DRAFT" && application.status !== "AMENDMENT_REQUESTED") {
+      if (process.env.NODE_ENV !== "production") {
+        console.debug("[EDIT GUARD]", "status:", application.status);
+      }
+      router.replace("/applications");
     }
   }, [application, router]);
 
+  /* ================================================================
+     AMENDMENT CONTEXT LOADING (when application is in AMENDMENT_REQUESTED)
+     ================================================================
+  */
+  const { getAccessToken } = useAuthToken();
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+  const [amendmentContext, setAmendmentContext] = React.useState<{
+    review_cycle: number;
+    remarks: any[];
+  } | null>(null);
+  const [devPreviewAmendment, setDevPreviewAmendment] = React.useState(false);
+
+  /** Mock amendment data for DEV preview — shows all error types (tab, supporting doc item, invoice item) */
+  const getMockAmendmentContext = React.useCallback(() => ({
+    review_cycle: (application as { review_cycle?: number })?.review_cycle ?? 1,
+    remarks: [
+      { scope: "section", scope_key: "contract_details", remark: "Missing contract number\nError with customer name" },
+      { scope: "section", scope_key: "invoice_details", remark: "Invoice amount does not match document\nMissing supplier signature" },
+      { scope: "item", scope_key: "invoice_details:0:Invoice", remark: "amount does not match document" },
+      { scope: "item", scope_key: "invoice_details:1:Invoice", remark: "missing supplier signature" },
+      { scope: "section", scope_key: "supporting_documents", remark: "Upload missing Company Secretary Letter." },
+      { scope: "item", scope_key: "supporting_documents:doc:financial_docs:0:Latest_Management_Account", remark: "Wrong document uploaded" },
+      { scope: "item", scope_key: "supporting_documents:doc:legal_docs:0:Deed_of_Assignment", remark: "Document date expired" },
+    ],
+  }), [(application as { review_cycle?: number })?.review_cycle]);
+
+  React.useEffect(() => {
+    if (!application) return;
+
+    if (devPreviewAmendment) {
+      setAmendmentContext(getMockAmendmentContext() as any);
+      return;
+    }
+
+    if (application.status !== "AMENDMENT_REQUESTED") {
+      setAmendmentContext(null);
+      return;
+    }
+
+    let mounted = true;
+    (async () => {
+      try {
+        const token = await getAccessToken();
+        const resp = await fetch(`${API_URL}/v1/applications/${applicationId}/amendment-context`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const json = await resp.json();
+        if (!mounted) return;
+        if (!json.success) return;
+        setAmendmentContext({ review_cycle: json.data.review_cycle, remarks: json.data.remarks });
+      } catch {
+        // ignore network errors
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [application, applicationId, getAccessToken, API_URL, devPreviewAmendment, getMockAmendmentContext]);
+
+  /** Section-level: scope_key where scope === "section" */
+  const flaggedSections = React.useMemo(() => {
+    if (!amendmentContext) return new Set<string>();
+    const s = new Set<string>();
+    for (const r of amendmentContext.remarks || []) {
+      const rem = r as { scope?: string; scope_key?: string };
+      if (rem.scope === "section" && rem.scope_key) s.add(rem.scope_key);
+    }
+    return s;
+  }, [amendmentContext]);
+
+  /** Item-level: tab (split(":")[0]) -> Set of full scope_key */
+  const flaggedItems = React.useMemo(() => {
+    if (!amendmentContext) return new Map<string, Set<string>>();
+    const m = new Map<string, Set<string>>();
+    for (const r of amendmentContext.remarks || []) {
+      const rem = r as { scope?: string; scope_key?: string };
+      if (rem.scope === "item" && rem.scope_key) {
+        const tab = rem.scope_key.split(":")[0];
+        if (!m.has(tab)) m.set(tab, new Set());
+        m.get(tab)!.add(rem.scope_key);
+      }
+    }
+    return m;
+  }, [amendmentContext]);
+
+  /** Step keys that have amendment remarks (section or item). Used by stepper for red styling.
+   * Review & Submit is always flagged in amendment mode — issuer must resubmit. */
+  const amendmentFlaggedStepKeys = React.useMemo(() => {
+    const s = new Set<string>();
+    for (const k of flaggedSections) s.add(k);
+    for (const k of flaggedItems.keys()) s.add(k);
+    if (application?.status === "AMENDMENT_REQUESTED" || devPreviewAmendment) {
+      s.add("review_and_submit");
+    }
+    return Array.from(s);
+  }, [flaggedSections, flaggedItems, application?.status, devPreviewAmendment]);
+
+  /** Step keys the user has acknowledged (saved). Derived from amendment_acknowledged_workflow_ids. */
+  const acknowledgedWorkflowIds = React.useMemo(() => {
+    const ids = (application as { amendment_acknowledged_workflow_ids?: string[] })?.amendment_acknowledged_workflow_ids ?? [];
+    return Array.from(new Set(ids.map((id) => getStepKeyFromStepId(id)).filter(Boolean))) as string[];
+  }, [application]);
+
+  /** Skip financial and review_and_submit — only other flagged steps need acknowledgement before Resubmit. */
+  const allAmendmentStepsAcknowledged = amendmentFlaggedStepKeys
+    .filter((step) => !step.startsWith("financial") && step !== "review_and_submit")
+    .every((step) => acknowledgedWorkflowIds.includes(step));
+
+  React.useEffect(() => {
+    if (process.env.NODE_ENV !== "production" && application?.status === "AMENDMENT_REQUESTED") {
+      console.log("[AMENDMENT][RESUBMIT_BUTTON]", {
+        amendmentFlaggedStepKeys,
+        acknowledgedWorkflowIds,
+        allAcknowledged: allAmendmentStepsAcknowledged,
+      });
+    }
+  }, [application?.status, amendmentFlaggedStepKeys, acknowledgedWorkflowIds, allAmendmentStepsAcknowledged]);
 
   /* ================================================================
      FINANCING STRUCTURE HANDLING (SESSION OVERRIDE)
@@ -331,11 +460,16 @@ export default function EditApplicationPage() {
     [currentStepKey, effectiveWorkflow, stepFromUrl]
   ) as { title: string; description: string };
 
+  const isRealAmendmentMode = (application as any)?.status === "AMENDMENT_REQUESTED";
+  const isAmendmentModeEffective = isRealAmendmentMode || devPreviewAmendment;
+
   /* ================================================================
      STEP DATA STORAGE (REF)
      ================================================================ */
 
   const stepDataRef = React.useRef<Record<string, unknown> | null>(null);
+  /** Tracks which step the data belongs to — prevents using stale data when clicking Back then Save. */
+  const stepDataStepKeyRef = React.useRef<string | null>(null);
   const isSavingRef = React.useRef<boolean>(false);
   const isSubmittingRef = React.useRef<boolean>(false);
 
@@ -345,6 +479,7 @@ export default function EditApplicationPage() {
 
   const updateStepMutation = useUpdateApplicationStep();
   const updateStatusMutation = useUpdateApplicationStatus();
+  const resubmitMutation = useResubmitApplication();
 
 
   /* ================================================================
@@ -353,9 +488,8 @@ export default function EditApplicationPage() {
 
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
   React.useEffect(() => {
-    // reset unsaved state when changing steps
     setHasUnsavedChanges(false);
-    stepDataRef.current = null;
+    /** Do not clear stepDataRef — new step overwrites when ready. Clearing caused race: Save before step populated. */
   }, [stepFromUrl]);
 
   // Navigation guard integration
@@ -443,12 +577,16 @@ export default function EditApplicationPage() {
     if (isSubmittingRef.current) return;
     if (!application || isLoadingApp || wizardState === null) return;
 
-
     if (!searchParams.get("step")) {
-      const targetStep = wizardState.allowedMaxStep;
+      const isRealAmendmentMode = (application as any)?.status === "AMENDMENT_REQUESTED";
+      const isAmendmentMode = isRealAmendmentMode || devPreviewAmendment;
+      const targetStep = isAmendmentMode ? 1 : wizardState.allowedMaxStep;
+      // dev-only debug
+      // eslint-disable-next-line no-console
+      console.debug("[Amendment] initialStep", targetStep, { isAmendmentMode, lastCompletedStep: (application as any)?.last_completed_step });
       router.replace(`/applications/edit/${applicationId}?step=${targetStep}`);
     }
-  }, [application, applicationId, router, searchParams, isLoadingApp, wizardState]);
+  }, [application, applicationId, router, searchParams, isLoadingApp, wizardState, devPreviewAmendment]);
 
   /* ================================================================
      NAVIGATION GATING & VALIDATION
@@ -465,7 +603,12 @@ export default function EditApplicationPage() {
     if (!application || isLoadingApp || isLoadingProducts || isMismatch) return;
     if (wizardState === null) return;
     if (!searchParams.get("step")) return;
-
+    // Keep review & submit stable: if user is on the review page, do not
+    // auto-advance or redirect when the workflow changes (e.g. a step was removed).
+    // Users expect to stay on the review page and decide next actions manually.
+    if (currentStepKey === "review_and_submit") {
+      return;
+    }
     const maxStepInWorkflow = effectiveWorkflow.length;
     const maxAllowed = wizardState.allowedMaxStep;
 
@@ -478,7 +621,8 @@ export default function EditApplicationPage() {
 
     // SCENARIO 2: Step beyond workflow but within completed steps (allow viewing)
     if (maxStepInWorkflow > 0 && stepFromUrl > maxStepInWorkflow) {
-      if (stepFromUrl <= wizardState.lastCompletedStep + 1) {
+      // if (stepFromUrl <= wizardState.lastCompletedStep + 1) {
+      if (stepFromUrl < wizardState.lastCompletedStep + 1) {
         return; // Allow viewing completed steps even if workflow changed
       }
       const safeStep = Math.min(maxAllowed, maxStepInWorkflow);
@@ -487,10 +631,13 @@ export default function EditApplicationPage() {
       return;
     }
 
-    // SCENARIO 3: Step beyond max allowed (skip ahead attempt)
+    // SCENARIO 3: Step beyond max allowed (skip ahead) — redirect to last step (Review and Submit) when beyond workflow
     if (stepFromUrl > maxAllowed) {
       toast.error("Please complete steps in order");
-      router.replace(`/applications/edit/${applicationId}?step=${maxAllowed}`);
+      const targetStep = maxStepInWorkflow > 0
+        ? Math.min(maxAllowed, maxStepInWorkflow)
+        : maxAllowed;
+      router.replace(`/applications/edit/${applicationId}?step=${targetStep}`);
       return;
     }
 
@@ -515,23 +662,40 @@ export default function EditApplicationPage() {
      RENDER STEP COMPONENT
      ================================================================ */
 
+  /** Step flagged if section-level or has item-level remarks */
+  const isStepFlagged = React.useMemo(() => {
+    if (!isAmendmentModeEffective) return true;
+    if (!currentStepKey) return false;
+    return flaggedSections.has(currentStepKey) || (flaggedItems.get(currentStepKey)?.size ?? 0) > 0;
+  }, [isAmendmentModeEffective, flaggedSections, flaggedItems, currentStepKey]);
+
+  /** Section-level remarks only for top card. Item-level remarks show beside each file/item. */
+  const currentStepRemarks = React.useMemo(() => {
+    if (!currentStepKey || !amendmentContext?.remarks) return [];
+    return (amendmentContext.remarks as { scope?: string; scope_key?: string; remark?: string }[])
+      .filter((r) => r.scope === "section" && r.scope_key === currentStepKey)
+      .map((r) => r.remark || "");
+  }, [currentStepKey, amendmentContext?.remarks]);
+
+  const stepReadOnly = isAmendmentModeEffective && !isStepFlagged;
+
   const renderStepComponent = () => {
     const financingType = application?.financing_type as Record<string, unknown>;
     const savedProductId = (financingType?.product_id as string) || "";
 
-    console.log('hi', currentStepKey)
     if (currentStepKey === "financing_type") {
       return (
         <FinancingTypeStep
           initialProductId={savedProductId}
           onDataChange={handleDataChange}
+          readOnly={stepReadOnly}
         />
       );
     }
 
     if (currentStepKey === "company_details") {
       return (
-        <CompanyDetailsStep applicationId={applicationId} onDataChange={handleDataChange} />
+        <CompanyDetailsStep applicationId={applicationId} onDataChange={handleDataChange} readOnly={stepReadOnly} />
       );
     }
 
@@ -541,32 +705,38 @@ export default function EditApplicationPage() {
           applicationId={applicationId}
           stepConfig={(currentStepConfig?.config as Record<string, unknown>) || undefined}
           onDataChange={handleDataChange}
+          readOnly={stepReadOnly}
         />
       );
     }
 
     if (currentStepKey === "business_details") {
       return (
-        <BusinessDetailsStep applicationId={applicationId} onDataChange={handleDataChange} />
+        <BusinessDetailsStep applicationId={applicationId} onDataChange={handleDataChange} readOnly={stepReadOnly} />
       );
     }
 
     if (currentStepKey === "supporting_documents") {
       return (
-        <SupportingDocumentsStep
+          <SupportingDocumentsStep
           applicationId={applicationId}
           stepConfig={
             (currentStepConfig as Record<string, unknown>) ||
             ({} as Record<string, unknown>)
           }
           onDataChange={handleDataChange}
+          readOnly={stepReadOnly}
+          amendmentRemarks={amendmentContext?.remarks ?? []}
+          isAmendmentMode={isAmendmentModeEffective}
+          flaggedSections={flaggedSections}
+          flaggedItems={flaggedItems}
         />
       );
     }
 
     if (currentStepKey === "financing_structure") {
       return (
-        <FinancingStructureStep applicationId={applicationId} onDataChange={handleDataChange} />
+        <FinancingStructureStep applicationId={applicationId} onDataChange={handleDataChange} readOnly={stepReadOnly} />
       );
     }
 
@@ -576,23 +746,35 @@ export default function EditApplicationPage() {
           applicationId={applicationId}
           workflow={effectiveWorkflow}
           onDataChange={handleDataChange}
+          isAmendmentMode={isAmendmentModeEffective}
+          flaggedSections={flaggedSections}
+          flaggedItems={flaggedItems}
+          remarks={amendmentContext?.remarks ?? []}
+          readOnly={stepReadOnly}
         />
       );
     }
 
     if (currentStepKey === "invoice_details") {
       return (
-        <InvoiceDetailsStep applicationId={applicationId} onDataChange={handleDataChange} />
+        <InvoiceDetailsStep
+          applicationId={applicationId}
+          onDataChange={handleDataChange}
+          readOnly={stepReadOnly}
+          isAmendmentMode={isAmendmentModeEffective}
+          flaggedSections={flaggedSections}
+          flaggedItems={flaggedItems}
+          remarks={amendmentContext?.remarks ?? []}
+        />
       );
     }
 
     if (currentStepKey === "review_and_submit") {
       return (
-        <ReviewAndSubmitStep applicationId={applicationId} onDataChange={handleDataChange} />
+        <ReviewAndSubmitStep applicationId={applicationId} onDataChange={handleDataChange} readOnly={stepReadOnly} />
       );
     }
 
-    // This shouldn't happen - each step has its own skeleton for loading
     return null;
   };
 
@@ -670,6 +852,7 @@ export default function EditApplicationPage() {
 
   const handleDataChange = React.useCallback((data: Record<string, unknown> | null) => {
     stepDataRef.current = data;
+    stepDataStepKeyRef.current = data ? currentStepKey : null;
 
     if (data && (data.product_id as string | undefined)) {
       setSelectedProductId(data.product_id as string);
@@ -697,7 +880,7 @@ export default function EditApplicationPage() {
         setHasUnsavedChanges(true);
       }
     }
-  }, []);
+  }, [currentStepKey]);
 
   /* ================================================================
      SAVE & CONTINUE HANDLER
@@ -716,6 +899,19 @@ export default function EditApplicationPage() {
     if (isSubmittingRef.current) return;
 
     try {
+      // Locked step: navigate only, no save, no DB write, no toast
+      if (isAmendmentModeEffective && !isStepFlagged) {
+        setHasUnsavedChanges(false);
+        const nextStep = stepFromUrl + 1;
+        if (wizardState) {
+          setWizardState({
+            lastCompletedStep: wizardState.lastCompletedStep,
+            allowedMaxStep: Math.max(wizardState.allowedMaxStep, nextStep),
+          });
+        }
+        await safeNavigate(`/applications/edit/${applicationId}?step=${nextStep}`, { leavingPage: false });
+        return;
+      }
       isSavingRef.current = true;
 
       // Live version guard: perform an up-to-date check before saving/navigation
@@ -725,9 +921,15 @@ export default function EditApplicationPage() {
       }
 
       const rawData = stepDataRef.current;
-      let dataToSave: Record<string, unknown> | null = rawData
-        ? { ...rawData }
-        : null;
+      /** Guard: data must be from current step. When clicking Back, step repopulates async — avoid saving stale or empty. */
+      if (
+        !rawData ||
+        (stepDataStepKeyRef.current && stepDataStepKeyRef.current !== currentStepKey)
+      ) {
+        toast.error("Please wait for the form to load before saving");
+        return;
+      }
+      let dataToSave: Record<string, unknown> | null = { ...rawData };
 
       const structureChanged =
         currentStepKey === "financing_structure" &&
@@ -748,30 +950,33 @@ export default function EditApplicationPage() {
         const returnedData = await saveFunctionFromData();
         delete (dataToSave as Record<string, unknown>).saveFunction;
 
-        if (returnedData) {
-          if (
-            typeof returnedData === "object" &&
-            returnedData !== null &&
-            "isValid" in returnedData
-          ) {
-            delete (returnedData as Record<string, unknown>).isValid;
-          }
+          if (returnedData) {
+            if (
+              typeof returnedData === "object" &&
+              returnedData !== null &&
+              "isValid" in returnedData
+            ) {
+              delete (returnedData as Record<string, unknown>).isValid;
+            }
 
-          if (currentStepKey === "supporting_documents") {
-            dataToSave = { supporting_documents: returnedData };
-          } else if (
-            currentStepKey === "invoice_details" &&
-            (returnedData as Record<string, unknown>)?.supporting_documents
-          ) {
-            dataToSave = {
-              supporting_documents: (returnedData as Record<string, unknown>)
-                .supporting_documents,
-            };
-          } else {
-            // Merge returned data with remaining dataToSave
-            dataToSave = { ...dataToSave, ...returnedData };
+            if (currentStepKey === "supporting_documents") {
+              // The supporting documents step returns the object shape that should be
+              // stored directly on the `supporting_documents` column. Avoid wrapping
+              // it a second time (which caused `supporting_documents.supporting_documents`).
+              dataToSave = returnedData as Record<string, unknown>;
+            } else if (
+              currentStepKey === "invoice_details" &&
+              (returnedData as Record<string, unknown>)?.supporting_documents
+            ) {
+              dataToSave = {
+                supporting_documents: (returnedData as Record<string, unknown>)
+                  .supporting_documents,
+              };
+            } else {
+              // Merge returned data with remaining dataToSave
+              dataToSave = { ...dataToSave, ...returnedData };
+            }
           }
-        }
       }
 
       // Remove frontend-only properties AFTER saveFunction completes
@@ -850,9 +1055,27 @@ export default function EditApplicationPage() {
         id: applicationId,
         stepData: stepPayload,
       });
+      
+      // In amendment mode: if this step is flagged, acknowledge workflow
+      try {
+        if (application?.status === "AMENDMENT_REQUESTED") {
+          const token = await getAccessToken();
+          await fetch(`${API_URL}/v1/applications/${applicationId}/acknowledge-workflow`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ workflowId: currentStepId }),
+          });
+          queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
+        }
+      } catch {
+        // ignore acknowledgement failures - backend enforcement remains authoritative
+      }
 
-      // Update local wizard state immediately (source of truth)
-      if (wizardState) {
+      /** Do not update wizard state in amendment flow — progress is driven by acknowledgement only. */
+      if (wizardState && application?.status !== "AMENDMENT_REQUESTED") {
         setWizardState({
           lastCompletedStep: stepFromUrl,
           allowedMaxStep: Math.max(wizardState.allowedMaxStep, nextStep),
@@ -900,6 +1123,10 @@ export default function EditApplicationPage() {
   const isLoading = isLoadingApp || isLoadingProducts;
   const showBlockingDialog = Boolean(blockReason);
 
+  if (isEditBlocked) {
+    return null;
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Main content */}
@@ -907,13 +1134,41 @@ export default function EditApplicationPage() {
         <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 py-4 sm:py-8">
           {/* Page Title */}
           {application ? (
-            <div className="mb-4 sm:mb-6">
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">
-                {currentStepInfo.title}
-              </h1>
-              <p className="text-sm sm:text-[15px] leading-6 sm:leading-7 text-muted-foreground mt-1">
-                {currentStepInfo.description}
-              </p>
+            <div className="mb-4 sm:mb-6 flex items-start justify-between">
+              <div>
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">
+                  {currentStepInfo.title}
+                </h1>
+                <p className="text-sm sm:text-[15px] leading-6 sm:leading-7 text-muted-foreground mt-1">
+                  {currentStepInfo.description}
+                </p>
+              </div>
+              {process.env.NODE_ENV !== "production" ? (
+                <div className="ml-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const next = !devPreviewAmendment;
+                      setDevPreviewAmendment(next);
+                      if (next) {
+                        const mockFlagged = new Set(["contract_details", "invoice_details", "supporting_documents"]);
+                        const firstFlagged = effectiveWorkflow.findIndex(
+                          (s: Record<string, unknown>) =>
+                            mockFlagged.has(getStepKeyFromStepId((s.id as string) || "") || "")
+                        );
+                        const targetStep = firstFlagged >= 0 ? firstFlagged + 1 : 1;
+                        queueMicrotask(() =>
+                          router.replace(`/applications/edit/${applicationId}?step=${targetStep}`)
+                        );
+                      }
+                    }}
+                    className="text-xs px-3 py-1 rounded-md"
+                  >
+                    Preview Amendment UI
+                    <span className="ml-2 text-[10px] text-muted-foreground">DEV</span>
+                  </Button>
+                </div>
+              ) : null}
             </div>
           ) : null}
 
@@ -922,7 +1177,15 @@ export default function EditApplicationPage() {
             steps={effectiveWorkflow
               .map((s: Record<string, unknown>) => (s.name as string))}
             currentStep={stepFromUrl}
+            lastCompletedStep={wizardState?.lastCompletedStep}
             isLoading={isLoading || !effectiveWorkflow.length}
+            isAmendmentMode={isAmendmentModeEffective}
+            amendmentFlaggedStepKeys={amendmentFlaggedStepKeys}
+            acknowledgedWorkflowIds={acknowledgedWorkflowIds}
+            stepKeys={effectiveWorkflow.map(
+              (s: Record<string, unknown>) =>
+                getStepKeyFromStepId((s.id as string) || "") || ""
+            )}
           />
         </div>
 
@@ -930,7 +1193,17 @@ export default function EditApplicationPage() {
         <div className="h-px bg-border w-full" />
 
         {/* Step Content - Shows step's own skeleton when loading */}
-        <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 pt-4 sm:pt-6">
+        <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 pt-4 sm:pt-6 relative">
+          {isAmendmentModeEffective && !isStepFlagged ? (
+            <p className="text-sm text-muted-foreground mb-4 py-2 px-3 rounded-lg bg-muted/50">
+              Read-only — no amendment requested for this step
+            </p>
+          ) : null}
+          {isStepFlagged ? (
+            <div className="mb-6">
+              <AmendmentRemarkCard remarks={currentStepRemarks} showDefaultIntro={false} />
+            </div>
+          ) : null}
           {renderStepComponent()}
         </div>
       </main>
@@ -948,23 +1221,46 @@ export default function EditApplicationPage() {
               Back
             </Button>
 
+            <div className="order-1 sm:order-2 flex flex-col items-end gap-1">
             <Button
               onClick={
-                currentStepKey === "review_and_submit"
+                currentStepKey === "review_and_submit" && application?.status === "AMENDMENT_REQUESTED"
+                  ? async () => {
+                      try {
+                        if (!applicationId) return;
+                        isSubmittingRef.current = true;
+                        const mismatch = await checkNow();
+                        if (mismatch) return;
+                        await resubmitMutation.mutateAsync(applicationId);
+                        toast.success("Application resubmitted successfully");
+                        router.replace("/");
+                      } catch {
+                        isSubmittingRef.current = false;
+                      }
+                    }
+                  : currentStepKey === "review_and_submit"
                   ? handleSubmitApplication
                   : handleSaveAndContinue
               }
               disabled={
-                updateStepMutation.isPending ||
-                updateStatusMutation.isPending ||
-                isSubmittingRef.current ||
-                !isCurrentStepValid ||
-                !isStepMapped
+                currentStepKey === "review_and_submit" && application?.status === "AMENDMENT_REQUESTED"
+                  ? resubmitMutation.isPending ||
+                    isSubmittingRef.current ||
+                    !allAmendmentStepsAcknowledged ||
+                    !isCurrentStepValid
+                  : updateStepMutation.isPending ||
+                    updateStatusMutation.isPending ||
+                    isSubmittingRef.current ||
+                    !isCurrentStepValid ||
+                    !isStepMapped
               }
-
               className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2 h-11"
             >
-              {currentStepKey === "review_and_submit"
+              {currentStepKey === "review_and_submit" && application?.status === "AMENDMENT_REQUESTED"
+                ? resubmitMutation.isPending
+                  ? "Resubmitting..."
+                  : "Resubmit for Review"
+                : currentStepKey === "review_and_submit"
                 ? updateStatusMutation.isPending
                   ? "Submitting..."
                   : "Submit"
@@ -973,6 +1269,10 @@ export default function EditApplicationPage() {
                   : "Save and Continue"}
               <ArrowRightIcon className="h-4 w-4 ml-2" />
             </Button>
+            {isAmendmentModeEffective && !isStepFlagged && currentStepKey !== "review_and_submit" ? (
+              <p className="text-xs text-muted-foreground">Continuing without saving</p>
+            ) : null}
+            </div>
           </div>
         </footer>
       ) : null}

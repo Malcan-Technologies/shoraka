@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
 import { useApplication } from "@/hooks/use-applications";
 import { DeclarationsSkeleton } from "@/app/applications/components/declarations-skeleton";
 import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
@@ -25,12 +26,14 @@ interface DeclarationsStepProps {
   applicationId: string;
   stepConfig?: any;
   onDataChange?: (data: any) => void;
+  readOnly?: boolean;
 }
 
 export function DeclarationsStep({
   applicationId,
   stepConfig,
   onDataChange,
+  readOnly = false,
 }: DeclarationsStepProps) {
   // DEBUG: Toggle skeleton mode
   const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
@@ -241,7 +244,11 @@ return (
                   onCheckedChange={(checked) =>
                     handleToggle(index, checked === true)
                   }
-                  className="mt-0.5 rounded-[4px]"
+                  disabled={readOnly}
+                  className={cn(
+                    "mt-0.5 rounded-[4px]",
+                    readOnly && "disabled:opacity-100 data-[state=checked]:bg-muted data-[state=checked]:border-muted-foreground data-[state=checked]:text-muted-foreground"
+                  )}
                 />
 
                 {/* Declaration Text */}

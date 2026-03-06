@@ -2,7 +2,8 @@ import { ContractRepository } from "./repository";
 import { ApplicationRepository } from "../applications/repository";
 import { OrganizationRepository } from "../organization/repository";
 import { AppError } from "../../lib/http/error-handler";
-import { Contract, Prisma } from "@prisma/client";
+import { ApplicationReviewRemark, Contract, Prisma } from "@prisma/client";
+import { prisma } from "../../lib/prisma";
 import {
   generateContractDocumentKey,
   generateContractDocumentKeyWithVersion,
@@ -110,11 +111,35 @@ export class ContractService {
   }
 
   async updateContract(id: string, data: Prisma.ContractUpdateInput, userId: string): Promise<Contract> {
-    await this.verifyContractAccess(id, userId);
+    const contract = await this.verifyContractAccess(id, userId);
     
     // NOTE: Do not auto-initialize available_facility when contract value changes.
     // The frontend is responsible for setting available_facility when appropriate.
-    
+
+    // Enforce amendment boundaries: if application is in AMENDMENT_REQUESTED, contract edits
+    // are only allowed if there is an active REQUEST_AMENDMENT remark for contract_details.
+    const applicationId = (contract as any)?.applications?.[0]?.id;
+    if (applicationId) {
+      const application = await this.applicationRepository.findById(applicationId);
+      if (application && (application as any).status === "AMENDMENT_REQUESTED") {
+        const remarks = await prisma.applicationReviewRemark.findMany({
+          where: { application_id: applicationId, action_type: "REQUEST_AMENDMENT" } as any,
+        });
+        const { parseScopeKey } = require("@cashsouk/types");
+        const hasContractRemark = remarks.some((r: ApplicationReviewRemark) => {
+          try {
+            const p = parseScopeKey(r.scope_key);
+            return (p.kind === "TAB" && p.tab === "contract_details") || (p.kind === "FIELD" && p.tab === "contract_details");
+          } catch {
+            return false;
+          }
+        });
+        if (!hasContractRemark) {
+          throw new AppError(403, "AMENDMENT_BOUNDARY", "Contract edits are locked during amendment unless contract details are requested for amendment.");
+        }
+      }
+    }
+
     return this.repository.update(id, {
       ...data,
       updated_at: new Date(),

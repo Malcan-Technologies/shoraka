@@ -15,6 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import {
   formInputClassName,
+  formInputDisabledClassName,
   formTextareaClassName,
   formLabelClassName,
 } from "@/app/applications/components/form-control";
@@ -176,6 +177,7 @@ const defaultWhy: WhyRaisingFunds = {
 interface BusinessDetailsStepProps {
   applicationId: string;
   onDataChange?: (data: any) => void;
+  readOnly?: boolean;
 }
 
 const sectionHeaderClassName = "text-base font-semibold text-foreground";
@@ -192,7 +194,6 @@ const labelClassName = cn(formLabelClassName, "font-normal");
  * Inputs
  */
 const inputClassName = formInputClassName;
-
 const textareaClassName = cn(formTextareaClassName, "min-h-[100px]");
 
 /**
@@ -229,6 +230,7 @@ function CustomRadio({
   label,
   selectedLabelClass,
   unselectedLabelClass,
+  disabled,
 }: {
   name: string;
   value: string;
@@ -237,9 +239,10 @@ function CustomRadio({
   label: string;
   selectedLabelClass: string;
   unselectedLabelClass: string;
+  disabled?: boolean;
 }) {
   return (
-    <label className="flex items-center gap-2 cursor-pointer">
+    <label className={cn("flex items-center gap-2", disabled ? "cursor-not-allowed" : "cursor-pointer")}>
       <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
         <input
           type="radio"
@@ -247,18 +250,29 @@ function CustomRadio({
           value={value}
           checked={checked}
           onChange={onChange}
+          disabled={disabled}
           className="sr-only"
           aria-hidden
         />
         <span
-          className={`pointer-events-none relative block h-5 w-5 shrink-0 rounded-full ${checked
-            ? "bg-primary"
-            : "border-2 border-muted-foreground/50 bg-muted/30"
-            }`}
+          className={cn(
+            "pointer-events-none relative block h-5 w-5 shrink-0 rounded-full",
+            checked
+              ? disabled
+                ? "bg-muted border-2 border-muted-foreground/50"
+                : "bg-primary"
+              : "border-2 border-muted-foreground/50 bg-muted/30"
+          )}
           aria-hidden
         >
           {checked && (
-            <span className="absolute inset-1 rounded-full bg-white" aria-hidden />
+            <span
+              className={cn(
+                "absolute inset-1 rounded-full",
+                disabled ? "bg-muted-foreground/60" : "bg-white"
+              )}
+              aria-hidden
+            />
           )}
           {!checked && (
             <span
@@ -277,10 +291,12 @@ function YesNoRadioGroup({
   value,
   onValueChange,
   name,
+  disabled,
 }: {
   value: YesNo | "";
   onValueChange: (v: YesNo) => void;
   name: string;
+  disabled?: boolean;
 }) {
   return (
     <div className="flex gap-6 items-center">
@@ -288,19 +304,21 @@ function YesNoRadioGroup({
         name={name}
         value="yes"
         checked={value === "yes"}
-        onChange={() => onValueChange("yes")}
+        onChange={() => !disabled && onValueChange("yes")}
         label="Yes"
         selectedLabelClass={radioSelectedLabel}
         unselectedLabelClass={radioUnselectedLabel}
+        disabled={disabled}
       />
       <CustomRadio
         name={name}
         value="no"
         checked={value === "no"}
-        onChange={() => onValueChange("no")}
+        onChange={() => !disabled && onValueChange("no")}
         label="No"
         selectedLabelClass={radioSelectedLabel}
         unselectedLabelClass={radioUnselectedLabel}
+        disabled={disabled}
       />
     </div>
   );
@@ -315,6 +333,7 @@ function TextareaWithCharCount({
   maxLength,
   className,
   countLabel,
+  disabled,
 }: {
   id: string;
   value: string;
@@ -323,6 +342,7 @@ function TextareaWithCharCount({
   maxLength: number;
   className: string;
   countLabel: string;
+  disabled?: boolean;
 }) {
   return (
     <div className="relative">
@@ -332,7 +352,8 @@ function TextareaWithCharCount({
         onChange={onChange}
         placeholder={placeholder}
         maxLength={maxLength}
-        className={`${className} pb-8`}
+        className={cn(className, "pb-8", disabled && formInputDisabledClassName)}
+        disabled={disabled}
       />
       <span
         className="absolute bottom-3 right-3 text-sm text-muted-foreground pointer-events-none"
@@ -347,6 +368,7 @@ function TextareaWithCharCount({
 export function BusinessDetailsStep({
   applicationId,
   onDataChange,
+  readOnly = false,
 }: BusinessDetailsStepProps) {
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
 
@@ -505,6 +527,7 @@ export function BusinessDetailsStep({
             maxLength={200}
             className={textareaClassName}
             countLabel={`${aboutYourBusiness.whatDoesCompanyDo.length}/200 characters`}
+            disabled={readOnly}
           />
 
           <Label htmlFor="main-customers" className={labelClassName}>
@@ -523,6 +546,7 @@ export function BusinessDetailsStep({
             maxLength={200}
             className={textareaClassName}
             countLabel={`${aboutYourBusiness.mainCustomers.length}/200 characters`}
+            disabled={readOnly}
           />
 
           <Label className={labelClassName}>
@@ -534,6 +558,7 @@ export function BusinessDetailsStep({
             onValueChange={(v) =>
               setAboutYourBusiness((prev) => ({ ...prev, singleCustomerOver50Revenue: v }))
             }
+            disabled={readOnly}
           />
 
           <Label htmlFor="accounting-software" className={labelClassName}>
@@ -549,7 +574,8 @@ export function BusinessDetailsStep({
               }))
             }
             placeholder="e.g. QuickBooks, Xero, SAP"
-            className={inputClassName}
+            className={cn(inputClassName, readOnly && formInputDisabledClassName)}
+            disabled={readOnly}
           />
         </div>
       </section>
@@ -578,6 +604,7 @@ export function BusinessDetailsStep({
             maxLength={200}
             className={textareaClassName}
             countLabel={`${whyRaisingFunds.financingFor.length}/200 characters`}
+            disabled={readOnly}
           />
 
           <Label htmlFor="how-funds-used" className={labelClassName}>
@@ -596,6 +623,7 @@ export function BusinessDetailsStep({
             maxLength={200}
             className={textareaClassName}
             countLabel={`${whyRaisingFunds.howFundsUsed.length}/200 characters`}
+            disabled={readOnly}
           />
 
           <Label htmlFor="business-plan" className={labelClassName}>
@@ -614,6 +642,7 @@ export function BusinessDetailsStep({
             maxLength={1000}
             className={textareaClassName}
             countLabel={`${whyRaisingFunds.businessPlan.length}/1000 characters`}
+            disabled={readOnly}
           />
 
           <Label htmlFor="risks-delay-repayment" className={labelClassName}>
@@ -632,6 +661,7 @@ export function BusinessDetailsStep({
             maxLength={200}
             className={textareaClassName}
             countLabel={`${whyRaisingFunds.risksDelayRepayment.length}/200 characters`}
+            disabled={readOnly}
           />
 
           <Label htmlFor="backup-plan" className={labelClassName}>
@@ -650,6 +680,7 @@ export function BusinessDetailsStep({
             maxLength={200}
             className={textareaClassName}
             countLabel={`${whyRaisingFunds.backupPlan.length}/200 characters`}
+            disabled={readOnly}
           />
 
           <Label className={labelClassName}>
@@ -661,6 +692,7 @@ export function BusinessDetailsStep({
             onValueChange={(v) =>
               setWhyRaisingFunds((prev) => ({ ...prev, raisingOnOtherP2P: v }))
             }
+            disabled={readOnly}
           />
 
           {whyRaisingFunds.raisingOnOtherP2P === "yes" && (
@@ -678,7 +710,8 @@ export function BusinessDetailsStep({
                   }))
                 }
                 placeholder="e.g. CAPBAY"
-                className={inputClassName}
+                className={cn(inputClassName, readOnly && formInputDisabledClassName)}
+                disabled={readOnly}
               />
 
               <Label htmlFor="amount-raised" className={labelClassName}>
@@ -699,7 +732,8 @@ export function BusinessDetailsStep({
                     }
                     placeholder="0.00"
                     prefix="RM"
-                    inputClassName={inputClassName + " pl-12"}
+                    inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
+                    disabled={readOnly}
                   />
                 </div>
               </div>
@@ -713,6 +747,7 @@ export function BusinessDetailsStep({
                 onValueChange={(v) =>
                   setWhyRaisingFunds((prev) => ({ ...prev, sameInvoiceUsed: v }))
                 }
+                disabled={readOnly}
               />
             </>
           )}
@@ -731,7 +766,11 @@ export function BusinessDetailsStep({
             <Checkbox
               checked={declarationConfirmed}
               onCheckedChange={(checked) => setDeclarationConfirmed(checked === true)}
-              className="mt-0.5 rounded-[4px]"
+              disabled={readOnly}
+              className={cn(
+                "mt-0.5 rounded-[4px]",
+                readOnly && "disabled:opacity-100 data-[state=checked]:bg-muted data-[state=checked]:border-muted-foreground data-[state=checked]:text-muted-foreground"
+              )}
             />
             <span className="text-sm md:text-base leading-6 text-foreground">
               {DECLARATION_TEXT}
