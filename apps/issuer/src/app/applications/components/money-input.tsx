@@ -13,9 +13,9 @@ import { formatMoney } from "./money";
  * Data: Manages UI state as string; parent responsible for parsing to number before API call.
  *
  * Key invariants:
- * - UI state is always a string (can be "", "12", "12.3", "12.34", "1,234.56")
- * - onChange does NOT auto-format; only onBlur applies formatMoney()
- * - Formatting is display-only; never store formatted values in DB
+ * - While typing: raw value only (no decimals unless user types them)
+ * - On blur: format with commas + 2 decimal places
+ * - On focus: strip commas for easy editing; decimals preserved
  * - Parent must use parseMoney(value) before sending to API
  *
  * Props:
@@ -94,18 +94,28 @@ export function MoneyInput({
    * onBlur handler
    *
    * What: Format display on blur; convert to formatted string with commas + 2dp.
-   * Why: Better UX (show formatted only when not typing) + prepare for display.
+   * Why: Show formatted only when not typing; decimals appear only after blur.
    */
   const handleBlur = () => {
     if (value === "" && allowEmpty) {
-      // keep empty
       return;
     }
 
     if (value !== "") {
-      // apply formatMoney to add commas + 2dp
       const formatted = formatMoney(value);
       onValueChange(formatted);
+    }
+  };
+
+  /**
+   * onFocus handler
+   *
+   * What: Strip commas when focusing so user can type without comma in the way.
+   * Why: Formatted "1,234.56" becomes "1234.56" for easy editing; decimals preserved.
+   */
+  const handleFocus = () => {
+    if (value.includes(",")) {
+      onValueChange(value.replace(/,/g, ""));
     }
   };
 
@@ -131,6 +141,7 @@ export function MoneyInput({
         placeholder={placeholder}
         disabled={disabled}
         onChange={handleChange}
+        onFocus={handleFocus}
         onBlur={handleBlur}
         className={cn(inputClassName, hasPrefixDisplay && "pl-12")}
       />

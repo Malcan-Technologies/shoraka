@@ -56,6 +56,29 @@ export const businessDetailsDataSchema = z.object({
   declaration_confirmed: z.boolean(),
 });
 
+/** Validates stored input fields for financial_statements step. Flat storage; no computed fields. */
+const numSchema = z.union([z.string(), z.number()]).optional().default(0);
+export const financialStatementsInputSchema = z.object({
+  pldd: z.string().optional().default(""),
+  bsdd: z.string().optional().default(""),
+  bsfatot: numSchema,
+  othass: numSchema,
+  bscatot: numSchema,
+  bsclbank: numSchema,
+  curlib: numSchema,
+  bsslltd: numSchema,
+  bsclstd: numSchema,
+  bsqpuc: numSchema,
+  turnover: numSchema,
+  plnpbt: numSchema,
+  plnpat: numSchema,
+  plminin: numSchema,
+  plnetdiv: numSchema,
+  plyear: numSchema,
+});
+
+export type FinancialStatementsStoredData = z.infer<typeof financialStatementsInputSchema>;
+
 export type CreateApplicationInput = z.infer<typeof createApplicationSchema>;
 export type UpdateApplicationStepInput = z.infer<typeof updateApplicationStepSchema>;
 export type BusinessDetailsData = z.infer<typeof businessDetailsDataSchema>;

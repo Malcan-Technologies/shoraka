@@ -53,6 +53,7 @@ import { InvoiceDetailsStep } from "../../steps/invoice-details-step";
 import { DeclarationsStep } from "../../steps/declarations-step";
 import { CompanyDetailsStep } from "../../steps/company-details-step";
 import { BusinessDetailsStep } from "../../steps/business-details-step";
+import { FinancialStatementsStep } from "../../steps/financial-statements-step";
 import { SupportingDocumentsStep } from "../../steps/supporting-documents-step";
 import { ReviewAndSubmitStep } from "../../steps/review-and-submit-step";
 // dialog components are used by modal components directly
@@ -414,6 +415,7 @@ export default function EditApplicationPage() {
         "invoice_details",
         "company_details",
         "business_details",
+        "financial_statements",
         "supporting_documents",
         "declarations",
         "review_and_submit",
@@ -716,6 +718,12 @@ export default function EditApplicationPage() {
       );
     }
 
+    if (currentStepKey === "financial_statements") {
+      return (
+        <FinancialStatementsStep applicationId={applicationId} onDataChange={handleDataChange} readOnly={stepReadOnly} />
+      );
+    }
+
     if (currentStepKey === "supporting_documents") {
       return (
           <SupportingDocumentsStep
@@ -1003,6 +1011,12 @@ export default function EditApplicationPage() {
           toast.error("Please check all declarations to continue");
           return;
         }
+      }
+
+      // FINANCIAL STATEMENTS validation — all fields required (step passes isValid)
+      if (currentStepKey === "financial_statements" && (rawData as Record<string, unknown>)?.isValid === false) {
+        toast.error("Please fill in all required fields before saving");
+        return;
       }
 
       // No data case

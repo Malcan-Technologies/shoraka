@@ -330,6 +330,7 @@ model Application {
   financing_structure        Json?
   company_details            Json?
   business_details           Json?
+  financial_statements       Json?
   contract_id                String?
   submitted_at               DateTime?
   application_revisions      ApplicationRevision[]
@@ -687,6 +688,7 @@ model Product {
   workflow   Json
   category_display_order Int?
   product_display_order Int?
+  offer_expiry_days Int?
 
   status     ProductStatus @default(ACTIVE)
   deleted_at DateTime?
