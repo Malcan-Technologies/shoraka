@@ -3,6 +3,14 @@
 import * as React from "react";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { MoneyInput } from "@/app/settings/products/components/money-input";
 import { formatMoney, parseMoney } from "@/app/settings/products/components/money";
 import { DocumentTextIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
@@ -82,16 +90,28 @@ export function ContractSection({
       : typeof cd?.value === "number"
         ? cd.value
         : 0;
+  const contractValue = typeof cd?.value === "number" ? cd.value : 0;
   const offeredFacilityFromOffer =
     typeof offer?.offered_facility === "number" ? offer.offered_facility : null;
   const initialOffered = formatMoney(offeredFacilityFromOffer ?? requestedFacility);
   const [offeredFacilityInput, setOfferedFacilityInput] = React.useState<string>(initialOffered);
+  const [contractOfferConfirmOpen, setContractOfferConfirmOpen] = React.useState(false);
 
   React.useEffect(() => {
     setOfferedFacilityInput(formatMoney(offeredFacilityFromOffer ?? requestedFacility));
   }, [offeredFacilityFromOffer, requestedFacility]);
 
   const hasData = cd || cust;
+  const offeredFacility = parseMoney(offeredFacilityInput);
+  const offeredExceedsContractValue = contractValue > 0 && offeredFacility > contractValue;
+  const canSendContractOffer =
+    offeredFacility > 0 && !offeredExceedsContractValue;
+
+  const handleConfirmContractOffer = React.useCallback(async () => {
+    if (!onSendOffer || !canSendContractOffer) return;
+    await onSendOffer({ offeredFacility });
+    setContractOfferConfirmOpen(false);
+  }, [onSendOffer, offeredFacility, canSendContractOffer]);
 
   return (
     <ReviewSectionCard
@@ -118,7 +138,8 @@ export function ContractSection({
                   {requestedFacility > 0 ? formatCurrency(requestedFacility) : REVIEW_EMPTY_LABEL}
                 </div>
                 <Label className={reviewLabelClass}>Offered facility</Label>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-3">
                   <MoneyInput
                     value={offeredFacilityInput}
                     onValueChange={setOfferedFacilityInput}
@@ -138,14 +159,18 @@ export function ContractSection({
                         !isReviewable ||
                         !!isActionLocked ||
                         !!isSendOfferPending ||
-                        parseMoney(offeredFacilityInput) <= 0
+                        !canSendContractOffer
                       }
-                      onClick={() =>
-                        onSendOffer({ offeredFacility: parseMoney(offeredFacilityInput) })
-                      }
+                      onClick={() => setContractOfferConfirmOpen(true)}
                     >
                       {isSendOfferPending ? "Sending..." : "Send Offer"}
                     </Button>
+                  )}
+                  </div>
+                  {offeredExceedsContractValue && (
+                    <p className="text-sm text-destructive">
+                      Offered facility cannot exceed contract value.
+                    </p>
                   )}
                 </div>
               </div>
@@ -291,6 +316,56 @@ export function ContractSection({
         <p className="text-sm text-muted-foreground">No contract details submitted.</p>
       )}
       <SectionComments comments={comments} onSubmitComment={onAddComment} />
+
+      <Dialog open={contractOfferConfirmOpen} onOpenChange={setContractOfferConfirmOpen}>
+        <DialogContent className="rounded-2xl sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Contract Offer</DialogTitle>
+            <DialogDescription>
+              Review the offer details below before sending to the issuer.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 py-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Contract value</span>
+              <span className="font-medium tabular-nums">
+                {contractValue > 0 ? formatCurrency(contractValue) : REVIEW_EMPTY_LABEL}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Requested facility</span>
+              <span className="font-medium tabular-nums">
+                {requestedFacility > 0 ? formatCurrency(requestedFacility) : REVIEW_EMPTY_LABEL}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Offered facility</span>
+              <span className="font-medium tabular-nums">{formatCurrency(offeredFacility)}</span>
+            </div>
+            {offeredExceedsContractValue && (
+              <p className="mt-2 text-sm text-destructive">
+                Offered facility cannot exceed contract value.
+              </p>
+            )}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setContractOfferConfirmOpen(false)}
+              className="rounded-xl"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmContractOffer}
+              disabled={!canSendContractOffer || !!isSendOfferPending}
+              className="rounded-xl"
+            >
+              {isSendOfferPending ? "Sending..." : "Confirm & Send Offer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </ReviewSectionCard>
   );
 }

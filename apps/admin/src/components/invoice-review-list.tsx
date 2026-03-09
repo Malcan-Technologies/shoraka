@@ -11,6 +11,14 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -105,6 +113,14 @@ export function InvoiceList({
   isSendInvoiceOfferPending,
 }: InvoiceReviewListProps) {
   const [expandedById, setExpandedById] = React.useState<Record<string, boolean>>({});
+  const [invoiceOfferConfirm, setInvoiceOfferConfirm] = React.useState<{
+    invoiceId: string;
+    invoiceNo: string | number;
+    offeredAmount: number;
+    offeredRatioPercent: number;
+    offeredProfitRatePercent: number;
+    invoiceValue: number | null;
+  } | null>(null);
 
   React.useEffect(() => {
     setExpandedById((prev) => {
@@ -146,6 +162,17 @@ export function InvoiceList({
     },
     [offeredByInvoice, invoiceRatioLimits]
   );
+
+  const handleConfirmInvoiceOffer = React.useCallback(async () => {
+    if (!onSendInvoiceOffer || !invoiceOfferConfirm) return;
+    await onSendInvoiceOffer({
+      invoiceId: invoiceOfferConfirm.invoiceId,
+      offeredAmount: invoiceOfferConfirm.offeredAmount,
+      offeredRatioPercent: invoiceOfferConfirm.offeredRatioPercent,
+      offeredProfitRatePercent: invoiceOfferConfirm.offeredProfitRatePercent,
+    });
+    setInvoiceOfferConfirm(null);
+  }, [onSendInvoiceOffer, invoiceOfferConfirm]);
 
   return (
     <div className="rounded-xl border bg-card">
@@ -388,11 +415,13 @@ export function InvoiceList({
                                               offeredAmount === null
                                             }
                                             onClick={() =>
-                                              onSendInvoiceOffer({
+                                              setInvoiceOfferConfirm({
                                                 invoiceId: inv.id,
+                                                invoiceNo,
                                                 offeredAmount: offeredAmount ?? 0,
                                                 offeredRatioPercent: offered.ratio,
                                                 offeredProfitRatePercent: offered.profitRate,
+                                                invoiceValue,
                                               })
                                             }
                                           >
@@ -459,6 +488,75 @@ export function InvoiceList({
           })}
         </TableBody>
       </Table>
+
+      <Dialog
+        open={!!invoiceOfferConfirm}
+        onOpenChange={(open) => !open && setInvoiceOfferConfirm(null)}
+      >
+        <DialogContent className="rounded-2xl sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Confirm Invoice Offer
+              {invoiceOfferConfirm && ` — Invoice ${invoiceOfferConfirm.invoiceNo}`}
+            </DialogTitle>
+            <DialogDescription>
+              Review the offer details below before sending to the issuer.
+            </DialogDescription>
+          </DialogHeader>
+          {invoiceOfferConfirm && (
+            <>
+              <div className="grid gap-2 py-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Invoice number</span>
+                  <span className="font-medium">{invoiceOfferConfirm.invoiceNo}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Invoice value</span>
+                  <span className="font-medium tabular-nums">
+                    {invoiceOfferConfirm.invoiceValue !== null
+                      ? formatCurrency(invoiceOfferConfirm.invoiceValue)
+                      : REVIEW_EMPTY_LABEL}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Offered amount</span>
+                  <span className="font-medium tabular-nums">
+                    {formatCurrency(invoiceOfferConfirm.offeredAmount)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Offered ratio</span>
+                  <span className="font-medium tabular-nums">
+                    {invoiceOfferConfirm.offeredRatioPercent}%
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Profit rate</span>
+                  <span className="font-medium tabular-nums">
+                    {invoiceOfferConfirm.offeredProfitRatePercent}%
+                  </span>
+                </div>
+              </div>
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button
+                  variant="outline"
+                  onClick={() => setInvoiceOfferConfirm(null)}
+                  className="rounded-xl"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleConfirmInvoiceOffer}
+                  disabled={!!isSendInvoiceOfferPending}
+                  className="rounded-xl"
+                >
+                  {isSendInvoiceOfferPending ? "Sending..." : "Confirm & Send Offer"}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
