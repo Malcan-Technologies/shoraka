@@ -17,9 +17,21 @@ Step-by-step guides for common tasks:
 - **[Local Development Setup](./guides/local-development-setup.md)** - ⭐ Start here
 - **[Development Workflow](./guides/development.md)** - Day-to-day tasks
 - **[Database Workflow](./guides/database-workflow.md)** - Working with Prisma
-- **[Financial Statements Step](./guides/financial-statements-step.md)** - Application step architecture and data flow
 - **[Authentication](./guides/authentication.md)** - Auth implementation (planned)
 - **[Environment Variables](./guides/environment-variables.md)** - Configuration reference
+
+### 📋 Application Flow
+
+Feature guides for the issuer application wizard:
+
+- **[Amendment Flow](./guides/application-flow/amendment-flow.md)** - Amendment flow debugging (remarks, resubmit, stepper, tab locking)
+- **[Financial Statements Step](./guides/application-flow/financial-statements-step.md)** - Application step architecture and data flow
+
+### 🛠️ Admin
+
+Admin portal and activity timeline:
+
+- **[Activity Timeline](./guides/admin/activity-timeline.md)** - Application log creation, remark at top-level, event labels/icons
 
 ### 🏗️ Architecture
 

@@ -6,15 +6,15 @@ import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
 import { useContract } from "@/hooks/use-contracts";
 import { useProducts } from "@/hooks/use-products";
-import { ProductImagePreview } from "@/app/applications/components/product-image-preview";
+import { ProductImagePreview } from "@/app/(application-flow)/applications/components/product-image-preview";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { CheckCircleIcon } from "@heroicons/react/24/outline";
-import { formLabelClassName } from "@/app/applications/components/form-control";
+import { formLabelClassName } from "@/app/(application-flow)/applications/components/form-control";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { cn } from "@/lib/utils";
 import { useInvoicesByApplication } from "@/hooks/use-invoices";
 import { getStepKeyFromStepId, type ApplicationStepKey } from "@cashsouk/types";
-import { SelectionCard } from "@/app/applications/components/selection-card";
+import { SelectionCard } from "@/app/(application-flow)/applications/components/selection-card";
 import { StatusBadge } from "../components/invoice-status-badge";
 import { ReviewContractSkeleton } from "../components/review-contract-skeleton";
 import { ReviewInvoiceSkeleton } from "../components/review-invoice-skeleton";
@@ -22,7 +22,7 @@ import { ReviewCompanySkeleton } from "../components/review-company-skeleton";
 import { ReviewBusinessSkeleton } from "../components/review-business-skeleton";
 import { ReviewSupportingDocsSkeleton } from "../components/review-supporting-docs-skeleton";
 import { ReviewFinancingSkeleton } from "../components/review-financing-skeleton";
-import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
+import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
 import { formatMoney } from "../components/money";
 
 const INVOICE_TABLE_COLUMNS = {

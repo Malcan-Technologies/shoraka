@@ -1,5 +1,9 @@
 "use client";
 
+/**
+ * Guide: docs/guides/application-flow/amendment-flow.md — Stepper red indicator for amendment-flagged steps
+ */
+
 import * as React from "react";
 import { CheckIcon } from "@heroicons/react/24/solid";
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";

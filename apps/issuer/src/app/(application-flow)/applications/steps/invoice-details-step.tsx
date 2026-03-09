@@ -1,6 +1,10 @@
 "use client";
 
 /**
+ * Guide: docs/guides/application-flow/amendment-flow.md — Item unlock logic for invoice rows, InvoiceErrorCard for amendment errors
+ */
+
+/**
  * INVOICE VALIDATION RULES (SUMMARY)
  *
  * 1. Partial rows
@@ -47,7 +51,7 @@ import * as React from "react";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DateInput } from "@/app/applications/components/date-input";
+import { DateInput } from "@/app/(application-flow)/applications/components/date-input";
 import { Trash2 } from "lucide-react";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
@@ -61,13 +65,13 @@ import {
   formInputDisabledClassName,
   formLabelClassName,
   withFieldError,
-} from "@/app/applications/components/form-control";
+} from "@/app/(application-flow)/applications/components/form-control";
 import { StatusBadge } from "../components/invoice-status-badge";
-import { InvoiceErrorCard } from "../components/invoice-error-card";
+import { InvoiceErrorCard } from "../components/amendments";
 import { formatMoney, parseMoney } from "../components/money";
-import { MoneyInput } from "@/app/applications/components/money-input";
-import { InvoiceDetailsSkeleton } from "@/app/applications/components/invoice-details-skeleton";
-import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
+import { MoneyInput } from "@/app/(application-flow)/applications/components/money-input";
+import { InvoiceDetailsSkeleton } from "@/app/(application-flow)/applications/components/invoice-details-skeleton";
+import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";

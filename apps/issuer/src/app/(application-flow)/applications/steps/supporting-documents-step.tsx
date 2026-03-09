@@ -1,5 +1,9 @@
 "use client";
 
+/**
+ * Guide: docs/guides/application-flow/amendment-flow.md — Item unlock logic for supporting documents (scope_key match)
+ */
+
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { XMarkIcon, ChevronDownIcon, CloudArrowUpIcon, ArrowDownTrayIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
@@ -8,8 +12,8 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useApplication } from "@/hooks/use-applications";
 import { useAuthToken } from "@cashsouk/config";
-import { SupportingDocumentsSkeleton } from "@/app/applications/components/supporting-documents-skeleton";
-import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
+import { SupportingDocumentsSkeleton } from "@/app/(application-flow)/applications/components/supporting-documents-skeleton";
+import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 

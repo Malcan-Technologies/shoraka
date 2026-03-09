@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { SelectionCard } from "@/app/applications/components/selection-card";
+import { SelectionCard } from "@/app/(application-flow)/applications/components/selection-card";
 import { ChevronDownIcon } from "@heroicons/react/24/outline";
 import { ProductImagePreview } from "./product-image-preview";
 

@@ -4,8 +4,8 @@ import * as React from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useApplication } from "@/hooks/use-applications";
-import { DeclarationsSkeleton } from "@/app/applications/components/declarations-skeleton";
-import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
+import { DeclarationsSkeleton } from "@/app/(application-flow)/applications/components/declarations-skeleton";
+import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
 
 /**
  * DECLARATIONS STEP

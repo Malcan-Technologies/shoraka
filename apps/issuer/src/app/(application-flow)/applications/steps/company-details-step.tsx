@@ -47,9 +47,9 @@ import {
   formLabelClassName,
   formSelectTriggerClassName,
   withFieldError,
-} from "@/app/applications/components/form-control";
-import { CompanyDetailsSkeleton } from "@/app/applications/components/company-details-skeleton";
-import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
+} from "@/app/(application-flow)/applications/components/form-control";
+import { CompanyDetailsSkeleton } from "@/app/(application-flow)/applications/components/company-details-skeleton";
+import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
 
 interface CompanyDetailsStepProps {
   applicationId: string;

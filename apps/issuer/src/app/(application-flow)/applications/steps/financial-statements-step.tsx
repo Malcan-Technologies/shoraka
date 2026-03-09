@@ -1,6 +1,10 @@
 "use client";
 
 /**
+ * Guide: docs/guides/application-flow/financial-statements-step.md — Financial statements step architecture, field mappings, payload format
+ */
+
+/**
  * FINANCIAL STATEMENTS STEP
  *
  * Form for financial statement data. Only input fields; no computed metrics in issuer UI.
@@ -15,17 +19,17 @@
 import * as React from "react";
 import { useApplication } from "@/hooks/use-applications";
 import { Label } from "@/components/ui/label";
-import { DateInput } from "@/app/applications/components/date-input";
+import { DateInput } from "@/app/(application-flow)/applications/components/date-input";
 import { cn } from "@/lib/utils";
 import {
   formInputClassName,
   formInputDisabledClassName,
   formLabelClassName,
-} from "@/app/applications/components/form-control";
-import { MoneyInput } from "@/app/applications/components/money-input";
-import { parseMoney, formatMoney } from "@/app/applications/components/money";
-import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
-import { FinancialStatementsSkeleton } from "@/app/applications/components/financial-statements-skeleton";
+} from "@/app/(application-flow)/applications/components/form-control";
+import { MoneyInput } from "@/app/(application-flow)/applications/components/money-input";
+import { parseMoney, formatMoney } from "@/app/(application-flow)/applications/components/money";
+import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
+import { FinancialStatementsSkeleton } from "@/app/(application-flow)/applications/components/financial-statements-skeleton";
 import { FINANCIAL_FIELD_LABELS } from "@cashsouk/types";
 
 /* ================================================================

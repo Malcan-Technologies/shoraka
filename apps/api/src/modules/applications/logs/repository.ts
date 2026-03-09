@@ -1,3 +1,7 @@
+/**
+ * Guide: docs/guides/admin/activity-timeline.md — Application log creation, remark at top-level, metadata usage
+ */
+
 import { prisma } from "../../../lib/prisma";
 import { CreateApplicationLogParams } from "./types";
 
