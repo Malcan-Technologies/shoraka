@@ -282,6 +282,64 @@ export function createApplicationRouter(): Router {
     requireAuth,
     requestUploadUrl
   );
+  router.post(
+    "/:id/offers/contracts/accept",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const { id } = applicationIdParamSchema.parse(req.params);
+        const userId = getUserId(req);
+        const data = await applicationService.respondToContractOffer(id, "accept", userId);
+        res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
+      } catch (e) {
+        next(e);
+      }
+    }
+  );
+  router.post(
+    "/:id/offers/contracts/reject",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const { id } = applicationIdParamSchema.parse(req.params);
+        const userId = getUserId(req);
+        const data = await applicationService.respondToContractOffer(id, "reject", userId);
+        res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
+      } catch (e) {
+        next(e);
+      }
+    }
+  );
+  router.post(
+    "/:id/offers/invoices/:invoiceId/accept",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const { id } = applicationIdParamSchema.parse(req.params);
+        const invoiceId = z.string().cuid().parse(req.params.invoiceId);
+        const userId = getUserId(req);
+        const data = await applicationService.respondToInvoiceOffer(id, invoiceId, "accept", userId);
+        res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
+      } catch (e) {
+        next(e);
+      }
+    }
+  );
+  router.post(
+    "/:id/offers/invoices/:invoiceId/reject",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const { id } = applicationIdParamSchema.parse(req.params);
+        const invoiceId = z.string().cuid().parse(req.params.invoiceId);
+        const userId = getUserId(req);
+        const data = await applicationService.respondToInvoiceOffer(id, invoiceId, "reject", userId);
+        res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
+      } catch (e) {
+        next(e);
+      }
+    }
+  );
   router.delete("/:id/document", requireAuth, deleteDocument);
   router.patch("/:id/step", requireAuth, updateApplicationStep);
   router.patch("/:id/status", requireAuth, updateApplicationStatus);

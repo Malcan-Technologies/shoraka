@@ -38,6 +38,7 @@
  import { useApplicationLogs } from "@/hooks/use-application-logs";
  import { formatDistanceToNow, format } from "date-fns";
 import {
+  ChevronDownIcon,
   ClockIcon,
   ArrowPathIcon,
   DocumentTextIcon,
@@ -49,9 +50,12 @@ import {
   GlobeAltIcon,
   ComputerDesktopIcon,
   ClipboardDocumentCheckIcon,
+  PaperAirplaneIcon,
 } from "@heroicons/react/24/outline";
+import { Button } from "@/components/ui/button";
 import { formatRemarkAsBullets } from "@/lib/utils";
 import { getReviewTabLabel } from "@/components/application-review/review-registry";
+import { formatCurrency } from "@cashsouk/config";
 
 type ActivityMetadata = {
   scope_key?: string;
@@ -61,6 +65,14 @@ type ActivityMetadata = {
   portalType?: string;
   device_type?: string;
   device_info?: string;
+  invoice_number?: string | null;
+  requested_facility?: number;
+  offered_facility?: number;
+  requested_amount?: number;
+  offered_amount?: number;
+  offered_ratio_percent?: number | null;
+  offered_profit_rate_percent?: number | null;
+  expires_at?: string | null;
 };
 
 function formatItemLabelFromScopeKey(scopeKey: string): string {
@@ -140,6 +152,9 @@ function getEventIcon(eventType: string) {
       return <StarIcon className="h-3.5 w-3.5 text-violet-600" />;
     case "FORM_FILLED":
       return <DocumentTextIcon className="h-3.5 w-3.5 text-blue-500" />;
+    case "CONTRACT_OFFER_SENT":
+    case "INVOICE_OFFER_SENT":
+      return <PaperAirplaneIcon className="h-3.5 w-3.5 text-blue-500" />;
     default:
       return <ClockIcon className="h-3.5 w-3.5 text-muted-foreground" />;
   }
@@ -167,10 +182,17 @@ function getEventLabel(
     APPROVED: "Approved",
     REJECTED: "Rejected",
     FORM_FILLED: "Form Submitted",
+    CONTRACT_OFFER_SENT: "Contract Offer Sent",
     SOPHISTICATED_STATUS_UPDATED: "Sophisticated Status Updated",
     APPLICATION_RESET_TO_UNDER_REVIEW: "Application Reset to Under Review",
     AMENDMENTS_SUBMITTED: "Amendment Request Sent",
   };
+  if (eventType === "INVOICE_OFFER_SENT") {
+    const invoiceNumber = metadata?.invoice_number;
+    return invoiceNumber != null && invoiceNumber !== ""
+      ? `Invoice ${invoiceNumber} Offer Sent`
+      : "Invoice Offer Sent";
+  }
   if (baseLabels[eventType]) return baseLabels[eventType];
 
   const actionLabel = ACTION_LABELS[eventType];
@@ -220,10 +242,15 @@ function getEventDotColor(eventType: string): string {
       return "bg-amber-500";
     case "SOPHISTICATED_STATUS_UPDATED":
       return "bg-violet-500";
+    case "CONTRACT_OFFER_SENT":
+    case "INVOICE_OFFER_SENT":
+      return "bg-blue-500";
     default:
       return "bg-muted-foreground";
   }
 }
+
+const ACTIVITY_PAGE_SIZE = 10;
 
 function TimelineSkeleton() {
   return (
@@ -262,6 +289,14 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
   const logs: any[] = React.useMemo(() => data ?? [], [data]) as any[];
 
   const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
+  const [visibleCount, setVisibleCount] = React.useState(ACTIVITY_PAGE_SIZE);
+
+  React.useEffect(() => {
+    setVisibleCount(ACTIVITY_PAGE_SIZE);
+  }, [logs.length]);
+
+  const visibleLogs = logs.slice(0, visibleCount);
+  const hasMore = logs.length > visibleCount;
 
   const toggle = (id: string) =>
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -290,7 +325,7 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ClipboardDocumentCheckIcon className="h-5 w-5 text-destructive" />
-            <CardTitle className="text-base font-semibold">Application Activity</CardTitle>
+            <CardTitle className="text-base font-semibold">Activity Timeline</CardTitle>
           </div>
           {totalCount > 0 && (
             <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
@@ -330,7 +365,7 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
                   <div className="absolute left-[5px] top-2 bottom-2 w-px bg-border" />
 
                   <div className="space-y-5">
-                    {logs.map((log, index) => {
+                    {visibleLogs.map((log, index) => {
                       const eventType = log.event_type;
                       const isFirst = index === 0;
                       const actorName = (log.metadata && (log.metadata.actorName || log.metadata.organizationName)) || "System";
@@ -402,7 +437,7 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
                                 })}
                               </p>
 
-                              {remark && (
+                              {(remark || (eventType === "CONTRACT_OFFER_SENT" || eventType === "INVOICE_OFFER_SENT") && metadata) && (
                                 <button
                                   onClick={() => toggle(log.id)}
                                   className="text-xs text-foreground/80 hover:underline"
@@ -411,6 +446,50 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
                                 </button>
                               )}
                             </div>
+
+                            {/* Offer details (CONTRACT_OFFER_SENT / INVOICE_OFFER_SENT) */}
+                            {expanded[log.id] && (eventType === "CONTRACT_OFFER_SENT" || eventType === "INVOICE_OFFER_SENT") && metadata && (
+                              <div className="mt-3 rounded-xl border bg-muted/20 p-4 text-[11px] space-y-2">
+                                {eventType === "CONTRACT_OFFER_SENT" && (
+                                  <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5">
+                                    {typeof metadata.offered_facility === "number" && (
+                                      <>
+                                        <dt className="text-muted-foreground">Offered facility</dt>
+                                        <dd className="font-medium tabular-nums">{formatCurrency(metadata.offered_facility)}</dd>
+                                      </>
+                                    )}
+                                    {typeof metadata.requested_facility === "number" && (
+                                      <>
+                                        <dt className="text-muted-foreground">Requested facility</dt>
+                                        <dd className="tabular-nums">{formatCurrency(metadata.requested_facility)}</dd>
+                                      </>
+                                    )}
+                                  </dl>
+                                )}
+                                {eventType === "INVOICE_OFFER_SENT" && (
+                                  <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5">
+                                    {typeof metadata.offered_amount === "number" && (
+                                      <>
+                                        <dt className="text-muted-foreground">Offered amount</dt>
+                                        <dd className="font-medium tabular-nums">{formatCurrency(metadata.offered_amount)}</dd>
+                                      </>
+                                    )}
+                                    {metadata.offered_ratio_percent != null && (
+                                      <>
+                                        <dt className="text-muted-foreground">Offered ratio</dt>
+                                        <dd className="tabular-nums">{Number(metadata.offered_ratio_percent)}%</dd>
+                                      </>
+                                    )}
+                                    {metadata.offered_profit_rate_percent != null && (
+                                      <>
+                                        <dt className="text-muted-foreground">Profit rate</dt>
+                                        <dd className="tabular-nums">{Number(metadata.offered_profit_rate_percent)}%</dd>
+                                      </>
+                                    )}
+                                  </dl>
+                                )}
+                              </div>
+                            )}
 
                           {expanded[log.id] && remark && (
                             <div className="mt-3 rounded-xl border p-4 text-[11px] space-y-3">
@@ -447,6 +526,23 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
                       );
                     })}
                   </div>
+                  {hasMore && (
+                    <div className="mt-3 flex justify-center border-t border-border pt-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setVisibleCount((prev) =>
+                            Math.min(prev + ACTIVITY_PAGE_SIZE, logs.length)
+                          )
+                        }
+                      >
+                        <ChevronDownIcon className="mr-1.5 h-4 w-4" aria-hidden />
+                        Show more ({logs.length - visibleCount} remaining)
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </div>
           </ScrollArea>

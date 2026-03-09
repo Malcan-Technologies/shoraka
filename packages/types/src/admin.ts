@@ -1010,6 +1010,7 @@ export interface ApplicationListItem {
 export interface GetAdminApplicationsParams extends PaginationParams {
   search?: string;
   status?: string;
+  statuses?: string[];
   productId?: string;
 }
 

@@ -10,7 +10,10 @@ import { Skeleton } from "@cashsouk/ui";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { useApplicationDetail } from "@/hooks/use-application-detail";
-import { useUpdateApplicationStatus } from "@/hooks/use-update-application-status";
+import {
+  useReopenApplicationForCorrection,
+  useUpdateApplicationStatus,
+} from "@/hooks/use-update-application-status";
 import {
   useApproveReviewSection,
   useRejectReviewSection,
@@ -18,10 +21,13 @@ import {
   useResetItemReviewToPending,
   useApproveReviewItem,
   useRejectReviewItem,
+  useAddSectionComment,
   useAddPendingAmendment,
   useListPendingAmendments,
   useRemovePendingAmendment,
   useSubmitAmendmentRequest,
+  useSendContractOffer,
+  useSendInvoiceOffer,
 } from "@/hooks/use-application-review-actions";
 import {
   ApplicationReviewTabs,
@@ -43,7 +49,7 @@ import {
   getTabUnlockTooltip,
   isTabUnlocked,
 } from "@/components/application-review/review-registry";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -90,6 +96,7 @@ export default function DynamicApplicationDetailPage() {
 
   const { data: app, isLoading, error } = useApplicationDetail(applicationId);
   const updateStatus = useUpdateApplicationStatus();
+  const reopenForCorrection = useReopenApplicationForCorrection();
 
   // Fetch products to get the current product name
   const { data: productsData } = useProducts({ page: 1, pageSize: 100 });
@@ -108,6 +115,9 @@ export default function DynamicApplicationDetailPage() {
     return { min: Math.min(min, max), max: Math.max(min, max) };
   }, [currentProduct]);
 
+  const offerExpiryDays =
+    (currentProduct as { offer_expiry_days?: number | null })?.offer_expiry_days ?? 7;
+
   const [confirmAction, setConfirmAction] = React.useState<{
     type: "APPROVE" | "REJECT";
     isOpen: boolean;
@@ -120,10 +130,14 @@ export default function DynamicApplicationDetailPage() {
   const addPendingAmendment = useAddPendingAmendment();
   const approveItem = useApproveReviewItem();
   const rejectItem = useRejectReviewItem();
+  const addSectionComment = useAddSectionComment();
   const { data: pendingAmendments = [] } = useListPendingAmendments(applicationId);
   const removePendingAmendment = useRemovePendingAmendment();
   const submitAmendmentRequest = useSubmitAmendmentRequest();
+  const sendContractOffer = useSendContractOffer();
+  const sendInvoiceOffer = useSendInvoiceOffer();
   const [amendmentModalOpen, setAmendmentModalOpen] = React.useState(false);
+  const [reopenDialogOpen, setReopenDialogOpen] = React.useState(false);
 
   const [noteDialog, setNoteDialog] = React.useState<
     | { open: boolean; action: "reject" | "amend"; section: ReviewSectionId }
@@ -132,8 +146,8 @@ export default function DynamicApplicationDetailPage() {
     | { open: boolean; action: "approve"; itemType: "invoice" | "document"; itemId: string }
   >({ open: false, action: "reject", section: "financial" });
 
-  const REVIEWABLE_STATUSES = ["SUBMITTED", "UNDER_REVIEW", "RESUBMITTED", "AMENDMENT_REQUESTED", "REJECTED", "APPROVED"];
-  const isReviewable = app && REVIEWABLE_STATUSES.includes(app.status);
+  const REVIEWABLE_STATUSES = ["SUBMITTED", "UNDER_REVIEW", "RESUBMITTED", "AMENDMENT_REQUESTED"];
+  const isReviewable = !!app && REVIEWABLE_STATUSES.includes(app.status);
   const { getAccessToken } = useAuthToken();
   const [viewDocumentPending, setViewDocumentPending] = React.useState(false);
 
@@ -170,16 +184,35 @@ export default function DynamicApplicationDetailPage() {
     [currentProduct?.workflow]
   );
 
+  const isExistingContract = React.useMemo(
+    () =>
+      (app?.financing_structure as { structure_type?: string } | undefined)?.structure_type ===
+      "existing_contract",
+    [app?.financing_structure]
+  );
+
   const reviewSections = React.useMemo(() => {
     const reviewItems =
       (app?.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? [];
-    const baseSections =
-      app?.application_reviews?.length
-        ? (app.application_reviews as { section: string; status: string }[]).map((r) => ({
-            section: r.section,
-            status: r.status,
-          }))
-        : tabDescriptors.map((d) => ({ section: d.reviewSection, status: "PENDING" }));
+    const reviewSectionStatuses =
+      (app?.application_reviews as { section: string; status: string }[] | undefined) ?? [];
+    const reviewSectionStatusMap = new Map<string, string>();
+    for (const review of reviewSectionStatuses) {
+      reviewSectionStatusMap.set(review.section, review.status);
+    }
+    const orderedSections: string[] = tabDescriptors.map((d) => d.reviewSection);
+    for (const review of reviewSectionStatuses) {
+      if (!orderedSections.includes(review.section)) {
+        orderedSections.push(review.section);
+      }
+    }
+    const baseSections = orderedSections.map((section) => {
+      let status = reviewSectionStatusMap.get(section) ?? "PENDING";
+      if (section === "contract_details" && isExistingContract) {
+        status = "APPROVED";
+      }
+      return { section, status };
+    });
 
     const sectionWithAmendmentFromItems = new Set<string>();
     for (const item of reviewItems) {
@@ -192,7 +225,6 @@ export default function DynamicApplicationDetailPage() {
 
     return baseSections.map((s) => {
       const fromItems = sectionWithAmendmentFromItems.has(s.section);
-      // Section-level APPROVED/REJECTED takes precedence over item-level amendment
       const status =
         s.status === "APPROVED" || s.status === "REJECTED"
           ? s.status
@@ -201,7 +233,7 @@ export default function DynamicApplicationDetailPage() {
             : s.status;
       return { section: s.section, status };
     });
-  }, [app?.application_reviews, app?.application_review_items, tabDescriptors]);
+  }, [app?.application_reviews, app?.application_review_items, tabDescriptors, isExistingContract]);
 
   const sectionStatusMap = React.useMemo(() => {
     const m = new Map<string, string>();
@@ -445,10 +477,10 @@ export default function DynamicApplicationDetailPage() {
                     </div>
                     <ApplicationStatusBadge status={app.status} size="lg" />
                   </div>
-                  {isReviewable && (
+                  {isReviewable ? (
                     <TooltipProvider>
                       <div className="flex flex-wrap items-center justify-end gap-3">
-                        {(app.status === "APPROVED" || app.status === "REJECTED" || app.status === "AMENDMENT_REQUESTED") && (
+                        {app.status === "AMENDMENT_REQUESTED" && (
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <span className="inline-flex">
@@ -553,6 +585,27 @@ export default function DynamicApplicationDetailPage() {
                         </Tooltip>
                       </div>
                     </TooltipProvider>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="text-sm text-muted-foreground">
+                        Review actions are locked for{" "}
+                        <span className="font-medium">
+                          {app.status.toLowerCase().replace(/_/g, " ")}
+                        </span>{" "}
+                        applications.
+                      </div>
+                      {(app.status === "APPROVED" || app.status === "REJECTED") && (
+                        <Button
+                          variant="outline"
+                          size="default"
+                          className="gap-2"
+                          onClick={() => setReopenDialogOpen(true)}
+                        >
+                          <ArrowPathIcon className="h-4 w-4" />
+                          Reopen for Correction
+                        </Button>
+                      )}
+                    </div>
                   )}
               </div>
 
@@ -602,17 +655,23 @@ export default function DynamicApplicationDetailPage() {
                   defaultTabId={tabDescriptors[0]?.id}
                 >
                   {tabDescriptors.map((descriptor) => {
-                    const actionLocked = !isTabUnlocked(
-                      descriptor.reviewSection,
-                      sectionStatusMap,
-                      availableReviewSections
-                    );
-                    const actionLockTooltip = actionLocked
-                      ? getTabUnlockTooltip(
+                    const isContractExistingContract =
+                      descriptor.reviewSection === "contract_details" && isExistingContract;
+                    const actionLocked = isContractExistingContract
+                      ? true
+                      : !isTabUnlocked(
                           descriptor.reviewSection,
                           sectionStatusMap,
                           availableReviewSections
-                        )
+                        );
+                    const actionLockTooltip = actionLocked
+                      ? isContractExistingContract
+                        ? "Contract was approved in a prior application"
+                        : getTabUnlockTooltip(
+                            descriptor.reviewSection,
+                            sectionStatusMap,
+                            availableReviewSections
+                          )
                       : undefined;
                     const sectionStatus = sectionStatusMap.get(descriptor.reviewSection);
                     return (
@@ -620,7 +679,7 @@ export default function DynamicApplicationDetailPage() {
                       <SectionContent
                         descriptor={descriptor}
                         app={app}
-                        isReviewable={!!isReviewable}
+                        isReviewable={isReviewable}
                         approveSectionPending={approveSection.isPending}
                         approveItemPending={approveItem.isPending}
                         viewDocumentPending={viewDocumentPending}
@@ -671,7 +730,52 @@ export default function DynamicApplicationDetailPage() {
                             toast.error(err instanceof Error ? err.message : "Failed to reset item");
                           }
                         }}
+                        onAddSectionComment={async (section, comment) => {
+                          await addSectionComment.mutateAsync({
+                            applicationId,
+                            section,
+                            comment,
+                          });
+                          toast.success("Comment posted");
+                        }}
+                        onSendContractOffer={async ({ offeredFacility }) => {
+                          try {
+                            const expiresAt = addDays(new Date(), offerExpiryDays).toISOString();
+                            await sendContractOffer.mutateAsync({
+                              applicationId,
+                              offeredFacility,
+                              expiresAt,
+                            });
+                            toast.success("Contract offer sent");
+                          } catch (err) {
+                            toast.error(err instanceof Error ? err.message : "Failed to send contract offer");
+                          }
+                        }}
+                        onSendInvoiceOffer={async ({
+                          invoiceId,
+                          offeredAmount,
+                          offeredRatioPercent,
+                          offeredProfitRatePercent,
+                        }) => {
+                          try {
+                            const expiresAt = addDays(new Date(), offerExpiryDays).toISOString();
+                            await sendInvoiceOffer.mutateAsync({
+                              applicationId,
+                              invoiceId,
+                              offeredAmount,
+                              offeredRatioPercent,
+                              offeredProfitRatePercent,
+                              expiresAt,
+                            });
+                            toast.success("Invoice offer sent");
+                          } catch (err) {
+                            toast.error(err instanceof Error ? err.message : "Failed to send invoice offer");
+                          }
+                        }}
+                        sendContractOfferPending={sendContractOffer.isPending}
+                        sendInvoiceOfferPending={sendInvoiceOffer.isPending}
                         invoiceRatioLimits={invoiceRatioLimits}
+                        offerExpiryDays={offerExpiryDays}
                       />
                     </ApplicationReviewTabContent>
                   );
@@ -711,6 +815,22 @@ export default function DynamicApplicationDetailPage() {
         optional={noteDialog?.action === "approve"}
         onConfirm={handleNoteDialogConfirm}
         isPending={noteDialogPending}
+      />
+
+      <ApplicationReviewRemarkDialog
+        open={reopenDialogOpen}
+        onOpenChange={setReopenDialogOpen}
+        title="Reopen Application for Correction"
+        description="Provide a reason for reopening this application. This reason is recorded in the activity log."
+        remarkLabel="Correction reason (required)"
+        remarkPlaceholder="Explain why this approved/rejected application needs to be reopened."
+        submitLabel="Reopen Application"
+        variant="default"
+        onConfirm={async (reason) => {
+          await reopenForCorrection.mutateAsync({ id: applicationId, reason });
+          toast.success("Application reopened for correction");
+        }}
+        isPending={reopenForCorrection.isPending}
       />
 
       <AmendmentReviewModal

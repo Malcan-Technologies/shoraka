@@ -449,20 +449,36 @@ export default function InvoiceDetailsStep({
 
   const totalFinancingAmount = applicationFinancingAmount;
 
-  const approvedFacility = application?.contract?.contract_details?.approved_facility || 0;
-  const contractValue = application?.contract?.contract_details?.value || 0;
+  const cd = application?.contract?.contract_details;
+  const approvedFacility =
+    (typeof cd?.approved_facility === "number" ? cd.approved_facility : 0) ||
+    (typeof cd?.financing === "number" ? cd.financing : 0);
+  const utilizedFacility =
+    typeof cd?.utilized_facility === "number" ? cd.utilized_facility : 0;
+  const contractValue = typeof cd?.value === "number" ? cd.value : 0;
+  const contractFinancing = typeof cd?.financing === "number" ? cd.financing : 0;
 
+  const submittedFinancingAmount = invoices
+    .filter((inv) => inv.status === "SUBMITTED")
+    .reduce((sum, inv) => {
+      const value = parseMoney(inv.value);
+      const ratio = (inv.financing_ratio_percent || 60) / 100;
+      return sum + value * ratio;
+    }, 0);
 
   const structureType = application?.financing_structure?.structure_type;
   let facilityLimit = 0;
   if (structureType === "new_contract") {
-    facilityLimit = parseMoney(contractValue);
+    facilityLimit = approvedFacility > 0 ? approvedFacility : parseMoney(contractValue || contractFinancing);
   }
   if (structureType === "existing_contract") {
     facilityLimit = parseMoney(approvedFacility);
   }
 
-  const liveAvailableFacility = facilityLimit - totalFinancingAmount;
+  const liveAvailableFacility =
+    approvedFacility > 0
+      ? approvedFacility - utilizedFacility - submittedFinancingAmount
+      : facilityLimit - totalFinancingAmount;
 
   const hasPendingFiles = Object.keys(selectedFiles).length > 0;
   const hasPartialRows = invoices.some((inv) => isRowPartial(inv));
@@ -867,8 +883,9 @@ export default function InvoiceDetailsStep({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applicationId, application?.financing_structure?.structure_type, application?.contract_id]);
 
-  const isNewContract =
-    application?.financing_structure?.structure_type === "new_contract";
+  // const isNewContract =
+  //   application?.financing_structure?.structure_type === "new_contract"; // Not used
+  const hasFacilityData = approvedFacility > 0;
 
   if (isLoadingApplication || debugSkeletonMode) {
     return (
@@ -925,21 +942,17 @@ export default function InvoiceDetailsStep({
                 {/* ================= Approved Facility ================= */}
                 <div className={formLabelClassName}>Approved facility</div>
                 <div className={valueClassName}>
-                  {isNewContract
+                  {!hasFacilityData
                     ? "—"
-                    : application?.contract?.contract_details?.approved_facility != null
-                      ? `RM ${formatMoney(application.contract.contract_details.approved_facility)}`
-                      : "—"}
+                    : `RM ${formatMoney(approvedFacility)}`}
                 </div>
 
                 {/* ================= Utilised Facility ================= */}
                 <div className={formLabelClassName}>Utilised facility</div>
                 <div className={valueClassName}>
-                  {isNewContract
+                  {!hasFacilityData
                     ? "—"
-                    : application?.contract?.contract_details?.utilized_facility != null
-                      ? `RM ${formatMoney(application.contract.contract_details.utilized_facility)}`
-                      : "—"}
+                    : `RM ${formatMoney(utilizedFacility)}`}
                 </div>
 
                 {/* ================= Available Facility ================= */}
@@ -947,13 +960,13 @@ export default function InvoiceDetailsStep({
                 <div
                   className={cn(
                     "text-sm md:text-base leading-6 font-medium",
-                    !isNewContract &&
+                    hasFacilityData &&
                     liveAvailableFacility != null &&
                     liveAvailableFacility < 0 &&
                     "text-destructive"
                   )}
                 >
-                  {isNewContract
+                  {!hasFacilityData
                     ? "—"
                     : liveAvailableFacility != null
                       ? `RM ${formatMoney(liveAvailableFacility)}`

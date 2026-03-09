@@ -4,9 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuTrigger,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
@@ -20,8 +19,8 @@ import {
 interface ApplicationsTableToolbarProps {
   searchQuery: string;
   onSearchChange: (value: string) => void;
-  statusFilter: string;
-  onStatusFilterChange: (value: string) => void;
+  statusFilters: string[];
+  onStatusFiltersChange: (values: string[]) => void;
   totalCount: number;
   filteredCount: number;
   onClearFilters: () => void;
@@ -29,11 +28,22 @@ interface ApplicationsTableToolbarProps {
   isLoading?: boolean;
 }
 
+const STATUS_OPTIONS = [
+  { value: "DRAFT", label: "Draft" },
+  { value: "SUBMITTED", label: "Submitted" },
+  { value: "UNDER_REVIEW", label: "Under Review" },
+  { value: "AMENDMENT_REQUESTED", label: "Amendment Requested" },
+  { value: "RESUBMITTED", label: "Resubmitted" },
+  { value: "APPROVED", label: "Approved" },
+  { value: "REJECTED", label: "Rejected" },
+  { value: "ARCHIVED", label: "Archived" },
+] as const;
+
 export function ApplicationsTableToolbar({
   searchQuery,
   onSearchChange,
-  statusFilter,
-  onStatusFilterChange,
+  statusFilters,
+  onStatusFiltersChange,
   totalCount,
   filteredCount,
   onClearFilters,
@@ -42,14 +52,22 @@ export function ApplicationsTableToolbar({
 }: ApplicationsTableToolbarProps) {
   const [isSpinning, setIsSpinning] = React.useState(false);
 
-  const hasFilters = searchQuery !== "" || statusFilter !== "all";
+  const hasFilters = searchQuery !== "" || statusFilters.length > 0;
 
-  const activeFilterCount = [statusFilter !== "all"].filter(Boolean).length;
+  const activeFilterCount = statusFilters.length;
 
   const handleReload = () => {
     setIsSpinning(true);
     onReload?.();
     setTimeout(() => setIsSpinning(false), 500);
+  };
+
+  const handleStatusToggle = (status: string) => {
+    if (statusFilters.includes(status)) {
+      onStatusFiltersChange(statusFilters.filter((item) => item !== status));
+      return;
+    }
+    onStatusFiltersChange([...statusFilters, status]);
   };
 
   return (
@@ -81,17 +99,21 @@ export function ApplicationsTableToolbar({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-56">
           <DropdownMenuLabel>Status</DropdownMenuLabel>
-          <DropdownMenuRadioGroup value={statusFilter} onValueChange={onStatusFilterChange}>
-            <DropdownMenuRadioItem value="all">All Statuses</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="DRAFT">Draft</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="SUBMITTED">Submitted</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="UNDER_REVIEW">Under Review</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="AMENDMENT_REQUESTED">Amendment Requested</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="RESUBMITTED">Resubmitted</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="APPROVED">Approved</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="REJECTED">Rejected</DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="ARCHIVED">Archived</DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
+          <DropdownMenuCheckboxItem
+            checked={statusFilters.length === 0}
+            onCheckedChange={() => onStatusFiltersChange([])}
+          >
+            All Statuses
+          </DropdownMenuCheckboxItem>
+          {STATUS_OPTIONS.map((option) => (
+            <DropdownMenuCheckboxItem
+              key={option.value}
+              checked={statusFilters.includes(option.value)}
+              onCheckedChange={() => handleStatusToggle(option.value)}
+            >
+              {option.label}
+            </DropdownMenuCheckboxItem>
+          ))}
         </DropdownMenuContent>
       </DropdownMenu>
 

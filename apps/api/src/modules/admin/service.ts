@@ -83,6 +83,40 @@ export class AdminService {
   }
 
   /**
+   * Recompute and update contract facility values (approved_facility, utilized_facility, available_facility).
+   * Used when contract is approved or when an invoice is approved/rejected.
+   */
+  private async refreshContractFacilityValues(contractId: string): Promise<void> {
+    const contract = await prisma.contract.findUnique({
+      where: { id: contractId },
+      include: { invoices: true },
+    });
+    if (!contract) return;
+    const cd = contract.contract_details as Record<string, unknown> | null;
+    const financing = typeof cd?.financing === "number" ? cd.financing : 0;
+    const approvedFacility = financing;
+    const utilizedFacility = contract.invoices
+      .filter((inv) => inv.status === "APPROVED")
+      .reduce((sum, inv) => {
+        const d = inv.details as { value?: number; financing_ratio_percent?: number } | null;
+        const value = typeof d?.value === "number" ? d.value : 0;
+        const ratio = typeof d?.financing_ratio_percent === "number" ? d.financing_ratio_percent : 60;
+        return sum + value * (ratio / 100);
+      }, 0);
+    const availableFacility = approvedFacility - utilizedFacility;
+    const mergedDetails = {
+      ...(cd && typeof cd === "object" ? cd : {}),
+      approved_facility: approvedFacility,
+      utilized_facility: utilizedFacility,
+      available_facility: availableFacility,
+    };
+    await prisma.contract.update({
+      where: { id: contractId },
+      data: { contract_details: mergedDetails },
+    });
+  }
+
+  /**
    * Derive required review sections from the product workflow referenced by the application.
    * Financial is always required. If product cannot be resolved, fall back to all canonical sections.
    */
@@ -3834,7 +3868,7 @@ export class AdminService {
 
   /**
    * Update AR financing application status.
-   * For APPROVED/REJECTED, current status must be reviewable (not already terminal).
+   * Restricts transitions to explicit admin review actions.
    */
   async updateApplicationStatus(
     id: string,
@@ -3848,12 +3882,39 @@ export class AdminService {
     }
 
     const currentStatus = application.status as ApplicationStatus;
+    const allowedTargets = new Set<ApplicationStatus>([
+      ApplicationStatus.UNDER_REVIEW,
+      ApplicationStatus.APPROVED,
+      ApplicationStatus.REJECTED,
+    ]);
+    if (!allowedTargets.has(status)) {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        `Unsupported admin status transition target: ${status}`
+      );
+    }
+
     if (status === ApplicationStatus.APPROVED || status === ApplicationStatus.REJECTED) {
-      if (!this.isReviewable(currentStatus)) {
+      if (!this.isFinalizable(currentStatus)) {
         throw new AppError(
           400,
           "INVALID_STATE",
-          "Application is already in a terminal state; cannot change status"
+          "Application must be in an active review state before final decision"
+        );
+      }
+    }
+
+    if (status === ApplicationStatus.UNDER_REVIEW) {
+      if (currentStatus !== ApplicationStatus.AMENDMENT_REQUESTED) {
+        const correctionGuidance =
+          currentStatus === ApplicationStatus.APPROVED || currentStatus === ApplicationStatus.REJECTED
+            ? ` ${this.getCorrectionFlowGuidance()}`
+            : "";
+        throw new AppError(
+          400,
+          "INVALID_STATE",
+          `Reset to UNDER_REVIEW is only allowed from AMENDMENT_REQUESTED.${correctionGuidance}`
         );
       }
     }
@@ -3900,17 +3961,71 @@ export class AdminService {
     return updatedApplication;
   }
 
+  async reopenApplicationForCorrection(
+    id: string,
+    userId: string,
+    reason: string
+  ) {
+    const repository = new AdminRepository();
+    const application = await repository.getApplicationById(id);
+    if (!application) {
+      throw new AppError(404, "NOT_FOUND", "Application not found");
+    }
+
+    const currentStatus = application.status as ApplicationStatus;
+    if (currentStatus !== ApplicationStatus.APPROVED && currentStatus !== ApplicationStatus.REJECTED) {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        "Only approved or rejected applications can be reopened for correction"
+      );
+    }
+
+    const updatedApplication = await repository.updateApplicationStatus(
+      id,
+      ApplicationStatus.UNDER_REVIEW
+    );
+
+    await logApplicationActivity({
+      userId,
+      applicationId: id,
+      level: ActivityLevel.APPLICATION,
+      target: ActivityTarget.APPLICATION,
+      action: ActivityAction.RESET,
+      remark: reason,
+      portal: ActivityPortal.ADMIN,
+      eventType: "APPLICATION_REOPENED_FOR_CORRECTION",
+      metadata: {
+        previous_status: currentStatus,
+        reason,
+      },
+    });
+
+    logger.info(
+      { applicationId: id, previousStatus: currentStatus, newStatus: ApplicationStatus.UNDER_REVIEW, reason },
+      "Application reopened for correction by admin"
+    );
+
+    return updatedApplication;
+  }
+
   private static readonly REVIEWABLE_STATUSES: ApplicationStatus[] = [
     ApplicationStatus.SUBMITTED,
     ApplicationStatus.UNDER_REVIEW,
     ApplicationStatus.RESUBMITTED,
     ApplicationStatus.AMENDMENT_REQUESTED,
-    ApplicationStatus.REJECTED,
-    ApplicationStatus.APPROVED,
   ];
 
   private isReviewable(status: ApplicationStatus): boolean {
     return AdminService.REVIEWABLE_STATUSES.includes(status);
+  }
+
+  private isFinalizable(status: ApplicationStatus): boolean {
+    return this.isReviewable(status);
+  }
+
+  private getCorrectionFlowGuidance(): string {
+    return "Terminal corrections must use a dedicated audited correction flow";
   }
 
   /**
@@ -3923,6 +4038,28 @@ export class AdminService {
   }
 
   /**
+   * Resolve scope_key (e.g. invoice_details:0:INV-001) to the actual invoice database id.
+   * Returns null if invalid.
+   */
+  private resolveInvoiceIdFromScopeKey(
+    application: { invoices?: { id: string; details?: { number?: string | number } }[] },
+    itemId: string
+  ): string | null {
+    if (!itemId.startsWith("invoice_details:")) return null;
+    const parts = itemId.split(":");
+    if (parts.length < 3) return null;
+    const idx = parseInt(parts[1], 10);
+    if (!Number.isFinite(idx) || idx < 0) return null;
+    const invoices = application.invoices ?? [];
+    if (idx >= invoices.length) return null;
+    const inv = invoices[idx];
+    const expectedNum = String(inv?.details?.number ?? idx + 1).replace(/:/g, "_");
+    const keyNum = parts.slice(2).join(":").replace(/:/g, "_");
+    if (expectedNum !== keyNum) return null;
+    return inv?.id ?? null;
+  }
+
+  /**
    * Validate that an invoice item exists in the application.
    * Expects format invoice_details:<index>:<invoice_number>
    */
@@ -3930,25 +4067,7 @@ export class AdminService {
     application: { invoices?: { id: string; details?: { number?: string | number } }[] },
     itemId: string
   ): void {
-    if (!itemId.startsWith("invoice_details:")) {
-      throw new AppError(400, "INVALID_ITEM", `Invalid invoice scope key: ${itemId}`);
-    }
-    const parts = itemId.split(":");
-    if (parts.length < 3) {
-      throw new AppError(400, "INVALID_ITEM", `Invalid invoice scope key: ${itemId}`);
-    }
-    const idx = parseInt(parts[1], 10);
-    if (!Number.isFinite(idx) || idx < 0) {
-      throw new AppError(400, "INVALID_ITEM", `Invalid invoice index: ${itemId}`);
-    }
-    const invoices = application.invoices ?? [];
-    if (idx >= invoices.length) {
-      throw new AppError(400, "INVALID_ITEM", `Invoice ${itemId} not found in this application`);
-    }
-    const inv = invoices[idx];
-    const expectedNum = String(inv?.details?.number ?? idx + 1).replace(/:/g, "_");
-    const keyNum = parts.slice(2).join(":");
-    if (expectedNum !== keyNum) {
+    if (!this.resolveInvoiceIdFromScopeKey(application, itemId)) {
       throw new AppError(400, "INVALID_ITEM", `Invoice ${itemId} not found in this application`);
     }
   }
@@ -4104,6 +4223,250 @@ export class AdminService {
     return { repository, application };
   }
 
+  private resolveInvoiceScopeKeyById(
+    application: { invoices?: { id: string; details?: { number?: string | number } }[] },
+    invoiceId: string
+  ): string | null {
+    const invoices = application.invoices ?? [];
+    const idx = invoices.findIndex((invoice) => invoice.id === invoiceId);
+    if (idx < 0) return null;
+    const invoiceNo = invoices[idx]?.details?.number ?? idx + 1;
+    const sanitized = String(invoiceNo).replace(/:/g, "_");
+    return `invoice_details:${idx}:${sanitized}`;
+  }
+
+  async sendContractOffer(
+    applicationId: string,
+    offeredFacility: number,
+    expiresAt: string | null,
+    reviewerUserId: string
+  ) {
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
+    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+
+    if (!application.contract_id) {
+      throw new AppError(400, "INVALID_STATE", "Application has no contract to offer");
+    }
+
+    const contract = await prisma.contract.findUnique({ where: { id: application.contract_id } });
+    if (!contract) {
+      throw new AppError(404, "NOT_FOUND", "Contract not found");
+    }
+
+    const contractDetails = contract.contract_details as Record<string, unknown> | null;
+    const requestedFacilityRaw =
+      typeof contractDetails?.financing === "number"
+        ? contractDetails.financing
+        : typeof contractDetails?.value === "number"
+          ? contractDetails.value
+          : 0;
+    const requestedFacility = Number(requestedFacilityRaw);
+    if (!Number.isFinite(requestedFacility) || requestedFacility <= 0) {
+      throw new AppError(400, "INVALID_STATE", "Contract requested facility is invalid");
+    }
+    if (offeredFacility > requestedFacility) {
+      throw new AppError(
+        400,
+        "INVALID_INPUT",
+        "Offered facility cannot be greater than requested facility"
+      );
+    }
+
+    const previousOffer = (contract.offer_details as Record<string, unknown> | null) ?? null;
+    const previousVersion =
+      typeof previousOffer?.version === "number" && Number.isFinite(previousOffer.version)
+        ? previousOffer.version
+        : 0;
+    const now = new Date().toISOString();
+    const offerDetails = {
+      requested_facility: requestedFacility,
+      offered_facility: offeredFacility,
+      expires_at: expiresAt,
+      sent_at: now,
+      responded_at: null,
+      sent_by_user_id: reviewerUserId,
+      responded_by_user_id: null,
+      version: previousVersion + 1,
+    };
+
+    await prisma.contract.update({
+      where: { id: application.contract_id },
+      data: {
+        status: "SENT",
+        offer_details: offerDetails,
+      },
+    });
+
+    await repository.ensureApplicationReviewSection(applicationId, "contract_details");
+    await repository.updateSectionReviewStatus(
+      applicationId,
+      "contract_details",
+      ReviewStepStatus.SENT,
+      reviewerUserId
+    );
+
+    await prisma.applicationReviewEvent.create({
+      data: {
+        application_id: applicationId,
+        event_type: "CONTRACT_OFFER_SENT",
+        scope: "section",
+        scope_key: "contract_details",
+        new_status: "SENT",
+        reviewer_user_id: reviewerUserId,
+        remark: `Contract offer sent: ${offeredFacility}`,
+      },
+    });
+
+    await logApplicationActivity({
+      userId: reviewerUserId,
+      applicationId,
+      level: ActivityLevel.TAB,
+      target: ActivityTarget.CONTRACT,
+      action: ActivityAction.APPROVED,
+      portal: ActivityPortal.ADMIN,
+      eventType: "CONTRACT_OFFER_SENT",
+      metadata: {
+        requested_facility: requestedFacility,
+        offered_facility: offeredFacility,
+        expires_at: expiresAt,
+        version: previousVersion + 1,
+      },
+    });
+
+    return repository.getApplicationById(applicationId);
+  }
+
+  async sendInvoiceOffer(
+    applicationId: string,
+    invoiceId: string,
+    offeredAmount: number,
+    offeredRatioPercent: number | null,
+    offeredProfitRatePercent: number | null,
+    expiresAt: string | null,
+    reviewerUserId: string
+  ) {
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
+    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+
+    const invoice = (application.invoices as { id: string; details?: Record<string, unknown> }[] | undefined)?.find(
+      (row) => row.id === invoiceId
+    );
+    if (!invoice) {
+      throw new AppError(404, "NOT_FOUND", "Invoice not found in this application");
+    }
+
+    const scopeKey = this.resolveInvoiceScopeKeyById(
+      application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+      invoiceId
+    );
+    if (!scopeKey) {
+      throw new AppError(400, "INVALID_STATE", "Unable to resolve invoice scope key");
+    }
+
+    const details = (invoice.details ?? {}) as Record<string, unknown>;
+    const invoiceValue = Number(details.value);
+    const requestedRatioPercent =
+      typeof details.financing_ratio_percent === "number"
+        ? details.financing_ratio_percent
+        : Number(details.financing_ratio_percent ?? 0);
+    if (!Number.isFinite(invoiceValue) || invoiceValue <= 0) {
+      throw new AppError(400, "INVALID_STATE", "Invoice value is invalid");
+    }
+    if (!Number.isFinite(requestedRatioPercent) || requestedRatioPercent <= 0) {
+      throw new AppError(400, "INVALID_STATE", "Invoice requested financing ratio is invalid");
+    }
+
+    const requestedAmount = (invoiceValue * requestedRatioPercent) / 100;
+    if (offeredAmount > requestedAmount) {
+      throw new AppError(
+        400,
+        "INVALID_INPUT",
+        "Offered amount cannot be greater than requested amount"
+      );
+    }
+
+    const dbInvoice = await prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      select: { offer_details: true },
+    });
+    const previousOffer = (dbInvoice?.offer_details as Record<string, unknown> | null) ?? null;
+    const previousVersion =
+      typeof previousOffer?.version === "number" && Number.isFinite(previousOffer.version)
+        ? previousOffer.version
+        : 0;
+    const now = new Date().toISOString();
+    const offerDetails = {
+      requested_amount: requestedAmount,
+      offered_amount: offeredAmount,
+      requested_ratio_percent: requestedRatioPercent,
+      offered_ratio_percent: offeredRatioPercent,
+      offered_profit_rate_percent: offeredProfitRatePercent,
+      expires_at: expiresAt,
+      sent_at: now,
+      responded_at: null,
+      sent_by_user_id: reviewerUserId,
+      responded_by_user_id: null,
+      version: previousVersion + 1,
+    };
+
+    await prisma.invoice.update({
+      where: { id: invoiceId, application_id: applicationId },
+      data: {
+        status: "SENT",
+        offer_details: offerDetails,
+      },
+    });
+
+    await repository.upsertItemReviewStatus(
+      applicationId,
+      "invoice",
+      scopeKey,
+      ReviewStepStatus.SENT,
+      reviewerUserId
+    );
+
+    if (application.contract_id) {
+      await this.refreshContractFacilityValues(application.contract_id);
+    }
+
+    await prisma.applicationReviewEvent.create({
+      data: {
+        application_id: applicationId,
+        event_type: "INVOICE_OFFER_SENT",
+        scope: "item",
+        scope_key: scopeKey,
+        new_status: "SENT",
+        reviewer_user_id: reviewerUserId,
+      },
+    });
+
+    const invoiceNumber =
+      details.number != null && details.number !== ""
+        ? String(details.number).trim()
+        : null;
+    await logApplicationActivity({
+      userId: reviewerUserId,
+      applicationId,
+      level: ActivityLevel.ITEM,
+      target: ActivityTarget.INVOICE,
+      action: ActivityAction.APPROVED,
+      entityId: scopeKey,
+      portal: ActivityPortal.ADMIN,
+      eventType: "INVOICE_OFFER_SENT",
+      metadata: {
+        invoice_number: invoiceNumber,
+        requested_amount: requestedAmount,
+        offered_amount: offeredAmount,
+        offered_ratio_percent: offeredRatioPercent,
+        offered_profit_rate_percent: offeredProfitRatePercent,
+        expires_at: expiresAt,
+        version: previousVersion + 1,
+      },
+    });
+
+    return repository.getApplicationById(applicationId);
+  }
+
   /**
    * Clear pending item amendment drafts for the given item.
    * itemId is the scope_key (e.g. supporting_documents:..., invoice_details:...).
@@ -4167,8 +4530,9 @@ export class AdminService {
     if (section === "contract_details" && application.contract_id) {
       await prisma.contract.update({
         where: { id: application.contract_id },
-        data: { status: "APPROVED" },
+        data: { status: "SUBMITTED" },
       });
+      await this.refreshContractFacilityValues(application.contract_id);
     }
     const remarkValue = remark?.trim() || null;
     if (remarkValue) {
@@ -4211,12 +4575,43 @@ export class AdminService {
       (r: { section: string; status: string }) => r.section === section
     );
     const oldStatus = existing?.status ?? "PENDING";
+    let didRetractContractOffer = false;
 
     await repository.resetSectionReviewToPending(applicationId, section);
     if (section === "contract_details" && application.contract_id) {
+      const contract = await prisma.contract.findUnique({
+        where: { id: application.contract_id },
+        select: { status: true, contract_details: true },
+      });
+      const cd = contract?.contract_details as Record<string, unknown> | null;
+      const mergedDetails = {
+        ...(cd && typeof cd === "object" ? cd : {}),
+        approved_facility: 0,
+        utilized_facility: 0,
+        available_facility: 0,
+      };
+      const updateData: Prisma.ContractUpdateInput = {
+        status: "SUBMITTED",
+        contract_details: mergedDetails as Prisma.InputJsonValue,
+      };
+      didRetractContractOffer = oldStatus === "SENT" || contract?.status === "SENT";
+      if (didRetractContractOffer) {
+        updateData.offer_details = Prisma.JsonNull;
+      }
       await prisma.contract.update({
         where: { id: application.contract_id },
-        data: { status: "SUBMITTED" },
+        data: updateData,
+      });
+    }
+    if (didRetractContractOffer && section === "contract_details") {
+      await logApplicationActivity({
+        userId: reviewerUserId,
+        applicationId,
+        level: ActivityLevel.TAB,
+        target: ActivityTarget.CONTRACT,
+        action: ActivityAction.RESET,
+        portal: ActivityPortal.ADMIN,
+        eventType: "CONTRACT_OFFER_RETRACTED",
       });
     }
     await this.logReviewActivity(
@@ -4252,8 +4647,47 @@ export class AdminService {
         r.item_type === itemType && r.item_id === itemId
     );
     const oldStatus = existing?.status ?? "PENDING";
+    let didRetractInvoiceOffer = false;
 
     await repository.resetItemReviewToPending(applicationId, itemType, itemId);
+    if (itemType === "invoice") {
+      const invoiceId = this.resolveInvoiceIdFromScopeKey(
+        application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+        itemId
+      );
+      if (invoiceId) {
+        const currentInvoice = await prisma.invoice.findUnique({
+          where: { id: invoiceId, application_id: applicationId },
+          select: { status: true },
+        });
+        const updateData: Prisma.InvoiceUpdateInput = {
+          status: "SUBMITTED",
+        };
+        didRetractInvoiceOffer = oldStatus === "SENT" || currentInvoice?.status === "SENT";
+        if (didRetractInvoiceOffer) {
+          updateData.offer_details = Prisma.JsonNull;
+        }
+        await prisma.invoice.update({
+          where: { id: invoiceId, application_id: applicationId },
+          data: updateData,
+        });
+      }
+      if (application.contract_id) {
+        await this.refreshContractFacilityValues(application.contract_id);
+      }
+    }
+    if (didRetractInvoiceOffer && itemType === "invoice") {
+      await logApplicationActivity({
+        userId: reviewerUserId,
+        applicationId,
+        level: ActivityLevel.ITEM,
+        target: ActivityTarget.INVOICE,
+        action: ActivityAction.RESET,
+        entityId: itemId,
+        portal: ActivityPortal.ADMIN,
+        eventType: "INVOICE_OFFER_RETRACTED",
+      });
+    }
     await this.logReviewActivity(
       applicationId,
       "item",
@@ -4382,6 +4816,29 @@ export class AdminService {
     return repository.getApplicationById(applicationId);
   }
 
+  async addSectionComment(
+    applicationId: string,
+    section: ReviewSection,
+    comment: string,
+    reviewerUserId: string
+  ) {
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
+    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+
+    const commentId = `${Date.now()}-${reviewerUserId}`;
+    await repository.createReviewRemark(
+      applicationId,
+      "comment",
+      `${section}:${commentId}`,
+      "COMMENT",
+      comment.trim(),
+      reviewerUserId
+    );
+
+    logger.info({ applicationId, section, reviewerUserId }, "Section comment added");
+    return repository.getApplicationById(applicationId);
+  }
+
   /**
    * Approve a review item (invoice or document)
    */
@@ -4431,6 +4888,22 @@ export class AdminService {
 
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
 
+    if (itemType === "invoice") {
+      const invoiceId = this.resolveInvoiceIdFromScopeKey(
+        application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+        itemId
+      );
+      if (invoiceId) {
+        await prisma.invoice.update({
+          where: { id: invoiceId, application_id: applicationId },
+          data: { status: "SUBMITTED" },
+        });
+      }
+      if (application.contract_id) {
+        await this.refreshContractFacilityValues(application.contract_id);
+      }
+    }
+
     return repository.getApplicationById(applicationId);
   }
 
@@ -4479,6 +4952,22 @@ export class AdminService {
     );
 
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
+
+    if (itemType === "invoice") {
+      const invoiceId = this.resolveInvoiceIdFromScopeKey(
+        application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+        itemId
+      );
+      if (invoiceId) {
+        await prisma.invoice.update({
+          where: { id: invoiceId, application_id: applicationId },
+          data: { status: "REJECTED" },
+        });
+      }
+      if (application.contract_id) {
+        await this.refreshContractFacilityValues(application.contract_id);
+      }
+    }
 
     return repository.getApplicationById(applicationId);
   }

@@ -11,11 +11,13 @@ function StatusDot({ status }: { status: string }) {
   const dotClass =
     status === "APPROVED"
       ? "bg-green-500"
-      : status === "AMENDMENT_REQUESTED"
-        ? "bg-yellow-500"
-        : status === "REJECTED"
-          ? "bg-destructive"
-          : "bg-muted-foreground";
+      : status === "SENT"
+        ? "bg-blue-500"
+        : status === "AMENDMENT_REQUESTED"
+          ? "bg-yellow-500"
+          : status === "REJECTED"
+            ? "bg-destructive"
+            : "bg-muted-foreground";
   return (
     <span
       className={cn("inline-block h-2 w-2 rounded-full shrink-0", dotClass)}

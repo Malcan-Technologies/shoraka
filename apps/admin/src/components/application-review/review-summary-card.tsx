@@ -4,7 +4,9 @@ import * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClipboardDocumentCheckIcon } from "@heroicons/react/24/outline";
+import { cn } from "@/lib/utils";
 import { getReviewTabLabel } from "./review-registry";
+import { getReviewStatusPresentation } from "./status-presentation";
 
 export interface ReviewSummaryCardProps {
   sections: { section: string; status: string }[];
@@ -27,21 +29,32 @@ export function ReviewSummaryCard({ sections }: ReviewSummaryCardProps) {
           </h4>
           <div className="space-y-1.5">
             {sections.map((s) => (
-              <div key={s.section} className="flex items-center justify-between text-sm">
-                <span>{getReviewTabLabel(s.section)}</span>
-                <Badge
-                  variant="secondary"
-                  className={
-                    s.status === "APPROVED"
-                      ? "bg-primary/10 text-primary"
-                      : s.status === "REJECTED" || s.status === "AMENDMENT_REQUESTED"
-                        ? "bg-destructive/10 text-destructive"
-                        : ""
-                  }
-                >
-                  {s.status}
-                </Badge>
-              </div>
+              (() => {
+                const presentation = getReviewStatusPresentation(s.status);
+                const label =
+                  s.status === "AMENDMENT_REQUESTED" ? "Amendment" : presentation.label;
+                return (
+                  <div key={s.section} className="flex items-center justify-between text-sm">
+                    <span>{getReviewTabLabel(s.section)}</span>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "h-6 px-2.5 text-[11px] font-semibold tracking-wide gap-1.5",
+                        presentation.badgeClass
+                      )}
+                    >
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "inline-block h-2 w-2 rounded-full shrink-0",
+                          presentation.dotClass
+                        )}
+                      />
+                      {label}
+                    </Badge>
+                  </div>
+                );
+              })()
             ))}
           </div>
         </div>

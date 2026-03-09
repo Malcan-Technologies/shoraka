@@ -2129,12 +2129,14 @@ export class AdminRepository {
     }[];
     total: number;
   }> {
-    const { page, pageSize, search, status, productId } = params;
+    const { page, pageSize, search, status, statuses, productId } = params;
     const skip = (page - 1) * pageSize;
 
     const where: Prisma.ApplicationWhereInput = {};
 
-    if (status) {
+    if (statuses && statuses.length > 0) {
+      where.status = { in: statuses };
+    } else if (status) {
       where.status = status;
     }
 
@@ -2240,10 +2242,22 @@ export class AdminRepository {
           },
         },
         invoices: true,
-        contract: true,
+        contract: {
+          include: { invoices: true },
+        },
         application_reviews: true,
         application_review_items: true,
-        application_review_remarks: { orderBy: { created_at: "desc" } },
+        application_review_remarks: {
+          orderBy: { created_at: "desc" },
+          include: {
+            author: {
+              select: {
+                first_name: true,
+                last_name: true,
+              },
+            },
+          },
+        },
       },
     });
   }

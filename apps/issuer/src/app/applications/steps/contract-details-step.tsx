@@ -785,9 +785,10 @@ export function ContractDetailsStep({
     // Convert values to numbers
     const valueNum = parseMoney(updatedFormData.contract.value);
     const contractFinancingNum = parseMoney(updatedFormData.contract.financing);
-    const approvedFacilityNum = (contract as unknown as { contract_details?: { approved_facility?: number } })?.contract_details?.approved_facility || 0;
-    const utilizedFacilityNum = (contract as unknown as { contract_details?: { utilized_facility?: number } })?.contract_details?.utilized_facility || 0;
-    const availableFacilityNum = 0;
+    const existingCd = (contract as unknown as { contract_details?: Record<string, unknown> })?.contract_details;
+    const approvedFacilityNum = typeof existingCd?.approved_facility === "number" ? existingCd.approved_facility : 0;
+    const utilizedFacilityNum = typeof existingCd?.utilized_facility === "number" ? existingCd.utilized_facility : 0;
+    const availableFacilityNum = typeof existingCd?.available_facility === "number" ? existingCd.available_facility : 0;
 
     const updatedContractDetails = {
       ...updatedFormData.contract,

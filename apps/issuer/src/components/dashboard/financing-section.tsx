@@ -12,11 +12,13 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
-} from "@/components/ui/dropdown-menu"
+} from "@/components/ui/dropdown-menu";
 import { useRouter } from "next/navigation";
 import { useOrganization } from "@cashsouk/config";
 import { useOrganizationApplications } from "@/hooks/use-applications";
 import { useProducts } from "@/hooks/use-products";
+import { getOfferStatus, type OfferStatus } from "@/lib/offer-utils";
+import { ReviewOfferModal } from "@/components/review-offer-modal";
 
 /* ============================================================
    Real data (applications for active organization)
@@ -52,7 +54,7 @@ function invoiceBadge(status: any) {
   }
 }
 
-function offerBadge(offerStatus?: "Offer received" | "Offer expired") {
+function offerBadge(offerStatus: OfferStatus) {
   if (!offerStatus) return null;
 
   if (offerStatus === "Offer expired") {
@@ -258,6 +260,9 @@ export function FinancingSection() {
   const { data: productsData } = useProducts({ page: 1, pageSize: 100, search: "", activeOnly: true } as any);
   const products = (productsData as any)?.products || [];
 
+  const [offerModalContext, setOfferModalContext] = useState<Parameters<typeof ReviewOfferModal>[0]["context"]>(null);
+  const offerModalOpen = offerModalContext !== null;
+
   const productNameMap = useMemo(() => {
     const map = new Map<string, string>();
     products.forEach((p: any) => {
@@ -297,7 +302,13 @@ export function FinancingSection() {
   }, [products, productGroups, productNameMap]);
 
   return (
-    <div className="space-y-6">
+    <>
+      <ReviewOfferModal
+        open={offerModalOpen}
+        onOpenChange={(open) => !open && setOfferModalContext(null)}
+        context={offerModalContext}
+      />
+      <div className="space-y-6">
       {productsWithData.map((product: any) => {
         const group = productGroups[product.id] ?? { contracts: [], invoices: [] };
         const productName = productNameMap.get(product.id) ?? product.name ?? `Product ${product.id}`;
@@ -330,6 +341,14 @@ export function FinancingSection() {
                         key={c.id}
                         item={c.contract}
                         applicationId={c.applicationId}
+                        offerStatus={getOfferStatus(c.contract)}
+                        onReviewOffer={() =>
+                          setOfferModalContext({
+                            type: "contract",
+                            applicationId: c.applicationId,
+                            contract: c.contract,
+                          })
+                        }
                       />
                     ))
                   ) : (
@@ -357,6 +376,15 @@ export function FinancingSection() {
                         item={inv.invoice}
                         applicationSubmittedAt={inv.applicationSubmittedAt}
                         applicationId={inv.applicationId}
+                        offerStatus={getOfferStatus(inv.invoice)}
+                        onReviewOffer={() =>
+                          setOfferModalContext({
+                            type: "invoice",
+                            applicationId: inv.applicationId,
+                            invoiceId: inv.id,
+                            invoice: inv.invoice,
+                          })
+                        }
                       />
                     ))
                   ) : (
@@ -369,6 +397,7 @@ export function FinancingSection() {
         );
       })}
     </div>
+    </>
   );
 }
 
@@ -423,7 +452,17 @@ function CollapsibleCategory({
    Cards: grid layout -> content | right column | action column
 ============================================================ */
 
-function ContractCard({ item, applicationId }: { item: any; applicationId: string }) {
+function ContractCard({
+  item,
+  applicationId,
+  offerStatus,
+  onReviewOffer,
+}: {
+  item: any;
+  applicationId: string;
+  offerStatus: OfferStatus;
+  onReviewOffer: () => void;
+}) {
   const router = useRouter();
   const details = item.contract_details ?? {};
   const customer = item.customer_details?.name ?? details?.customer ?? "-";
@@ -448,11 +487,11 @@ function ContractCard({ item, applicationId }: { item: any; applicationId: strin
             </p>
 
             <span className="ml-2">{contractBadge(formatStatus(item.status) || formatStatus(details?.status))}</span>
-            {offerBadge(item.offerStatus)}
+            {offerBadge(offerStatus)}
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <ReviewOfferButton show={item.offerStatus === "Offer received" || true} onClick={() => console.log("Review offer contract", item.id)} />
+            <ReviewOfferButton show={offerStatus === "Offer received"} onClick={onReviewOffer} />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="rounded-full h-8 w-8">
@@ -560,10 +599,14 @@ export function InvoiceCard({
   item,
   applicationSubmittedAt,
   applicationId,
+  offerStatus,
+  onReviewOffer,
 }: {
   item: any;
   applicationSubmittedAt?: string | null;
   applicationId?: string;
+  offerStatus: OfferStatus;
+  onReviewOffer: () => void;
 }) {
   const router = useRouter();
   const details = item.details ?? {};
@@ -600,13 +643,13 @@ export function InvoiceCard({
             </p>
 
             <span className="ml-2">{invoiceBadge(status)}</span>
-            {offerBadge(item.offerStatus)}
+            {offerBadge(offerStatus)}
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
             <ReviewOfferButton
-              show={item.offerStatus === "Offer received" || true}
-              onClick={() => console.log("Review offer invoice", item.id)}
+              show={offerStatus === "Offer received"}
+              onClick={onReviewOffer}
             />
 
             <DropdownMenu>

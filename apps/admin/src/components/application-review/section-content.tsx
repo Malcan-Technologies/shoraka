@@ -9,6 +9,16 @@ import { InvoiceSection } from "./sections/invoice-section";
 import type { ReviewSectionId } from "./section-types";
 import type { ReviewTabDescriptor } from "./review-registry";
 
+export interface SectionCommentRecord {
+  id: string;
+  scope: string;
+  scope_key: string;
+  remark: string;
+  created_at: string;
+  author_user_id?: string;
+  author?: { first_name?: string | null; last_name?: string | null } | null;
+}
+
 export interface PendingAmendmentItem {
   id: string;
   scope: string;
@@ -28,8 +38,9 @@ export interface SectionContentProps {
     company_details?: unknown;
     declarations?: unknown;
     contract?: { contract_details?: unknown; customer_details?: unknown } | null;
-    invoices?: { id: string; details?: unknown }[];
+    invoices?: { id: string; details?: unknown; status?: string; offer_details?: unknown }[];
     application_review_items?: unknown;
+    application_review_remarks?: unknown;
     issuer_organization?: {
       name?: string | null;
       corporate_entities?: unknown;
@@ -61,8 +72,20 @@ export interface SectionContentProps {
   onRejectItem: (itemId: string, itemType: "invoice" | "document") => void;
   onRequestAmendmentItem: (itemId: string, itemType: "invoice" | "document") => void;
   onResetItemToPending?: (itemId: string, itemType: "invoice" | "document") => void;
+  onSendContractOffer?: (payload: { offeredFacility: number }) => Promise<void>;
+  onSendInvoiceOffer?: (payload: {
+    invoiceId: string;
+    offeredAmount: number;
+    offeredRatioPercent: number;
+    offeredProfitRatePercent: number;
+  }) => Promise<void>;
+  sendContractOfferPending?: boolean;
+  sendInvoiceOfferPending?: boolean;
+  onAddSectionComment?: (section: ReviewSectionId, comment: string) => Promise<void> | void;
   /** Min/max financing ratio (%) from product config. Used by invoice review Offered by CashSouk. */
   invoiceRatioLimits?: { min: number; max: number };
+  /** Product offer expiry in days. Used for invoice estimates and offer expiry when sending. */
+  offerExpiryDays?: number | null;
 }
 
 /** Renders section content by descriptor. Single place to map descriptor → component. */
@@ -85,12 +108,25 @@ export function SectionContent({
   onRejectItem,
   onRequestAmendmentItem,
   onResetItemToPending,
+  onSendContractOffer,
+  onSendInvoiceOffer,
+  sendContractOfferPending,
+  sendInvoiceOfferPending,
+  onAddSectionComment,
   invoiceRatioLimits,
+  offerExpiryDays,
 }: SectionContentProps) {
   const reviewItems =
     (app.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? [];
+  const reviewComments = (app.application_review_remarks as SectionCommentRecord[] | undefined) ?? [];
 
   const section = descriptor.reviewSection;
+  const sectionComments = reviewComments
+    .filter((entry) => entry.scope === "comment" && entry.scope_key?.startsWith(`${section}:`))
+    .map((entry) => ({
+      ...entry,
+      comment: entry.remark,
+    }));
 
   switch (descriptor.kind) {
     case "financial":
@@ -107,6 +143,8 @@ export function SectionContent({
           onApprove={onApproveSection}
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}
+          comments={sectionComments}
+          onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
         />
       );
     case "business_details":
@@ -123,6 +161,8 @@ export function SectionContent({
           onApprove={onApproveSection}
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}
+          comments={sectionComments}
+          onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
         />
       );
     case "company_details":
@@ -139,6 +179,8 @@ export function SectionContent({
           onApprove={onApproveSection}
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}
+          comments={sectionComments}
+          onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
         />
       );
     case "supporting_documents":
@@ -162,12 +204,15 @@ export function SectionContent({
           onRejectItem={(id) => onRejectItem(id, "document")}
           onRequestAmendmentItem={(id) => onRequestAmendmentItem(id, "document")}
           onResetItemToPending={onResetItemToPending ? (id) => onResetItemToPending(id, "document") : undefined}
+          comments={sectionComments}
+          onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
         />
       );
     case "contract_details":
       return (
         <ContractSection
           contractDetails={app.contract?.contract_details}
+          offerDetails={(app.contract as { offer_details?: unknown } | null | undefined)?.offer_details}
           customerDetails={app.contract?.customer_details}
           section={section}
           isReviewable={isReviewable}
@@ -179,14 +224,56 @@ export function SectionContent({
           onApprove={onApproveSection}
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}
+          onSendOffer={onSendContractOffer}
+          isSendOfferPending={sendContractOfferPending}
           onViewDocument={onViewDocument}
           viewDocumentPending={viewDocumentPending}
+          comments={sectionComments}
+          onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
         />
       );
-    case "invoice_details":
+    case "invoice_details": {
+      const appInvoices = app.invoices ?? [];
+      const contract = app.contract as {
+        contract_details?: {
+          approved_facility?: number;
+          utilized_facility?: number;
+          available_facility?: number;
+          financing?: number;
+          value?: number;
+        };
+        invoices?: { id: string; application_id: string; details?: unknown; status?: string; offer_details?: unknown }[];
+      } | null;
+      const contractInvoices = contract?.invoices ?? [];
+      const applicationId = (app as { id?: string }).id;
+      const otherContractInvoices =
+        applicationId && app.contract && contractInvoices.length > 0
+          ? contractInvoices.filter((inv) => inv.application_id !== applicationId)
+          : [];
+      const mergedInvoices = [...appInvoices, ...otherContractInvoices];
+      const readOnlyInvoiceIds = new Set(otherContractInvoices.map((inv) => inv.id));
+      const cd = contract?.contract_details;
+      const approvedFacility =
+        (typeof cd?.approved_facility === "number" && cd.approved_facility > 0
+          ? cd.approved_facility
+          : typeof cd?.financing === "number"
+            ? cd.financing
+            : typeof cd?.value === "number"
+              ? cd.value
+              : 0) as number;
+      const availableFacility =
+        typeof cd?.available_facility === "number" ? cd.available_facility : approvedFacility;
+      const utilizedFacility =
+        typeof cd?.utilized_facility === "number" ? cd.utilized_facility : 0;
+      const contractFacility =
+        app.contract && approvedFacility > 0
+          ? { contractFacility: approvedFacility, availableFacility, utilizedFacility }
+          : undefined;
       return (
         <InvoiceSection
-          invoices={app.invoices ?? []}
+          invoices={mergedInvoices}
+          readOnlyInvoiceIds={readOnlyInvoiceIds}
+          contractFacility={contractFacility}
           reviewItems={reviewItems}
           section={section}
           isReviewable={isReviewable}
@@ -205,8 +292,14 @@ export function SectionContent({
           onRejectItem={(id) => onRejectItem(id, "invoice")}
           onRequestAmendmentItem={(id) => onRequestAmendmentItem(id, "invoice")}
           onResetItemToPending={onResetItemToPending ? (id) => onResetItemToPending(id, "invoice") : undefined}
+          onSendInvoiceOffer={onSendInvoiceOffer}
+          isSendInvoiceOfferPending={sendInvoiceOfferPending}
+          comments={sectionComments}
+          onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
+          offerExpiryDays={offerExpiryDays}
         />
       );
+    }
     default:
       return null;
   }

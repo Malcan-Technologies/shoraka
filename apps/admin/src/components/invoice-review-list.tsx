@@ -1,24 +1,23 @@
 "use client";
 
 import * as React from "react";
-import {
-  ArrowTopRightOnSquareIcon,
-  ChevronDownIcon,
-} from "@heroicons/react/24/outline";
-import { format } from "date-fns";
+import { ArrowTopRightOnSquareIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
+import { format, addDays, differenceInDays, isValid } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
 import { ItemActionDropdown } from "@/components/application-review/item-action-dropdown";
 import { ReviewStepStatusBadge } from "@/components/application-review/review-step-status-badge";
 import { REVIEW_EMPTY_LABEL } from "@/components/application-review/review-section-styles";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -31,12 +30,16 @@ import {
 const PROFIT_RATE_OPTIONS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] as const;
 
 interface InvoiceReviewListProps {
-  invoices: { id: string; details?: unknown }[];
+  invoices: { id: string; details?: unknown; status?: string; offer_details?: unknown }[];
+  /** Invoice IDs from other applications (same contract) - read-only, actions locked */
+  readOnlyInvoiceIds?: Set<string>;
   reviewItems: { item_type: string; item_id: string; status: string }[];
   isReviewable: boolean;
   onViewDocument: (s3Key: string) => void;
   isViewDocumentPending: boolean;
   invoiceRatioLimits: { min: number; max: number };
+  /** Product offer expiry in days. Used for estimated disbursement, period, profit and offer expiry date. */
+  offerExpiryDays?: number | null;
   isActionLocked?: boolean;
   actionLockTooltip?: string;
   onApproveItem: (itemId: string) => Promise<void>;
@@ -44,6 +47,13 @@ interface InvoiceReviewListProps {
   onRequestAmendmentItem: (itemId: string) => void;
   onResetItemToPending?: (itemId: string) => void;
   isItemActionPending: boolean;
+  onSendInvoiceOffer?: (payload: {
+    invoiceId: string;
+    offeredAmount: number;
+    offeredRatioPercent: number;
+    offeredProfitRatePercent: number;
+  }) => Promise<void>;
+  isSendInvoiceOfferPending?: boolean;
 }
 
 interface InvoiceDetails {
@@ -58,7 +68,42 @@ interface InvoiceDetails {
   };
 }
 
-const PLACEHOLDER = { estDisbursementDate: "TBD", estPeriodDays: "TBD" } as const;
+function parseMaturityDate(value: string | undefined): Date | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return isValid(parsed) ? parsed : null;
+}
+
+function computeOfferEstimates(
+  offerExpiryDays: number,
+  maturityDateStr: string | undefined,
+  offeredAmount: number
+): {
+  offerExpiryDate: Date;
+  estDisbursementDate: Date;
+  estPeriodDays: number | null;
+  estProfit: number | null;
+} {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const offerExpiryDate = addDays(today, offerExpiryDays);
+  const estDisbursementDate = addDays(offerExpiryDate, 15);
+  const maturityDate = parseMaturityDate(maturityDateStr);
+  const estPeriodDays =
+    maturityDate !== null
+      ? Math.max(0, differenceInDays(maturityDate, estDisbursementDate))
+      : null;
+  const estProfit =
+    estPeriodDays !== null && estPeriodDays > 0
+      ? offeredAmount * 0.12 * (estPeriodDays / 365)
+      : null;
+  return {
+    offerExpiryDate,
+    estDisbursementDate,
+    estPeriodDays,
+    estProfit,
+  };
+}
 
 function buildInvoiceScopeKey(idx: number, invoiceNo: string | number): string {
   const sanitized = String(invoiceNo).replace(/:/g, "_");
@@ -66,6 +111,7 @@ function buildInvoiceScopeKey(idx: number, invoiceNo: string | number): string {
 }
 
 function getItemStatus(
+  _inv: { status?: string },
   reviewItems: { item_type: string; item_id: string; status: string }[],
   scopeKey: string
 ): string {
@@ -87,11 +133,13 @@ type OfferedState = { ratio: number; profitRate: number };
 
 export function InvoiceList({
   invoices,
+  readOnlyInvoiceIds,
   reviewItems,
   isReviewable,
   onViewDocument,
   isViewDocumentPending,
   invoiceRatioLimits,
+  offerExpiryDays,
   isActionLocked,
   actionLockTooltip,
   onApproveItem,
@@ -99,32 +147,114 @@ export function InvoiceList({
   onRequestAmendmentItem,
   onResetItemToPending,
   isItemActionPending,
+  onSendInvoiceOffer,
+  isSendInvoiceOfferPending,
 }: InvoiceReviewListProps) {
   const [expandedById, setExpandedById] = React.useState<Record<string, boolean>>({});
+  const [invoiceOfferConfirm, setInvoiceOfferConfirm] = React.useState<{
+    invoiceId: string;
+    invoiceNo: string | number;
+    offeredAmount: number;
+    offeredRatioPercent: number;
+    offeredProfitRatePercent: number;
+    invoiceValue: number | null;
+  } | null>(null);
+
+  React.useEffect(() => {
+    setExpandedById((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      invoices.forEach((inv) => {
+        if (!(inv.id in next)) {
+          next[inv.id] = !(readOnlyInvoiceIds?.has(inv.id) ?? false);
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [invoices, readOnlyInvoiceIds]);
+
+  const initialOfferedFromInvoices = React.useMemo(() => {
+    const result: Record<string, OfferedState> = {};
+    invoices.forEach((inv) => {
+      const offer = inv.offer_details as
+        | { offered_ratio_percent?: number; offered_profit_rate_percent?: number }
+        | null
+        | undefined;
+      if (offer?.offered_ratio_percent != null || offer?.offered_profit_rate_percent != null) {
+        const ratio =
+          typeof offer.offered_ratio_percent === "number" && Number.isFinite(offer.offered_ratio_percent)
+            ? Math.max(
+                invoiceRatioLimits.min,
+                Math.min(invoiceRatioLimits.max, offer.offered_ratio_percent)
+              )
+            : invoiceRatioLimits.min;
+        const profitRate =
+          typeof offer.offered_profit_rate_percent === "number" &&
+          Number.isFinite(offer.offered_profit_rate_percent) &&
+          (PROFIT_RATE_OPTIONS as readonly number[]).includes(offer.offered_profit_rate_percent)
+            ? offer.offered_profit_rate_percent
+            : 12;
+        result[inv.id] = { ratio, profitRate };
+      }
+    });
+    return result;
+  }, [invoices, invoiceRatioLimits]);
+
   const [offeredByInvoice, setOfferedByInvoice] = React.useState<Record<string, OfferedState>>({});
+  React.useEffect(() => {
+    if (Object.keys(initialOfferedFromInvoices).length > 0) {
+      setOfferedByInvoice((prev) => {
+        const next = { ...prev };
+        let changed = false;
+        for (const [invoiceId, state] of Object.entries(initialOfferedFromInvoices)) {
+          if (next[invoiceId]?.ratio !== state.ratio || next[invoiceId]?.profitRate !== state.profitRate) {
+            next[invoiceId] = state;
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }
+  }, [initialOfferedFromInvoices]);
 
   const toggleExpanded = React.useCallback((invoiceId: string) => {
     setExpandedById((prev) => ({ ...prev, [invoiceId]: !prev[invoiceId] }));
   }, []);
 
-  const setOffered = React.useCallback((invoiceId: string, updates: Partial<OfferedState>) => {
-    setOfferedByInvoice((prev) => {
-      const current = prev[invoiceId] ?? { ratio: invoiceRatioLimits.min, profitRate: 12 };
-      return { ...prev, [invoiceId]: { ...current, ...updates } };
-    });
-  }, [invoiceRatioLimits.min]);
+  const setOffered = React.useCallback(
+    (invoiceId: string, updates: Partial<OfferedState>) => {
+      setOfferedByInvoice((prev) => {
+        const current = prev[invoiceId] ?? { ratio: invoiceRatioLimits.min, profitRate: 12 };
+        return { ...prev, [invoiceId]: { ...current, ...updates } };
+      });
+    },
+    [invoiceRatioLimits.min]
+  );
 
   const getOffered = React.useCallback(
     (invoiceId: string, issuerRatio: number | null): OfferedState => {
       const stored = offeredByInvoice[invoiceId];
       if (stored) return stored;
-      const ratio = issuerRatio != null
-        ? Math.max(invoiceRatioLimits.min, Math.min(invoiceRatioLimits.max, issuerRatio))
-        : invoiceRatioLimits.min;
+      const ratio =
+        issuerRatio != null
+          ? Math.max(invoiceRatioLimits.min, Math.min(invoiceRatioLimits.max, issuerRatio))
+          : invoiceRatioLimits.min;
       return { ratio, profitRate: 12 };
     },
     [offeredByInvoice, invoiceRatioLimits]
   );
+
+  const handleConfirmInvoiceOffer = React.useCallback(async () => {
+    if (!onSendInvoiceOffer || !invoiceOfferConfirm) return;
+    await onSendInvoiceOffer({
+      invoiceId: invoiceOfferConfirm.invoiceId,
+      offeredAmount: invoiceOfferConfirm.offeredAmount,
+      offeredRatioPercent: invoiceOfferConfirm.offeredRatioPercent,
+      offeredProfitRatePercent: invoiceOfferConfirm.offeredProfitRatePercent,
+    });
+    setInvoiceOfferConfirm(null);
+  }, [onSendInvoiceOffer, invoiceOfferConfirm]);
 
   return (
     <div className="rounded-xl border bg-card">
@@ -145,7 +275,10 @@ export function InvoiceList({
             const details = inv.details as InvoiceDetails | undefined;
             const invoiceNo = details?.number ?? idx + 1;
             const scopeKey = buildInvoiceScopeKey(idx, invoiceNo);
-            const status = getItemStatus(reviewItems, scopeKey);
+            const status = getItemStatus(inv, reviewItems, scopeKey);
+            const isRowReadOnly = readOnlyInvoiceIds?.has(inv.id) ?? false;
+            const isTabLocked = !!isActionLocked || !isReviewable;
+            const isRowGreyedOut = isRowReadOnly || isTabLocked;
             const isExpanded = Boolean(expandedById[inv.id]);
             const invoiceValue = toNumber(details?.value);
             const financingRatio = toNumber(details?.financing_ratio_percent);
@@ -158,20 +291,30 @@ export function InvoiceList({
 
             return (
               <React.Fragment key={inv.id}>
-                <TableRow className="odd:bg-muted/30 hover:bg-muted/50">
+                <TableRow
+                  className={
+                    isRowGreyedOut
+                      ? "bg-muted/20 text-muted-foreground hover:bg-muted/30"
+                      : "odd:bg-muted/30 hover:bg-muted/50"
+                  }
+                >
                   <TableCell>
                     <button
                       type="button"
                       onClick={() => toggleExpanded(inv.id)}
                       className="inline-flex h-7 w-7 items-center justify-center rounded-lg hover:bg-muted"
-                      aria-label={isExpanded ? "Collapse invoice details" : "Expand invoice details"}
+                      aria-label={
+                        isExpanded ? "Collapse invoice details" : "Expand invoice details"
+                      }
                     >
                       <ChevronDownIcon
                         className={`h-4 w-4 text-muted-foreground transition-transform ${isExpanded ? "rotate-180" : ""}`}
                       />
                     </button>
                   </TableCell>
-                  <TableCell className="text-center text-sm font-semibold text-foreground">{invoiceNo}</TableCell>
+                  <TableCell className="text-center text-sm font-semibold text-foreground">
+                    {invoiceNo}
+                  </TableCell>
                   <TableCell className="text-center text-sm font-semibold text-foreground">
                     {invoiceValue !== null ? formatCurrency(invoiceValue) : REVIEW_EMPTY_LABEL}
                   </TableCell>
@@ -179,13 +322,21 @@ export function InvoiceList({
                     {financingRatio !== null ? `${financingRatio}%` : REVIEW_EMPTY_LABEL}
                   </TableCell>
                   <TableCell className="text-center text-sm font-semibold text-foreground">
-                    {issuerFinancingAmount !== null ? formatCurrency(issuerFinancingAmount) : REVIEW_EMPTY_LABEL}
+                    {issuerFinancingAmount !== null
+                      ? formatCurrency(issuerFinancingAmount)
+                      : REVIEW_EMPTY_LABEL}
                   </TableCell>
                   <TableCell className="text-center">
                     <ReviewStepStatusBadge status={status} size="sm" />
                   </TableCell>
-                  <TableCell className="text-center">
-                    {isReviewable ? (
+                  <TableCell
+                    className={
+                      isRowGreyedOut
+                        ? "bg-muted/40 text-center text-muted-foreground"
+                        : "text-center"
+                    }
+                  >
+                    {isReviewable && !isRowGreyedOut ? (
                       <ItemActionDropdown
                         itemId={scopeKey}
                         status={status}
@@ -209,45 +360,96 @@ export function InvoiceList({
                       <div className="space-y-4 py-2">
                         <div className="rounded-lg bg-card p-4">
                           <div className="grid gap-4 md:grid-cols-3">
-                            <div className="md:pr-3 md:border-r">
-                            <p className="text-sm font-semibold text-foreground">
-                              Invoice details
-                            </p>
-                            <div className="mt-2 space-y-2">
-                              <div>
-                                <p className="text-xs text-muted-foreground">Maturity date</p>
-                                <p className="text-sm font-medium">{formatDateValue(maturityDate)}</p>
-                              </div>
-                              <div>
-                                <p className="text-xs text-muted-foreground">Document</p>
-                                <div className="mt-1 flex items-center gap-2">
-                                  <p className="text-sm font-medium truncate">{documentName}</p>
-                                  {details?.document?.s3_key ? (
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-7 rounded-lg gap-1 px-2"
-                                      onClick={() => onViewDocument(details.document!.s3_key!)}
-                                      disabled={isViewDocumentPending}
-                                    >
-                                      <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
-                                      View
-                                    </Button>
-                                  ) : null}
+                            {(() => {
+                              const offered = getOffered(inv.id, financingRatio);
+                              const offeredAmount =
+                                invoiceValue !== null
+                                  ? (invoiceValue * offered.ratio) / 100
+                                  : null;
+                              const expiryDays = offerExpiryDays ?? 7;
+                              const estimates =
+                                offeredAmount !== null && expiryDays > 0
+                                  ? computeOfferEstimates(
+                                      expiryDays,
+                                      maturityDate,
+                                      offeredAmount
+                                    )
+                                  : null;
+                              return (
+                                <>
+                            <div
+                              className={
+                                isRowGreyedOut
+                                  ? "md:pl-3 space-y-3 opacity-60 pointer-events-none select-none"
+                                  : "md:pl-3 space-y-3"
+                              }
+                            >
+                              <p className="text-sm font-semibold text-foreground">
+                                Invoice details
+                              </p>
+                              <div className="mt-2 space-y-2">
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Maturity date</p>
+                                  <p className="text-sm font-medium">
+                                    {formatDateValue(maturityDate)}
+                                  </p>
+                                </div>
+                                {estimates && (
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">Offer expiry</p>
+                                    <p className="text-sm font-medium">
+                                      {format(estimates.offerExpiryDate, "dd MMM yyyy")}
+                                    </p>
+                                  </div>
+                                )}
+                                <div>
+                                  <p className="text-xs text-muted-foreground">Document</p>
+                                  <div className="mt-1 flex items-center gap-2">
+                                    <p className="text-sm font-medium truncate">{documentName}</p>
+                                    {details?.document?.s3_key ? (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 rounded-lg gap-1 px-2"
+                                        onClick={() => onViewDocument(details.document!.s3_key!)}
+                                        disabled={isViewDocumentPending}
+                                      >
+                                        <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
+                                        View
+                                      </Button>
+                                    ) : null}
+                                  </div>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-muted-foreground">
+                                    Estimated disbursement date
+                                  </p>
+                                  <p className="text-sm font-medium">
+                                    {estimates
+                                      ? format(estimates.estDisbursementDate, "dd MMM yyyy")
+                                      : REVIEW_EMPTY_LABEL}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-xs text-muted-foreground">
+                                    Estimated period (Days)
+                                  </p>
+                                  <p className="text-sm font-medium">
+                                    {estimates != null && estimates.estPeriodDays != null
+                                      ? estimates.estPeriodDays
+                                      : REVIEW_EMPTY_LABEL}
+                                  </p>
                                 </div>
                               </div>
-                              <div>
-                                <p className="text-xs text-muted-foreground">Estimated disbursement date</p>
-                                <p className="text-sm font-medium">{PLACEHOLDER.estDisbursementDate}</p>
-                              </div>
-                              <div>
-                                <p className="text-xs text-muted-foreground">Estimated period (Days)</p>
-                                <p className="text-sm font-medium">{PLACEHOLDER.estPeriodDays}</p>
-                              </div>
-                            </div>
                             </div>
 
-                            <div className="md:px-3 md:border-r">
+                            <div
+                              className={
+                                isRowGreyedOut
+                                  ? "md:pl-3 space-y-3 opacity-60 pointer-events-none select-none"
+                                  : "md:pl-3 space-y-3"
+                              }
+                            >
                               <p className="text-sm font-semibold text-foreground">
                                 Requested by Issuer
                               </p>
@@ -255,37 +457,38 @@ export function InvoiceList({
                                 <div>
                                   <p className="text-xs text-muted-foreground">Financing ratio</p>
                                   <p className="text-sm font-medium">
-                                    {financingRatio !== null ? `${financingRatio}%` : REVIEW_EMPTY_LABEL}
+                                    {financingRatio !== null
+                                      ? `${financingRatio}%`
+                                      : REVIEW_EMPTY_LABEL}
                                   </p>
                                 </div>
                                 <div>
                                   <p className="text-xs text-muted-foreground">Financing amount</p>
                                   <p className="text-sm font-medium tabular-nums">
-                                    {issuerFinancingAmount !== null ? formatCurrency(issuerFinancingAmount) : REVIEW_EMPTY_LABEL}
+                                    {issuerFinancingAmount !== null
+                                      ? formatCurrency(issuerFinancingAmount)
+                                      : REVIEW_EMPTY_LABEL}
                                   </p>
                                 </div>
                               </div>
                             </div>
 
-                            <div className="md:pl-3 space-y-3">
+                            <div
+                              className={
+                                isRowGreyedOut
+                                  ? "md:pl-3 space-y-3 opacity-60 pointer-events-none select-none"
+                                  : "md:pl-3 space-y-3"
+                              }
+                            >
                               <p className="text-sm font-semibold text-foreground">
                                 Offered by CashSouk
                               </p>
-                              {(() => {
-                                const offered = getOffered(inv.id, financingRatio);
-                                const offeredAmount =
-                                  invoiceValue !== null
-                                    ? (invoiceValue * offered.ratio) / 100
-                                    : null;
-                                const estimatedProfit =
-                                  offeredAmount !== null
-                                    ? (offeredAmount * (offered.profitRate / 100))
-                                    : null;
-                                return (
-                                  <>
+                              <div className="mt-2 space-y-2">
                                     <div>
-                                      <p className="text-xs text-muted-foreground mb-1">Financing ratio</p>
-                                      <div className="flex items-center gap-2">
+                                      <p className="text-xs text-muted-foreground mb-1">
+                                        Financing ratio
+                                      </p>
+                                      <div className="flex items-center gap-2 flex-wrap">
                                         <span className="text-sm font-medium tabular-nums w-10">
                                           {offered.ratio}%
                                         </span>
@@ -295,7 +498,7 @@ export function InvoiceList({
                                           step={1}
                                           value={[offered.ratio]}
                                           onValueChange={(v) => setOffered(inv.id, { ratio: v[0] })}
-                                          disabled={!isReviewable}
+                                          disabled={isRowGreyedOut}
                                           className="flex-1 max-w-[140px]
                                             [&_[data-orientation=horizontal]]:h-1.5
                                             [&_[data-orientation=horizontal]>span]:bg-primary
@@ -304,20 +507,51 @@ export function InvoiceList({
                                             [&_[role=slider]]:border-2
                                             [&_[role=slider]]:border-primary"
                                         />
+                                        {onSendInvoiceOffer && (
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            disabled={
+                                              isRowGreyedOut ||
+                                              !!isSendInvoiceOfferPending ||
+                                              offeredAmount === null
+                                            }
+                                            onClick={() =>
+                                              setInvoiceOfferConfirm({
+                                                invoiceId: inv.id,
+                                                invoiceNo,
+                                                offeredAmount: offeredAmount ?? 0,
+                                                offeredRatioPercent: offered.ratio,
+                                                offeredProfitRatePercent: offered.profitRate,
+                                                invoiceValue,
+                                              })
+                                            }
+                                          >
+                                            {isSendInvoiceOfferPending ? "Sending..." : "Send Offer"}
+                                          </Button>
+                                        )}
                                       </div>
                                     </div>
                                     <div>
-                                      <p className="text-xs text-muted-foreground">Financing amount</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        Financing amount
+                                      </p>
                                       <p className="text-sm font-medium tabular-nums">
-                                        {offeredAmount !== null ? formatCurrency(offeredAmount) : REVIEW_EMPTY_LABEL}
+                                        {offeredAmount !== null
+                                          ? formatCurrency(offeredAmount)
+                                          : REVIEW_EMPTY_LABEL}
                                       </p>
                                     </div>
                                     <div>
-                                      <p className="text-xs text-muted-foreground mb-1">Profit rate</p>
+                                      <p className="text-xs text-muted-foreground mb-1">
+                                        Profit rate
+                                      </p>
                                       <Select
                                         value={String(offered.profitRate)}
-                                        onValueChange={(v) => setOffered(inv.id, { profitRate: parseInt(v, 10) })}
-                                        disabled={!isReviewable}
+                                        onValueChange={(v) =>
+                                          setOffered(inv.id, { profitRate: parseInt(v, 10) })
+                                        }
+                                        disabled={isRowGreyedOut}
                                       >
                                         <SelectTrigger className="h-8 w-full max-w-[100px]">
                                           <SelectValue />
@@ -332,19 +566,24 @@ export function InvoiceList({
                                       </Select>
                                     </div>
                                     <div>
-                                      <p className="text-xs text-muted-foreground">Estimated profit</p>
+                                      <p className="text-xs text-muted-foreground">
+                                        Estimated profit
+                                      </p>
                                       <p className="text-sm font-medium tabular-nums">
-                                        {estimatedProfit !== null ? formatCurrency(estimatedProfit) : REVIEW_EMPTY_LABEL}
+                                        {estimates?.estProfit != null
+                                          ? formatCurrency(estimates.estProfit)
+                                          : REVIEW_EMPTY_LABEL}
                                       </p>
                                     </div>
-                                  </>
-                                );
-                              })()}
+                              </div>
                             </div>
-                          </div>
-                        </div>
+                          </>
+                          );
+                        })()}
                       </div>
-                    </TableCell>
+                    </div>
+                  </div>
+                </TableCell>
                   </TableRow>
                 )}
               </React.Fragment>
@@ -352,6 +591,75 @@ export function InvoiceList({
           })}
         </TableBody>
       </Table>
+
+      <Dialog
+        open={!!invoiceOfferConfirm}
+        onOpenChange={(open) => !open && setInvoiceOfferConfirm(null)}
+      >
+        <DialogContent className="rounded-2xl sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Confirm Invoice Offer
+              {invoiceOfferConfirm && ` — Invoice ${invoiceOfferConfirm.invoiceNo}`}
+            </DialogTitle>
+            <DialogDescription>
+              Review the offer details below before sending to the issuer.
+            </DialogDescription>
+          </DialogHeader>
+          {invoiceOfferConfirm && (
+            <>
+              <div className="grid gap-2 py-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Invoice number</span>
+                  <span className="font-medium">{invoiceOfferConfirm.invoiceNo}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Invoice value</span>
+                  <span className="font-medium tabular-nums">
+                    {invoiceOfferConfirm.invoiceValue !== null
+                      ? formatCurrency(invoiceOfferConfirm.invoiceValue)
+                      : REVIEW_EMPTY_LABEL}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Offered amount</span>
+                  <span className="font-medium tabular-nums">
+                    {formatCurrency(invoiceOfferConfirm.offeredAmount)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Offered ratio</span>
+                  <span className="font-medium tabular-nums">
+                    {invoiceOfferConfirm.offeredRatioPercent}%
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Profit rate</span>
+                  <span className="font-medium tabular-nums">
+                    {invoiceOfferConfirm.offeredProfitRatePercent}%
+                  </span>
+                </div>
+              </div>
+              <DialogFooter className="gap-2 sm:gap-0">
+                <Button
+                  variant="outline"
+                  onClick={() => setInvoiceOfferConfirm(null)}
+                  className="rounded-xl"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleConfirmInvoiceOffer}
+                  disabled={!!isSendInvoiceOfferPending}
+                  className="rounded-xl"
+                >
+                  {isSendInvoiceOfferPending ? "Sending..." : "Confirm & Send Offer"}
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

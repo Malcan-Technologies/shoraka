@@ -1,11 +1,23 @@
 "use client";
 
+import * as React from "react";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { MoneyInput } from "@/app/settings/products/components/money-input";
+import { formatMoney, parseMoney } from "@/app/settings/products/components/money";
 import { DocumentTextIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import { ReviewSectionCard } from "../review-section-card";
 import { ReviewFieldBlock } from "../review-field-block";
+import { SectionComments, type SectionCommentItem } from "../section-comments";
 import {
   reviewLabelClass,
   reviewValueClass,
@@ -25,6 +37,7 @@ interface FileDoc {
 
 export interface ContractSectionProps {
   contractDetails: unknown;
+  offerDetails?: unknown;
   customerDetails?: unknown;
   section: ReviewSectionId;
   isReviewable: boolean;
@@ -36,12 +49,17 @@ export interface ContractSectionProps {
   onApprove: (section: ReviewSectionId) => void;
   onReject: (section: ReviewSectionId) => void;
   onRequestAmendment: (section: ReviewSectionId) => void;
+  onSendOffer?: (payload: { offeredFacility: number }) => Promise<void>;
+  isSendOfferPending?: boolean;
   onViewDocument?: (s3Key: string) => void;
   viewDocumentPending?: boolean;
+  comments: SectionCommentItem[];
+  onAddComment?: (comment: string) => Promise<void> | void;
 }
 
 export function ContractSection({
   contractDetails,
+  offerDetails,
   customerDetails,
   section,
   isReviewable,
@@ -53,16 +71,47 @@ export function ContractSection({
   onApprove,
   onReject,
   onRequestAmendment,
+  onSendOffer,
+  isSendOfferPending,
   onViewDocument,
   viewDocumentPending,
+  comments,
+  onAddComment,
 }: ContractSectionProps) {
   const cd = contractDetails as Record<string, unknown> | null | undefined;
+  const offer = offerDetails as Record<string, unknown> | null | undefined;
   const cust = customerDetails as Record<string, unknown> | null | undefined;
 
   const contractDoc = cd?.document as FileDoc | undefined;
   const customerDoc = cust?.document as FileDoc | undefined;
+  const requestedFacility =
+    typeof cd?.financing === "number"
+      ? cd.financing
+      : typeof cd?.value === "number"
+        ? cd.value
+        : 0;
+  const contractValue = typeof cd?.value === "number" ? cd.value : 0;
+  const offeredFacilityFromOffer =
+    typeof offer?.offered_facility === "number" ? offer.offered_facility : null;
+  const initialOffered = formatMoney(offeredFacilityFromOffer ?? requestedFacility);
+  const [offeredFacilityInput, setOfferedFacilityInput] = React.useState<string>(initialOffered);
+  const [contractOfferConfirmOpen, setContractOfferConfirmOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    setOfferedFacilityInput(formatMoney(offeredFacilityFromOffer ?? requestedFacility));
+  }, [offeredFacilityFromOffer, requestedFacility]);
 
   const hasData = cd || cust;
+  const offeredFacility = parseMoney(offeredFacilityInput);
+  const offeredExceedsContractValue = contractValue > 0 && offeredFacility > contractValue;
+  const canSendContractOffer =
+    offeredFacility > 0 && !offeredExceedsContractValue;
+
+  const handleConfirmContractOffer = React.useCallback(async () => {
+    if (!onSendOffer || !canSendContractOffer) return;
+    await onSendOffer({ offeredFacility });
+    setContractOfferConfirmOpen(false);
+  }, [onSendOffer, offeredFacility, canSendContractOffer]);
 
   return (
     <ReviewSectionCard
@@ -81,6 +130,53 @@ export function ContractSection({
     >
       {hasData ? (
         <>
+          <ReviewFieldBlock title="Offer to Issuer">
+            <div className="space-y-3">
+              <div className={reviewRowGridClass}>
+                <Label className={reviewLabelClass}>Requested facility</Label>
+                <div className={reviewValueClass}>
+                  {requestedFacility > 0 ? formatCurrency(requestedFacility) : REVIEW_EMPTY_LABEL}
+                </div>
+                <Label className={reviewLabelClass}>Offered facility</Label>
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-3">
+                  <MoneyInput
+                    value={offeredFacilityInput}
+                    onValueChange={setOfferedFacilityInput}
+                    placeholder="0.00"
+                    disabled={!isReviewable || !!isActionLocked || !onSendOffer}
+                    inputClassName="h-9 w-[220px]"
+                    prefix="RM"
+                    maxIntDigits={12}
+                    allowEmpty={true}
+                  />
+                  {onSendOffer && (
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="sm"
+                      disabled={
+                        !isReviewable ||
+                        !!isActionLocked ||
+                        !!isSendOfferPending ||
+                        !canSendContractOffer
+                      }
+                      onClick={() => setContractOfferConfirmOpen(true)}
+                    >
+                      {isSendOfferPending ? "Sending..." : "Send Offer"}
+                    </Button>
+                  )}
+                  </div>
+                  {offeredExceedsContractValue && (
+                    <p className="text-sm text-destructive">
+                      Offered facility cannot exceed contract value.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </ReviewFieldBlock>
+
           {cd && (
             <ReviewFieldBlock title="Contract details">
               <div className={reviewRowGridClass}>
@@ -96,6 +192,12 @@ export function ContractSection({
                     ? formatCurrency(cd.value)
                     : formatReviewValue(cd.value)}
                 </div>
+                <Label className={reviewLabelClass}>Contract financing</Label>
+                <div className={reviewValueClass}>
+                  {typeof cd.financing === "number"
+                    ? formatCurrency(cd.financing)
+                    : formatReviewValue(cd.financing)}
+                </div>
                 <Label className={reviewLabelClass}>Contract start date</Label>
                 <div className={reviewValueClass}>{formatReviewDate(cd.start_date as string)}</div>
                 <Label className={reviewLabelClass}>Contract end date</Label>
@@ -105,6 +207,18 @@ export function ContractSection({
                     <Label className={reviewLabelClass}>Approved facility</Label>
                     <div className={reviewValueClass}>
                       {formatCurrency(cd.approved_facility as number)}
+                    </div>
+                    <Label className={reviewLabelClass}>Utilized facility</Label>
+                    <div className={reviewValueClass}>
+                      {formatCurrency(
+                        typeof cd.utilized_facility === "number" ? cd.utilized_facility : 0
+                      )}
+                    </div>
+                    <Label className={reviewLabelClass}>Available facility</Label>
+                    <div className={reviewValueClass}>
+                      {formatCurrency(
+                        typeof cd.available_facility === "number" ? cd.available_facility : 0
+                      )}
                     </div>
                   </>
                 )}
@@ -201,10 +315,57 @@ export function ContractSection({
       ) : (
         <p className="text-sm text-muted-foreground">No contract details submitted.</p>
       )}
-      <div>
-        <Label className="text-xs text-muted-foreground">Add Remarks</Label>
-        <div className="mt-1 h-24 rounded-xl border bg-muted/30" />
-      </div>
+      <SectionComments comments={comments} onSubmitComment={onAddComment} />
+
+      <Dialog open={contractOfferConfirmOpen} onOpenChange={setContractOfferConfirmOpen}>
+        <DialogContent className="rounded-2xl sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirm Contract Offer</DialogTitle>
+            <DialogDescription>
+              Review the offer details below before sending to the issuer.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 py-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Contract value</span>
+              <span className="font-medium tabular-nums">
+                {contractValue > 0 ? formatCurrency(contractValue) : REVIEW_EMPTY_LABEL}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Requested facility</span>
+              <span className="font-medium tabular-nums">
+                {requestedFacility > 0 ? formatCurrency(requestedFacility) : REVIEW_EMPTY_LABEL}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Offered facility</span>
+              <span className="font-medium tabular-nums">{formatCurrency(offeredFacility)}</span>
+            </div>
+            {offeredExceedsContractValue && (
+              <p className="mt-2 text-sm text-destructive">
+                Offered facility cannot exceed contract value.
+              </p>
+            )}
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setContractOfferConfirmOpen(false)}
+              className="rounded-xl"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmContractOffer}
+              disabled={!canSendContractOffer || !!isSendOfferPending}
+              className="rounded-xl"
+            >
+              {isSendOfferPending ? "Sending..." : "Confirm & Send Offer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </ReviewSectionCard>
   );
 }

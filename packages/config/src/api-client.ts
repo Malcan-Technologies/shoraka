@@ -345,6 +345,9 @@ export class ApiClient {
     queryParams.append("pageSize", String(params.pageSize));
     if (params.search) queryParams.append("search", params.search);
     if (params.status) queryParams.append("status", params.status);
+    if (params.statuses && params.statuses.length > 0) {
+      queryParams.append("statuses", params.statuses.join(","));
+    }
     if (params.productId) queryParams.append("productId", params.productId);
 
     return this.get<AdminApplicationsResponse>(`/v1/admin/applications?${queryParams.toString()}`);
@@ -359,6 +362,13 @@ export class ApiClient {
     status: string
   ): Promise<ApiResponse<any> | ApiError> {
     return this.patch<any>(`/v1/admin/applications/${id}/status`, { status });
+  }
+
+  async reopenAdminApplicationForCorrection(
+    id: string,
+    reason: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(`/v1/admin/applications/${id}/reopen-for-correction`, { reason });
   }
 
   async approveReviewSection(
@@ -391,6 +401,17 @@ export class ApiClient {
     return this.post<any>(
       `/v1/admin/applications/${applicationId}/reviews/sections/${section}/request-amendment`,
       { remark }
+    );
+  }
+
+  async addSectionComment(
+    applicationId: string,
+    section: string,
+    comment: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/reviews/sections/${section}/comments`,
+      { comment }
     );
   }
 
@@ -448,6 +469,41 @@ export class ApiClient {
     return this.post<any>(
       `/v1/admin/applications/${applicationId}/reviews/items/reset-to-pending`,
       { itemType, itemId }
+    );
+  }
+
+  async sendContractOffer(
+    applicationId: string,
+    offeredFacility: number,
+    expiresAt?: string | null
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/offers/contracts/send`,
+      {
+        offeredFacility,
+        expiresAt: expiresAt ?? null,
+      }
+    );
+  }
+
+  async sendInvoiceOffer(
+    applicationId: string,
+    invoiceId: string,
+    payload: {
+      offeredAmount: number;
+      offeredRatioPercent?: number | null;
+      offeredProfitRatePercent?: number | null;
+      expiresAt?: string | null;
+    }
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/offers/invoices/${invoiceId}/send`,
+      {
+        offeredAmount: payload.offeredAmount,
+        offeredRatioPercent: payload.offeredRatioPercent ?? null,
+        offeredProfitRatePercent: payload.offeredProfitRatePercent ?? null,
+        expiresAt: payload.expiresAt ?? null,
+      }
     );
   }
 
@@ -1202,6 +1258,34 @@ export class ApiClient {
 
   async archiveApplication(id: string): Promise<ApiResponse<Application> | ApiError> {
     return this.post<Application>(`/v1/applications/${id}/archive`, {});
+  }
+
+  async acceptContractOffer(applicationId: string): Promise<ApiResponse<Application> | ApiError> {
+    return this.post<Application>(`/v1/applications/${applicationId}/offers/contracts/accept`, {});
+  }
+
+  async rejectContractOffer(applicationId: string): Promise<ApiResponse<Application> | ApiError> {
+    return this.post<Application>(`/v1/applications/${applicationId}/offers/contracts/reject`, {});
+  }
+
+  async acceptInvoiceOffer(
+    applicationId: string,
+    invoiceId: string
+  ): Promise<ApiResponse<Application> | ApiError> {
+    return this.post<Application>(
+      `/v1/applications/${applicationId}/offers/invoices/${invoiceId}/accept`,
+      {}
+    );
+  }
+
+  async rejectInvoiceOffer(
+    applicationId: string,
+    invoiceId: string
+  ): Promise<ApiResponse<Application> | ApiError> {
+    return this.post<Application>(
+      `/v1/applications/${applicationId}/offers/invoices/${invoiceId}/reject`,
+      {}
+    );
   }
 
   // Notifications

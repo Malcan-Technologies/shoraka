@@ -18,6 +18,8 @@ export interface ReviewSectionCardProps {
   onApprove?: (section: ReviewSectionId) => void;
   onReject?: (section: ReviewSectionId) => void;
   onRequestAmendment?: (section: ReviewSectionId) => void;
+  /** When true, hides Approve/Reject/Amendment dropdown (used for offer-driven sections). */
+  hideSectionActions?: boolean;
   children: React.ReactNode;
 }
 
@@ -38,9 +40,11 @@ export function ReviewSectionCard({
   onApprove,
   onReject,
   onRequestAmendment,
+  hideSectionActions = false,
   children,
 }: ReviewSectionCardProps) {
   const showActions =
+    !hideSectionActions &&
     section != null &&
     isReviewable === true &&
     onApprove &&
@@ -50,25 +54,27 @@ export function ReviewSectionCard({
   return (
     <Card className="rounded-2xl">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Icon className="h-5 w-5 text-primary" />
             <CardTitle className="text-base font-semibold">{title}</CardTitle>
           </div>
-          {showActions && (
-            <SectionActionDropdown
-              section={section}
-              isReviewable={isReviewable!}
-              onApprove={onApprove}
-              onReject={onReject}
-              onRequestAmendment={onRequestAmendment}
-              isPending={!!approvePending}
-              isActionLocked={isActionLocked}
-              actionLockTooltip={actionLockTooltip}
-              sectionStatus={sectionStatus}
-              onResetToPending={onResetToPending}
-            />
-          )}
+          <div className="flex items-center gap-2 shrink-0">
+            {showActions ? (
+              <SectionActionDropdown
+                section={section}
+                isReviewable={isReviewable!}
+                onApprove={onApprove}
+                onReject={onReject}
+                onRequestAmendment={onRequestAmendment}
+                isPending={!!approvePending}
+                isActionLocked={isActionLocked}
+                actionLockTooltip={actionLockTooltip}
+                sectionStatus={sectionStatus}
+                onResetToPending={onResetToPending}
+              />
+            ) : null}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">{children}</CardContent>

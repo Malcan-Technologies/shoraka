@@ -1,11 +1,11 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { DocumentTextIcon } from "@heroicons/react/24/outline";
 import { SectionActionDropdown } from "../section-action-dropdown";
 import { DocumentList } from "../document-list";
 import type { ReviewSectionId } from "../section-types";
+import { SectionComments, type SectionCommentItem } from "../section-comments";
 
 export interface DocumentsSectionProps {
   supportingDocuments: unknown;
@@ -26,6 +26,8 @@ export interface DocumentsSectionProps {
   onRejectItem: (itemId: string) => void;
   onRequestAmendmentItem: (itemId: string) => void;
   onResetItemToPending?: (itemId: string) => void;
+  comments: SectionCommentItem[];
+  onAddComment?: (comment: string) => Promise<void> | void;
 }
 
 export function DocumentsSection({
@@ -47,6 +49,8 @@ export function DocumentsSection({
   onRejectItem,
   onRequestAmendmentItem,
   onResetItemToPending,
+  comments,
+  onAddComment,
 }: DocumentsSectionProps) {
   return (
     <Card className="rounded-2xl">
@@ -90,8 +94,7 @@ export function DocumentsSection({
           <p className="text-sm text-muted-foreground">No supporting documents submitted.</p>
         )}
         <div className="mt-6">
-          <Label className="text-xs text-muted-foreground">Add Remarks</Label>
-          <div className="mt-1 h-24 rounded-xl border bg-muted/30" />
+          <SectionComments comments={comments} onSubmitComment={onAddComment} />
         </div>
       </CardContent>
     </Card>

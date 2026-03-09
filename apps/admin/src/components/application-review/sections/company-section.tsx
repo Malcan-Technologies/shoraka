@@ -6,6 +6,7 @@ import { BuildingOffice2Icon } from "@heroicons/react/24/outline";
 import { useOrganizationDetail } from "@/hooks/use-organization-detail";
 import { ReviewSectionCard } from "../review-section-card";
 import { ReviewFieldBlock } from "../review-field-block";
+import { SectionComments, type SectionCommentItem } from "../section-comments";
 import {
   reviewLabelClass,
   reviewValueClass,
@@ -56,6 +57,8 @@ export interface CompanySectionProps {
   onApprove?: (section: ReviewSectionId) => void;
   onReject?: (section: ReviewSectionId) => void;
   onRequestAmendment?: (section: ReviewSectionId) => void;
+  comments: SectionCommentItem[];
+  onAddComment?: (comment: string) => Promise<void> | void;
 }
 
 export function CompanySection({
@@ -70,6 +73,8 @@ export function CompanySection({
   onApprove,
   onReject,
   onRequestAmendment,
+  comments,
+  onAddComment,
 }: CompanySectionProps) {
   const organizationId =
     app.issuer_organization_id ?? (app.issuer_organization as { id?: string } | null)?.id ?? null;
@@ -196,10 +201,7 @@ export function CompanySection({
         </div>
       </ReviewFieldBlock>
 
-      <div>
-        <Label className="text-xs text-muted-foreground">Add Remarks</Label>
-        <div className="mt-1 h-24 rounded-xl border bg-muted/30" />
-      </div>
+      <SectionComments comments={comments} onSubmitComment={onAddComment} />
     </ReviewSectionCard>
   );
 }

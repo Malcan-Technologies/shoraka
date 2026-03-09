@@ -436,6 +436,7 @@ model Contract {
   created_at             DateTime           @default(now())
   updated_at             DateTime           @updatedAt
   contract_details       Json?
+  offer_details          Json?
   customer_details       Json?
   issuer_organization_id String
   status                 ContractStatus     @default(DRAFT)
@@ -451,6 +452,7 @@ model Invoice {
   contract_id    String?
   application_id String
   details        Json
+  offer_details  Json?
   created_at     DateTime      @default(now())
   updated_at     DateTime      @updatedAt
   status         InvoiceStatus @default(DRAFT)
@@ -844,6 +846,7 @@ enum ReviewSection {
 
 enum ReviewStepStatus {
   PENDING
+  SENT
   APPROVED
   REJECTED
   AMENDMENT_REQUESTED
@@ -921,6 +924,7 @@ enum ApplicationStatus {
 enum ContractStatus {
   DRAFT
   SUBMITTED
+  SENT
   APPROVED
   REJECTED
   AMENDMENT_REQUESTED
@@ -929,6 +933,7 @@ enum ContractStatus {
 enum InvoiceStatus {
   DRAFT
   SUBMITTED
+  SENT
   APPROVED
   REJECTED
 }
