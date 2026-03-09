@@ -280,13 +280,8 @@ export function ReviewAndSubmitStep({
     });
   }, [onDataChange]);
 
-  // Debug: log raw financing value
-  console.log("contract.financing", (application as any)?.contract?.contract_details?.financing);
-
   // Note: we no longer short-circuit to a full-page skeleton.
   // Each section will render its own skeleton when its data is loading.
-  console.log("contractSkeletonActive", contractLoading);
-  console.log("invoiceSkeletonActive", invoiceLoading);
 
   // Formatters
   const renderMoney = (value: any) => {

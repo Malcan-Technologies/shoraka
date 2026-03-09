@@ -737,7 +737,6 @@ export default function InvoiceDetailsStep({
       queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
     } catch (err) {
       // Non-fatal: continue returning persisted snapshot even if invalidation fails.
-      console.error("Failed to invalidate invoice queries", err);
     }
 
     return {
@@ -872,8 +871,8 @@ export default function InvoiceDetailsStep({
           setLastS3Keys(keys);
           setIsInitialized(true);
         }
-      } catch (err) {
-        console.error("Failed to load invoices", err);
+      } catch {
+        // Non-fatal: continue with empty list
       } finally {
         if (mounted) {
           setIsLoadingInvoices(false);

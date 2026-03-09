@@ -161,10 +161,6 @@ export default function EditApplicationPage() {
       allowedMaxStep: lastCompleted + 1,
     });
 
-    // eslint-disable-next-line no-console
-    console.log(
-      `[WIZARD] Initialized: lastCompleted=${lastCompleted}, allowedMax=${lastCompleted + 1}`
-    );
   }, [application, wizardState]);
 
   /* ================================================================
@@ -181,9 +177,6 @@ export default function EditApplicationPage() {
     if (!application) return;
     if (isSubmittingRef.current) return;
     if (application.status !== "DRAFT" && application.status !== "AMENDMENT_REQUESTED") {
-      if (process.env.NODE_ENV !== "production") {
-        console.debug("[EDIT GUARD]", "status:", application.status);
-      }
       router.replace("/applications");
     }
   }, [application, router]);
@@ -297,15 +290,6 @@ export default function EditApplicationPage() {
     .filter((step) => !step.startsWith("financial") && step !== "review_and_submit")
     .every((step) => acknowledgedWorkflowIds.includes(step));
 
-  React.useEffect(() => {
-    if (process.env.NODE_ENV !== "production" && application?.status === "AMENDMENT_REQUESTED") {
-      console.log("[AMENDMENT][RESUBMIT_BUTTON]", {
-        amendmentFlaggedStepKeys,
-        acknowledgedWorkflowIds,
-        allAcknowledged: allAmendmentStepsAcknowledged,
-      });
-    }
-  }, [application?.status, amendmentFlaggedStepKeys, acknowledgedWorkflowIds, allAmendmentStepsAcknowledged]);
 
   /* ================================================================
      FINANCING STRUCTURE HANDLING (SESSION OVERRIDE)
@@ -586,8 +570,6 @@ export default function EditApplicationPage() {
       const isAmendmentMode = isRealAmendmentMode || devPreviewAmendment;
       const targetStep = isAmendmentMode ? 1 : wizardState.allowedMaxStep;
       // dev-only debug
-      // eslint-disable-next-line no-console
-      console.debug("[Amendment] initialStep", targetStep, { isAmendmentMode, lastCompletedStep: (application as any)?.last_completed_step });
       router.replace(`/applications/edit/${applicationId}?step=${targetStep}`);
     }
   }, [application, applicationId, router, searchParams, isLoadingApp, wizardState, devPreviewAmendment]);
@@ -645,10 +627,6 @@ export default function EditApplicationPage() {
       return;
     }
 
-    // eslint-disable-next-line no-console
-    console.log(
-      `[WIZARD] Gate check: stepFromUrl=${stepFromUrl}, allowed=${maxAllowed}, workflow=${maxStepInWorkflow}`
-    );
   }, [
     application,
     applicationId,
@@ -805,7 +783,6 @@ export default function EditApplicationPage() {
       }
 
       const finalStepNumber = effectiveWorkflow.length;
-      console.log('wizard', finalStepNumber)
       await updateStepMutation.mutateAsync({
         id: applicationId,
         stepData: {
@@ -1031,10 +1008,6 @@ export default function EditApplicationPage() {
 
       const nextStep = stepFromUrl + 1;
 
-      // eslint-disable-next-line no-console
-      console.log(
-        `[SAVE] currentStep=${stepFromUrl}, nextStep=${nextStep}, structureChanged=${structureChanged}`
-      );
 
       /* ============================================================
          FINANCING STRUCTURE NO-CHANGE CASE

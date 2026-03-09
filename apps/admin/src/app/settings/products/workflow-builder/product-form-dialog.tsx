@@ -347,24 +347,6 @@ const isEqual = workflowDeepEqual(
   normalizedInitial
 );
 
-// 🔎 FULL DEBUG
-console.log("========== WORKFLOW DEBUG ==========");
-console.log("INITIAL SNAPSHOT:", normalizedInitial);
-console.log("CURRENT PAYLOAD:", normalizedCurrent);
-console.log("EQUAL?", isEqual);
-
-// 🔎 INVOICE STEP DEBUG
-const currentInvoice = normalizedCurrent.find(
-  (s) => getStepKeyFromStepId(getStepId(s)) === "invoice_details"
-);
-const initialInvoice = normalizedInitial.find(
-  (s) => getStepKeyFromStepId(getStepId(s)) === "invoice_details"
-);
-
-console.log("INITIAL INVOICE CONFIG:", (initialInvoice as any)?.config);
-console.log("CURRENT INVOICE CONFIG:", (currentInvoice as any)?.config);
-console.log("====================================");
-
 /** Offer expiry validation: must be number > 0. Returns error message or null. */
 const offerExpiryError = (() => {
   const v = offerExpiryDays.trim();
