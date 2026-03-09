@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { ArrowTopRightOnSquareIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
-import { format } from "date-fns";
+import { format, addDays, differenceInDays, isValid } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
 import { ItemActionDropdown } from "@/components/application-review/item-action-dropdown";
 import { ReviewStepStatusBadge } from "@/components/application-review/review-step-status-badge";
@@ -38,6 +38,8 @@ interface InvoiceReviewListProps {
   onViewDocument: (s3Key: string) => void;
   isViewDocumentPending: boolean;
   invoiceRatioLimits: { min: number; max: number };
+  /** Product offer expiry in days. Used for estimated disbursement, period, profit and offer expiry date. */
+  offerExpiryDays?: number | null;
   isActionLocked?: boolean;
   actionLockTooltip?: string;
   onApproveItem: (itemId: string) => Promise<void>;
@@ -66,7 +68,42 @@ interface InvoiceDetails {
   };
 }
 
-const PLACEHOLDER = { estDisbursementDate: "TBD", estPeriodDays: "TBD" } as const;
+function parseMaturityDate(value: string | undefined): Date | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return isValid(parsed) ? parsed : null;
+}
+
+function computeOfferEstimates(
+  offerExpiryDays: number,
+  maturityDateStr: string | undefined,
+  offeredAmount: number
+): {
+  offerExpiryDate: Date;
+  estDisbursementDate: Date;
+  estPeriodDays: number | null;
+  estProfit: number | null;
+} {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const offerExpiryDate = addDays(today, offerExpiryDays);
+  const estDisbursementDate = addDays(offerExpiryDate, 15);
+  const maturityDate = parseMaturityDate(maturityDateStr);
+  const estPeriodDays =
+    maturityDate !== null
+      ? Math.max(0, differenceInDays(maturityDate, estDisbursementDate))
+      : null;
+  const estProfit =
+    estPeriodDays !== null && estPeriodDays > 0
+      ? offeredAmount * 0.12 * (estPeriodDays / 365)
+      : null;
+  return {
+    offerExpiryDate,
+    estDisbursementDate,
+    estPeriodDays,
+    estProfit,
+  };
+}
 
 function buildInvoiceScopeKey(idx: number, invoiceNo: string | number): string {
   const sanitized = String(invoiceNo).replace(/:/g, "_");
@@ -102,6 +139,7 @@ export function InvoiceList({
   onViewDocument,
   isViewDocumentPending,
   invoiceRatioLimits,
+  offerExpiryDays,
   isActionLocked,
   actionLockTooltip,
   onApproveItem,
@@ -135,7 +173,51 @@ export function InvoiceList({
       return changed ? next : prev;
     });
   }, [invoices, readOnlyInvoiceIds]);
+
+  const initialOfferedFromInvoices = React.useMemo(() => {
+    const result: Record<string, OfferedState> = {};
+    invoices.forEach((inv) => {
+      const offer = inv.offer_details as
+        | { offered_ratio_percent?: number; offered_profit_rate_percent?: number }
+        | null
+        | undefined;
+      if (offer?.offered_ratio_percent != null || offer?.offered_profit_rate_percent != null) {
+        const ratio =
+          typeof offer.offered_ratio_percent === "number" && Number.isFinite(offer.offered_ratio_percent)
+            ? Math.max(
+                invoiceRatioLimits.min,
+                Math.min(invoiceRatioLimits.max, offer.offered_ratio_percent)
+              )
+            : invoiceRatioLimits.min;
+        const profitRate =
+          typeof offer.offered_profit_rate_percent === "number" &&
+          Number.isFinite(offer.offered_profit_rate_percent) &&
+          (PROFIT_RATE_OPTIONS as readonly number[]).includes(offer.offered_profit_rate_percent)
+            ? offer.offered_profit_rate_percent
+            : 12;
+        result[inv.id] = { ratio, profitRate };
+      }
+    });
+    return result;
+  }, [invoices, invoiceRatioLimits]);
+
   const [offeredByInvoice, setOfferedByInvoice] = React.useState<Record<string, OfferedState>>({});
+  React.useEffect(() => {
+    if (Object.keys(initialOfferedFromInvoices).length > 0) {
+      setOfferedByInvoice((prev) => {
+        const next = { ...prev };
+        let changed = false;
+        for (const [invoiceId, state] of Object.entries(initialOfferedFromInvoices)) {
+          if (next[invoiceId]?.ratio !== state.ratio || next[invoiceId]?.profitRate !== state.profitRate) {
+            next[invoiceId] = state;
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }
+  }, [initialOfferedFromInvoices]);
+
   const toggleExpanded = React.useCallback((invoiceId: string) => {
     setExpandedById((prev) => ({ ...prev, [invoiceId]: !prev[invoiceId] }));
   }, []);
@@ -278,6 +360,23 @@ export function InvoiceList({
                       <div className="space-y-4 py-2">
                         <div className="rounded-lg bg-card p-4">
                           <div className="grid gap-4 md:grid-cols-3">
+                            {(() => {
+                              const offered = getOffered(inv.id, financingRatio);
+                              const offeredAmount =
+                                invoiceValue !== null
+                                  ? (invoiceValue * offered.ratio) / 100
+                                  : null;
+                              const expiryDays = offerExpiryDays ?? 7;
+                              const estimates =
+                                offeredAmount !== null && expiryDays > 0
+                                  ? computeOfferEstimates(
+                                      expiryDays,
+                                      maturityDate,
+                                      offeredAmount
+                                    )
+                                  : null;
+                              return (
+                                <>
                             <div
                               className={
                                 isRowGreyedOut
@@ -295,6 +394,14 @@ export function InvoiceList({
                                     {formatDateValue(maturityDate)}
                                   </p>
                                 </div>
+                                {estimates && (
+                                  <div>
+                                    <p className="text-xs text-muted-foreground">Offer expiry</p>
+                                    <p className="text-sm font-medium">
+                                      {format(estimates.offerExpiryDate, "dd MMM yyyy")}
+                                    </p>
+                                  </div>
+                                )}
                                 <div>
                                   <p className="text-xs text-muted-foreground">Document</p>
                                   <div className="mt-1 flex items-center gap-2">
@@ -318,14 +425,20 @@ export function InvoiceList({
                                     Estimated disbursement date
                                   </p>
                                   <p className="text-sm font-medium">
-                                    {PLACEHOLDER.estDisbursementDate}
+                                    {estimates
+                                      ? format(estimates.estDisbursementDate, "dd MMM yyyy")
+                                      : REVIEW_EMPTY_LABEL}
                                   </p>
                                 </div>
                                 <div>
                                   <p className="text-xs text-muted-foreground">
                                     Estimated period (Days)
                                   </p>
-                                  <p className="text-sm font-medium">{PLACEHOLDER.estPeriodDays}</p>
+                                  <p className="text-sm font-medium">
+                                    {estimates != null && estimates.estPeriodDays != null
+                                      ? estimates.estPeriodDays
+                                      : REVIEW_EMPTY_LABEL}
+                                  </p>
                                 </div>
                               </div>
                             </div>
@@ -370,18 +483,7 @@ export function InvoiceList({
                               <p className="text-sm font-semibold text-foreground">
                                 Offered by CashSouk
                               </p>
-                              {(() => {
-                                const offered = getOffered(inv.id, financingRatio);
-                                const offeredAmount =
-                                  invoiceValue !== null
-                                    ? (invoiceValue * offered.ratio) / 100
-                                    : null;
-                                const estimatedProfit =
-                                  offeredAmount !== null
-                                    ? offeredAmount * (offered.profitRate / 100)
-                                    : null;
-                                return (
-                                  <>
+                              <div className="mt-2 space-y-2">
                                     <div>
                                       <p className="text-xs text-muted-foreground mb-1">
                                         Financing ratio
@@ -468,19 +570,20 @@ export function InvoiceList({
                                         Estimated profit
                                       </p>
                                       <p className="text-sm font-medium tabular-nums">
-                                        {estimatedProfit !== null
-                                          ? formatCurrency(estimatedProfit)
+                                        {estimates?.estProfit != null
+                                          ? formatCurrency(estimates.estProfit)
                                           : REVIEW_EMPTY_LABEL}
                                       </p>
                                     </div>
-                                  </>
-                                );
-                              })()}
+                              </div>
                             </div>
-                          </div>
-                        </div>
+                          </>
+                          );
+                        })()}
                       </div>
-                    </TableCell>
+                    </div>
+                  </div>
+                </TableCell>
                   </TableRow>
                 )}
               </React.Fragment>

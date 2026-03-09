@@ -4325,7 +4325,6 @@ export class AdminService {
       action: ActivityAction.APPROVED,
       portal: ActivityPortal.ADMIN,
       eventType: "CONTRACT_OFFER_SENT",
-      remark: `Offered facility: ${offeredFacility.toLocaleString()}`,
       metadata: {
         requested_facility: requestedFacility,
         offered_facility: offeredFacility,
@@ -4438,7 +4437,6 @@ export class AdminService {
         scope_key: scopeKey,
         new_status: "SENT",
         reviewer_user_id: reviewerUserId,
-        remark: `Invoice offer sent: ${offeredAmount}`,
       },
     });
 

@@ -84,6 +84,8 @@ export interface SectionContentProps {
   onAddSectionComment?: (section: ReviewSectionId, comment: string) => Promise<void> | void;
   /** Min/max financing ratio (%) from product config. Used by invoice review Offered by CashSouk. */
   invoiceRatioLimits?: { min: number; max: number };
+  /** Product offer expiry in days. Used for invoice estimates and offer expiry when sending. */
+  offerExpiryDays?: number | null;
 }
 
 /** Renders section content by descriptor. Single place to map descriptor → component. */
@@ -112,6 +114,7 @@ export function SectionContent({
   sendInvoiceOfferPending,
   onAddSectionComment,
   invoiceRatioLimits,
+  offerExpiryDays,
 }: SectionContentProps) {
   const reviewItems =
     (app.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? [];
@@ -293,6 +296,7 @@ export function SectionContent({
           isSendInvoiceOfferPending={sendInvoiceOfferPending}
           comments={sectionComments}
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
+          offerExpiryDays={offerExpiryDays}
         />
       );
     }

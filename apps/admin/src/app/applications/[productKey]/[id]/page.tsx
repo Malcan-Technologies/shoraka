@@ -49,7 +49,7 @@ import {
   getTabUnlockTooltip,
   isTabUnlocked,
 } from "@/components/application-review/review-registry";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -114,6 +114,9 @@ export default function DynamicApplicationDetailPage() {
     const max = typeof config.max_financing_ratio_percent === "number" ? config.max_financing_ratio_percent : 80;
     return { min: Math.min(min, max), max: Math.max(min, max) };
   }, [currentProduct]);
+
+  const offerExpiryDays =
+    (currentProduct as { offer_expiry_days?: number | null })?.offer_expiry_days ?? 7;
 
   const [confirmAction, setConfirmAction] = React.useState<{
     type: "APPROVE" | "REJECT";
@@ -737,9 +740,11 @@ export default function DynamicApplicationDetailPage() {
                         }}
                         onSendContractOffer={async ({ offeredFacility }) => {
                           try {
+                            const expiresAt = addDays(new Date(), offerExpiryDays).toISOString();
                             await sendContractOffer.mutateAsync({
                               applicationId,
                               offeredFacility,
+                              expiresAt,
                             });
                             toast.success("Contract offer sent");
                           } catch (err) {
@@ -753,12 +758,14 @@ export default function DynamicApplicationDetailPage() {
                           offeredProfitRatePercent,
                         }) => {
                           try {
+                            const expiresAt = addDays(new Date(), offerExpiryDays).toISOString();
                             await sendInvoiceOffer.mutateAsync({
                               applicationId,
                               invoiceId,
                               offeredAmount,
                               offeredRatioPercent,
                               offeredProfitRatePercent,
+                              expiresAt,
                             });
                             toast.success("Invoice offer sent");
                           } catch (err) {
@@ -768,6 +775,7 @@ export default function DynamicApplicationDetailPage() {
                         sendContractOfferPending={sendContractOffer.isPending}
                         sendInvoiceOfferPending={sendInvoiceOffer.isPending}
                         invoiceRatioLimits={invoiceRatioLimits}
+                        offerExpiryDays={offerExpiryDays}
                       />
                     </ApplicationReviewTabContent>
                   );

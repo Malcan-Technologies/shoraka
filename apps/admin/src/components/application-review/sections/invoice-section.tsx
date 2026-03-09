@@ -3,7 +3,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DocumentTextIcon } from "@heroicons/react/24/outline";
 import { SectionActionDropdown } from "../section-action-dropdown";
-import { ReviewStepStatusBadge } from "../review-step-status-badge";
 import { InvoiceList } from "@/components/invoice-review-list";
 import { ContractFacilitySummary } from "../contract-facility-summary";
 import type { ReviewSectionId } from "../section-types";
@@ -29,6 +28,7 @@ export interface InvoiceSectionProps {
   onViewDocument: (s3Key: string) => void;
   viewDocumentPending: boolean;
   invoiceRatioLimits?: { min: number; max: number };
+  offerExpiryDays?: number | null;
   onApproveItem: (itemId: string) => Promise<void>;
   onRejectItem: (itemId: string) => void;
   onRequestAmendmentItem: (itemId: string) => void;
@@ -62,6 +62,7 @@ export function InvoiceSection({
   onViewDocument,
   viewDocumentPending,
   invoiceRatioLimits,
+  offerExpiryDays,
   onApproveItem,
   onRejectItem,
   onRequestAmendmentItem,
@@ -112,6 +113,7 @@ export function InvoiceSection({
             onViewDocument={onViewDocument}
             isViewDocumentPending={viewDocumentPending}
             invoiceRatioLimits={invoiceRatioLimits ?? { min: 60, max: 80 }}
+            offerExpiryDays={offerExpiryDays}
             isActionLocked={isActionLocked}
             actionLockTooltip={actionLockTooltip}
             onApproveItem={onApproveItem}
