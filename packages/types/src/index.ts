@@ -209,9 +209,21 @@ export interface Contract {
   issuer_organization_id: string;
   status: ContractStatus;
   contract_details?: ContractDetails | null;
+  offer_details?: ContractOfferDetails | null;
   customer_details?: CustomerDetails | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface ContractOfferDetails {
+  requested_facility: number;
+  offered_facility: number;
+  expires_at: string | null;
+  sent_at: string | null;
+  responded_at: string | null;
+  sent_by_user_id: string | null;
+  responded_by_user_id: string | null;
+  version: number;
 }
 
 export interface InvoiceDetails {
@@ -232,8 +244,23 @@ export interface Invoice {
   application_id: string;
   status: InvoiceStatus;
   details: InvoiceDetails;
+  offer_details?: InvoiceOfferDetails | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface InvoiceOfferDetails {
+  requested_amount: number;
+  offered_amount: number;
+  requested_ratio_percent: number | null;
+  offered_ratio_percent: number | null;
+  offered_profit_rate_percent: number | null;
+  expires_at: string | null;
+  sent_at: string | null;
+  responded_at: string | null;
+  sent_by_user_id: string | null;
+  responded_by_user_id: string | null;
+  version: number;
 }
 
 export * from "./activity-config";
