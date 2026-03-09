@@ -3,7 +3,8 @@
 import * as React from "react";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/app/settings/products/components/money-input";
+import { formatMoney, parseMoney } from "@/app/settings/products/components/money";
 import { DocumentTextIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import { ReviewSectionCard } from "../review-section-card";
@@ -83,12 +84,11 @@ export function ContractSection({
         : 0;
   const offeredFacilityFromOffer =
     typeof offer?.offered_facility === "number" ? offer.offered_facility : null;
-  const [offeredFacilityInput, setOfferedFacilityInput] = React.useState<number>(
-    offeredFacilityFromOffer ?? requestedFacility
-  );
+  const initialOffered = formatMoney(offeredFacilityFromOffer ?? requestedFacility);
+  const [offeredFacilityInput, setOfferedFacilityInput] = React.useState<string>(initialOffered);
 
   React.useEffect(() => {
-    setOfferedFacilityInput(offeredFacilityFromOffer ?? requestedFacility);
+    setOfferedFacilityInput(formatMoney(offeredFacilityFromOffer ?? requestedFacility));
   }, [offeredFacilityFromOffer, requestedFacility]);
 
   const hasData = cd || cust;
@@ -119,15 +119,15 @@ export function ContractSection({
                 </div>
                 <Label className={reviewLabelClass}>Offered facility</Label>
                 <div className="flex items-center gap-3">
-                  <Input
-                    type="number"
-                    min={0}
-                    value={Number.isFinite(offeredFacilityInput) ? offeredFacilityInput : 0}
-                    onChange={(event) =>
-                      setOfferedFacilityInput(Number(event.target.value || 0))
-                    }
-                    className="h-9 w-[220px]"
+                  <MoneyInput
+                    value={offeredFacilityInput}
+                    onValueChange={setOfferedFacilityInput}
+                    placeholder="0.00"
                     disabled={!isReviewable || !!isActionLocked || !onSendOffer}
+                    inputClassName="h-9 w-[220px]"
+                    prefix="RM"
+                    maxIntDigits={12}
+                    allowEmpty={true}
                   />
                   {onSendOffer && (
                     <Button
@@ -138,9 +138,11 @@ export function ContractSection({
                         !isReviewable ||
                         !!isActionLocked ||
                         !!isSendOfferPending ||
-                        offeredFacilityInput <= 0
+                        parseMoney(offeredFacilityInput) <= 0
                       }
-                      onClick={() => onSendOffer({ offeredFacility: offeredFacilityInput })}
+                      onClick={() =>
+                        onSendOffer({ offeredFacility: parseMoney(offeredFacilityInput) })
+                      }
                     >
                       {isSendOfferPending ? "Sending..." : "Send Offer"}
                     </Button>
