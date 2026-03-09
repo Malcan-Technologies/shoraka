@@ -6,6 +6,7 @@ import {
   CreateApplicationInput,
   UpdateApplicationStepInput,
   businessDetailsDataSchema,
+  financialStatementsInputSchema,
 } from "./schemas";
 import { AppError } from "../../lib/http/error-handler";
 import { Application, Prisma } from "@prisma/client";
@@ -44,6 +45,7 @@ export class ApplicationService {
       "company_details_1": "company_details",
       "verify_company_info_1": "company_details",
       "business_details_1": "business_details",
+      "financial_statements_1": "financial_statements",
       "supporting_documents_1": "supporting_documents",
       "declarations_1": "declarations",
       "review_and_submit_1": "review_and_submit",
@@ -59,6 +61,7 @@ export class ApplicationService {
       company_details: "company_details",
       verify_company_info: "company_details",
       business_details: "business_details",
+      financial_statements: "financial_statements",
       supporting_documents: "supporting_documents",
       declarations: "declarations",
       review_and_submit: "review_and_submit",
@@ -394,6 +397,7 @@ export class ApplicationService {
             financing_structure: appFullCurrent.financing_structure,
             company_details: appFullCurrent.company_details,
             business_details: appFullCurrent.business_details,
+            financial_statements: appFullCurrent.financial_statements,
             supporting_documents: appFullCurrent.supporting_documents,
             declarations: appFullCurrent.declarations,
             review_and_submit: appFullCurrent.review_and_submit,
@@ -495,8 +499,43 @@ export class ApplicationService {
       }
     }
 
+    let dataToStore: Prisma.InputJsonValue = input.data as Prisma.InputJsonValue;
+
+    if (fieldName === "financial_statements") {
+      const result = financialStatementsInputSchema.safeParse(input.data);
+      if (!result.success) {
+        const message = result.error.errors.map((e) => e.message).join("; ");
+        throw new AppError(400, "VALIDATION_ERROR", message);
+      }
+      const raw = result.data;
+      const toNum = (v: unknown) => {
+        if (typeof v === "number" && !Number.isNaN(v)) return v;
+        const n = Number(String(v).replace(/,/g, ""));
+        return Number.isNaN(n) ? 0 : n;
+      };
+
+      dataToStore = {
+        pldd: String(raw.pldd ?? ""),
+        bsdd: String(raw.bsdd ?? ""),
+        bsfatot: toNum(raw.bsfatot),
+        othass: toNum(raw.othass),
+        bscatot: toNum(raw.bscatot),
+        bsclbank: toNum(raw.bsclbank),
+        curlib: toNum(raw.curlib),
+        bsslltd: toNum(raw.bsslltd),
+        bsclstd: toNum(raw.bsclstd),
+        bsqpuc: toNum(raw.bsqpuc),
+        turnover: toNum(raw.turnover),
+        plnpbt: toNum(raw.plnpbt),
+        plnpat: toNum(raw.plnpat),
+        plminin: toNum(raw.plminin),
+        plnetdiv: toNum(raw.plnetdiv),
+        plyear: toNum(raw.plyear),
+      } as Prisma.InputJsonValue;
+    }
+
     const updateData: Prisma.ApplicationUpdateInput = {
-      [fieldName]: input.data as Prisma.InputJsonValue,
+      [fieldName]: dataToStore,
       updated_at: new Date(),
     };
 
@@ -731,6 +770,7 @@ export class ApplicationService {
             financing_structure: appFull.financing_structure,
             company_details: appFull.company_details,
             business_details: appFull.business_details,
+            financial_statements: appFull.financial_statements,
             supporting_documents: appFull.supporting_documents,
             declarations: appFull.declarations,
             review_and_submit: appFull.review_and_submit,
@@ -779,6 +819,7 @@ export class ApplicationService {
             "financing_structure",
             "company_details",
             "business_details",
+            "financial_statements",
             "supporting_documents",
             "declarations",
             "review_and_submit",

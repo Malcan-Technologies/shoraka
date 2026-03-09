@@ -1132,13 +1132,20 @@ export class ApiClient {
     return this.get<Product>(`/v1/products/${id}`);
   }
 
-  async createProduct(data: { workflow: unknown[] }): Promise<ApiResponse<Product> | ApiError> {
+  async createProduct(data: {
+    workflow: unknown[];
+    offer_expiry_days?: number | null;
+  }): Promise<ApiResponse<Product> | ApiError> {
     return this.post<Product>("/v1/products", data);
   }
 
   async updateProduct(
     id: string,
-    data: { workflow?: unknown[]; completeCreate?: boolean }
+    data: {
+      workflow?: unknown[];
+      completeCreate?: boolean;
+      offer_expiry_days?: number | null;
+    }
   ): Promise<ApiResponse<Product> | ApiError> {
     return this.patch<Product>(`/v1/products/${id}`, data);
   }

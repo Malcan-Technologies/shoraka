@@ -10,6 +10,7 @@ export const APPLICATION_STEP_KEYS = [
   "invoice_details",
   "company_details",
   "business_details",
+  "financial_statements",
   "supporting_documents",
   "declarations",
   "review_and_submit",
@@ -25,6 +26,7 @@ export const APPLICATION_STEP_KEYS_WITH_UI: ApplicationStepKey[] = [
   "invoice_details",
   "company_details",
   "business_details",
+  "financial_statements",
   "supporting_documents",
   "declarations",
   "review_and_submit",
@@ -69,6 +71,11 @@ export const STEP_KEY_DISPLAY: Record<ApplicationStepKey, StepKeyDisplay> = {
     title: "Business Details",
     pageTitle: "Business Details",
     description: "Tell us about your business",
+  },
+  financial_statements: {
+    title: "Financial Statements",
+    pageTitle: "Financial Statements",
+    description: "Enter your company's financial statement data",
   },
   supporting_documents: {
     title: "Supporting Documents",

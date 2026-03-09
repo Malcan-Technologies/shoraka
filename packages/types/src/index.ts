@@ -155,6 +155,7 @@ export interface Product {
   id: string;
   version: number;
   workflow: any[];
+  offer_expiry_days?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -239,4 +240,6 @@ export interface Invoice {
 export * from "./activity-config";
 export * from "./admin";
 export * from "./application-steps";
+export * from "./financial-calculator";
+export * from "./financial-field-labels";
 export * from "./review-scope";
