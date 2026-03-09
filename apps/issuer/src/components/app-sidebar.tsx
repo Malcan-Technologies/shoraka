@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "@cashsouk/ui";
 import { APP_VERSION, useOrganization } from "@cashsouk/config";
-import { HomeIcon, UserCircleIcon, ClockIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, UserCircleIcon, ClockIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
 
 import { NavUser } from "@/components/nav-user";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
@@ -149,6 +149,25 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <Link href="/">
                       <HomeIcon className="h-4 w-4" />
                       <span>Dashboard</span>
+                    </Link>
+                  </SidebarMenuButton>
+                )}
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                {isDisabled ? (
+                  <SidebarMenuButton
+                    disabled
+                    tooltip="Complete onboarding to access"
+                    className="opacity-50 cursor-not-allowed"
+                  >
+                    <DocumentTextIcon className="h-4 w-4" />
+                    <span>Applications</span>
+                  </SidebarMenuButton>
+                ) : (
+                  <SidebarMenuButton asChild isActive={pathname === "/applications" || pathname.startsWith("/applications/")} tooltip="Applications">
+                    <Link href="/applications">
+                      <DocumentTextIcon className="h-4 w-4" />
+                      <span>Applications</span>
                     </Link>
                   </SidebarMenuButton>
                 )}
