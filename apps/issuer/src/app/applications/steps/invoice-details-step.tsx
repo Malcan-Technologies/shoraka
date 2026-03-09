@@ -883,8 +883,8 @@ export default function InvoiceDetailsStep({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applicationId, application?.financing_structure?.structure_type, application?.contract_id]);
 
-  const isNewContract =
-    application?.financing_structure?.structure_type === "new_contract";
+  // const isNewContract =
+  //   application?.financing_structure?.structure_type === "new_contract"; // Not used
   const hasFacilityData = approvedFacility > 0;
 
   if (isLoadingApplication || debugSkeletonMode) {
