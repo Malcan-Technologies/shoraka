@@ -1,7 +1,9 @@
 "use client";
 
+import * as React from "react";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { DocumentTextIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import { ReviewSectionCard } from "../review-section-card";
@@ -26,6 +28,7 @@ interface FileDoc {
 
 export interface ContractSectionProps {
   contractDetails: unknown;
+  offerDetails?: unknown;
   customerDetails?: unknown;
   section: ReviewSectionId;
   isReviewable: boolean;
@@ -37,6 +40,8 @@ export interface ContractSectionProps {
   onApprove: (section: ReviewSectionId) => void;
   onReject: (section: ReviewSectionId) => void;
   onRequestAmendment: (section: ReviewSectionId) => void;
+  onSendOffer?: (payload: { offeredFacility: number }) => Promise<void>;
+  isSendOfferPending?: boolean;
   onViewDocument?: (s3Key: string) => void;
   viewDocumentPending?: boolean;
   comments: SectionCommentItem[];
@@ -45,6 +50,7 @@ export interface ContractSectionProps {
 
 export function ContractSection({
   contractDetails,
+  offerDetails,
   customerDetails,
   section,
   isReviewable,
@@ -56,16 +62,34 @@ export function ContractSection({
   onApprove,
   onReject,
   onRequestAmendment,
+  onSendOffer,
+  isSendOfferPending,
   onViewDocument,
   viewDocumentPending,
   comments,
   onAddComment,
 }: ContractSectionProps) {
   const cd = contractDetails as Record<string, unknown> | null | undefined;
+  const offer = offerDetails as Record<string, unknown> | null | undefined;
   const cust = customerDetails as Record<string, unknown> | null | undefined;
 
   const contractDoc = cd?.document as FileDoc | undefined;
   const customerDoc = cust?.document as FileDoc | undefined;
+  const requestedFacility =
+    typeof cd?.financing === "number"
+      ? cd.financing
+      : typeof cd?.value === "number"
+        ? cd.value
+        : 0;
+  const offeredFacilityFromOffer =
+    typeof offer?.offered_facility === "number" ? offer.offered_facility : null;
+  const [offeredFacilityInput, setOfferedFacilityInput] = React.useState<number>(
+    offeredFacilityFromOffer ?? requestedFacility
+  );
+
+  React.useEffect(() => {
+    setOfferedFacilityInput(offeredFacilityFromOffer ?? requestedFacility);
+  }, [offeredFacilityFromOffer, requestedFacility]);
 
   const hasData = cd || cust;
 
@@ -86,6 +110,46 @@ export function ContractSection({
     >
       {hasData ? (
         <>
+          <ReviewFieldBlock title="Offer to Issuer">
+            <div className="space-y-3">
+              <div className={reviewRowGridClass}>
+                <Label className={reviewLabelClass}>Requested facility</Label>
+                <div className={reviewValueClass}>
+                  {requestedFacility > 0 ? formatCurrency(requestedFacility) : REVIEW_EMPTY_LABEL}
+                </div>
+                <Label className={reviewLabelClass}>Offered facility</Label>
+                <div className="flex items-center gap-3">
+                  <Input
+                    type="number"
+                    min={0}
+                    value={Number.isFinite(offeredFacilityInput) ? offeredFacilityInput : 0}
+                    onChange={(event) =>
+                      setOfferedFacilityInput(Number(event.target.value || 0))
+                    }
+                    className="h-9 w-[220px]"
+                    disabled={!isReviewable || !!isActionLocked || !onSendOffer}
+                  />
+                  {onSendOffer && (
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="sm"
+                      disabled={
+                        !isReviewable ||
+                        !!isActionLocked ||
+                        !!isSendOfferPending ||
+                        offeredFacilityInput <= 0
+                      }
+                      onClick={() => onSendOffer({ offeredFacility: offeredFacilityInput })}
+                    >
+                      {isSendOfferPending ? "Sending..." : "Send Offer"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </ReviewFieldBlock>
+
           {cd && (
             <ReviewFieldBlock title="Contract details">
               <div className={reviewRowGridClass}>

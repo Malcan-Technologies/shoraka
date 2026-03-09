@@ -26,6 +26,8 @@ import {
   useListPendingAmendments,
   useRemovePendingAmendment,
   useSubmitAmendmentRequest,
+  useSendContractOffer,
+  useSendInvoiceOffer,
 } from "@/hooks/use-application-review-actions";
 import {
   ApplicationReviewTabs,
@@ -129,6 +131,8 @@ export default function DynamicApplicationDetailPage() {
   const { data: pendingAmendments = [] } = useListPendingAmendments(applicationId);
   const removePendingAmendment = useRemovePendingAmendment();
   const submitAmendmentRequest = useSubmitAmendmentRequest();
+  const sendContractOffer = useSendContractOffer();
+  const sendInvoiceOffer = useSendInvoiceOffer();
   const [amendmentModalOpen, setAmendmentModalOpen] = React.useState(false);
   const [reopenDialogOpen, setReopenDialogOpen] = React.useState(false);
 
@@ -731,6 +735,38 @@ export default function DynamicApplicationDetailPage() {
                           });
                           toast.success("Comment posted");
                         }}
+                        onSendContractOffer={async ({ offeredFacility }) => {
+                          try {
+                            await sendContractOffer.mutateAsync({
+                              applicationId,
+                              offeredFacility,
+                            });
+                            toast.success("Contract offer sent");
+                          } catch (err) {
+                            toast.error(err instanceof Error ? err.message : "Failed to send contract offer");
+                          }
+                        }}
+                        onSendInvoiceOffer={async ({
+                          invoiceId,
+                          offeredAmount,
+                          offeredRatioPercent,
+                          offeredProfitRatePercent,
+                        }) => {
+                          try {
+                            await sendInvoiceOffer.mutateAsync({
+                              applicationId,
+                              invoiceId,
+                              offeredAmount,
+                              offeredRatioPercent,
+                              offeredProfitRatePercent,
+                            });
+                            toast.success("Invoice offer sent");
+                          } catch (err) {
+                            toast.error(err instanceof Error ? err.message : "Failed to send invoice offer");
+                          }
+                        }}
+                        sendContractOfferPending={sendContractOffer.isPending}
+                        sendInvoiceOfferPending={sendInvoiceOffer.isPending}
                         invoiceRatioLimits={invoiceRatioLimits}
                       />
                     </ApplicationReviewTabContent>

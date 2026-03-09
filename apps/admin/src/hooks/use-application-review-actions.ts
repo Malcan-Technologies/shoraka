@@ -335,6 +335,79 @@ export function useResetItemReviewToPending() {
   });
 }
 
+export function useSendContractOffer() {
+  const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async ({
+      applicationId,
+      offeredFacility,
+      expiresAt,
+    }: {
+      applicationId: string;
+      offeredFacility: number;
+      expiresAt?: string | null;
+    }) => {
+      const response = await apiClient.sendContractOffer(applicationId, offeredFacility, expiresAt);
+      if (!response.success) {
+        throw new Error((response as ApiError).error?.message ?? "Failed to send contract offer");
+      }
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
+      queryClient.invalidateQueries({
+        queryKey: applicationLogsKeys.list(variables.applicationId),
+      });
+    },
+  });
+}
+
+export function useSendInvoiceOffer() {
+  const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async ({
+      applicationId,
+      invoiceId,
+      offeredAmount,
+      offeredRatioPercent,
+      offeredProfitRatePercent,
+      expiresAt,
+    }: {
+      applicationId: string;
+      invoiceId: string;
+      offeredAmount: number;
+      offeredRatioPercent?: number | null;
+      offeredProfitRatePercent?: number | null;
+      expiresAt?: string | null;
+    }) => {
+      const response = await apiClient.sendInvoiceOffer(applicationId, invoiceId, {
+        offeredAmount,
+        offeredRatioPercent,
+        offeredProfitRatePercent,
+        expiresAt,
+      });
+      if (!response.success) {
+        throw new Error((response as ApiError).error?.message ?? "Failed to send invoice offer");
+      }
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
+      queryClient.invalidateQueries({
+        queryKey: applicationLogsKeys.list(variables.applicationId),
+      });
+    },
+  });
+}
+
 export function useAddPendingAmendment() {
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();

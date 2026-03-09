@@ -60,6 +60,12 @@ const STATUS_PRESENTATION: Record<string, ReviewStatusPresentation> = {
     iconClass: "text-muted-foreground",
     dotClass: "bg-muted-foreground",
   },
+  SENT: {
+    label: "Offer Sent",
+    badgeClass: "border-blue-500/30 bg-blue-500/10 text-foreground",
+    iconClass: "text-blue-600",
+    dotClass: "bg-blue-500",
+  },
 };
 
 function toLabel(status: string): string {

@@ -38,7 +38,7 @@ export interface SectionContentProps {
     company_details?: unknown;
     declarations?: unknown;
     contract?: { contract_details?: unknown; customer_details?: unknown } | null;
-    invoices?: { id: string; details?: unknown }[];
+    invoices?: { id: string; details?: unknown; status?: string; offer_details?: unknown }[];
     application_review_items?: unknown;
     application_review_remarks?: unknown;
     issuer_organization?: {
@@ -72,6 +72,15 @@ export interface SectionContentProps {
   onRejectItem: (itemId: string, itemType: "invoice" | "document") => void;
   onRequestAmendmentItem: (itemId: string, itemType: "invoice" | "document") => void;
   onResetItemToPending?: (itemId: string, itemType: "invoice" | "document") => void;
+  onSendContractOffer?: (payload: { offeredFacility: number }) => Promise<void>;
+  onSendInvoiceOffer?: (payload: {
+    invoiceId: string;
+    offeredAmount: number;
+    offeredRatioPercent: number;
+    offeredProfitRatePercent: number;
+  }) => Promise<void>;
+  sendContractOfferPending?: boolean;
+  sendInvoiceOfferPending?: boolean;
   onAddSectionComment?: (section: ReviewSectionId, comment: string) => Promise<void> | void;
   /** Min/max financing ratio (%) from product config. Used by invoice review Offered by CashSouk. */
   invoiceRatioLimits?: { min: number; max: number };
@@ -97,6 +106,10 @@ export function SectionContent({
   onRejectItem,
   onRequestAmendmentItem,
   onResetItemToPending,
+  onSendContractOffer,
+  onSendInvoiceOffer,
+  sendContractOfferPending,
+  sendInvoiceOfferPending,
   onAddSectionComment,
   invoiceRatioLimits,
 }: SectionContentProps) {
@@ -196,6 +209,7 @@ export function SectionContent({
       return (
         <ContractSection
           contractDetails={app.contract?.contract_details}
+          offerDetails={(app.contract as { offer_details?: unknown } | null | undefined)?.offer_details}
           customerDetails={app.contract?.customer_details}
           section={section}
           isReviewable={isReviewable}
@@ -207,6 +221,8 @@ export function SectionContent({
           onApprove={onApproveSection}
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}
+          onSendOffer={onSendContractOffer}
+          isSendOfferPending={sendContractOfferPending}
           onViewDocument={onViewDocument}
           viewDocumentPending={viewDocumentPending}
           comments={sectionComments}
@@ -223,7 +239,7 @@ export function SectionContent({
           financing?: number;
           value?: number;
         };
-        invoices?: { id: string; application_id: string; details?: unknown; status?: string }[];
+        invoices?: { id: string; application_id: string; details?: unknown; status?: string; offer_details?: unknown }[];
       } | null;
       const contractInvoices = contract?.invoices ?? [];
       const applicationId = (app as { id?: string }).id;
@@ -273,6 +289,8 @@ export function SectionContent({
           onRejectItem={(id) => onRejectItem(id, "invoice")}
           onRequestAmendmentItem={(id) => onRequestAmendmentItem(id, "invoice")}
           onResetItemToPending={onResetItemToPending ? (id) => onResetItemToPending(id, "invoice") : undefined}
+          onSendInvoiceOffer={onSendInvoiceOffer}
+          isSendInvoiceOfferPending={sendInvoiceOfferPending}
           comments={sectionComments}
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
         />

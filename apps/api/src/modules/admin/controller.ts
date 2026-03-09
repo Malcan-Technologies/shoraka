@@ -36,6 +36,8 @@ import {
   reviewItemApproveSchema,
   reviewItemRejectSchema,
   reviewItemRequestAmendmentSchema,
+  sendContractOfferSchema,
+  sendInvoiceOfferSchema,
   addPendingAmendmentSchema,
   updatePendingAmendmentSchema,
 } from "./schemas";
@@ -2219,6 +2221,61 @@ router.post(
         id,
         validated.itemType,
         validated.itemId,
+        req.user.user_id
+      );
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/applications/:id/offers/contracts/send",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id } = req.params;
+      const validated = sendContractOfferSchema.parse(req.body);
+      const result = await adminService.sendContractOffer(
+        id,
+        validated.offeredFacility,
+        validated.expiresAt ?? null,
+        req.user.user_id
+      );
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/applications/:id/offers/invoices/:invoiceId/send",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id, invoiceId } = req.params;
+      const validated = sendInvoiceOfferSchema.parse(req.body);
+      const result = await adminService.sendInvoiceOffer(
+        id,
+        invoiceId,
+        validated.offeredAmount,
+        validated.offeredRatioPercent ?? null,
+        validated.offeredProfitRatePercent ?? null,
+        validated.expiresAt ?? null,
         req.user.user_id
       );
 

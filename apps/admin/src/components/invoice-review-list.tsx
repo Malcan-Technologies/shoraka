@@ -22,7 +22,7 @@ import {
 const PROFIT_RATE_OPTIONS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] as const;
 
 interface InvoiceReviewListProps {
-  invoices: { id: string; details?: unknown; status?: string }[];
+  invoices: { id: string; details?: unknown; status?: string; offer_details?: unknown }[];
   /** Invoice IDs from other applications (same contract) - read-only, actions locked */
   readOnlyInvoiceIds?: Set<string>;
   reviewItems: { item_type: string; item_id: string; status: string }[];
@@ -37,6 +37,13 @@ interface InvoiceReviewListProps {
   onRequestAmendmentItem: (itemId: string) => void;
   onResetItemToPending?: (itemId: string) => void;
   isItemActionPending: boolean;
+  onSendInvoiceOffer?: (payload: {
+    invoiceId: string;
+    offeredAmount: number;
+    offeredRatioPercent: number;
+    offeredProfitRatePercent: number;
+  }) => Promise<void>;
+  isSendInvoiceOfferPending?: boolean;
 }
 
 interface InvoiceDetails {
@@ -59,13 +66,10 @@ function buildInvoiceScopeKey(idx: number, invoiceNo: string | number): string {
 }
 
 function getItemStatus(
-  inv: { status?: string },
+  _inv: { status?: string },
   reviewItems: { item_type: string; item_id: string; status: string }[],
   scopeKey: string
 ): string {
-  if (inv.status === "APPROVED" || inv.status === "REJECTED") {
-    return inv.status;
-  }
   return reviewItems.find((r) => r.item_id === scopeKey)?.status ?? "PENDING";
 }
 
@@ -97,6 +101,8 @@ export function InvoiceList({
   onRequestAmendmentItem,
   onResetItemToPending,
   isItemActionPending,
+  onSendInvoiceOffer,
+  isSendInvoiceOfferPending,
 }: InvoiceReviewListProps) {
   const [expandedById, setExpandedById] = React.useState<Record<string, boolean>>({});
 
@@ -353,7 +359,7 @@ export function InvoiceList({
                                       <p className="text-xs text-muted-foreground mb-1">
                                         Financing ratio
                                       </p>
-                                      <div className="flex items-center gap-2">
+                                      <div className="flex items-center gap-2 flex-wrap">
                                         <span className="text-sm font-medium tabular-nums w-10">
                                           {offered.ratio}%
                                         </span>
@@ -372,6 +378,27 @@ export function InvoiceList({
                                             [&_[role=slider]]:border-2
                                             [&_[role=slider]]:border-primary"
                                         />
+                                        {onSendInvoiceOffer && (
+                                          <Button
+                                            type="button"
+                                            size="sm"
+                                            disabled={
+                                              isRowGreyedOut ||
+                                              !!isSendInvoiceOfferPending ||
+                                              offeredAmount === null
+                                            }
+                                            onClick={() =>
+                                              onSendInvoiceOffer({
+                                                invoiceId: inv.id,
+                                                offeredAmount: offeredAmount ?? 0,
+                                                offeredRatioPercent: offered.ratio,
+                                                offeredProfitRatePercent: offered.profitRate,
+                                              })
+                                            }
+                                          >
+                                            {isSendInvoiceOfferPending ? "Sending..." : "Send Offer"}
+                                          </Button>
+                                        )}
                                       </div>
                                     </div>
                                     <div>

@@ -472,6 +472,41 @@ export class ApiClient {
     );
   }
 
+  async sendContractOffer(
+    applicationId: string,
+    offeredFacility: number,
+    expiresAt?: string | null
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/offers/contracts/send`,
+      {
+        offeredFacility,
+        expiresAt: expiresAt ?? null,
+      }
+    );
+  }
+
+  async sendInvoiceOffer(
+    applicationId: string,
+    invoiceId: string,
+    payload: {
+      offeredAmount: number;
+      offeredRatioPercent?: number | null;
+      offeredProfitRatePercent?: number | null;
+      expiresAt?: string | null;
+    }
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/offers/invoices/${invoiceId}/send`,
+      {
+        offeredAmount: payload.offeredAmount,
+        offeredRatioPercent: payload.offeredRatioPercent ?? null,
+        offeredProfitRatePercent: payload.offeredProfitRatePercent ?? null,
+        expiresAt: payload.expiresAt ?? null,
+      }
+    );
+  }
+
   async addPendingAmendment(
     applicationId: string,
     params: {

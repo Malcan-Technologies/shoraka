@@ -6,6 +6,7 @@ import {
   CheckCircleIcon,
   ClockIcon,
   ExclamationTriangleIcon,
+  PaperAirplaneIcon,
   XCircleIcon,
 } from "@heroicons/react/24/outline";
 import { getReviewStatusPresentation } from "./status-presentation";
@@ -23,6 +24,7 @@ const STATUS_CONFIG: Record<
   REJECTED: { Icon: XCircleIcon },
   AMENDMENT_REQUESTED: { Icon: ExclamationTriangleIcon },
   PENDING: { Icon: ClockIcon },
+  SENT: { Icon: PaperAirplaneIcon },
 };
 
 export function ReviewStepStatusBadge({ status, size = "md" }: ReviewStepStatusBadgeProps) {

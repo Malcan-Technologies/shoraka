@@ -169,8 +169,8 @@ export interface GetProductsResponse {
   };
 }
 
-export type ContractStatus = "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED";
-export type InvoiceStatus = "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED";
+export type ContractStatus = "DRAFT" | "SUBMITTED" | "SENT" | "APPROVED" | "REJECTED";
+export type InvoiceStatus = "DRAFT" | "SUBMITTED" | "SENT" | "APPROVED" | "REJECTED";
 
 export interface ContractDetails {
   title: string;
