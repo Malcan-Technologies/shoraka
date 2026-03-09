@@ -80,9 +80,6 @@ export function InvoiceSection({
             <CardTitle className="text-base font-semibold">Invoice</CardTitle>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {sectionStatus && (
-              <ReviewStepStatusBadge status={sectionStatus} size="sm" />
-            )}
             <SectionActionDropdown
             section={section}
             isReviewable={isReviewable}

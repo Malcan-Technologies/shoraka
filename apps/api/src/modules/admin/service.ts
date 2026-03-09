@@ -4325,6 +4325,7 @@ export class AdminService {
       action: ActivityAction.APPROVED,
       portal: ActivityPortal.ADMIN,
       eventType: "CONTRACT_OFFER_SENT",
+      remark: `Offered facility: ${offeredFacility.toLocaleString()}`,
       metadata: {
         requested_facility: requestedFacility,
         offered_facility: offeredFacility,
@@ -4441,6 +4442,10 @@ export class AdminService {
       },
     });
 
+    const invoiceNumber =
+      details.number != null && details.number !== ""
+        ? String(details.number).trim()
+        : null;
     await logApplicationActivity({
       userId: reviewerUserId,
       applicationId,
@@ -4451,6 +4456,7 @@ export class AdminService {
       portal: ActivityPortal.ADMIN,
       eventType: "INVOICE_OFFER_SENT",
       metadata: {
+        invoice_number: invoiceNumber,
         requested_amount: requestedAmount,
         offered_amount: offeredAmount,
         offered_ratio_percent: offeredRatioPercent,
