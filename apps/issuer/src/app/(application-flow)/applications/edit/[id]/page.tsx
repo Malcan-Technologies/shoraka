@@ -1,6 +1,8 @@
 "use client";
 
 /**
+ * Guide: docs/guides/application-flow/amendment-flow.md — Amendment flow (context fetch, flaggedSections, stepper, tab locking)
+ *
  * EDIT APPLICATION PAGE
  *
  * This page implements a deterministic wizard flow with:
@@ -44,7 +46,7 @@ import {
   type ApplicationStepKey,
 } from "@cashsouk/types";
 import { ProgressIndicator } from "../../components/progress-indicator";
-import { AmendmentRemarkCard } from "../../components/amendment-remark-card";
+import { AmendmentRemarkCard } from "../../components/amendments";
 import { useHeader } from "@cashsouk/ui";
 import { FinancingTypeStep } from "../../steps/financing-type-step";
 import { FinancingStructureStep } from "../../steps/financing-structure-step";

@@ -1,6 +1,8 @@
  "use client";
 
 /**
+ * Guide: docs/guides/admin/activity-timeline.md — Event labels, icons, colors for activity timeline display
+ *
  * Imports
  *
  * What this section does:

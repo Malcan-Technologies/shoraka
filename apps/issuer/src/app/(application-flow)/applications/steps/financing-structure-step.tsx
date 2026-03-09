@@ -16,10 +16,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { formSelectTriggerClassName } from "@/app/applications/components/form-control";
-import { FinancingStructureSkeleton } from "@/app/applications/components/financing-structure-skeleton";
-import { SelectionCard } from "@/app/applications/components/selection-card";
-import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
+import { formSelectTriggerClassName } from "@/app/(application-flow)/applications/components/form-control";
+import { FinancingStructureSkeleton } from "@/app/(application-flow)/applications/components/financing-structure-skeleton";
+import { SelectionCard } from "@/app/(application-flow)/applications/components/selection-card";
+import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
 
 /**
  * FINANCING STRUCTURE STEP

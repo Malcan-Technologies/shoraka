@@ -1,3 +1,7 @@
+/**
+ * Guide: docs/guides/admin/activity-timeline.md — Adapter uses top-level record.remark for activity text
+ */
+
 import { prisma } from "../../../lib/prisma";
 import { ApplicationLog, Prisma } from "@prisma/client";
 import {

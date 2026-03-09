@@ -1,3 +1,7 @@
+/**
+ * Guide: docs/guides/application-flow/amendment-flow.md — Amendment flow API routes (amendment-context, acknowledge, resubmit)
+ */
+
 import { Request, Response, NextFunction, Router } from "express";
 import { applicationService } from "./service";
 import {

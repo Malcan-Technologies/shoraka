@@ -18,11 +18,11 @@ import {
   formInputDisabledClassName,
   formTextareaClassName,
   formLabelClassName,
-} from "@/app/applications/components/form-control";
-import { MoneyInput } from "@/app/applications/components/money-input";
-import { parseMoney, formatMoney } from "@/app/applications/components/money";
-import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
-import { BusinessDetailsSkeleton } from "@/app/applications/components/business-details-skeleton";
+} from "@/app/(application-flow)/applications/components/form-control";
+import { MoneyInput } from "@/app/(application-flow)/applications/components/money-input";
+import { parseMoney, formatMoney } from "@/app/(application-flow)/applications/components/money";
+import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
+import { BusinessDetailsSkeleton } from "@/app/(application-flow)/applications/components/business-details-skeleton";
 
 /**
  * BUSINESS DETAILS STEP

@@ -5,8 +5,8 @@ import { useProducts, useProduct } from "@/hooks/use-products";
 import { ProductList } from "../components/product-list";
 import { SelectionCard } from "../components/selection-card";
 import { ProductImagePreview } from "../components/product-image-preview";
-import { FinancingTypeSkeleton } from "@/app/applications/components/financing-type-skeleton";
-import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
+import { FinancingTypeSkeleton } from "@/app/(application-flow)/applications/components/financing-type-skeleton";
+import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
 
 /**
  * FINANCING TYPE STEP

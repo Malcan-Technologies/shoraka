@@ -1,5 +1,9 @@
 "use client";
 
+/**
+ * Guide: docs/guides/application-flow/financial-statements-step.md — Loading skeleton for financial statements step
+ */
+
 import * as React from "react";
 
 /**

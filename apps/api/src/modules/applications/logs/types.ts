@@ -1,3 +1,7 @@
+/**
+ * Guide: docs/guides/admin/activity-timeline.md — Event types, activity enums for application logs
+ */
+
 export enum ActivityLevel {
   APPLICATION = "APPLICATION",
   TAB = "TAB",

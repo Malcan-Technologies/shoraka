@@ -78,7 +78,7 @@
    - financing_structure handling (link/unlink contract; previously cleared invoice contract_id on invoice-only)
  - apps/api/src/modules/applications/repository.ts (previously included invoices relation)
  - packages/config/src/api-client.ts (client methods for /v1/invoices) [updated/removed]
- - apps/issuer/src/app/applications/steps/invoice-details-step.tsx (UI implementation, files upload flow)
+ - apps/issuer/src/app/(application-flow)/applications/steps/invoice-details-step.tsx (UI implementation, files upload flow)
  - apps/issuer/src/hooks/use-invoices.ts (hook) [REMOVED]
 
  Guidance for re-implementation

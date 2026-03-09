@@ -1,3 +1,7 @@
+/**
+ * Guide: docs/guides/application-flow/financial-statements-step.md — Financial statements step schema and field mappings
+ */
+
 import { z } from "zod";
 
 /**

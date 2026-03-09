@@ -1,6 +1,10 @@
 "use client";
 
 /**
+ * Guide: docs/guides/application-flow/amendment-flow.md — Tab locking for contract step (flaggedSections / flaggedItems)
+ */
+
+/**
  * CONTRACT DETAILS STEP
  *
  * Architecture:
@@ -17,7 +21,7 @@ import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { DateInput } from "@/app/applications/components/date-input";
+import { DateInput } from "@/app/(application-flow)/applications/components/date-input";
 import {
   Select,
   SelectContent,
@@ -28,7 +32,7 @@ import {
 import { CloudUpload, X, CheckCircle2, Info } from "lucide-react";
 import { useApplication } from "@/hooks/use-applications";
 import { useContract, useCreateContract, useUpdateContract } from "@/hooks/use-contracts";
-import { ContractDetailsSkeleton } from "@/app/applications/components/contract-details-skeleton";
+import { ContractDetailsSkeleton } from "@/app/(application-flow)/applications/components/contract-details-skeleton";
 import { toast } from "sonner";
 import { useAuthToken, createApiClient } from "@cashsouk/config";
 import { cn } from "@/lib/utils";
@@ -39,11 +43,11 @@ import {
   formLabelClassName,
   formSelectTriggerClassName,
   formTextareaClassName,
-} from "@/app/applications/components/form-control";
+} from "@/app/(application-flow)/applications/components/form-control";
 import { formatMoney, parseMoney } from "../components/money";
-import { MoneyInput } from "@/app/applications/components/money-input";
+import { MoneyInput } from "@/app/(application-flow)/applications/components/money-input";
 import { format, parse, isValid, parseISO } from "date-fns";
-import { DebugSkeletonToggle } from "@/app/applications/components/debug-skeleton-toggle";
+import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
