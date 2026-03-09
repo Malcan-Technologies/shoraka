@@ -20,6 +20,8 @@ import {
 } from "../../lib/s3/client";
 import { logger } from "../../lib/logger";
 import { prisma } from "../../lib/prisma";
+import { logApplicationActivity } from "./logs/service";
+import { ActivityLevel, ActivityTarget, ActivityAction, ActivityPortal } from "./logs/types";
 
 export class ApplicationService {
   private repository: ApplicationRepository;
@@ -861,6 +863,305 @@ export class ApplicationService {
     }
 
     return this.repository.update(id, updateData);
+  }
+
+  /**
+   * Resolve the invoice review item key. Prefer an existing persisted item_id
+   * (matched by invoice number suffix) to avoid index/order drift.
+   */
+  private async resolveInvoiceReviewItemKeyById(
+    applicationId: string,
+    application: { invoices?: { id: string; details?: { number?: string | number } }[] },
+    invoiceId: string
+  ): Promise<string | null> {
+    const invoices = application.invoices ?? [];
+    const idx = invoices.findIndex((invoice) => invoice.id === invoiceId);
+    if (idx < 0) return null;
+
+    const invoiceNo = invoices[idx]?.details?.number ?? idx + 1;
+    const sanitized = String(invoiceNo).replace(/:/g, "_");
+    const generated = `invoice_details:${idx}:${sanitized}`;
+
+    const existingByNumber = await prisma.applicationReviewItem.findFirst({
+      where: {
+        application_id: applicationId,
+        item_type: "invoice",
+        item_id: { endsWith: `:${sanitized}` },
+      },
+      select: { item_id: true },
+    });
+    if (existingByNumber?.item_id) return existingByNumber.item_id;
+
+    const exactGenerated = await prisma.applicationReviewItem.findUnique({
+      where: {
+        application_id_item_type_item_id: {
+          application_id: applicationId,
+          item_type: "invoice",
+          item_id: generated,
+        },
+      },
+      select: { item_id: true },
+    });
+    return exactGenerated?.item_id ?? generated;
+  }
+
+  /**
+   * Accept or reject a contract offer. Issuer must be a member of the application's organization.
+   */
+  async respondToContractOffer(
+    applicationId: string,
+    action: "accept" | "reject",
+    userId: string
+  ): Promise<Application> {
+    await this.verifyApplicationAccess(applicationId, userId);
+
+    const application = await this.repository.findById(applicationId);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+
+    if (!application.contract_id) {
+      throw new AppError(400, "INVALID_STATE", "Application has no contract");
+    }
+    const contractId = application.contract_id;
+
+    const responseMeta = await prisma.$transaction(async (tx) => {
+      const lockedContractRows = await tx.$queryRaw<
+        {
+          status: string;
+          offer_details: Prisma.JsonValue | null;
+          contract_details: Prisma.JsonValue | null;
+        }[]
+      >`SELECT status, offer_details, contract_details FROM contracts WHERE id = ${contractId} FOR UPDATE`;
+
+      const contract = lockedContractRows[0];
+      if (!contract) {
+        throw new AppError(404, "NOT_FOUND", "Contract not found");
+      }
+
+      if (contract.status !== "SENT") {
+        throw new AppError(400, "INVALID_STATE", "No pending contract offer to respond to");
+      }
+
+      const offer = contract.offer_details as Record<string, unknown> | null;
+      if (!offer || typeof offer !== "object") {
+        throw new AppError(400, "INVALID_STATE", "Contract has no offer details");
+      }
+
+      if (offer.responded_at != null && offer.responded_at !== "") {
+        throw new AppError(400, "ALREADY_RESPONDED", "This offer has already been responded to");
+      }
+
+      const expiresAt = offer.expires_at as string | null | undefined;
+      if (expiresAt) {
+        const expiry = new Date(expiresAt);
+        if (expiry < new Date()) {
+          throw new AppError(400, "OFFER_EXPIRED", "This offer has expired");
+        }
+      }
+
+      const now = new Date().toISOString();
+      const newStatus = action === "accept" ? "APPROVED" : "REJECTED";
+      const offeredFacility = Number(offer.offered_facility) || 0;
+      const requestedFacility = Number(offer.requested_facility) || 0;
+
+      const updatedOffer = {
+        ...offer,
+        responded_at: now,
+        responded_by_user_id: userId,
+      };
+
+      const cd = (contract.contract_details as Record<string, unknown>) || {};
+      const utilizedFacility = typeof cd.utilized_facility === "number" ? cd.utilized_facility : 0;
+      const mergedDetails =
+        action === "accept"
+          ? {
+              ...cd,
+              approved_facility: offeredFacility,
+              utilized_facility: utilizedFacility,
+              available_facility: offeredFacility - utilizedFacility,
+            }
+          : cd;
+
+      await tx.contract.update({
+        where: { id: contractId },
+        data: {
+          status: newStatus,
+          offer_details: updatedOffer,
+          contract_details: mergedDetails as Prisma.InputJsonValue,
+        },
+      });
+
+      await tx.applicationReview.upsert({
+        where: {
+          application_id_section: { application_id: applicationId, section: "contract_details" },
+        },
+        create: {
+          application_id: applicationId,
+          section: "contract_details",
+          status: newStatus,
+          reviewer_user_id: userId,
+          reviewed_at: new Date(),
+        },
+        update: {
+          status: newStatus,
+          reviewer_user_id: userId,
+          reviewed_at: new Date(),
+        },
+      });
+
+      return { offeredFacility, requestedFacility, now };
+    });
+
+    const eventType =
+      action === "accept" ? "CONTRACT_OFFER_ACCEPTED" : "CONTRACT_OFFER_REJECTED";
+    await logApplicationActivity({
+      userId,
+      applicationId,
+      level: ActivityLevel.TAB,
+      target: ActivityTarget.CONTRACT,
+      action: action === "accept" ? ActivityAction.APPROVED : ActivityAction.REJECTED,
+      portal: ActivityPortal.ISSUER,
+      eventType,
+      metadata: {
+        offered_facility: responseMeta.offeredFacility,
+        requested_facility: responseMeta.requestedFacility,
+        responded_at: responseMeta.now,
+      },
+    });
+
+    const updated = await this.repository.findById(applicationId);
+    if (!updated) throw new AppError(500, "INTERNAL_ERROR", "Failed to load updated application");
+    return updated;
+  }
+
+  /**
+   * Accept or reject an invoice offer. Issuer must be a member of the application's organization.
+   */
+  async respondToInvoiceOffer(
+    applicationId: string,
+    invoiceId: string,
+    action: "accept" | "reject",
+    userId: string
+  ): Promise<Application> {
+    await this.verifyApplicationAccess(applicationId, userId);
+
+    const application = await this.repository.findById(applicationId);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+
+    const invoices = (application as { invoices?: { id: string }[] }).invoices ?? [];
+    const invoice = invoices.find((inv) => inv.id === invoiceId);
+    if (!invoice) {
+      throw new AppError(404, "NOT_FOUND", "Invoice not found in this application");
+    }
+
+    const scopeKey = await this.resolveInvoiceReviewItemKeyById(
+      applicationId,
+      application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+      invoiceId
+    );
+    const responseMeta = await prisma.$transaction(async (tx) => {
+      const lockedInvoiceRows = await tx.$queryRaw<
+        { status: string; offer_details: Prisma.JsonValue | null }[]
+      >`SELECT status, offer_details FROM invoices WHERE id = ${invoiceId} AND application_id = ${applicationId} FOR UPDATE`;
+
+      const dbInvoice = lockedInvoiceRows[0];
+      if (!dbInvoice) {
+        throw new AppError(404, "NOT_FOUND", "Invoice not found");
+      }
+
+      if (dbInvoice.status !== "SENT") {
+        throw new AppError(400, "INVALID_STATE", "No pending invoice offer to respond to");
+      }
+
+      const offer = dbInvoice.offer_details as Record<string, unknown> | null;
+      if (!offer || typeof offer !== "object") {
+        throw new AppError(400, "INVALID_STATE", "Invoice has no offer details");
+      }
+
+      if (offer.responded_at != null && offer.responded_at !== "") {
+        throw new AppError(400, "ALREADY_RESPONDED", "This offer has already been responded to");
+      }
+
+      const expiresAt = offer.expires_at as string | null | undefined;
+      if (expiresAt) {
+        const expiry = new Date(expiresAt);
+        if (expiry < new Date()) {
+          throw new AppError(400, "OFFER_EXPIRED", "This offer has expired");
+        }
+      }
+
+      const now = new Date().toISOString();
+      const newStatus = action === "accept" ? "APPROVED" : "REJECTED";
+      const offeredAmount = Number(offer.offered_amount) || 0;
+      const requestedAmount = Number(offer.requested_amount) || 0;
+
+      const updatedOffer = {
+        ...offer,
+        responded_at: now,
+        responded_by_user_id: userId,
+      };
+
+      await tx.invoice.update({
+        where: { id: invoiceId, application_id: applicationId },
+        data: {
+          status: newStatus,
+          offer_details: updatedOffer,
+        },
+      });
+
+      if (scopeKey) {
+        await tx.applicationReviewItem.upsert({
+          where: {
+            application_id_item_type_item_id: {
+              application_id: applicationId,
+              item_type: "invoice",
+              item_id: scopeKey,
+            },
+          },
+          create: {
+            application_id: applicationId,
+            item_type: "invoice",
+            item_id: scopeKey,
+            status: newStatus,
+            reviewer_user_id: userId,
+            reviewed_at: new Date(),
+          },
+          update: {
+            status: newStatus,
+            reviewer_user_id: userId,
+            reviewed_at: new Date(),
+          },
+        });
+      }
+
+      return { now, offeredAmount, requestedAmount };
+    });
+
+    const eventType =
+      action === "accept" ? "INVOICE_OFFER_ACCEPTED" : "INVOICE_OFFER_REJECTED";
+    await logApplicationActivity({
+      userId,
+      applicationId,
+      level: ActivityLevel.ITEM,
+      target: ActivityTarget.INVOICE,
+      action: action === "accept" ? ActivityAction.APPROVED : ActivityAction.REJECTED,
+      entityId: scopeKey ?? undefined,
+      portal: ActivityPortal.ISSUER,
+      eventType,
+      metadata: {
+        invoice_id: invoiceId,
+        offered_amount: responseMeta.offeredAmount,
+        requested_amount: responseMeta.requestedAmount,
+        responded_at: responseMeta.now,
+      },
+    });
+
+    const updated = await this.repository.findById(applicationId);
+    if (!updated) throw new AppError(500, "INTERNAL_ERROR", "Failed to load updated application");
+    return updated;
   }
 }
 

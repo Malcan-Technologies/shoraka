@@ -1260,6 +1260,34 @@ export class ApiClient {
     return this.post<Application>(`/v1/applications/${id}/archive`, {});
   }
 
+  async acceptContractOffer(applicationId: string): Promise<ApiResponse<Application> | ApiError> {
+    return this.post<Application>(`/v1/applications/${applicationId}/offers/contracts/accept`, {});
+  }
+
+  async rejectContractOffer(applicationId: string): Promise<ApiResponse<Application> | ApiError> {
+    return this.post<Application>(`/v1/applications/${applicationId}/offers/contracts/reject`, {});
+  }
+
+  async acceptInvoiceOffer(
+    applicationId: string,
+    invoiceId: string
+  ): Promise<ApiResponse<Application> | ApiError> {
+    return this.post<Application>(
+      `/v1/applications/${applicationId}/offers/invoices/${invoiceId}/accept`,
+      {}
+    );
+  }
+
+  async rejectInvoiceOffer(
+    applicationId: string,
+    invoiceId: string
+  ): Promise<ApiResponse<Application> | ApiError> {
+    return this.post<Application>(
+      `/v1/applications/${applicationId}/offers/invoices/${invoiceId}/reject`,
+      {}
+    );
+  }
+
   // Notifications
   async getNotifications(params: {
     read?: boolean;

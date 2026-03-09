@@ -4575,11 +4575,13 @@ export class AdminService {
       (r: { section: string; status: string }) => r.section === section
     );
     const oldStatus = existing?.status ?? "PENDING";
+    let didRetractContractOffer = false;
 
     await repository.resetSectionReviewToPending(applicationId, section);
     if (section === "contract_details" && application.contract_id) {
       const contract = await prisma.contract.findUnique({
         where: { id: application.contract_id },
+        select: { status: true, contract_details: true },
       });
       const cd = contract?.contract_details as Record<string, unknown> | null;
       const mergedDetails = {
@@ -4588,9 +4590,28 @@ export class AdminService {
         utilized_facility: 0,
         available_facility: 0,
       };
+      const updateData: Prisma.ContractUpdateInput = {
+        status: "SUBMITTED",
+        contract_details: mergedDetails as Prisma.InputJsonValue,
+      };
+      didRetractContractOffer = oldStatus === "SENT" || contract?.status === "SENT";
+      if (didRetractContractOffer) {
+        updateData.offer_details = Prisma.JsonNull;
+      }
       await prisma.contract.update({
         where: { id: application.contract_id },
-        data: { status: "SUBMITTED", contract_details: mergedDetails },
+        data: updateData,
+      });
+    }
+    if (didRetractContractOffer && section === "contract_details") {
+      await logApplicationActivity({
+        userId: reviewerUserId,
+        applicationId,
+        level: ActivityLevel.TAB,
+        target: ActivityTarget.CONTRACT,
+        action: ActivityAction.RESET,
+        portal: ActivityPortal.ADMIN,
+        eventType: "CONTRACT_OFFER_RETRACTED",
       });
     }
     await this.logReviewActivity(
@@ -4626,6 +4647,7 @@ export class AdminService {
         r.item_type === itemType && r.item_id === itemId
     );
     const oldStatus = existing?.status ?? "PENDING";
+    let didRetractInvoiceOffer = false;
 
     await repository.resetItemReviewToPending(applicationId, itemType, itemId);
     if (itemType === "invoice") {
@@ -4634,14 +4656,37 @@ export class AdminService {
         itemId
       );
       if (invoiceId) {
+        const currentInvoice = await prisma.invoice.findUnique({
+          where: { id: invoiceId, application_id: applicationId },
+          select: { status: true },
+        });
+        const updateData: Prisma.InvoiceUpdateInput = {
+          status: "SUBMITTED",
+        };
+        didRetractInvoiceOffer = oldStatus === "SENT" || currentInvoice?.status === "SENT";
+        if (didRetractInvoiceOffer) {
+          updateData.offer_details = Prisma.JsonNull;
+        }
         await prisma.invoice.update({
           where: { id: invoiceId, application_id: applicationId },
-          data: { status: "SUBMITTED" },
+          data: updateData,
         });
       }
       if (application.contract_id) {
         await this.refreshContractFacilityValues(application.contract_id);
       }
+    }
+    if (didRetractInvoiceOffer && itemType === "invoice") {
+      await logApplicationActivity({
+        userId: reviewerUserId,
+        applicationId,
+        level: ActivityLevel.ITEM,
+        target: ActivityTarget.INVOICE,
+        action: ActivityAction.RESET,
+        entityId: itemId,
+        portal: ActivityPortal.ADMIN,
+        eventType: "INVOICE_OFFER_RETRACTED",
+      });
     }
     await this.logReviewActivity(
       applicationId,
