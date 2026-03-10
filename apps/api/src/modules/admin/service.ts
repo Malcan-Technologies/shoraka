@@ -60,6 +60,12 @@ import {
   ActivityPortal,
   ActivityTarget,
 } from "../applications/logs/types";
+
+export interface AdminLogContext {
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  deviceInfo?: string | null;
+}
 import { ProductRepository } from "../products/repository";
 
 export class AdminService {
@@ -3931,7 +3937,8 @@ export class AdminService {
   async updateApplicationStatus(
     id: string,
     status: ApplicationStatus,
-    userId: string
+    userId: string,
+    logContext?: AdminLogContext
   ) {
     const repository = new AdminRepository();
     const application = await repository.getApplicationById(id);
@@ -4008,6 +4015,9 @@ export class AdminService {
         portal: ActivityPortal.ADMIN,
         eventType: "APPLICATION_RESET_TO_UNDER_REVIEW",
         metadata: { previous_status: currentStatus },
+        ipAddress: logContext?.ipAddress ?? undefined,
+        userAgent: logContext?.userAgent ?? undefined,
+        deviceInfo: logContext?.deviceInfo ?? undefined,
       });
     } else if (status === ApplicationStatus.APPROVED) {
       await logApplicationActivity({
@@ -4018,6 +4028,9 @@ export class AdminService {
         action: ActivityAction.APPROVED,
         portal: ActivityPortal.ADMIN,
         eventType: "APPLICATION_APPROVED",
+        ipAddress: logContext?.ipAddress ?? undefined,
+        userAgent: logContext?.userAgent ?? undefined,
+        deviceInfo: logContext?.deviceInfo ?? undefined,
       });
     } else if (status === ApplicationStatus.REJECTED) {
       await logApplicationActivity({
@@ -4028,6 +4041,9 @@ export class AdminService {
         action: ActivityAction.REJECTED,
         portal: ActivityPortal.ADMIN,
         eventType: "APPLICATION_REJECTED",
+        ipAddress: logContext?.ipAddress ?? undefined,
+        userAgent: logContext?.userAgent ?? undefined,
+        deviceInfo: logContext?.deviceInfo ?? undefined,
       });
     }
 
@@ -4042,7 +4058,8 @@ export class AdminService {
   async reopenApplicationForCorrection(
     id: string,
     userId: string,
-    reason: string
+    reason: string,
+    logContext?: AdminLogContext
   ) {
     const repository = new AdminRepository();
     const application = await repository.getApplicationById(id);
@@ -4077,6 +4094,9 @@ export class AdminService {
         previous_status: currentStatus,
         reason,
       },
+      ipAddress: logContext?.ipAddress ?? undefined,
+      userAgent: logContext?.userAgent ?? undefined,
+      deviceInfo: logContext?.deviceInfo ?? undefined,
     });
 
     logger.info(
@@ -4266,7 +4286,8 @@ export class AdminService {
     oldStatus: string | null,
     newStatus: string,
     reviewerUserId: string | null,
-    remark: string | null
+    remark: string | null,
+    logContext?: AdminLogContext
   ): Promise<void> {
     if (!reviewerUserId) return;
     const action = this.statusToAction(newStatus);
@@ -4284,6 +4305,9 @@ export class AdminService {
       portal: ActivityPortal.ADMIN,
       eventType: isSection ? `SECTION_REVIEWED_${newStatus}` : `ITEM_REVIEWED_${newStatus}`,
       metadata: { old_status: oldStatus, new_status: newStatus, scope, scope_key: scopeKey },
+      ipAddress: logContext?.ipAddress ?? undefined,
+      userAgent: logContext?.userAgent ?? undefined,
+      deviceInfo: logContext?.deviceInfo ?? undefined,
     });
   }
 
@@ -4321,7 +4345,8 @@ export class AdminService {
     applicationId: string,
     offeredFacility: number,
     expiresAt: string | null,
-    reviewerUserId: string
+    reviewerUserId: string,
+    logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
@@ -4413,6 +4438,9 @@ export class AdminService {
         expires_at: expiresAt,
         version: previousVersion + 1,
       },
+      ipAddress: logContext?.ipAddress ?? undefined,
+      userAgent: logContext?.userAgent ?? undefined,
+      deviceInfo: logContext?.deviceInfo ?? undefined,
     });
 
     return repository.getApplicationById(applicationId);
@@ -4425,7 +4453,8 @@ export class AdminService {
     offeredRatioPercent: number | null,
     offeredProfitRatePercent: number | null,
     expiresAt: string | null,
-    reviewerUserId: string
+    reviewerUserId: string,
+    logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
@@ -4544,6 +4573,9 @@ export class AdminService {
         expires_at: expiresAt,
         version: previousVersion + 1,
       },
+      ipAddress: logContext?.ipAddress ?? undefined,
+      userAgent: logContext?.userAgent ?? undefined,
+      deviceInfo: logContext?.deviceInfo ?? undefined,
     });
 
     return repository.getApplicationById(applicationId);
@@ -4592,7 +4624,8 @@ export class AdminService {
     applicationId: string,
     section: ReviewSection,
     reviewerUserId: string,
-    remark?: string | null
+    remark?: string | null,
+    logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
@@ -4634,7 +4667,8 @@ export class AdminService {
       oldStatus,
       "APPROVED",
       reviewerUserId,
-      remarkValue
+      remarkValue,
+      logContext
     );
 
     await repository.removeDraftAmendment(applicationId, "section", section);
@@ -4648,7 +4682,8 @@ export class AdminService {
   async resetSectionReviewToPending(
     applicationId: string,
     section: ReviewSection,
-    reviewerUserId: string
+    reviewerUserId: string,
+    logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
@@ -4694,6 +4729,9 @@ export class AdminService {
         action: ActivityAction.RESET,
         portal: ActivityPortal.ADMIN,
         eventType: "CONTRACT_OFFER_RETRACTED",
+        ipAddress: logContext?.ipAddress ?? undefined,
+        userAgent: logContext?.userAgent ?? undefined,
+        deviceInfo: logContext?.deviceInfo ?? undefined,
       });
     }
     await this.logReviewActivity(
@@ -4703,7 +4741,8 @@ export class AdminService {
       oldStatus,
       "PENDING",
       reviewerUserId,
-      null
+      null,
+      logContext
     );
     await repository.removeDraftAmendment(applicationId, "section", section);
 
@@ -4718,7 +4757,8 @@ export class AdminService {
     applicationId: string,
     itemType: "invoice" | "document",
     itemId: string,
-    reviewerUserId: string
+    reviewerUserId: string,
+    logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     this.validateReviewItemExists(application, itemType, itemId);
@@ -4768,6 +4808,9 @@ export class AdminService {
         entityId: itemId,
         portal: ActivityPortal.ADMIN,
         eventType: "INVOICE_OFFER_RETRACTED",
+        ipAddress: logContext?.ipAddress ?? undefined,
+        userAgent: logContext?.userAgent ?? undefined,
+        deviceInfo: logContext?.deviceInfo ?? undefined,
       });
     }
     await this.logReviewActivity(
@@ -4777,7 +4820,8 @@ export class AdminService {
       oldStatus,
       "PENDING",
       reviewerUserId,
-      null
+      null,
+      logContext
     );
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
     await this.clearItemRemarks(repository, applicationId, itemType, itemId);
@@ -4794,7 +4838,8 @@ export class AdminService {
     applicationId: string,
     section: ReviewSection,
     remark: string,
-    reviewerUserId: string
+    reviewerUserId: string,
+    logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
@@ -4832,7 +4877,8 @@ export class AdminService {
       oldStatus,
       "REJECTED",
       reviewerUserId,
-      remark
+      remark,
+      logContext
     );
 
     await repository.removeDraftAmendment(applicationId, "section", section);
@@ -4850,7 +4896,8 @@ export class AdminService {
     applicationId: string,
     section: ReviewSection,
     remark: string,
-    reviewerUserId: string
+    reviewerUserId: string,
+    logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
@@ -4888,7 +4935,8 @@ export class AdminService {
       oldStatus,
       "AMENDMENT_REQUESTED",
       reviewerUserId,
-      remark
+      remark,
+      logContext
     );
 
     await repository.removeDraftAmendment(applicationId, "section", section);
@@ -4929,7 +4977,8 @@ export class AdminService {
     itemType: "invoice" | "document",
     itemId: string,
     reviewerUserId: string,
-    remark?: string | null
+    remark?: string | null,
+    logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     this.validateReviewItemExists(application, itemType, itemId);
@@ -4965,7 +5014,8 @@ export class AdminService {
       oldStatus,
       "APPROVED",
       reviewerUserId,
-      remarkValue
+      remarkValue,
+      logContext
     );
 
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
@@ -4997,7 +5047,8 @@ export class AdminService {
     itemType: "invoice" | "document",
     itemId: string,
     remark: string,
-    reviewerUserId: string
+    reviewerUserId: string,
+    logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     this.validateReviewItemExists(application, itemType, itemId);
@@ -5030,7 +5081,8 @@ export class AdminService {
       oldStatus,
       "REJECTED",
       reviewerUserId,
-      remark
+      remark,
+      logContext
     );
 
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
@@ -5062,7 +5114,8 @@ export class AdminService {
     itemType: "invoice" | "document",
     itemId: string,
     remark: string,
-    reviewerUserId: string
+    reviewerUserId: string,
+    logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     this.validateReviewItemExists(application, itemType, itemId);
@@ -5095,7 +5148,8 @@ export class AdminService {
       oldStatus,
       "AMENDMENT_REQUESTED",
       reviewerUserId,
-      remark
+      remark,
+      logContext
     );
 
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
@@ -5114,7 +5168,8 @@ export class AdminService {
     remark: string,
     reviewerUserId: string,
     itemType?: "invoice" | "document",
-    itemId?: string
+    itemId?: string,
+    logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
@@ -5182,7 +5237,8 @@ export class AdminService {
         oldStatus,
         "AMENDMENT_REQUESTED",
         reviewerUserId,
-        remark
+        remark,
+        logContext
       );
     }
 
@@ -5328,7 +5384,7 @@ export class AdminService {
    * Submit all pending amendments. Marks draft remarks as submitted and updates application status.
    * Item/section status already set when adding to pending; remarks already exist.
    */
-  async submitPendingAmendments(applicationId: string, reviewerUserId: string) {
+  async submitPendingAmendments(applicationId: string, reviewerUserId: string, logContext?: AdminLogContext) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
 
@@ -5384,6 +5440,9 @@ export class AdminService {
       eventType: "AMENDMENTS_SUBMITTED",
       remark: `${pending.length} amendment(s) sent to issuer`,
       metadata: { count: pending.length },
+      ipAddress: logContext?.ipAddress ?? undefined,
+      userAgent: logContext?.userAgent ?? undefined,
+      deviceInfo: logContext?.deviceInfo ?? undefined,
     });
 
     logger.info({ applicationId, count: pending.length, reviewerUserId }, "Pending amendments submitted");
