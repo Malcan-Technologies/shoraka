@@ -1,23 +1,21 @@
 /**
- * Data layer for Applications Dashboard.
- * USE_MOCK_DATA controls whether to use in-memory mock data or fetch from API.
- * Set to false to use real API. Mock data is easy to delete later.
+ * Data layer for the Applications Dashboard. USE_MOCK_DATA controls mock vs API.
+ * When true, uses in-memory mock data. When false, fetches from the real API. Mock data is easy to remove later.
  */
 
 import type { NormalizedApplication } from "./adapters/application.adapter";
 
 /* ============================================================
-   Mock data flag
-   true  = use mock data (in memory, no DB, no API)
-   false = fetch from GET /v1/applications?organizationId=...
-   ============================================================ */
+   MOCK DATA FLAG
+   ============================================================
+   When true, mock data is used in memory. When false, fetches from GET /v1/applications?organizationId=... */
 
 export const USE_MOCK_DATA = true;
 
 /* ============================================================
-   Mock applications — covers all scenarios for testing
-   Each entry explains what scenario it represents.
-   ============================================================ */
+   MOCK APPLICATIONS
+   ============================================================
+   Each entry represents one scenario (draft, offer received, expired, etc.) for testing. */
 
 export const mockApplications: NormalizedApplication[] = [
   /* Draft invoice financing — user chose invoice-only, has invoices in progress */

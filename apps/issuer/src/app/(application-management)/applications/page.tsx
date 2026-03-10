@@ -1,8 +1,7 @@
 "use client";
 
 /**
- * Applications Dashboard — Issuer portal.
- * Shows applications for the active organization.
+ * Applications Dashboard for the Issuer portal. Shows applications for the active organization.
  * Data comes from mock (USE_MOCK_DATA=true) or API (USE_MOCK_DATA=false).
  */
 
@@ -63,8 +62,9 @@ import { useApplicationsData } from "./use-applications-data";
 import type { NormalizedApplication, NormalizedInvoice } from "./adapters/application.adapter";
 
 /* ============================================================
-   Status badge — reads label and tone from config
-   ============================================================ */
+   STATUS BADGE
+   ============================================================
+   Reads label and tone from config. Renders the correct style for each status. */
 
 const TONE_STYLES: Record<string, string> = {
   neutral: "border-border bg-muted text-muted-foreground",
@@ -87,8 +87,9 @@ function StatusBadge({ badgeKey }: { badgeKey: string }) {
 }
 
 /* ============================================================
-   Offer badge — "Offer received" vs "Offer expired"
-   ============================================================ */
+   OFFER BADGE
+   ============================================================
+   Shows "Offer received" or "Offer expired" with the right styling. */
 
 function OfferStatusBadge({ offerStatus }: { offerStatus: "Offer received" | "Offer expired" }) {
   const isExpired = offerStatus === "Offer expired";
@@ -106,9 +107,9 @@ function OfferStatusBadge({ offerStatus }: { offerStatus: "Offer received" | "Of
 
 
 /* ============================================================
-   Application card component
-   Uses NormalizedApplication. Card type from financing structure.
-   ============================================================ */
+   APPLICATION CARD
+   ============================================================
+   Uses NormalizedApplication. Card type comes from financing structure (invoice_only, contract, or generic draft). */
 
 function ApplicationCard({
   application,
@@ -476,8 +477,9 @@ function ApplicationCard({
 }
 
 /* ============================================================
-   Main page
-   ============================================================ */
+   MAIN PAGE
+   ============================================================
+   Uses useApplicationsData and renders cards with filters and pagination. */
 
 const PER_PAGE_OPTIONS = [4, 8, 12] as const;
 

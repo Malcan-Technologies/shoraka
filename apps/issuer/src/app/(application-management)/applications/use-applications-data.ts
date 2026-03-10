@@ -1,7 +1,6 @@
 /**
- * Hook that returns applications for the dashboard.
- * Uses USE_MOCK_DATA: if true, returns mock data; if false, fetches from API.
- * Data is always normalized and sorted.
+ * Returns applications for the dashboard. When USE_MOCK_DATA is true, uses mock data; otherwise fetches from the API.
+ * Data is always normalized and sorted by status priority, then updated_at.
  */
 
 import { useMemo } from "react";
@@ -16,8 +15,9 @@ import { STATUS_PRIORITY } from "./applications.config";
 import type { NormalizedApplication } from "./adapters/application.adapter";
 
 /* ============================================================
-   Sort applications by status priority, then updated_at
-   ============================================================ */
+   SORT HELPER
+   ============================================================
+   Sorts by status priority first, then by updated_at (newer first). */
 
 function sortApplications(apps: NormalizedApplication[]): NormalizedApplication[] {
   return [...apps].sort((a, b) => {
@@ -31,8 +31,9 @@ function sortApplications(apps: NormalizedApplication[]): NormalizedApplication[
 }
 
 /* ============================================================
-   useApplicationsData — single source of truth for dashboard
-   ============================================================ */
+   useApplicationsData
+   ============================================================
+   Single source of truth for dashboard applications. Branches on USE_MOCK_DATA. */
 
 export function useApplicationsData(): {
   applications: NormalizedApplication[];

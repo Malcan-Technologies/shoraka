@@ -1,15 +1,15 @@
 /**
- * Application adapter — converts backend API data into clean UI objects.
- * Never pass raw API responses to components. Always use these functions.
+ * Converts backend API data into clean UI objects. Components must use these functions; never pass raw API responses.
  */
 
 import { getOfferStatus } from "@/lib/offer-utils";
 
 /* ============================================================
-   Types for API responses (what the backend returns)
-   ============================================================ */
+   API TYPES (what the backend returns)
+   ============================================================
+   These match the Prisma/API response shape. */
 
-/** Raw contract from API (Prisma Contract with relations) */
+/** Raw contract from the API (Prisma Contract with relations). */
 interface ApiContract {
   id?: string;
   status?: string;
@@ -26,7 +26,7 @@ interface ApiContract {
   customer_details?: Record<string, unknown> | null;
 }
 
-/** Raw invoice from API (Prisma Invoice) */
+/** Raw invoice from the API (Prisma Invoice). */
 interface ApiInvoice {
   id: string;
   status?: string;
@@ -45,7 +45,7 @@ interface ApiInvoice {
   details?: Record<string, unknown>;
 }
 
-/** Raw application from API (Prisma Application with contract + invoices) */
+/** Raw application from the API (Prisma Application with contract and invoices). */
 interface ApiApplication {
   id: string;
   status?: string;
@@ -57,10 +57,11 @@ interface ApiApplication {
 }
 
 /* ============================================================
-   Types for UI (what components receive)
-   ============================================================ */
+   UI TYPES (what components receive)
+   ============================================================
+   Components must receive these shapes, never raw API data. */
 
-/** Normalized offer for display */
+/** Normalized offer for display. */
 export interface NormalizedOffer {
   requestedAmount?: number;
   offeredAmount?: number;
@@ -74,7 +75,7 @@ export interface NormalizedOffer {
   respondedAt?: string | null;
 }
 
-/** Normalized invoice for UI */
+/** Normalized invoice for the UI. */
 export interface NormalizedInvoice {
   id: string;
   number: string;
@@ -86,17 +87,17 @@ export interface NormalizedInvoice {
   profitRate: string;
   status: string;
   offerStatus: "Offer received" | "Offer expired" | null;
-  /** Whether Review Offer button should be enabled (contract must be approved for invoice offers) */
+  /** True when the Review Offer button is enabled. For invoice offers, the contract must be approved first. */
   canReviewOffer: boolean;
 }
 
-/** Normalized application for UI */
+/** Normalized application for the UI. */
 export interface NormalizedApplication {
   id: string;
   type: "Contract financing" | "Invoice financing" | "Generic";
   status: string;
   badges: string[];
-  /** True when contract or any invoice has offer expired */
+  /** True when the contract or any invoice has an offer that has expired. */
   hasExpiredOffer: boolean;
   contractTitle: string | null;
   customer: string;
@@ -106,13 +107,14 @@ export interface NormalizedApplication {
   approvedFacility: string;
   updatedAt: string;
   invoices: NormalizedInvoice[];
-  /** Contract status (for invoice offer rule: must be APPROVED to review invoice offers) */
+  /** Contract status. Invoice Review Offer is only enabled when this is APPROVED. */
   contractStatus: string | null;
 }
 
 /* ============================================================
-   normalizeOffer — convert API offer_details to UI shape
-   ============================================================ */
+   normalizeOffer
+   ============================================================
+   Converts API offer_details to the UI shape. Handles both contract and invoice offers. */
 
 export function normalizeOffer(
   apiOffer: ApiContract["offer_details"] | ApiInvoice["offer_details"]
@@ -148,8 +150,9 @@ export function normalizeOffer(
 }
 
 /* ============================================================
-   normalizeInvoice — convert API invoice to UI invoice
-   ============================================================ */
+   normalizeInvoice
+   ============================================================
+   Converts an API invoice to the UI invoice shape. Includes offer status and canReviewOffer. */
 
 export function normalizeInvoice(
   apiInvoice: ApiInvoice,
@@ -209,8 +212,9 @@ export function normalizeInvoice(
 }
 
 /* ============================================================
-   normalizeApplication — convert API application to UI application
-   ============================================================ */
+   normalizeApplication
+   ============================================================
+   Converts an API application to the UI shape. Derives card type, badges, and invoice data. */
 
 export function normalizeApplication(apiApplication: ApiApplication): NormalizedApplication {
   const structureType = (

@@ -1,13 +1,12 @@
 /**
- * Applications Dashboard configuration.
- * All status values, badge labels, and sort order come from here.
+ * Applications Dashboard configuration. All status values, badge labels, and sort order come from here.
  * Change this file to update how the dashboard behaves.
  */
 
 /* ============================================================
-   Application status constants
-   Used everywhere instead of magic strings.
-   ============================================================ */
+   APPLICATION STATUS
+   ============================================================
+   Use these everywhere instead of magic strings. */
 
 export const APPLICATION_STATUS = {
   DRAFT: "draft",
@@ -22,10 +21,9 @@ export const APPLICATION_STATUS = {
 } as const;
 
 /* ============================================================
-   Badge configuration
-   Maps status key to label and visual tone.
-   UI reads from here for badge text and styling.
-   ============================================================ */
+   BADGE CONFIGURATION
+   ============================================================
+   Maps status key to label and visual tone. The UI reads from here for badge text and styling. */
 
 export type BadgeTone = "neutral" | "warning" | "success" | "info" | "danger";
 
@@ -46,10 +44,9 @@ export const STATUS_BADGES: Record<
 };
 
 /* ============================================================
-   Sort configuration
-   Primary: status priority (lower = higher in list).
-   Secondary: updated_at (newer first).
-   ============================================================ */
+   SORT CONFIGURATION
+   ============================================================
+   Primary sort is status priority (lower number first). Secondary is updated_at (newer first). */
 
 export const STATUS_PRIORITY: Record<string, number> = {
   pending_amendment: 1,
