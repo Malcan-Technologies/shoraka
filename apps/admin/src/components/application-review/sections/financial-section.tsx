@@ -14,6 +14,7 @@ export interface FinancialSectionProps {
       director_kyc_status?: unknown;
       director_aml_status?: unknown;
     } | null;
+    financial_statements?: unknown;
   };
   section: ReviewSectionId;
   isReviewable: boolean;
