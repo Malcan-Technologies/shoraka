@@ -57,6 +57,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 /* ============================================================
    Mock data
@@ -71,21 +72,34 @@ const STATUS_LABELS: Record<string, string> = {
   APPROVED: "Offer Received",
   REJECTED: "Rejected",
   ARCHIVED: "Archived",
+  OFFER_RECEIVED: "Offer Received",
+  ACTION_REQUIRED: "Action Required",
+  PENDING_AMENDMENT: "Pending Amendment",
+  PENDING_APPROVAL: "Pending Approval",
 };
 
-const STATUS_BADGE_VARIANTS: Record<
-  string,
-  "default" | "secondary" | "destructive" | "outline"
-> = {
-  DRAFT: "secondary",
-  SUBMITTED: "outline",
-  UNDER_REVIEW: "outline",
-  RESUBMITTED: "outline",
-  AMENDMENT_REQUESTED: "outline",
-  APPROVED: "default",
-  REJECTED: "destructive",
-  ARCHIVED: "secondary",
-};
+/** Badge styles using design tokens. Draft uses soft neutral gray per BRANDING. */
+function StatusBadge({ label, badgeKey }: { label: string; badgeKey: string }) {
+  const base = "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold border";
+  const styles: Record<string, string> = {
+    DRAFT: "border-border bg-muted text-muted-foreground",
+    OFFER_RECEIVED: "border-transparent bg-emerald-100 text-emerald-800",
+    ACTION_REQUIRED: "border-transparent bg-amber-100 text-amber-800",
+    PENDING_AMENDMENT: "border-transparent bg-amber-100 text-amber-800",
+    PENDING_APPROVAL: "border-transparent bg-sky-100 text-sky-800",
+    APPROVED: "border-transparent bg-emerald-100 text-emerald-800",
+    AMENDMENT_REQUESTED: "border-transparent bg-amber-100 text-amber-800",
+    SUBMITTED: "border-transparent bg-sky-100 text-sky-800",
+    UNDER_REVIEW: "border-transparent bg-sky-100 text-sky-800",
+    RESUBMITTED: "border-transparent bg-sky-100 text-sky-800",
+    REJECTED: "border-transparent bg-destructive text-destructive-foreground",
+    ARCHIVED: "border-border bg-muted text-muted-foreground",
+  };
+  const className = styles[badgeKey] ?? "border-border bg-muted text-muted-foreground";
+  return <span className={cn(base, className)}>{label}</span>;
+}
+
+type InvoiceAction = "review_offer" | "make_amendments" | "download" | "view_offer" | null;
 
 const MOCK_APPLICATIONS = [
   {
@@ -94,6 +108,7 @@ const MOCK_APPLICATIONS = [
     type: "Contract financing",
     amount: 200000,
     status: "UNDER_REVIEW",
+    badges: ["PENDING_APPROVAL"] as string[],
     contractTitle: "Mining Rig Repair 12654",
     customer: "Acme Trading Sdn Bhd",
     applicationDate: "2026-03-05",
@@ -111,6 +126,7 @@ const MOCK_APPLICATIONS = [
         financingOffered: "—",
         profitRate: "—",
         status: "DRAFT",
+        action: null as InvoiceAction,
       },
       {
         id: "inv-2",
@@ -122,6 +138,7 @@ const MOCK_APPLICATIONS = [
         financingOffered: "—",
         profitRate: "—",
         status: "DRAFT",
+        action: null as InvoiceAction,
       },
     ],
   },
@@ -131,6 +148,7 @@ const MOCK_APPLICATIONS = [
     type: "Invoice financing",
     amount: 150000,
     status: "AMENDMENT_REQUESTED",
+    badges: ["PENDING_AMENDMENT"] as string[],
     contractTitle: null,
     customer: "Beta Corp",
     applicationDate: "2026-03-08",
@@ -148,6 +166,7 @@ const MOCK_APPLICATIONS = [
         financingOffered: "—",
         profitRate: "—",
         status: "AMENDMENT_REQUESTED",
+        action: "make_amendments" as InvoiceAction,
       },
     ],
   },
@@ -157,6 +176,7 @@ const MOCK_APPLICATIONS = [
     type: "Contract financing",
     amount: 350000,
     status: "APPROVED",
+    badges: ["OFFER_RECEIVED", "ACTION_REQUIRED"] as string[],
     contractTitle: "Equipment Purchase Order",
     customer: "Delta Industries",
     applicationDate: "2026-03-01",
@@ -174,6 +194,35 @@ const MOCK_APPLICATIONS = [
         financingOffered: "RM 96,000.00",
         profitRate: "8.5%",
         status: "APPROVED",
+        action: "review_offer" as InvoiceAction,
+      },
+    ],
+  },
+  {
+    id: "00000004",
+    company: "Draft Co Sdn Bhd",
+    type: "Contract financing",
+    amount: 100000,
+    status: "DRAFT",
+    badges: ["DRAFT"] as string[],
+    contractTitle: null,
+    customer: "—",
+    applicationDate: "2026-03-10",
+    contractValue: null,
+    facilityApplied: null,
+    approvedFacility: "N/A",
+    invoices: [
+      {
+        id: "inv-5",
+        number: "INV-301",
+        maturityDate: "2026-08-01",
+        value: 50000,
+        appliedFinancing: 40000,
+        document: "invoice_301.pdf",
+        financingOffered: "—",
+        profitRate: "—",
+        status: "DRAFT",
+        action: "download" as InvoiceAction,
       },
     ],
   },
@@ -195,8 +244,10 @@ function ApplicationCard({
   const [isRejecting, setIsRejecting] = React.useState(false);
 
   const hasContract = application.type === "Contract financing";
-  const showPendingAmendmentBadge =
-    application.status === "AMENDMENT_REQUESTED" && hasContract;
+  const badgesToShow =
+    "badges" in application && Array.isArray((application as { badges?: string[] }).badges)
+      ? (application as { badges: string[] }).badges
+      : [application.status];
 
   const handleReject = async () => {
     setIsRejecting(true);
@@ -217,22 +268,13 @@ function ApplicationCard({
               <span className="text-base font-semibold">
                 Application ID {shortId} — {application.type}
               </span>
-              <Badge
-                variant={
-                  STATUS_BADGE_VARIANTS[application.status] ?? "secondary"
-                }
-                className="rounded-md"
-              >
-                {STATUS_LABELS[application.status] ?? application.status}
-              </Badge>
-              {showPendingAmendmentBadge && (
-                <Badge
-                  variant="outline"
-                  className="rounded-md border-amber-500/50 bg-amber-500/10 text-amber-700"
-                >
-                  Pending Amendment
-                </Badge>
-              )}
+              {badgesToShow.map((key) => (
+                <StatusBadge
+                  key={key}
+                  badgeKey={key}
+                  label={STATUS_LABELS[key] ?? key}
+                />
+              ))}
             </div>
             <div className="flex items-center gap-2">
               {application.status === "AMENDMENT_REQUESTED" && (
@@ -337,7 +379,11 @@ function ApplicationCard({
           </div>
 
           {expanded && (
-            <div className="mt-4 overflow-hidden rounded-xl border">
+            <div className="mt-4">
+              <h3 className="text-sm font-semibold text-foreground mb-3">
+                Invoices
+              </h3>
+              <div className="overflow-hidden rounded-xl border">
               {application.invoices.length === 0 ? (
                 <div className="rounded-xl border bg-muted/20 py-8 text-center text-sm text-muted-foreground">
                   No invoices available
@@ -345,116 +391,137 @@ function ApplicationCard({
               ) : (
                 <Table>
                   <TableHeader>
-                    <TableRow className="bg-muted/30 hover:bg-muted/30">
-                      <TableHead className="text-sm font-semibold">
+                    <TableRow className="bg-muted/30 hover:bg-muted/30 border-b border-border">
+                      <TableHead className="text-sm font-semibold py-3 px-4">
                         Invoice number
                       </TableHead>
-                      <TableHead className="text-sm font-semibold">
+                      <TableHead className="text-sm font-semibold py-3 px-4">
                         Maturity date
                       </TableHead>
-                      <TableHead className="text-sm font-semibold text-right">
+                      <TableHead className="text-sm font-semibold text-right py-3 px-4 tabular-nums">
                         Invoice value
                       </TableHead>
-                      <TableHead className="text-sm font-semibold text-right">
+                      <TableHead className="text-sm font-semibold text-right py-3 px-4 tabular-nums">
                         Applied financing
                       </TableHead>
-                      <TableHead className="text-sm font-semibold">
+                      <TableHead className="text-sm font-semibold py-3 px-4">
                         Document
                       </TableHead>
-                      <TableHead className="text-sm font-semibold text-right">
+                      <TableHead className="text-sm font-semibold text-right py-3 px-4 tabular-nums">
                         Financing offered
                       </TableHead>
-                      <TableHead className="text-sm font-semibold text-right">
+                      <TableHead className="text-sm font-semibold text-right py-3 px-4 tabular-nums">
                         Profit rate
                       </TableHead>
-                      <TableHead className="text-sm font-semibold">
+                      <TableHead className="text-sm font-semibold py-3 px-4">
                         Status
                       </TableHead>
-                      <TableHead className="text-sm font-semibold text-right w-[120px]">
-                        Actions
+                      <TableHead className="text-sm font-semibold text-right py-3 px-4 w-[160px]">
+                        Action
                       </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {application.invoices.map((inv) => (
-                      <TableRow
-                        key={inv.id}
-                        className="odd:bg-muted/40 hover:bg-muted"
-                      >
-                        <TableCell className="text-[15px]">
-                          {inv.number}
-                        </TableCell>
-                        <TableCell className="text-[15px]">
-                          {inv.maturityDate
-                            ? format(new Date(inv.maturityDate), "dd MMM yyyy")
-                            : "—"}
-                        </TableCell>
-                        <TableCell className="text-right text-[15px]">
-                          {inv.value
-                            ? formatCurrency(inv.value)
-                            : "—"}
-                        </TableCell>
-                        <TableCell className="text-right text-[15px]">
-                          {inv.appliedFinancing != null
-                            ? formatCurrency(inv.appliedFinancing)
-                            : "—"}
-                        </TableCell>
-                        <TableCell className="text-[15px]">
-                          {inv.document}
-                        </TableCell>
-                        <TableCell className="text-right text-[15px]">
-                          {inv.financingOffered}
-                        </TableCell>
-                        <TableCell className="text-right text-[15px]">
-                          {inv.profitRate}
-                        </TableCell>
-                        <TableCell className="text-[15px]">
-                          <Badge
-                            variant="secondary"
-                            className="rounded-md text-xs"
-                          >
-                            {inv.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {application.status === "APPROVED" && (
-                              <Button
-                                size="sm"
-                                className="h-8 rounded-md bg-primary text-primary-foreground text-xs hover:opacity-95"
-                              >
-                                Review Offer
-                              </Button>
-                            )}
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
+                    {application.invoices.map((inv) => {
+                      const action = "action" in inv ? (inv as { action?: InvoiceAction }).action : null;
+                      const actionLabel =
+                        action === "review_offer"
+                          ? "Review Offer"
+                          : action === "make_amendments"
+                            ? "Make Amendments"
+                            : action === "download"
+                              ? "Download"
+                              : action === "view_offer"
+                                ? "View Offer"
+                                : null;
+                      const actionBtnClass =
+                        action === "review_offer" || action === "view_offer"
+                          ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                          : action === "make_amendments"
+                            ? "bg-amber-500 text-white hover:bg-amber-600"
+                            : action === "download"
+                              ? "bg-muted text-muted-foreground hover:bg-muted/80 border border-border"
+                              : "";
+                      return (
+                        <TableRow
+                          key={inv.id}
+                          className="odd:bg-muted/40 hover:bg-muted border-b border-border last:border-b-0"
+                        >
+                          <TableCell className="text-[15px] py-3 px-4 align-middle">
+                            {inv.number}
+                          </TableCell>
+                          <TableCell className="text-[15px] py-3 px-4 align-middle">
+                            {inv.maturityDate
+                              ? format(new Date(inv.maturityDate), "dd MMM yyyy")
+                              : "—"}
+                          </TableCell>
+                          <TableCell className="text-right text-[15px] py-3 px-4 align-middle tabular-nums">
+                            {inv.value ? formatCurrency(inv.value) : "—"}
+                          </TableCell>
+                          <TableCell className="text-right text-[15px] py-3 px-4 align-middle tabular-nums">
+                            {inv.appliedFinancing != null
+                              ? formatCurrency(inv.appliedFinancing)
+                              : "—"}
+                          </TableCell>
+                          <TableCell className="text-[15px] py-3 px-4 align-middle">
+                            {inv.document}
+                          </TableCell>
+                          <TableCell className="text-right text-[15px] py-3 px-4 align-middle tabular-nums">
+                            {inv.financingOffered}
+                          </TableCell>
+                          <TableCell className="text-right text-[15px] py-3 px-4 align-middle tabular-nums">
+                            {inv.profitRate}
+                          </TableCell>
+                          <TableCell className="py-3 px-4 align-middle">
+                            <StatusBadge
+                              badgeKey={inv.status}
+                              label={inv.status}
+                            />
+                          </TableCell>
+                          <TableCell className="py-3 px-4 align-middle">
+                            <div className="flex items-center justify-end gap-2">
+                              {actionLabel && actionBtnClass && (
                                 <Button
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-8 w-8 rounded-full bg-muted/50"
+                                  size="sm"
+                                  className={cn(
+                                    "h-8 rounded-md text-xs font-medium shrink-0",
+                                    actionBtnClass
+                                  )}
                                 >
-                                  <EllipsisVerticalIcon className="h-4 w-4" />
+                                  {actionLabel}
                                 </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent
-                                align="end"
-                                className="rounded-xl"
-                              >
-                                <DropdownMenuItem
-                                  className="cursor-pointer"
-                                  disabled
+                              )}
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 shrink-0"
+                                  >
+                                    <EllipsisVerticalIcon className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent
+                                  align="end"
+                                  className="rounded-xl"
                                 >
-                                  View document
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                                  <DropdownMenuItem
+                                    className="cursor-pointer"
+                                    disabled
+                                  >
+                                    View document
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}
+              </div>
             </div>
           )}
         </CardContent>
