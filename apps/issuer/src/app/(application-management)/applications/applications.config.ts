@@ -23,31 +23,34 @@ export const APPLICATION_STATUS = {
 /* ============================================================
    BADGE CONFIGURATION
    ============================================================
-   Maps status key to label and color. Same status always uses same color
-   (card, invoice row, contract section). Standardized for consistency. */
+   Maps status key to label and color. Same status = same color everywhere
+   (card, invoice row, contract section).
+   Colors adjusted for UI clarity; admin portal (status-presentation.ts,
+   application-financial-review-content) used as reference. branding.md
+   not strictly followed for status indicators. Global styles unchanged. */
 
 export type BadgeTone = "neutral" | "warning" | "success" | "info" | "danger";
 
 /**
- * Status badge color mapping. Follows design reference and branding.md.
- * Same status = same color everywhere (card, invoice row, contract section).
- * Draft→neutral/muted, Submitted→blue, Under Review→indigo, Offer Sent→teal,
- * Action Required→orange, Approved→green, Rejected→destructive.
+ * Status badge colors. Aligned with admin portal pattern (border-X-500/30 bg-X-500/10).
+ * Draft→neutral gray, Submitted→calm blue, Under Review→muted indigo,
+ * Offer Received→teal highlight, Action Required→amber warning, Approved→green success,
+ * Rejected→red error. Component-level only; no global theme changes.
  */
 export const STATUS_BADGE_COLORS: Record<string, string> = {
-  draft: "border-border bg-muted text-muted-foreground",
-  submitted: "border-blue-300/50 bg-blue-100 text-blue-700",
-  resubmitted: "border-blue-300/50 bg-blue-100 text-blue-700",
-  under_review: "border-indigo-300/50 bg-indigo-100 text-indigo-700",
-  sent: "border-teal-300/50 bg-teal-100 text-teal-700",
-  offer_expired: "border-border bg-muted text-muted-foreground",
-  pending_amendment: "border-orange-300/50 bg-orange-100 text-orange-700",
-  amendment_requested: "border-orange-300/50 bg-orange-100 text-orange-700",
-  accepted: "border-emerald-300/50 bg-emerald-100 text-emerald-700",
-  approved: "border-emerald-300/50 bg-emerald-100 text-emerald-700",
-  rejected: "border-destructive/30 bg-destructive/10 text-destructive",
-  withdrawn: "border-border bg-muted text-muted-foreground",
-  pending_approval: "border-blue-300/50 bg-blue-100 text-blue-700",
+  draft: "border-slate-500/30 bg-slate-500/10 text-slate-700",
+  submitted: "border-blue-500/30 bg-blue-500/10 text-blue-700",
+  resubmitted: "border-blue-500/30 bg-blue-500/10 text-blue-700",
+  under_review: "border-indigo-500/30 bg-indigo-500/10 text-indigo-700",
+  sent: "border-teal-500/30 bg-teal-500/10 text-teal-700",
+  offer_expired: "border-slate-500/30 bg-slate-500/10 text-slate-600",
+  pending_amendment: "border-amber-500/30 bg-amber-500/10 text-amber-700",
+  amendment_requested: "border-amber-500/30 bg-amber-500/10 text-amber-700",
+  accepted: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700",
+  approved: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700",
+  rejected: "border-red-500/30 bg-red-500/10 text-red-700",
+  withdrawn: "border-slate-500/30 bg-slate-500/10 text-slate-600",
+  pending_approval: "border-blue-500/30 bg-blue-500/10 text-blue-700",
 };
 
 export const STATUS_BADGES: Record<
@@ -58,7 +61,7 @@ export const STATUS_BADGES: Record<
   submitted: { label: "Submitted", tone: "info" },
   resubmitted: { label: "Resubmitted", tone: "info" },
   pending_amendment: { label: "Action Required", tone: "warning" },
-  sent: { label: "Offer Sent", tone: "success" },
+  sent: { label: "Offer Received", tone: "success" },
   offer_expired: { label: "Offer expired", tone: "neutral" },
   pending_approval: { label: "Pending Approval", tone: "info" },
   under_review: { label: "Under Review", tone: "neutral" },

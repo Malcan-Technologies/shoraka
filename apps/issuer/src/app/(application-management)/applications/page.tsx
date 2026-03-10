@@ -16,9 +16,12 @@ import {
   XMarkIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  ArrowDownTrayIcon,
 } from "@heroicons/react/24/outline";
 import { useHeader } from "@cashsouk/ui";
-import { formatCurrency } from "@cashsouk/config";
+import { formatCurrency, createApiClient } from "@cashsouk/config";
+import { useAuthToken } from "@cashsouk/config";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -76,11 +79,11 @@ import type { NormalizedApplication, NormalizedInvoice } from "./adapters/applic
 /* ============================================================
    STATUS BADGE
    ============================================================
-   Uses STATUS_BADGE_COLORS so same status = same color everywhere (card, invoice, contract).
-   Consistent padding and rounded styles. */
+   Uses STATUS_BADGE_COLORS. Admin portal colors used as reference.
+   Component-level styling only; globals.css and tailwind.config unchanged. */
 
 const BADGE_BASE = "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold border";
-const BADGE_FALLBACK = "border-border bg-muted text-muted-foreground";
+const BADGE_FALLBACK = "border-slate-500/30 bg-slate-500/10 text-slate-600";
 
 function StatusBadge({ badgeKey }: { badgeKey: string }) {
   const config = STATUS_BADGES[badgeKey] ?? { label: badgeKey, tone: "neutral" as const };
@@ -94,9 +97,55 @@ function StatusBadge({ badgeKey }: { badgeKey: string }) {
 }
 
 /* ============================================================
+   DOCUMENT DOWNLOAD LINK
+   ============================================================
+   Document name as normal text; download icon beside it. Clicking the icon
+   fetches presigned URL and triggers download. Icon used instead of colored
+   link text so the filename stays readable and the download affordance is clear. */
+
+function DocumentDownloadLink({
+  documentName,
+  documentS3Key,
+  onDownload,
+  disabled,
+}: {
+  documentName: string;
+  documentS3Key: string | null;
+  onDownload: (s3Key: string) => Promise<void>;
+  disabled?: boolean;
+}) {
+  const [loading, setLoading] = React.useState(false);
+  if (!documentS3Key || disabled) {
+    return <span className="text-[15px]">{documentName}</span>;
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[15px]">
+      <span>{documentName}</span>
+      <button
+        type="button"
+        onClick={async (e) => {
+          e.preventDefault();
+          setLoading(true);
+          try {
+            await onDownload(documentS3Key);
+          } finally {
+            setLoading(false);
+          }
+        }}
+        disabled={loading}
+        className="inline-flex shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50"
+        aria-label={`Download ${documentName}`}
+      >
+        <ArrowDownTrayIcon className="h-4 w-4" />
+      </button>
+    </span>
+  );
+}
+
+/* ============================================================
    OFFER BADGE (sent + expired)
    ============================================================
-   When card status is Offer Sent but offer has expired. Uses same badge style as others. */
+   When card status is Offer Received but offer has expired. */
 
 function OfferExpiredBadge() {
   const colorClass = STATUS_BADGE_COLORS.offer_expired ?? BADGE_FALLBACK;
@@ -117,9 +166,11 @@ function OfferExpiredBadge() {
 function ApplicationCard({
   application,
   onWithdraw,
+  onDocumentDownload,
 }: {
   application: NormalizedApplication;
   onWithdraw: () => void;
+  onDocumentDownload: (s3Key: string) => Promise<void>;
 }) {
   const [expanded, setExpanded] = React.useState(false);
   const [withdrawDialogOpen, setWithdrawDialogOpen] = React.useState(false);
@@ -129,6 +180,9 @@ function ApplicationCard({
   const isDraft = application.status === "draft";
   const isGenericDraft = application.type === "Generic";
   const hasContract = application.type === "Contract financing";
+
+  /* Contract structure: invoices disabled until contract approved. Invoice-only apps unaffected. */
+  const invoicesDisabled = hasContract && application.contractStatus !== "APPROVED";
 
   /* Single badge: sent+expired shows Offer expired; otherwise use cardStatus. */
   const badgeKey =
@@ -172,17 +226,28 @@ function ApplicationCard({
               )}
             </div>
             <div className="flex items-center gap-2">
-              {/* Buttons beside three-dot menu per design. Review Offer when SENT; Make Amendments when AMENDMENT_REQUESTED. */}
+              {/* Contract offer: "Review Contract Financing Offer". Invoice offer: "Review Offer".
+                  Expiry grouped under button only so it does not span across the 3-dot menu. */}
               {cardStatus.showReviewOffer && !application.hasExpiredOffer && (
-                <Button
-                  size="sm"
-                  className="rounded-xl bg-teal-600 text-white hover:bg-teal-700 shadow-sm"
-                >
-                  Review Offer
-                </Button>
+                <div className="flex flex-col items-center gap-1">
+                  <Button
+                    size="sm"
+                    className="rounded-xl bg-teal-600 text-white hover:bg-teal-700 shadow-sm"
+                  >
+                    {hasContract ? "Review Contract Financing Offer" : "Review Offer"}
+                  </Button>
+                  {application.offerExpiresAt && (
+                    <span className="text-[10px] text-muted-foreground text-center">
+                      Offer valid until:{" "}
+                      <span className="font-semibold">
+                        {format(new Date(application.offerExpiresAt), "dd MMM yyyy")}
+                      </span>
+                    </span>
+                  )}
+                </div>
               )}
               {cardStatus.showMakeAmendments && (
-                <Button size="sm" className="rounded-xl bg-orange-500 text-white hover:bg-orange-600" asChild>
+                <Button size="sm" className="rounded-xl bg-amber-600 text-white hover:bg-amber-700 shadow-sm" asChild>
                   <Link href={`/applications/edit/${application.id}`}>
                     Make Amendments
                   </Link>
@@ -291,56 +356,74 @@ function ApplicationCard({
           )}
 
           {!useDraftCardLayout && expanded && (
-            <div className="mt-4">
+            <div className="mt-4 relative">
               <h3 className="text-sm font-semibold text-foreground mb-3">
-                Invoices
+                Invoice table
               </h3>
-              <div className="overflow-hidden rounded-xl border">
-              {application.invoices.length === 0 ? (
-                <div className="rounded-xl border bg-muted/20 py-8 text-center text-sm text-muted-foreground">
-                  No invoices available
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/30 hover:bg-muted/30 border-b border-border">
-                      <TableHead className="text-sm font-semibold py-3 px-4">
-                        Invoice number
-                      </TableHead>
-                      <TableHead className="text-sm font-semibold py-3 px-4">
-                        Maturity date
-                      </TableHead>
-                      <TableHead className="text-sm font-semibold text-right py-3 px-4 tabular-nums">
-                        Invoice value
-                      </TableHead>
-                      <TableHead className="text-sm font-semibold text-right py-3 px-4 tabular-nums">
-                        Applied financing
-                      </TableHead>
-                      <TableHead className="text-sm font-semibold py-3 px-4">
-                        Document
-                      </TableHead>
-                      <TableHead className="text-sm font-semibold text-right py-3 px-4 tabular-nums">
-                        Financing offered
-                      </TableHead>
-                      <TableHead className="text-sm font-semibold text-right py-3 px-4 tabular-nums">
-                        Profit rate
-                      </TableHead>
-                      <TableHead className="text-sm font-semibold py-3 px-4">
-                        Status
-                      </TableHead>
-                      <TableHead className="text-sm font-semibold text-right py-3 px-4 w-[160px]">
-                        Action
-                      </TableHead>
+              {/* Invoices disabled until contract approved. Gray overlay + pointer-events-none on actions.
+                  Only the invoice section is blocked; card header and contract summary remain interactive. */}
+              {invoicesDisabled && (
+                <p className="text-xs text-muted-foreground mb-2">
+                  Invoices will be available after the contract offer is accepted.
+                </p>
+              )}
+              <div className={cn("overflow-hidden rounded-xl border", invoicesDisabled && "relative opacity-90")}>
+              {invoicesDisabled && (
+                <div
+                  className="absolute inset-0 bg-slate-500/15 z-10 rounded-xl pointer-events-auto"
+                  aria-hidden
+                />
+              )}
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-muted/30 hover:bg-muted/30 border-b border-border">
+                    <TableHead className="text-sm font-semibold py-3 px-4">
+                      Invoice number
+                    </TableHead>
+                    <TableHead className="text-sm font-semibold py-3 px-4">
+                      Maturity date
+                    </TableHead>
+                    <TableHead className="text-sm font-semibold text-right py-3 px-4 tabular-nums">
+                      Invoice value
+                    </TableHead>
+                    <TableHead className="text-sm font-semibold text-right py-3 px-4 tabular-nums">
+                      Applied financing
+                    </TableHead>
+                    <TableHead className="text-sm font-semibold py-3 px-4">
+                      Document
+                    </TableHead>
+                    <TableHead className="text-sm font-semibold text-right py-3 px-4 tabular-nums">
+                      Financing offered
+                    </TableHead>
+                    <TableHead className="text-sm font-semibold text-right py-3 px-4 tabular-nums">
+                      Profit rate
+                    </TableHead>
+                    <TableHead className="text-sm font-semibold py-3 px-4">
+                      Status
+                    </TableHead>
+                    <TableHead className="text-sm font-semibold text-right py-3 px-4 w-[200px]">
+                      Action
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {application.invoices.length === 0 ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={9}
+                        className="text-center py-8 text-sm text-muted-foreground"
+                      >
+                        No invoices available
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {application.invoices.map((inv: NormalizedInvoice) => {
+                  ) : (
+                    application.invoices.map((inv: NormalizedInvoice) => {
                       const invStatus = String(inv.status ?? "").toUpperCase();
                       const showReviewOffer = invStatus === "SENT" && inv.offerStatus === "Offer received";
                       const canReview = inv.canReviewOffer;
                       const isExpired = inv.offerStatus === "Offer expired";
                       const showMakeAmendments = invStatus === "AMENDMENT_REQUESTED";
-                      /* Download removed from invoice row: documents are in document/attachment section. */
+                      const invDisabled = invoicesDisabled;
                       return (
                         <TableRow
                           key={inv.id}
@@ -363,7 +446,12 @@ function ApplicationCard({
                               : "—"}
                           </TableCell>
                           <TableCell className="text-[15px] py-3 px-4 align-middle">
-                            {inv.document}
+                            <DocumentDownloadLink
+                              documentName={inv.document}
+                              documentS3Key={inv.documentS3Key}
+                              onDownload={onDocumentDownload}
+                              disabled={invDisabled}
+                            />
                           </TableCell>
                           <TableCell className="text-right text-[15px] py-3 px-4 align-middle tabular-nums">
                             {inv.financingOffered}
@@ -376,35 +464,55 @@ function ApplicationCard({
                               badgeKey={inv.status.toLowerCase()}
                             />
                           </TableCell>
-                          <TableCell className="py-3 px-4 align-middle">
-                            <div className="flex items-center justify-end gap-2">
-                              {/* Invoice row: Review Offer (SENT) or Make Amendments (AMENDMENT_REQUESTED) beside three-dot menu, per design. */}
-                              {showReviewOffer && (
-                                <Button
-                                  size="sm"
-                                  className="h-8 rounded-xl text-xs font-medium shrink-0 bg-teal-600 text-white hover:bg-teal-700"
-                                  disabled={isExpired || !canReview}
-                                >
-                                  Review Offer
-                                </Button>
+                          <TableCell className="py-3 px-4 align-top">
+                            <div
+                              className={cn(
+                                "flex items-start justify-end gap-2",
+                                invDisabled && "pointer-events-none opacity-60"
                               )}
-                              {showMakeAmendments && (
-                                <Button
-                                  size="sm"
-                                  className="h-8 rounded-xl text-xs font-medium shrink-0 bg-orange-500 text-white hover:bg-orange-600"
-                                  asChild
-                                >
-                                  <Link href={`/applications/edit/${application.id}`}>
-                                    Make Amendments
-                                  </Link>
-                                </Button>
+                            >
+                              {/* Action button + expiry below. Fixed min-width keeps layout stable across rows.
+                                  Expiry text below button prevents layout shift; button stays aligned with other rows. */}
+                              {(showReviewOffer || showMakeAmendments) && (
+                                <div className="flex flex-col items-center gap-1 min-w-[140px]">
+                                  {showReviewOffer && (
+                                    <>
+                                      <Button
+                                        size="sm"
+                                        className="h-8 w-full min-w-[140px] rounded-xl text-xs font-medium bg-teal-600 text-white hover:bg-teal-700"
+                                        disabled={invDisabled || isExpired || !canReview}
+                                      >
+                                        Review Offer
+                                      </Button>
+                                      {inv.offerExpiresAt && (
+                                        <span className="text-[10px] text-muted-foreground text-center">
+                                          Offer valid until:{" "}
+                                          <span className="font-semibold">
+                                            {format(new Date(inv.offerExpiresAt), "dd MMM yyyy")}
+                                          </span>
+                                        </span>
+                                      )}
+                                    </>
+                                  )}
+                                  {showMakeAmendments && (
+                                    <Button
+                                      size="sm"
+                                      className="h-8 w-full min-w-[140px] rounded-xl text-xs font-medium bg-amber-600 text-white hover:bg-amber-700"
+                                      asChild
+                                    >
+                                      <Link href={`/applications/edit/${application.id}`}>
+                                        Make Amendments
+                                      </Link>
+                                    </Button>
+                                  )}
+                                </div>
                               )}
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button
                                     variant="ghost"
                                     size="icon"
-                                    className="h-8 w-8 shrink-0"
+                                    className="h-8 w-8 shrink-0 mt-0"
                                   >
                                     <EllipsisVerticalIcon className="h-4 w-4" />
                                   </Button>
@@ -425,10 +533,10 @@ function ApplicationCard({
                           </TableCell>
                         </TableRow>
                       );
-                    })}
-                  </TableBody>
-                </Table>
-              )}
+                    })
+                  )}
+                </TableBody>
+              </Table>
               </div>
             </div>
           )}
@@ -545,6 +653,22 @@ export default function ApplicationsPage() {
     }
   };
 
+  const { getAccessToken } = useAuthToken();
+  const apiClient = React.useMemo(
+    () => createApiClient(undefined, getAccessToken),
+    [getAccessToken]
+  );
+
+  /** Document download attached to document column. Fetches presigned URL and opens in new tab. */
+  const handleDocumentDownload = async (s3Key: string) => {
+    const resp = await apiClient.getS3DownloadUrl(s3Key);
+    if (!resp.success || !resp.data?.downloadUrl) {
+      toast.error("Could not get download link");
+      return;
+    }
+    window.open(resp.data.downloadUrl, "_blank");
+  };
+
   return (
     <div className="flex-1 space-y-6 p-4 md:p-8 pt-6">
       <section className="flex items-start justify-between gap-4">
@@ -635,7 +759,7 @@ export default function ApplicationsPage() {
                     {STATUS_BADGES.pending_amendment?.label ?? "Action Required"}
                   </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value={STATUS_FILTER_VALUES.SENT}>
-                    {STATUS_BADGES.sent?.label ?? "Offer Sent"}
+                    {STATUS_BADGES.sent?.label ?? "Offer Received"}
                   </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value={STATUS_FILTER_VALUES.ACCEPTED}>
                     {STATUS_BADGES.accepted?.label ?? "Approved"}
@@ -732,6 +856,7 @@ export default function ApplicationsPage() {
                     key={app.id}
                     application={app}
                     onWithdraw={() => handleWithdraw(app.id)}
+                    onDocumentDownload={handleDocumentDownload}
                   />
                 ))}
               </div>

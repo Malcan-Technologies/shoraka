@@ -1260,6 +1260,16 @@ export class ApiClient {
     return this.post<Application>(`/v1/applications/${id}/archive`, {});
   }
 
+  /** Request presigned download URL for S3 object. Used for document download from document column. */
+  async getS3DownloadUrl(s3Key: string): Promise<
+    ApiResponse<{ downloadUrl: string; expiresIn: number }> | ApiError
+  > {
+    return this.post<{ downloadUrl: string; expiresIn: number }>(
+      `/v1/s3/download-url`,
+      { s3Key }
+    );
+  }
+
   async acceptContractOffer(applicationId: string): Promise<ApiResponse<Application> | ApiError> {
     return this.post<Application>(`/v1/applications/${applicationId}/offers/contracts/accept`, {});
   }

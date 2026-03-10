@@ -49,7 +49,7 @@ function aggregateInvoiceStatus(invoiceStatuses: string[]): string | null {
  * Business rules:
  * - Contract REJECTED → application is REJECTED (invoice rejection does not).
  * - Contract or any invoice AMENDMENT_REQUESTED → card shows Action Required.
- * - Contract or any invoice SENT → card shows Offer Sent.
+ * - Contract or any invoice SENT → card shows Offer Received.
  */
 export function computeApplicationCardStatus(input: CardStatusInput): CardStatusResult {
   const appStatus = String(input.applicationStatus ?? "DRAFT").toUpperCase();
@@ -83,11 +83,11 @@ export function computeApplicationCardStatus(input: CardStatusInput): CardStatus
     };
   }
 
-  /* Contract or invoice SENT → Offer Sent. */
+  /* Contract or invoice SENT → Offer Received. Wording updated for user clarity. */
   if (contractStatus === "SENT" || aggregatedInvoice === "SENT") {
     return {
       badgeKey: "sent",
-      displayLabel: "Offer Sent",
+      displayLabel: "Offer Received",
       showReviewOffer: true,
       showMakeAmendments: false,
     };

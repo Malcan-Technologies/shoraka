@@ -87,12 +87,16 @@ export interface NormalizedInvoice {
   value: number | null;
   appliedFinancing: number | null;
   document: string;
+  /** S3 key for document download. Download attached to document column, not action column. */
+  documentS3Key: string | null;
   financingOffered: string;
   profitRate: string;
   status: string;
   offerStatus: "Offer received" | "Offer expired" | null;
   /** True when the Review Offer button is enabled. For invoice offers, the contract must be approved first. */
   canReviewOffer: boolean;
+  /** Offer expiry from offer_details.expires_at. For "Offer valid until" display. */
+  offerExpiresAt: string | null;
 }
 
 /** Normalized application for the UI. Card shows exactly one status badge from cardStatus. */
@@ -115,6 +119,8 @@ export interface NormalizedApplication {
   invoices: NormalizedInvoice[];
   /** Contract status. Invoice Review Offer is only enabled when this is APPROVED. */
   contractStatus: string | null;
+  /** Offer expiry for card-level "Offer valid until" display. From contract or first SENT invoice. */
+  offerExpiresAt: string | null;
 }
 
 /* ============================================================
@@ -165,6 +171,11 @@ export function normalizeInvoice(
   contractStatus: string | null
 ): NormalizedInvoice {
   const details = (apiInvoice.details ?? {}) as Record<string, unknown>;
+  const doc = details.document as { s3_key?: string; file_name?: string } | undefined;
+  const documentS3Key = doc?.s3_key ? String(doc.s3_key) : null;
+  const documentName =
+    String(doc?.file_name ?? details.document_name ?? details.document ?? "—");
+
   const offerDetails = apiInvoice.offer_details;
   const offerStatus = getOfferStatus({
     status: apiInvoice.status,
@@ -175,6 +186,9 @@ export function normalizeInvoice(
   const canReviewOffer =
     offerStatus === "Offer received" &&
     (contractStatus === "APPROVED" || !contractStatus);
+
+  const offerExpiresAt =
+    offerDetails?.expires_at != null ? String(offerDetails.expires_at) : null;
 
   /* Format financing offered and profit rate from offer_details */
   let financingOffered = "—";
@@ -208,12 +222,14 @@ export function normalizeInvoice(
         : typeof details.financing_amount === "number"
           ? details.financing_amount
           : null,
-    document: String(details.document_name ?? details.document ?? "—"),
+    document: documentName,
+    documentS3Key,
     financingOffered,
     profitRate,
     status: apiInvoice.status ?? "DRAFT",
     offerStatus,
     canReviewOffer,
+    offerExpiresAt,
   };
 }
 
@@ -239,7 +255,7 @@ export function normalizeApplication(apiApplication: ApiApplication): Normalized
     invoiceStatuses,
   });
 
-  /* Expired offer affects Review Offer button; card status label stays "Offer Sent". */
+  /* Expired offer affects Review Offer button; card status label stays "Offer Received". */
   const contractOfferStatus = contract
     ? getOfferStatus({
         status: contract.status,
@@ -318,6 +334,17 @@ export function normalizeApplication(apiApplication: ApiApplication): Normalized
     ? new Date(apiApplication.updated_at)
     : created;
 
+  /* Offer expiry for card-level display. Contract SENT → contract expiry; else first invoice SENT expiry. */
+  let offerExpiresAt: string | null = null;
+  if (contractStatus === "SENT" && contract?.offer_details?.expires_at) {
+    offerExpiresAt = String(contract.offer_details.expires_at);
+  } else {
+    const sentInv = invoices.find((i) => i.status === "SENT" && i.offer_details?.expires_at);
+    if (sentInv?.offer_details?.expires_at) {
+      offerExpiresAt = String(sentInv.offer_details.expires_at);
+    }
+  }
+
   return {
     id: apiApplication.id,
     type,
@@ -333,5 +360,6 @@ export function normalizeApplication(apiApplication: ApiApplication): Normalized
     updatedAt: updated.toISOString(),
     invoices: invoices.map((inv) => normalizeInvoice(inv, contractStatus)),
     contractStatus,
+    offerExpiresAt,
   };
 }
