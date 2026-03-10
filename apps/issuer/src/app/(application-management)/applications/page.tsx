@@ -57,7 +57,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { STATUS_BADGES } from "./applications.config";
+import { STATUS_BADGES, STATUS_BADGE_COLORS } from "./applications.config";
 
 /** Status values for filter dropdown. Must match application.status (cardStatus.badgeKey). */
 const STATUS_FILTER_VALUES = {
@@ -76,23 +76,18 @@ import type { NormalizedApplication, NormalizedInvoice } from "./adapters/applic
 /* ============================================================
    STATUS BADGE
    ============================================================
-   Reads label and tone from config. Renders the correct style for each status. */
+   Uses STATUS_BADGE_COLORS so same status = same color everywhere (card, invoice, contract).
+   Consistent padding and rounded styles. */
 
-const TONE_STYLES: Record<string, string> = {
-  neutral: "border-border bg-muted text-muted-foreground",
-  warning: "border-transparent bg-amber-100 text-amber-800",
-  success: "border-transparent bg-emerald-100 text-emerald-800",
-  info: "border-transparent bg-sky-100 text-sky-800",
-  danger: "border-transparent bg-destructive/90 text-destructive-foreground",
-};
+const BADGE_BASE = "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold border";
+const BADGE_FALLBACK = "border-border bg-muted text-muted-foreground";
 
 function StatusBadge({ badgeKey }: { badgeKey: string }) {
   const config = STATUS_BADGES[badgeKey] ?? { label: badgeKey, tone: "neutral" as const };
-  const tone = config.tone;
   const label = config.label;
-  const className = TONE_STYLES[tone] ?? TONE_STYLES.neutral;
+  const colorClass = STATUS_BADGE_COLORS[badgeKey] ?? BADGE_FALLBACK;
   return (
-    <span className={cn("inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold border", className)}>
+    <span className={cn(BADGE_BASE, colorClass)}>
       {label}
     </span>
   );
@@ -101,11 +96,12 @@ function StatusBadge({ badgeKey }: { badgeKey: string }) {
 /* ============================================================
    OFFER BADGE (sent + expired)
    ============================================================
-   When card status is Offer Sent but offer has expired, show Offer expired. */
+   When card status is Offer Sent but offer has expired. Uses same badge style as others. */
 
 function OfferExpiredBadge() {
+  const colorClass = STATUS_BADGE_COLORS.offer_expired ?? BADGE_FALLBACK;
   return (
-    <span className="inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold border border-transparent bg-muted text-muted-foreground">
+    <span className={cn(BADGE_BASE, colorClass)}>
       Offer expired
     </span>
   );
@@ -116,7 +112,7 @@ function OfferExpiredBadge() {
    APPLICATION CARD
    ============================================================
    Uses NormalizedApplication. Card type comes from financing structure.
-   Draft card (type=Generic): header + helper text + Continue button. No invoice table or contract summary. */
+   Draft card (type=Generic): header + helper text. No Continue button; edit via action menu. */
 
 function ApplicationCard({
   application,
@@ -176,25 +172,19 @@ function ApplicationCard({
               )}
             </div>
             <div className="flex items-center gap-2">
-              {cardStatus.showMakeAmendments && (
-                <Button size="sm" variant="outline" className="rounded-xl" asChild>
-                  <Link href={`/applications/edit/${application.id}`}>
-                    Make Amendments
-                  </Link>
-                </Button>
-              )}
+              {/* Buttons beside three-dot menu per design. Review Offer when SENT; Make Amendments when AMENDMENT_REQUESTED. */}
               {cardStatus.showReviewOffer && !application.hasExpiredOffer && (
                 <Button
                   size="sm"
-                  className="rounded-xl bg-primary text-primary-foreground shadow-sm hover:opacity-95"
+                  className="rounded-xl bg-teal-600 text-white hover:bg-teal-700 shadow-sm"
                 >
                   Review Offer
                 </Button>
               )}
-              {isDraft && (
-                <Button size="sm" className="rounded-xl bg-primary text-primary-foreground shadow-sm hover:opacity-95" asChild>
+              {cardStatus.showMakeAmendments && (
+                <Button size="sm" className="rounded-xl bg-orange-500 text-white hover:bg-orange-600" asChild>
                   <Link href={`/applications/edit/${application.id}`}>
-                    Continue Application
+                    Make Amendments
                   </Link>
                 </Button>
               )}
@@ -350,16 +340,7 @@ function ApplicationCard({
                       const canReview = inv.canReviewOffer;
                       const isExpired = inv.offerStatus === "Offer expired";
                       const showMakeAmendments = invStatus === "AMENDMENT_REQUESTED";
-                      const actionLabel = showReviewOffer
-                        ? "Review Offer"
-                        : showMakeAmendments
-                          ? "Make Amendments"
-                          : "Download";
-                      const actionBtnClass = showReviewOffer
-                        ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                        : showMakeAmendments
-                          ? "bg-amber-500 text-white hover:bg-amber-600"
-                          : "bg-muted text-muted-foreground hover:bg-muted/80 border border-border";
+                      /* Download removed from invoice row: documents are in document/attachment section. */
                       return (
                         <TableRow
                           key={inv.id}
@@ -397,39 +378,25 @@ function ApplicationCard({
                           </TableCell>
                           <TableCell className="py-3 px-4 align-middle">
                             <div className="flex items-center justify-end gap-2">
-                              {showReviewOffer ? (
+                              {/* Invoice row: Review Offer (SENT) or Make Amendments (AMENDMENT_REQUESTED) beside three-dot menu, per design. */}
+                              {showReviewOffer && (
                                 <Button
                                   size="sm"
-                                  className={cn(
-                                    "h-8 rounded-md text-xs font-medium shrink-0",
-                                    actionBtnClass
-                                  )}
+                                  className="h-8 rounded-xl text-xs font-medium shrink-0 bg-teal-600 text-white hover:bg-teal-700"
                                   disabled={isExpired || !canReview}
                                 >
-                                  {actionLabel}
+                                  Review Offer
                                 </Button>
-                              ) : showMakeAmendments ? (
+                              )}
+                              {showMakeAmendments && (
                                 <Button
                                   size="sm"
-                                  className={cn(
-                                    "h-8 rounded-md text-xs font-medium shrink-0",
-                                    actionBtnClass
-                                  )}
+                                  className="h-8 rounded-xl text-xs font-medium shrink-0 bg-orange-500 text-white hover:bg-orange-600"
                                   asChild
                                 >
                                   <Link href={`/applications/edit/${application.id}`}>
-                                    {actionLabel}
+                                    Make Amendments
                                   </Link>
-                                </Button>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  className={cn(
-                                    "h-8 rounded-md text-xs font-medium shrink-0",
-                                    actionBtnClass
-                                  )}
-                                >
-                                  {actionLabel}
                                 </Button>
                               )}
                               <DropdownMenu>
