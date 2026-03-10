@@ -205,7 +205,7 @@ function ApplicationCard({
                     </>
                   ) : (
                     <DropdownMenuItem
-                      className="cursor-pointer text-destructive focus:text-destructive"
+                      className="cursor-pointer"
                       onClick={() => {}}
                     >
                       Withdraw Application
@@ -443,7 +443,7 @@ function ApplicationCard({
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="rounded-xl">
                                   <DropdownMenuItem
-                                    className="cursor-pointer text-destructive focus:text-destructive"
+                                    className="cursor-pointer"
                                     onClick={() => {}}
                                   >
                                     Withdraw Invoice
