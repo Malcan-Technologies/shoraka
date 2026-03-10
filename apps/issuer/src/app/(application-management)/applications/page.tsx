@@ -57,7 +57,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { STATUS_BADGES, APPLICATION_STATUS } from "./applications.config";
+import { STATUS_BADGES } from "./applications.config";
+
+/** Status values for filter dropdown. Must match application.status (cardStatus.badgeKey). */
+const STATUS_FILTER_VALUES = {
+  DRAFT: "draft",
+  SUBMITTED: "submitted",
+  UNDER_REVIEW: "under_review",
+  PENDING_AMENDMENT: "pending_amendment",
+  SENT: "sent",
+  ACCEPTED: "accepted",
+  REJECTED: "rejected",
+  WITHDRAWN: "withdrawn",
+} as const;
 import { useApplicationsData } from "./use-applications-data";
 import type { NormalizedApplication, NormalizedInvoice } from "./adapters/application.adapter";
 
@@ -87,20 +99,14 @@ function StatusBadge({ badgeKey }: { badgeKey: string }) {
 }
 
 /* ============================================================
-   OFFER BADGE
+   OFFER BADGE (sent + expired)
    ============================================================
-   Shows "Offer received" or "Offer expired" with the right styling. */
+   When card status is Offer Sent but offer has expired, show Offer expired. */
 
-function OfferStatusBadge({ offerStatus }: { offerStatus: "Offer received" | "Offer expired" }) {
-  const isExpired = offerStatus === "Offer expired";
+function OfferExpiredBadge() {
   return (
-    <span
-      className={cn(
-        "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold border",
-        isExpired ? "border-transparent bg-muted text-muted-foreground" : "border-transparent bg-emerald-100 text-emerald-800"
-      )}
-    >
-      {offerStatus}
+    <span className="inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold border border-transparent bg-muted text-muted-foreground">
+      Offer expired
     </span>
   );
 }
@@ -123,9 +129,16 @@ function ApplicationCard({
   const [withdrawDialogOpen, setWithdrawDialogOpen] = React.useState(false);
   const [isWithdrawing, setIsWithdrawing] = React.useState(false);
 
-  const isDraft = application.status === APPLICATION_STATUS.DRAFT;
+  const { cardStatus } = application;
+  const isDraft = application.status === "draft";
   const isGenericDraft = application.type === "Generic";
   const hasContract = application.type === "Contract financing";
+
+  /* Single badge: sent+expired shows Offer expired; otherwise use cardStatus. */
+  const badgeKey =
+    cardStatus.badgeKey === "sent" && application.hasExpiredOffer
+      ? "offer_expired"
+      : cardStatus.badgeKey;
 
   /* If the application is a draft but already has a financing structure, we render the normal
    * financing card so the user can preview the structure. Only drafts without financing
@@ -156,25 +169,21 @@ function ApplicationCard({
                 Application ID {displayId}
                 {showFinancingLabel ? ` — ${application.type}` : ""}
               </span>
-              {application.badges.map((key, idx) =>
-                key === "sent" ? (
-                  application.hasExpiredOffer
-                    ? <OfferStatusBadge key={`sent-${idx}`} offerStatus="Offer expired" />
-                    : <OfferStatusBadge key={`sent-${idx}`} offerStatus="Offer received" />
-                ) : (
-                  <StatusBadge key={`${key}-${idx}`} badgeKey={key} />
-                )
+              {badgeKey === "offer_expired" ? (
+                <OfferExpiredBadge />
+              ) : (
+                <StatusBadge badgeKey={badgeKey} />
               )}
             </div>
             <div className="flex items-center gap-2">
-              {application.status === APPLICATION_STATUS.PENDING_AMENDMENT && (
+              {cardStatus.showMakeAmendments && (
                 <Button size="sm" variant="outline" className="rounded-xl" asChild>
                   <Link href={`/applications/edit/${application.id}`}>
-                    Make Amendment
+                    Make Amendments
                   </Link>
                 </Button>
               )}
-              {application.badges.includes("sent") && !application.hasExpiredOffer && (
+              {cardStatus.showReviewOffer && !application.hasExpiredOffer && (
                 <Button
                   size="sm"
                   className="rounded-xl bg-primary text-primary-foreground shadow-sm hover:opacity-95"
@@ -336,10 +345,11 @@ function ApplicationCard({
                   </TableHeader>
                   <TableBody>
                     {application.invoices.map((inv: NormalizedInvoice) => {
-                      const showReviewOffer = inv.offerStatus === "Offer received";
+                      const invStatus = String(inv.status ?? "").toUpperCase();
+                      const showReviewOffer = invStatus === "SENT" && inv.offerStatus === "Offer received";
                       const canReview = inv.canReviewOffer;
                       const isExpired = inv.offerStatus === "Offer expired";
-                      const showMakeAmendments = application.status === APPLICATION_STATUS.PENDING_AMENDMENT;
+                      const showMakeAmendments = invStatus === "AMENDMENT_REQUESTED";
                       const actionLabel = showReviewOffer
                         ? "Review Offer"
                         : showMakeAmendments
@@ -645,25 +655,28 @@ export default function ApplicationsPage() {
                   <DropdownMenuRadioItem value="all">
                     All statuses
                   </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value={APPLICATION_STATUS.DRAFT}>
+                  <DropdownMenuRadioItem value={STATUS_FILTER_VALUES.DRAFT}>
                     {STATUS_BADGES.draft?.label ?? "Draft"}
                   </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value={APPLICATION_STATUS.PENDING_APPROVAL}>
-                    {STATUS_BADGES.pending_approval?.label ?? "Pending Approval"}
+                  <DropdownMenuRadioItem value={STATUS_FILTER_VALUES.SUBMITTED}>
+                    {STATUS_BADGES.submitted?.label ?? "Submitted"}
                   </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value={APPLICATION_STATUS.PENDING_AMENDMENT}>
+                  <DropdownMenuRadioItem value={STATUS_FILTER_VALUES.UNDER_REVIEW}>
+                    {STATUS_BADGES.under_review?.label ?? "Under Review"}
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value={STATUS_FILTER_VALUES.PENDING_AMENDMENT}>
                     {STATUS_BADGES.pending_amendment?.label ?? "Action Required"}
                   </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value={APPLICATION_STATUS.SENT}>
-                    {STATUS_BADGES.sent?.label ?? "Offer Received"}
+                  <DropdownMenuRadioItem value={STATUS_FILTER_VALUES.SENT}>
+                    {STATUS_BADGES.sent?.label ?? "Offer Sent"}
                   </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value={APPLICATION_STATUS.ACCEPTED}>
-                    {STATUS_BADGES.accepted?.label ?? "Accepted"}
+                  <DropdownMenuRadioItem value={STATUS_FILTER_VALUES.ACCEPTED}>
+                    {STATUS_BADGES.accepted?.label ?? "Approved"}
                   </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value={APPLICATION_STATUS.REJECTED}>
+                  <DropdownMenuRadioItem value={STATUS_FILTER_VALUES.REJECTED}>
                     {STATUS_BADGES.rejected?.label ?? "Rejected"}
                   </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value={APPLICATION_STATUS.WITHDRAWN}>
+                  <DropdownMenuRadioItem value={STATUS_FILTER_VALUES.WITHDRAWN}>
                     {STATUS_BADGES.withdrawn?.label ?? "Withdrawn"}
                   </DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>

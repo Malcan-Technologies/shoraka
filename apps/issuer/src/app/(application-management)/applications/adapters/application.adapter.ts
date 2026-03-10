@@ -3,6 +3,10 @@
  */
 
 import { getOfferStatus } from "@/lib/offer-utils";
+import {
+  computeApplicationCardStatus,
+  type CardStatusResult,
+} from "../lib/compute-application-card-status";
 
 /* ============================================================
    API TYPES (what the backend returns)
@@ -91,12 +95,14 @@ export interface NormalizedInvoice {
   canReviewOffer: boolean;
 }
 
-/** Normalized application for the UI. */
+/** Normalized application for the UI. Card shows exactly one status badge from cardStatus. */
 export interface NormalizedApplication {
   id: string;
   type: "Contract financing" | "Invoice financing" | "Generic";
+  /** Badge key for filtering; matches cardStatus.badgeKey. */
   status: string;
-  badges: string[];
+  /** Single computed status for the card. Only one badge is shown. */
+  cardStatus: CardStatusResult;
   /** True when the contract or any invoice has an offer that has expired. */
   hasExpiredOffer: boolean;
   contractTitle: string | null;
@@ -223,54 +229,30 @@ export function normalizeApplication(apiApplication: ApiApplication): Normalized
   const contract = apiApplication.contract;
   const contractStatus = contract?.status ?? null;
 
-  /* Map API status to config badge key (STATUS_BADGES keys) */
-  const apiStatus = String(apiApplication.status ?? "DRAFT").toUpperCase();
-  const statusMap: Record<string, string> = {
-    DRAFT: "draft",
-    SUBMITTED: "pending_approval",
-    UNDER_REVIEW: "under_review",
-    RESUBMITTED: "pending_approval",
-    AMENDMENT_REQUESTED: "pending_amendment",
-    APPROVED: "accepted",
-    REJECTED: "rejected",
-    ARCHIVED: "withdrawn",
-  };
-  const statusKey = statusMap[apiStatus] ?? apiStatus.toLowerCase();
+  const invoices = apiApplication.invoices ?? [];
+  const invoiceStatuses = invoices.map((inv) => inv.status ?? "DRAFT");
 
-  /* Build badges: app status + offer status if present */
-  const badges: string[] = [];
-  if (statusKey && statusKey !== "sent") {
-    badges.push(statusKey);
-  }
+  /* Single card status from priority logic. Aggregates invoice statuses first. */
+  const cardStatus = computeApplicationCardStatus({
+    applicationStatus: apiApplication.status ?? "DRAFT",
+    contractStatus: contract?.status ?? null,
+    invoiceStatuses,
+  });
+
+  /* Expired offer affects Review Offer button; card status label stays "Offer Sent". */
   const contractOfferStatus = contract
     ? getOfferStatus({
         status: contract.status,
         offer_details: contract.offer_details,
       })
     : null;
-  if (contractOfferStatus === "Offer received") {
-    badges.push("sent");
-  } else if (contractOfferStatus === "Offer expired") {
-    badges.push("sent"); /* Show "Offer Received" badge; UI can show expired state */
-  }
-
-  /* Check invoice offers for additional badges and expired state */
-  const invoices = apiApplication.invoices ?? [];
-  let hasExpiredOffer = false;
+  let hasExpiredOffer = contractOfferStatus === "Offer expired";
   for (const inv of invoices) {
     const invOfferStatus = getOfferStatus({
       status: inv.status,
       offer_details: inv.offer_details,
     });
-    if (invOfferStatus === "Offer received" && !badges.includes("sent")) {
-      badges.push("sent");
-    }
-    if (invOfferStatus === "Offer expired") {
-      hasExpiredOffer = true;
-    }
-  }
-  if (contractOfferStatus === "Offer expired") {
-    hasExpiredOffer = true;
+    if (invOfferStatus === "Offer expired") hasExpiredOffer = true;
   }
 
   /* Determine card type and financing label from financing structure.
@@ -339,8 +321,8 @@ export function normalizeApplication(apiApplication: ApiApplication): Normalized
   return {
     id: apiApplication.id,
     type,
-    status: statusKey,
-    badges,
+    status: cardStatus.badgeKey,
+    cardStatus,
     hasExpiredOffer,
     contractTitle,
     customer,

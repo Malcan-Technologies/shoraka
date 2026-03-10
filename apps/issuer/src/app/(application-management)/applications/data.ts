@@ -10,12 +10,13 @@ import type { NormalizedApplication } from "./adapters/application.adapter";
    ============================================================
    When true, mock data is used in memory. When false, fetches from GET /v1/applications?organizationId=... */
 
-export const USE_MOCK_DATA = false;
+export const USE_MOCK_DATA = true;
 
 /* ============================================================
    MOCK APPLICATIONS
    ============================================================
-   Each entry represents one scenario (draft, offer received, expired, etc.) for testing. */
+   Each entry represents one scenario (draft, offer received, expired, etc.) for testing.
+   cardStatus is the single computed status for the card. */
 
 export const mockApplications: NormalizedApplication[] = [
   /* Draft invoice financing — user chose invoice-only, has invoices in progress */
@@ -23,7 +24,12 @@ export const mockApplications: NormalizedApplication[] = [
     id: "mock-draft-inv-1",
     type: "Invoice financing",
     status: "draft",
-    badges: ["draft"],
+    cardStatus: {
+      badgeKey: "draft",
+      displayLabel: "Draft",
+      showReviewOffer: false,
+      showMakeAmendments: false,
+    },
     hasExpiredOffer: false,
     contractTitle: null,
     customer: "Acme Trading Sdn Bhd",
@@ -55,7 +61,12 @@ export const mockApplications: NormalizedApplication[] = [
     id: "mock-draft-contract-1",
     type: "Contract financing",
     status: "draft",
-    badges: ["draft"],
+    cardStatus: {
+      badgeKey: "draft",
+      displayLabel: "Draft",
+      showReviewOffer: false,
+      showMakeAmendments: false,
+    },
     hasExpiredOffer: false,
     contractTitle: "Mining Rig Repair 12654",
     customer: "Beta Corp",
@@ -87,7 +98,12 @@ export const mockApplications: NormalizedApplication[] = [
     id: "mock-draft-generic-1",
     type: "Generic",
     status: "draft",
-    badges: ["draft"],
+    cardStatus: {
+      badgeKey: "draft",
+      displayLabel: "Draft",
+      showReviewOffer: false,
+      showMakeAmendments: false,
+    },
     hasExpiredOffer: false,
     contractTitle: null,
     customer: "—",
@@ -105,7 +121,12 @@ export const mockApplications: NormalizedApplication[] = [
     id: "mock-under-review-1",
     type: "Contract financing",
     status: "under_review",
-    badges: ["under_review"],
+    cardStatus: {
+      badgeKey: "under_review",
+      displayLabel: "Under Review",
+      showReviewOffer: false,
+      showMakeAmendments: false,
+    },
     hasExpiredOffer: false,
     contractTitle: "Equipment Purchase Order",
     customer: "Delta Industries",
@@ -136,8 +157,13 @@ export const mockApplications: NormalizedApplication[] = [
   {
     id: "mock-pending-approval-1",
     type: "Invoice financing",
-    status: "pending_approval",
-    badges: ["pending_approval"],
+    status: "submitted",
+    cardStatus: {
+      badgeKey: "submitted",
+      displayLabel: "Submitted",
+      showReviewOffer: false,
+      showMakeAmendments: false,
+    },
     hasExpiredOffer: false,
     contractTitle: null,
     customer: "Gamma Ltd",
@@ -169,7 +195,12 @@ export const mockApplications: NormalizedApplication[] = [
     id: "mock-pending-amendment-1",
     type: "Invoice financing",
     status: "pending_amendment",
-    badges: ["pending_amendment"],
+    cardStatus: {
+      badgeKey: "pending_amendment",
+      displayLabel: "Action Required",
+      showReviewOffer: false,
+      showMakeAmendments: true,
+    },
     hasExpiredOffer: false,
     contractTitle: null,
     customer: "Epsilon Co",
@@ -188,7 +219,7 @@ export const mockApplications: NormalizedApplication[] = [
         document: "invoice_401.pdf",
         financingOffered: "—",
         profitRate: "—",
-        status: "SUBMITTED",
+        status: "AMENDMENT_REQUESTED",
         offerStatus: null,
         canReviewOffer: false,
       },
@@ -200,8 +231,13 @@ export const mockApplications: NormalizedApplication[] = [
   {
     id: "mock-contract-offer-1",
     type: "Contract financing",
-    status: "submitted",
-    badges: ["sent"],
+    status: "sent",
+    cardStatus: {
+      badgeKey: "sent",
+      displayLabel: "Offer Sent",
+      showReviewOffer: true,
+      showMakeAmendments: false,
+    },
     hasExpiredOffer: false,
     contractTitle: "Supply Agreement 2026",
     customer: "Zeta Trading",
@@ -232,8 +268,13 @@ export const mockApplications: NormalizedApplication[] = [
   {
     id: "mock-invoice-offer-1",
     type: "Contract financing",
-    status: "submitted",
-    badges: ["sent"],
+    status: "sent",
+    cardStatus: {
+      badgeKey: "sent",
+      displayLabel: "Offer Sent",
+      showReviewOffer: true,
+      showMakeAmendments: false,
+    },
     hasExpiredOffer: false,
     contractTitle: "Service Contract A",
     customer: "Theta Inc",
@@ -264,8 +305,13 @@ export const mockApplications: NormalizedApplication[] = [
   {
     id: "mock-offer-expired-1",
     type: "Contract financing",
-    status: "submitted",
-    badges: ["sent"],
+    status: "sent",
+    cardStatus: {
+      badgeKey: "sent",
+      displayLabel: "Offer Sent",
+      showReviewOffer: true,
+      showMakeAmendments: false,
+    },
     hasExpiredOffer: true,
     contractTitle: "Expired Offer Contract",
     customer: "Iota Ltd",
@@ -297,7 +343,12 @@ export const mockApplications: NormalizedApplication[] = [
     id: "mock-offer-accepted-1",
     type: "Invoice financing",
     status: "accepted",
-    badges: ["accepted"],
+    cardStatus: {
+      badgeKey: "accepted",
+      displayLabel: "Approved",
+      showReviewOffer: false,
+      showMakeAmendments: false,
+    },
     hasExpiredOffer: false,
     contractTitle: null,
     customer: "Kappa Sdn Bhd",
@@ -329,7 +380,12 @@ export const mockApplications: NormalizedApplication[] = [
     id: "mock-offer-rejected-1",
     type: "Contract financing",
     status: "rejected",
-    badges: ["rejected"],
+    cardStatus: {
+      badgeKey: "rejected",
+      displayLabel: "Rejected",
+      showReviewOffer: false,
+      showMakeAmendments: false,
+    },
     hasExpiredOffer: false,
     contractTitle: "Rejected Contract",
     customer: "Lambda Co",
@@ -342,12 +398,80 @@ export const mockApplications: NormalizedApplication[] = [
     contractStatus: "REJECTED",
   },
 
+  /* Multi-invoice aggregation — mixed statuses, card shows highest priority (Action Required) */
+  {
+    id: "mock-multi-invoice-1",
+    type: "Invoice financing",
+    status: "pending_amendment",
+    cardStatus: {
+      badgeKey: "pending_amendment",
+      displayLabel: "Action Required",
+      showReviewOffer: false,
+      showMakeAmendments: true,
+    },
+    hasExpiredOffer: false,
+    contractTitle: null,
+    customer: "Nu Industries",
+    applicationDate: "2026-03-08",
+    contractValue: null,
+    facilityApplied: null,
+    approvedFacility: "N/A",
+    updatedAt: "2026-03-10T09:00:00Z",
+    invoices: [
+      {
+        id: "inv-mock-11",
+        number: "INV-A01",
+        maturityDate: "2026-06-01",
+        value: 50000,
+        appliedFinancing: 40000,
+        document: "inv_a01.pdf",
+        financingOffered: "RM 38,000.00",
+        profitRate: "7%",
+        status: "APPROVED",
+        offerStatus: null,
+        canReviewOffer: false,
+      },
+      {
+        id: "inv-mock-12",
+        number: "INV-A02",
+        maturityDate: "2026-07-15",
+        value: 60000,
+        appliedFinancing: 48000,
+        document: "inv_a02.pdf",
+        financingOffered: "—",
+        profitRate: "—",
+        status: "SENT",
+        offerStatus: "Offer received",
+        canReviewOffer: true,
+      },
+      {
+        id: "inv-mock-13",
+        number: "INV-A03",
+        maturityDate: "2026-08-20",
+        value: 45000,
+        appliedFinancing: 36000,
+        document: "inv_a03.pdf",
+        financingOffered: "—",
+        profitRate: "—",
+        status: "AMENDMENT_REQUESTED",
+        offerStatus: null,
+        canReviewOffer: false,
+      },
+    ],
+    contractStatus: null,
+  },
+
   /* Retraction — offer_details removed (no offer badge, no review button) */
   {
     id: "mock-retraction-1",
     type: "Invoice financing",
     status: "submitted",
-    badges: ["submitted"],
+    cardStatus: {
+      badgeKey: "submitted",
+      displayLabel: "Submitted",
+      showReviewOffer: false,
+      showMakeAmendments: false,
+    },
     hasExpiredOffer: false,
     contractTitle: null,
     customer: "Mu Corp",

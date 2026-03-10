@@ -33,14 +33,18 @@ export const STATUS_BADGES: Record<
 > = {
   draft: { label: "Draft", tone: "neutral" },
   submitted: { label: "Submitted", tone: "info" },
+  resubmitted: { label: "Resubmitted", tone: "info" },
   pending_amendment: { label: "Action Required", tone: "warning" },
-  sent: { label: "Offer Received", tone: "success" },
+  sent: { label: "Offer Sent", tone: "success" },
+  offer_expired: { label: "Offer expired", tone: "neutral" },
   pending_approval: { label: "Pending Approval", tone: "info" },
   under_review: { label: "Under Review", tone: "neutral" },
   accepted: { label: "Accepted", tone: "success" },
   approved: { label: "Approved", tone: "success" },
   rejected: { label: "Rejected", tone: "danger" },
   withdrawn: { label: "Withdrawn", tone: "neutral" },
+  /** Invoice/contract raw status for invoice row display. */
+  amendment_requested: { label: "Action Required", tone: "warning" },
 };
 
 /* ============================================================
@@ -48,15 +52,16 @@ export const STATUS_BADGES: Record<
    ============================================================
    Primary sort is status priority (lower number first). Secondary is updated_at (newer first). */
 
+/** Lower number = higher priority (shown first). Matches business priority order. */
 export const STATUS_PRIORITY: Record<string, number> = {
-  pending_amendment: 1,
-  sent: 2,
-  pending_approval: 3,
+  rejected: 1,
+  pending_amendment: 2,
+  sent: 3,
   under_review: 4,
   submitted: 5,
-  draft: 6,
-  accepted: 7,
-  rejected: 8,
+  resubmitted: 6,
+  draft: 7,
+  accepted: 8,
   withdrawn: 9,
 };
 

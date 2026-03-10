@@ -936,6 +936,7 @@ enum InvoiceStatus {
   SENT
   APPROVED
   REJECTED
+  AMENDMENT_REQUESTED
 }
 
 enum ActivityLevel {
