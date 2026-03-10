@@ -273,7 +273,9 @@ export function normalizeApplication(apiApplication: ApiApplication): Normalized
     hasExpiredOffer = true;
   }
 
-  /* Determine card type from financing structure */
+  /* Determine card type and financing label from financing structure.
+   * invoice_only → "Invoice Financing"; existing_contract | new_contract → "Contract Financing".
+   * If status is DRAFT and financing_structure is null, type is Generic (no financing label shown). */
   let type: "Contract financing" | "Invoice financing" | "Generic" = "Generic";
   if (apiApplication.status === "DRAFT" && !structureType) {
     type = "Generic";

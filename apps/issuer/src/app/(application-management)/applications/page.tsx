@@ -109,7 +109,8 @@ function OfferStatusBadge({ offerStatus }: { offerStatus: "Offer received" | "Of
 /* ============================================================
    APPLICATION CARD
    ============================================================
-   Uses NormalizedApplication. Card type comes from financing structure (invoice_only, contract, or generic draft). */
+   Uses NormalizedApplication. Card type comes from financing structure.
+   Draft card (type=Generic): header + helper text + Continue button. No invoice table or contract summary. */
 
 function ApplicationCard({
   application,
@@ -126,6 +127,11 @@ function ApplicationCard({
   const isGenericDraft = application.type === "Generic";
   const hasContract = application.type === "Contract financing";
 
+  /* If the application is a draft but already has a financing structure, we render the normal
+   * financing card so the user can preview the structure. Only drafts without financing
+   * structure use the generic draft card. */
+  const useDraftCardLayout = isDraft && isGenericDraft;
+
   const handleWithdraw = async () => {
     setIsWithdrawing(true);
     await new Promise((r) => setTimeout(r, 500));
@@ -134,8 +140,11 @@ function ApplicationCard({
     setWithdrawDialogOpen(false);
   };
 
-  const shortId = application.id.slice(-6).toUpperCase();
-  const cardTypeLabel = isGenericDraft ? "Application" : application.type;
+  /* We only display the last 8 characters of the application ID to keep the UI cleaner and easier to scan. */
+  const displayId = application.id.slice(-8);
+
+  /* If financing_structure is null, this is an incomplete draft. We do not show a financing label yet. */
+  const showFinancingLabel = !isGenericDraft;
 
   return (
     <>
@@ -144,7 +153,8 @@ function ApplicationCard({
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-base font-semibold">
-                Application ID {shortId} — {cardTypeLabel}
+                Application ID {displayId}
+                {showFinancingLabel ? ` — ${application.type}` : ""}
               </span>
               {application.badges.map((key, idx) =>
                 key === "sent" ? (
@@ -172,8 +182,8 @@ function ApplicationCard({
                   Review Offer
                 </Button>
               )}
-              {isGenericDraft && (
-                <Button size="sm" className="rounded-xl" asChild>
+              {isDraft && (
+                <Button size="sm" className="rounded-xl bg-primary text-primary-foreground shadow-sm hover:opacity-95" asChild>
                   <Link href={`/applications/edit/${application.id}`}>
                     Continue Application
                   </Link>
@@ -214,7 +224,12 @@ function ApplicationCard({
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!isGenericDraft && (
+          {useDraftCardLayout ? (
+            /* Draft card body: helper text only. No invoice table or contract summary. */
+            <p className="text-sm leading-6 text-muted-foreground">
+              This application is still being set up.
+            </p>
+          ) : (
           <div className="flex flex-wrap justify-between gap-6">
             <div className="space-y-1">
               {hasContract && application.contractTitle && (
@@ -264,7 +279,7 @@ function ApplicationCard({
             )}
           </div>
           )}
-          {!isGenericDraft && (
+          {!useDraftCardLayout && (
           <div className="flex justify-center pt-1">
             <button
               type="button"
@@ -276,7 +291,7 @@ function ApplicationCard({
           </div>
           )}
 
-          {!isGenericDraft && expanded && (
+          {!useDraftCardLayout && expanded && (
             <div className="mt-4">
               <h3 className="text-sm font-semibold text-foreground mb-3">
                 Invoices

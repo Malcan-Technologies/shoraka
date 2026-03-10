@@ -10,7 +10,7 @@ import type { NormalizedApplication } from "./adapters/application.adapter";
    ============================================================
    When true, mock data is used in memory. When false, fetches from GET /v1/applications?organizationId=... */
 
-export const USE_MOCK_DATA = true;
+export const USE_MOCK_DATA = false;
 
 /* ============================================================
    MOCK APPLICATIONS
