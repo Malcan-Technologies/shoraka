@@ -4399,7 +4399,7 @@ export class AdminService {
     await prisma.contract.update({
       where: { id: application.contract_id },
       data: {
-        status: "SENT",
+        status: "OFFER_SENT",
         offer_details: offerDetails,
       },
     });
@@ -4408,7 +4408,7 @@ export class AdminService {
     await repository.updateSectionReviewStatus(
       applicationId,
       "contract_details",
-      ReviewStepStatus.SENT,
+      ReviewStepStatus.OFFER_SENT,
       reviewerUserId
     );
 
@@ -4418,7 +4418,7 @@ export class AdminService {
         event_type: "CONTRACT_OFFER_SENT",
         scope: "section",
         scope_key: "contract_details",
-        new_status: "SENT",
+        new_status: "OFFER_SENT",
         reviewer_user_id: reviewerUserId,
         remark: `Contract offer sent: ${offeredFacility}`,
       },
@@ -4523,7 +4523,7 @@ export class AdminService {
     await prisma.invoice.update({
       where: { id: invoiceId, application_id: applicationId },
       data: {
-        status: "SENT",
+        status: "OFFER_SENT",
         offer_details: offerDetails,
       },
     });
@@ -4532,7 +4532,7 @@ export class AdminService {
       applicationId,
       "invoice",
       scopeKey,
-      ReviewStepStatus.SENT,
+      ReviewStepStatus.OFFER_SENT,
       reviewerUserId
     );
 
@@ -4546,7 +4546,7 @@ export class AdminService {
         event_type: "INVOICE_OFFER_SENT",
         scope: "item",
         scope_key: scopeKey,
-        new_status: "SENT",
+        new_status: "OFFER_SENT",
         reviewer_user_id: reviewerUserId,
       },
     });
@@ -4711,7 +4711,7 @@ export class AdminService {
         status: "SUBMITTED",
         contract_details: mergedDetails as Prisma.InputJsonValue,
       };
-      didRetractContractOffer = oldStatus === "SENT" || contract?.status === "SENT";
+      didRetractContractOffer = oldStatus === "OFFER_SENT" || contract?.status === "OFFER_SENT";
       if (didRetractContractOffer) {
         updateData.offer_details = Prisma.JsonNull;
       }
@@ -4785,7 +4785,7 @@ export class AdminService {
         const updateData: Prisma.InvoiceUpdateInput = {
           status: "SUBMITTED",
         };
-        didRetractInvoiceOffer = oldStatus === "SENT" || currentInvoice?.status === "SENT";
+        didRetractInvoiceOffer = oldStatus === "OFFER_SENT" || currentInvoice?.status === "OFFER_SENT";
         if (didRetractInvoiceOffer) {
           updateData.offer_details = Prisma.JsonNull;
         }
@@ -5028,7 +5028,7 @@ export class AdminService {
       if (invoiceId) {
         await prisma.invoice.update({
           where: { id: invoiceId, application_id: applicationId },
-          data: { status: "SUBMITTED" },
+          data: { status: "APPROVED" },
         });
       }
       if (application.contract_id) {
@@ -5154,6 +5154,19 @@ export class AdminService {
 
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
 
+    if (itemType === "invoice") {
+      const invoiceId = this.resolveInvoiceIdFromScopeKey(
+        application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+        itemId
+      );
+      if (invoiceId) {
+        await prisma.invoice.update({
+          where: { id: invoiceId, application_id: applicationId },
+          data: { status: "AMENDMENT_REQUESTED" },
+        });
+      }
+    }
+
     return repository.getApplicationById(applicationId);
   }
 
@@ -5216,6 +5229,18 @@ export class AdminService {
         ReviewStepStatus.AMENDMENT_REQUESTED,
         reviewerUserId
       );
+      if (itemType === "invoice") {
+        const invoiceId = this.resolveInvoiceIdFromScopeKey(
+          application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+          itemId
+        );
+        if (invoiceId) {
+          await prisma.invoice.update({
+            where: { id: invoiceId, application_id: applicationId },
+            data: { status: "AMENDMENT_REQUESTED" },
+          });
+        }
+      }
     }
 
     await repository.upsertDraftAmendment(applicationId, scope, scopeKey, remark, reviewerUserId);
@@ -5348,6 +5373,21 @@ export class AdminService {
         ReviewStepStatus.PENDING,
         reviewerUserId
       );
+      if (itemType === "invoice") {
+        const application = await repository.getApplicationById(applicationId);
+        const invoiceId = application
+          ? this.resolveInvoiceIdFromScopeKey(
+              application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+              itemId
+            )
+          : null;
+        if (invoiceId) {
+          await prisma.invoice.update({
+            where: { id: invoiceId, application_id: applicationId },
+            data: { status: "SUBMITTED" },
+          });
+        }
+      }
     }
 
     const remaining = await repository.listPendingAmendments(applicationId);

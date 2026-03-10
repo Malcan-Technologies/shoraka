@@ -159,7 +159,12 @@ export default function DynamicApplicationDetailPage() {
     | { open: boolean; action: "approve"; itemType: "invoice" | "document"; itemId: string }
   >({ open: false, action: "reject", section: "financial" });
 
-  const REVIEWABLE_STATUSES = ["SUBMITTED", "UNDER_REVIEW", "RESUBMITTED", "AMENDMENT_REQUESTED"];
+  const REVIEWABLE_STATUSES = [
+    "SUBMITTED",
+    "UNDER_REVIEW",
+    "RESUBMITTED",
+    "AMENDMENT_REQUESTED",
+  ];
   const isReviewable = !!app && REVIEWABLE_STATUSES.includes(app.status);
   const { getAccessToken } = useAuthToken();
   const [viewDocumentPending, setViewDocumentPending] = React.useState(false);

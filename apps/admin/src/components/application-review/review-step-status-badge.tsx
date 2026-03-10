@@ -24,7 +24,7 @@ const STATUS_CONFIG: Record<
   REJECTED: { Icon: XCircleIcon },
   AMENDMENT_REQUESTED: { Icon: ExclamationTriangleIcon },
   PENDING: { Icon: ClockIcon },
-  SENT: { Icon: PaperAirplaneIcon },
+  OFFER_SENT: { Icon: PaperAirplaneIcon },
 };
 
 export function ReviewStepStatusBadge({ status, size = "md" }: ReviewStepStatusBadgeProps) {

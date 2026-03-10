@@ -1,6 +1,13 @@
 import { cn } from "@cashsouk/ui";
 
-const ALLOWED_STATUSES = ["DRAFT", "SUBMITTED", "APPROVED"] as const;
+const ALLOWED_STATUSES = [
+  "DRAFT",
+  "SUBMITTED",
+  "OFFER_SENT",
+  "APPROVED",
+  "REJECTED",
+  "AMENDMENT_REQUESTED",
+] as const;
 type Status = (typeof ALLOWED_STATUSES)[number];
 
 export function StatusBadge({ status }: { status?: string }) {
@@ -11,7 +18,10 @@ export function StatusBadge({ status }: { status?: string }) {
   const styles: Record<Status, string> = {
     DRAFT: "bg-muted/50 text-muted-foreground border-border",
     SUBMITTED: "bg-amber-50 text-amber-800 border-amber-200",
+    OFFER_SENT: "bg-blue-50 text-blue-800 border-blue-200",
     APPROVED: "bg-emerald-50 text-emerald-800 border-emerald-200",
+    REJECTED: "bg-red-50 text-red-800 border-red-200",
+    AMENDMENT_REQUESTED: "bg-amber-50 text-amber-800 border-amber-200",
   };
 
   const safeStatus = status as Status;

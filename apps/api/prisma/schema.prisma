@@ -846,7 +846,7 @@ enum ReviewSection {
 
 enum ReviewStepStatus {
   PENDING
-  SENT
+  OFFER_SENT
   APPROVED
   REJECTED
   AMENDMENT_REQUESTED
@@ -924,7 +924,7 @@ enum ApplicationStatus {
 enum ContractStatus {
   DRAFT
   SUBMITTED
-  SENT
+  OFFER_SENT
   APPROVED
   REJECTED
   AMENDMENT_REQUESTED
@@ -933,9 +933,10 @@ enum ContractStatus {
 enum InvoiceStatus {
   DRAFT
   SUBMITTED
-  SENT
+  OFFER_SENT
   APPROVED
   REJECTED
+  AMENDMENT_REQUESTED
 }
 
 enum ActivityLevel {
