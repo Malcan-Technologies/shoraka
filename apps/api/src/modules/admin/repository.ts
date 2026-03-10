@@ -2480,8 +2480,10 @@ export class AdminRepository {
         submitted_at: null,
       },
       update: {
+        action_type: "REQUEST_AMENDMENT",
         remark,
         author_user_id: authorUserId,
+        submitted_at: null,
         updated_at: new Date(),
       },
     });

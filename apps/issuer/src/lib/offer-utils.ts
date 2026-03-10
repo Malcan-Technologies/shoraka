@@ -8,7 +8,7 @@ export function getOfferStatus(item: {
   status?: string | null;
   offer_details?: { expires_at?: string | null } | null;
 }): OfferStatus {
-  if (item.status !== "SENT" || !item.offer_details) return null;
+  if (item.status !== "OFFER_SENT" || !item.offer_details) return null;
 
   const expiresAt = item.offer_details.expires_at;
   if (!expiresAt) return "Offer received";

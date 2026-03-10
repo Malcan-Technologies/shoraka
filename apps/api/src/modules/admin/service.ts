@@ -60,6 +60,12 @@ import {
   ActivityPortal,
   ActivityTarget,
 } from "../applications/logs/types";
+
+export interface AdminLogContext {
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  deviceInfo?: string | null;
+}
 import { ProductRepository } from "../products/repository";
 
 export class AdminService {
@@ -117,26 +123,73 @@ export class AdminService {
   }
 
   /**
-   * Derive required review sections from the product workflow referenced by the application.
-   * Financial is always required. If product cannot be resolved, fall back to all canonical sections.
+   * Build section policy for review UI and finalization checks.
+   * - requiredSections: must be APPROVED before application final approval
+   * - visibleSections: sections that should be shown in admin review tabs
+   * - prerequisitesBySection: lock dependencies for each section
    */
-  private async getRequiredReviewSectionsForApproval(application: {
+  private async getReviewSectionPolicy(application: {
     financing_type?: unknown;
-  }): Promise<Set<ReviewSection>> {
-    const required = new Set<ReviewSection>(["financial"]);
+    financing_structure?: unknown;
+  }): Promise<{
+    requiredSections: Set<ReviewSection>;
+    visibleSections: Set<ReviewSection>;
+    prerequisitesBySection: Partial<Record<ReviewSection, ReviewSection[]>>;
+  }> {
+    const requiredSections = new Set<ReviewSection>(["financial"]);
     const financingType =
       application.financing_type && typeof application.financing_type === "object"
         ? (application.financing_type as Record<string, unknown>)
         : null;
     const productId = typeof financingType?.product_id === "string" ? financingType.product_id : null;
 
+    const prerequisitesBySection: Partial<Record<ReviewSection, ReviewSection[]>> = {
+      financial: [],
+      company_details: [],
+      business_details: [],
+      supporting_documents: [],
+      contract_details: ["financial", "company_details", "business_details", "supporting_documents"],
+      invoice_details: ["contract_details"],
+    };
+
+    const applyStructureOverrides = (sections: Set<ReviewSection>) => {
+      const structure =
+        application.financing_structure && typeof application.financing_structure === "object"
+          ? (application.financing_structure as Record<string, unknown>)
+          : null;
+      if (structure?.structure_type === "invoice_only") {
+        sections.delete("contract_details");
+        prerequisitesBySection.invoice_details = [
+          "financial",
+          "company_details",
+          "business_details",
+          "supporting_documents",
+        ];
+      }
+      return sections;
+    };
+
     if (!productId) {
-      return new Set(REVIEW_SECTION_ORDER as readonly ReviewSection[]);
+      const fallback = applyStructureOverrides(
+        new Set(REVIEW_SECTION_ORDER as readonly ReviewSection[])
+      );
+      return {
+        requiredSections: fallback,
+        visibleSections: new Set(fallback),
+        prerequisitesBySection,
+      };
     }
 
     const product = await this.productRepository.findById(productId);
     if (!product) {
-      return new Set(REVIEW_SECTION_ORDER as readonly ReviewSection[]);
+      const fallback = applyStructureOverrides(
+        new Set(REVIEW_SECTION_ORDER as readonly ReviewSection[])
+      );
+      return {
+        requiredSections: fallback,
+        visibleSections: new Set(fallback),
+        prerequisitesBySection,
+      };
     }
 
     const workflow = Array.isArray(product.workflow) ? product.workflow : [];
@@ -148,10 +201,16 @@ export class AdminService {
       if (!stepKey || !AdminService.WORKFLOW_REVIEW_SECTION_KEYS.has(stepKey)) {
         continue;
       }
-      required.add(stepKey as ReviewSection);
+      requiredSections.add(stepKey as ReviewSection);
     }
 
-    return required;
+    const normalizedRequiredSections = applyStructureOverrides(requiredSections);
+    const visibleSections = new Set(normalizedRequiredSections);
+    return {
+      requiredSections: normalizedRequiredSections,
+      visibleSections,
+      prerequisitesBySection,
+    };
   }
 
   /**
@@ -3856,13 +3915,18 @@ export class AdminService {
     if (!application) {
       throw new AppError(404, "NOT_FOUND", "Application not found");
     }
-    const requiredSections = await this.getRequiredReviewSectionsForApproval(application);
+    const sectionPolicy = await this.getReviewSectionPolicy(application);
     const orderedRequiredSections = REVIEW_SECTION_ORDER.filter((section) =>
-      requiredSections.has(section)
+      sectionPolicy.requiredSections.has(section)
+    );
+    const orderedVisibleSections = REVIEW_SECTION_ORDER.filter((section) =>
+      sectionPolicy.visibleSections.has(section)
     );
     return {
       ...application,
       required_review_sections: orderedRequiredSections,
+      visible_review_sections: orderedVisibleSections,
+      review_section_prerequisites: sectionPolicy.prerequisitesBySection,
     };
   }
 
@@ -3873,7 +3937,8 @@ export class AdminService {
   async updateApplicationStatus(
     id: string,
     status: ApplicationStatus,
-    userId: string
+    userId: string,
+    logContext?: AdminLogContext
   ) {
     const repository = new AdminRepository();
     const application = await repository.getApplicationById(id);
@@ -3921,12 +3986,12 @@ export class AdminService {
 
     if (status === ApplicationStatus.APPROVED) {
       const reviews = (application.application_reviews ?? []) as { section: string; status: string }[];
-      const requiredSections = await this.getRequiredReviewSectionsForApproval(application);
+      const sectionPolicy = await this.getReviewSectionPolicy(application);
       const reviewStatusBySection = new Map<string, string>();
       for (const review of reviews) {
         reviewStatusBySection.set(review.section, review.status);
       }
-      const notApprovedSections = Array.from(requiredSections).filter(
+      const notApprovedSections = Array.from(sectionPolicy.requiredSections).filter(
         (section) => reviewStatusBySection.get(section) !== "APPROVED"
       );
       if (notApprovedSections.length > 0) {
@@ -3950,6 +4015,35 @@ export class AdminService {
         portal: ActivityPortal.ADMIN,
         eventType: "APPLICATION_RESET_TO_UNDER_REVIEW",
         metadata: { previous_status: currentStatus },
+        ipAddress: logContext?.ipAddress ?? undefined,
+        userAgent: logContext?.userAgent ?? undefined,
+        deviceInfo: logContext?.deviceInfo ?? undefined,
+      });
+    } else if (status === ApplicationStatus.APPROVED) {
+      await logApplicationActivity({
+        userId,
+        applicationId: id,
+        level: ActivityLevel.APPLICATION,
+        target: ActivityTarget.APPLICATION,
+        action: ActivityAction.APPROVED,
+        portal: ActivityPortal.ADMIN,
+        eventType: "APPLICATION_APPROVED",
+        ipAddress: logContext?.ipAddress ?? undefined,
+        userAgent: logContext?.userAgent ?? undefined,
+        deviceInfo: logContext?.deviceInfo ?? undefined,
+      });
+    } else if (status === ApplicationStatus.REJECTED) {
+      await logApplicationActivity({
+        userId,
+        applicationId: id,
+        level: ActivityLevel.APPLICATION,
+        target: ActivityTarget.APPLICATION,
+        action: ActivityAction.REJECTED,
+        portal: ActivityPortal.ADMIN,
+        eventType: "APPLICATION_REJECTED",
+        ipAddress: logContext?.ipAddress ?? undefined,
+        userAgent: logContext?.userAgent ?? undefined,
+        deviceInfo: logContext?.deviceInfo ?? undefined,
       });
     }
 
@@ -3964,7 +4058,8 @@ export class AdminService {
   async reopenApplicationForCorrection(
     id: string,
     userId: string,
-    reason: string
+    reason: string,
+    logContext?: AdminLogContext
   ) {
     const repository = new AdminRepository();
     const application = await repository.getApplicationById(id);
@@ -3999,6 +4094,9 @@ export class AdminService {
         previous_status: currentStatus,
         reason,
       },
+      ipAddress: logContext?.ipAddress ?? undefined,
+      userAgent: logContext?.userAgent ?? undefined,
+      deviceInfo: logContext?.deviceInfo ?? undefined,
     });
 
     logger.info(
@@ -4042,7 +4140,7 @@ export class AdminService {
    * Returns null if invalid.
    */
   private resolveInvoiceIdFromScopeKey(
-    application: { invoices?: { id: string; details?: { number?: string | number } }[] },
+    application: { invoices?: { id: string; details?: unknown }[] },
     itemId: string
   ): string | null {
     if (!itemId.startsWith("invoice_details:")) return null;
@@ -4053,7 +4151,11 @@ export class AdminService {
     const invoices = application.invoices ?? [];
     if (idx >= invoices.length) return null;
     const inv = invoices[idx];
-    const expectedNum = String(inv?.details?.number ?? idx + 1).replace(/:/g, "_");
+    const details =
+      inv?.details && typeof inv.details === "object"
+        ? (inv.details as Record<string, unknown>)
+        : null;
+    const expectedNum = String(details?.number ?? idx + 1).replace(/:/g, "_");
     const keyNum = parts.slice(2).join(":").replace(/:/g, "_");
     if (expectedNum !== keyNum) return null;
     return inv?.id ?? null;
@@ -4064,7 +4166,7 @@ export class AdminService {
    * Expects format invoice_details:<index>:<invoice_number>
    */
   private validateInvoiceExists(
-    application: { invoices?: { id: string; details?: { number?: string | number } }[] },
+    application: { invoices?: { id: string; details?: unknown }[] },
     itemId: string
   ): void {
     if (!this.resolveInvoiceIdFromScopeKey(application, itemId)) {
@@ -4184,7 +4286,8 @@ export class AdminService {
     oldStatus: string | null,
     newStatus: string,
     reviewerUserId: string | null,
-    remark: string | null
+    remark: string | null,
+    logContext?: AdminLogContext
   ): Promise<void> {
     if (!reviewerUserId) return;
     const action = this.statusToAction(newStatus);
@@ -4202,6 +4305,9 @@ export class AdminService {
       portal: ActivityPortal.ADMIN,
       eventType: isSection ? `SECTION_REVIEWED_${newStatus}` : `ITEM_REVIEWED_${newStatus}`,
       metadata: { old_status: oldStatus, new_status: newStatus, scope, scope_key: scopeKey },
+      ipAddress: logContext?.ipAddress ?? undefined,
+      userAgent: logContext?.userAgent ?? undefined,
+      deviceInfo: logContext?.deviceInfo ?? undefined,
     });
   }
 
@@ -4239,7 +4345,8 @@ export class AdminService {
     applicationId: string,
     offeredFacility: number,
     expiresAt: string | null,
-    reviewerUserId: string
+    reviewerUserId: string,
+    logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
@@ -4292,7 +4399,7 @@ export class AdminService {
     await prisma.contract.update({
       where: { id: application.contract_id },
       data: {
-        status: "SENT",
+        status: "OFFER_SENT",
         offer_details: offerDetails,
       },
     });
@@ -4301,7 +4408,7 @@ export class AdminService {
     await repository.updateSectionReviewStatus(
       applicationId,
       "contract_details",
-      ReviewStepStatus.SENT,
+      ReviewStepStatus.OFFER_SENT,
       reviewerUserId
     );
 
@@ -4311,7 +4418,7 @@ export class AdminService {
         event_type: "CONTRACT_OFFER_SENT",
         scope: "section",
         scope_key: "contract_details",
-        new_status: "SENT",
+        new_status: "OFFER_SENT",
         reviewer_user_id: reviewerUserId,
         remark: `Contract offer sent: ${offeredFacility}`,
       },
@@ -4331,6 +4438,9 @@ export class AdminService {
         expires_at: expiresAt,
         version: previousVersion + 1,
       },
+      ipAddress: logContext?.ipAddress ?? undefined,
+      userAgent: logContext?.userAgent ?? undefined,
+      deviceInfo: logContext?.deviceInfo ?? undefined,
     });
 
     return repository.getApplicationById(applicationId);
@@ -4343,7 +4453,8 @@ export class AdminService {
     offeredRatioPercent: number | null,
     offeredProfitRatePercent: number | null,
     expiresAt: string | null,
-    reviewerUserId: string
+    reviewerUserId: string,
+    logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
@@ -4412,7 +4523,7 @@ export class AdminService {
     await prisma.invoice.update({
       where: { id: invoiceId, application_id: applicationId },
       data: {
-        status: "SENT",
+        status: "OFFER_SENT",
         offer_details: offerDetails,
       },
     });
@@ -4421,7 +4532,7 @@ export class AdminService {
       applicationId,
       "invoice",
       scopeKey,
-      ReviewStepStatus.SENT,
+      ReviewStepStatus.OFFER_SENT,
       reviewerUserId
     );
 
@@ -4435,7 +4546,7 @@ export class AdminService {
         event_type: "INVOICE_OFFER_SENT",
         scope: "item",
         scope_key: scopeKey,
-        new_status: "SENT",
+        new_status: "OFFER_SENT",
         reviewer_user_id: reviewerUserId,
       },
     });
@@ -4462,6 +4573,9 @@ export class AdminService {
         expires_at: expiresAt,
         version: previousVersion + 1,
       },
+      ipAddress: logContext?.ipAddress ?? undefined,
+      userAgent: logContext?.userAgent ?? undefined,
+      deviceInfo: logContext?.deviceInfo ?? undefined,
     });
 
     return repository.getApplicationById(applicationId);
@@ -4510,7 +4624,8 @@ export class AdminService {
     applicationId: string,
     section: ReviewSection,
     reviewerUserId: string,
-    remark?: string | null
+    remark?: string | null,
+    logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
@@ -4552,7 +4667,8 @@ export class AdminService {
       oldStatus,
       "APPROVED",
       reviewerUserId,
-      remarkValue
+      remarkValue,
+      logContext
     );
 
     await repository.removeDraftAmendment(applicationId, "section", section);
@@ -4566,7 +4682,8 @@ export class AdminService {
   async resetSectionReviewToPending(
     applicationId: string,
     section: ReviewSection,
-    reviewerUserId: string
+    reviewerUserId: string,
+    logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
@@ -4594,7 +4711,7 @@ export class AdminService {
         status: "SUBMITTED",
         contract_details: mergedDetails as Prisma.InputJsonValue,
       };
-      didRetractContractOffer = oldStatus === "SENT" || contract?.status === "SENT";
+      didRetractContractOffer = oldStatus === "OFFER_SENT" || contract?.status === "OFFER_SENT";
       if (didRetractContractOffer) {
         updateData.offer_details = Prisma.JsonNull;
       }
@@ -4612,6 +4729,9 @@ export class AdminService {
         action: ActivityAction.RESET,
         portal: ActivityPortal.ADMIN,
         eventType: "CONTRACT_OFFER_RETRACTED",
+        ipAddress: logContext?.ipAddress ?? undefined,
+        userAgent: logContext?.userAgent ?? undefined,
+        deviceInfo: logContext?.deviceInfo ?? undefined,
       });
     }
     await this.logReviewActivity(
@@ -4621,7 +4741,8 @@ export class AdminService {
       oldStatus,
       "PENDING",
       reviewerUserId,
-      null
+      null,
+      logContext
     );
     await repository.removeDraftAmendment(applicationId, "section", section);
 
@@ -4636,7 +4757,8 @@ export class AdminService {
     applicationId: string,
     itemType: "invoice" | "document",
     itemId: string,
-    reviewerUserId: string
+    reviewerUserId: string,
+    logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     this.validateReviewItemExists(application, itemType, itemId);
@@ -4663,7 +4785,7 @@ export class AdminService {
         const updateData: Prisma.InvoiceUpdateInput = {
           status: "SUBMITTED",
         };
-        didRetractInvoiceOffer = oldStatus === "SENT" || currentInvoice?.status === "SENT";
+        didRetractInvoiceOffer = oldStatus === "OFFER_SENT" || currentInvoice?.status === "OFFER_SENT";
         if (didRetractInvoiceOffer) {
           updateData.offer_details = Prisma.JsonNull;
         }
@@ -4686,6 +4808,9 @@ export class AdminService {
         entityId: itemId,
         portal: ActivityPortal.ADMIN,
         eventType: "INVOICE_OFFER_RETRACTED",
+        ipAddress: logContext?.ipAddress ?? undefined,
+        userAgent: logContext?.userAgent ?? undefined,
+        deviceInfo: logContext?.deviceInfo ?? undefined,
       });
     }
     await this.logReviewActivity(
@@ -4695,7 +4820,8 @@ export class AdminService {
       oldStatus,
       "PENDING",
       reviewerUserId,
-      null
+      null,
+      logContext
     );
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
     await this.clearItemRemarks(repository, applicationId, itemType, itemId);
@@ -4712,7 +4838,8 @@ export class AdminService {
     applicationId: string,
     section: ReviewSection,
     remark: string,
-    reviewerUserId: string
+    reviewerUserId: string,
+    logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
@@ -4750,7 +4877,8 @@ export class AdminService {
       oldStatus,
       "REJECTED",
       reviewerUserId,
-      remark
+      remark,
+      logContext
     );
 
     await repository.removeDraftAmendment(applicationId, "section", section);
@@ -4768,7 +4896,8 @@ export class AdminService {
     applicationId: string,
     section: ReviewSection,
     remark: string,
-    reviewerUserId: string
+    reviewerUserId: string,
+    logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
@@ -4806,7 +4935,8 @@ export class AdminService {
       oldStatus,
       "AMENDMENT_REQUESTED",
       reviewerUserId,
-      remark
+      remark,
+      logContext
     );
 
     await repository.removeDraftAmendment(applicationId, "section", section);
@@ -4847,7 +4977,8 @@ export class AdminService {
     itemType: "invoice" | "document",
     itemId: string,
     reviewerUserId: string,
-    remark?: string | null
+    remark?: string | null,
+    logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     this.validateReviewItemExists(application, itemType, itemId);
@@ -4883,7 +5014,8 @@ export class AdminService {
       oldStatus,
       "APPROVED",
       reviewerUserId,
-      remarkValue
+      remarkValue,
+      logContext
     );
 
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
@@ -4896,7 +5028,7 @@ export class AdminService {
       if (invoiceId) {
         await prisma.invoice.update({
           where: { id: invoiceId, application_id: applicationId },
-          data: { status: "SUBMITTED" },
+          data: { status: "APPROVED" },
         });
       }
       if (application.contract_id) {
@@ -4915,7 +5047,8 @@ export class AdminService {
     itemType: "invoice" | "document",
     itemId: string,
     remark: string,
-    reviewerUserId: string
+    reviewerUserId: string,
+    logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     this.validateReviewItemExists(application, itemType, itemId);
@@ -4948,7 +5081,8 @@ export class AdminService {
       oldStatus,
       "REJECTED",
       reviewerUserId,
-      remark
+      remark,
+      logContext
     );
 
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
@@ -4980,7 +5114,8 @@ export class AdminService {
     itemType: "invoice" | "document",
     itemId: string,
     remark: string,
-    reviewerUserId: string
+    reviewerUserId: string,
+    logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     this.validateReviewItemExists(application, itemType, itemId);
@@ -5013,10 +5148,24 @@ export class AdminService {
       oldStatus,
       "AMENDMENT_REQUESTED",
       reviewerUserId,
-      remark
+      remark,
+      logContext
     );
 
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
+
+    if (itemType === "invoice") {
+      const invoiceId = this.resolveInvoiceIdFromScopeKey(
+        application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+        itemId
+      );
+      if (invoiceId) {
+        await prisma.invoice.update({
+          where: { id: invoiceId, application_id: applicationId },
+          data: { status: "AMENDMENT_REQUESTED" },
+        });
+      }
+    }
 
     return repository.getApplicationById(applicationId);
   }
@@ -5032,7 +5181,8 @@ export class AdminService {
     remark: string,
     reviewerUserId: string,
     itemType?: "invoice" | "document",
-    itemId?: string
+    itemId?: string,
+    logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
@@ -5059,6 +5209,19 @@ export class AdminService {
         throw new AppError(400, "INVALID_INPUT", "itemType and itemId are required for item scope");
       }
       this.validateReviewItemExists(application, itemType, itemId);
+      if (itemType === "invoice") {
+        const targetInvoiceId = this.resolveInvoiceIdFromScopeKey(application, itemId);
+        if (targetInvoiceId) {
+          const existingDrafts = await repository.listPendingAmendments(applicationId);
+          for (const draft of existingDrafts) {
+            if (draft.scope !== "item" || draft.scope_key === itemId) continue;
+            const draftInvoiceId = this.resolveInvoiceIdFromScopeKey(application, draft.scope_key);
+            if (draftInvoiceId && draftInvoiceId === targetInvoiceId) {
+              await repository.removeDraftAmendment(applicationId, "item", draft.scope_key);
+            }
+          }
+        }
+      }
       await repository.upsertItemReviewStatus(
         applicationId,
         itemType,
@@ -5066,6 +5229,18 @@ export class AdminService {
         ReviewStepStatus.AMENDMENT_REQUESTED,
         reviewerUserId
       );
+      if (itemType === "invoice") {
+        const invoiceId = this.resolveInvoiceIdFromScopeKey(
+          application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+          itemId
+        );
+        if (invoiceId) {
+          await prisma.invoice.update({
+            where: { id: invoiceId, application_id: applicationId },
+            data: { status: "AMENDMENT_REQUESTED" },
+          });
+        }
+      }
     }
 
     await repository.upsertDraftAmendment(applicationId, scope, scopeKey, remark, reviewerUserId);
@@ -5087,7 +5262,8 @@ export class AdminService {
         oldStatus,
         "AMENDMENT_REQUESTED",
         reviewerUserId,
-        remark
+        remark,
+        logContext
       );
     }
 
@@ -5108,7 +5284,23 @@ export class AdminService {
       throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
     }
     const rows = await repository.listPendingAmendments(applicationId);
-    return rows.map((r) => {
+    const dedupedRows = new Map<string, (typeof rows)[number]>();
+    for (const row of rows) {
+      // Keep one pending amendment per invoice, even if historical scope_key index changed.
+      if (row.scope === "item" && row.scope_key.startsWith("invoice_details:")) {
+        const invoiceId = this.resolveInvoiceIdFromScopeKey(
+          application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+          row.scope_key
+        );
+        if (invoiceId) {
+          dedupedRows.set(`invoice:${invoiceId}`, row);
+          continue;
+        }
+      }
+      dedupedRows.set(`scope:${row.scope}:${row.scope_key}`, row);
+    }
+    const normalizedRows = Array.from(dedupedRows.values());
+    return normalizedRows.map((r) => {
       const base = {
         id: r.id,
         scope: r.scope,
@@ -5181,6 +5373,21 @@ export class AdminService {
         ReviewStepStatus.PENDING,
         reviewerUserId
       );
+      if (itemType === "invoice") {
+        const application = await repository.getApplicationById(applicationId);
+        const invoiceId = application
+          ? this.resolveInvoiceIdFromScopeKey(
+              application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+              itemId
+            )
+          : null;
+        if (invoiceId) {
+          await prisma.invoice.update({
+            where: { id: invoiceId, application_id: applicationId },
+            data: { status: "SUBMITTED" },
+          });
+        }
+      }
     }
 
     const remaining = await repository.listPendingAmendments(applicationId);
@@ -5217,7 +5424,7 @@ export class AdminService {
    * Submit all pending amendments. Marks draft remarks as submitted and updates application status.
    * Item/section status already set when adding to pending; remarks already exist.
    */
-  async submitPendingAmendments(applicationId: string, reviewerUserId: string) {
+  async submitPendingAmendments(applicationId: string, reviewerUserId: string, logContext?: AdminLogContext) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
 
@@ -5273,6 +5480,9 @@ export class AdminService {
       eventType: "AMENDMENTS_SUBMITTED",
       remark: `${pending.length} amendment(s) sent to issuer`,
       metadata: { count: pending.length },
+      ipAddress: logContext?.ipAddress ?? undefined,
+      userAgent: logContext?.userAgent ?? undefined,
+      deviceInfo: logContext?.deviceInfo ?? undefined,
     });
 
     logger.info({ applicationId, count: pending.length, reviewerUserId }, "Pending amendments submitted");

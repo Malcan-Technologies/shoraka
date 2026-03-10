@@ -13,8 +13,10 @@ Both return full `contract` and `invoice` records including `status` and `offer_
 
 An offer is considered "sent" when:
 
-- `contract.status === "SENT"` or `invoice.status === "SENT"`
+- `contract.status === "OFFER_SENT"` or `invoice.status === "OFFER_SENT"`
 - `offer_details` exists and is non-null
+
+Application-level status stays `UNDER_REVIEW` while offers are pending; offer state is derived from contract and invoice status only.
 
 ### Deriving offer status for UI
 
@@ -23,7 +25,7 @@ function getOfferStatus(item: {
   status?: string;
   offer_details?: { expires_at?: string | null };
 }): "Offer received" | "Offer expired" | null {
-  if (item.status !== "SENT" || !item.offer_details) return null;
+  if (item.status !== "OFFER_SENT" || !item.offer_details) return null;
 
   const expiresAt = item.offer_details.expires_at;
   if (!expiresAt) return "Offer received";
@@ -77,7 +79,7 @@ Requires auth; user must be member or owner of the application’s issuer organi
 
 ## Retraction
 
-When admin uses "Set to Pending" (or "Retract Offer") while status is SENT:
+When admin uses "Set to Pending" (or "Retract Offer") while status is OFFER_SENT:
 
 - Contract section: `contract.offer_details` set to `null`, `contract.status` → `SUBMITTED`.
 - Invoice item: `invoice.offer_details` set to `null`, `invoice.status` → `SUBMITTED`.

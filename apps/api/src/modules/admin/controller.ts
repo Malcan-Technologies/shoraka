@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from "express";
+import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { AdminService } from "./service";
 import { AppError } from "../../lib/http/error-handler";
 import { requireRole } from "../../lib/auth/middleware";
@@ -1932,10 +1933,12 @@ router.patch(
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
       const { id } = req.params;
       const validated = updateApplicationStatusSchema.parse(req.body);
+      const logCtx = extractRequestMetadata(req);
       const result = await adminService.updateApplicationStatus(
         id,
         validated.status,
-        req.user.user_id
+        req.user.user_id,
+        { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
       );
 
       res.json({
@@ -1985,10 +1988,12 @@ router.post(
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
       const { id } = req.params;
       const validated = reopenApplicationForCorrectionSchema.parse(req.body);
+      const logCtx = extractRequestMetadata(req);
       const result = await adminService.reopenApplicationForCorrection(
         id,
         req.user.user_id,
-        validated.reason
+        validated.reason,
+        { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
       );
 
       res.json({
@@ -2011,11 +2016,13 @@ router.post(
       const { id, section } = req.params;
       const validatedSection = reviewSectionSchema.parse(section);
       const validated = reviewSectionApproveSchema.parse(req.body ?? {});
+      const logCtx = extractRequestMetadata(req);
       const result = await adminService.approveReviewSection(
         id,
         validatedSection,
         req.user.user_id,
-        validated.remark
+        validated.remark,
+        { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
       );
 
       res.json({
@@ -2038,7 +2045,14 @@ router.post(
       const { id, section } = req.params;
       const validatedSection = reviewSectionSchema.parse(section);
       const validated = reviewSectionRejectSchema.parse(req.body);
-      const result = await adminService.rejectReviewSection(id, validatedSection, validated.remark, req.user.user_id);
+      const logCtx = extractRequestMetadata(req);
+      const result = await adminService.rejectReviewSection(
+        id,
+        validatedSection,
+        validated.remark,
+        req.user.user_id,
+        { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
+      );
 
       res.json({
         success: true,
@@ -2060,11 +2074,13 @@ router.post(
       const { id, section } = req.params;
       const validatedSection = reviewSectionSchema.parse(section);
       const validated = reviewSectionRequestAmendmentSchema.parse(req.body);
+      const logCtx = extractRequestMetadata(req);
       const result = await adminService.requestAmendmentReviewSection(
         id,
         validatedSection,
         validated.remark,
-        req.user.user_id
+        req.user.user_id,
+        { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
       );
 
       res.json({
@@ -2111,10 +2127,12 @@ router.post(
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
       const { id, section } = req.params;
       const validatedSection = reviewSectionSchema.parse(section);
+      const logCtx = extractRequestMetadata(req);
       const result = await adminService.resetSectionReviewToPending(
         id,
         validatedSection,
-        req.user.user_id
+        req.user.user_id,
+        { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
       );
 
       res.json({
@@ -2136,12 +2154,14 @@ router.post(
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
       const { id } = req.params;
       const validated = reviewItemApproveSchema.parse(req.body);
+      const logCtx = extractRequestMetadata(req);
       const result = await adminService.approveReviewItem(
         id,
         validated.itemType,
         validated.itemId,
         req.user.user_id,
-        validated.remark
+        validated.remark,
+        { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
       );
 
       res.json({
@@ -2163,12 +2183,14 @@ router.post(
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
       const { id } = req.params;
       const validated = reviewItemRejectSchema.parse(req.body);
+      const logCtx = extractRequestMetadata(req);
       const result = await adminService.rejectReviewItem(
         id,
         validated.itemType,
         validated.itemId,
         validated.remark,
-        req.user.user_id
+        req.user.user_id,
+        { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
       );
 
       res.json({
@@ -2190,12 +2212,14 @@ router.post(
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
       const { id } = req.params;
       const validated = reviewItemRequestAmendmentSchema.parse(req.body);
+      const logCtx = extractRequestMetadata(req);
       const result = await adminService.requestAmendmentReviewItem(
         id,
         validated.itemType,
         validated.itemId,
         validated.remark,
-        req.user.user_id
+        req.user.user_id,
+        { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
       );
 
       res.json({
@@ -2217,11 +2241,13 @@ router.post(
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
       const { id } = req.params;
       const validated = reviewItemActionSchema.parse(req.body);
+      const logCtx = extractRequestMetadata(req);
       const result = await adminService.resetItemReviewToPending(
         id,
         validated.itemType,
         validated.itemId,
-        req.user.user_id
+        req.user.user_id,
+        { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
       );
 
       res.json({
@@ -2243,11 +2269,13 @@ router.post(
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
       const { id } = req.params;
       const validated = sendContractOfferSchema.parse(req.body);
+      const logCtx = extractRequestMetadata(req);
       const result = await adminService.sendContractOffer(
         id,
         validated.offeredFacility,
         validated.expiresAt ?? null,
-        req.user.user_id
+        req.user.user_id,
+        { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
       );
 
       res.json({
@@ -2269,6 +2297,7 @@ router.post(
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
       const { id, invoiceId } = req.params;
       const validated = sendInvoiceOfferSchema.parse(req.body);
+      const logCtx = extractRequestMetadata(req);
       const result = await adminService.sendInvoiceOffer(
         id,
         invoiceId,
@@ -2276,7 +2305,8 @@ router.post(
         validated.offeredRatioPercent ?? null,
         validated.offeredProfitRatePercent ?? null,
         validated.expiresAt ?? null,
-        req.user.user_id
+        req.user.user_id,
+        { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
       );
 
       res.json({
@@ -2302,6 +2332,7 @@ router.post(
         validated.scope === "section"
           ? String(validated.scopeKey ?? "")
           : String(validated.itemId ?? "");
+      const logCtx = extractRequestMetadata(req);
       const result = await adminService.addPendingAmendment(
         id,
         validated.scope,
@@ -2309,7 +2340,8 @@ router.post(
         validated.remark,
         req.user.user_id,
         validated.itemType ?? undefined,
-        validated.itemId ?? undefined
+        validated.itemId ?? undefined,
+        { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
       );
 
       res.json({
@@ -2403,7 +2435,12 @@ router.post(
     try {
       if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
       const { id } = req.params;
-      const result = await adminService.submitPendingAmendments(id, req.user.user_id);
+      const logCtx = extractRequestMetadata(req);
+      const result = await adminService.submitPendingAmendments(id, req.user.user_id, {
+        ipAddress: logCtx.ipAddress,
+        userAgent: logCtx.userAgent,
+        deviceInfo: logCtx.deviceInfo,
+      });
 
       res.json({
         success: true,

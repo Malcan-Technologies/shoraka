@@ -115,13 +115,15 @@ export function getReviewTabDescriptorsFromWorkflow(
 /**
  * Check if a tab is unlocked based on section approval status.
  * Sections not in TAB_PREREQUISITES are treated as unlocked.
+ * Server-provided prerequisites (when present) take precedence.
  */
 export function isTabUnlocked(
   sectionId: string,
   sectionStatusMap: Map<string, string>,
-  availableSections?: ReadonlySet<string>
+  availableSections?: ReadonlySet<string>,
+  prerequisitesBySection?: Record<string, string[]>
 ): boolean {
-  const prereqs = TAB_PREREQUISITES[sectionId];
+  const prereqs = prerequisitesBySection?.[sectionId] ?? TAB_PREREQUISITES[sectionId];
   if (!prereqs?.length) return true;
   const relevantPrereqs = availableSections
     ? prereqs.filter((prereq) => availableSections.has(prereq))
@@ -134,9 +136,10 @@ export function isTabUnlocked(
 export function getTabUnlockTooltip(
   sectionId: string,
   sectionStatusMap: Map<string, string>,
-  availableSections?: ReadonlySet<string>
+  availableSections?: ReadonlySet<string>,
+  prerequisitesBySection?: Record<string, string[]>
 ): string {
-  const prereqs = TAB_PREREQUISITES[sectionId];
+  const prereqs = prerequisitesBySection?.[sectionId] ?? TAB_PREREQUISITES[sectionId];
   if (!prereqs?.length) return "";
   const relevantPrereqs = availableSections
     ? prereqs.filter((prereq) => availableSections.has(prereq))

@@ -11,7 +11,7 @@ function StatusDot({ status }: { status: string }) {
   const dotClass =
     status === "APPROVED"
       ? "bg-green-500"
-      : status === "SENT"
+      : status === "OFFER_SENT"
         ? "bg-blue-500"
         : status === "AMENDMENT_REQUESTED"
           ? "bg-yellow-500"
