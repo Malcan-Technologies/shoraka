@@ -117,26 +117,73 @@ export class AdminService {
   }
 
   /**
-   * Derive required review sections from the product workflow referenced by the application.
-   * Financial is always required. If product cannot be resolved, fall back to all canonical sections.
+   * Build section policy for review UI and finalization checks.
+   * - requiredSections: must be APPROVED before application final approval
+   * - visibleSections: sections that should be shown in admin review tabs
+   * - prerequisitesBySection: lock dependencies for each section
    */
-  private async getRequiredReviewSectionsForApproval(application: {
+  private async getReviewSectionPolicy(application: {
     financing_type?: unknown;
-  }): Promise<Set<ReviewSection>> {
-    const required = new Set<ReviewSection>(["financial"]);
+    financing_structure?: unknown;
+  }): Promise<{
+    requiredSections: Set<ReviewSection>;
+    visibleSections: Set<ReviewSection>;
+    prerequisitesBySection: Partial<Record<ReviewSection, ReviewSection[]>>;
+  }> {
+    const requiredSections = new Set<ReviewSection>(["financial"]);
     const financingType =
       application.financing_type && typeof application.financing_type === "object"
         ? (application.financing_type as Record<string, unknown>)
         : null;
     const productId = typeof financingType?.product_id === "string" ? financingType.product_id : null;
 
+    const prerequisitesBySection: Partial<Record<ReviewSection, ReviewSection[]>> = {
+      financial: [],
+      company_details: [],
+      business_details: [],
+      supporting_documents: [],
+      contract_details: ["financial", "company_details", "business_details", "supporting_documents"],
+      invoice_details: ["contract_details"],
+    };
+
+    const applyStructureOverrides = (sections: Set<ReviewSection>) => {
+      const structure =
+        application.financing_structure && typeof application.financing_structure === "object"
+          ? (application.financing_structure as Record<string, unknown>)
+          : null;
+      if (structure?.structure_type === "invoice_only") {
+        sections.delete("contract_details");
+        prerequisitesBySection.invoice_details = [
+          "financial",
+          "company_details",
+          "business_details",
+          "supporting_documents",
+        ];
+      }
+      return sections;
+    };
+
     if (!productId) {
-      return new Set(REVIEW_SECTION_ORDER as readonly ReviewSection[]);
+      const fallback = applyStructureOverrides(
+        new Set(REVIEW_SECTION_ORDER as readonly ReviewSection[])
+      );
+      return {
+        requiredSections: fallback,
+        visibleSections: new Set(fallback),
+        prerequisitesBySection,
+      };
     }
 
     const product = await this.productRepository.findById(productId);
     if (!product) {
-      return new Set(REVIEW_SECTION_ORDER as readonly ReviewSection[]);
+      const fallback = applyStructureOverrides(
+        new Set(REVIEW_SECTION_ORDER as readonly ReviewSection[])
+      );
+      return {
+        requiredSections: fallback,
+        visibleSections: new Set(fallback),
+        prerequisitesBySection,
+      };
     }
 
     const workflow = Array.isArray(product.workflow) ? product.workflow : [];
@@ -148,10 +195,16 @@ export class AdminService {
       if (!stepKey || !AdminService.WORKFLOW_REVIEW_SECTION_KEYS.has(stepKey)) {
         continue;
       }
-      required.add(stepKey as ReviewSection);
+      requiredSections.add(stepKey as ReviewSection);
     }
 
-    return required;
+    const normalizedRequiredSections = applyStructureOverrides(requiredSections);
+    const visibleSections = new Set(normalizedRequiredSections);
+    return {
+      requiredSections: normalizedRequiredSections,
+      visibleSections,
+      prerequisitesBySection,
+    };
   }
 
   /**
@@ -3856,13 +3909,18 @@ export class AdminService {
     if (!application) {
       throw new AppError(404, "NOT_FOUND", "Application not found");
     }
-    const requiredSections = await this.getRequiredReviewSectionsForApproval(application);
+    const sectionPolicy = await this.getReviewSectionPolicy(application);
     const orderedRequiredSections = REVIEW_SECTION_ORDER.filter((section) =>
-      requiredSections.has(section)
+      sectionPolicy.requiredSections.has(section)
+    );
+    const orderedVisibleSections = REVIEW_SECTION_ORDER.filter((section) =>
+      sectionPolicy.visibleSections.has(section)
     );
     return {
       ...application,
       required_review_sections: orderedRequiredSections,
+      visible_review_sections: orderedVisibleSections,
+      review_section_prerequisites: sectionPolicy.prerequisitesBySection,
     };
   }
 
@@ -3921,12 +3979,12 @@ export class AdminService {
 
     if (status === ApplicationStatus.APPROVED) {
       const reviews = (application.application_reviews ?? []) as { section: string; status: string }[];
-      const requiredSections = await this.getRequiredReviewSectionsForApproval(application);
+      const sectionPolicy = await this.getReviewSectionPolicy(application);
       const reviewStatusBySection = new Map<string, string>();
       for (const review of reviews) {
         reviewStatusBySection.set(review.section, review.status);
       }
-      const notApprovedSections = Array.from(requiredSections).filter(
+      const notApprovedSections = Array.from(sectionPolicy.requiredSections).filter(
         (section) => reviewStatusBySection.get(section) !== "APPROVED"
       );
       if (notApprovedSections.length > 0) {

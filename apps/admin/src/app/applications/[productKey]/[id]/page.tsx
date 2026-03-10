@@ -184,6 +184,20 @@ export default function DynamicApplicationDetailPage() {
     [currentProduct?.workflow]
   );
 
+  const visibleReviewSectionsFromApi = React.useMemo(() => {
+    const fromApi = (app as { visible_review_sections?: unknown } | undefined)?.visible_review_sections;
+    if (!Array.isArray(fromApi)) return null;
+    const normalized = fromApi.filter((s): s is string => typeof s === "string");
+    return normalized.length > 0 ? new Set(normalized) : null;
+  }, [app]);
+  const effectiveTabDescriptors = React.useMemo(
+    () => {
+      if (!visibleReviewSectionsFromApi) return tabDescriptors;
+      return tabDescriptors.filter((d) => visibleReviewSectionsFromApi.has(d.reviewSection));
+    },
+    [tabDescriptors, visibleReviewSectionsFromApi]
+  );
+
   const isExistingContract = React.useMemo(
     () =>
       (app?.financing_structure as { structure_type?: string } | undefined)?.structure_type ===
@@ -200,8 +214,11 @@ export default function DynamicApplicationDetailPage() {
     for (const review of reviewSectionStatuses) {
       reviewSectionStatusMap.set(review.section, review.status);
     }
-    const orderedSections: string[] = tabDescriptors.map((d) => d.reviewSection);
+    const orderedSections: string[] = effectiveTabDescriptors.map((d) => d.reviewSection);
     for (const review of reviewSectionStatuses) {
+      if (visibleReviewSectionsFromApi && !visibleReviewSectionsFromApi.has(review.section)) {
+        continue;
+      }
       if (!orderedSections.includes(review.section)) {
         orderedSections.push(review.section);
       }
@@ -233,7 +250,13 @@ export default function DynamicApplicationDetailPage() {
             : s.status;
       return { section: s.section, status };
     });
-  }, [app?.application_reviews, app?.application_review_items, tabDescriptors, isExistingContract]);
+  }, [
+    app?.application_reviews,
+    app?.application_review_items,
+    effectiveTabDescriptors,
+    isExistingContract,
+    visibleReviewSectionsFromApi,
+  ]);
 
   const sectionStatusMap = React.useMemo(() => {
     const m = new Map<string, string>();
@@ -248,8 +271,21 @@ export default function DynamicApplicationDetailPage() {
       const normalized = fromApi.filter((s): s is string => typeof s === "string");
       if (normalized.length > 0) return normalized;
     }
-    return tabDescriptors.map((d) => d.reviewSection);
-  }, [app, tabDescriptors]);
+    return effectiveTabDescriptors.map((d) => d.reviewSection);
+  }, [app, effectiveTabDescriptors]);
+
+  const tabPrerequisitesFromApi = React.useMemo(() => {
+    const raw = (app as { review_section_prerequisites?: unknown } | undefined)?.review_section_prerequisites;
+    if (!raw || typeof raw !== "object") return undefined;
+    const record = raw as Record<string, unknown>;
+    const normalized: Record<string, string[]> = {};
+    for (const [key, value] of Object.entries(record)) {
+      if (!Array.isArray(value)) continue;
+      const prereqs = value.filter((v): v is string => typeof v === "string");
+      normalized[key] = prereqs;
+    }
+    return normalized;
+  }, [app]);
   const allSectionsApproved = React.useMemo(
     () =>
       requiredReviewSections.length > 0 &&
@@ -262,8 +298,8 @@ export default function DynamicApplicationDetailPage() {
     [requiredReviewSections, sectionStatusMap]
   );
   const availableReviewSections = React.useMemo(
-    () => new Set(tabDescriptors.map((d) => d.reviewSection)),
-    [tabDescriptors]
+    () => new Set(effectiveTabDescriptors.map((d) => d.reviewSection)),
+    [effectiveTabDescriptors]
   );
 
   const handleApproveSection = (section: string) => {
@@ -651,10 +687,10 @@ export default function DynamicApplicationDetailPage() {
 
                 <ApplicationReviewTabs
                   sections={reviewSections}
-                  tabDescriptors={tabDescriptors}
-                  defaultTabId={tabDescriptors[0]?.id}
+                  tabDescriptors={effectiveTabDescriptors}
+                  defaultTabId={effectiveTabDescriptors[0]?.id}
                 >
-                  {tabDescriptors.map((descriptor) => {
+                  {effectiveTabDescriptors.map((descriptor) => {
                     const isContractExistingContract =
                       descriptor.reviewSection === "contract_details" && isExistingContract;
                     const actionLocked = isContractExistingContract
@@ -662,7 +698,8 @@ export default function DynamicApplicationDetailPage() {
                       : !isTabUnlocked(
                           descriptor.reviewSection,
                           sectionStatusMap,
-                          availableReviewSections
+                          availableReviewSections,
+                          tabPrerequisitesFromApi
                         );
                     const actionLockTooltip = actionLocked
                       ? isContractExistingContract
@@ -670,7 +707,8 @@ export default function DynamicApplicationDetailPage() {
                         : getTabUnlockTooltip(
                             descriptor.reviewSection,
                             sectionStatusMap,
-                            availableReviewSections
+                            availableReviewSections,
+                            tabPrerequisitesFromApi
                           )
                       : undefined;
                     const sectionStatus = sectionStatusMap.get(descriptor.reviewSection);
