@@ -5,7 +5,7 @@
  * or for local testing. Switch USE_MOCK_DATA to false to use GET /v1/applications.
  */
 
-import type { NormalizedApplication } from "./adapters/application.adapter";
+import type { NormalizedApplication } from "./status";
 
 /* true = use mockApplications below. false = fetch from GET /v1/applications. */
 

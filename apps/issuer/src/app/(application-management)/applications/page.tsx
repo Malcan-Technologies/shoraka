@@ -1,12 +1,6 @@
 "use client";
 
-/**
- * Applications Dashboard — main screen listing application cards.
- *
- * Data: useApplicationsData() returns NormalizedApplication[] (from API via adapter or mock).
- * Renders: card per app with badge (from STATUS_BADGES), buttons (from cardStatus), invoice table.
- * Status logic lives in adapter + lib; this page only displays.
- */
+/** Applications dashboard. Data from useApplicationsData. Status config in status.ts. */
 
 import * as React from "react";
 import Link from "next/link";
@@ -55,44 +49,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { STATUS_BADGES, STATUS_BADGE_COLORS } from "./applications.config";
-
-/** Status values for filter dropdown. Must match application.status (cardStatus.badgeKey). */
-const STATUS_FILTER_VALUES = {
-  DRAFT: "draft",
-  SUBMITTED: "submitted",
-  UNDER_REVIEW: "under_review",
-  PENDING_AMENDMENT: "pending_amendment",
-  SENT: "sent",
-  ACCEPTED: "accepted",
-  REJECTED: "rejected",
-  WITHDRAWN: "withdrawn",
-} as const;
+import { STATUS, FILTER_STATUSES } from "./status";
 import { useApplicationsData } from "./use-applications-data";
-import type { NormalizedApplication, NormalizedInvoice } from "./adapters/application.adapter";
-
-/* Renders status badge. badgeKey from cardStatus maps to label and color in applications.config. */
+import type { NormalizedApplication, NormalizedInvoice } from "./status";
 
 const BADGE_BASE = "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold border";
 const BADGE_FALLBACK = "border-slate-500/30 bg-slate-500/10 text-slate-600";
 
 function StatusBadge({ badgeKey }: { badgeKey: string }) {
-  const config = STATUS_BADGES[badgeKey] ?? { label: badgeKey, tone: "neutral" as const };
-  const label = config.label;
-  const colorClass = STATUS_BADGE_COLORS[badgeKey] ?? BADGE_FALLBACK;
+  const s = STATUS[badgeKey];
   return (
-    <span className={cn(BADGE_BASE, colorClass)}>
-      {label}
+    <span className={cn(BADGE_BASE, s?.color ?? BADGE_FALLBACK)}>
+      {s?.label ?? badgeKey}
     </span>
   );
 }
-
-/* ============================================================
-   DOCUMENT DOWNLOAD LINK
-   Props from NormalizedInvoice (document, documentS3Key from details.document).
-   Click icon calls getS3DownloadUrl(s3Key), then opens presigned URL. Errors via toast.
-   Disabled when invoices locked (no S3 key or contract not approved).
-   ============================================================ */
 
 function DocumentDownloadLink({
   documentName,
@@ -106,7 +77,6 @@ function DocumentDownloadLink({
   disabled?: boolean;
 }) {
   const [loading, setLoading] = React.useState(false);
-  /* No documentS3Key or invoices locked: show filename only, muted. No download. */
   if (!documentS3Key || disabled) {
     return <span className="text-[15px] text-muted-foreground">{documentName}</span>;
   }
@@ -134,19 +104,15 @@ function DocumentDownloadLink({
   );
 }
 
-/* Shown when cardStatus is sent but offer has expired (hasExpiredOffer from adapter). */
-
 function OfferExpiredBadge() {
-  const colorClass = STATUS_BADGE_COLORS.offer_expired ?? BADGE_FALLBACK;
+  const colorClass = STATUS.offer_expired?.color ?? BADGE_FALLBACK;
   return (
     <span className={cn(BADGE_BASE, colorClass)}>
-      Offer expired
+      {STATUS.offer_expired?.label ?? "Offer expired"}
     </span>
   );
 }
 
-
-/* Renders one card. Props: NormalizedApplication from useApplicationsData. Draft without financing_structure uses minimal layout. */
 
 function ApplicationCard({
   application,
@@ -162,24 +128,16 @@ function ApplicationCard({
   const isGenericDraft = application.type === "Generic";
   const hasContract = application.type === "Contract financing";
 
-  /* Contract financing: lock invoice section until contractStatus === APPROVED. Invoice-only apps have no contract. */
   const invoicesDisabled = hasContract && application.contractStatus !== "APPROVED";
 
-  /* Single badge: sent+expired shows Offer expired; otherwise use cardStatus. */
   const badgeKey =
     cardStatus.badgeKey === "sent" && application.hasExpiredOffer
       ? "offer_expired"
       : cardStatus.badgeKey;
 
-  /* If the application is a draft but already has a financing structure, we render the normal
-   * financing card so the user can preview the structure. Only drafts without financing
-   * structure use the generic draft card. */
   const useDraftCardLayout = isDraft && isGenericDraft;
 
-  /* We only display the last 8 characters of the application ID to keep the UI cleaner and easier to scan. */
   const displayId = application.id.slice(-8);
-
-  /* If financing_structure is null, this is an incomplete draft. We do not show a financing label yet. */
   const showFinancingLabel = !isGenericDraft;
 
   return (
@@ -199,7 +157,6 @@ function ApplicationCard({
               )}
             </div>
             <div className="flex items-center gap-2">
-              {/* Contract offer: "Review Contract Financing Offer". Invoice: "Review Offer". Expiry under button. */}
               {cardStatus.showReviewOffer && !application.hasExpiredOffer && (
                 <div className="flex flex-col items-center gap-1">
                   <Button
@@ -261,7 +218,6 @@ function ApplicationCard({
         </CardHeader>
         <CardContent className="space-y-4">
           {useDraftCardLayout ? (
-            /* Draft card body: helper text only. No invoice table or contract summary. */
             <p className="text-sm leading-6 text-muted-foreground">
               This application is still being set up.
             </p>
@@ -332,7 +288,6 @@ function ApplicationCard({
               <h3 className="text-sm font-semibold text-foreground mb-3">
                 Invoice table
               </h3>
-              {/* Locked: overlay, disabled actions, helper message. Card header and contract summary stay interactive. */}
               {invoicesDisabled && (
                 <p className="text-xs text-muted-foreground mb-2">
                   Invoices will be available after the contract offer is accepted.
@@ -442,7 +397,6 @@ function ApplicationCard({
                                 invDisabled && "pointer-events-none opacity-60"
                               )}
                             >
-                              {/* Fixed min-width for alignment. Expiry below button to avoid layout shift. */}
                               {(showReviewOffer || showMakeAmendments) && (
                                 <div className="flex flex-col items-center gap-1 min-w-[140px]">
                                   {showReviewOffer && (
@@ -487,15 +441,12 @@ function ApplicationCard({
                                     <EllipsisVerticalIcon className="h-4 w-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent
-                                  align="end"
-                                  className="rounded-xl"
-                                >
+                                <DropdownMenuContent align="end" className="rounded-xl">
                                   <DropdownMenuItem
                                     className="cursor-pointer text-destructive focus:text-destructive"
                                     onClick={() => {}}
                                   >
-                                    Withdraw
+                                    Withdraw Invoice
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -516,16 +467,13 @@ function ApplicationCard({
   );
 }
 
-/* ============================================================
-   MAIN PAGE
-   ============================================================
-   Uses useApplicationsData and renders cards with filters and pagination. */
-
 const PER_PAGE_OPTIONS = [4, 8, 12] as const;
 
 export default function ApplicationsPage() {
   const { setTitle } = useHeader();
   const { applications, isLoading } = useApplicationsData();
+
+  /* --- FILTER: state, logic, options. Status options from status.ts FILTER_STATUSES. --- */
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [customerFilter, setCustomerFilter] = React.useState("all");
@@ -636,7 +584,7 @@ export default function ApplicationsPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0 space-y-6">
-          {/* Filters */}
+          {/* FILTER: search + Filter dropdown (Status, Customer, Date from status.ts FILTER_STATUSES) */}
           <div className="flex flex-wrap items-center gap-3">
             <div className="relative flex-1 min-w-[200px]">
               <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -678,30 +626,11 @@ export default function ApplicationsPage() {
                   <DropdownMenuRadioItem value="all">
                     All statuses
                   </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value={STATUS_FILTER_VALUES.DRAFT}>
-                    {STATUS_BADGES.draft?.label ?? "Draft"}
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value={STATUS_FILTER_VALUES.SUBMITTED}>
-                    {STATUS_BADGES.submitted?.label ?? "Submitted"}
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value={STATUS_FILTER_VALUES.UNDER_REVIEW}>
-                    {STATUS_BADGES.under_review?.label ?? "Under Review"}
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value={STATUS_FILTER_VALUES.PENDING_AMENDMENT}>
-                    {STATUS_BADGES.pending_amendment?.label ?? "Action Required"}
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value={STATUS_FILTER_VALUES.SENT}>
-                    {STATUS_BADGES.sent?.label ?? "Offer Received"}
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value={STATUS_FILTER_VALUES.ACCEPTED}>
-                    {STATUS_BADGES.accepted?.label ?? "Approved"}
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value={STATUS_FILTER_VALUES.REJECTED}>
-                    {STATUS_BADGES.rejected?.label ?? "Rejected"}
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value={STATUS_FILTER_VALUES.WITHDRAWN}>
-                    {STATUS_BADGES.withdrawn?.label ?? "Withdrawn"}
-                  </DropdownMenuRadioItem>
+                  {FILTER_STATUSES.map((key) => (
+                    <DropdownMenuRadioItem key={key} value={key}>
+                      {STATUS[key]?.label ?? key}
+                    </DropdownMenuRadioItem>
+                  ))}
                 </DropdownMenuRadioGroup>
 
                 <DropdownMenuSeparator />

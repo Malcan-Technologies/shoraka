@@ -51,7 +51,7 @@ When you open `/applications`, you see cards. Each card is one application.
 
 5. **Dropdown actions**  
    - Draft: "Edit Application" and "Delete Draft" (they do nothing now).  
-   - Others: "Withdraw Application" (does nothing now).
+   - Others: 3-dot menu hidden.
 
 ---
 

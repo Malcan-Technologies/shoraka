@@ -4,45 +4,23 @@ This guide explains the Applications dashboard in the Issuer portal. It uses sim
 
 ---
 
-## File Structure (What Each File Does)
-
-The Applications dashboard lives in:
+## File Structure
 
 ```
 apps/issuer/src/app/(application-management)/applications/
-├── page.tsx                    — main screen (what you see)
-├── applications.config.ts      — labels, colors, sort order
-├── data.ts                     — mock data for testing
-├── use-applications-data.ts    — fetches list (mock or API)
-├── adapters/
-│   └── application.adapter.ts   — converts API data to UI shape
-└── lib/
-    └── compute-application-card-status.ts  — decides badge and buttons
+├── README.md              — overview of files and data flow
+├── page.tsx               — main screen
+├── status.ts              — status config + FILTER options + getCardStatus
+├── use-applications-data.ts — fetch, prepare for display, hide archived, sort
+└── data.ts                — mock data (USE_MOCK_DATA)
 ```
-
-### What Each File Does (Simple Version)
 
 | File | What it does |
 |------|--------------|
-| **page.tsx** | The screen you see. It shows cards, buttons, tables. It does NOT decide what status an app has — it just displays what it gets. |
-| **applications.config.ts** | A settings file. It says: "Draft is gray", "Offer Received is teal", "sort Rejected first", etc. Change this to change colors and labels. |
-| **data.ts** | Fake data for testing. When `USE_MOCK_DATA` is true, we use this instead of the real API. Easy to turn off later. |
-| **use-applications-data.ts** | The "data fetcher". It either loads mock data or calls the API. It then sorts the list and gives it to the page. |
-| **adapters/application.adapter.ts** | The "translator". The API returns messy data (weird names, nested objects). The adapter turns it into clean data the page can use. |
-| **lib/compute-application-card-status.ts** | The "status brain". It looks at the application, contract, and invoices and decides: "What badge? Show Review button? Show Make Amendments?" |
-
-### What is an Adapter?
-
-An **adapter** is like a translator. The backend (API) speaks one language. The frontend (React) speaks another. The adapter converts between them.
-
-- **API gives:** `{ status: "SENT", offer_details: { expires_at: "2026-03-25" } }`
-- **Adapter gives:** `{ cardStatus: { badgeKey: "sent" }, offerExpiresAt: "2026-03-25" }`
-
-The page never sees the raw API shape. It only sees the clean shape.
-
-### What is lib/?
-
-**lib** means "library" — helper code that does one job well. `compute-application-card-status` is a small library that answers: "Given this application, what status should the card show?"
+| **status.ts** | STATUS (label, color, sort order), FILTER_STATUSES (dropdown options), getCardStatus. Add/remove statuses here. |
+| **use-applications-data.ts** | Fetches (mock or API), prepares each app for display (flatten, add cardStatus), hides archived, sorts. |
+| **data.ts** | Mock data when USE_MOCK_DATA is true. |
+| **page.tsx** | Renders cards, search, filter (Status/Customer/Date), pagination. Filter uses FILTER_STATUSES from status.ts. |
 
 ---
 
@@ -54,77 +32,35 @@ The page never sees the raw API shape. It only sees the clean shape.
    - Loads mock data from `data.ts` (if `USE_MOCK_DATA` is true), or
    - Fetches from the API.
 
-**Step 3.** Each application goes through the **adapter** (`normalizeApplication`). The adapter:
-   - Converts API shapes to UI shapes
-   - Calls `computeApplicationCardStatus` to get the badge and button flags
-   - Extracts document S3 keys, offer expiry dates, etc.
+**Step 3.** Each API application goes through `prepareApplication` in use-applications-data. It flattens nested data, calls `getCardStatus`, extracts document keys and offer expiry.
 
-**Step 4.** The page receives a list of clean applications. For each one it:
-   - Looks up the badge label and color from `applications.config.ts`
-   - Renders the card with the right buttons (Review Offer, Make Amendments, etc.)
+**Step 4.** The page receives the list. For each card it uses STATUS from status.ts for badge label and color, and cardStatus for buttons.
 
 ---
 
 ## How to Add a New Status
 
-Follow these steps to add a new status (e.g. "Pending Disbursement"):
+Edit **status.ts** only:
 
-### Step 1: Add it to the status brain (lib)
-
-Edit `lib/compute-application-card-status.ts`:
-
-1. Decide where your status fits in the priority order (see the `if` blocks).
-2. Add a new block, for example:
+1. Add to `STATUS` object:
 
 ```ts
-if (appStatus === "PENDING_DISBURSEMENT") {
-  return {
-    badgeKey: "pending_disbursement",
-    displayLabel: "Pending Disbursement",
-    showReviewOffer: false,
-    showMakeAmendments: false,
-  };
-}
+pending_disbursement: { label: "Pending Disbursement", color: "border-blue-500/30 bg-blue-500/10 text-blue-700", sortOrder: 7 },
 ```
 
-### Step 2: Add the label and color (config)
-
-Edit `applications.config.ts`:
-
-1. Add to `STATUS_BADGE_COLORS`:
+2. Add to `FILTER_STATUSES` if it should appear in the filter:
 
 ```ts
-pending_disbursement: "border-blue-500/30 bg-blue-500/10 text-blue-700",
+export const FILTER_STATUSES = [..., "pending_disbursement"] as const;
 ```
 
-2. Add to `STATUS_BADGES`:
+3. Add an `if` block in `getCardStatus`:
 
 ```ts
-pending_disbursement: { label: "Pending Disbursement", tone: "info" },
+if (app === "PENDING_DISBURSEMENT") return { badgeKey: "pending_disbursement", displayLabel: "Pending Disbursement", showReviewOffer: false, showMakeAmendments: false };
 ```
 
-3. Add to `STATUS_PRIORITY` (lower number = higher in the list):
-
-```ts
-pending_disbursement: 7,  // e.g. after draft
-```
-
-### Step 3: Add to the filter dropdown (page)
-
-Edit `page.tsx`:
-
-1. In `STATUS_FILTER_VALUES`, add: `PENDING_DISBURSEMENT: "pending_disbursement"`
-2. In the Status filter section, add a new `DropdownMenuRadioItem`:
-
-```tsx
-<DropdownMenuRadioItem value={STATUS_FILTER_VALUES.PENDING_DISBURSEMENT}>
-  {STATUS_BADGES.pending_disbursement?.label ?? "Pending Disbursement"}
-</DropdownMenuRadioItem>
-```
-
-### Step 4: (Optional) Add mock data
-
-If you use mock data, add an entry in `data.ts` with your new status so you can test it.
+4. (Optional) Add mock data in data.ts for testing.
 
 ---
 
@@ -173,12 +109,10 @@ Draft, Submitted, Under Review, Action Required, Offer Received, Approved
 - Invoice table (if applicable)
 
 **Buttons:**
-- **Withdraw Application** (via 3-dot menu)
 - No Review Offer or Make Amendments
 
 **User can:**
 - View details
-- Withdraw the application
 
 **User cannot:**
 - Edit (must wait for review)
@@ -194,12 +128,10 @@ Draft, Submitted, Under Review, Action Required, Offer Received, Approved
 - Invoice table (if applicable)
 
 **Buttons:**
-- **Withdraw Application** (via 3-dot menu)
 - No Review Offer or Make Amendments
 
 **User can:**
 - View details
-- Withdraw the application
 
 **User cannot:**
 - Edit
@@ -216,12 +148,10 @@ Draft, Submitted, Under Review, Action Required, Offer Received, Approved
 
 **Buttons:**
 - **Make Amendments** (card-level and/or per-invoice)
-- **Withdraw Application** (via 3-dot menu)
 
 **User can:**
 - Click Make Amendments to go to the edit flow
 - Address the requested changes
-- Withdraw
 
 **User cannot:**
 - Review new offers until amendments are submitted
@@ -238,12 +168,10 @@ Draft, Submitted, Under Review, Action Required, Offer Received, Approved
 
 **Buttons:**
 - **Review Contract Financing Offer** (for contract offers) or **Review Offer** (for invoice-only offers)
-- **Withdraw Application** (via 3-dot menu)
 - Per-invoice: **Review Offer** (when contract is approved)
 
 **User can:**
 - Review and accept/reject the offer
-- Withdraw
 
 **User cannot:**
 - Make amendments (unless amendment is requested)
@@ -262,7 +190,6 @@ Draft, Submitted, Under Review, Action Required, Offer Received, Approved
 - Invoice table (all invoices approved)
 
 **Buttons:**
-- **Withdraw Application** (via 3-dot menu) — if still allowed
 - No Review Offer or Make Amendments
 
 **User can:**
@@ -278,11 +205,10 @@ Draft, Submitted, Under Review, Action Required, Offer Received, Approved
 - Full application details
 
 **Buttons:**
-- **Withdraw Application** (via 3-dot menu)
+- None
 
 **User can:**
 - View details
-- Withdraw
 
 **User cannot:**
 - Edit or resubmit (would require a new application)
@@ -301,7 +227,6 @@ Draft, Submitted, Under Review, Action Required, Offer Received, Approved
 | Offer expired     | Offer expired    | Gray   |
 | Approved          | Approved         | Green  |
 | Rejected          | Rejected         | Red    |
-| Withdrawn         | Withdrawn        | Gray   |
 
 ---
 
@@ -409,7 +334,7 @@ When there are no invoices:
 - AMENDMENT_REQUESTED (API) becomes "Action Required" on screen
 - badgeKey "accepted" (code) maps to "Approved" (label)
 
-**Where do statuses come from?** Each application has three places that can have a status: the application itself, the contract (if it has one), and each invoice. A card can only show one badge, so we combine them. The lib file (`compute-application-card-status`) takes the three inputs and returns one badgeKey plus which buttons to show.
+**Where do statuses come from?** Each application has three places: app, contract, invoices. A card shows one badge. `getCardStatus` in status.ts combines them and returns badgeKey + button flags.
 
 **Which status wins?** When the app, contract, and invoices say different things, we use a fixed order. The most urgent one wins.
 
@@ -422,9 +347,9 @@ Example: app says SUBMITTED, one invoice says AMENDMENT_REQUESTED. We show "Acti
 
 **Many invoices?** If you have 3 invoices with different statuses, we pick the one that wins by the same order. [SENT, DRAFT, APPROVED] becomes SENT. Then we compare that with the app and contract status.
 
-**Order on the page.** `STATUS_PRIORITY` controls how cards are ordered. Lower number = higher up. Within the same status, we sort by date (newest first).
+**Order on the page.** `STATUS[key].sortOrder` in status.ts controls list order. Lower number = higher up. Same status: sort by date (newest first).
 
-**Full priority table (list sort order)** — from `applications.config.ts`:
+**Full priority table (list sort order)** — from `status.ts`:
 
 | badgeKey           | Priority | Label           |
 |--------------------|----------|-----------------|
@@ -436,11 +361,11 @@ Example: app says SUBMITTED, one invoice says AMENDMENT_REQUESTED. We show "Acti
 | resubmitted        | 6        | Resubmitted     |
 | draft              | 7        | Draft           |
 | accepted           | 8        | Approved        |
-| withdrawn          | 9        | Withdrawn       |
+| archived           | 10       | Archived        |
 
-`offer_expired` is a display variant of `sent` (same sort position). Unknown badgeKeys get priority 999 (bottom).
+`offer_expired` is a display variant of `sent` (same sort position). Archived apps are hidden from the list. Unknown badgeKeys get priority 999 (bottom).
 
-**Status resolution order (which wins when combining app + contract + invoices)** — from `compute-application-card-status.ts`:
+**Status resolution order (which wins when combining app + contract + invoices)** — from `getCardStatus` in status.ts:
 
 1. Rejected (app or contract)
 2. Action Required (contract or any invoice AMENDMENT_REQUESTED)
@@ -450,7 +375,7 @@ Example: app says SUBMITTED, one invoice says AMENDMENT_REQUESTED. We show "Acti
 6. Resubmitted (app RESUBMITTED)
 7. Draft (app DRAFT)
 8. Approved (app APPROVED)
-9. Withdrawn (app ARCHIVED)
+9. Archived (app ARCHIVED)
 10. Default: Draft
 
 **Invoice aggregation order** (when multiple invoices have different statuses):
@@ -522,7 +447,7 @@ Result: Badge Approved. Buttons: none.
 
 **Scenario 12**  
 App: ARCHIVED, Contract: any, Invoices: any  
-Result: Badge Withdrawn. Buttons: none.
+Result: Badge Archived. App is hidden from the list.
 
 **Scenario 13**  
 App: UNDER_REVIEW, Contract: SENT, Invoices: [DRAFT] and offer expired  
