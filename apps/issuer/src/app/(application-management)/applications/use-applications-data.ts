@@ -116,6 +116,7 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
 
   const created = api.created_at ? new Date(api.created_at) : new Date();
   const updated = api.updated_at ? new Date(api.updated_at) : created;
+  const submittedAt = (api as any).submitted_at != null ? String((api as any).submitted_at) : null;
 
   return {
     id: api.id,
@@ -125,6 +126,7 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
     contractTitle,
     customer,
     applicationDate: created.toISOString().slice(0, 10),
+    submittedAt,
     contractValue,
     facilityApplied,
     approvedFacility,

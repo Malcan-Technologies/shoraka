@@ -117,6 +117,8 @@ export interface NormalizedApplication {
   contractTitle: string | null;
   customer: string;
   applicationDate: string;
+  /** When the issuer submitted the application to admin. Null for drafts. Helps issuer see how long it has been waiting. */
+  submittedAt: string | null;
   contractValue: number | null;
   facilityApplied: number | null;
   approvedFacility: string;

@@ -65,6 +65,12 @@ function StatusBadge({ badgeKey }: { badgeKey: string }) {
 
 const DOCUMENT_NAME_MAX_LENGTH = 40;
 
+/** Single date display format used across the page. e.g. "10 Mar 2026" */
+function formatDate(date: string | Date | null | undefined): string {
+  if (date == null) return "—";
+  return format(new Date(date), "d MMM yyyy");
+}
+
 function truncateDocumentName(name: string): string {
   if (name.length <= DOCUMENT_NAME_MAX_LENGTH) return name;
   return `${name.slice(0, DOCUMENT_NAME_MAX_LENGTH)}…`;
@@ -195,9 +201,15 @@ function ApplicationCard({
         </CardHeader>
         <CardContent className="space-y-4">
           {useDraftCardLayout ? (
-            <p className="text-sm leading-6 text-muted-foreground">
-              This application is still being set up.
-            </p>
+            <div className="space-y-2">
+              <p className="text-sm leading-6 text-muted-foreground">
+                This application is still being set up.
+              </p>
+              <div className="text-sm text-muted-foreground">
+                Application submitted:{" "}
+                <span className="text-foreground">—</span>
+              </div>
+            </div>
           ) : (
           <div className="flex flex-wrap justify-between gap-6">
             <div className="space-y-1">
@@ -214,9 +226,16 @@ function ApplicationCard({
                 <span className="text-foreground">{application.customer}</span>
               </div>
               <div className="text-sm text-muted-foreground">
-                Application date:{" "}
+                Application created:{" "}
                 <span className="text-foreground">
-                  {application.applicationDate}
+                  {formatDate(application.applicationDate)}
+                </span>
+              </div>
+              {/* When the issuer submitted the application to admin. Helps issuer know how long it has been waiting. */}
+              <div className="text-sm text-muted-foreground">
+                Application submitted:{" "}
+                <span className="text-foreground">
+                  {formatDate(application.submittedAt)}
                 </span>
               </div>
             </div>
@@ -335,9 +354,7 @@ function ApplicationCard({
                             {inv.number}
                           </TableCell>
                           <TableCell className="text-[15px] py-3 px-4 align-middle">
-                            {inv.maturityDate
-                              ? format(new Date(inv.maturityDate), "dd MMM yyyy")
-                              : "—"}
+                            {formatDate(inv.maturityDate)}
                           </TableCell>
                           <TableCell className="text-right text-[15px] py-3 px-4 align-middle tabular-nums">
                             {inv.value ? formatCurrency(inv.value) : "—"}
@@ -441,10 +458,11 @@ export default function ApplicationsPage() {
   const { setTitle } = useHeader();
   const { applications, isLoading } = useApplicationsData();
 
-  /* --- FILTER: state. Status, Financing, Submitted Date, Search. --- */
+  /* --- FILTER: state. Status, Financing, Date (created + submitted), Search. --- */
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [financingFilter, setFinancingFilter] = React.useState("all");
+  const [createdFilter, setCreatedFilter] = React.useState("all");
   const [submittedFilter, setSubmittedFilter] = React.useState("all");
   const [page, setPage] = React.useState(1);
   const [perPage, setPerPage] = React.useState(4);
@@ -474,6 +492,17 @@ export default function ApplicationsPage() {
           : "Invoice financing";
       list = list.filter((a) => a.type === match);
     }
+    if (createdFilter !== "all") {
+      const now = new Date();
+      const cutoff = new Date(now);
+      if (createdFilter === "7d") cutoff.setDate(now.getDate() - 7);
+      else if (createdFilter === "30d") cutoff.setDate(now.getDate() - 30);
+      else if (createdFilter === "90d") cutoff.setDate(now.getDate() - 90);
+      const cutoffTime = cutoff.getTime();
+      list = list.filter(
+        (a) => new Date(a.applicationDate).getTime() >= cutoffTime
+      );
+    }
     if (submittedFilter !== "all") {
       const now = new Date();
       const cutoff = new Date(now);
@@ -481,12 +510,13 @@ export default function ApplicationsPage() {
       else if (submittedFilter === "30d") cutoff.setDate(now.getDate() - 30);
       else if (submittedFilter === "90d") cutoff.setDate(now.getDate() - 90);
       const cutoffTime = cutoff.getTime();
-      list = list.filter(
-        (a) => new Date(a.applicationDate).getTime() >= cutoffTime
-      );
+      list = list.filter((a) => {
+        if (!a.submittedAt) return false;
+        return new Date(a.submittedAt).getTime() >= cutoffTime;
+      });
     }
     return list;
-  }, [applications, search, statusFilter, financingFilter, submittedFilter]);
+  }, [applications, search, statusFilter, financingFilter, createdFilter, submittedFilter]);
 
   const paginatedApplications = filteredApplications.slice(
     (page - 1) * perPage,
@@ -497,19 +527,23 @@ export default function ApplicationsPage() {
   const filterCount = [
     statusFilter !== "all",
     financingFilter !== "all",
+    createdFilter !== "all",
+    submittedFilter !== "all",
   ].filter(Boolean).length;
-  const hasFilters = search !== "" || submittedFilter !== "all" || filterCount > 0;
+  const hasFilters = search !== "" || filterCount > 0;
 
-  /** Submitted date range label when filter active. e.g. "4 Mar – 11 Mar" */
-  const submittedRangeLabel = React.useMemo(() => {
-    if (submittedFilter === "all") return null;
+  /** Date range label when filter active. e.g. "4 Mar 2026 – 11 Mar 2026" */
+  function getDateRangeLabel(filter: string): string | null {
+    if (filter === "all") return null;
     const now = new Date();
     const start = new Date(now);
-    if (submittedFilter === "7d") start.setDate(now.getDate() - 7);
-    else if (submittedFilter === "30d") start.setDate(now.getDate() - 30);
-    else if (submittedFilter === "90d") start.setDate(now.getDate() - 90);
-    return `${format(start, "d MMM")} – ${format(now, "d MMM yyyy")}`;
-  }, [submittedFilter]);
+    if (filter === "7d") start.setDate(now.getDate() - 7);
+    else if (filter === "30d") start.setDate(now.getDate() - 30);
+    else if (filter === "90d") start.setDate(now.getDate() - 90);
+    return `${formatDate(start)} – ${formatDate(now)}`;
+  }
+  const createdRangeLabel = getDateRangeLabel(createdFilter);
+  const submittedRangeLabel = getDateRangeLabel(submittedFilter);
   const totalPages = Math.ceil(filteredApplications.length / perPage) || 1;
   const startIndex = (page - 1) * perPage + 1;
   const endIndex = Math.min(
@@ -596,19 +630,43 @@ export default function ApplicationsPage() {
                     className="gap-2 h-11 rounded-xl focus-visible:ring-1 focus-visible:ring-offset-0"
                   >
                     <FunnelIcon className="h-4 w-4" />
-                    Submitted
-                    {submittedFilter !== "all" && (
+                    Date
+                    {(createdFilter !== "all" || submittedFilter !== "all") && (
                       <Badge
                         variant="default"
                         className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs shadow-none"
                       >
-                        1
+                        {(createdFilter !== "all" ? 1 : 0) + (submittedFilter !== "all" ? 1 : 0)}
                       </Badge>
                     )}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56 p-1">
-                  <DropdownMenuLabel>When submitted</DropdownMenuLabel>
+                  <DropdownMenuLabel>Application created</DropdownMenuLabel>
+                  {[
+                    { value: "all", label: "All time" },
+                    { value: "7d", label: "Last 7 days" },
+                    { value: "30d", label: "Last 30 days" },
+                    { value: "90d", label: "Last 90 days" },
+                  ].map((opt) => (
+                    <DropdownMenuItem
+                      key={`created-${opt.value}`}
+                      className="pl-8 relative"
+                      onClick={() => {
+                        setCreatedFilter(opt.value);
+                        setPage(1);
+                      }}
+                    >
+                      {createdFilter === opt.value && (
+                        <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                          <span className="h-2 w-2 rounded-full bg-foreground" />
+                        </span>
+                      )}
+                      {opt.label}
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Application submitted</DropdownMenuLabel>
                   {[
                     { value: "all", label: "All time" },
                     { value: "7d", label: "Last 7 days" },
@@ -706,6 +764,7 @@ export default function ApplicationsPage() {
                     setSearch("");
                     setStatusFilter("all");
                     setFinancingFilter("all");
+                    setCreatedFilter("all");
                     setSubmittedFilter("all");
                     setPage(1);
                   }}
@@ -716,6 +775,11 @@ export default function ApplicationsPage() {
                 </Button>
               )}
 
+              {createdRangeLabel && (
+                <span className="text-sm text-muted-foreground">
+                  Created: {createdRangeLabel}
+                </span>
+              )}
               {submittedRangeLabel && (
                 <span className="text-sm text-muted-foreground">
                   Submitted: {submittedRangeLabel}
