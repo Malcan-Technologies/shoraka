@@ -134,6 +134,14 @@ export function computeApplicationCardStatus(input: CardStatusInput): CardStatus
   }
   if (appStatus === "ARCHIVED") {
     return {
+      badgeKey: "archived",
+      displayLabel: "Archived",
+      showReviewOffer: false,
+      showMakeAmendments: false,
+    };
+  }
+  if (appStatus === "WITHDRAWN") {
+    return {
       badgeKey: "withdrawn",
       displayLabel: "Withdrawn",
       showReviewOffer: false,

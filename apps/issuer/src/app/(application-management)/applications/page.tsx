@@ -54,14 +54,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { STATUS_BADGES, STATUS_BADGE_COLORS } from "./applications.config";
 
@@ -158,16 +150,12 @@ function OfferExpiredBadge() {
 
 function ApplicationCard({
   application,
-  onWithdraw,
   onDocumentDownload,
 }: {
   application: NormalizedApplication;
-  onWithdraw: () => void;
   onDocumentDownload: (s3Key: string) => Promise<void>;
 }) {
   const [expanded, setExpanded] = React.useState(false);
-  const [withdrawDialogOpen, setWithdrawDialogOpen] = React.useState(false);
-  const [isWithdrawing, setIsWithdrawing] = React.useState(false);
 
   const { cardStatus } = application;
   const isDraft = application.status === "draft";
@@ -187,14 +175,6 @@ function ApplicationCard({
    * financing card so the user can preview the structure. Only drafts without financing
    * structure use the generic draft card. */
   const useDraftCardLayout = isDraft && isGenericDraft;
-
-  const handleWithdraw = async () => {
-    setIsWithdrawing(true);
-    await new Promise((r) => setTimeout(r, 500));
-    onWithdraw();
-    setIsWithdrawing(false);
-    setWithdrawDialogOpen(false);
-  };
 
   /* We only display the last 8 characters of the application ID to keep the UI cleaner and easier to scan. */
   const displayId = application.id.slice(-8);
@@ -269,7 +249,7 @@ function ApplicationCard({
                   ) : (
                     <DropdownMenuItem
                       className="cursor-pointer text-destructive focus:text-destructive"
-                      onClick={() => setWithdrawDialogOpen(true)}
+                      onClick={() => {}}
                     >
                       Withdraw Application
                     </DropdownMenuItem>
@@ -512,10 +492,10 @@ function ApplicationCard({
                                   className="rounded-xl"
                                 >
                                   <DropdownMenuItem
-                                    className="cursor-pointer"
-                                    disabled
+                                    className="cursor-pointer text-destructive focus:text-destructive"
+                                    onClick={() => {}}
                                   >
-                                    View document
+                                    Withdraw
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -532,36 +512,6 @@ function ApplicationCard({
           )}
         </CardContent>
       </Card>
-
-      <Dialog
-        open={withdrawDialogOpen}
-        onOpenChange={setWithdrawDialogOpen}
-      >
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Withdraw Application</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to withdraw this application?
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setWithdrawDialogOpen(false)}
-              disabled={isWithdrawing}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleWithdraw}
-              disabled={isWithdrawing}
-            >
-              {isWithdrawing ? "Withdrawing…" : "Withdraw"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   );
 }
@@ -582,19 +532,13 @@ export default function ApplicationsPage() {
   const [dateFilter, setDateFilter] = React.useState("all");
   const [page, setPage] = React.useState(1);
   const [perPage, setPerPage] = React.useState(4);
-  const [withdrawnIds, setWithdrawnIds] = React.useState<Set<string>>(new Set());
 
   React.useEffect(() => {
     setTitle("Applications");
   }, [setTitle]);
 
-  const visibleApplications = React.useMemo(
-    () => applications.filter((a) => !withdrawnIds.has(a.id)),
-    [applications, withdrawnIds]
-  );
-
   const filteredApplications = React.useMemo(() => {
-    let list = [...visibleApplications];
+    let list = [...applications];
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(
@@ -610,11 +554,11 @@ export default function ApplicationsPage() {
       list = list.filter((a) => a.customer === customerFilter);
     }
     return list;
-  }, [visibleApplications, search, statusFilter, customerFilter]);
+  }, [applications, search, statusFilter, customerFilter]);
 
   const uniqueCustomers = React.useMemo(
-    () => [...new Set(visibleApplications.map((a) => a.customer))],
-    [visibleApplications]
+    () => [...new Set(applications.map((a) => a.customer))],
+    [applications]
   );
 
   const paginatedApplications = filteredApplications.slice(
@@ -622,7 +566,7 @@ export default function ApplicationsPage() {
     page * perPage
   );
 
-  const totalCount = visibleApplications.length;
+  const totalCount = applications.length;
   const activeFilterCount = [
     statusFilter !== "all",
     customerFilter !== "all",
@@ -635,13 +579,6 @@ export default function ApplicationsPage() {
     page * perPage,
     filteredApplications.length
   );
-
-  const handleWithdraw = (id: string) => {
-    setWithdrawnIds((prev) => new Set(prev).add(id));
-    if (page > 1 && paginatedApplications.length <= 1) {
-      setPage((p) => Math.max(1, p - 1));
-    }
-  };
 
   const { getAccessToken } = useAuthToken();
   const apiClient = React.useMemo(
@@ -850,7 +787,6 @@ export default function ApplicationsPage() {
                   <ApplicationCard
                     key={app.id}
                     application={app}
-                    onWithdraw={() => handleWithdraw(app.id)}
                     onDocumentDownload={handleDocumentDownload}
                   />
                 ))}

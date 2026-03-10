@@ -43,13 +43,18 @@ export function useApplicationsData(): {
   );
 
   const applications = useMemo(() => {
+    let list: NormalizedApplication[];
     if (USE_MOCK_DATA) {
-      return sortApplications(mockApplications);
+      list = mockApplications;
+    } else {
+      const normalized = (apiApplications as any[]).map((app) =>
+        normalizeApplication(app)
+      );
+      list = normalized;
     }
-    const normalized = (apiApplications as any[]).map((app) =>
-      normalizeApplication(app)
-    );
-    return sortApplications(normalized);
+    /* Archived apps are hidden from the dashboard. */
+    const visible = list.filter((a) => a.status !== "archived");
+    return sortApplications(visible);
   }, [USE_MOCK_DATA, apiApplications]);
 
   return {

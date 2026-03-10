@@ -20,6 +20,7 @@ export const APPLICATION_STATUS = {
   SENT: "sent",
   ACCEPTED: "accepted",
   REJECTED: "rejected",
+  ARCHIVED: "archived",
   WITHDRAWN: "withdrawn",
 } as const;
 
@@ -42,6 +43,7 @@ export const STATUS_BADGE_COLORS: Record<string, string> = {
   accepted: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700",
   approved: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700",
   rejected: "border-red-500/30 bg-red-500/10 text-red-700",
+  archived: "border-slate-500/30 bg-slate-500/10 text-slate-600",
   withdrawn: "border-slate-500/30 bg-slate-500/10 text-slate-600",
   pending_approval: "border-blue-500/30 bg-blue-500/10 text-blue-700",
 };
@@ -61,6 +63,7 @@ export const STATUS_BADGES: Record<
   accepted: { label: "Approved", tone: "success" },
   approved: { label: "Approved", tone: "success" },
   rejected: { label: "Rejected", tone: "danger" },
+  archived: { label: "Archived", tone: "neutral" },
   withdrawn: { label: "Withdrawn", tone: "neutral" },
   /** Invoice/contract raw status for invoice row display. Same color as pending_amendment. */
   amendment_requested: { label: "Action Required", tone: "warning" },
@@ -77,6 +80,7 @@ export const STATUS_PRIORITY: Record<string, number> = {
   draft: 7,
   accepted: 8,
   withdrawn: 9,
+  archived: 10,
 };
 
 export const SORT_CONFIG = {
