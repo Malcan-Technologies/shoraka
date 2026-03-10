@@ -1657,6 +1657,9 @@ export class AdminService {
         businessName?: string;
         numberOfEmployees?: number;
         ssmRegisterNumber?: string;
+        annualRevenue?: string;
+        website?: string;
+        phoneNumber?: string;
       };
       addresses?: {
         business?: {
@@ -1675,6 +1678,12 @@ export class AdminService {
           state?: string | null;
           country?: string | null;
         };
+      };
+      personInCharge?: {
+        name?: string | null;
+        position?: string | null;
+        email?: string | null;
+        contactNumber?: string | null;
       };
     };
     corporateEntities?: Record<string, unknown> | null;
@@ -1742,6 +1751,9 @@ export class AdminService {
             numberOfEmployees?: number | string;
             ssmRegistrationNumber?: string;
             ssmRegisterNumber?: string;
+            annualRevenue?: string;
+            website?: string;
+            phoneNumber?: string;
           };
           addresses?: {
             business?: {
@@ -1763,6 +1775,12 @@ export class AdminService {
             businessAddress?: string;
             registeredAddress?: string;
           };
+          personInCharge?: {
+            name?: string | null;
+            position?: string | null;
+            email?: string | null;
+            contactNumber?: string | null;
+          };
         };
 
         return {
@@ -1780,12 +1798,23 @@ export class AdminService {
                 data.basicInfo.ssmRegisterNumber ||
                 data.basicInfo.ssmRegistrationNumber ||
                 undefined,
+              annualRevenue: data.basicInfo.annualRevenue || undefined,
+              website: data.basicInfo.website || undefined,
+              phoneNumber: data.basicInfo.phoneNumber || undefined,
             }
             : undefined,
           addresses: data.addresses
             ? {
               business: data.addresses.business || undefined,
               registered: data.addresses.registered || undefined,
+            }
+            : undefined,
+          personInCharge: data.personInCharge
+            ? {
+              name: data.personInCharge.name || undefined,
+              position: data.personInCharge.position || undefined,
+              email: data.personInCharge.email || undefined,
+              contactNumber: data.personInCharge.contactNumber || undefined,
             }
             : undefined,
         };

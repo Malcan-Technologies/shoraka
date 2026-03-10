@@ -514,10 +514,19 @@ export default function ProfilePage() {
             businessName?: string;
             numberOfEmployees?: number;
             ssmRegisterNumber?: string;
+            annualRevenue?: string;
+            website?: string;
+            phoneNumber?: string;
           };
           addresses?: {
             businessAddress?: string;
             registeredAddress?: string;
+          };
+          personInCharge?: {
+            name?: string | null;
+            position?: string | null;
+            email?: string | null;
+            contactNumber?: string | null;
           };
         };
         corporateEntities?: {
@@ -912,6 +921,39 @@ export default function ProfilePage() {
               {/* 1. Corporate Info Section - Only for COMPANY accounts */}
               {!isPersonal && activeOrganization?.id && (
                 <CorporateInfoCard organizationId={activeOrganization.id} />
+              )}
+
+              {!isPersonal && orgData?.corporateOnboardingData?.personInCharge && (
+                <div className="rounded-xl border bg-card">
+                  <div className="p-6 border-b">
+                    <h2 className="text-lg font-semibold">Person in Charge</h2>
+                    <p className="text-sm text-muted-foreground">Primary business contact details</p>
+                  </div>
+                  <div className="p-6 grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Name</Label>
+                      <Input value={orgData.corporateOnboardingData.personInCharge.name || ""} disabled className="bg-muted" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Position</Label>
+                      <Input value={orgData.corporateOnboardingData.personInCharge.position || ""} disabled className="bg-muted" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground flex items-center gap-2">
+                        <EnvelopeIcon className="h-4 w-4" />
+                        Email
+                      </Label>
+                      <Input value={orgData.corporateOnboardingData.personInCharge.email || ""} disabled className="bg-muted" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground flex items-center gap-2">
+                        <PhoneIcon className="h-4 w-4" />
+                        Contact Number
+                      </Label>
+                      <Input value={orgData.corporateOnboardingData.personInCharge.contactNumber || ""} disabled className="bg-muted" />
+                    </div>
+                  </div>
+                </div>
               )}
 
               {/* For PERSONAL accounts: Address comes before Contact Details */}

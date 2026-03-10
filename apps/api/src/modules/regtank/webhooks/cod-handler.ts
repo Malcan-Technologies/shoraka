@@ -184,6 +184,8 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             tin: basicContent.find((f: any) => f.fieldName === "TIN")?.fieldValue || null,
             industry: basicContent.find((f: any) => f.fieldName === "Industry")?.fieldValue || null,
             numberOfEmployees: basicContent.find((f: any) => f.fieldName === "Number of employees")?.fieldValue || null,
+            annualRevenue: basicContent.find((f: any) => f.fieldName === "Annual revenue (RM)")?.fieldValue || null,
+            website: basicContent.find((f: any) => f.fieldName === "Website")?.fieldValue || null,
             phoneNumber: basicContent.find((f: any) => f.fieldName === "Phone Number")?.fieldValue || null,
           };
 
@@ -217,10 +219,19 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             },
           };
 
+          const personInCharge = {
+            name: basicContent.find((f: any) => f.fieldName === "Name (Person in charge)")?.fieldValue || null,
+            position: basicContent.find((f: any) => f.fieldName === "Position (Person in charge)")?.fieldValue || null,
+            email: basicContent.find((f: any) => f.fieldName === "Email (Person in charge)")?.fieldValue || null,
+            contactNumber:
+              basicContent.find((f: any) => f.fieldName === "Contact Number (Person in charge)")?.fieldValue || null,
+          };
+
           return {
             basicInfo,
             entityCriteria,
             addresses,
+            personInCharge,
           };
         };
 
@@ -620,6 +631,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 corporate_onboarding_data: corporateOnboardingData as Prisma.InputJsonValue,
                 corporate_required_documents: corporateRequiredDocuments as Prisma.InputJsonValue,
                 corporate_entities: corporateEntities as Prisma.InputJsonValue,
+                phone_number: corporateOnboardingData?.basicInfo?.phoneNumber ?? null,
               },
             });
 

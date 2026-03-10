@@ -136,16 +136,43 @@ async function listOrganizations(
             corporateOnboardingData: (org as { corporate_onboarding_data?: unknown }).corporate_onboarding_data
               ? ((org as { corporate_onboarding_data: unknown }).corporate_onboarding_data as {
                   basicInfo?: {
+                    tin?: string;
                     tinNumber?: string;
                     industry?: string;
                     entityType?: string;
                     businessName?: string;
-                    numberOfEmployees?: number;
+                    numberOfEmployees?: number | string;
                     ssmRegisterNumber?: string;
+                    ssmRegistrationNumber?: string;
+                    annualRevenue?: string;
+                    website?: string;
+                    phoneNumber?: string;
                   };
                   addresses?: {
+                    business?: {
+                      line1?: string | null;
+                      line2?: string | null;
+                      city?: string | null;
+                      postalCode?: string | null;
+                      state?: string | null;
+                      country?: string | null;
+                    };
+                    registered?: {
+                      line1?: string | null;
+                      line2?: string | null;
+                      city?: string | null;
+                      postalCode?: string | null;
+                      state?: string | null;
+                      country?: string | null;
+                    };
                     businessAddress?: string;
                     registeredAddress?: string;
+                  };
+                  personInCharge?: {
+                    name?: string | null;
+                    position?: string | null;
+                    email?: string | null;
+                    contactNumber?: string | null;
                   };
                 })
               : undefined,
@@ -321,6 +348,9 @@ async function getOrganization(
                 numberOfEmployees?: number | string;
                 ssmRegistrationNumber?: string;
                 ssmRegisterNumber?: string;
+                annualRevenue?: string;
+                website?: string;
+                phoneNumber?: string;
               };
               addresses?: {
                 business?: {
@@ -342,6 +372,12 @@ async function getOrganization(
                 businessAddress?: string;
                 registeredAddress?: string;
               };
+              personInCharge?: {
+                name?: string | null;
+                position?: string | null;
+                email?: string | null;
+                contactNumber?: string | null;
+              };
             };
 
             return {
@@ -361,6 +397,9 @@ async function getOrganization(
                       data.basicInfo.ssmRegisterNumber ||
                       data.basicInfo.ssmRegistrationNumber ||
                       undefined,
+                    annualRevenue: data.basicInfo.annualRevenue || undefined,
+                    website: data.basicInfo.website || undefined,
+                    phoneNumber: data.basicInfo.phoneNumber || undefined,
                   }
                 : undefined,
               addresses: data.addresses
@@ -368,6 +407,14 @@ async function getOrganization(
                     // Return structured address objects
                     business: data.addresses.business || data.addresses.businessAddress || undefined,
                     registered: data.addresses.registered || data.addresses.registeredAddress || undefined,
+                  }
+                : undefined,
+              personInCharge: data.personInCharge
+                ? {
+                    name: data.personInCharge.name || undefined,
+                    position: data.personInCharge.position || undefined,
+                    email: data.personInCharge.email || undefined,
+                    contactNumber: data.personInCharge.contactNumber || undefined,
                   }
                 : undefined,
             };

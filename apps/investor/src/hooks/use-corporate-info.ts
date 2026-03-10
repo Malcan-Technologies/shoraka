@@ -27,11 +27,16 @@ export function useCorporateInfo(organizationId: string | undefined) {
         corporateOnboardingData?: {
           basicInfo?: {
             tinNumber?: string;
+            tin?: string;
             industry?: string;
             entityType?: string;
             businessName?: string;
             numberOfEmployees?: number;
             ssmRegisterNumber?: string;
+            ssmRegistrationNumber?: string;
+            annualRevenue?: string;
+            website?: string;
+            phoneNumber?: string;
           };
           addresses?: {
             business?: Address;
