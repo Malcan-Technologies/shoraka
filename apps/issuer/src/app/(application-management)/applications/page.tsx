@@ -1,8 +1,11 @@
 "use client";
 
 /**
- * Applications Dashboard for the Issuer portal. Shows applications for the active organization.
- * Data comes from mock (USE_MOCK_DATA=true) or API (USE_MOCK_DATA=false).
+ * Applications Dashboard — main screen listing application cards.
+ *
+ * Data: useApplicationsData() returns NormalizedApplication[] (from API via adapter or mock).
+ * Renders: card per app with badge (from STATUS_BADGES), buttons (from cardStatus), invoice table.
+ * Status logic lives in adapter + lib; this page only displays.
  */
 
 import * as React from "react";
@@ -76,11 +79,7 @@ const STATUS_FILTER_VALUES = {
 import { useApplicationsData } from "./use-applications-data";
 import type { NormalizedApplication, NormalizedInvoice } from "./adapters/application.adapter";
 
-/* ============================================================
-   STATUS BADGE
-   ============================================================
-   Uses STATUS_BADGE_COLORS. Admin portal colors used as reference.
-   Component-level styling only; globals.css and tailwind.config unchanged. */
+/* Renders status badge. badgeKey from cardStatus maps to label and color in applications.config. */
 
 const BADGE_BASE = "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold border";
 const BADGE_FALLBACK = "border-slate-500/30 bg-slate-500/10 text-slate-600";
@@ -98,10 +97,10 @@ function StatusBadge({ badgeKey }: { badgeKey: string }) {
 
 /* ============================================================
    DOCUMENT DOWNLOAD LINK
-   ============================================================
-   Document name as normal text; download icon beside it. Clicking the icon
-   fetches presigned URL and triggers download. Icon used instead of colored
-   link text so the filename stays readable and the download affordance is clear. */
+   Props from NormalizedInvoice (document, documentS3Key from details.document).
+   Click icon calls getS3DownloadUrl(s3Key), then opens presigned URL. Errors via toast.
+   Disabled when invoices locked (no S3 key or contract not approved).
+   ============================================================ */
 
 function DocumentDownloadLink({
   documentName,
@@ -115,8 +114,9 @@ function DocumentDownloadLink({
   disabled?: boolean;
 }) {
   const [loading, setLoading] = React.useState(false);
+  /* No documentS3Key or invoices locked: show filename only, muted. No download. */
   if (!documentS3Key || disabled) {
-    return <span className="text-[15px]">{documentName}</span>;
+    return <span className="text-[15px] text-muted-foreground">{documentName}</span>;
   }
   return (
     <span className="inline-flex items-center gap-1.5 text-[15px]">
@@ -142,10 +142,7 @@ function DocumentDownloadLink({
   );
 }
 
-/* ============================================================
-   OFFER BADGE (sent + expired)
-   ============================================================
-   When card status is Offer Received but offer has expired. */
+/* Shown when cardStatus is sent but offer has expired (hasExpiredOffer from adapter). */
 
 function OfferExpiredBadge() {
   const colorClass = STATUS_BADGE_COLORS.offer_expired ?? BADGE_FALLBACK;
@@ -157,11 +154,7 @@ function OfferExpiredBadge() {
 }
 
 
-/* ============================================================
-   APPLICATION CARD
-   ============================================================
-   Uses NormalizedApplication. Card type comes from financing structure.
-   Draft card (type=Generic): header + helper text. No Continue button; edit via action menu. */
+/* Renders one card. Props: NormalizedApplication from useApplicationsData. Draft without financing_structure uses minimal layout. */
 
 function ApplicationCard({
   application,
@@ -181,7 +174,7 @@ function ApplicationCard({
   const isGenericDraft = application.type === "Generic";
   const hasContract = application.type === "Contract financing";
 
-  /* Contract structure: invoices disabled until contract approved. Invoice-only apps unaffected. */
+  /* Contract financing: lock invoice section until contractStatus === APPROVED. Invoice-only apps have no contract. */
   const invoicesDisabled = hasContract && application.contractStatus !== "APPROVED";
 
   /* Single badge: sent+expired shows Offer expired; otherwise use cardStatus. */
@@ -226,8 +219,7 @@ function ApplicationCard({
               )}
             </div>
             <div className="flex items-center gap-2">
-              {/* Contract offer: "Review Contract Financing Offer". Invoice offer: "Review Offer".
-                  Expiry grouped under button only so it does not span across the 3-dot menu. */}
+              {/* Contract offer: "Review Contract Financing Offer". Invoice: "Review Offer". Expiry under button. */}
               {cardStatus.showReviewOffer && !application.hasExpiredOffer && (
                 <div className="flex flex-col items-center gap-1">
                   <Button
@@ -360,8 +352,7 @@ function ApplicationCard({
               <h3 className="text-sm font-semibold text-foreground mb-3">
                 Invoice table
               </h3>
-              {/* Invoices disabled until contract approved. Gray overlay + pointer-events-none on actions.
-                  Only the invoice section is blocked; card header and contract summary remain interactive. */}
+              {/* Locked: overlay, disabled actions, helper message. Card header and contract summary stay interactive. */}
               {invoicesDisabled && (
                 <p className="text-xs text-muted-foreground mb-2">
                   Invoices will be available after the contract offer is accepted.
@@ -471,8 +462,7 @@ function ApplicationCard({
                                 invDisabled && "pointer-events-none opacity-60"
                               )}
                             >
-                              {/* Action button + expiry below. Fixed min-width keeps layout stable across rows.
-                                  Expiry text below button prevents layout shift; button stays aligned with other rows. */}
+                              {/* Fixed min-width for alignment. Expiry below button to avoid layout shift. */}
                               {(showReviewOffer || showMakeAmendments) && (
                                 <div className="flex flex-col items-center gap-1 min-w-[140px]">
                                   {showReviewOffer && (
@@ -659,14 +649,19 @@ export default function ApplicationsPage() {
     [getAccessToken]
   );
 
-  /** Document download attached to document column. Fetches presigned URL and opens in new tab. */
+  /** Document download: fetches presigned URL from API, opens in new tab.
+      Errors (network, API failure, missing URL) show toast. */
   const handleDocumentDownload = async (s3Key: string) => {
-    const resp = await apiClient.getS3DownloadUrl(s3Key);
-    if (!resp.success || !resp.data?.downloadUrl) {
+    try {
+      const resp = await apiClient.getS3DownloadUrl(s3Key);
+      if (!resp.success || !resp.data?.downloadUrl) {
+        toast.error("Could not get download link");
+        return;
+      }
+      window.open(resp.data.downloadUrl, "_blank");
+    } catch {
       toast.error("Could not get download link");
-      return;
     }
-    window.open(resp.data.downloadUrl, "_blank");
   };
 
   return (

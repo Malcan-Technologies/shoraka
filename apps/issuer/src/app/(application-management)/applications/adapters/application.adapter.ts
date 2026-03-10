@@ -1,5 +1,11 @@
 /**
- * Converts backend API data into clean UI objects. Components must use these functions; never pass raw API responses.
+ * Adapter: converts API/Prisma response shapes into flat UI-ready objects.
+ *
+ * Input: Raw API response (Prisma Application with nested contract, invoices, offer_details).
+ * Output: NormalizedApplication with cardStatus, offerExpiresAt, flattened invoice fields.
+ *
+ * Example: API returns offer_details.expires_at, we output offerExpiresAt.
+ * Components never receive raw API data.
  */
 
 import { getOfferStatus } from "@/lib/offer-utils";
@@ -9,9 +15,8 @@ import {
 } from "../lib/compute-application-card-status";
 
 /* ============================================================
-   API TYPES (what the backend returns)
-   ============================================================
-   These match the Prisma/API response shape. */
+   API TYPES — shapes returned by Prisma/API (snake_case, nested)
+   ============================================================ */
 
 /** Raw contract from the API (Prisma Contract with relations). */
 interface ApiContract {
@@ -61,9 +66,8 @@ interface ApiApplication {
 }
 
 /* ============================================================
-   UI TYPES (what components receive)
-   ============================================================
-   Components must receive these shapes, never raw API data. */
+   UI TYPES — shapes passed to components (camelCase, flat)
+   ============================================================ */
 
 /** Normalized offer for display. */
 export interface NormalizedOffer {
@@ -87,15 +91,15 @@ export interface NormalizedInvoice {
   value: number | null;
   appliedFinancing: number | null;
   document: string;
-  /** S3 key for document download. Download attached to document column, not action column. */
+  /** S3 key from details.document.s3_key. Used for getS3DownloadUrl presigned link. */
   documentS3Key: string | null;
   financingOffered: string;
   profitRate: string;
   status: string;
   offerStatus: "Offer received" | "Offer expired" | null;
-  /** True when the Review Offer button is enabled. For invoice offers, the contract must be approved first. */
+  /** True when Review Offer enabled. Invoice offers require contractStatus === APPROVED. */
   canReviewOffer: boolean;
-  /** Offer expiry from offer_details.expires_at. For "Offer valid until" display. */
+  /** From offer_details.expires_at. Shown as "Offer valid until: DD Mon YYYY". */
   offerExpiresAt: string | null;
 }
 
@@ -124,9 +128,10 @@ export interface NormalizedApplication {
 }
 
 /* ============================================================
-   normalizeOffer
-   ============================================================
-   Converts API offer_details to the UI shape. Handles both contract and invoice offers. */
+   normalizeOffer — contract or invoice offer_details from Prisma
+   IN:  { expires_at, offered_facility } (from contract) or { offered_amount } (from invoice)
+   OUT: { expiresAt, offeredFacility } or { offeredAmount }
+   ============================================================ */
 
 export function normalizeOffer(
   apiOffer: ApiContract["offer_details"] | ApiInvoice["offer_details"]
@@ -162,9 +167,10 @@ export function normalizeOffer(
 }
 
 /* ============================================================
-   normalizeInvoice
-   ============================================================
-   Converts an API invoice to the UI invoice shape. Includes offer status and canReviewOffer. */
+   normalizeInvoice — Prisma Invoice to NormalizedInvoice for table row
+   IN:  API invoice with details.document (s3_key, file_name), offer_details.expires_at
+   OUT: document, documentS3Key, offerExpiresAt, canReviewOffer (contract must be APPROVED for invoice offers)
+   ============================================================ */
 
 export function normalizeInvoice(
   apiInvoice: ApiInvoice,
@@ -234,9 +240,10 @@ export function normalizeInvoice(
 }
 
 /* ============================================================
-   normalizeApplication
-   ============================================================
-   Converts an API application to the UI shape. Derives card type, badges, and invoice data. */
+   normalizeApplication — Prisma Application to NormalizedApplication for card
+   IN:  Raw API application (nested contract, invoices, financing_structure)
+   OUT: cardStatus (from computeApplicationCardStatus), invoices[], offerExpiresAt, contractStatus
+   ============================================================ */
 
 export function normalizeApplication(apiApplication: ApiApplication): NormalizedApplication {
   const structureType = (
@@ -272,7 +279,7 @@ export function normalizeApplication(apiApplication: ApiApplication): Normalized
   }
 
   /* Determine card type and financing label from financing structure.
-   * invoice_only → "Invoice Financing"; existing_contract | new_contract → "Contract Financing".
+   * invoice_only becomes "Invoice Financing"; existing_contract | new_contract becomes "Contract Financing".
    * If status is DRAFT and financing_structure is null, type is Generic (no financing label shown). */
   let type: "Contract financing" | "Invoice financing" | "Generic" = "Generic";
   if (apiApplication.status === "DRAFT" && !structureType) {
@@ -334,7 +341,7 @@ export function normalizeApplication(apiApplication: ApiApplication): Normalized
     ? new Date(apiApplication.updated_at)
     : created;
 
-  /* Offer expiry for card-level display. Contract SENT → contract expiry; else first invoice SENT expiry. */
+  /* Offer expiry for card-level display. Contract SENT uses contract expiry; else first invoice SENT expiry. */
   let offerExpiresAt: string | null = null;
   if (contractStatus === "SENT" && contract?.offer_details?.expires_at) {
     offerExpiresAt = String(contract.offer_details.expires_at);

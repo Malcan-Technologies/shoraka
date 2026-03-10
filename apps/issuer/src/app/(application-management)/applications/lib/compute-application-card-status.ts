@@ -1,22 +1,23 @@
 /**
- * Computes the single status badge for an application card.
- * Card shows exactly one status — the highest-priority current state.
- * Priority: REJECTED > AMENDMENT_REQUESTED > SENT > UNDER_REVIEW > SUBMITTED > DRAFT > APPROVED.
- * Invoice rejection does not reject the application; only contract rejection does.
+ * Computes the single status badge and button flags for an application card.
+ *
+ * Input: applicationStatus, contractStatus, invoiceStatuses (from adapter or API).
+ * Output: badgeKey, displayLabel, showReviewOffer, showMakeAmendments.
+ *
+ * Example: SENT + SENT + [SENT] returns badgeKey "sent", showReviewOffer true.
+ * Priority order: Rejected > Action Required > Offer Received > ... > Approved.
+ * One card shows one badge; we pick the highest-priority status.
  */
 
+/** Returned to adapter/page. badgeKey maps to STATUS_BADGES in config. */
 export type CardStatusResult = {
-  /** Badge key for STATUS_BADGES lookup (e.g. rejected, pending_amendment, sent). */
   badgeKey: string;
-  /** Display label shown on the card. */
   displayLabel: string;
-  /** True when Review Offer button should show (Contract or Invoice SENT). */
   showReviewOffer: boolean;
-  /** True when Make Amendments button should show (Contract or Invoice AMENDMENT_REQUESTED). */
   showMakeAmendments: boolean;
 };
 
-/** Application, contract, and invoices as received from API or adapter. */
+/** Input from adapter. Statuses from Prisma Application, Contract, Invoice. */
 export interface CardStatusInput {
   applicationStatus: string;
   contractStatus?: string | null;
@@ -24,8 +25,8 @@ export interface CardStatusInput {
 }
 
 /**
- * Aggregates invoice statuses to the highest-priority one.
- * When many invoices exist, we must pick one status before comparing with contract/application.
+ * When multiple invoices exist, pick the highest-priority status.
+ * Example: [SENT, DRAFT, APPROVED] returns SENT (offer received takes precedence).
  */
 function aggregateInvoiceStatus(invoiceStatuses: string[]): string | null {
   if (invoiceStatuses.length === 0) return null;
@@ -45,11 +46,8 @@ function aggregateInvoiceStatus(invoiceStatuses: string[]): string | null {
 }
 
 /**
- * Computes the single application card status from application, contract, and invoices.
- * Business rules:
- * - Contract REJECTED → application is REJECTED (invoice rejection does not).
- * - Contract or any invoice AMENDMENT_REQUESTED → card shows Action Required.
- * - Contract or any invoice SENT → card shows Offer Received.
+ * Main function. Checks statuses in priority order; first match returns.
+ * Contract REJECTED overrides everything; invoice rejection does not reject the app.
  */
 export function computeApplicationCardStatus(input: CardStatusInput): CardStatusResult {
   const appStatus = String(input.applicationStatus ?? "DRAFT").toUpperCase();
@@ -83,7 +81,7 @@ export function computeApplicationCardStatus(input: CardStatusInput): CardStatus
     };
   }
 
-  /* Contract or invoice SENT → Offer Received. Wording updated for user clarity. */
+  /* Contract or invoice SENT shows "Offer Received". */
   if (contractStatus === "SENT" || aggregatedInvoice === "SENT") {
     return {
       badgeKey: "sent",

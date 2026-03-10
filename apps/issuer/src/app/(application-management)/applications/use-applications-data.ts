@@ -1,6 +1,9 @@
 /**
- * Returns applications for the dashboard. When USE_MOCK_DATA is true, uses mock data; otherwise fetches from the API.
- * Data is always normalized and sorted by status priority, then updated_at.
+ * Data hook for Applications dashboard.
+ *
+ * Source: USE_MOCK_DATA ? data.ts : GET /v1/applications?organizationId=... (via useOrganizationApplications).
+ * Each API app is normalized via application.adapter before use.
+ * Returns sorted list (STATUS_PRIORITY, then updated_at desc).
  */
 
 import { useMemo } from "react";
@@ -14,10 +17,7 @@ import { normalizeApplication } from "./adapters/application.adapter";
 import { STATUS_PRIORITY } from "./applications.config";
 import type { NormalizedApplication } from "./adapters/application.adapter";
 
-/* ============================================================
-   SORT HELPER
-   ============================================================
-   Sorts by status priority first, then by updated_at (newer first). */
+/* Sort by STATUS_PRIORITY (from config), then updated_at descending. */
 
 function sortApplications(apps: NormalizedApplication[]): NormalizedApplication[] {
   return [...apps].sort((a, b) => {
@@ -30,10 +30,7 @@ function sortApplications(apps: NormalizedApplication[]): NormalizedApplication[
   });
 }
 
-/* ============================================================
-   useApplicationsData
-   ============================================================
-   Single source of truth for dashboard applications. Branches on USE_MOCK_DATA. */
+/* Single source for dashboard applications. */
 
 export function useApplicationsData(): {
   applications: NormalizedApplication[];

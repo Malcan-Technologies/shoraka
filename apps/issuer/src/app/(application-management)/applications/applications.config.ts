@@ -1,6 +1,9 @@
 /**
- * Applications Dashboard configuration. All status values, badge labels, and sort order come from here.
- * Change this file to update how the dashboard behaves.
+ * Configuration for status badges: labels, colors, sort order.
+ *
+ * badgeKey (from computeApplicationCardStatus) maps to label and color. Used by page and filter.
+ * STATUS_PRIORITY: lower number = higher in list (rejected first, draft later).
+ * To add a status: add here, then add logic in lib/compute-application-card-status.ts.
  */
 
 /* ============================================================
@@ -21,22 +24,12 @@ export const APPLICATION_STATUS = {
 } as const;
 
 /* ============================================================
-   BADGE CONFIGURATION
-   ============================================================
-   Maps status key to label and color. Same status = same color everywhere
-   (card, invoice row, contract section).
-   Colors adjusted for UI clarity; admin portal (status-presentation.ts,
-   application-financial-review-content) used as reference. branding.md
-   not strictly followed for status indicators. Global styles unchanged. */
+   BADGE CONFIGURATION — badgeKey maps to label and Tailwind color classes
+   ============================================================ */
 
 export type BadgeTone = "neutral" | "warning" | "success" | "info" | "danger";
 
-/**
- * Status badge colors. Aligned with admin portal pattern (border-X-500/30 bg-X-500/10).
- * Draft→neutral gray, Submitted→calm blue, Under Review→muted indigo,
- * Offer Received→teal highlight, Action Required→amber warning, Approved→green success,
- * Rejected→red error. Component-level only; no global theme changes.
- */
+/** Tailwind classes per badgeKey. Used for card badge and invoice row status. */
 export const STATUS_BADGE_COLORS: Record<string, string> = {
   draft: "border-slate-500/30 bg-slate-500/10 text-slate-700",
   submitted: "border-blue-500/30 bg-blue-500/10 text-blue-700",
@@ -73,12 +66,7 @@ export const STATUS_BADGES: Record<
   amendment_requested: { label: "Action Required", tone: "warning" },
 };
 
-/* ============================================================
-   SORT CONFIGURATION
-   ============================================================
-   Primary sort is status priority (lower number first). Secondary is updated_at (newer first). */
-
-/** Lower number = higher priority (shown first). Matches business priority order. */
+/* Lower number = higher in list. Used by use-applications-data sort. */
 export const STATUS_PRIORITY: Record<string, number> = {
   rejected: 1,
   pending_amendment: 2,

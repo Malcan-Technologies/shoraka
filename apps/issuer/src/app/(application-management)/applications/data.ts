@@ -1,22 +1,17 @@
 /**
- * Data layer for the Applications Dashboard. USE_MOCK_DATA controls mock vs API.
- * When true, uses in-memory mock data. When false, fetches from the real API. Mock data is easy to remove later.
+ * Mock data for Applications dashboard when USE_MOCK_DATA is true.
+ *
+ * Each entry is NormalizedApplication (same shape as adapter output). Used when API is unavailable
+ * or for local testing. Switch USE_MOCK_DATA to false to use GET /v1/applications.
  */
 
 import type { NormalizedApplication } from "./adapters/application.adapter";
 
-/* ============================================================
-   MOCK DATA FLAG
-   ============================================================
-   When true, mock data is used in memory. When false, fetches from GET /v1/applications?organizationId=... */
+/* true = use mockApplications below. false = fetch from GET /v1/applications. */
 
 export const USE_MOCK_DATA = true;
 
-/* ============================================================
-   MOCK APPLICATIONS
-   ============================================================
-   Each entry represents one scenario (draft, offer received, expired, etc.) for testing.
-   cardStatus is the single computed status for the card. */
+/* One NormalizedApplication per card. Add entries to test different statuses. */
 
 export const mockApplications: NormalizedApplication[] = [
   /* Draft invoice financing — user chose invoice-only, has invoices in progress */
