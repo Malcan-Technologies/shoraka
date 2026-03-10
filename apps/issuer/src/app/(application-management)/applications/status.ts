@@ -105,9 +105,8 @@ export interface NormalizedInvoice {
   financingOffered: string;
   profitRate: string;
   status: string;
-  offerStatus: "Offer received" | "Offer expired" | null;
+  offerStatus: "Offer received" | null;
   canReviewOffer: boolean;
-  offerExpiresAt: string | null;
 }
 
 export interface NormalizedApplication {
@@ -115,7 +114,6 @@ export interface NormalizedApplication {
   type: "Contract financing" | "Invoice financing" | "Generic";
   status: string;
   cardStatus: CardStatusResult;
-  hasExpiredOffer: boolean;
   contractTitle: string | null;
   customer: string;
   applicationDate: string;
@@ -125,7 +123,6 @@ export interface NormalizedApplication {
   updatedAt: string;
   invoices: NormalizedInvoice[];
   contractStatus: string | null;
-  offerExpiresAt: string | null;
 }
 
 /* =============================================================================
@@ -142,7 +139,7 @@ export const STATUS: Record<
   rejected: { label: "Rejected", color: "border-red-500/30 bg-red-500/10 text-red-700", sortOrder: 1 },
   pending_amendment: { label: "Action Required", color: "border-amber-500/30 bg-amber-500/10 text-amber-700", sortOrder: 2 },
   sent: { label: "Offer Received", color: "border-teal-500/30 bg-teal-500/10 text-teal-700", sortOrder: 3 },
-  offer_expired: { label: "Offer expired", color: "border-slate-500/30 bg-slate-500/10 text-slate-600", sortOrder: 3 },
+  /* offer_expired: { label: "Offer expired", color: "border-slate-500/30 bg-slate-500/10 text-slate-600", sortOrder: 3 } */
   under_review: { label: "Under Review", color: "border-indigo-500/30 bg-indigo-500/10 text-indigo-700", sortOrder: 4 },
   submitted: { label: "Submitted", color: "border-blue-500/30 bg-blue-500/10 text-blue-700", sortOrder: 5 },
   resubmitted: { label: "Resubmitted", color: "border-blue-500/30 bg-blue-500/10 text-blue-700", sortOrder: 6 },
@@ -163,6 +160,7 @@ export function getSortOrder(status: string): number {
    Add a status here to show it in the Filter menu. Remove to hide it.
    ============================================================================= */
 
+/** Status filter options. Order: Draft, Submitted, Under Review, Action Required, Offer Received, Approved, Rejected. */
 export const FILTER_STATUSES = [
   "draft",
   "submitted",
@@ -171,6 +169,12 @@ export const FILTER_STATUSES = [
   "sent",
   "accepted",
   "rejected",
+] as const;
+
+/** Financing type filter options. */
+export const FINANCING_TYPES = [
+  { value: "contract", label: "Contract financing" },
+  { value: "invoice", label: "Invoice financing" },
 ] as const;
 
 /* =============================================================================

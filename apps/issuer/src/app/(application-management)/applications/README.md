@@ -14,16 +14,20 @@ List of financing applications. User sees cards with status badges, invoice tabl
 ## Data flow
 
 1. **Fetch** — use-applications-data calls API (or loads mock from data.ts)
-2. **Prepare** — API returns nested objects (contract, invoices, offer_details). We flatten them, add cardStatus (badge, buttons), extract document keys and offer expiry. Done in use-applications-data via prepareApplication.
+2. **Prepare** — API returns nested objects (contract, invoices, offer_details). We flatten them, add cardStatus (badge, buttons), extract document keys. Done in use-applications-data via prepareApplication.
 3. **Filter** — Archived apps are hidden
 4. **Sort** — By status (rejected first, draft last), then by date
 5. **Page** — Renders cards. Uses STATUS from status.ts for badge label/color. Filter dropdown uses FILTER_STATUSES.
 
 ## Filter
 
-All filter config is in status.ts:
+Issuer-focused filters answer: "Which applications need action? What type? When submitted?"
 
-- **FILTER_STATUSES** — Which statuses appear in the Status dropdown. Add/remove here.
-- **STATUS** — Label and color for each status. Page uses this for badge and filter option labels.
+| Filter | Options | Purpose |
+|--------|---------|---------|
+| **Status** | All, Draft, Submitted, Under Review, Action Required, Offer Received, Approved, Rejected | Application status (card badge) |
+| **Financing** | All, Contract financing, Invoice financing | Financing type |
+| **Submitted** | All time, Last 7/30/90 days | Submitted date (applicationDate). Shows range when active (e.g. 4 Mar – 11 Mar). |
+| **Search** | Application ID, customer, invoice number | Text search |
 
-Filter logic (search, status filter, customer filter) lives in page.tsx. It filters the list before pagination.
+Config in status.ts: FILTER_STATUSES, FINANCING_TYPES. Filter logic in page.tsx.

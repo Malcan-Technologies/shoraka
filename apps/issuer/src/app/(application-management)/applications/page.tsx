@@ -36,8 +36,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -49,7 +47,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { STATUS, FILTER_STATUSES } from "./status";
+import { STATUS, FILTER_STATUSES, FINANCING_TYPES } from "./status";
 import { useApplicationsData } from "./use-applications-data";
 import type { NormalizedApplication, NormalizedInvoice } from "./status";
 
@@ -65,6 +63,13 @@ function StatusBadge({ badgeKey }: { badgeKey: string }) {
   );
 }
 
+const DOCUMENT_NAME_MAX_LENGTH = 40;
+
+function truncateDocumentName(name: string): string {
+  if (name.length <= DOCUMENT_NAME_MAX_LENGTH) return name;
+  return `${name.slice(0, DOCUMENT_NAME_MAX_LENGTH)}…`;
+}
+
 function DocumentDownloadLink({
   documentName,
   documentS3Key,
@@ -77,12 +82,13 @@ function DocumentDownloadLink({
   disabled?: boolean;
 }) {
   const [loading, setLoading] = React.useState(false);
+  const displayName = truncateDocumentName(documentName);
   if (!documentS3Key || disabled) {
-    return <span className="text-[15px] text-muted-foreground">{documentName}</span>;
+    return <span className="text-[15px] text-muted-foreground" title={documentName}>{displayName}</span>;
   }
   return (
     <span className="inline-flex items-center gap-1.5 text-[15px]">
-      <span>{documentName}</span>
+      <span title={documentName}>{displayName}</span>
       <button
         type="button"
         onClick={async (e) => {
@@ -104,16 +110,6 @@ function DocumentDownloadLink({
   );
 }
 
-function OfferExpiredBadge() {
-  const colorClass = STATUS.offer_expired?.color ?? BADGE_FALLBACK;
-  return (
-    <span className={cn(BADGE_BASE, colorClass)}>
-      {STATUS.offer_expired?.label ?? "Offer expired"}
-    </span>
-  );
-}
-
-
 function ApplicationCard({
   application,
   onDocumentDownload,
@@ -130,11 +126,6 @@ function ApplicationCard({
 
   const invoicesDisabled = hasContract && application.contractStatus !== "APPROVED";
 
-  const badgeKey =
-    cardStatus.badgeKey === "sent" && application.hasExpiredOffer
-      ? "offer_expired"
-      : cardStatus.badgeKey;
-
   const useDraftCardLayout = isDraft && isGenericDraft;
 
   const displayId = application.id.slice(-8);
@@ -148,32 +139,18 @@ function ApplicationCard({
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-base font-semibold">
                 Application ID {displayId}
-                {showFinancingLabel ? ` — ${application.type}` : ""}
+                {showFinancingLabel ? ` - ${application.type}` : ""}
               </span>
-              {badgeKey === "offer_expired" ? (
-                <OfferExpiredBadge />
-              ) : (
-                <StatusBadge badgeKey={badgeKey} />
-              )}
+              <StatusBadge badgeKey={cardStatus.badgeKey} />
             </div>
             <div className="flex items-center gap-2">
-              {cardStatus.showReviewOffer && !application.hasExpiredOffer && (
-                <div className="flex flex-col items-center gap-1">
-                  <Button
-                    size="sm"
-                    className="rounded-xl bg-teal-600 text-white hover:bg-teal-700 shadow-sm"
-                  >
-                    {hasContract ? "Review Contract Financing Offer" : "Review Offer"}
-                  </Button>
-                  {application.offerExpiresAt && (
-                    <span className="text-[10px] text-muted-foreground text-center">
-                      Offer valid until:{" "}
-                      <span className="font-semibold">
-                        {format(new Date(application.offerExpiresAt), "dd MMM yyyy")}
-                      </span>
-                    </span>
-                  )}
-                </div>
+              {cardStatus.showReviewOffer && (
+                <Button
+                  size="sm"
+                  className="rounded-xl bg-teal-600 text-white hover:bg-teal-700 shadow-sm"
+                >
+                  {hasContract ? "Review Contract Financing Offer" : "Review Offer"}
+                </Button>
               )}
               {cardStatus.showMakeAmendments && (
                 <Button size="sm" className="rounded-xl bg-amber-600 text-white hover:bg-amber-700 shadow-sm" asChild>
@@ -347,7 +324,6 @@ function ApplicationCard({
                       const invStatus = String(inv.status ?? "").toUpperCase();
                       const showReviewOffer = invStatus === "SENT" && inv.offerStatus === "Offer received";
                       const canReview = inv.canReviewOffer;
-                      const isExpired = inv.offerStatus === "Offer expired";
                       const showMakeAmendments = invStatus === "AMENDMENT_REQUESTED";
                       const invDisabled = invoicesDisabled;
                       return (
@@ -404,18 +380,10 @@ function ApplicationCard({
                                       <Button
                                         size="sm"
                                         className="h-8 w-full min-w-[140px] rounded-xl text-xs font-medium bg-teal-600 text-white hover:bg-teal-700"
-                                        disabled={invDisabled || isExpired || !canReview}
+                                        disabled={invDisabled || !canReview}
                                       >
                                         Review Offer
                                       </Button>
-                                      {inv.offerExpiresAt && (
-                                        <span className="text-[10px] text-muted-foreground text-center">
-                                          Offer valid until:{" "}
-                                          <span className="font-semibold">
-                                            {format(new Date(inv.offerExpiresAt), "dd MMM yyyy")}
-                                          </span>
-                                        </span>
-                                      )}
                                     </>
                                   )}
                                   {showMakeAmendments && (
@@ -473,11 +441,11 @@ export default function ApplicationsPage() {
   const { setTitle } = useHeader();
   const { applications, isLoading } = useApplicationsData();
 
-  /* --- FILTER: state, logic, options. Status options from status.ts FILTER_STATUSES. --- */
+  /* --- FILTER: state. Status, Financing, Submitted Date, Search. --- */
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
-  const [customerFilter, setCustomerFilter] = React.useState("all");
-  const [dateFilter, setDateFilter] = React.useState("all");
+  const [financingFilter, setFinancingFilter] = React.useState("all");
+  const [submittedFilter, setSubmittedFilter] = React.useState("all");
   const [page, setPage] = React.useState(1);
   const [perPage, setPerPage] = React.useState(4);
 
@@ -492,22 +460,33 @@ export default function ApplicationsPage() {
       list = list.filter(
         (a) =>
           a.customer.toLowerCase().includes(q) ||
-          a.id.toLowerCase().includes(q)
+          a.id.toLowerCase().includes(q) ||
+          a.invoices.some((inv) => inv.number.toLowerCase().includes(q))
       );
     }
     if (statusFilter !== "all") {
       list = list.filter((a) => a.status === statusFilter);
     }
-    if (customerFilter !== "all") {
-      list = list.filter((a) => a.customer === customerFilter);
+    if (financingFilter !== "all") {
+      const match =
+        financingFilter === "contract"
+          ? "Contract financing"
+          : "Invoice financing";
+      list = list.filter((a) => a.type === match);
+    }
+    if (submittedFilter !== "all") {
+      const now = new Date();
+      const cutoff = new Date(now);
+      if (submittedFilter === "7d") cutoff.setDate(now.getDate() - 7);
+      else if (submittedFilter === "30d") cutoff.setDate(now.getDate() - 30);
+      else if (submittedFilter === "90d") cutoff.setDate(now.getDate() - 90);
+      const cutoffTime = cutoff.getTime();
+      list = list.filter(
+        (a) => new Date(a.applicationDate).getTime() >= cutoffTime
+      );
     }
     return list;
-  }, [applications, search, statusFilter, customerFilter]);
-
-  const uniqueCustomers = React.useMemo(
-    () => [...new Set(applications.map((a) => a.customer))],
-    [applications]
-  );
+  }, [applications, search, statusFilter, financingFilter, submittedFilter]);
 
   const paginatedApplications = filteredApplications.slice(
     (page - 1) * perPage,
@@ -515,12 +494,22 @@ export default function ApplicationsPage() {
   );
 
   const totalCount = applications.length;
-  const activeFilterCount = [
+  const filterCount = [
     statusFilter !== "all",
-    customerFilter !== "all",
-    dateFilter !== "all",
+    financingFilter !== "all",
   ].filter(Boolean).length;
-  const hasFilters = search !== "" || activeFilterCount > 0;
+  const hasFilters = search !== "" || submittedFilter !== "all" || filterCount > 0;
+
+  /** Submitted date range label when filter active. e.g. "4 Mar – 11 Mar" */
+  const submittedRangeLabel = React.useMemo(() => {
+    if (submittedFilter === "all") return null;
+    const now = new Date();
+    const start = new Date(now);
+    if (submittedFilter === "7d") start.setDate(now.getDate() - 7);
+    else if (submittedFilter === "30d") start.setDate(now.getDate() - 30);
+    else if (submittedFilter === "90d") start.setDate(now.getDate() - 90);
+    return `${format(start, "d MMM")} – ${format(now, "d MMM yyyy")}`;
+  }, [submittedFilter]);
   const totalPages = Math.ceil(filteredApplications.length / perPage) || 1;
   const startIndex = (page - 1) * perPage + 1;
   const endIndex = Math.min(
@@ -584,12 +573,12 @@ export default function ApplicationsPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0 space-y-6">
-          {/* FILTER: search + Filter dropdown (Status, Customer, Date from status.ts FILTER_STATUSES) */}
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative flex-1 min-w-[200px]">
+          {/* FILTER: Same pattern as ActivityToolbar — search + FunnelIcon dropdowns + Clear + count. */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full">
+            <div className="relative flex-1 w-full">
               <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search applications..."
+                placeholder="Application ID / Invoice"
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
@@ -599,109 +588,156 @@ export default function ApplicationsPage() {
               />
             </div>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="gap-2 h-11 rounded-xl">
-                  <FunnelIcon className="h-4 w-4" />
-                  Filter
-                  {activeFilterCount > 0 && (
-                    <Badge
-                      variant="secondary"
-                      className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs bg-primary text-primary-foreground"
-                    >
-                      {activeFilterCount}
-                    </Badge>
-                  )}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-56">
-                <DropdownMenuLabel>Status</DropdownMenuLabel>
-                <DropdownMenuRadioGroup
-                  value={statusFilter}
-                  onValueChange={(v) => {
-                    setStatusFilter(v);
-                    setPage(1);
-                  }}
-                >
-                  <DropdownMenuRadioItem value="all">
-                    All statuses
-                  </DropdownMenuRadioItem>
-                  {FILTER_STATUSES.map((key) => (
-                    <DropdownMenuRadioItem key={key} value={key}>
-                      {STATUS[key]?.label ?? key}
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>Customer</DropdownMenuLabel>
-                <DropdownMenuRadioGroup
-                  value={customerFilter}
-                  onValueChange={(v) => {
-                    setCustomerFilter(v);
-                    setPage(1);
-                  }}
-                >
-                  <DropdownMenuRadioItem value="all">
-                    All customers
-                  </DropdownMenuRadioItem>
-                  {uniqueCustomers.map((c) => (
-                    <DropdownMenuRadioItem key={c} value={c}>
-                      {c}
-                    </DropdownMenuRadioItem>
-                  ))}
-                </DropdownMenuRadioGroup>
-
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel>Date Range</DropdownMenuLabel>
-                <DropdownMenuRadioGroup
-                  value={dateFilter}
-                  onValueChange={(v) => {
-                    setDateFilter(v);
-                    setPage(1);
-                  }}
-                >
-                  <DropdownMenuRadioItem value="all">
-                    All time
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="7d">Last 7 days</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="30d">
-                    Last 30 days
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="90d">
-                    Last 90 days
-                  </DropdownMenuRadioItem>
-                </DropdownMenuRadioGroup>
-
-                {hasFilters && (
-                  <>
-                    <DropdownMenuSeparator />
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="gap-2 h-11 rounded-xl focus-visible:ring-1 focus-visible:ring-offset-0"
+                  >
+                    <FunnelIcon className="h-4 w-4" />
+                    Submitted
+                    {submittedFilter !== "all" && (
+                      <Badge
+                        variant="default"
+                        className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs shadow-none"
+                      >
+                        1
+                      </Badge>
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 p-1">
+                  <DropdownMenuLabel>When submitted</DropdownMenuLabel>
+                  {[
+                    { value: "all", label: "All time" },
+                    { value: "7d", label: "Last 7 days" },
+                    { value: "30d", label: "Last 30 days" },
+                    { value: "90d", label: "Last 90 days" },
+                  ].map((opt) => (
                     <DropdownMenuItem
+                      key={`sub-${opt.value}`}
+                      className="pl-8 relative"
                       onClick={() => {
-                        setSearch("");
-                        setStatusFilter("all");
-                        setCustomerFilter("all");
-                        setDateFilter("all");
+                        setSubmittedFilter(opt.value);
                         setPage(1);
                       }}
-                      className="gap-2 text-muted-foreground"
                     >
-                      <XMarkIcon className="h-4 w-4" />
-                      Clear filters
+                      {submittedFilter === opt.value && (
+                        <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                          <span className="h-2 w-2 rounded-full bg-foreground" />
+                        </span>
+                      )}
+                      {opt.label}
                     </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="gap-2 h-11 rounded-xl focus-visible:ring-1 focus-visible:ring-offset-0"
+                  >
+                    <FunnelIcon className="h-4 w-4" />
+                    Filter
+                    {filterCount > 0 && (
+                      <Badge
+                        variant="default"
+                        className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs shadow-none"
+                      >
+                        {filterCount}
+                      </Badge>
+                    )}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 p-1">
+                  <DropdownMenuLabel>Application status</DropdownMenuLabel>
+                  {[
+                    { value: "all", label: "All" },
+                    ...FILTER_STATUSES.map((key) => ({ value: key, label: STATUS[key]?.label ?? key })),
+                  ].map((opt) => (
+                    <DropdownMenuItem
+                      key={`status-${opt.value}`}
+                      className="pl-8 relative"
+                      onClick={() => {
+                        setStatusFilter(opt.value);
+                        setPage(1);
+                      }}
+                    >
+                      {statusFilter === opt.value && (
+                        <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                          <span className="h-2 w-2 rounded-full bg-foreground" />
+                        </span>
+                      )}
+                      {opt.label}
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Financing structure</DropdownMenuLabel>
+                  {[
+                    { value: "all", label: "All" },
+                    ...FINANCING_TYPES.map(({ value, label }) => ({ value, label })),
+                  ].map((opt) => (
+                    <DropdownMenuItem
+                      key={`fin-${opt.value}`}
+                      className="pl-8 relative"
+                      onClick={() => {
+                        setFinancingFilter(opt.value);
+                        setPage(1);
+                      }}
+                    >
+                      {financingFilter === opt.value && (
+                        <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                          <span className="h-2 w-2 rounded-full bg-foreground" />
+                        </span>
+                      )}
+                      {opt.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {hasFilters && (
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setSearch("");
+                    setStatusFilter("all");
+                    setFinancingFilter("all");
+                    setSubmittedFilter("all");
+                    setPage(1);
+                  }}
+                  className="gap-2 h-11 rounded-xl focus-visible:ring-1 focus-visible:ring-offset-0"
+                >
+                  <XMarkIcon className="h-4 w-4" />
+                  <span className="hidden sm:inline">Clear</span>
+                </Button>
+              )}
+
+              {submittedRangeLabel && (
+                <span className="text-sm text-muted-foreground">
+                  Submitted: {submittedRangeLabel}
+                </span>
+              )}
+
+              <Badge
+                variant="outline"
+                className="h-11 px-4 rounded-xl text-sm font-normal bg-muted/30 border-none whitespace-nowrap text-muted-foreground hover:bg-muted/30"
+              >
+                {hasFilters ? (
+                  <>
+                    {filteredApplications.length} of {totalCount} applications
+                  </>
+                ) : (
+                  <>
+                    {filteredApplications.length}{" "}
+                    {filteredApplications.length === 1 ? "application" : "applications"}
                   </>
                 )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <Badge
-              variant="outline"
-              className="h-11 px-4 rounded-xl text-sm font-normal bg-muted/30 border-none whitespace-nowrap text-muted-foreground hover:bg-muted/30"
-            >
-              {filteredApplications.length}{" "}
-              {filteredApplications.length === 1 ? "application" : "applications"}
-              {hasFilters ? ` of ${totalCount}` : ""}
-            </Badge>
+              </Badge>
+            </div>
           </div>
 
           {/* Application cards */}

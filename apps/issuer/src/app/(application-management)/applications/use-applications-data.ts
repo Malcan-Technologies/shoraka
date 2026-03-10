@@ -4,7 +4,7 @@
  * WHAT IT DOES:
  * 1. Fetches applications (mock from data.ts, or API via useOrganizationApplications)
  * 2. Prepares each for display: API returns nested objects (contract, invoices, offer_details).
- *    We flatten them, add cardStatus (badge + buttons), extract document keys, offer expiry.
+ *    We flatten them, add cardStatus (badge + buttons), extract document keys.
  * 3. Hides archived apps
  * 4. Sorts by status (rejected first, draft last), then by date
  *
@@ -15,7 +15,6 @@
 import { useMemo } from "react";
 import { useOrganization } from "@cashsouk/config";
 import { useOrganizationApplications } from "@/hooks/use-applications";
-import { getOfferStatus } from "@/lib/offer-utils";
 import { USE_MOCK_DATA, mockApplications } from "./data";
 import { getCardStatus, getSortOrder, type NormalizedApplication, type NormalizedInvoice } from "./status";
 
@@ -49,13 +48,12 @@ function prepareInvoice(api: ApiInvoice, contractStatus: string | null): Normali
   const documentS3Key = doc?.s3_key ? String(doc.s3_key) : null;
   const documentName = String(doc?.file_name ?? details.document_name ?? details.document ?? "—");
 
-  const offerStatus = getOfferStatus({ status: api.status, offer_details: api.offer_details });
+  const offerStatus = api.status === "SENT" && api.offer_details ? "Offer received" : null;
   const canReviewOffer = offerStatus === "Offer received" && (contractStatus === "APPROVED" || !contractStatus);
-  const offerExpiresAt = (api.offer_details as any)?.expires_at != null ? String((api.offer_details as any).expires_at) : null;
 
   let financingOffered = "—";
   let profitRate = "—";
-  if (api.offer_details && offerStatus === "Offer received") {
+  if (api.offer_details && offerStatus) {
     const od = api.offer_details as any;
     if (typeof od.offered_amount === "number") financingOffered = `RM ${od.offered_amount.toLocaleString("en-MY", { minimumFractionDigits: 2 })}`;
     if (typeof od.offered_profit_rate_percent === "number") profitRate = `${od.offered_profit_rate_percent}%`;
@@ -74,7 +72,6 @@ function prepareInvoice(api: ApiInvoice, contractStatus: string | null): Normali
     status: api.status ?? "DRAFT",
     offerStatus,
     canReviewOffer,
-    offerExpiresAt,
   };
 }
 
@@ -88,12 +85,6 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
     contractStatus,
     invoiceStatuses: invoices.map((i) => i.status ?? "DRAFT"),
   });
-
-  let hasExpiredOffer = false;
-  if (contract) hasExpiredOffer = getOfferStatus({ status: contract.status, offer_details: contract.offer_details }) === "Offer expired";
-  for (const inv of invoices) {
-    if (getOfferStatus({ status: inv.status, offer_details: inv.offer_details }) === "Offer expired") hasExpiredOffer = true;
-  }
 
   const structureType = (api.financing_structure as { structure_type?: string } | undefined)?.structure_type;
   let type: "Contract financing" | "Invoice financing" | "Generic" = "Generic";
@@ -126,19 +117,11 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
   const created = api.created_at ? new Date(api.created_at) : new Date();
   const updated = api.updated_at ? new Date(api.updated_at) : created;
 
-  let offerExpiresAt: string | null = null;
-  if (contractStatus === "SENT" && contract?.offer_details?.expires_at) offerExpiresAt = String(contract.offer_details.expires_at);
-  else {
-    const sentInv = invoices.find((i) => i.status === "SENT" && (i.offer_details as any)?.expires_at);
-    if (sentInv?.offer_details && (sentInv.offer_details as any).expires_at) offerExpiresAt = String((sentInv.offer_details as any).expires_at);
-  }
-
   return {
     id: api.id,
     type,
     status: cardStatus.badgeKey,
     cardStatus,
-    hasExpiredOffer,
     contractTitle,
     customer,
     applicationDate: created.toISOString().slice(0, 10),
@@ -148,10 +131,10 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
     updatedAt: updated.toISOString(),
     invoices: invoices.map((inv) => prepareInvoice(inv, contractStatus)),
     contractStatus,
-    offerExpiresAt,
   };
 }
 
+/* Sort: 1) by status (rejected first, draft last), 2) by last updated (newest first). */
 function sort(apps: NormalizedApplication[]): NormalizedApplication[] {
   return [...apps].sort((a, b) => {
     const pa = getSortOrder(a.status);
