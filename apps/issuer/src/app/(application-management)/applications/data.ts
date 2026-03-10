@@ -1,0 +1,378 @@
+/**
+ * Data layer for Applications Dashboard.
+ * USE_MOCK_DATA controls whether to use in-memory mock data or fetch from API.
+ * Set to false to use real API. Mock data is easy to delete later.
+ */
+
+import type { NormalizedApplication } from "./adapters/application.adapter";
+
+/* ============================================================
+   Mock data flag
+   true  = use mock data (in memory, no DB, no API)
+   false = fetch from GET /v1/applications?organizationId=...
+   ============================================================ */
+
+export const USE_MOCK_DATA = true;
+
+/* ============================================================
+   Mock applications — covers all scenarios for testing
+   Each entry explains what scenario it represents.
+   ============================================================ */
+
+export const mockApplications: NormalizedApplication[] = [
+  /* Draft invoice financing — user chose invoice-only, has invoices in progress */
+  {
+    id: "mock-draft-inv-1",
+    type: "Invoice financing",
+    status: "draft",
+    badges: ["draft"],
+    hasExpiredOffer: false,
+    contractTitle: null,
+    customer: "Acme Trading Sdn Bhd",
+    applicationDate: "2026-03-10",
+    contractValue: null,
+    facilityApplied: null,
+    approvedFacility: "N/A",
+    updatedAt: "2026-03-10T10:00:00Z",
+    invoices: [
+      {
+        id: "inv-mock-1",
+        number: "INV-001",
+        maturityDate: "2026-04-15",
+        value: 50000,
+        appliedFinancing: 40000,
+        document: "invoice_001.pdf",
+        financingOffered: "—",
+        profitRate: "—",
+        status: "DRAFT",
+        offerStatus: null,
+        canReviewOffer: false,
+      },
+    ],
+    contractStatus: null,
+  },
+
+  /* Draft contract financing — user chose new/existing contract */
+  {
+    id: "mock-draft-contract-1",
+    type: "Contract financing",
+    status: "draft",
+    badges: ["draft"],
+    hasExpiredOffer: false,
+    contractTitle: "Mining Rig Repair 12654",
+    customer: "Beta Corp",
+    applicationDate: "2026-03-09",
+    contractValue: 250000,
+    facilityApplied: 200000,
+    approvedFacility: "N/A",
+    updatedAt: "2026-03-09T14:00:00Z",
+    invoices: [
+      {
+        id: "inv-mock-2",
+        number: "INV-101",
+        maturityDate: "2026-05-20",
+        value: 75000,
+        appliedFinancing: 60000,
+        document: "invoice_101.pdf",
+        financingOffered: "—",
+        profitRate: "—",
+        status: "DRAFT",
+        offerStatus: null,
+        canReviewOffer: false,
+      },
+    ],
+    contractStatus: "DRAFT",
+  },
+
+  /* Draft without financing structure — generic draft card, Continue Application only */
+  {
+    id: "mock-draft-generic-1",
+    type: "Generic",
+    status: "draft",
+    badges: ["draft"],
+    hasExpiredOffer: false,
+    contractTitle: null,
+    customer: "—",
+    applicationDate: "2026-03-10",
+    contractValue: null,
+    facilityApplied: null,
+    approvedFacility: "N/A",
+    updatedAt: "2026-03-10T09:00:00Z",
+    invoices: [],
+    contractStatus: null,
+  },
+
+  /* Under review — submitted, waiting for admin */
+  {
+    id: "mock-under-review-1",
+    type: "Contract financing",
+    status: "under_review",
+    badges: ["under_review"],
+    hasExpiredOffer: false,
+    contractTitle: "Equipment Purchase Order",
+    customer: "Delta Industries",
+    applicationDate: "2026-03-05",
+    contractValue: 400000,
+    facilityApplied: 350000,
+    approvedFacility: "N/A",
+    updatedAt: "2026-03-08T11:00:00Z",
+    invoices: [
+      {
+        id: "inv-mock-3",
+        number: "INV-201",
+        maturityDate: "2026-07-15",
+        value: 120000,
+        appliedFinancing: 96000,
+        document: "invoice_201.pdf",
+        financingOffered: "—",
+        profitRate: "—",
+        status: "SUBMITTED",
+        offerStatus: null,
+        canReviewOffer: false,
+      },
+    ],
+    contractStatus: "SUBMITTED",
+  },
+
+  /* Pending approval — similar to under review */
+  {
+    id: "mock-pending-approval-1",
+    type: "Invoice financing",
+    status: "pending_approval",
+    badges: ["pending_approval"],
+    hasExpiredOffer: false,
+    contractTitle: null,
+    customer: "Gamma Ltd",
+    applicationDate: "2026-03-07",
+    contractValue: null,
+    facilityApplied: null,
+    approvedFacility: "N/A",
+    updatedAt: "2026-03-09T16:00:00Z",
+    invoices: [
+      {
+        id: "inv-mock-4",
+        number: "INV-301",
+        maturityDate: "2026-06-01",
+        value: 80000,
+        appliedFinancing: 64000,
+        document: "invoice_301.pdf",
+        financingOffered: "—",
+        profitRate: "—",
+        status: "SUBMITTED",
+        offerStatus: null,
+        canReviewOffer: false,
+      },
+    ],
+    contractStatus: null,
+  },
+
+  /* Pending amendment — action required from issuer */
+  {
+    id: "mock-pending-amendment-1",
+    type: "Invoice financing",
+    status: "pending_amendment",
+    badges: ["pending_amendment"],
+    hasExpiredOffer: false,
+    contractTitle: null,
+    customer: "Epsilon Co",
+    applicationDate: "2026-03-06",
+    contractValue: null,
+    facilityApplied: null,
+    approvedFacility: "N/A",
+    updatedAt: "2026-03-09T10:00:00Z",
+    invoices: [
+      {
+        id: "inv-mock-5",
+        number: "INV-401",
+        maturityDate: "2026-08-01",
+        value: 60000,
+        appliedFinancing: 48000,
+        document: "invoice_401.pdf",
+        financingOffered: "—",
+        profitRate: "—",
+        status: "SUBMITTED",
+        offerStatus: null,
+        canReviewOffer: false,
+      },
+    ],
+    contractStatus: null,
+  },
+
+  /* Contract offer received — admin sent contract offer */
+  {
+    id: "mock-contract-offer-1",
+    type: "Contract financing",
+    status: "submitted",
+    badges: ["sent"],
+    hasExpiredOffer: false,
+    contractTitle: "Supply Agreement 2026",
+    customer: "Zeta Trading",
+    applicationDate: "2026-03-01",
+    contractValue: 500000,
+    facilityApplied: 400000,
+    approvedFacility: "RM 380,000.00",
+    updatedAt: "2026-03-10T08:00:00Z",
+    invoices: [
+      {
+        id: "inv-mock-6",
+        number: "INV-501",
+        maturityDate: "2026-09-15",
+        value: 150000,
+        appliedFinancing: 120000,
+        document: "invoice_501.pdf",
+        financingOffered: "—",
+        profitRate: "—",
+        status: "SUBMITTED",
+        offerStatus: null,
+        canReviewOffer: false,
+      },
+    ],
+    contractStatus: "SENT",
+  },
+
+  /* Invoice offer received — contract approved, invoice has offer */
+  {
+    id: "mock-invoice-offer-1",
+    type: "Contract financing",
+    status: "submitted",
+    badges: ["sent"],
+    hasExpiredOffer: false,
+    contractTitle: "Service Contract A",
+    customer: "Theta Inc",
+    applicationDate: "2026-02-28",
+    contractValue: 300000,
+    facilityApplied: 250000,
+    approvedFacility: "RM 250,000.00",
+    updatedAt: "2026-03-10T12:00:00Z",
+    invoices: [
+      {
+        id: "inv-mock-7",
+        number: "INV-601",
+        maturityDate: "2026-10-01",
+        value: 100000,
+        appliedFinancing: 80000,
+        document: "invoice_601.pdf",
+        financingOffered: "RM 76,000.00",
+        profitRate: "8.5%",
+        status: "SENT",
+        offerStatus: "Offer received",
+        canReviewOffer: true,
+      },
+    ],
+    contractStatus: "APPROVED",
+  },
+
+  /* Offer expired — offer_details had expires_at in the past */
+  {
+    id: "mock-offer-expired-1",
+    type: "Contract financing",
+    status: "submitted",
+    badges: ["sent"],
+    hasExpiredOffer: true,
+    contractTitle: "Expired Offer Contract",
+    customer: "Iota Ltd",
+    applicationDate: "2026-02-20",
+    contractValue: 200000,
+    facilityApplied: 160000,
+    approvedFacility: "RM 150,000.00",
+    updatedAt: "2026-03-05T09:00:00Z",
+    invoices: [
+      {
+        id: "inv-mock-8",
+        number: "INV-701",
+        maturityDate: "2026-11-01",
+        value: 80000,
+        appliedFinancing: 64000,
+        document: "invoice_701.pdf",
+        financingOffered: "RM 60,000.00",
+        profitRate: "7%",
+        status: "SENT",
+        offerStatus: "Offer expired",
+        canReviewOffer: false,
+      },
+    ],
+    contractStatus: "SENT",
+  },
+
+  /* Offer accepted — contract/invoice already accepted */
+  {
+    id: "mock-offer-accepted-1",
+    type: "Invoice financing",
+    status: "accepted",
+    badges: ["accepted"],
+    hasExpiredOffer: false,
+    contractTitle: null,
+    customer: "Kappa Sdn Bhd",
+    applicationDate: "2026-02-15",
+    contractValue: null,
+    facilityApplied: null,
+    approvedFacility: "RM 90,000.00",
+    updatedAt: "2026-03-01T14:00:00Z",
+    invoices: [
+      {
+        id: "inv-mock-9",
+        number: "INV-801",
+        maturityDate: "2026-12-01",
+        value: 100000,
+        appliedFinancing: 90000,
+        document: "invoice_801.pdf",
+        financingOffered: "RM 90,000.00",
+        profitRate: "9%",
+        status: "APPROVED",
+        offerStatus: null,
+        canReviewOffer: false,
+      },
+    ],
+    contractStatus: null,
+  },
+
+  /* Offer rejected */
+  {
+    id: "mock-offer-rejected-1",
+    type: "Contract financing",
+    status: "rejected",
+    badges: ["rejected"],
+    hasExpiredOffer: false,
+    contractTitle: "Rejected Contract",
+    customer: "Lambda Co",
+    applicationDate: "2026-02-10",
+    contractValue: 180000,
+    facilityApplied: 140000,
+    approvedFacility: "N/A",
+    updatedAt: "2026-02-25T11:00:00Z",
+    invoices: [],
+    contractStatus: "REJECTED",
+  },
+
+  /* Retraction — offer_details removed (no offer badge, no review button) */
+  {
+    id: "mock-retraction-1",
+    type: "Invoice financing",
+    status: "submitted",
+    badges: ["submitted"],
+    hasExpiredOffer: false,
+    contractTitle: null,
+    customer: "Mu Corp",
+    applicationDate: "2026-03-04",
+    contractValue: null,
+    facilityApplied: null,
+    approvedFacility: "N/A",
+    updatedAt: "2026-03-09T15:00:00Z",
+    invoices: [
+      {
+        id: "inv-mock-10",
+        number: "INV-901",
+        maturityDate: "2026-07-20",
+        value: 55000,
+        appliedFinancing: 44000,
+        document: "invoice_901.pdf",
+        financingOffered: "—",
+        profitRate: "—",
+        status: "SUBMITTED",
+        offerStatus: null,
+        canReviewOffer: false,
+      },
+    ],
+    contractStatus: null,
+  },
+];

@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * Applications listing page — UI only, mock data.
- * Rebuilt from scratch; no imports from old implementation.
- * Accessible at /applications
+ * Applications Dashboard — Issuer portal.
+ * Shows applications for the active organization.
+ * Data comes from mock (USE_MOCK_DATA=true) or API (USE_MOCK_DATA=false).
  */
 
 import * as React from "react";
@@ -58,206 +58,83 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { STATUS_BADGES, APPLICATION_STATUS } from "./applications.config";
+import { useApplicationsData } from "./use-applications-data";
+import type { NormalizedApplication, NormalizedInvoice } from "./adapters/application.adapter";
 
 /* ============================================================
-   Mock data
+   Status badge — reads label and tone from config
    ============================================================ */
 
-const STATUS_LABELS: Record<string, string> = {
-  DRAFT: "Draft",
-  SUBMITTED: "Pending Approval",
-  UNDER_REVIEW: "Pending Approval",
-  RESUBMITTED: "Pending Approval",
-  AMENDMENT_REQUESTED: "Pending Amendment",
-  APPROVED: "Offer Received",
-  REJECTED: "Rejected",
-  ARCHIVED: "Archived",
-  OFFER_RECEIVED: "Offer Received",
-  ACTION_REQUIRED: "Action Required",
-  PENDING_AMENDMENT: "Pending Amendment",
-  PENDING_APPROVAL: "Pending Approval",
+const TONE_STYLES: Record<string, string> = {
+  neutral: "border-border bg-muted text-muted-foreground",
+  warning: "border-transparent bg-amber-100 text-amber-800",
+  success: "border-transparent bg-emerald-100 text-emerald-800",
+  info: "border-transparent bg-sky-100 text-sky-800",
+  danger: "border-transparent bg-destructive/90 text-destructive-foreground",
 };
 
-/** Badge styles using design tokens. Draft uses soft neutral gray per BRANDING. */
-function StatusBadge({ label, badgeKey }: { label: string; badgeKey: string }) {
-  const base = "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold border";
-  const styles: Record<string, string> = {
-    DRAFT: "border-border bg-muted text-muted-foreground",
-    OFFER_RECEIVED: "border-transparent bg-emerald-100 text-emerald-800",
-    ACTION_REQUIRED: "border-transparent bg-amber-100 text-amber-800",
-    PENDING_AMENDMENT: "border-transparent bg-amber-100 text-amber-800",
-    PENDING_APPROVAL: "border-transparent bg-sky-100 text-sky-800",
-    APPROVED: "border-transparent bg-emerald-100 text-emerald-800",
-    AMENDMENT_REQUESTED: "border-transparent bg-amber-100 text-amber-800",
-    SUBMITTED: "border-transparent bg-sky-100 text-sky-800",
-    UNDER_REVIEW: "border-transparent bg-sky-100 text-sky-800",
-    RESUBMITTED: "border-transparent bg-sky-100 text-sky-800",
-    REJECTED: "border-transparent bg-destructive text-destructive-foreground",
-    ARCHIVED: "border-border bg-muted text-muted-foreground",
-  };
-  const className = styles[badgeKey] ?? "border-border bg-muted text-muted-foreground";
-  return <span className={cn(base, className)}>{label}</span>;
+function StatusBadge({ badgeKey }: { badgeKey: string }) {
+  const config = STATUS_BADGES[badgeKey] ?? { label: badgeKey, tone: "neutral" as const };
+  const tone = config.tone;
+  const label = config.label;
+  const className = TONE_STYLES[tone] ?? TONE_STYLES.neutral;
+  return (
+    <span className={cn("inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold border", className)}>
+      {label}
+    </span>
+  );
 }
 
-type InvoiceAction = "review_offer" | "make_amendments" | "download" | "view_offer" | null;
+/* ============================================================
+   Offer badge — "Offer received" vs "Offer expired"
+   ============================================================ */
 
-const MOCK_APPLICATIONS = [
-  {
-    id: "00000001",
-    company: "Malcan Issuers Sdn Bhd",
-    type: "Contract financing",
-    amount: 200000,
-    status: "UNDER_REVIEW",
-    badges: ["PENDING_APPROVAL"] as string[],
-    contractTitle: "Mining Rig Repair 12654",
-    customer: "Acme Trading Sdn Bhd",
-    applicationDate: "2026-03-05",
-    contractValue: 250000,
-    facilityApplied: 200000,
-    approvedFacility: "N/A",
-    invoices: [
-      {
-        id: "inv-1",
-        number: "INV-001",
-        maturityDate: "2026-04-15",
-        value: 50000,
-        appliedFinancing: 40000,
-        document: "invoice_001.pdf",
-        financingOffered: "—",
-        profitRate: "—",
-        status: "DRAFT",
-        action: null as InvoiceAction,
-      },
-      {
-        id: "inv-2",
-        number: "INV-002",
-        maturityDate: "2026-05-20",
-        value: 75000,
-        appliedFinancing: 60000,
-        document: "invoice_002.pdf",
-        financingOffered: "—",
-        profitRate: "—",
-        status: "DRAFT",
-        action: null as InvoiceAction,
-      },
-    ],
-  },
-  {
-    id: "00000002",
-    company: "Tech Solutions Sdn Bhd",
-    type: "Invoice financing",
-    amount: 150000,
-    status: "AMENDMENT_REQUESTED",
-    badges: ["PENDING_AMENDMENT"] as string[],
-    contractTitle: null,
-    customer: "Beta Corp",
-    applicationDate: "2026-03-08",
-    contractValue: null,
-    facilityApplied: null,
-    approvedFacility: "N/A",
-    invoices: [
-      {
-        id: "inv-3",
-        number: "INV-101",
-        maturityDate: "2026-06-01",
-        value: 80000,
-        appliedFinancing: 64000,
-        document: "invoice_101.pdf",
-        financingOffered: "—",
-        profitRate: "—",
-        status: "AMENDMENT_REQUESTED",
-        action: "make_amendments" as InvoiceAction,
-      },
-    ],
-  },
-  {
-    id: "00000003",
-    company: "Global Exports Sdn Bhd",
-    type: "Contract financing",
-    amount: 350000,
-    status: "APPROVED",
-    badges: ["OFFER_RECEIVED", "ACTION_REQUIRED"] as string[],
-    contractTitle: "Equipment Purchase Order",
-    customer: "Delta Industries",
-    applicationDate: "2026-03-01",
-    contractValue: 400000,
-    facilityApplied: 350000,
-    approvedFacility: "RM 350,000.00",
-    invoices: [
-      {
-        id: "inv-4",
-        number: "INV-201",
-        maturityDate: "2026-07-15",
-        value: 120000,
-        appliedFinancing: 96000,
-        document: "invoice_201.pdf",
-        financingOffered: "RM 96,000.00",
-        profitRate: "8.5%",
-        status: "APPROVED",
-        action: "review_offer" as InvoiceAction,
-      },
-    ],
-  },
-  {
-    id: "00000004",
-    company: "Draft Co Sdn Bhd",
-    type: "Contract financing",
-    amount: 100000,
-    status: "DRAFT",
-    badges: ["DRAFT"] as string[],
-    contractTitle: null,
-    customer: "—",
-    applicationDate: "2026-03-10",
-    contractValue: null,
-    facilityApplied: null,
-    approvedFacility: "N/A",
-    invoices: [
-      {
-        id: "inv-5",
-        number: "INV-301",
-        maturityDate: "2026-08-01",
-        value: 50000,
-        appliedFinancing: 40000,
-        document: "invoice_301.pdf",
-        financingOffered: "—",
-        profitRate: "—",
-        status: "DRAFT",
-        action: "download" as InvoiceAction,
-      },
-    ],
-  },
-];
+function OfferStatusBadge({ offerStatus }: { offerStatus: "Offer received" | "Offer expired" }) {
+  const isExpired = offerStatus === "Offer expired";
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold border",
+        isExpired ? "border-transparent bg-muted text-muted-foreground" : "border-transparent bg-emerald-100 text-emerald-800"
+      )}
+    >
+      {offerStatus}
+    </span>
+  );
+}
+
 
 /* ============================================================
    Application card component
+   Uses NormalizedApplication. Card type from financing structure.
    ============================================================ */
 
 function ApplicationCard({
   application,
-  onReject,
+  onWithdraw,
 }: {
-  application: (typeof MOCK_APPLICATIONS)[0];
-  onReject: () => void;
+  application: NormalizedApplication;
+  onWithdraw: () => void;
 }) {
   const [expanded, setExpanded] = React.useState(false);
-  const [rejectDialogOpen, setRejectDialogOpen] = React.useState(false);
-  const [isRejecting, setIsRejecting] = React.useState(false);
+  const [withdrawDialogOpen, setWithdrawDialogOpen] = React.useState(false);
+  const [isWithdrawing, setIsWithdrawing] = React.useState(false);
 
+  const isDraft = application.status === APPLICATION_STATUS.DRAFT;
+  const isGenericDraft = application.type === "Generic";
   const hasContract = application.type === "Contract financing";
-  const badgesToShow =
-    "badges" in application && Array.isArray((application as { badges?: string[] }).badges)
-      ? (application as { badges: string[] }).badges
-      : [application.status];
 
-  const handleReject = async () => {
-    setIsRejecting(true);
+  const handleWithdraw = async () => {
+    setIsWithdrawing(true);
     await new Promise((r) => setTimeout(r, 500));
-    onReject();
-    setIsRejecting(false);
-    setRejectDialogOpen(false);
+    onWithdraw();
+    setIsWithdrawing(false);
+    setWithdrawDialogOpen(false);
   };
 
   const shortId = application.id.slice(-6).toUpperCase();
+  const cardTypeLabel = isGenericDraft ? "Application" : application.type;
 
   return (
     <>
@@ -266,30 +143,27 @@ function ApplicationCard({
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-base font-semibold">
-                Application ID {shortId} — {application.type}
+                Application ID {shortId} — {cardTypeLabel}
               </span>
-              {badgesToShow.map((key) => (
-                <StatusBadge
-                  key={key}
-                  badgeKey={key}
-                  label={STATUS_LABELS[key] ?? key}
-                />
-              ))}
+              {application.badges.map((key, idx) =>
+                key === "sent" ? (
+                  application.hasExpiredOffer
+                    ? <OfferStatusBadge key={`sent-${idx}`} offerStatus="Offer expired" />
+                    : <OfferStatusBadge key={`sent-${idx}`} offerStatus="Offer received" />
+                ) : (
+                  <StatusBadge key={`${key}-${idx}`} badgeKey={key} />
+                )
+              )}
             </div>
             <div className="flex items-center gap-2">
-              {application.status === "AMENDMENT_REQUESTED" && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="rounded-xl"
-                  asChild
-                >
+              {application.status === APPLICATION_STATUS.PENDING_AMENDMENT && (
+                <Button size="sm" variant="outline" className="rounded-xl" asChild>
                   <Link href={`/applications/edit/${application.id}`}>
                     Make Amendment
                   </Link>
                 </Button>
               )}
-              {application.status === "APPROVED" && (
+              {application.badges.includes("sent") && !application.hasExpiredOffer && (
                 <Button
                   size="sm"
                   className="rounded-xl bg-primary text-primary-foreground shadow-sm hover:opacity-95"
@@ -297,29 +171,49 @@ function ApplicationCard({
                   Review Offer
                 </Button>
               )}
+              {isGenericDraft && (
+                <Button size="sm" className="rounded-xl" asChild>
+                  <Link href={`/applications/edit/${application.id}`}>
+                    Continue Application
+                  </Link>
+                </Button>
+              )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="h-9 w-9 rounded-xl"
-                  >
+                  <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl">
                     <EllipsisVerticalIcon className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="rounded-xl">
-                  <DropdownMenuItem
-                    className="cursor-pointer text-destructive focus:text-destructive"
-                    onClick={() => setRejectDialogOpen(true)}
-                  >
-                    Reject Application
-                  </DropdownMenuItem>
+                  {isDraft ? (
+                    <>
+                      <DropdownMenuItem className="cursor-pointer" asChild>
+                        <Link href={`/applications/edit/${application.id}`}>
+                          Edit Application
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="cursor-pointer text-destructive focus:text-destructive"
+                        onClick={() => {}}
+                      >
+                        Delete Draft
+                      </DropdownMenuItem>
+                    </>
+                  ) : (
+                    <DropdownMenuItem
+                      className="cursor-pointer text-destructive focus:text-destructive"
+                      onClick={() => setWithdrawDialogOpen(true)}
+                    >
+                      Withdraw Application
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {!isGenericDraft && (
           <div className="flex flex-wrap justify-between gap-6">
             <div className="space-y-1">
               {hasContract && application.contractTitle && (
@@ -368,6 +262,8 @@ function ApplicationCard({
               </div>
             )}
           </div>
+          )}
+          {!isGenericDraft && (
           <div className="flex justify-center pt-1">
             <button
               type="button"
@@ -377,8 +273,9 @@ function ApplicationCard({
               {expanded ? "Hide details" : "View details"}
             </button>
           </div>
+          )}
 
-          {expanded && (
+          {!isGenericDraft && expanded && (
             <div className="mt-4">
               <h3 className="text-sm font-semibold text-foreground mb-3">
                 Invoices
@@ -422,26 +319,21 @@ function ApplicationCard({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {application.invoices.map((inv) => {
-                      const action = "action" in inv ? (inv as { action?: InvoiceAction }).action : null;
-                      const actionLabel =
-                        action === "review_offer"
-                          ? "Review Offer"
-                          : action === "make_amendments"
-                            ? "Make Amendments"
-                            : action === "download"
-                              ? "Download"
-                              : action === "view_offer"
-                                ? "View Offer"
-                                : null;
-                      const actionBtnClass =
-                        action === "review_offer" || action === "view_offer"
-                          ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                          : action === "make_amendments"
-                            ? "bg-amber-500 text-white hover:bg-amber-600"
-                            : action === "download"
-                              ? "bg-muted text-muted-foreground hover:bg-muted/80 border border-border"
-                              : "";
+                    {application.invoices.map((inv: NormalizedInvoice) => {
+                      const showReviewOffer = inv.offerStatus === "Offer received";
+                      const canReview = inv.canReviewOffer;
+                      const isExpired = inv.offerStatus === "Offer expired";
+                      const showMakeAmendments = application.status === APPLICATION_STATUS.PENDING_AMENDMENT;
+                      const actionLabel = showReviewOffer
+                        ? "Review Offer"
+                        : showMakeAmendments
+                          ? "Make Amendments"
+                          : "Download";
+                      const actionBtnClass = showReviewOffer
+                        ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                        : showMakeAmendments
+                          ? "bg-amber-500 text-white hover:bg-amber-600"
+                          : "bg-muted text-muted-foreground hover:bg-muted/80 border border-border";
                       return (
                         <TableRow
                           key={inv.id}
@@ -474,13 +366,36 @@ function ApplicationCard({
                           </TableCell>
                           <TableCell className="py-3 px-4 align-middle">
                             <StatusBadge
-                              badgeKey={inv.status}
-                              label={inv.status}
+                              badgeKey={inv.status.toLowerCase()}
                             />
                           </TableCell>
                           <TableCell className="py-3 px-4 align-middle">
                             <div className="flex items-center justify-end gap-2">
-                              {actionLabel && actionBtnClass && (
+                              {showReviewOffer ? (
+                                <Button
+                                  size="sm"
+                                  className={cn(
+                                    "h-8 rounded-md text-xs font-medium shrink-0",
+                                    actionBtnClass
+                                  )}
+                                  disabled={isExpired || !canReview}
+                                >
+                                  {actionLabel}
+                                </Button>
+                              ) : showMakeAmendments ? (
+                                <Button
+                                  size="sm"
+                                  className={cn(
+                                    "h-8 rounded-md text-xs font-medium shrink-0",
+                                    actionBtnClass
+                                  )}
+                                  asChild
+                                >
+                                  <Link href={`/applications/edit/${application.id}`}>
+                                    {actionLabel}
+                                  </Link>
+                                </Button>
+                              ) : (
                                 <Button
                                   size="sm"
                                   className={cn(
@@ -528,30 +443,30 @@ function ApplicationCard({
       </Card>
 
       <Dialog
-        open={rejectDialogOpen}
-        onOpenChange={setRejectDialogOpen}
+        open={withdrawDialogOpen}
+        onOpenChange={setWithdrawDialogOpen}
       >
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Reject Application</DialogTitle>
+            <DialogTitle>Withdraw Application</DialogTitle>
             <DialogDescription>
-              Are you sure you want to reject this application?
+              Are you sure you want to withdraw this application?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setRejectDialogOpen(false)}
-              disabled={isRejecting}
+              onClick={() => setWithdrawDialogOpen(false)}
+              disabled={isWithdrawing}
             >
               Cancel
             </Button>
             <Button
               variant="destructive"
-              onClick={handleReject}
-              disabled={isRejecting}
+              onClick={handleWithdraw}
+              disabled={isWithdrawing}
             >
-              {isRejecting ? "Rejecting…" : "Reject"}
+              {isWithdrawing ? "Withdrawing…" : "Withdraw"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -568,26 +483,30 @@ const PER_PAGE_OPTIONS = [4, 8, 12] as const;
 
 export default function ApplicationsPage() {
   const { setTitle } = useHeader();
+  const { applications, isLoading } = useApplicationsData();
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [customerFilter, setCustomerFilter] = React.useState("all");
   const [dateFilter, setDateFilter] = React.useState("all");
   const [page, setPage] = React.useState(1);
   const [perPage, setPerPage] = React.useState(4);
-  const [applications, setApplications] =
-    React.useState<(typeof MOCK_APPLICATIONS)[0][]>(MOCK_APPLICATIONS);
+  const [withdrawnIds, setWithdrawnIds] = React.useState<Set<string>>(new Set());
 
   React.useEffect(() => {
     setTitle("Applications");
   }, [setTitle]);
 
+  const visibleApplications = React.useMemo(
+    () => applications.filter((a) => !withdrawnIds.has(a.id)),
+    [applications, withdrawnIds]
+  );
+
   const filteredApplications = React.useMemo(() => {
-    let list = [...applications];
+    let list = [...visibleApplications];
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(
         (a) =>
-          a.company.toLowerCase().includes(q) ||
           a.customer.toLowerCase().includes(q) ||
           a.id.toLowerCase().includes(q)
       );
@@ -599,11 +518,11 @@ export default function ApplicationsPage() {
       list = list.filter((a) => a.customer === customerFilter);
     }
     return list;
-  }, [applications, search, statusFilter, customerFilter]);
+  }, [visibleApplications, search, statusFilter, customerFilter]);
 
   const uniqueCustomers = React.useMemo(
-    () => [...new Set(applications.map((a) => a.customer))],
-    [applications]
+    () => [...new Set(visibleApplications.map((a) => a.customer))],
+    [visibleApplications]
   );
 
   const paginatedApplications = filteredApplications.slice(
@@ -611,7 +530,7 @@ export default function ApplicationsPage() {
     page * perPage
   );
 
-  const totalCount = applications.length;
+  const totalCount = visibleApplications.length;
   const activeFilterCount = [
     statusFilter !== "all",
     customerFilter !== "all",
@@ -625,8 +544,8 @@ export default function ApplicationsPage() {
     filteredApplications.length
   );
 
-  const handleReject = (id: string) => {
-    setApplications((prev) => prev.filter((a) => a.id !== id));
+  const handleWithdraw = (id: string) => {
+    setWithdrawnIds((prev) => new Set(prev).add(id));
     if (page > 1 && paginatedApplications.length <= 1) {
       setPage((p) => Math.max(1, p - 1));
     }
@@ -709,21 +628,26 @@ export default function ApplicationsPage() {
                   <DropdownMenuRadioItem value="all">
                     All statuses
                   </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="DRAFT">Draft</DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="SUBMITTED">
-                    Pending Approval
+                  <DropdownMenuRadioItem value={APPLICATION_STATUS.DRAFT}>
+                    {STATUS_BADGES.draft?.label ?? "Draft"}
                   </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="AMENDMENT_REQUESTED">
-                    Pending Amendment
+                  <DropdownMenuRadioItem value={APPLICATION_STATUS.PENDING_APPROVAL}>
+                    {STATUS_BADGES.pending_approval?.label ?? "Pending Approval"}
                   </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="APPROVED">
-                    Offer Received
+                  <DropdownMenuRadioItem value={APPLICATION_STATUS.PENDING_AMENDMENT}>
+                    {STATUS_BADGES.pending_amendment?.label ?? "Action Required"}
                   </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="REJECTED">
-                    Rejected
+                  <DropdownMenuRadioItem value={APPLICATION_STATUS.SENT}>
+                    {STATUS_BADGES.sent?.label ?? "Offer Received"}
                   </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="ARCHIVED">
-                    Archived
+                  <DropdownMenuRadioItem value={APPLICATION_STATUS.ACCEPTED}>
+                    {STATUS_BADGES.accepted?.label ?? "Accepted"}
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value={APPLICATION_STATUS.REJECTED}>
+                    {STATUS_BADGES.rejected?.label ?? "Rejected"}
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem value={APPLICATION_STATUS.WITHDRAWN}>
+                    {STATUS_BADGES.withdrawn?.label ?? "Withdrawn"}
                   </DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
 
@@ -800,13 +724,17 @@ export default function ApplicationsPage() {
 
           {/* Application cards */}
           <div className="rounded-xl border bg-muted/30 p-6">
-            {paginatedApplications.length > 0 ? (
+            {isLoading ? (
+              <div className="py-12 text-center text-muted-foreground">
+                Loading applications…
+              </div>
+            ) : paginatedApplications.length > 0 ? (
               <div className="space-y-4">
                 {paginatedApplications.map((app) => (
                   <ApplicationCard
                     key={app.id}
                     application={app}
-                    onReject={() => handleReject(app.id)}
+                    onWithdraw={() => handleWithdraw(app.id)}
                   />
                 ))}
               </div>
