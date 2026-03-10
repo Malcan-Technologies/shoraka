@@ -4009,6 +4009,26 @@ export class AdminService {
         eventType: "APPLICATION_RESET_TO_UNDER_REVIEW",
         metadata: { previous_status: currentStatus },
       });
+    } else if (status === ApplicationStatus.APPROVED) {
+      await logApplicationActivity({
+        userId,
+        applicationId: id,
+        level: ActivityLevel.APPLICATION,
+        target: ActivityTarget.APPLICATION,
+        action: ActivityAction.APPROVED,
+        portal: ActivityPortal.ADMIN,
+        eventType: "APPLICATION_APPROVED",
+      });
+    } else if (status === ApplicationStatus.REJECTED) {
+      await logApplicationActivity({
+        userId,
+        applicationId: id,
+        level: ActivityLevel.APPLICATION,
+        target: ActivityTarget.APPLICATION,
+        action: ActivityAction.REJECTED,
+        portal: ActivityPortal.ADMIN,
+        eventType: "APPLICATION_REJECTED",
+      });
     }
 
     logger.info(
@@ -4100,7 +4120,7 @@ export class AdminService {
    * Returns null if invalid.
    */
   private resolveInvoiceIdFromScopeKey(
-    application: { invoices?: { id: string; details?: { number?: string | number } }[] },
+    application: { invoices?: { id: string; details?: unknown }[] },
     itemId: string
   ): string | null {
     if (!itemId.startsWith("invoice_details:")) return null;
@@ -4111,7 +4131,11 @@ export class AdminService {
     const invoices = application.invoices ?? [];
     if (idx >= invoices.length) return null;
     const inv = invoices[idx];
-    const expectedNum = String(inv?.details?.number ?? idx + 1).replace(/:/g, "_");
+    const details =
+      inv?.details && typeof inv.details === "object"
+        ? (inv.details as Record<string, unknown>)
+        : null;
+    const expectedNum = String(details?.number ?? idx + 1).replace(/:/g, "_");
     const keyNum = parts.slice(2).join(":").replace(/:/g, "_");
     if (expectedNum !== keyNum) return null;
     return inv?.id ?? null;
@@ -4122,7 +4146,7 @@ export class AdminService {
    * Expects format invoice_details:<index>:<invoice_number>
    */
   private validateInvoiceExists(
-    application: { invoices?: { id: string; details?: { number?: string | number } }[] },
+    application: { invoices?: { id: string; details?: unknown }[] },
     itemId: string
   ): void {
     if (!this.resolveInvoiceIdFromScopeKey(application, itemId)) {
@@ -5117,6 +5141,19 @@ export class AdminService {
         throw new AppError(400, "INVALID_INPUT", "itemType and itemId are required for item scope");
       }
       this.validateReviewItemExists(application, itemType, itemId);
+      if (itemType === "invoice") {
+        const targetInvoiceId = this.resolveInvoiceIdFromScopeKey(application, itemId);
+        if (targetInvoiceId) {
+          const existingDrafts = await repository.listPendingAmendments(applicationId);
+          for (const draft of existingDrafts) {
+            if (draft.scope !== "item" || draft.scope_key === itemId) continue;
+            const draftInvoiceId = this.resolveInvoiceIdFromScopeKey(application, draft.scope_key);
+            if (draftInvoiceId && draftInvoiceId === targetInvoiceId) {
+              await repository.removeDraftAmendment(applicationId, "item", draft.scope_key);
+            }
+          }
+        }
+      }
       await repository.upsertItemReviewStatus(
         applicationId,
         itemType,
@@ -5166,7 +5203,23 @@ export class AdminService {
       throw new AppError(400, "INVALID_STATE", "Application is not in a reviewable state");
     }
     const rows = await repository.listPendingAmendments(applicationId);
-    return rows.map((r) => {
+    const dedupedRows = new Map<string, (typeof rows)[number]>();
+    for (const row of rows) {
+      // Keep one pending amendment per invoice, even if historical scope_key index changed.
+      if (row.scope === "item" && row.scope_key.startsWith("invoice_details:")) {
+        const invoiceId = this.resolveInvoiceIdFromScopeKey(
+          application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+          row.scope_key
+        );
+        if (invoiceId) {
+          dedupedRows.set(`invoice:${invoiceId}`, row);
+          continue;
+        }
+      }
+      dedupedRows.set(`scope:${row.scope}:${row.scope_key}`, row);
+    }
+    const normalizedRows = Array.from(dedupedRows.values());
+    return normalizedRows.map((r) => {
       const base = {
         id: r.id,
         scope: r.scope,

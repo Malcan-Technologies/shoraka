@@ -148,6 +148,10 @@ function getEventIcon(eventType: string) {
       return <ArrowPathIcon className="h-3.5 w-3.5 text-muted-foreground" />;
     case "APPLICATION_RESET_TO_UNDER_REVIEW":
       return <ArrowPathIcon className="h-3.5 w-3.5 text-blue-500" />;
+    case "APPLICATION_APPROVED":
+      return <CheckCircleIcon className="h-3.5 w-3.5 text-emerald-600" />;
+    case "APPLICATION_REJECTED":
+      return <XCircleIcon className="h-3.5 w-3.5 text-destructive" />;
     case "AMENDMENTS_SUBMITTED":
       return <DocumentTextIcon className="h-3.5 w-3.5 text-amber-600" />;
     case "SOPHISTICATED_STATUS_UPDATED":
@@ -187,6 +191,8 @@ function getEventLabel(
     CONTRACT_OFFER_SENT: "Contract Offer Sent",
     SOPHISTICATED_STATUS_UPDATED: "Sophisticated Status Updated",
     APPLICATION_RESET_TO_UNDER_REVIEW: "Application Reset to Under Review",
+    APPLICATION_APPROVED: "Application Approved",
+    APPLICATION_REJECTED: "Application Rejected",
     AMENDMENTS_SUBMITTED: "Amendment Request Sent",
   };
   if (eventType === "INVOICE_OFFER_SENT") {
@@ -240,6 +246,10 @@ function getEventDotColor(eventType: string): string {
       return "bg-muted-foreground";
     case "APPLICATION_RESET_TO_UNDER_REVIEW":
       return "bg-blue-500";
+    case "APPLICATION_APPROVED":
+      return "bg-emerald-500";
+    case "APPLICATION_REJECTED":
+      return "bg-destructive";
     case "AMENDMENTS_SUBMITTED":
       return "bg-amber-500";
     case "SOPHISTICATED_STATUS_UPDATED":

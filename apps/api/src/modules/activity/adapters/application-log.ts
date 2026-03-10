@@ -142,6 +142,9 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
   }
 
   buildDescription(eventType: string, metadata?: Record<string, unknown>): string {
+    if (eventType === "AMENDMENTS_SUBMITTED") {
+      return "Amendment request sent to issuer";
+    }
     const parts = eventType.split("_");
     const action = parts[parts.length - 1];
     switch (action) {
@@ -169,6 +172,9 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
       "APPLICATION_APPLICATION_RESUBMITTED",
       "APPLICATION_APPLICATION_APPROVED",
       "APPLICATION_APPLICATION_REJECTED",
+      "APPLICATION_APPROVED",
+      "APPLICATION_REJECTED",
+      "AMENDMENTS_SUBMITTED",
     ];
   }
 }
