@@ -47,6 +47,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import { STATUS, FILTER_STATUSES, FINANCING_TYPES } from "./status";
 import { useApplicationsData } from "./use-applications-data";
 import { ReviewOfferModal } from "./components/ReviewOfferModal";
@@ -54,6 +55,43 @@ import type { NormalizedApplication, NormalizedInvoice } from "./status";
 
 const BADGE_BASE = "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold border";
 const BADGE_FALLBACK = "border-slate-500/30 bg-slate-500/10 text-slate-600";
+
+/** Skeleton that matches ApplicationCard layout. */
+function ApplicationCardSkeleton() {
+  return (
+    <Card className="rounded-2xl border bg-card shadow-sm md:shadow">
+      <CardHeader className="pb-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Skeleton className="h-5 w-32" />
+            <Skeleton className="h-6 w-24 rounded-md" />
+          </div>
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-9 w-9 rounded-xl" />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap justify-between gap-6">
+          <div className="space-y-4">
+            <Skeleton className="h-5 w-48" />
+            <Skeleton className="h-5 w-36" />
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="h-5 w-44" />
+          </div>
+          <div className="space-y-4 text-right">
+            <Skeleton className="h-5 w-28 ml-auto" />
+            <Skeleton className="h-5 w-24 ml-auto" />
+            <Skeleton className="h-5 w-32 ml-auto" />
+          </div>
+        </div>
+        <div className="flex justify-center pt-1">
+          <Skeleton className="h-5 w-24" />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 function StatusBadge({ badgeKey }: { badgeKey: string }) {
   const s = STATUS[badgeKey];
@@ -538,6 +576,10 @@ export default function ApplicationsPage() {
     setReviewModalOpen(true);
   }, []);
 
+  /* --- Dev only: toggle skeleton for testing. --- */
+  const [showSkeletonDev, setShowSkeletonDev] = React.useState(false);
+  const isDev = process.env.NODE_ENV === "development";
+
   /* --- FILTER: state. Status, Financing, Date (created + submitted), Search. --- */
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
@@ -886,6 +928,7 @@ export default function ApplicationsPage() {
                 </Button>
               )}
 
+
               {submittedRangeLabel && (
                 <span className="text-sm text-muted-foreground">
                   Submitted: {submittedRangeLabel}
@@ -912,9 +955,11 @@ export default function ApplicationsPage() {
 
           {/* Application cards */}
           <div className="rounded-xl border bg-muted/30 p-6">
-            {isLoading ? (
-              <div className="py-12 text-center text-muted-foreground">
-                Loading applications…
+            {isLoading || showSkeletonDev ? (
+              <div className="space-y-4">
+                {Array.from({ length: perPage }).map((_, i) => (
+                  <ApplicationCardSkeleton key={i} />
+                ))}
               </div>
             ) : paginatedApplications.length > 0 ? (
               <div className="space-y-4">
@@ -936,7 +981,7 @@ export default function ApplicationsPage() {
               </div>
             )}
 
-            {filteredApplications.length > 0 && (
+            {filteredApplications.length > 0 && !showSkeletonDev && (
               <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t border-border pt-4">
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -993,7 +1038,19 @@ export default function ApplicationsPage() {
         </CardContent>
       </Card>
 
-      {/* Modal only mounts when Review Offer is clicked. Prevents flash and ensures it never appears otherwise. */}
+      {isDev && (
+        <div className="fixed bottom-4 right-4 z-50">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setShowSkeletonDev((s) => !s)}
+            className="rounded-xl shadow-md"
+          >
+            {showSkeletonDev ? "Hide" : "Show"} skeleton
+          </Button>
+        </div>
+      )}
+
       {reviewModalOpen && (
         <ReviewOfferModal
           type={offerType}
