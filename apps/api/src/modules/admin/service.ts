@@ -36,6 +36,7 @@ import type {
   ResetOnboardingInput,
   GetOnboardingApplicationsQuery,
   GetAdminApplicationsQuery,
+  GetAdminContractsQuery,
 } from "./schemas";
 import { RegTankRepository, OnboardingApplicationRecord } from "../regtank/repository";
 import { RegTankAPIClient } from "../regtank/api-client";
@@ -3933,6 +3934,49 @@ export class AdminService {
         totalPages: Math.ceil(total / params.pageSize),
       },
     };
+  }
+
+  /**
+   * List all contracts with pagination and filters
+   */
+  async listContracts(params: GetAdminContractsQuery): Promise<{
+    contracts: {
+      id: string;
+      contractNumber: string | null;
+      title: string | null;
+      issuerOrganizationName: string | null;
+      contractValue: number;
+      status: string;
+      updatedAt: Date;
+    }[];
+    pagination: {
+      page: number;
+      pageSize: number;
+      totalCount: number;
+      totalPages: number;
+    };
+  }> {
+    const repository = new AdminRepository();
+    const { contracts, total } = await repository.getContracts(params);
+
+    return {
+      contracts,
+      pagination: {
+        page: params.page,
+        pageSize: params.pageSize,
+        totalCount: total,
+        totalPages: Math.ceil(total / params.pageSize),
+      },
+    };
+  }
+
+  async getContractDetail(id: string) {
+    const repository = new AdminRepository();
+    const contract = await repository.getContractById(id);
+    if (!contract) {
+      throw new AppError(404, "NOT_FOUND", "Contract not found");
+    }
+    return contract;
   }
 
   /**

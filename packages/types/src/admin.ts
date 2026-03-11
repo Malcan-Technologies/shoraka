@@ -1028,6 +1028,55 @@ export interface AdminApplicationsResponse {
   pagination: PaginationResponse;
 }
 
+export interface ContractListItem {
+  id: string;
+  contractNumber: string | null;
+  title: string | null;
+  issuerOrganizationName: string | null;
+  contractValue: number;
+  status: string;
+  updatedAt: string;
+}
+
+export interface GetAdminContractsParams extends PaginationParams {
+  search?: string;
+  status?: string;
+  statuses?: string[];
+}
+
+export interface AdminContractsResponse {
+  contracts: ContractListItem[];
+  pagination: PaginationResponse;
+}
+
+export interface AdminContractApplicationSummary {
+  id: string;
+  productId: string | null;
+  status: string;
+  submittedAt: string | null;
+  updatedAt: string;
+  requestedAmount: number;
+}
+
+export interface AdminContractDetail {
+  id: string;
+  contractNumber: string | null;
+  title: string | null;
+  description: string | null;
+  issuerOrganizationName: string | null;
+  requestedFacility: number;
+  approvedFacility: number;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  contractDetails: Record<string, unknown> | null;
+  offerDetails: Record<string, unknown> | null;
+  offerSentByUserName: string | null;
+  offerRespondedByUserName: string | null;
+  customerDetails: Record<string, unknown> | null;
+  applications: AdminContractApplicationSummary[];
+}
+
 export interface ApplicationReviewSection {
   id: string;
   application_id: string;
