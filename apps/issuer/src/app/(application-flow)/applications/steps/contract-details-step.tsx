@@ -474,13 +474,6 @@ export function ContractDetailsStep({
     [workflow]
   );
 
-  React.useEffect(() => {
-    console.log("[ContractDetails] productMinMonths:", productMinMonths);
-  }, [productMinMonths]);
-
-  React.useEffect(() => {
-    console.log("[ContractDetails] application:", application);
-  }, [application]);
 
   /* Clear financing error when user changes the value */
   React.useEffect(() => {
@@ -585,7 +578,6 @@ export function ContractDetailsStep({
     }
 
     isInitializedRef.current = true;
-    console.warn("[CONTRACT] Hydrated");
   }, [application, contract, isLoadingContract]);
 
   /* ================================================================
@@ -606,7 +598,6 @@ export function ContractDetailsStep({
   const isValidCalendarDate = (dateStr?: string) => !!parseFlexibleDate(dateStr);
 
   const saveFunction = React.useCallback(async () => {
-    console.warn("[CONTRACT] Save triggered");
     setHasSubmitted(true);
     if (productMinMonths == null) {
       toast.error("System configuration error. Please contact administrator.");
@@ -675,12 +666,10 @@ export function ContractDetailsStep({
         const created = await createContractMutation.mutateAsync(applicationId);
         effectiveContractId = created?.id as string;
         if (!effectiveContractId) {
-          console.warn("[CONTRACT] Contract creation did not return an id");
           toast.error("Something went wrong. Please try again.");
           throw new Error("CONTRACT_CREATION_NO_ID");
         }
       } catch (err) {
-        console.warn("[CONTRACT] Contract creation error:", err);
         toast.error("Something went wrong. Please try again.");
         throw err;
       }
@@ -722,8 +711,8 @@ export function ContractDetailsStep({
         if (existingS3Key && existingS3Key !== s3Key) {
           try {
             await apiClient.deleteContractDocument(effectiveContractId, existingS3Key);
-          } catch (error) {
-            console.warn("Failed to delete old contract:", error);
+          } catch {
+            // Non-fatal: continue with new contract
           }
         }
 
@@ -770,8 +759,8 @@ export function ContractDetailsStep({
         if (existingS3Key && existingS3Key !== s3Key) {
           try {
             await apiClient.deleteContractDocument(effectiveContractId, existingS3Key);
-          } catch (error) {
-            console.warn("Failed to delete old consent:", error);
+          } catch {
+            // Non-fatal: continue with new contract
           }
         }
 
@@ -812,7 +801,6 @@ export function ContractDetailsStep({
       document: updatedFormData.contract.document || undefined,
     };
 
-    console.warn("[CONTRACT] Payload being sent:", { financing: contractFinancingNum, updatedContractDetails });
 
     const updatedCustomerDetails = {
       ...updatedFormData.customer,
@@ -1030,15 +1018,6 @@ export function ContractDetailsStep({
   }
 
   const stepIsFlagged = isAmendmentMode && (flaggedSections?.has("contract_details") || (flaggedItems?.get("contract_details")?.size ?? 0) > 0);
-
-  if (process.env.NODE_ENV !== "production" && isAmendmentMode) {
-    console.debug("[AMENDMENT][LOCKING] Contract details:", {
-      stepKey: "contract_details",
-      flaggedSections: flaggedSections ? Array.from(flaggedSections) : [],
-      stepIsFlagged,
-      stepIsEditable,
-    });
-  }
 
   const labelClassName = cn(formLabelClassName, "font-normal");
   const inputClassName = cn(formInputClassName, !stepIsEditable && formInputDisabledClassName);

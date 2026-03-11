@@ -151,7 +151,7 @@ export default function EditApplicationPage() {
    */
   const [wizardState, setWizardState] = React.useState<WizardState | null>(null);
 
-  /** Initialize wizard state from application data (run once) */
+  /** Syncs wizard state from application on first load. Runs once when application exists and wizardState is still null. */
   React.useEffect(() => {
     if (!application || wizardState !== null) return;
 
@@ -161,17 +161,13 @@ export default function EditApplicationPage() {
       allowedMaxStep: lastCompleted + 1,
     });
 
-    // eslint-disable-next-line no-console
-    console.log(
-      `[WIZARD] Initialized: lastCompleted=${lastCompleted}, allowedMax=${lastCompleted + 1}`
-    );
   }, [application, wizardState]);
 
   /* ================================================================
    LOCK EDITING IF NOT DRAFT
    ================================================================ */
 
-  /** Block edit access when status is not DRAFT or AMENDMENT_REQUESTED. */
+  /** Blocks editing when the application is neither DRAFT nor AMENDMENT_REQUESTED. Redirects to /applications. */
   const isEditBlocked =
     application &&
     application.status !== "DRAFT" &&
@@ -181,9 +177,6 @@ export default function EditApplicationPage() {
     if (!application) return;
     if (isSubmittingRef.current) return;
     if (application.status !== "DRAFT" && application.status !== "AMENDMENT_REQUESTED") {
-      if (process.env.NODE_ENV !== "production") {
-        console.debug("[EDIT GUARD]", "status:", application.status);
-      }
       router.replace("/applications");
     }
   }, [application, router]);
@@ -200,7 +193,7 @@ export default function EditApplicationPage() {
   } | null>(null);
   const [devPreviewAmendment, setDevPreviewAmendment] = React.useState(false);
 
-  /** Mock amendment data for DEV preview — shows all error types (tab, supporting doc item, invoice item) */
+  /** Returns mock amendment context for DEV preview. Covers section, item, and tab-level remark types. */
   const getMockAmendmentContext = React.useCallback(() => ({
     review_cycle: (application as { review_cycle?: number })?.review_cycle ?? 1,
     remarks: [
@@ -248,7 +241,7 @@ export default function EditApplicationPage() {
     };
   }, [application, applicationId, getAccessToken, API_URL, devPreviewAmendment, getMockAmendmentContext]);
 
-  /** Section-level: scope_key where scope === "section" */
+  /** Set of scope_keys for section-level remarks. Used to show which tabs need amendment. */
   const flaggedSections = React.useMemo(() => {
     if (!amendmentContext) return new Set<string>();
     const s = new Set<string>();
@@ -259,7 +252,7 @@ export default function EditApplicationPage() {
     return s;
   }, [amendmentContext]);
 
-  /** Item-level: tab (split(":")[0]) -> Set of full scope_key */
+  /** Map from tab key to the set of full scope_keys for item-level remarks. Drives per-item error display. */
   const flaggedItems = React.useMemo(() => {
     if (!amendmentContext) return new Map<string, Set<string>>();
     const m = new Map<string, Set<string>>();
@@ -274,8 +267,7 @@ export default function EditApplicationPage() {
     return m;
   }, [amendmentContext]);
 
-  /** Step keys that have amendment remarks (section or item). Used by stepper for red styling.
-   * Review & Submit is always flagged in amendment mode — issuer must resubmit. */
+  /** Step keys that have amendment remarks. Stepper uses this for red styling. Review & Submit is always flagged in amendment mode. */
   const amendmentFlaggedStepKeys = React.useMemo(() => {
     const s = new Set<string>();
     for (const k of flaggedSections) s.add(k);
@@ -286,26 +278,17 @@ export default function EditApplicationPage() {
     return Array.from(s);
   }, [flaggedSections, flaggedItems, application?.status, devPreviewAmendment]);
 
-  /** Step keys the user has acknowledged (saved). Derived from amendment_acknowledged_workflow_ids. */
+  /** Step keys the user has acknowledged. Comes from amendment_acknowledged_workflow_ids on the application. */
   const acknowledgedWorkflowIds = React.useMemo(() => {
     const ids = (application as { amendment_acknowledged_workflow_ids?: string[] })?.amendment_acknowledged_workflow_ids ?? [];
     return Array.from(new Set(ids.map((id) => getStepKeyFromStepId(id)).filter(Boolean))) as string[];
   }, [application]);
 
-  /** Skip financial and review_and_submit — only other flagged steps need acknowledgement before Resubmit. */
+  /** True when all flagged steps (except financial and review_and_submit) are acknowledged. Required before Resubmit. */
   const allAmendmentStepsAcknowledged = amendmentFlaggedStepKeys
     .filter((step) => !step.startsWith("financial") && step !== "review_and_submit")
     .every((step) => acknowledgedWorkflowIds.includes(step));
 
-  React.useEffect(() => {
-    if (process.env.NODE_ENV !== "production" && application?.status === "AMENDMENT_REQUESTED") {
-      console.log("[AMENDMENT][RESUBMIT_BUTTON]", {
-        amendmentFlaggedStepKeys,
-        acknowledgedWorkflowIds,
-        allAcknowledged: allAmendmentStepsAcknowledged,
-      });
-    }
-  }, [application?.status, amendmentFlaggedStepKeys, acknowledgedWorkflowIds, allAmendmentStepsAcknowledged]);
 
   /* ================================================================
      FINANCING STRUCTURE HANDLING (SESSION OVERRIDE)
@@ -368,7 +351,7 @@ export default function EditApplicationPage() {
     return (product?.workflow as Record<string, unknown>[] | undefined) || [];
   }, [effectiveProductId, productsData]);
 
-  /** Apply session structure override to filter workflow (UI-only) */
+  /** Filters product workflow using session override when user picks structure before saving. UI-only; does not persist. */
   const effectiveWorkflow = React.useMemo(() => {
     if (!productWorkflow.length) return [];
     if (!isStructureResolved) return productWorkflow;
@@ -472,7 +455,7 @@ export default function EditApplicationPage() {
      ================================================================ */
 
   const stepDataRef = React.useRef<Record<string, unknown> | null>(null);
-  /** Tracks which step the data belongs to — prevents using stale data when clicking Back then Save. */
+  /** Stores the step key for the data in stepDataRef. Prevents saving stale data when user clicks Back then Save. */
   const stepDataStepKeyRef = React.useRef<string | null>(null);
   const isSavingRef = React.useRef<boolean>(false);
   const isSubmittingRef = React.useRef<boolean>(false);
@@ -493,7 +476,7 @@ export default function EditApplicationPage() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
   React.useEffect(() => {
     setHasUnsavedChanges(false);
-    /** Do not clear stepDataRef — new step overwrites when ready. Clearing caused race: Save before step populated. */
+    /** Keeps stepDataRef intact. The new step overwrites it when ready. Clearing it caused a race where Save ran before data loaded. */
   }, [stepFromUrl]);
 
   // Navigation guard integration
@@ -573,10 +556,7 @@ export default function EditApplicationPage() {
      RESUME LOGIC
      ================================================================ */
 
-  /**
-   * If user visits /applications/edit/123 without ?step=,
-   * redirect to maxAllowedStep (last_completed_step + 1).
-   */
+  /** When the URL has no step param, redirects to the max allowed step (last_completed_step + 1). */
   React.useEffect(() => {
     if (isSubmittingRef.current) return;
     if (!application || isLoadingApp || wizardState === null) return;
@@ -586,8 +566,6 @@ export default function EditApplicationPage() {
       const isAmendmentMode = isRealAmendmentMode || devPreviewAmendment;
       const targetStep = isAmendmentMode ? 1 : wizardState.allowedMaxStep;
       // dev-only debug
-      // eslint-disable-next-line no-console
-      console.debug("[Amendment] initialStep", targetStep, { isAmendmentMode, lastCompletedStep: (application as any)?.last_completed_step });
       router.replace(`/applications/edit/${applicationId}?step=${targetStep}`);
     }
   }, [application, applicationId, router, searchParams, isLoadingApp, wizardState, devPreviewAmendment]);
@@ -597,10 +575,8 @@ export default function EditApplicationPage() {
      ================================================================ */
 
   /**
-   * Single stable gating effect:
-   * - Runs when initial data loads OR URL step changes
-   * - Uses local wizardState (never stale cache)
-   * - Prevents "Please complete steps in order" loops
+   * Single gating effect for step access. Runs when data loads or the URL step changes.
+   * Uses local wizardState so it never depends on stale react-query cache. Prevents "Please complete steps in order" loops.
    */
   React.useEffect(() => {
     if (isSubmittingRef.current) return;
@@ -645,10 +621,6 @@ export default function EditApplicationPage() {
       return;
     }
 
-    // eslint-disable-next-line no-console
-    console.log(
-      `[WIZARD] Gate check: stepFromUrl=${stepFromUrl}, allowed=${maxAllowed}, workflow=${maxStepInWorkflow}`
-    );
   }, [
     application,
     applicationId,
@@ -666,14 +638,14 @@ export default function EditApplicationPage() {
      RENDER STEP COMPONENT
      ================================================================ */
 
-  /** Step flagged if section-level or has item-level remarks */
+  /** True when the current step has section-level remarks or any item-level remarks. Drives amendment UI. */
   const isStepFlagged = React.useMemo(() => {
     if (!isAmendmentModeEffective) return true;
     if (!currentStepKey) return false;
     return flaggedSections.has(currentStepKey) || (flaggedItems.get(currentStepKey)?.size ?? 0) > 0;
   }, [isAmendmentModeEffective, flaggedSections, flaggedItems, currentStepKey]);
 
-  /** Section-level remarks only for top card. Item-level remarks show beside each file/item. */
+  /** Remarks for the current step. Section-level ones show on the top card; item-level ones show beside each file or item. */
   const currentStepRemarks = React.useMemo(() => {
     if (!currentStepKey || !amendmentContext?.remarks) return [];
     return (amendmentContext.remarks as { scope?: string; scope_key?: string; remark?: string }[])
@@ -805,7 +777,6 @@ export default function EditApplicationPage() {
       }
 
       const finalStepNumber = effectiveWorkflow.length;
-      console.log('wizard', finalStepNumber)
       await updateStepMutation.mutateAsync({
         id: applicationId,
         stepData: {
@@ -897,9 +868,7 @@ export default function EditApplicationPage() {
      ================================================================ */
 
   /**
-   * Deterministic save flow:
-   * 1. Validate step (throws if invalid)
-   * 2. Call saveFunction if present
+   * Save flow runs in order: validate step (throws if invalid), then call saveFunction if present.
    * 3. Call updateStepMutation or updateStatusMutation
    * 4. Update local wizardState immediately
    * 5. Invalidate react-query cache
@@ -931,7 +900,7 @@ export default function EditApplicationPage() {
       }
 
       const rawData = stepDataRef.current;
-      /** Guard: data must be from current step. When clicking Back, step repopulates async — avoid saving stale or empty. */
+      /** Ensures data is for the current step. After Back, the step repopulates async; this avoids saving stale or empty data. */
       if (
         !rawData ||
         (stepDataStepKeyRef.current && stepDataStepKeyRef.current !== currentStepKey)
@@ -946,9 +915,7 @@ export default function EditApplicationPage() {
         (dataToSave as Record<string, unknown>)?.structureChanged === true;
 
       /**
-       * STEP-SPECIFIC SAVE FUNCTIONS (MUST RUN BEFORE REMOVING)
-       * 
-       * Some steps (contract, invoice, supporting documents) have pending
+       * Step-specific save functions run first. They handle pending uploads (contract, invoice, supporting documents)
        * file uploads that must happen BEFORE we delete saveFunction.
        * These functions return the fully persisted data.
        */
@@ -1031,10 +998,6 @@ export default function EditApplicationPage() {
 
       const nextStep = stepFromUrl + 1;
 
-      // eslint-disable-next-line no-console
-      console.log(
-        `[SAVE] currentStep=${stepFromUrl}, nextStep=${nextStep}, structureChanged=${structureChanged}`
-      );
 
       /* ============================================================
          FINANCING STRUCTURE NO-CHANGE CASE
@@ -1090,7 +1053,7 @@ export default function EditApplicationPage() {
         // ignore acknowledgement failures - backend enforcement remains authoritative
       }
 
-      /** Do not update wizard state in amendment flow — progress is driven by acknowledgement only. */
+      /** In amendment flow, wizard state is not updated here. Progress is driven by acknowledgement only. */
       if (wizardState && application?.status !== "AMENDMENT_REQUESTED") {
         setWizardState({
           lastCompletedStep: stepFromUrl,

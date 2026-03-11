@@ -92,9 +92,6 @@ export function ProgressIndicator({
   }
 
 
-  if (process.env.NODE_ENV !== "production" && isAmendmentMode && amendmentFlaggedStepKeys.length > 0) {
-    console.debug("[AMENDMENT][STEPPER] flagged stepKeys:", amendmentFlaggedStepKeys);
-  }
 
   return (
     <div className="mt-3">
@@ -117,9 +114,6 @@ export function ProgressIndicator({
           const isFilled = isCompleted || isActive;
           const isDisabled = disabledSteps.includes(stepNumber);
 
-          if (process.env.NODE_ENV !== "production" && isAmendmentMode && isFlagged) {
-            console.debug("[AMENDMENT][STEP STYLE]", stepKey, "isFlagged:", isFlagged, "isAcknowledged:", isAcknowledged);
-          }
 
           const showFlaggedStyle = isFlagged && !(isCompleted || isDisabled);
 

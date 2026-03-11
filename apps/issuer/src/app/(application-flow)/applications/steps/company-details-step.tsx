@@ -182,9 +182,6 @@ export function CompanyDetailsStep({
   });
 
   // Temporary debug: log current user id and membership
-  // eslint-disable-next-line no-console
-  console.log("DEBUG currentUser (company-details):", currentUser);
-
   const canEditOrganization = React.useMemo(() => {
     if (!activeOrganization || !currentUser) return false;
     if (activeOrganization.isOwner) return true;
@@ -268,7 +265,6 @@ export function CompanyDetailsStep({
     initialStateRef.current = hydratedState;
 
     hasHydratedRef.current = true;
-    console.warn("[COMPANY] Hydrated");
   }, [application, organizationId, isLoadingData, corporateInfo, bankAccountDetails]);
 
   /* ================================================================
@@ -344,7 +340,6 @@ export function CompanyDetailsStep({
      ================================================================ */
 
   const saveFunction = React.useCallback(async () => {
-    console.warn("[COMPANY] Save triggered");
 
     // Validate immediately
     const { errors, fieldErrors: nextFieldErrors } = validateAll();
@@ -431,10 +426,6 @@ export function CompanyDetailsStep({
         },
       };
     } catch (error) {
-      console.warn(
-        "[COMPANY] Save error:",
-        error instanceof Error ? error.message : error
-      );
       toast.error("Something went wrong. Please try again.");
       throw error;
     }

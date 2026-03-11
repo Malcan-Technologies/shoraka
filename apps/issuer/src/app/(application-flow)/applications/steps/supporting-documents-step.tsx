@@ -345,10 +345,10 @@ export function SupportingDocumentsStep({
             });
 
             if (!deleteResponse.ok) {
-              console.warn("Failed to delete old file, but upload succeeded");
+              // Non-fatal: upload succeeded
             }
-          } catch (deleteError) {
-            console.warn("Error deleting old file:", deleteError);
+          } catch {
+            // Non-fatal: continue with new file
           }
         }
 
@@ -363,7 +363,6 @@ export function SupportingDocumentsStep({
           setLastS3Keys((prev: any) => ({ ...prev, [key]: s3Key }));
         }
       } catch (error) {
-        console.warn(`[DOCUMENTS] Failed to upload ${typedFile.name}:`, error);
         throw error;
       } finally {
         setUploadingKeys((prev) => {
@@ -582,9 +581,6 @@ export function SupportingDocumentsStep({
                     }
                     isEditable = isEditable && !readOnly;
 
-                    if (process.env.NODE_ENV !== "production" && isAmendmentMode) {
-                      console.debug("[AMENDMENT][SUPPORTING_DOCS][ROW]", rawKey, "isItemFlagged:", isItemFlagged, "isEditable:", isEditable);
-                    }
 
                     return (
                       <div
