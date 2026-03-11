@@ -150,6 +150,14 @@ function ApplicationCard({
               <StatusBadge badgeKey={cardStatus.badgeKey} />
             </div>
             <div className="flex items-center gap-2">
+              {/* Make Amendments: only for Action Required (AMENDMENT_REQUESTED). Links to /edit amendment flow. */}
+              {cardStatus.showMakeAmendments && (
+                <Button size="sm" className="rounded-xl bg-amber-600 text-white hover:bg-amber-700 shadow-sm" asChild>
+                  <Link href={`/applications/edit/${application.id}`}>
+                    Make Amendments
+                  </Link>
+                </Button>
+              )}
               {cardStatus.showReviewOffer && (
                 <Button
                   size="sm"
@@ -158,13 +166,7 @@ function ApplicationCard({
                   {hasContract ? "Review Contract Financing Offer" : "Review Offer"}
                 </Button>
               )}
-              {cardStatus.showMakeAmendments && (
-                <Button size="sm" className="rounded-xl bg-amber-600 text-white hover:bg-amber-700 shadow-sm" asChild>
-                  <Link href={`/applications/edit/${application.id}`}>
-                    Make Amendments
-                  </Link>
-                </Button>
-              )}
+              {/* Edit Application: only for drafts. Links to /edit. Non-drafts get Withdraw only. */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="icon" className="h-9 w-9 rounded-xl">

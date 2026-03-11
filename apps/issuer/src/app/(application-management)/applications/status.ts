@@ -224,8 +224,11 @@ export function getCardStatus(input: {
   if (app === "REJECTED" || contract === "REJECTED") {
     return { badgeKey: "rejected", displayLabel: "Rejected", showReviewOffer: false, showMakeAmendments: false };
   }
-  if (contract === "AMENDMENT_REQUESTED" || inv === "AMENDMENT_REQUESTED") {
+  if (app === "AMENDMENT_REQUESTED") {
     return { badgeKey: "pending_amendment", displayLabel: "Action Required", showReviewOffer: false, showMakeAmendments: true };
+  }
+  if (contract === "AMENDMENT_REQUESTED" || inv === "AMENDMENT_REQUESTED") {
+    return { badgeKey: "pending_amendment", displayLabel: "Action Required", showReviewOffer: false, showMakeAmendments: false };
   }
   if (contract === "SENT" || inv === "SENT") {
     return { badgeKey: "sent", displayLabel: "Offer Received", showReviewOffer: true, showMakeAmendments: false };
