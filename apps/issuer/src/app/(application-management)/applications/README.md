@@ -28,6 +28,7 @@ Issuer-focused filters answer: "Which applications need action? What type? When 
 | **Status** | All, Draft, Submitted, Under Review, Action Required, Offer Received, Approved, Rejected | Application status (card badge) |
 | **Financing** | All, Contract financing, Invoice financing | Financing type |
 | **Date** | Application created, Application submitted | Each: All time, Last 7/30/90 days. Created uses applicationDate; submitted uses submittedAt. |
+| **Customer** | All, or customer name | Filter by customer. |
 | **Search** | Application ID, customer, invoice number | Text search |
 
 Config in status.ts: FILTER_STATUSES, FINANCING_TYPES. Filter logic in page.tsx.

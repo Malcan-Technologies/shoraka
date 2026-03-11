@@ -201,13 +201,21 @@ function ApplicationCard({
         </CardHeader>
         <CardContent className="space-y-4">
           {useDraftCardLayout ? (
-            <div className="space-y-2">
+            <div className="space-y-4">
               <p className="text-sm leading-6 text-muted-foreground">
                 This application is still being set up.
               </p>
+              <div className="space-y-1 pt-2">
+              <div className="text-sm text-muted-foreground">
+                Application created:{" "}
+                <span className="text-foreground">
+                  {formatDate(application.applicationDate)}
+                </span>
+              </div>
               <div className="text-sm text-muted-foreground">
                 Application submitted:{" "}
                 <span className="text-foreground">—</span>
+              </div>
               </div>
             </div>
           ) : (
@@ -464,6 +472,7 @@ export default function ApplicationsPage() {
   const [financingFilter, setFinancingFilter] = React.useState("all");
   const [createdFilter, setCreatedFilter] = React.useState("all");
   const [submittedFilter, setSubmittedFilter] = React.useState("all");
+  const [customerFilter, setCustomerFilter] = React.useState("all");
   const [page, setPage] = React.useState(1);
   const [perPage, setPerPage] = React.useState(4);
 
@@ -515,8 +524,11 @@ export default function ApplicationsPage() {
         return new Date(a.submittedAt).getTime() >= cutoffTime;
       });
     }
+    if (customerFilter !== "all") {
+      list = list.filter((a) => a.customer === customerFilter);
+    }
     return list;
-  }, [applications, search, statusFilter, financingFilter, createdFilter, submittedFilter]);
+  }, [applications, search, statusFilter, financingFilter, createdFilter, submittedFilter, customerFilter]);
 
   const paginatedApplications = filteredApplications.slice(
     (page - 1) * perPage,
@@ -524,11 +536,16 @@ export default function ApplicationsPage() {
   );
 
   const totalCount = applications.length;
+  const uniqueCustomers = React.useMemo(
+    () => [...new Set(applications.map((a) => a.customer).filter(Boolean))].sort(),
+    [applications]
+  );
   const filterCount = [
     statusFilter !== "all",
     financingFilter !== "all",
     createdFilter !== "all",
     submittedFilter !== "all",
+    customerFilter !== "all",
   ].filter(Boolean).length;
   const hasFilters = search !== "" || filterCount > 0;
 
@@ -542,7 +559,6 @@ export default function ApplicationsPage() {
     else if (filter === "90d") start.setDate(now.getDate() - 90);
     return `${formatDate(start)} – ${formatDate(now)}`;
   }
-  const createdRangeLabel = getDateRangeLabel(createdFilter);
   const submittedRangeLabel = getDateRangeLabel(submittedFilter);
   const totalPages = Math.ceil(filteredApplications.length / perPage) || 1;
   const startIndex = (page - 1) * perPage + 1;
@@ -612,7 +628,7 @@ export default function ApplicationsPage() {
             <div className="relative flex-1 w-full">
               <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Application ID / Invoice"
+                placeholder="Application ID, customer, or invoice number"
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
@@ -754,6 +770,28 @@ export default function ApplicationsPage() {
                       {opt.label}
                     </DropdownMenuItem>
                   ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Customer</DropdownMenuLabel>
+                  {[
+                    { value: "all", label: "All" },
+                    ...uniqueCustomers.map((c) => ({ value: c, label: c })),
+                  ].map((opt) => (
+                    <DropdownMenuItem
+                      key={`cust-${opt.value}`}
+                      className="pl-8 relative"
+                      onClick={() => {
+                        setCustomerFilter(opt.value);
+                        setPage(1);
+                      }}
+                    >
+                      {customerFilter === opt.value && (
+                        <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                          <span className="h-2 w-2 rounded-full bg-foreground" />
+                        </span>
+                      )}
+                      {opt.label}
+                    </DropdownMenuItem>
+                  ))}
                 </DropdownMenuContent>
               </DropdownMenu>
 
@@ -766,6 +804,7 @@ export default function ApplicationsPage() {
                     setFinancingFilter("all");
                     setCreatedFilter("all");
                     setSubmittedFilter("all");
+                    setCustomerFilter("all");
                     setPage(1);
                   }}
                   className="gap-2 h-11 rounded-xl focus-visible:ring-1 focus-visible:ring-offset-0"
@@ -775,11 +814,6 @@ export default function ApplicationsPage() {
                 </Button>
               )}
 
-              {createdRangeLabel && (
-                <span className="text-sm text-muted-foreground">
-                  Created: {createdRangeLabel}
-                </span>
-              )}
               {submittedRangeLabel && (
                 <span className="text-sm text-muted-foreground">
                   Submitted: {submittedRangeLabel}
