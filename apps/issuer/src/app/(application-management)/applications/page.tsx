@@ -49,6 +49,7 @@ import {
 import { cn } from "@/lib/utils";
 import { STATUS, FILTER_STATUSES, FINANCING_TYPES } from "./status";
 import { useApplicationsData } from "./use-applications-data";
+import { ReviewOfferModal } from "./components/ReviewOfferModal";
 import type { NormalizedApplication, NormalizedInvoice } from "./status";
 
 const BADGE_BASE = "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold border";
@@ -119,9 +120,13 @@ function DocumentDownloadLink({
 function ApplicationCard({
   application,
   onDocumentDownload,
+  onReviewContractOffer,
+  onReviewInvoiceOffer,
 }: {
   application: NormalizedApplication;
   onDocumentDownload: (s3Key: string) => Promise<void>;
+  onReviewContractOffer?: (contractId: string) => void;
+  onReviewInvoiceOffer?: (invoice: NormalizedInvoice) => void;
 }) {
   const [expanded, setExpanded] = React.useState(false);
 
@@ -161,21 +166,25 @@ function ApplicationCard({
               {cardStatus.showReviewOffer && (() => {
                 const contractLink = hasContract && application.contractId;
                 const invoiceLink = !hasContract && application.invoices.find((inv) => inv.canReviewOffer);
-                if (contractLink) {
+                if (contractLink && onReviewContractOffer) {
                   return (
-                    <Button size="sm" className="rounded-xl bg-teal-600 text-white hover:bg-teal-700 shadow-sm" asChild>
-                      <Link href={`/applications/sign/contract/${application.contractId}`}>
-                        Review Contract Financing Offer
-                      </Link>
+                    <Button
+                      size="sm"
+                      className="rounded-xl bg-teal-600 text-white hover:bg-teal-700 shadow-sm"
+                      onClick={() => onReviewContractOffer(application.contractId!)}
+                    >
+                      Review Contract Financing Offer
                     </Button>
                   );
                 }
-                if (invoiceLink) {
+                if (invoiceLink && onReviewInvoiceOffer) {
                   return (
-                    <Button size="sm" className="rounded-xl bg-teal-600 text-white hover:bg-teal-700 shadow-sm" asChild>
-                      <Link href={`/applications/sign/invoice/${invoiceLink.id}`}>
-                        Review Offer
-                      </Link>
+                    <Button
+                      size="sm"
+                      className="rounded-xl bg-teal-600 text-white hover:bg-teal-700 shadow-sm"
+                      onClick={() => onReviewInvoiceOffer(invoiceLink)}
+                    >
+                      Review Offer
                     </Button>
                   );
                 }
@@ -422,15 +431,13 @@ function ApplicationCard({
                               {(showReviewOffer || showMakeAmendments) && (
                                 <div className="flex flex-col items-center gap-1 min-w-[140px]">
                                   {showReviewOffer && (
-                                    canReview && !invDisabled ? (
+                                    canReview && !invDisabled && onReviewInvoiceOffer ? (
                                       <Button
                                         size="sm"
                                         className="h-8 w-full min-w-[140px] rounded-xl text-xs font-medium bg-teal-600 text-white hover:bg-teal-700"
-                                        asChild
+                                        onClick={() => onReviewInvoiceOffer(inv)}
                                       >
-                                        <Link href={`/applications/sign/invoice/${inv.id}`}>
-                                          Review Offer
-                                        </Link>
+                                        Review Offer
                                       </Button>
                                     ) : (
                                       <Button
@@ -496,6 +503,28 @@ const PER_PAGE_OPTIONS = [4, 8, 12] as const;
 export default function ApplicationsPage() {
   const { setTitle } = useHeader();
   const { applications, isLoading } = useApplicationsData();
+
+  /* --- Review offer modal: opens when user clicks Review Offer. --- */
+  const [reviewModalOpen, setReviewModalOpen] = React.useState(false);
+  const [offerType, setOfferType] = React.useState<"contract" | "invoice">("contract");
+  const [selectedContractId, setSelectedContractId] = React.useState<string | null>(null);
+  const [selectedInvoice, setSelectedInvoice] = React.useState<NormalizedInvoice | null>(null);
+
+  const openReviewContractOffer = React.useCallback((contractId: string) => {
+    console.log("Opening review offer modal", { type: "contract", contractId });
+    setOfferType("contract");
+    setSelectedContractId(contractId);
+    setSelectedInvoice(null);
+    setReviewModalOpen(true);
+  }, []);
+
+  const openReviewInvoiceOffer = React.useCallback((invoice: NormalizedInvoice) => {
+    console.log("Opening review offer modal", { type: "invoice", invoice });
+    setOfferType("invoice");
+    setSelectedContractId(null);
+    setSelectedInvoice(invoice);
+    setReviewModalOpen(true);
+  }, []);
 
   /* --- FILTER: state. Status, Financing, Date (created + submitted), Search. --- */
   const [search, setSearch] = React.useState("");
@@ -882,6 +911,8 @@ export default function ApplicationsPage() {
                     key={app.id}
                     application={app}
                     onDocumentDownload={handleDocumentDownload}
+                    onReviewContractOffer={openReviewContractOffer}
+                    onReviewInvoiceOffer={openReviewInvoiceOffer}
                   />
                 ))}
               </div>
@@ -949,6 +980,14 @@ export default function ApplicationsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <ReviewOfferModal
+        type={offerType}
+        record={offerType === "invoice" ? selectedInvoice : undefined}
+        contractId={offerType === "contract" ? selectedContractId ?? undefined : undefined}
+        isOpen={reviewModalOpen}
+        onClose={() => setReviewModalOpen(false)}
+      />
     </div>
   );
 }
