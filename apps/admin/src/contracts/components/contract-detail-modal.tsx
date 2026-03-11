@@ -23,7 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useContractDetail } from "@/hooks/use-contract-detail";
+import { useContractDetail } from "@/contracts/hooks/use-contract-detail";
 import { useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
 import {
@@ -35,6 +35,7 @@ import {
   ShieldCheckIcon,
   UserIcon,
   DocumentTextIcon,
+  PaperAirplaneIcon,
 } from "@heroicons/react/24/outline";
 
 interface ContractDetailModalProps {
@@ -245,7 +246,7 @@ export function ContractDetailModal({ contractId, open, onOpenChange }: Contract
                             ? format(new Date(String(data.offerDetails.sent_at)), "PPpp")
                             : "Not sent"
                         }
-                        icon={CheckCircleIcon}
+                        icon={PaperAirplaneIcon}
                       />
                     </div>
 
@@ -459,7 +460,7 @@ export function ContractDetailModal({ contractId, open, onOpenChange }: Contract
                     <Table>
                       <TableHeader>
                         <TableRow className="hover:bg-transparent">
-                        <TableHead className="text-sm font-semibold pl-6">Application Ref</TableHead>
+                          <TableHead className="text-sm font-semibold pl-6">Application Ref</TableHead>
                           <TableHead className="text-sm font-semibold">Requested Amount</TableHead>
                           <TableHead className="text-sm font-semibold">Submitted</TableHead>
                           <TableHead className="text-sm font-semibold">Status</TableHead>
@@ -477,7 +478,7 @@ export function ContractDetailModal({ contractId, open, onOpenChange }: Contract
                         ) : (
                           data.applications.map((application) => (
                             <TableRow key={application.id} className="odd:bg-muted/40 hover:bg-muted">
-                            <TableCell className="text-sm font-medium pl-6">
+                              <TableCell className="text-sm font-medium pl-6">
                                 {application.id.slice(-8).toUpperCase()}
                               </TableCell>
                               <TableCell className="text-sm font-semibold">

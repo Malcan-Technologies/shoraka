@@ -5,10 +5,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
-import { ContractsTable } from "@/components/contracts-table";
-import { ContractsTableToolbar } from "@/components/contracts-table-toolbar";
-import { ContractDetailModal } from "@/components/contract-detail-modal";
-import { useContracts } from "@/hooks/use-contracts";
+import { ContractsTable } from "@/contracts/components/contracts-table";
+import { ContractsTableToolbar } from "@/contracts/components/contracts-table-toolbar";
+import { ContractDetailModal } from "@/contracts/components/contract-detail-modal";
+import { useContracts } from "@/contracts/hooks/use-contracts";
 import { DocumentTextIcon } from "@heroicons/react/24/outline";
 import type { ContractListItem, GetAdminContractsParams } from "@cashsouk/types";
 
