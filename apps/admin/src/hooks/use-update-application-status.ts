@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { applicationLogsKeys } from "./use-application-logs";
+import { applicationsKeys } from "@/applications/query-keys";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -18,8 +19,8 @@ export function useUpdateApplicationStatus() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.id] });
+      queryClient.invalidateQueries({ queryKey: applicationsKeys.all });
+      queryClient.invalidateQueries({ queryKey: applicationsKeys.detail(variables.id) });
       queryClient.invalidateQueries({ queryKey: applicationLogsKeys.list(variables.id) });
     },
   });
@@ -39,8 +40,8 @@ export function useReopenApplicationForCorrection() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.id] });
+      queryClient.invalidateQueries({ queryKey: applicationsKeys.all });
+      queryClient.invalidateQueries({ queryKey: applicationsKeys.detail(variables.id) });
       queryClient.invalidateQueries({ queryKey: applicationLogsKeys.list(variables.id) });
     },
   });

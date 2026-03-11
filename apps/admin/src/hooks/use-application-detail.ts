@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { applicationsKeys } from "@/applications/query-keys";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -8,7 +9,7 @@ export function useApplicationDetail(id: string) {
   const apiClient = createApiClient(API_URL, getAccessToken);
 
   return useQuery({
-    queryKey: ["admin", "applications", id],
+    queryKey: applicationsKeys.detail(id),
     queryFn: async () => {
       const response = await apiClient.getAdminApplicationDetail(id);
       if (!response.success) {
@@ -26,6 +27,6 @@ export function useInvalidateApplicationDetail(id: string) {
   const queryClient = useQueryClient();
 
   return () => {
-    queryClient.invalidateQueries({ queryKey: ["admin", "applications", id] });
+    queryClient.invalidateQueries({ queryKey: applicationsKeys.detail(id) });
   };
 }

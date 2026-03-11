@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { contractsKeys } from "@/contracts/query-keys";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -8,7 +9,7 @@ export function useContractDetail(contractId?: string) {
   const apiClient = createApiClient(API_URL, getAccessToken);
 
   return useQuery({
-    queryKey: ["admin", "contracts", "detail", contractId],
+    queryKey: contractId ? contractsKeys.detail(contractId) : [...contractsKeys.all, "detail", "pending"],
     queryFn: async () => {
       if (!contractId) {
         throw new Error("Contract ID is required");

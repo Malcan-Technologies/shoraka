@@ -8,6 +8,7 @@ import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { ApplicationsTable } from "@/components/applications-table";
 import { ApplicationsTableToolbar } from "@/components/applications-table-toolbar";
 import { useApplications } from "@/hooks/use-applications";
+import { applicationsKeys } from "@/applications/query-keys";
 import { useProducts } from "@/hooks/use-products";
 import { productName } from "@/app/settings/products/product-utils";
 import { useRouter, useParams } from "next/navigation";
@@ -65,7 +66,7 @@ export default function DynamicApplicationsPage() {
   } = useApplications(apiParams);
 
   const handleReload = () => {
-    queryClient.invalidateQueries({ queryKey: ["admin", "applications", productKey] });
+    queryClient.invalidateQueries({ queryKey: applicationsKeys.all });
   };
 
   const handleClearFilters = () => {

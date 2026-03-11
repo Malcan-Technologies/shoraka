@@ -9,6 +9,7 @@ import { ContractsTable } from "@/contracts/components/contracts-table";
 import { ContractsTableToolbar } from "@/contracts/components/contracts-table-toolbar";
 import { ContractDetailModal } from "@/contracts/components/contract-detail-modal";
 import { useContracts } from "@/contracts/hooks/use-contracts";
+import { contractsKeys } from "@/contracts/query-keys";
 import { DocumentTextIcon } from "@heroicons/react/24/outline";
 import type { ContractListItem, GetAdminContractsParams } from "@cashsouk/types";
 
@@ -49,7 +50,7 @@ export default function ContractsPage() {
   } = useContracts(apiParams);
 
   const handleReload = () => {
-    queryClient.invalidateQueries({ queryKey: ["admin", "contracts"] });
+    queryClient.invalidateQueries({ queryKey: contractsKeys.all });
   };
 
   const handleClearFilters = () => {
