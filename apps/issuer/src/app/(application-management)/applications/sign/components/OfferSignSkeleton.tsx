@@ -2,7 +2,7 @@
 
 /**
  * Skeleton shown while contract or invoice record is loading.
- * Prevents flash of content before redirect when status is not SENT.
+ * Prevents flash of content before redirect when status is not OFFER_SENT.
  */
 
 import { Skeleton } from "@/components/ui/skeleton";

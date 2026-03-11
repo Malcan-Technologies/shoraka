@@ -49,7 +49,7 @@ function prepareInvoice(api: ApiInvoice, contractStatus: string | null): Normali
   const documentS3Key = doc?.s3_key ? String(doc.s3_key) : null;
   const documentName = String(doc?.file_name ?? details.document_name ?? details.document ?? "—");
 
-  const offerStatus = api.status === "SENT" && api.offer_details ? "Offer received" : null;
+  const offerStatus = api.status === "OFFER_SENT" && api.offer_details ? "Offer received" : null;
   const canReviewOffer = offerStatus === "Offer received" && (contractStatus === "APPROVED" || !contractStatus);
 
   let financingOffered = "—";

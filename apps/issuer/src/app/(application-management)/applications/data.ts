@@ -269,7 +269,7 @@ export const mockApplications: NormalizedApplication[] = [
         canReviewOffer: false,
       },
     ],
-    contractStatus: "SENT",
+    contractStatus: "OFFER_SENT",
   },
 
   /* Invoice offer received — contract approved, invoice has offer. Offer wording: "Offer Received". */
@@ -303,7 +303,7 @@ export const mockApplications: NormalizedApplication[] = [
         documentS3Key: "invoices/mock-inv-601.pdf",
         financingOffered: "RM 76,000.00",
         profitRate: "8.5%",
-        status: "SENT",
+        status: "OFFER_SENT",
         offerStatus: "Offer received",
         canReviewOffer: true,
       },
@@ -419,7 +419,7 @@ export const mockApplications: NormalizedApplication[] = [
         documentS3Key: "invoices/mock-inv-a02.pdf",
         financingOffered: "—",
         profitRate: "—",
-        status: "SENT",
+        status: "OFFER_SENT",
         offerStatus: "Offer received",
         canReviewOffer: true,
       },

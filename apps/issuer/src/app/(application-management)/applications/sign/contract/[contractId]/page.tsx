@@ -2,7 +2,7 @@
 
 /**
  * Contract Offer Signing page.
- * Fetches contract, redirects if status is not SENT, renders shared OfferSignView.
+ * Fetches contract, redirects if status is not OFFER_SENT, renders shared OfferSignView.
  */
 
 import { useParams, useRouter } from "next/navigation";
@@ -18,11 +18,11 @@ export default function ContractSignPage() {
 
   const { data: contractRecord, isLoading } = useContract(contractId);
 
-  /** Only allow visit when contract status is SENT. Otherwise redirect to applications. */
+  /** Only allow visit when contract status is OFFER_SENT. Otherwise redirect to applications. */
   useEffect(() => {
     if (!contractRecord) return;
     const status = String(contractRecord.status ?? "").toUpperCase();
-    if (status !== "SENT") {
+    if (status !== "OFFER_SENT") {
       router.replace("/applications");
     }
   }, [contractRecord, router]);
@@ -42,7 +42,7 @@ export default function ContractSignPage() {
   }
 
   const status = String(contractRecord.status ?? "").toUpperCase();
-  if (status !== "SENT") {
+  if (status !== "OFFER_SENT") {
     return <OfferSignSkeleton />;
   }
 

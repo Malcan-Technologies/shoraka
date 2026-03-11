@@ -2,7 +2,7 @@
 
 /**
  * Invoice Offer Signing page.
- * Fetches invoice, redirects if status is not SENT, renders shared OfferSignView.
+ * Fetches invoice, redirects if status is not OFFER_SENT, renders shared OfferSignView.
  */
 
 import { useParams, useRouter } from "next/navigation";
@@ -18,11 +18,11 @@ export default function InvoiceSignPage() {
 
   const { data: invoiceRecord, isLoading } = useInvoice(invoiceId);
 
-  /** Only allow visit when invoice status is SENT. Otherwise redirect to applications. */
+  /** Only allow visit when invoice status is OFFER_SENT. Otherwise redirect to applications. */
   useEffect(() => {
     if (!invoiceRecord) return;
     const status = String(invoiceRecord.status ?? "").toUpperCase();
-    if (status !== "SENT") {
+    if (status !== "OFFER_SENT") {
       router.replace("/applications");
     }
   }, [invoiceRecord, router]);
@@ -42,7 +42,7 @@ export default function InvoiceSignPage() {
   }
 
   const status = String(invoiceRecord.status ?? "").toUpperCase();
-  if (status !== "SENT") {
+  if (status !== "OFFER_SENT") {
     return <OfferSignSkeleton />;
   }
 

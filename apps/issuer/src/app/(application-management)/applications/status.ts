@@ -7,8 +7,8 @@
  *
  * One application can have many statuses at once:
  *   - The application itself has a status (e.g. SUBMITTED)
- *   - The contract (if any) has a status (e.g. SENT)
- *   - Each invoice has a status (e.g. one is DRAFT, one is SENT, one is APPROVED)
+ *   - The contract (if any) has a status (e.g. OFFER_SENT)
+ *   - Each invoice has a status (e.g. one is DRAFT, one is OFFER_SENT, one is APPROVED)
  *
  * But the card can only show ONE badge. So we must pick one.
  * That is what "priority" and "aggregation" mean: when several things say different
@@ -20,9 +20,9 @@
  *
  * PLACE 1 — Many invoices, one status (Section D: INVOICE_PRIORITY)
  *
- *   If an app has 3 invoices with statuses DRAFT, SENT, APPROVED, we pick one.
+ *   If an app has 3 invoices with statuses DRAFT, OFFER_SENT, APPROVED, we pick one.
  *   We use INVOICE_PRIORITY: the first status in that list that appears wins.
- *   Example: [DRAFT, SENT, APPROVED] → we pick SENT (because SENT comes before
+ *   Example: [DRAFT, OFFER_SENT, APPROVED] → we pick OFFER_SENT (because OFFER_SENT comes before
  *   DRAFT and APPROVED in the priority list).
  *
  *   Edit INVOICE_PRIORITY to change which invoice status wins when they differ.
@@ -31,12 +31,12 @@
  *
  *   After we have one invoice status (from Place 1), we have three things:
  *   - app status (e.g. SUBMITTED)
- *   - contract status (e.g. SENT)
- *   - the one invoice status we picked (e.g. SENT)
+ *   - contract status (e.g. OFFER_SENT)
+ *   - the one invoice status we picked (e.g. OFFER_SENT)
  *
  *   getCardStatus checks them in order. The first if-block that matches wins.
- *   Example: app is SUBMITTED, contract is SENT. We check: Rejected? No.
- *   Action Required? No. SENT? Yes. So we show "Offer Received".
+ *   Example: app is SUBMITTED, contract is OFFER_SENT. We check: Rejected? No.
+ *   Action Required? No. OFFER_SENT? Yes. So we show "Offer Received".
  *
  *   Edit the order of if-blocks in getCardStatus to change which status wins.
  *
@@ -185,7 +185,7 @@ export const FINANCING_TYPES = [
    SECTION D — INVOICE PRIORITY (many invoices → one status)
    When an app has multiple invoices with different statuses, we pick one.
    First status in this list that appears in the invoices wins.
-   Example: invoices [DRAFT, SENT, APPROVED] → we pick SENT (SENT comes before
+   Example: invoices [DRAFT, OFFER_SENT, APPROVED] → we pick OFFER_SENT (OFFER_SENT comes before
    DRAFT and APPROVED in the list).
    Edit this array to change which invoice status wins.
    ============================================================================= */
@@ -193,7 +193,7 @@ export const FINANCING_TYPES = [
 export const INVOICE_PRIORITY = [
   "REJECTED",
   "AMENDMENT_REQUESTED",
-  "SENT",
+  "OFFER_SENT",
   "SUBMITTED",
   "DRAFT",
   "APPROVED",
@@ -232,7 +232,7 @@ export function getCardStatus(input: {
   if (contract === "AMENDMENT_REQUESTED" || inv === "AMENDMENT_REQUESTED") {
     return { badgeKey: "pending_amendment", displayLabel: "Action Required", showReviewOffer: false, showMakeAmendments: false };
   }
-  if (contract === "SENT" || inv === "SENT") {
+  if (contract === "OFFER_SENT" || inv === "OFFER_SENT") {
     return { badgeKey: "sent", displayLabel: "Offer Received", showReviewOffer: true, showMakeAmendments: false };
   }
   if (app === "UNDER_REVIEW") return { badgeKey: "under_review", displayLabel: "Under Review", showReviewOffer: false, showMakeAmendments: false };
