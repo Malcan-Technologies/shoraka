@@ -343,9 +343,9 @@ When there are no invoices:
 - Then Offer Received (when there is an offer to review)
 - Then Under Review, Submitted, Draft, Approved last
 
-Example: app says SUBMITTED, one invoice says AMENDMENT_REQUESTED. We show "Action Required" because it comes before SUBMITTED. Another: app UNDER_REVIEW, contract SENT, invoices DRAFT. We show "Offer Received" because SENT beats the rest.
+Example: app says SUBMITTED, one invoice says AMENDMENT_REQUESTED. We show "Action Required" because it comes before SUBMITTED. Another: app UNDER_REVIEW, contract OFFER_SENT, invoices DRAFT. We show "Offer Received" because OFFER_SENT beats the rest.
 
-**Many invoices?** If you have 3 invoices with different statuses, we pick the one that wins by the same order. [SENT, DRAFT, APPROVED] becomes SENT. Then we compare that with the app and contract status.
+**Many invoices?** If you have 3 invoices with different statuses, we pick the one that wins by the same order. [OFFER_SENT, DRAFT, APPROVED] becomes OFFER_SENT. Then we compare that with the app and contract status.
 
 **Order on the page.** `STATUS[key].sortOrder` in status.ts controls list order. Lower number = higher up. Same status: sort by date (newest first).
 
@@ -369,7 +369,7 @@ Example: app says SUBMITTED, one invoice says AMENDMENT_REQUESTED. We show "Acti
 
 1. Rejected (app or contract)
 2. Action Required (contract or any invoice AMENDMENT_REQUESTED)
-3. Offer Received (contract or aggregated invoice SENT)
+3. Offer Received (contract or aggregated invoice OFFER_SENT)
 4. Under Review (app UNDER_REVIEW)
 5. Submitted (app SUBMITTED)
 6. Resubmitted (app RESUBMITTED)
@@ -382,7 +382,7 @@ Example: app says SUBMITTED, one invoice says AMENDMENT_REQUESTED. We show "Acti
 
 1. REJECTED
 2. AMENDMENT_REQUESTED
-3. SENT
+3. OFFER_SENT
 4. SUBMITTED
 5. DRAFT
 6. APPROVED
@@ -393,7 +393,7 @@ Example: app says SUBMITTED, one invoice says AMENDMENT_REQUESTED. We show "Acti
 - Contract financing: invoices grayed out until contract is approved.
 - Offer expired = we show "Offer expired" and hide the Review button.
 
-**Full example.** API sends: app UNDER_REVIEW, contract SENT, invoices DRAFT, SENT, APPROVED. We aggregate invoices to SENT. We check: Rejected? No. Action Required? No. SENT? Yes. We return badgeKey "sent". The page looks up "sent" and gets "Offer Received" (teal). It renders that badge and the Review button. The card appears above Draft or Approved (priority 3).
+**Full example.** API sends: app UNDER_REVIEW, contract OFFER_SENT, invoices DRAFT, OFFER_SENT, APPROVED. We aggregate invoices to OFFER_SENT. We check: Rejected? No. Action Required? No. OFFER_SENT? Yes. We return badgeKey "sent". The page looks up "sent" and gets "Offer Received" (teal). It renders that badge and the Review button. The card appears above Draft or Approved (priority 3).
 
 ---
 
@@ -418,15 +418,15 @@ App: any, Contract: AMENDMENT_REQUESTED, Invoices: any
 Result: Badge Action Required. Buttons: Make Amendments.
 
 **Scenario 5**  
-App: UNDER_REVIEW, Contract: SENT, Invoices: [DRAFT, SENT, APPROVED]  
+App: UNDER_REVIEW, Contract: OFFER_SENT, Invoices: [DRAFT, OFFER_SENT, APPROVED]  
 Result: Badge Offer Received. Buttons: Review Offer.
 
 **Scenario 6**  
-App: UNDER_REVIEW, Contract: SENT, Invoices: [DRAFT]  
+App: UNDER_REVIEW, Contract: OFFER_SENT, Invoices: [DRAFT]  
 Result: Badge Offer Received. Buttons: Review Offer.
 
 **Scenario 7**  
-App: UNDER_REVIEW, Contract: none, Invoices: [SENT]  
+App: UNDER_REVIEW, Contract: none, Invoices: [OFFER_SENT]  
 Result: Badge Offer Received. Buttons: Review Offer.
 
 **Scenario 8**  
@@ -450,5 +450,5 @@ App: ARCHIVED, Contract: any, Invoices: any
 Result: Badge Archived. App is hidden from the list.
 
 **Scenario 13**  
-App: UNDER_REVIEW, Contract: SENT, Invoices: [DRAFT] and offer expired  
+App: UNDER_REVIEW, Contract: OFFER_SENT, Invoices: [DRAFT] and offer expired  
 Result: Badge Offer expired. Buttons: none (Review hidden).
