@@ -169,9 +169,13 @@ function ApplicationCard({
                 if (contractLink && onReviewContractOffer) {
                   return (
                     <Button
+                      type="button"
                       size="sm"
                       className="rounded-xl bg-teal-600 text-white hover:bg-teal-700 shadow-sm"
-                      onClick={() => onReviewContractOffer(application.contractId!)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onReviewContractOffer(application.contractId!);
+                      }}
                     >
                       Review Contract Financing Offer
                     </Button>
@@ -180,9 +184,13 @@ function ApplicationCard({
                 if (invoiceLink && onReviewInvoiceOffer) {
                   return (
                     <Button
+                      type="button"
                       size="sm"
                       className="rounded-xl bg-teal-600 text-white hover:bg-teal-700 shadow-sm"
-                      onClick={() => onReviewInvoiceOffer(invoiceLink)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onReviewInvoiceOffer(invoiceLink);
+                      }}
                     >
                       Review Offer
                     </Button>
@@ -433,9 +441,13 @@ function ApplicationCard({
                                   {showReviewOffer && (
                                     canReview && !invDisabled && onReviewInvoiceOffer ? (
                                       <Button
+                                        type="button"
                                         size="sm"
                                         className="h-8 w-full min-w-[140px] rounded-xl text-xs font-medium bg-teal-600 text-white hover:bg-teal-700"
-                                        onClick={() => onReviewInvoiceOffer(inv)}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onReviewInvoiceOffer(inv);
+                                        }}
                                       >
                                         Review Offer
                                       </Button>
@@ -981,13 +993,15 @@ export default function ApplicationsPage() {
         </CardContent>
       </Card>
 
-      <ReviewOfferModal
-        type={offerType}
-        record={offerType === "invoice" ? selectedInvoice : undefined}
-        contractId={offerType === "contract" ? selectedContractId ?? undefined : undefined}
-        isOpen={reviewModalOpen}
-        onClose={() => setReviewModalOpen(false)}
-      />
+      {/* Modal only mounts when Review Offer is clicked. Prevents flash and ensures it never appears otherwise. */}
+      {reviewModalOpen && (
+        <ReviewOfferModal
+          type={offerType}
+          record={offerType === "invoice" ? selectedInvoice : undefined}
+          contractId={offerType === "contract" ? selectedContractId ?? undefined : undefined}
+          onClose={() => setReviewModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

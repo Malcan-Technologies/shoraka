@@ -21,15 +21,14 @@ type ReviewOfferModalProps = {
   type: "contract" | "invoice";
   record: any;
   contractId?: string;
-  isOpen: boolean;
   onClose: () => void;
 };
 
+/** Only mounted when Review Offer is clicked. Renders once, no isOpen toggle to avoid flash. */
 export function ReviewOfferModal({
   type,
   record,
   contractId,
-  isOpen,
   onClose,
 }: ReviewOfferModalProps) {
   const router = useRouter();
@@ -61,7 +60,7 @@ export function ReviewOfferModal({
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
