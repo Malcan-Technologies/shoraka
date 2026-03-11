@@ -158,14 +158,33 @@ function ApplicationCard({
                   </Link>
                 </Button>
               )}
-              {cardStatus.showReviewOffer && (
-                <Button
-                  size="sm"
-                  className="rounded-xl bg-teal-600 text-white hover:bg-teal-700 shadow-sm"
-                >
-                  {hasContract ? "Review Contract Financing Offer" : "Review Offer"}
-                </Button>
-              )}
+              {cardStatus.showReviewOffer && (() => {
+                const contractLink = hasContract && application.contractId;
+                const invoiceLink = !hasContract && application.invoices.find((inv) => inv.canReviewOffer);
+                if (contractLink) {
+                  return (
+                    <Button size="sm" className="rounded-xl bg-teal-600 text-white hover:bg-teal-700 shadow-sm" asChild>
+                      <Link href={`/applications/sign/contract/${application.contractId}`}>
+                        Review Contract Financing Offer
+                      </Link>
+                    </Button>
+                  );
+                }
+                if (invoiceLink) {
+                  return (
+                    <Button size="sm" className="rounded-xl bg-teal-600 text-white hover:bg-teal-700 shadow-sm" asChild>
+                      <Link href={`/applications/sign/invoice/${invoiceLink.id}`}>
+                        Review Offer
+                      </Link>
+                    </Button>
+                  );
+                }
+                return (
+                  <Button size="sm" className="rounded-xl bg-teal-600 text-white hover:bg-teal-700 shadow-sm" disabled>
+                    Review Offer
+                  </Button>
+                );
+              })()}
               {/* Edit Application: only for drafts. Links to /edit. Non-drafts get Withdraw only. */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -403,15 +422,25 @@ function ApplicationCard({
                               {(showReviewOffer || showMakeAmendments) && (
                                 <div className="flex flex-col items-center gap-1 min-w-[140px]">
                                   {showReviewOffer && (
-                                    <>
+                                    canReview && !invDisabled ? (
                                       <Button
                                         size="sm"
                                         className="h-8 w-full min-w-[140px] rounded-xl text-xs font-medium bg-teal-600 text-white hover:bg-teal-700"
-                                        disabled={invDisabled || !canReview}
+                                        asChild
+                                      >
+                                        <Link href={`/applications/sign/invoice/${inv.id}`}>
+                                          Review Offer
+                                        </Link>
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        size="sm"
+                                        className="h-8 w-full min-w-[140px] rounded-xl text-xs font-medium bg-teal-600 text-white hover:bg-teal-700"
+                                        disabled
                                       >
                                         Review Offer
                                       </Button>
-                                    </>
+                                    )
                                   )}
                                   {showMakeAmendments && (
                                     <Button

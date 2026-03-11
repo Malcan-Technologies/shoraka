@@ -115,6 +115,8 @@ export interface NormalizedApplication {
   status: string;
   cardStatus: CardStatusResult;
   contractTitle: string | null;
+  /** Contract ID for signing route. Null when no contract. */
+  contractId: string | null;
   customer: string;
   applicationDate: string;
   /** When the issuer submitted the application to admin. Null for drafts. Helps issuer see how long it has been waiting. */

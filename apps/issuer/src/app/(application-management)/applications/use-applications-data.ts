@@ -19,6 +19,7 @@ import { USE_MOCK_DATA, mockApplications } from "./data";
 import { getCardStatus, getSortOrder, type NormalizedApplication, type NormalizedInvoice } from "./status";
 
 interface ApiContract {
+  id?: string;
   status?: string;
   offer_details?: { expires_at?: string | null; offered_facility?: number } | null;
   contract_details?: Record<string, unknown> | null;
@@ -118,12 +119,15 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
   const updated = api.updated_at ? new Date(api.updated_at) : created;
   const submittedAt = (api as any).submitted_at != null ? String((api as any).submitted_at) : null;
 
+  const contractId = (contract as ApiContract & { id?: string })?.id ?? (api as any).contract_id ?? null;
+
   return {
     id: api.id,
     type,
     status: cardStatus.badgeKey,
     cardStatus,
     contractTitle,
+    contractId: contractId ? String(contractId) : null,
     customer,
     applicationDate: created.toISOString().slice(0, 10),
     submittedAt,

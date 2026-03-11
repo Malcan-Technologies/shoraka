@@ -3,6 +3,24 @@ import { createApiClient, useAuthToken } from "@cashsouk/config";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
+/** Fetch a single invoice by ID. Used by signing page. */
+export function useInvoice(invoiceId?: string) {
+  const { getAccessToken } = useAuthToken();
+
+  return useQuery({
+    queryKey: ["invoice", invoiceId],
+    enabled: !!invoiceId,
+    queryFn: async () => {
+      const api = createApiClient(API_URL, getAccessToken);
+      const resp: any = await api.getInvoice(invoiceId!);
+      if (!resp.success) {
+        throw new Error("Failed to load invoice");
+      }
+      return resp.data;
+    },
+  });
+}
+
 export function useInvoicesByApplication(applicationId?: string) {
   const { getAccessToken } = useAuthToken();
 
