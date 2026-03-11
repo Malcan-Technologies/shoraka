@@ -117,7 +117,12 @@ export type ApplicationStatus =
   | "REJECTED"
   | "ARCHIVED";
 
-export type ReviewStepStatus = "PENDING" | "APPROVED" | "REJECTED" | "AMENDMENT_REQUESTED";
+export type ReviewStepStatus =
+  | "PENDING"
+  | "OFFER_SENT"
+  | "APPROVED"
+  | "REJECTED"
+  | "AMENDMENT_REQUESTED";
 
 export interface Application {
   id: string;
@@ -170,11 +175,17 @@ export interface GetProductsResponse {
   };
 }
 
-export type ContractStatus = "DRAFT" | "SUBMITTED" | "SENT" | "APPROVED" | "REJECTED";
+export type ContractStatus =
+  | "DRAFT"
+  | "SUBMITTED"
+  | "OFFER_SENT"
+  | "APPROVED"
+  | "REJECTED"
+  | "AMENDMENT_REQUESTED";
 export type InvoiceStatus =
   | "DRAFT"
   | "SUBMITTED"
-  | "SENT"
+  | "OFFER_SENT"
   | "APPROVED"
   | "REJECTED"
   | "AMENDMENT_REQUESTED";

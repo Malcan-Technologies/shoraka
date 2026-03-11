@@ -579,7 +579,11 @@ export default function InvoiceDetailsStep({
        * Don't try to update APPROVED or SUBMITTED invoices
        * The backend rejects these with "Cannot update an approved invoice"
        */
-      const isLocked = inv.status === "SUBMITTED" || inv.status === "APPROVED";
+      const isLocked =
+        inv.status === "SUBMITTED" ||
+        inv.status === "APPROVED" ||
+        inv.status === "OFFER_SENT" ||
+        inv.status === "REJECTED";
       if (isLocked) {
         continue;
       }
@@ -1051,8 +1055,16 @@ export default function InvoiceDetailsStep({
                           const ratio = inv.financing_ratio_percent || 60;
                           const value = parseMoney(inv.value);
                           const financingAmount = value * (ratio / 100);
-                          const isLocked = inv.status === "SUBMITTED" || inv.status === "APPROVED";
-                          const isEditable = (inv.status === "DRAFT" || !inv.status) && !readOnly;
+                          const isLocked =
+                            inv.status === "SUBMITTED" ||
+                            inv.status === "APPROVED" ||
+                            inv.status === "OFFER_SENT" ||
+                            inv.status === "REJECTED";
+                          const isEditable =
+                            (inv.status === "DRAFT" ||
+                              inv.status === "AMENDMENT_REQUESTED" ||
+                              !inv.status) &&
+                            !readOnly;
                           const invRemark = flaggedInvoiceRemarks.get(invIndex);
                           const isInvFlagged = Boolean(invRemark);
 

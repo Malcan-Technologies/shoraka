@@ -1346,6 +1346,33 @@ export default function OrganizationDetailPage() {
                               value={org.corporateOnboardingData.basicInfo.numberOfEmployees?.toString()}
                             />
                           )}
+                          {org.corporateOnboardingData?.basicInfo?.annualRevenue && (
+                            <DetailRow
+                              label="Annual Revenue (RM)"
+                              value={org.corporateOnboardingData.basicInfo.annualRevenue}
+                            />
+                          )}
+                          {org.corporateOnboardingData?.basicInfo?.website && (
+                            <DetailRow
+                              label="Website"
+                              value={
+                                isUrl(org.corporateOnboardingData.basicInfo.website)
+                                  ? (
+                                    <a
+                                      href={org.corporateOnboardingData.basicInfo.website}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-primary hover:underline"
+                                    >
+                                      <LinkIcon className="h-3.5 w-3.5" />
+                                      <span>{shortenUrl(org.corporateOnboardingData.basicInfo.website)}</span>
+                                      <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
+                                    </a>
+                                  )
+                                  : org.corporateOnboardingData.basicInfo.website
+                              }
+                            />
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -1385,6 +1412,29 @@ export default function OrganizationDetailPage() {
                       </CardContent>
                     </Card>
                   )}
+
+                {/* Person in Charge (for COMPANY type) */}
+                {org.type === "COMPANY" && org.corporateOnboardingData?.personInCharge && (
+                  <Card className="rounded-2xl">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-medium flex items-center gap-2">
+                        <UserIcon className="h-4 w-4" />
+                        Person in Charge
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 gap-4">
+                        <DetailRow label="Name" value={org.corporateOnboardingData.personInCharge.name} />
+                        <DetailRow label="Position" value={org.corporateOnboardingData.personInCharge.position} />
+                        <CopyableField label="Email" value={org.corporateOnboardingData.personInCharge.email || null} />
+                        <CopyableField
+                          label="Contact Number"
+                          value={org.corporateOnboardingData.personInCharge.contactNumber || null}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Personal Details + Contact — 2-col only when both exist */}
                 {(() => {

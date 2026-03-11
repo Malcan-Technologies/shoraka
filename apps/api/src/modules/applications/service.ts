@@ -705,7 +705,7 @@ export class ApplicationService {
         throw new AppError(404, "NOT_FOUND", "Contract not found");
       }
 
-      if (contract.status !== "SENT") {
+      if (contract.status !== "OFFER_SENT") {
         throw new AppError(400, "INVALID_STATE", "No pending contract offer to respond to");
       }
 
@@ -838,7 +838,7 @@ export class ApplicationService {
         throw new AppError(404, "NOT_FOUND", "Invoice not found");
       }
 
-      if (dbInvoice.status !== "SENT") {
+      if (dbInvoice.status !== "OFFER_SENT") {
         throw new AppError(400, "INVALID_STATE", "No pending invoice offer to respond to");
       }
 

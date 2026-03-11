@@ -23,6 +23,8 @@ export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
   const [businessName, setBusinessName] = React.useState("");
   const [numberOfEmployees, setNumberOfEmployees] = React.useState("");
   const [ssmRegisterNumber, setSsmRegisterNumber] = React.useState("");
+  const [annualRevenue, setAnnualRevenue] = React.useState("");
+  const [website, setWebsite] = React.useState("");
 
   // Initialize form values
   React.useEffect(() => {
@@ -33,6 +35,8 @@ export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
       setBusinessName(corporateInfo.basicInfo?.businessName || "");
       setNumberOfEmployees(corporateInfo.basicInfo?.numberOfEmployees?.toString() || "");
       setSsmRegisterNumber(corporateInfo.basicInfo?.ssmRegisterNumber || "");
+      setAnnualRevenue(corporateInfo.basicInfo?.annualRevenue || "");
+      setWebsite(corporateInfo.basicInfo?.website || "");
     }
   }, [corporateInfo]);
 
@@ -57,6 +61,8 @@ export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
       setBusinessName(corporateInfo.basicInfo?.businessName || "");
       setNumberOfEmployees(corporateInfo.basicInfo?.numberOfEmployees?.toString() || "");
       setSsmRegisterNumber(corporateInfo.basicInfo?.ssmRegisterNumber || "");
+      setAnnualRevenue(corporateInfo.basicInfo?.annualRevenue || "");
+      setWebsite(corporateInfo.basicInfo?.website || "");
     }
     setIsEditing(false);
   };
@@ -144,6 +150,24 @@ export function CorporateInfoCard({ organizationId }: CorporateInfoCardProps) {
             <Label className="text-muted-foreground">SSM Register Number</Label>
             <Input
               value={ssmRegisterNumber}
+              disabled={true}
+              className="bg-muted cursor-not-allowed opacity-60"
+            />
+            <p className="text-xs text-muted-foreground">This field cannot be edited</p>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-muted-foreground">Annual Revenue (RM)</Label>
+            <Input
+              value={annualRevenue}
+              disabled={true}
+              className="bg-muted cursor-not-allowed opacity-60"
+            />
+            <p className="text-xs text-muted-foreground">This field cannot be edited</p>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-muted-foreground">Website</Label>
+            <Input
+              value={website}
               disabled={true}
               className="bg-muted cursor-not-allowed opacity-60"
             />

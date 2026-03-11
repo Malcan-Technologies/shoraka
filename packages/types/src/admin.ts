@@ -570,6 +570,9 @@ export interface OrganizationDetailResponse {
       businessName?: string;
       numberOfEmployees?: number;
       ssmRegisterNumber?: string;
+      annualRevenue?: string;
+      website?: string;
+      phoneNumber?: string;
     };
     addresses?: {
       business?: {
@@ -588,6 +591,12 @@ export interface OrganizationDetailResponse {
         state?: string | null;
         country?: string | null;
       };
+    };
+    personInCharge?: {
+      name?: string | null;
+      position?: string | null;
+      email?: string | null;
+      contactNumber?: string | null;
     };
   };
 

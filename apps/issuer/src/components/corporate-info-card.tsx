@@ -26,6 +26,8 @@ export function CorporateInfoCard({
   const [businessName, setBusinessName] = React.useState("");
   const [numberOfEmployees, setNumberOfEmployees] = React.useState("");
   const [ssmRegisterNumber, setSsmRegisterNumber] = React.useState("");
+  const [annualRevenue, setAnnualRevenue] = React.useState("");
+  const [website, setWebsite] = React.useState("");
 
   React.useEffect(() => {
     if (corporateInfo) {
@@ -40,6 +42,8 @@ export function CorporateInfoCard({
         (corporateInfo.basicInfo as { ssmRegistrationNumber?: string })?.ssmRegistrationNumber ||
         ""
       );
+      setAnnualRevenue(corporateInfo.basicInfo?.annualRevenue || "");
+      setWebsite(corporateInfo.basicInfo?.website || "");
     }
   }, [corporateInfo]);
 
@@ -64,6 +68,8 @@ export function CorporateInfoCard({
       setBusinessName(corporateInfo.basicInfo?.businessName || "");
       setNumberOfEmployees(corporateInfo.basicInfo?.numberOfEmployees?.toString() || "");
       setSsmRegisterNumber(corporateInfo.basicInfo?.ssmRegisterNumber || basic?.ssmRegistrationNumber || "");
+      setAnnualRevenue(corporateInfo.basicInfo?.annualRevenue || "");
+      setWebsite(corporateInfo.basicInfo?.website || "");
     }
     setIsEditing(false);
   };
@@ -148,6 +154,16 @@ export function CorporateInfoCard({
           <div className="space-y-2">
             <Label className="text-muted-foreground">SSM Register Number</Label>
             <Input value={ssmRegisterNumber} disabled className="bg-muted cursor-not-allowed opacity-60" />
+            <p className="text-xs text-muted-foreground">This field cannot be edited</p>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-muted-foreground">Annual Revenue (RM)</Label>
+            <Input value={annualRevenue} disabled className="bg-muted cursor-not-allowed opacity-60" />
+            <p className="text-xs text-muted-foreground">This field cannot be edited</p>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-muted-foreground">Website</Label>
+            <Input value={website} disabled className="bg-muted cursor-not-allowed opacity-60" />
             <p className="text-xs text-muted-foreground">This field cannot be edited</p>
           </div>
         </div>
