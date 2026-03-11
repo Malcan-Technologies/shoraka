@@ -6,6 +6,7 @@
  * Placeholder UI; real design will be added later.
  */
 
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -31,6 +32,8 @@ export function ReviewOfferModal({
   isOpen,
   onClose,
 }: ReviewOfferModalProps) {
+  const router = useRouter();
+
   // For contract, fetch the record when we have contractId.
   const { data: contractRecord, isLoading: isLoadingContract } = useContract(
     type === "contract" && contractId ? contractId : ""
@@ -49,6 +52,12 @@ export function ReviewOfferModal({
 
   const handleAccept = () => {
     console.log("Accept and sign offer clicked", displayRecord);
+    onClose();
+    if (type === "contract" && contractId) {
+      router.push(`/applications/sign/contract/${contractId}`);
+    } else if (type === "invoice" && displayRecord?.id) {
+      router.push(`/applications/sign/invoice/${displayRecord.id}`);
+    }
   };
 
   return (
