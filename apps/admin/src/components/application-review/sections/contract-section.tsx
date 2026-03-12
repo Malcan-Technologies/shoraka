@@ -99,6 +99,7 @@ export function ContractSection({
   const offeredFacility = parseMoney(offeredFacilityInput);
   const offeredExceedsContractValue = contractValue > 0 && offeredFacility > contractValue;
   const isContractApproved = sectionStatus === "APPROVED";
+  const isContractFinalizedByIssuer = isContractApproved;
   const canSendContractOffer =
     !isContractApproved && offeredFacility > 0 && !offeredExceedsContractValue;
 
@@ -115,13 +116,18 @@ export function ContractSection({
       section={section}
       isReviewable={isReviewable}
       approvePending={approvePending}
-      isActionLocked={isActionLocked}
-      actionLockTooltip={actionLockTooltip}
+      isActionLocked={isActionLocked || isContractFinalizedByIssuer}
+      actionLockTooltip={
+        isContractFinalizedByIssuer
+          ? "Contract offer finalized by issuer. No further admin actions are allowed."
+          : actionLockTooltip
+      }
       sectionStatus={sectionStatus}
       onResetToPending={onResetSectionToPending}
       onApprove={onApprove}
       onReject={onReject}
       onRequestAmendment={onRequestAmendment}
+      showApprove={false}
     >
       {hasData ? (
         <>

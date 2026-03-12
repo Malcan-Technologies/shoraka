@@ -90,6 +90,7 @@ export function InvoiceSection({
             isPending={approvePending}
             isActionLocked={isActionLocked}
             actionLockTooltip={actionLockTooltip}
+            showApprove={false}
             sectionStatus={sectionStatus}
             onResetToPending={onResetSectionToPending}
           />

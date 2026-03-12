@@ -25,6 +25,8 @@ export interface SectionActionDropdownProps {
   isActionLocked?: boolean;
   /** Tooltip text when isActionLocked is true. */
   actionLockTooltip?: string;
+  /** When false, hides Approve action (offer-driven sections). */
+  showApprove?: boolean;
 }
 
 export function SectionActionDropdown({
@@ -38,6 +40,7 @@ export function SectionActionDropdown({
   sectionStatus,
   isActionLocked = false,
   actionLockTooltip,
+  showApprove = true,
 }: SectionActionDropdownProps) {
   if (!isReviewable) return null;
 
@@ -72,14 +75,16 @@ export function SectionActionDropdown({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="rounded-xl">
-        <DropdownMenuItem
-          className="rounded-lg"
-          onClick={() => onApprove(section)}
-          disabled={isPending}
-        >
-          <CheckCircleIcon className="h-4 w-4 mr-2" />
-          Approve
-        </DropdownMenuItem>
+        {showApprove && (
+          <DropdownMenuItem
+            className="rounded-lg"
+            onClick={() => onApprove(section)}
+            disabled={isPending}
+          >
+            <CheckCircleIcon className="h-4 w-4 mr-2" />
+            Approve
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem
           className="rounded-lg"
           onClick={() => onReject(section)}

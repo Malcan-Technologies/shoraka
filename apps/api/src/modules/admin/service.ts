@@ -69,9 +69,10 @@ export interface AdminLogContext {
 }
 import { ProductRepository } from "../products/repository";
 import {
+  computeContractFacilitySnapshot,
   resolveRequestedFacility,
-  resolveApprovedFacilityForRefresh,
 } from "../../lib/contract-facility";
+import { publishOfferStateEvent } from "../../lib/offer-events";
 
 export class AdminService {
   private repository: AdminRepository;
@@ -105,16 +106,15 @@ export class AdminService {
     });
     if (!contract) return;
     const cd = contract.contract_details as Record<string, unknown> | null;
-    const approvedFacility = resolveApprovedFacilityForRefresh(contract.status, cd);
-    const utilizedFacility = contract.invoices
-      .filter((inv) => inv.status === "APPROVED")
-      .reduce((sum, inv) => {
-        const d = inv.details as { value?: number; financing_ratio_percent?: number } | null;
-        const value = typeof d?.value === "number" ? d.value : 0;
-        const ratio = typeof d?.financing_ratio_percent === "number" ? d.financing_ratio_percent : 60;
-        return sum + value * (ratio / 100);
-      }, 0);
-    const availableFacility = approvedFacility - utilizedFacility;
+    const { approvedFacility, utilizedFacility, availableFacility } = computeContractFacilitySnapshot(
+      contract.status,
+      cd,
+      contract.invoices.map((invoice) => ({
+        status: invoice.status,
+        details: (invoice.details as Record<string, unknown> | null) ?? null,
+        offer_details: (invoice.offer_details as Record<string, unknown> | null) ?? null,
+      }))
+    );
     const mergedDetails = {
       ...(cd && typeof cd === "object" ? cd : {}),
       approved_facility: approvedFacility,
@@ -125,6 +125,62 @@ export class AdminService {
       where: { id: contractId },
       data: { contract_details: mergedDetails },
     });
+  }
+
+  private ensureContractOfferActionAllowed(
+    application: { contract_id?: string | null; contract?: { status?: string | null } | null }
+  ): void {
+    if (!application.contract_id) {
+      throw new AppError(400, "INVALID_STATE", "Application has no contract");
+    }
+    if (application.contract?.status === "APPROVED") {
+      throw new AppError(
+        400,
+        "OFFER_FINALIZED",
+        "Contract offer was finalized by issuer and cannot be modified"
+      );
+    }
+  }
+
+  private async ensureInvoiceOfferItemActionAllowed(
+    applicationId: string,
+    itemScopeKey: string,
+    application: { invoices?: { id: string; details?: unknown }[] }
+  ): Promise<void> {
+    const invoiceId = this.resolveInvoiceIdFromScopeKey(
+      application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+      itemScopeKey
+    );
+    if (!invoiceId) {
+      throw new AppError(400, "INVALID_INPUT", "Unable to resolve invoice from scope key");
+    }
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: invoiceId, application_id: applicationId },
+      select: { status: true },
+    });
+    if (!invoice) {
+      throw new AppError(404, "NOT_FOUND", "Invoice not found");
+    }
+    if (invoice.status === "APPROVED") {
+      throw new AppError(
+        400,
+        "OFFER_FINALIZED",
+        "Invoice offer was finalized by issuer and cannot be modified"
+      );
+    }
+  }
+
+  private async ensureInvoiceSectionActionAllowed(applicationId: string): Promise<void> {
+    const approvedCount = await prisma.invoice.count({
+      where: { application_id: applicationId, status: "APPROVED" },
+    });
+    if (approvedCount > 0) {
+      throw new AppError(
+        400,
+        "OFFER_FINALIZED",
+        "Invoice offer was finalized by issuer and section-level actions are locked"
+      );
+    }
   }
 
   /**
@@ -4427,6 +4483,7 @@ export class AdminService {
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    this.ensureContractOfferActionAllowed(application);
 
     if (!application.contract_id) {
       throw new AppError(400, "INVALID_STATE", "Application has no contract to offer");
@@ -4514,6 +4571,18 @@ export class AdminService {
       deviceInfo: logContext?.deviceInfo ?? undefined,
     });
 
+    if (application.issuer_organization_id) {
+      publishOfferStateEvent({
+        eventType: "CONTRACT_OFFER_SENT",
+        applicationId,
+        issuerOrganizationId: application.issuer_organization_id,
+        scope: "section",
+        scopeKey: "contract_details",
+        status: "OFFER_SENT",
+        emittedAt: now,
+      });
+    }
+
     return repository.getApplicationById(applicationId);
   }
 
@@ -4544,6 +4613,7 @@ export class AdminService {
     if (!scopeKey) {
       throw new AppError(400, "INVALID_STATE", "Unable to resolve invoice scope key");
     }
+    await this.ensureInvoiceOfferItemActionAllowed(applicationId, scopeKey, application);
 
     const details = (invoice.details ?? {}) as Record<string, unknown>;
     const invoiceValue = Number(details.value);
@@ -4649,6 +4719,18 @@ export class AdminService {
       deviceInfo: logContext?.deviceInfo ?? undefined,
     });
 
+    if (application.issuer_organization_id) {
+      publishOfferStateEvent({
+        eventType: "INVOICE_OFFER_SENT",
+        applicationId,
+        issuerOrganizationId: application.issuer_organization_id,
+        scope: "item",
+        scopeKey,
+        status: "OFFER_SENT",
+        emittedAt: now,
+      });
+    }
+
     return repository.getApplicationById(applicationId);
   }
 
@@ -4700,6 +4782,13 @@ export class AdminService {
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    if (section === "contract_details" || section === "invoice_details") {
+      throw new AppError(
+        400,
+        "INVALID_ACTION",
+        "Contract and invoice approvals must be finalized by issuer offer response"
+      );
+    }
     await repository.ensureApplicationReviewSection(applicationId, section);
 
     const existing = application.application_reviews?.find(
@@ -4713,13 +4802,6 @@ export class AdminService {
       ReviewStepStatus.APPROVED,
       reviewerUserId
     );
-    if (section === "contract_details" && application.contract_id) {
-      await prisma.contract.update({
-        where: { id: application.contract_id },
-        data: { status: "SUBMITTED" },
-      });
-      await this.refreshContractFacilityValues(application.contract_id);
-    }
     const remarkValue = remark?.trim() || null;
     if (remarkValue) {
       await repository.upsertReviewRemark(
@@ -4758,6 +4840,12 @@ export class AdminService {
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    if (section === "contract_details") {
+      this.ensureContractOfferActionAllowed(application);
+    }
+    if (section === "invoice_details") {
+      await this.ensureInvoiceSectionActionAllowed(applicationId);
+    }
 
     const existing = application.application_reviews?.find(
       (r: { section: string; status: string }) => r.section === section
@@ -4818,6 +4906,20 @@ export class AdminService {
     await repository.removeDraftAmendment(applicationId, "section", section);
 
     logger.info({ applicationId, section, reviewerUserId }, "Review section reset to pending");
+    if (
+      application.issuer_organization_id &&
+      (section === "contract_details" || section === "invoice_details")
+    ) {
+      publishOfferStateEvent({
+        eventType: "OFFER_SCOPE_RESET_TO_PENDING",
+        applicationId,
+        issuerOrganizationId: application.issuer_organization_id,
+        scope: "section",
+        scopeKey: section,
+        status: "PENDING",
+        emittedAt: new Date().toISOString(),
+      });
+    }
     return repository.getApplicationById(applicationId);
   }
 
@@ -4834,6 +4936,9 @@ export class AdminService {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     this.validateReviewItemExists(application, itemType, itemId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    if (itemType === "invoice") {
+      await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application);
+    }
 
     const existing = application.application_review_items?.find(
       (r: { item_type: string; item_id: string; status: string }) =>
@@ -4898,6 +5003,17 @@ export class AdminService {
     await this.clearItemRemarks(repository, applicationId, itemType, itemId);
 
     logger.info({ applicationId, itemType, itemId, reviewerUserId }, "Review item reset to pending");
+    if (application.issuer_organization_id && itemType === "invoice") {
+      publishOfferStateEvent({
+        eventType: "INVOICE_OFFER_RESET_TO_PENDING",
+        applicationId,
+        issuerOrganizationId: application.issuer_organization_id,
+        scope: "item",
+        scopeKey: itemId,
+        status: "PENDING",
+        emittedAt: new Date().toISOString(),
+      });
+    }
     return repository.getApplicationById(applicationId);
   }
 
@@ -4914,6 +5030,12 @@ export class AdminService {
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    if (section === "contract_details") {
+      this.ensureContractOfferActionAllowed(application);
+    }
+    if (section === "invoice_details") {
+      await this.ensureInvoiceSectionActionAllowed(applicationId);
+    }
     await repository.ensureApplicationReviewSection(applicationId, section);
 
     const existing = application.application_reviews?.find(
@@ -4955,6 +5077,20 @@ export class AdminService {
     await repository.removeDraftAmendment(applicationId, "section", section);
 
     logger.info({ applicationId, section, reviewerUserId }, "Review section rejected");
+    if (
+      application.issuer_organization_id &&
+      (section === "contract_details" || section === "invoice_details")
+    ) {
+      publishOfferStateEvent({
+        eventType: "OFFER_SCOPE_REJECTED",
+        applicationId,
+        issuerOrganizationId: application.issuer_organization_id,
+        scope: "section",
+        scopeKey: section,
+        status: "REJECTED",
+        emittedAt: new Date().toISOString(),
+      });
+    }
 
     return repository.getApplicationById(applicationId);
   }
@@ -4972,6 +5108,12 @@ export class AdminService {
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    if (section === "contract_details") {
+      this.ensureContractOfferActionAllowed(application);
+    }
+    if (section === "invoice_details") {
+      await this.ensureInvoiceSectionActionAllowed(applicationId);
+    }
     await repository.ensureApplicationReviewSection(applicationId, section);
 
     const existing = application.application_reviews?.find(
@@ -5013,6 +5155,20 @@ export class AdminService {
     await repository.removeDraftAmendment(applicationId, "section", section);
 
     logger.info({ applicationId, section, reviewerUserId }, "Amendment requested for review section");
+    if (
+      application.issuer_organization_id &&
+      (section === "contract_details" || section === "invoice_details")
+    ) {
+      publishOfferStateEvent({
+        eventType: "OFFER_SCOPE_AMENDMENT_REQUESTED",
+        applicationId,
+        issuerOrganizationId: application.issuer_organization_id,
+        scope: "section",
+        scopeKey: section,
+        status: "AMENDMENT_REQUESTED",
+        emittedAt: new Date().toISOString(),
+      });
+    }
 
     return repository.getApplicationById(applicationId);
   }
@@ -5054,6 +5210,13 @@ export class AdminService {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     this.validateReviewItemExists(application, itemType, itemId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    if (itemType === "invoice") {
+      throw new AppError(
+        400,
+        "INVALID_ACTION",
+        "Invoice approvals must be finalized by issuer offer response"
+      );
+    }
     const existing = application.application_review_items?.find(
       (r: { item_type: string; item_id: string; status: string }) =>
         r.item_type === itemType && r.item_id === itemId
@@ -5091,22 +5254,6 @@ export class AdminService {
 
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
 
-    if (itemType === "invoice") {
-      const invoiceId = this.resolveInvoiceIdFromScopeKey(
-        application as { invoices?: { id: string; details?: { number?: string | number } }[] },
-        itemId
-      );
-      if (invoiceId) {
-        await prisma.invoice.update({
-          where: { id: invoiceId, application_id: applicationId },
-          data: { status: "APPROVED" },
-        });
-      }
-      if (application.contract_id) {
-        await this.refreshContractFacilityValues(application.contract_id);
-      }
-    }
-
     return repository.getApplicationById(applicationId);
   }
 
@@ -5124,6 +5271,9 @@ export class AdminService {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     this.validateReviewItemExists(application, itemType, itemId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    if (itemType === "invoice") {
+      await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application);
+    }
     const existing = application.application_review_items?.find(
       (r: { item_type: string; item_id: string; status: string }) =>
         r.item_type === itemType && r.item_id === itemId
@@ -5172,6 +5322,17 @@ export class AdminService {
       if (application.contract_id) {
         await this.refreshContractFacilityValues(application.contract_id);
       }
+      if (application.issuer_organization_id) {
+        publishOfferStateEvent({
+          eventType: "INVOICE_OFFER_REJECTED_BY_ADMIN",
+          applicationId,
+          issuerOrganizationId: application.issuer_organization_id,
+          scope: "item",
+          scopeKey: itemId,
+          status: "REJECTED",
+          emittedAt: new Date().toISOString(),
+        });
+      }
     }
 
     return repository.getApplicationById(applicationId);
@@ -5191,6 +5352,9 @@ export class AdminService {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     this.validateReviewItemExists(application, itemType, itemId);
     await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    if (itemType === "invoice") {
+      await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application);
+    }
     const existing = application.application_review_items?.find(
       (r: { item_type: string; item_id: string; status: string }) =>
         r.item_type === itemType && r.item_id === itemId
@@ -5236,6 +5400,17 @@ export class AdminService {
           data: { status: "AMENDMENT_REQUESTED" },
         });
       }
+      if (application.issuer_organization_id) {
+        publishOfferStateEvent({
+          eventType: "INVOICE_OFFER_AMENDMENT_REQUESTED_BY_ADMIN",
+          applicationId,
+          issuerOrganizationId: application.issuer_organization_id,
+          scope: "item",
+          scopeKey: itemId,
+          status: "AMENDMENT_REQUESTED",
+          emittedAt: new Date().toISOString(),
+        });
+      }
     }
 
     return repository.getApplicationById(applicationId);
@@ -5263,6 +5438,12 @@ export class AdminService {
       if (!validSections.includes(scopeKey as (typeof REVIEW_SECTION_ORDER)[number])) {
         throw new AppError(400, "INVALID_SCOPE", `Invalid section: ${scopeKey}`);
       }
+      if (scopeKey === "contract_details") {
+        this.ensureContractOfferActionAllowed(application);
+      }
+      if (scopeKey === "invoice_details") {
+        await this.ensureInvoiceSectionActionAllowed(applicationId);
+      }
       await repository.updateSectionReviewStatus(
         applicationId,
         scopeKey as ReviewSection,
@@ -5280,6 +5461,9 @@ export class AdminService {
         throw new AppError(400, "INVALID_INPUT", "itemType and itemId are required for item scope");
       }
       this.validateReviewItemExists(application, itemType, itemId);
+      if (itemType === "invoice") {
+        await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application);
+      }
       if (itemType === "invoice") {
         const targetInvoiceId = this.resolveInvoiceIdFromScopeKey(application, itemId);
         if (targetInvoiceId) {
@@ -5339,6 +5523,20 @@ export class AdminService {
     }
 
     logger.info({ applicationId, scope, scopeKey, reviewerUserId }, "Pending amendment added");
+    if (
+      application.issuer_organization_id &&
+      (scopeKey === "contract_details" || scopeKey.startsWith("invoice_details:"))
+    ) {
+      publishOfferStateEvent({
+        eventType: "OFFER_SCOPE_AMENDMENT_REQUESTED",
+        applicationId,
+        issuerOrganizationId: application.issuer_organization_id,
+        scope,
+        scopeKey,
+        status: "AMENDMENT_REQUESTED",
+        emittedAt: new Date().toISOString(),
+      });
+    }
     return repository.getApplicationById(applicationId);
   }
 
@@ -5423,11 +5621,27 @@ export class AdminService {
     reviewerUserId: string
   ) {
     const { repository } = await this.prepareForReviewAction(applicationId);
+    const application = await repository.getApplicationById(applicationId);
+    if (!application) {
+      throw new AppError(404, "NOT_FOUND", "Application not found");
+    }
 
     const affectedSection =
       scope === "section"
         ? scopeKey
         : getSectionForScopeKey(scopeKey);
+    if (affectedSection === "contract_details") {
+      this.ensureContractOfferActionAllowed(application);
+    }
+    if (affectedSection === "invoice_details") {
+      await this.ensureInvoiceSectionActionAllowed(applicationId);
+    }
+    if (scope === "item") {
+      const { itemType, itemId } = parseItemScopeKey(scopeKey);
+      if (itemType === "invoice") {
+        await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application);
+      }
+    }
 
     const result = await repository.removeDraftAmendment(applicationId, scope, scopeKey);
     if (result.count === 0) {
@@ -5478,14 +5692,28 @@ export class AdminService {
         );
       }
       if (affectedSection === "contract_details") {
-        const application = await repository.getApplicationById(applicationId);
-        if (application?.contract_id) {
+        if (application.contract_id) {
           await prisma.contract.update({
             where: { id: application.contract_id },
             data: { status: "SUBMITTED" },
           });
         }
       }
+    }
+
+    if (
+      application.issuer_organization_id &&
+      (scopeKey === "contract_details" || scopeKey.startsWith("invoice_details:"))
+    ) {
+      publishOfferStateEvent({
+        eventType: "OFFER_SCOPE_RESET_TO_PENDING",
+        applicationId,
+        issuerOrganizationId: application.issuer_organization_id,
+        scope: scope as "section" | "item",
+        scopeKey,
+        status: "PENDING",
+        emittedAt: new Date().toISOString(),
+      });
     }
 
     return repository.listPendingAmendments(applicationId);

@@ -2,6 +2,7 @@ import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CreateApplicationInput, UpdateApplicationStepInput } from "@cashsouk/types";
 import { toast } from "sonner";
+import { useEffect } from "react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -155,6 +156,71 @@ export function useArchiveApplication() {
 export function useOrganizationApplications(organizationId?: string) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!organizationId) return;
+
+    const controller = new AbortController();
+
+    const run = async () => {
+      try {
+        const token = await getAccessToken();
+        if (!token) return;
+
+        const streamUrl = `${API_URL}/v1/applications/offers/stream?organizationId=${encodeURIComponent(organizationId)}`;
+        const response = await fetch(streamUrl, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        });
+        if (!response.ok || !response.body) return;
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (!controller.signal.aborted) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          let delimiterIndex = buffer.indexOf("\n\n");
+          while (delimiterIndex !== -1) {
+            const block = buffer.slice(0, delimiterIndex);
+            buffer = buffer.slice(delimiterIndex + 2);
+
+            const dataLine = block
+              .split("\n")
+              .find((line) => line.startsWith("data:"))
+              ?.slice(5)
+              .trim();
+
+            if (dataLine) {
+              try {
+                const event = JSON.parse(dataLine) as { applicationId?: string };
+                queryClient.invalidateQueries({ queryKey: ["applications", organizationId] });
+                queryClient.invalidateQueries({ queryKey: ["applications"] });
+                if (event.applicationId) {
+                  queryClient.invalidateQueries({ queryKey: ["application", event.applicationId] });
+                }
+              } catch {
+                // Ignore malformed SSE payloads.
+              }
+            }
+
+            delimiterIndex = buffer.indexOf("\n\n");
+          }
+        }
+      } catch {
+        // Ignore stream interruptions; mutation invalidations still keep data consistent.
+      }
+    };
+
+    void run();
+
+    return () => controller.abort();
+  }, [organizationId, getAccessToken, queryClient]);
 
   return useQuery({
     queryKey: ["applications", organizationId],

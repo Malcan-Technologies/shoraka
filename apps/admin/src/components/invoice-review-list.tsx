@@ -278,7 +278,11 @@ export function InvoiceList({
             const status = getItemStatus(inv, reviewItems, scopeKey);
             const isRowReadOnly = readOnlyInvoiceIds?.has(inv.id) ?? false;
             const isTabLocked = !!isActionLocked || !isReviewable;
-            const isRowGreyedOut = isRowReadOnly || isTabLocked;
+            const isInvoiceFinalizedByIssuer = status === "APPROVED";
+            const isRowGreyedOut =
+              isRowReadOnly ||
+              isTabLocked ||
+              isInvoiceFinalizedByIssuer;
             const isExpanded = Boolean(expandedById[inv.id]);
             const invoiceValue = toNumber(details?.value);
             const financingRatio = toNumber(details?.financing_ratio_percent);
@@ -347,6 +351,7 @@ export function InvoiceList({
                         onReject={onRejectItem}
                         onRequestAmendment={onRequestAmendmentItem}
                         onResetToPending={onResetItemToPending}
+                        showApprove={false}
                       />
                     ) : (
                       <span className="text-muted-foreground">—</span>

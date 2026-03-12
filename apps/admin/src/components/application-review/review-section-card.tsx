@@ -20,6 +20,7 @@ export interface ReviewSectionCardProps {
   onRequestAmendment?: (section: ReviewSectionId) => void;
   /** When true, hides Approve/Reject/Amendment dropdown (used for offer-driven sections). */
   hideSectionActions?: boolean;
+  showApprove?: boolean;
   children: React.ReactNode;
 }
 
@@ -41,6 +42,7 @@ export function ReviewSectionCard({
   onReject,
   onRequestAmendment,
   hideSectionActions = false,
+  showApprove = true,
   children,
 }: ReviewSectionCardProps) {
   const showActions =
@@ -72,6 +74,7 @@ export function ReviewSectionCard({
                 actionLockTooltip={actionLockTooltip}
                 sectionStatus={sectionStatus}
                 onResetToPending={onResetToPending}
+                showApprove={showApprove}
               />
             ) : null}
           </div>

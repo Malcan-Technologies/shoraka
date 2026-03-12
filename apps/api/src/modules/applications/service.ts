@@ -31,6 +31,8 @@ import {
   type ContractOfferDetails,
   type InvoiceOfferDetails,
 } from "./offer-letter-pdf";
+import { computeContractFacilitySnapshot } from "../../lib/contract-facility";
+import { publishOfferStateEvent } from "../../lib/offer-events";
 
 export class ApplicationService {
   private repository: ApplicationRepository;
@@ -156,6 +158,36 @@ export class ApplicationService {
         "FORBIDDEN",
         "You do not have access to this application. You must be a member or owner of the organization."
       );
+    }
+  }
+
+  async ensureOfferEventAccessForApplication(
+    applicationId: string,
+    userId: string,
+    isAdmin: boolean
+  ): Promise<void> {
+    const application = await this.repository.findById(applicationId);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+    if (isAdmin) return;
+    await this.verifyApplicationAccess(applicationId, userId);
+  }
+
+  async ensureOfferEventAccessForOrganization(
+    organizationId: string,
+    userId: string,
+    isAdmin: boolean
+  ): Promise<void> {
+    const organization = await this.organizationRepository.findIssuerOrganizationById(organizationId);
+    if (!organization) {
+      throw new AppError(404, "NOT_FOUND", "Issuer organization not found");
+    }
+    if (isAdmin) return;
+    if (organization.owner_user_id === userId) return;
+    const member = await this.organizationRepository.getOrganizationMember(organizationId, userId, "issuer");
+    if (!member) {
+      throw new AppError(403, "FORBIDDEN", "You do not have access to this organization");
     }
   }
 
@@ -801,6 +833,17 @@ export class ApplicationService {
         responded_at: responseMeta.now,
       },
     });
+    if (application.issuer_organization_id) {
+      publishOfferStateEvent({
+        eventType,
+        applicationId,
+        issuerOrganizationId: application.issuer_organization_id,
+        scope: "section",
+        scopeKey: "contract_details",
+        status: action === "accept" ? "APPROVED" : "REJECTED",
+        emittedAt: responseMeta.now,
+      });
+    }
 
     const updated = await this.repository.findById(applicationId);
     if (!updated) throw new AppError(500, "INTERNAL_ERROR", "Failed to load updated application");
@@ -884,6 +927,37 @@ export class ApplicationService {
         },
       });
 
+      if (application.contract_id) {
+        const contract = await tx.contract.findUnique({
+          where: { id: application.contract_id },
+          include: { invoices: true },
+        });
+        if (contract) {
+          const contractDetails = contract.contract_details as Record<string, unknown> | null;
+          const { approvedFacility, utilizedFacility, availableFacility } =
+            computeContractFacilitySnapshot(
+              contract.status,
+              contractDetails,
+              contract.invoices.map((linkedInvoice) => ({
+                status: linkedInvoice.status,
+                details: (linkedInvoice.details as Record<string, unknown> | null) ?? null,
+                offer_details: (linkedInvoice.offer_details as Record<string, unknown> | null) ?? null,
+              }))
+            );
+          await tx.contract.update({
+            where: { id: application.contract_id },
+            data: {
+              contract_details: {
+                ...(contractDetails && typeof contractDetails === "object" ? contractDetails : {}),
+                approved_facility: approvedFacility,
+                utilized_facility: utilizedFacility,
+                available_facility: availableFacility,
+              },
+            },
+          });
+        }
+      }
+
       if (scopeKey) {
         await tx.applicationReviewItem.upsert({
           where: {
@@ -930,6 +1004,17 @@ export class ApplicationService {
         responded_at: responseMeta.now,
       },
     });
+    if (application.issuer_organization_id) {
+      publishOfferStateEvent({
+        eventType,
+        applicationId,
+        issuerOrganizationId: application.issuer_organization_id,
+        scope: "item",
+        scopeKey: scopeKey ?? undefined,
+        status: action === "accept" ? "APPROVED" : "REJECTED",
+        emittedAt: responseMeta.now,
+      });
+    }
 
     const updated = await this.repository.findById(applicationId);
     if (!updated) throw new AppError(500, "INTERNAL_ERROR", "Failed to load updated application");
