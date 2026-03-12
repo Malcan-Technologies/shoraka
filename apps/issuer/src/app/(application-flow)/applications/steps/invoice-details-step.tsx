@@ -183,33 +183,52 @@ export default function InvoiceDetailsStep({
   const queryClient = useQueryClient();
   const { data: productsData } = useProducts({ page: 1, pageSize: 100 });
 
-  /** Map invoice index -> remark. Simple: scope_key "invoice_details:N:..." -> index N */
-  const flaggedInvoiceRemarks = React.useMemo(() => {
-    const map = new Map<number, string>();
+  /** Parse remark text: split by /n for bullets, else by newline. Returns trimmed non-empty lines. */
+  const parseRemarkBullets = React.useCallback((text: string): string[] => {
+    if (!text?.trim()) return [];
+    const raw = text.trim();
+    const delimiter = raw.includes("/n") ? "/n" : "\n";
+    return raw.split(delimiter).map((s) => s.trim()).filter(Boolean);
+  }, []);
+
+  /** Map invoice index -> list of remark texts. Scope keys: invoice_details:N:... or invoice:N:... */
+  const invoiceRemarksByIndex = React.useMemo(() => {
+    const map = new Map<number, string[]>();
     for (const r of remarks) {
       const rem = r as { scope?: string; scope_key?: string; remark?: string };
-      if (rem.scope !== "item" || !rem.scope_key?.startsWith("invoice_details:")) continue;
-      const parts = rem.scope_key.split(":");
+      if (rem.scope !== "item") continue;
+      const sk = rem.scope_key || "";
+      if (!sk.startsWith("invoice_details:") && !sk.startsWith("invoice:")) continue;
+      const parts = sk.split(":");
       if (parts.length >= 2) {
         const idx = parseInt(parts[1], 10);
-        if (!Number.isNaN(idx) && (rem.remark || "").trim()) map.set(idx, (rem.remark || "").trim());
+        if (!Number.isNaN(idx) && idx >= 0 && (rem.remark || "").trim()) {
+          const bullets = parseRemarkBullets(rem.remark || "");
+          if (bullets.length > 0) {
+            const existing = map.get(idx) ?? [];
+            map.set(idx, [...existing, ...bullets]);
+          }
+        }
       }
     }
     return map;
-  }, [remarks]);
+  }, [remarks, parseRemarkBullets]);
 
-  /** Item-level invoice errors for InvoiceErrorCard above table */
-  const invoiceErrorLines = React.useMemo(() => {
-    const lines: string[] = [];
-    flaggedInvoiceRemarks.forEach((remark, idx) => {
+  /** Indices of invoices that have amendment remarks (for row highlighting). */
+  const invoicesWithRemarks = React.useMemo(
+    () => new Set(invoiceRemarksByIndex.keys()),
+    [invoiceRemarksByIndex]
+  );
+
+  /** Grouped invoice amendment data for card: { invoiceLabel, bullets }[]. */
+  const invoiceAmendmentGroups = React.useMemo(() => {
+    const sorted = Array.from(invoiceRemarksByIndex.entries()).sort((a, b) => a[0] - b[0]);
+    return sorted.map(([idx, bullets]) => {
       const inv = invoices[idx];
-      const prefix = inv?.number ? `Invoice #${inv.number}: ` : `Invoice #${idx + 1}: `;
-      for (const line of (remark || "").split("\n").filter(Boolean)) {
-        lines.push(prefix + line.trim());
-      }
+      const label = inv?.number ? `Invoice ${inv.number}` : `Invoice #${idx + 1}`;
+      return { invoiceLabel: label, bullets };
     });
-    return lines;
-  }, [flaggedInvoiceRemarks, invoices]);
+  }, [invoiceRemarksByIndex, invoices]);
 
   React.useEffect(() => {
     let mounted = true;
@@ -1011,9 +1030,9 @@ export default function InvoiceDetailsStep({
 
             <div className="border-b border-border mt-2 mb-4" />
 
-            {/* Item-level invoice errors above table (no space inside table for long errors) */}
-            {invoiceErrorLines.length > 0 && (
-              <InvoiceErrorCard errors={invoiceErrorLines} />
+            {/* Item-level invoice amendment remarks above table */}
+            {invoiceAmendmentGroups.length > 0 && (
+              <InvoiceErrorCard groups={invoiceAmendmentGroups} />
             )}
 
             {/* ================= Table ================= */}
@@ -1072,8 +1091,7 @@ export default function InvoiceDetailsStep({
                               inv.status === "AMENDMENT_REQUESTED" ||
                               !inv.status) &&
                             !readOnly;
-                          const invRemark = flaggedInvoiceRemarks.get(invIndex);
-                          const isInvFlagged = Boolean(invRemark);
+                          const isInvFlagged = invoicesWithRemarks.has(invIndex);
 
                           return (
                             <TableRow
@@ -1081,7 +1099,7 @@ export default function InvoiceDetailsStep({
                               className={cn(
                                 "hover:bg-muted/40 transition-colors",
                                 (isLocked || readOnly) && "bg-muted/30",
-                                isInvFlagged && "border-l-4 border-l-destructive bg-destructive/5"
+                                isInvFlagged && "border-l-4 border-l-destructive bg-red-50"
                               )}
                             >
                               <TableCell className="p-2">

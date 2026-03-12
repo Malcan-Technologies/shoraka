@@ -210,7 +210,7 @@ export default function EditApplicationPage() {
     remarks: [
       { scope: "section", scope_key: "contract_details", remark: "Missing contract number\nError with customer name" },
       { scope: "section", scope_key: "invoice_details", remark: "Invoice amount does not match document\nMissing supplier signature" },
-      { scope: "item", scope_key: "invoice_details:0:Invoice", remark: "amount does not match document" },
+      { scope: "item", scope_key: "invoice_details:0:Invoice", remark: "amount does not match document/nInvoice date must match contract" },
       { scope: "item", scope_key: "invoice_details:1:Invoice", remark: "missing supplier signature" },
       { scope: "section", scope_key: "supporting_documents", remark: "Upload missing Company Secretary Letter." },
       { scope: "item", scope_key: "supporting_documents:doc:financial_docs:0:Latest_Management_Account", remark: "Wrong document uploaded" },
