@@ -107,6 +107,8 @@ export interface NormalizedInvoice {
   status: string;
   offerStatus: "Offer received" | null;
   canReviewOffer: boolean;
+  /** Raw offer details from API for modal display. */
+  offer_details?: Record<string, unknown> | null;
 }
 
 export interface NormalizedApplication {

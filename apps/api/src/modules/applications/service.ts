@@ -25,6 +25,12 @@ import {
 import { prisma } from "../../lib/prisma";
 import { logApplicationActivity } from "./logs/service";
 import { ActivityLevel, ActivityTarget, ActivityAction, ActivityPortal } from "./logs/types";
+import {
+  generateContractOfferLetterStream,
+  generateInvoiceOfferLetterStream,
+  type ContractOfferDetails,
+  type InvoiceOfferDetails,
+} from "./offer-letter-pdf";
 
 export class ApplicationService {
   private repository: ApplicationRepository;
@@ -928,6 +934,100 @@ export class ApplicationService {
     const updated = await this.repository.findById(applicationId);
     if (!updated) throw new AppError(500, "INTERNAL_ERROR", "Failed to load updated application");
     return updated;
+  }
+
+  /**
+   * Get contract offer letter PDF stream. Requires OFFER_SENT and issuer access.
+   */
+  async getContractOfferLetter(
+    applicationId: string,
+    userId: string
+  ): Promise<{ stream: ReturnType<typeof generateContractOfferLetterStream>; filename: string }> {
+    await this.verifyApplicationAccess(applicationId, userId);
+
+    const application = await this.repository.findById(applicationId);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+    if (!application.contract_id) {
+      throw new AppError(400, "INVALID_STATE", "Application has no contract");
+    }
+
+    const contract = await prisma.contract.findUnique({
+      where: { id: application.contract_id },
+      select: { status: true, offer_details: true },
+    });
+    if (!contract) {
+      throw new AppError(404, "NOT_FOUND", "Contract not found");
+    }
+    if (contract.status !== "OFFER_SENT") {
+      throw new AppError(400, "INVALID_STATE", "No pending contract offer");
+    }
+
+    const offer = contract.offer_details as Record<string, unknown> | null;
+    if (!offer || typeof offer !== "object") {
+      throw new AppError(400, "INVALID_STATE", "Contract has no offer details");
+    }
+
+    const offerDetails: ContractOfferDetails = {
+      requested_facility: Number(offer.requested_facility) || undefined,
+      offered_facility: Number(offer.offered_facility) || undefined,
+      expires_at: typeof offer.expires_at === "string" ? offer.expires_at : undefined,
+    };
+
+    const stream = generateContractOfferLetterStream(application.contract_id, offerDetails);
+    const filename = `contract-offer-${application.contract_id}.pdf`;
+    return { stream, filename };
+  }
+
+  /**
+   * Get invoice offer letter PDF stream. Requires OFFER_SENT and issuer access.
+   */
+  async getInvoiceOfferLetter(
+    applicationId: string,
+    invoiceId: string,
+    userId: string
+  ): Promise<{ stream: ReturnType<typeof generateInvoiceOfferLetterStream>; filename: string }> {
+    await this.verifyApplicationAccess(applicationId, userId);
+
+    const application = await this.repository.findById(applicationId);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+
+    const invoices = (application as { invoices?: { id: string }[] }).invoices ?? [];
+    const invoice = invoices.find((inv) => inv.id === invoiceId);
+    if (!invoice) {
+      throw new AppError(404, "NOT_FOUND", "Invoice not found in this application");
+    }
+
+    const dbInvoice = await prisma.invoice.findFirst({
+      where: { id: invoiceId, application_id: applicationId },
+      select: { status: true, offer_details: true },
+    });
+    if (!dbInvoice) {
+      throw new AppError(404, "NOT_FOUND", "Invoice not found");
+    }
+    if (dbInvoice.status !== "OFFER_SENT") {
+      throw new AppError(400, "INVALID_STATE", "No pending invoice offer");
+    }
+
+    const offer = dbInvoice.offer_details as Record<string, unknown> | null;
+    if (!offer || typeof offer !== "object") {
+      throw new AppError(400, "INVALID_STATE", "Invoice has no offer details");
+    }
+
+    const offerDetails: InvoiceOfferDetails = {
+      requested_amount: Number(offer.requested_amount) || undefined,
+      offered_amount: Number(offer.offered_amount) || undefined,
+      offered_ratio_percent: Number(offer.offered_ratio_percent) || undefined,
+      offered_profit_rate_percent: Number(offer.offered_profit_rate_percent) || undefined,
+      expires_at: typeof offer.expires_at === "string" ? offer.expires_at : undefined,
+    };
+
+    const stream = generateInvoiceOfferLetterStream(invoiceId, offerDetails);
+    const filename = `invoice-offer-${invoiceId}.pdf`;
+    return { stream, filename };
   }
 }
 

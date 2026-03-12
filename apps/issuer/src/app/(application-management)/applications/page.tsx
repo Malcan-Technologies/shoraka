@@ -163,8 +163,8 @@ function ApplicationCard({
 }: {
   application: NormalizedApplication;
   onDocumentDownload: (s3Key: string) => Promise<void>;
-  onReviewContractOffer?: (contractId: string) => void;
-  onReviewInvoiceOffer?: (invoice: NormalizedInvoice) => void;
+  onReviewContractOffer?: (applicationId: string, contractId: string) => void;
+  onReviewInvoiceOffer?: (applicationId: string, invoice: NormalizedInvoice) => void;
 }) {
   const [expanded, setExpanded] = React.useState(false);
 
@@ -202,9 +202,9 @@ function ApplicationCard({
                 </Button>
               )}
               {cardStatus.showReviewOffer && (() => {
-                const contractLink = hasContract && application.contractId;
+                const contractHasOffer = hasContract && application.contractId && application.contractStatus === "OFFER_SENT";
                 const invoiceLink = !hasContract && application.invoices.find((inv) => inv.canReviewOffer);
-                if (contractLink && onReviewContractOffer) {
+                if (contractHasOffer && onReviewContractOffer) {
                   return (
                     <Button
                       type="button"
@@ -212,7 +212,7 @@ function ApplicationCard({
                       className="rounded-xl bg-teal-600 text-white hover:bg-teal-700 shadow-sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onReviewContractOffer(application.contractId!);
+                        onReviewContractOffer(application.id, application.contractId!);
                       }}
                     >
                       Review Contract Financing Offer
@@ -227,7 +227,7 @@ function ApplicationCard({
                       className="rounded-xl bg-teal-600 text-white hover:bg-teal-700 shadow-sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        onReviewInvoiceOffer(invoiceLink);
+                        onReviewInvoiceOffer(application.id, invoiceLink);
                       }}
                     >
                       Review Offer
@@ -484,7 +484,7 @@ function ApplicationCard({
                                         className="h-8 w-full min-w-[140px] rounded-xl text-xs font-medium bg-teal-600 text-white hover:bg-teal-700"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          onReviewInvoiceOffer(inv);
+                                          onReviewInvoiceOffer(application.id, inv);
                                         }}
                                       >
                                         Review Offer
@@ -557,20 +557,21 @@ export default function ApplicationsPage() {
   /* --- Review offer modal: opens when user clicks Review Offer. --- */
   const [reviewModalOpen, setReviewModalOpen] = React.useState(false);
   const [offerType, setOfferType] = React.useState<"contract" | "invoice">("contract");
+  const [selectedApplicationId, setSelectedApplicationId] = React.useState<string | null>(null);
   const [selectedContractId, setSelectedContractId] = React.useState<string | null>(null);
   const [selectedInvoice, setSelectedInvoice] = React.useState<NormalizedInvoice | null>(null);
 
-  const openReviewContractOffer = React.useCallback((contractId: string) => {
-    console.log("Opening review offer modal", { type: "contract", contractId });
+  const openReviewContractOffer = React.useCallback((applicationId: string, contractId: string) => {
     setOfferType("contract");
+    setSelectedApplicationId(applicationId);
     setSelectedContractId(contractId);
     setSelectedInvoice(null);
     setReviewModalOpen(true);
   }, []);
 
-  const openReviewInvoiceOffer = React.useCallback((invoice: NormalizedInvoice) => {
-    console.log("Opening review offer modal", { type: "invoice", invoice });
+  const openReviewInvoiceOffer = React.useCallback((applicationId: string, invoice: NormalizedInvoice) => {
     setOfferType("invoice");
+    setSelectedApplicationId(applicationId);
     setSelectedContractId(null);
     setSelectedInvoice(invoice);
     setReviewModalOpen(true);
@@ -1051,11 +1052,12 @@ export default function ApplicationsPage() {
         </div>
       )}
 
-      {reviewModalOpen && (
+      {reviewModalOpen && selectedApplicationId && (
         <ReviewOfferModal
           type={offerType}
-          record={offerType === "invoice" ? selectedInvoice : undefined}
+          applicationId={selectedApplicationId}
           contractId={offerType === "contract" ? selectedContractId ?? undefined : undefined}
+          invoice={offerType === "invoice" ? selectedInvoice ?? undefined : undefined}
           onClose={() => setReviewModalOpen(false)}
         />
       )}

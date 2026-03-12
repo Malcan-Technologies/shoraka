@@ -73,6 +73,7 @@ function prepareInvoice(api: ApiInvoice, contractStatus: string | null): Normali
     status: api.status ?? "DRAFT",
     offerStatus,
     canReviewOffer,
+    offer_details: api.offer_details ?? null,
   };
 }
 

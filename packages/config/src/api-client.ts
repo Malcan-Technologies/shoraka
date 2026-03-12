@@ -1320,6 +1320,26 @@ export class ApiClient {
     );
   }
 
+  async getContractOfferLetterBlob(applicationId: string): Promise<Blob> {
+    const url = `${this.baseUrl}/v1/applications/${applicationId}/offers/contracts/letter`;
+    const authToken = await this.getAuthToken();
+    const headers: HeadersInit = {};
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+    const response = await fetch(url, { method: "GET", credentials: "include", headers });
+    if (!response.ok) throw new Error(`Failed to download offer letter: ${response.statusText}`);
+    return response.blob();
+  }
+
+  async getInvoiceOfferLetterBlob(applicationId: string, invoiceId: string): Promise<Blob> {
+    const url = `${this.baseUrl}/v1/applications/${applicationId}/offers/invoices/${invoiceId}/letter`;
+    const authToken = await this.getAuthToken();
+    const headers: HeadersInit = {};
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+    const response = await fetch(url, { method: "GET", credentials: "include", headers });
+    if (!response.ok) throw new Error(`Failed to download offer letter: ${response.statusText}`);
+    return response.blob();
+  }
+
   // Notifications
   async getNotifications(params: {
     read?: boolean;

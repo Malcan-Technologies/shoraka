@@ -344,6 +344,39 @@ export function createApplicationRouter(): Router {
       }
     }
   );
+  router.get(
+    "/:id/offers/contracts/letter",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const { id } = applicationIdParamSchema.parse(req.params);
+        const userId = getUserId(req);
+        const { stream, filename } = await applicationService.getContractOfferLetter(id, userId);
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+        stream.pipe(res);
+      } catch (e) {
+        next(e);
+      }
+    }
+  );
+  router.get(
+    "/:id/offers/invoices/:invoiceId/letter",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const { id } = applicationIdParamSchema.parse(req.params);
+        const invoiceId = z.string().cuid().parse(req.params.invoiceId);
+        const userId = getUserId(req);
+        const { stream, filename } = await applicationService.getInvoiceOfferLetter(id, invoiceId, userId);
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+        stream.pipe(res);
+      } catch (e) {
+        next(e);
+      }
+    }
+  );
   router.delete("/:id/document", requireAuth, deleteDocument);
   router.patch("/:id/step", requireAuth, updateApplicationStep);
   router.patch("/:id/status", requireAuth, updateApplicationStatus);

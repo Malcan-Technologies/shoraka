@@ -186,14 +186,14 @@ export function useAcceptContractOffer() {
       if (!res.success) throw new Error(getOfferError(res));
       return res.data;
     },
-    onSuccess: (data, applicationId) => {
+    onSuccess: async (data, applicationId) => {
       queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
       const organizationId = (data as any)?.issuer_organization_id as string | undefined;
       if (organizationId) {
         queryClient.invalidateQueries({ queryKey: ["applications", organizationId] });
-      } else {
-        queryClient.invalidateQueries({ queryKey: ["applications"] });
       }
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+      await queryClient.refetchQueries({ queryKey: ["applications"] });
     },
     onError: (error: Error) => {
       toast.error("Failed to accept offer", { description: error.message });
@@ -212,14 +212,14 @@ export function useRejectContractOffer() {
       if (!res.success) throw new Error(getOfferError(res));
       return res.data;
     },
-    onSuccess: (data, applicationId) => {
+    onSuccess: async (data, applicationId) => {
       queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
       const organizationId = (data as any)?.issuer_organization_id as string | undefined;
       if (organizationId) {
         queryClient.invalidateQueries({ queryKey: ["applications", organizationId] });
-      } else {
-        queryClient.invalidateQueries({ queryKey: ["applications"] });
       }
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+      await queryClient.refetchQueries({ queryKey: ["applications"] });
     },
     onError: (error: Error) => {
       toast.error("Failed to reject offer", { description: error.message });
@@ -238,14 +238,14 @@ export function useAcceptInvoiceOffer() {
       if (!res.success) throw new Error(getOfferError(res));
       return res.data;
     },
-    onSuccess: (data, { applicationId }) => {
+    onSuccess: async (data, { applicationId }) => {
       queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
       const organizationId = (data as any)?.issuer_organization_id as string | undefined;
       if (organizationId) {
         queryClient.invalidateQueries({ queryKey: ["applications", organizationId] });
-      } else {
-        queryClient.invalidateQueries({ queryKey: ["applications"] });
       }
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+      await queryClient.refetchQueries({ queryKey: ["applications"] });
     },
     onError: (error: Error) => {
       toast.error("Failed to accept offer", { description: error.message });
@@ -264,14 +264,14 @@ export function useRejectInvoiceOffer() {
       if (!res.success) throw new Error(getOfferError(res));
       return res.data;
     },
-    onSuccess: (data, { applicationId }) => {
+    onSuccess: async (data, { applicationId }) => {
       queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
       const organizationId = (data as any)?.issuer_organization_id as string | undefined;
       if (organizationId) {
         queryClient.invalidateQueries({ queryKey: ["applications", organizationId] });
-      } else {
-        queryClient.invalidateQueries({ queryKey: ["applications"] });
       }
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+      await queryClient.refetchQueries({ queryKey: ["applications"] });
     },
     onError: (error: Error) => {
       toast.error("Failed to reject offer", { description: error.message });
