@@ -107,25 +107,36 @@ export interface InvoiceRowInput {
   document?: { file_name: string; file_size: number; s3_key?: string } | null;
 }
 
-/** Invoice data for invoice details step. Maturity today or future; value > 0; financing_ratio 60–80. */
+/** Invoice data for invoice details step. Maturity today or future; value > 0; financing_ratio 60–80. Random count 1–5. */
 export function generateInvoiceData(): { invoices: InvoiceRowInput[] } {
   const today = new Date();
-  const maturityDate = format(addDays(today, randomInt(7, 90)), "yyyy-MM-dd");
-  const value = randomDecimal(50000, 500000);
-  return {
-    invoices: [
-      {
-        id: crypto.randomUUID(),
-        isPersisted: false,
-        number: randomString("INV"),
-        value: formatMoney(value),
-        maturity_date: maturityDate,
-        financing_ratio_percent: randomInt(60, 80),
-        status: "DRAFT",
-        document: null,
-      },
-    ],
-  };
+  const count = randomInt(1, 5);
+  const invoices: InvoiceRowInput[] = [];
+  const usedNumbers = new Set<string>();
+
+  for (let i = 0; i < count; i++) {
+    let number = randomString("INV");
+    while (usedNumbers.has(number)) {
+      number = randomString("INV");
+    }
+    usedNumbers.add(number);
+
+    const maturityDate = format(addDays(today, randomInt(7, 90)), "d/M/yyyy");
+    const value = randomDecimal(50000, 500000);
+
+    invoices.push({
+      id: crypto.randomUUID(),
+      isPersisted: false,
+      number,
+      value: formatMoney(value),
+      maturity_date: maturityDate,
+      financing_ratio_percent: randomInt(60, 80),
+      status: "DRAFT",
+      document: null,
+    });
+  }
+
+  return { invoices };
 }
 
 /** Financing structure data. Picks structure type; uses first contract if existing_contract. */

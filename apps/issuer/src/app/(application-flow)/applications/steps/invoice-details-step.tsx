@@ -72,7 +72,14 @@ import { formatMoney, parseMoney } from "../components/money";
 import { MoneyInput } from "@/app/(application-flow)/applications/components/money-input";
 import { InvoiceDetailsSkeleton } from "@/app/(application-flow)/applications/components/invoice-details-skeleton";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
+import { generateInvoiceData } from "../utils/dev-data-generator";
+
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
+
+/** Mock data for dev Auto Fill Step. Random 1–5 invoices. */
+export function generateMockData(): Record<string, unknown> {
+  return generateInvoiceData();
+}
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -259,9 +266,12 @@ export default function InvoiceDetailsStep({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applicationId]);
 
-  /** Apply dev-tools Fill Entire Application (autoFillDataMap). */
+  /** Apply dev-tools Fill Entire Application (autoFillDataMap) or Auto Fill Step (autoFillData). */
   React.useEffect(() => {
-    const data = devTools?.autoFillDataMap?.["invoice_details"] as { invoices?: LocalInvoice[] } | undefined;
+    const data =
+      devTools?.autoFillData?.stepKey === "invoice_details"
+        ? (devTools.autoFillData.data as { invoices?: LocalInvoice[] })
+        : (devTools?.autoFillDataMap?.["invoice_details"] as { invoices?: LocalInvoice[] } | undefined);
     if (!data?.invoices?.length) return;
     setInvoices(
       data.invoices.map((inv) => ({
@@ -269,7 +279,8 @@ export default function InvoiceDetailsStep({
         document: inv.document ?? null,
       }))
     );
-    devTools?.clearAutoFillForStep("invoice_details");
+    if (devTools?.autoFillData?.stepKey === "invoice_details") devTools.clearAutoFill();
+    else devTools?.clearAutoFillForStep("invoice_details");
   }, [devTools]);
 
   const addInvoice = () => {
