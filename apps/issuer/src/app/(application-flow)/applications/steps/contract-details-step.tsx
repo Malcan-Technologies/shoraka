@@ -544,12 +544,9 @@ export function ContractDetailsStep({
     // Note: contract can be undefined/null if it doesn't exist yet - we'll create it on save
     // So we don't wait for contract loading here
 
-    const contractDetails = contract
-      ? ((contract as unknown) as { contract_details?: Record<string, unknown> })?.contract_details as Record<string, unknown>
-      : {};
-    const customerDetails = contract
-      ? ((contract as unknown) as { customer_details?: Record<string, unknown> })?.customer_details as Record<string, unknown>
-      : {};
+    const rawContract = (contract as unknown) as { contract_details?: Record<string, unknown> | null; customer_details?: Record<string, unknown> | null } | null;
+    const contractDetails = (rawContract?.contract_details ?? {}) as Record<string, unknown>;
+    const customerDetails = (rawContract?.customer_details ?? {}) as Record<string, unknown>;
 
     const relatedPartyValue: YesNo | "" =
       customerDetails.is_related_party === undefined ||

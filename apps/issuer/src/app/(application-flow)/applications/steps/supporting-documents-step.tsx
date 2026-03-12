@@ -205,7 +205,11 @@ export function SupportingDocumentsStep({
 
     let data = application.supporting_documents;
     if (typeof data === "string") {
-      data = JSON.parse(data);
+      try {
+        data = JSON.parse(data);
+      } catch {
+        return;
+      }
     }
     if (data?.supporting_documents) {
       data = data.supporting_documents;

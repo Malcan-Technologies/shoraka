@@ -74,10 +74,10 @@ interface FormState {
 }
 
 function getBankField(bankDetails: Record<string, unknown> | null, fieldName: string): string {
-  if (!bankDetails?.content) return "";
-  const content = bankDetails.content as Array<{ fieldName: string; fieldValue: string }>;
-  const field = content.find((f) => f.fieldName === fieldName);
-  return field?.fieldValue || "";
+  const content = bankDetails?.content;
+  if (!Array.isArray(content)) return "";
+  const field = content.find((f: { fieldName?: string; fieldValue?: string }) => f?.fieldName === fieldName);
+  return field?.fieldValue ?? "";
 }
 
 const MALAYSIAN_BANKS = [
