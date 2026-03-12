@@ -476,6 +476,8 @@ export default function EditApplicationPage() {
   const stepDataStepKeyRef = React.useRef<string | null>(null);
   const isSavingRef = React.useRef<boolean>(false);
   const isSubmittingRef = React.useRef<boolean>(false);
+  /** UI state for Save & Continue: triggers re-render so button shows "Saving..." and disables. */
+  const [isSaving, setIsSaving] = React.useState(false);
 
   /* ================================================================
      MUTATIONS
@@ -815,16 +817,14 @@ export default function EditApplicationPage() {
      ================================================================ */
 
   const handleSubmitApplication = async () => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+
     try {
       if (!applicationId) return;
 
-      isSubmittingRef.current = true; // 🔒 prevent gating effects
-
-      // Live guard: ensure product version is current before final submit
-      {
-        const mismatch = await checkNow();
-        if (mismatch) return;
-      }
+      const mismatch = await checkNow();
+      if (mismatch) return;
 
       const finalStepNumber = effectiveWorkflow.length;
       await updateStepMutation.mutateAsync({
@@ -848,10 +848,10 @@ export default function EditApplicationPage() {
       );
 
       router.replace("/");
-
     } catch {
-      isSubmittingRef.current = false; // allow retry
       toast.error("Failed to submit application");
+    } finally {
+      isSubmittingRef.current = false;
     }
   };
 
@@ -860,7 +860,7 @@ export default function EditApplicationPage() {
 
   /** Back: step 1 → exit confirmation modal → navigate to /; step ≥2 → previous step. Does not modify acknowledgement or last_completed_step. */
   const handleBack = () => {
-    if (isSubmittingRef.current) return;
+    if (isSubmittingRef.current || isSavingRef.current) return;
 
     (async () => {
       const mismatch = await checkNow();
@@ -883,6 +883,7 @@ export default function EditApplicationPage() {
   /** Amendment mode only: navigate to step via URL. Does not modify amendment_acknowledged_workflow_ids. */
   const handleStepClick = React.useCallback(
     (step: number) => {
+      if (isSubmittingRef.current || isSavingRef.current) return;
       safeNavigate(`/applications/edit/${applicationId}?step=${step}`, { leavingPage: false });
     },
     [safeNavigate, applicationId]
@@ -932,7 +933,9 @@ export default function EditApplicationPage() {
    * 6. Navigate to next step
    */
   const handleSaveAndContinue = async () => {
-    if (isSubmittingRef.current) return;
+    if (isSubmittingRef.current || isSavingRef.current) return;
+    isSavingRef.current = true;
+    setIsSaving(true);
 
     try {
       // Locked step: navigate only, no save, no DB write, no toast
@@ -948,7 +951,6 @@ export default function EditApplicationPage() {
         await safeNavigate(`/applications/edit/${applicationId}?step=${nextStep}`, { leavingPage: false });
         return;
       }
-      isSavingRef.current = true;
 
       // Live version guard: perform an up-to-date check before saving/navigation
       {
@@ -1139,6 +1141,7 @@ export default function EditApplicationPage() {
       toast.error("Something went wrong. Please try again.");
     } finally {
       isSavingRef.current = false;
+      setIsSaving(false);
     }
   };
 
@@ -1245,6 +1248,7 @@ export default function EditApplicationPage() {
             <Button
               variant="outline"
               onClick={handleBack}
+              disabled={isSaving || (currentStepKey === "review_and_submit" && application?.status === "AMENDMENT_REQUESTED" && resubmitMutation.isPending)}
               className="text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-2 sm:order-1 h-11"
             >
               <ArrowLeftIcon className="h-4 w-4 mr-2" />
@@ -1256,15 +1260,17 @@ export default function EditApplicationPage() {
               onClick={
                 currentStepKey === "review_and_submit" && application?.status === "AMENDMENT_REQUESTED"
                   ? async () => {
+                      if (isSubmittingRef.current || !applicationId) return;
+                      isSubmittingRef.current = true;
                       try {
-                        if (!applicationId) return;
-                        isSubmittingRef.current = true;
                         const mismatch = await checkNow();
                         if (mismatch) return;
                         await resubmitMutation.mutateAsync(applicationId);
                         toast.success("Application resubmitted successfully");
                         router.replace("/");
                       } catch {
+                        toast.error("Failed to resubmit application");
+                      } finally {
                         isSubmittingRef.current = false;
                       }
                     }
@@ -1280,7 +1286,7 @@ export default function EditApplicationPage() {
                     !isCurrentStepValid
                   : updateStepMutation.isPending ||
                     updateStatusMutation.isPending ||
-                    isSubmittingRef.current ||
+                    isSaving ||
                     !isCurrentStepValid ||
                     !isStepMapped
               }
@@ -1294,7 +1300,7 @@ export default function EditApplicationPage() {
                 ? updateStatusMutation.isPending
                   ? "Submitting..."
                   : "Submit"
-                : updateStepMutation.isPending
+                : updateStepMutation.isPending || isSaving
                   ? "Saving..."
                   : "Save and Continue"}
               <ArrowRightIcon className="h-4 w-4 ml-2" />
