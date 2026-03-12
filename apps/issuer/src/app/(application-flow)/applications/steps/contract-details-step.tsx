@@ -29,7 +29,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CloudUpload, X, CheckCircle2, Info } from "lucide-react";
+import { CloudUpload, X, CheckCircle2 } from "lucide-react";
+import { InformationCircleIcon } from "@heroicons/react/24/outline";
 import { useApplication } from "@/hooks/use-applications";
 import { useContract, useCreateContract, useUpdateContract } from "@/hooks/use-contracts";
 import { ContractDetailsSkeleton } from "@/app/(application-flow)/applications/components/contract-details-skeleton";
@@ -43,6 +44,9 @@ import {
   formLabelClassName,
   formSelectTriggerClassName,
   formTextareaClassName,
+  fieldTooltipContentClassName,
+  fieldTooltipTriggerClassName,
+  fieldTooltipLabelGap,
 } from "@/app/(application-flow)/applications/components/form-control";
 import { formatMoney, parseMoney } from "../components/money";
 import { MoneyInput } from "@/app/(application-flow)/applications/components/money-input";
@@ -70,9 +74,6 @@ const COUNTRIES = [
   { code: "SG", name: "Singapore", flag: "🇸🇬" },
 ];
 
-
-  const tooltipClassName =
-  "max-w-[240px] whitespace-normal break-words text-xs leading-snug";
 
 /* ================================================================
    VALIDATION HELPERS
@@ -1119,21 +1120,18 @@ export function ContractDetailsStep({
 
 
 
-            <div className="flex items-center gap-1">
+            <div className={cn("flex items-center", fieldTooltipLabelGap)}>
               <Label className={labelClassName}>Contract end date</Label>
-              {formData.contract.start_date && (
+              {formData.contract.start_date && productMinMonths && (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Info className="h-4 w-4 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
+                    <span className={fieldTooltipTriggerClassName}>
+                      <InformationCircleIcon className="h-4 w-4" />
+                    </span>
                   </TooltipTrigger>
-                  {productMinMonths && (
-                    <TooltipContent
-                      side="right"
-                      className={tooltipClassName}
-                    >
-                      {`The contract must run for at least ${productMinMonths} months from the later of today or the contract start date`}
-                    </TooltipContent>
-                  )}
+                  <TooltipContent side="top" className={fieldTooltipContentClassName}>
+                    {`The contract must run for at least ${productMinMonths} months from the later of today or the contract start date`}
+                  </TooltipContent>
                 </Tooltip>
               )}
             </div>
@@ -1278,16 +1276,15 @@ export function ContractDetailsStep({
               </SelectContent>
             </Select>
 
-            <div className="flex items-center gap-1">
+            <div className={cn("flex items-center", fieldTooltipLabelGap)}>
               <Label className={labelClassName}>Is the customer related to you?</Label>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Info className="h-4 w-4 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
+                  <span className={fieldTooltipTriggerClassName}>
+                    <InformationCircleIcon className="h-4 w-4" />
+                  </span>
                 </TooltipTrigger>
-                <TooltipContent
-                  side="right"
-                  className={tooltipClassName}
-                >
+                <TooltipContent side="top" className={fieldTooltipContentClassName}>
                   Related director/shareholder or having subsidiary/sister company or parent company relationship
                 </TooltipContent>
               </Tooltip>

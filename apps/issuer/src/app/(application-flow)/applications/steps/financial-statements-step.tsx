@@ -25,6 +25,10 @@ import {
   formInputClassName,
   formInputDisabledClassName,
   formLabelClassName,
+  fieldTooltipContentClassName,
+  fieldTooltipTriggerClassName,
+  fieldTooltipTriggerInputClassName,
+  fieldTooltipLabelGap,
 } from "@/app/(application-flow)/applications/components/form-control";
 import { MoneyInput } from "@/app/(application-flow)/applications/components/money-input";
 import { parseMoney, formatMoney } from "@/app/(application-flow)/applications/components/money";
@@ -173,7 +177,6 @@ const formOuterClassName = "w-full max-w-[1200px] flex flex-col gap-10 px-3";
 
 const NEGATIVE_TOOLTIP_TEXT = "Negative values allowed for losses\nExample: -5000";
 const FINANCIAL_DATA_UNTIL_TOOLTIP = "The latest date your financial numbers are updated to (management accounts).";
-const tooltipContentClassName = "max-w-[240px] whitespace-pre-line bg-primary px-2 py-1.5 text-primary-foreground text-xs shadow-md";
 
 function MoneyFieldRow({
   id,
@@ -219,11 +222,11 @@ function MoneyFieldRow({
       {inputEl}
       <Tooltip>
         <TooltipTrigger asChild>
-          <span className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-muted-foreground cursor-help hover:text-foreground transition-colors">
+          <span className={fieldTooltipTriggerInputClassName}>
             <InformationCircleIcon className="h-4 w-4" />
           </span>
         </TooltipTrigger>
-        <TooltipContent side="top" className={tooltipContentClassName}>
+        <TooltipContent side="top" className={fieldTooltipContentClassName}>
           {NEGATIVE_TOOLTIP_TEXT}
         </TooltipContent>
       </Tooltip>
@@ -404,17 +407,17 @@ export function FinancialStatementsStep({
               className={cn(inputClassName, readOnly && formInputDisabledClassName)}
               placeholder="Enter date"
             />
-            <div className="flex items-center gap-1.5">
+            <div className={cn("flex items-center", fieldTooltipLabelGap)}>
               <Label htmlFor="bsdd" className={labelClassName}>
                 {getLabel("bsdd")}
               </Label>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="p-1 text-muted-foreground cursor-help hover:text-foreground transition-colors">
+                  <span className={fieldTooltipTriggerClassName}>
                     <InformationCircleIcon className="h-4 w-4" />
                   </span>
                 </TooltipTrigger>
-                <TooltipContent side="top" className={tooltipContentClassName}>
+                <TooltipContent side="top" className={fieldTooltipContentClassName}>
                   {FINANCIAL_DATA_UNTIL_TOOLTIP}
                 </TooltipContent>
               </Tooltip>
