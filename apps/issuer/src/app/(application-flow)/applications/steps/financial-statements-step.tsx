@@ -40,28 +40,35 @@ import { parse, isValid as isValidDate, startOfDay, format, subMonths } from "da
 import { toast } from "sonner";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 
-/** Mock data for dev Auto Fill. Exported for registration. */
+/**
+ * Mock data for dev Auto Fill. All 15 fields.
+ * - turnover: >= 0; plminin, plnpbt, plnpat, plyear: may be negative; plnetdiv: positive.
+ * - Decimals randomized (2 dp) to match MoneyInput.
+ */
 export function generateMockData(): Record<string, unknown> {
   const today = new Date();
   const fyEnd = format(subMonths(today, 6), "dd/MM/yyyy");
   const dataUntil = format(subMonths(today, 1), "dd/MM/yyyy");
+  const plnpat = 120000.45;
+  const plminin = -15000.75;
+  const plyear = 100000.25;
   return {
     pldd: fyEnd,
     bsdd: dataUntil,
-    bsfatot: formatMoney(500000),
-    othass: formatMoney(100000),
-    bscatot: formatMoney(200000),
-    bsclbank: formatMoney(50000),
-    curlib: formatMoney(150000),
-    bsslltd: formatMoney(80000),
-    bsclstd: formatMoney(20000),
-    bsqpuc: formatMoney(100000),
-    turnover: formatMoney(1200000),
-    plnpbt: formatMoney(150000),
-    plnpat: formatMoney(120000),
-    plminin: formatMoney(0),
-    plnetdiv: formatMoney(50000),
-    plyear: formatMoney(100000),
+    bsfatot: formatMoney(500000.12),
+    othass: formatMoney(100000.88),
+    bscatot: formatMoney(200000.5),
+    bsclbank: formatMoney(50000.33),
+    curlib: formatMoney(150000.67),
+    bsslltd: formatMoney(80000.99),
+    bsclstd: formatMoney(20000.11),
+    bsqpuc: formatMoney(100000.44),
+    turnover: formatMoney(1200000.56),
+    plnpbt: formatMoney(150000.22),
+    plnpat: formatMoney(plnpat),
+    plminin: formatMoney(plminin),
+    plnetdiv: formatMoney(50000.77),
+    plyear: formatMoney(plyear),
   };
 }
 

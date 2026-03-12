@@ -55,17 +55,19 @@ import { useDevTools } from "@/app/(application-flow)/applications/components/de
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-/** Mock data for dev Auto Fill. Exported for registration. */
+/** Mock data for dev Auto Fill. financing <= value; dates d/M/yyyy; SSM 12 digits. */
 export function generateMockData(): Record<string, unknown> {
+  const value = 5000000.5;
+  const financing = 1000000.25;
   return {
     contract: {
       title: "Mining Rig Repair 12654",
       description: "Repair and maintenance for 12 mining rigs",
       number: "20212345678",
-      value: formatMoney(5000000),
+      value: formatMoney(value),
       start_date: "01/01/2025",
       end_date: "31/12/2025",
-      financing: formatMoney(1000000),
+      financing: formatMoney(Math.min(financing, value)),
       document: null,
     },
     customer: {
