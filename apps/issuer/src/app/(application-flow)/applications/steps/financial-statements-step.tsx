@@ -184,6 +184,7 @@ function MoneyFieldRow({
   allowNegative = false,
   showNegativeTooltip = false,
   hasError = false,
+  errorMessage,
 }: {
   id: string;
   label: string;
@@ -193,6 +194,7 @@ function MoneyFieldRow({
   allowNegative?: boolean;
   showNegativeTooltip?: boolean;
   hasError?: boolean;
+  errorMessage?: string;
 }) {
   const inputEl = (
     <MoneyInput
@@ -212,28 +214,39 @@ function MoneyFieldRow({
     />
   );
 
+  const innerInput = showNegativeTooltip ? (
+    <div className="relative">
+      {inputEl}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-muted-foreground cursor-help hover:text-foreground transition-colors">
+            <InformationCircleIcon className="h-4 w-4" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top" className={tooltipContentClassName}>
+          {NEGATIVE_TOOLTIP_TEXT}
+        </TooltipContent>
+      </Tooltip>
+    </div>
+  ) : (
+    inputEl
+  );
+
+  const wrappedInput = errorMessage ? (
+    <div className="flex flex-col gap-1">
+      {innerInput}
+      <p className="text-xs text-destructive">{errorMessage}</p>
+    </div>
+  ) : (
+    innerInput
+  );
+
   return (
     <>
       <Label htmlFor={id} className={labelClassName}>
         {label}
       </Label>
-      {showNegativeTooltip ? (
-        <div className="relative">
-          {inputEl}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-muted-foreground cursor-help hover:text-foreground transition-colors">
-                <InformationCircleIcon className="h-4 w-4" />
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="top" className={tooltipContentClassName}>
-              {NEGATIVE_TOOLTIP_TEXT}
-            </TooltipContent>
-          </Tooltip>
-        </div>
-      ) : (
-        inputEl
-      )}
+      {wrappedInput}
     </>
   );
 }
@@ -486,19 +499,15 @@ export function FinancialStatementsStep({
             <div className="border-b border-border mt-2 mb-4" />
           </div>
           <div className={rowGridClassName}>
-            <>
-              <MoneyFieldRow
-                id="turnover"
-                label={getLabel("turnover")}
-                value={form.turnover ?? ""}
-                onValueChange={(v) => handleFieldChange("turnover", v)}
-                readOnly={readOnly}
-                hasError={hasSubmitted && hasValue(form.turnover) && parseMoney(form.turnover ?? "") < 0}
-              />
-              {hasSubmitted && hasValue(form.turnover) && parseMoney(form.turnover ?? "") < 0 && (
-                <p className="text-xs text-destructive sm:col-span-2">Turnover must be 0 or greater</p>
-              )}
-            </>
+            <MoneyFieldRow
+              id="turnover"
+              label={getLabel("turnover")}
+              value={form.turnover ?? ""}
+              onValueChange={(v) => handleFieldChange("turnover", v)}
+              readOnly={readOnly}
+              hasError={hasSubmitted && hasValue(form.turnover) && parseMoney(form.turnover ?? "") < 0}
+              errorMessage={hasSubmitted && hasValue(form.turnover) && parseMoney(form.turnover ?? "") < 0 ? "Turnover must be 0 or greater" : undefined}
+            />
             <MoneyFieldRow
               id="plnpbt"
               label={getLabel("plnpbt")}

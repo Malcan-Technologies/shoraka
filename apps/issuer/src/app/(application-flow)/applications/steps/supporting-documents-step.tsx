@@ -633,7 +633,7 @@ export function SupportingDocumentsStep({
                             {/* Upload slot: item-level amendment message beside document (CashSouk styling) */}
                             <div className="flex items-center gap-2 min-w-0">
                               {isItemFlagged && itemRemark ? (
-                                <span className="inline-flex items-center gap-1.5 text-xs text-red-600 shrink-0 max-w-[180px]" title={itemRemark}>
+                                <span className="inline-flex items-center gap-1.5 text-xs text-destructive shrink-0 max-w-[180px]" title={itemRemark}>
                                   <ExclamationTriangleIcon className="h-3.5 w-3.5 shrink-0" />
                                   {itemRemark.split("\n")[0]}
                                 </span>

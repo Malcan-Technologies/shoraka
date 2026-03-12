@@ -609,7 +609,7 @@ export function CompanyDetailsStep({
             <div className="border-b border-border mt-2 mb-4" />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center">
             <div className={labelClassName}>Company name</div>
             <Input
               value={corporateInfo?.basicInfo?.businessName || "eg. Company Name"}
@@ -632,7 +632,7 @@ export function CompanyDetailsStep({
             />
 
             <div className={labelClassNameEditable}>Industry</div>
-            <div>
+            <div className="flex flex-col gap-1">
               <Input
                 value={formState.industry}
                 onChange={(e) => setFormState((prev) => ({ ...prev, industry: e.target.value }))}
@@ -644,12 +644,12 @@ export function CompanyDetailsStep({
                 )}
               />
               {fieldErrors.industry && (
-                <p className="text-destructive text-sm mt-1">{fieldErrors.industry}</p>
+                <p className="text-xs text-destructive">{fieldErrors.industry}</p>
               )}
             </div>
 
             <div className={labelClassNameEditable}>Number of employees</div>
-            <div>
+            <div className="flex flex-col gap-1">
               <Input
                 value={formState.numberOfEmployees}
                 onChange={(e) =>
@@ -666,7 +666,7 @@ export function CompanyDetailsStep({
                 )}
               />
               {fieldErrors.numberOfEmployees && (
-                <p className="text-destructive text-sm mt-1">
+                <p className="text-xs text-destructive">
                   {fieldErrors.numberOfEmployees}
                 </p>
               )}
@@ -693,7 +693,7 @@ export function CompanyDetailsStep({
           </div>
           <div className="border-b border-border mt-2 mb-4" />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center">
             <div className={labelClassName}>Business address</div>
             <Input
               value={formatAddress(formState.businessAddress)}
@@ -717,7 +717,7 @@ export function CompanyDetailsStep({
             <div className="border-b border-border mt-2 mb-4" />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center">
             {!hasDirectorsOrShareholders ? (
               <p className="text-[17px] leading-7 text-muted-foreground col-span-2">
                 No directors or shareholders found
@@ -759,9 +759,9 @@ export function CompanyDetailsStep({
             <div className="border-b border-border mt-2 mb-4" />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center">
             <div className={labelClassNameEditable}>Bank name</div>
-            <div>
+            <div className="flex flex-col gap-1">
               {effectiveCanEdit ? (
                 <Select
                   value={formState.bankName}
@@ -790,12 +790,12 @@ export function CompanyDetailsStep({
               )}
 
               {fieldErrors.bankName && (
-                <p className="text-destructive text-sm mt-1">{fieldErrors.bankName}</p>
+                <p className="text-xs text-destructive">{fieldErrors.bankName}</p>
               )}
             </div>
 
             <div className={labelClassNameEditable}>Bank account number</div>
-            <div>
+            <div className="flex flex-col gap-1">
               <Input
                 value={formState.bankAccountNumber}
                 onChange={(e) => {
@@ -814,9 +814,9 @@ export function CompanyDetailsStep({
                 )}
               />
 
-              <div className="min-h-[20px] mt-1">
+              <div className="min-h-[20px]">
                 {fieldErrors.bankAccountNumber ? (
-                  <p className="text-destructive text-sm">
+                  <p className="text-xs text-destructive">
                     {fieldErrors.bankAccountNumber}
                   </p>
                 ) : (
@@ -836,9 +836,9 @@ export function CompanyDetailsStep({
             <div className="border-b border-border mt-2 mb-4" />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center">
             <div className={labelClassNameEditable}>Applicant name</div>
-            <div>
+            <div className="flex flex-col gap-1">
               <Input
                 value={formState.contactPersonName}
                 onChange={(e) =>
@@ -858,14 +858,14 @@ export function CompanyDetailsStep({
                 )}
               />
               {fieldErrors.contactPersonName && (
-                <p className="text-destructive text-sm mt-1">
+                <p className="text-xs text-destructive">
                   {fieldErrors.contactPersonName}
                 </p>
               )}
             </div>
 
             <div className={labelClassNameEditable}>Applicant position</div>
-            <div>
+            <div className="flex flex-col gap-1">
               <Input
                 value={formState.contactPersonPosition}
                 onChange={(e) =>
@@ -885,14 +885,14 @@ export function CompanyDetailsStep({
                 )}
               />
               {fieldErrors.contactPersonPosition && (
-                <p className="text-destructive text-sm mt-1">
+                <p className="text-xs text-destructive">
                   {fieldErrors.contactPersonPosition}
                 </p>
               )}
             </div>
 
             <div className={labelClassNameEditable}>Applicant IC no</div>
-            <div>
+            <div className="flex flex-col gap-1">
               <Input
                 value={formState.contactPersonIc}
                 onChange={(e) =>
@@ -912,14 +912,14 @@ export function CompanyDetailsStep({
                 )}
               />
               {fieldErrors.contactPersonIc && (
-                <p className="text-destructive text-sm mt-1">
+                <p className="text-xs text-destructive">
                   {fieldErrors.contactPersonIc}
                 </p>
               )}
             </div>
 
             <div className={labelClassNameEditable}>Applicant contact</div>
-            <div>
+            <div className="flex flex-col gap-1">
               <PhoneInput
                 international
                 defaultCountry="MY"
@@ -938,7 +938,7 @@ export function CompanyDetailsStep({
                 )}
               />
               {fieldErrors.contactPersonContact && (
-                <p className="text-destructive text-sm mt-1">
+                <p className="text-xs text-destructive">
                   {fieldErrors.contactPersonContact}
                 </p>
               )}

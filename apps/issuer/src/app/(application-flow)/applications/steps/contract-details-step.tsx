@@ -1022,7 +1022,7 @@ export function ContractDetailsStep({
   const labelClassName = cn(formLabelClassName, "font-normal");
   const inputClassName = cn(formInputClassName, !stepIsEditable && formInputDisabledClassName);
   const sectionHeaderClassName = "text-base font-semibold text-foreground";
-  const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3";
+  const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center";
 
   return (
     <>
@@ -1042,7 +1042,7 @@ export function ContractDetailsStep({
               onChange={(e) => handleInputChange("contract", "title", e.target.value)}
               disabled={!stepIsEditable}
               placeholder="eg. Mining Rig Repair 12654"
-              className={cn(inputClassName, stepIsFlagged ? "border-destructive focus-visible:border-destructive" : "")}
+              className={cn(inputClassName, stepIsFlagged ? "border-destructive focus-visible:border-2 focus-visible:border-destructive" : "")}
             />
 
             <Label className={labelClassName}>Contract description</Label>
@@ -1086,7 +1086,7 @@ export function ContractDetailsStep({
                 disabled={!stepIsEditable}
                   placeholder={`eg. ${formatMoney(1000000)}`}
                   prefix="RM"
-                  inputClassName={`${inputClassName} ${financingError ? "border-destructive focus-visible:border-destructive" : ""}`}
+                  inputClassName={`${inputClassName} ${financingError ? "border-destructive focus-visible:border-2 focus-visible:border-destructive" : ""}`}
                 />
               </div>
               {financingError && (
@@ -1176,7 +1176,8 @@ export function ContractDetailsStep({
                 )}
             </div>
 
-            <Label className={labelClassName}>Upload contract</Label>
+            <Label className={cn(labelClassName, "self-start")}>Upload contract</Label>
+            <div className="self-start">
             <FileUploadArea
                 onFileSelect={(file) => handleFileUpload("contract", file)}
                 isUploading={isUploading.contract}
@@ -1188,6 +1189,7 @@ export function ContractDetailsStep({
                 } : undefined}
                 disabled={!stepIsEditable}
               />
+            </div>
           </div>
         </section>
         )}
@@ -1298,7 +1300,8 @@ export function ContractDetailsStep({
               />
             </div>
 
-            <Label className={labelClassName}>Upload customer consent</Label>
+            <Label className={cn(labelClassName, "self-start")}>Upload customer consent</Label>
+            <div className="self-start">
             <FileUploadArea
               onFileSelect={(file) => handleFileUpload("consent", file)}
               isUploading={isUploading.consent}
@@ -1310,6 +1313,7 @@ export function ContractDetailsStep({
               } : undefined}
               disabled={!stepIsEditable}
             />
+            </div>
           </div>
         </section>
       </div>
