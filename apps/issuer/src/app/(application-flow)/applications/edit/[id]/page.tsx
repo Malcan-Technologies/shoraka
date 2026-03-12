@@ -435,13 +435,22 @@ export default function EditApplicationPage() {
           description: "Complete this step to continue" as string,
         };
       }
+      if (currentStepKey === "contract_details") {
+        const isInvoiceOnly = effectiveStructureType === "invoice_only";
+        return {
+          title: isInvoiceOnly ? "Provide Customer Details" : "Provide Contract and Customer Details",
+          description: isInvoiceOnly
+            ? "Tell us about the customer billed under this invoice."
+            : "Help us understand your contract and the customer billed under this invoice.",
+        };
+      }
       const stepDisplay = STEP_KEY_DISPLAY[currentStepKey];
       return {
         title: (stepDisplay.pageTitle || stepDisplay.title) as string,
         description: (stepDisplay.description || "") as string,
       };
     },
-    [currentStepKey, effectiveWorkflow, stepFromUrl]
+    [currentStepKey, effectiveWorkflow, stepFromUrl, effectiveStructureType]
   ) as { title: string; description: string };
 
   const isRealAmendmentMode = (application as any)?.status === "AMENDMENT_REQUESTED";
@@ -1151,8 +1160,13 @@ export default function EditApplicationPage() {
 
           {/* Progress Indicator */}
           <ProgressIndicator
-            steps={effectiveWorkflow
-              .map((s: Record<string, unknown>) => (s.name as string))}
+            steps={effectiveWorkflow.map((s: Record<string, unknown>) => {
+              const stepKey = getStepKeyFromStepId((s.id as string) || "");
+              if (stepKey === "contract_details") {
+                return effectiveStructureType === "invoice_only" ? "Customer Details" : "Contract Details";
+              }
+              return (s.name as string) ?? "";
+            })}
             currentStep={stepFromUrl}
             lastCompletedStep={wizardState?.lastCompletedStep}
             isLoading={isLoading || !effectiveWorkflow.length}

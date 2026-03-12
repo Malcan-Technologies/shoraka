@@ -1196,7 +1196,8 @@ export function ContractDetailsStep({
         <section className="space-y-3">
           <div>
             <h3 className={sectionHeaderClassName}>
-              {isInvoiceOnly ? "Customer Details (Required for Invoice Financing)" : "Customer details"}
+              {/* {isInvoiceOnly ? "Customer Details (Required for Invoice Financing)" : "Customer details"} */}
+              Customer details
             </h3>
             <div className="border-b border-border mt-2 mb-4" />
           </div>
