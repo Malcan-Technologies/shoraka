@@ -52,8 +52,33 @@ import { formatMoney, parseMoney } from "../components/money";
 import { MoneyInput } from "@/app/(application-flow)/applications/components/money-input";
 import { format, parse, isValid, parseISO } from "date-fns";
 import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
+import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+/** Mock data for dev Auto Fill. Exported for registration. */
+export function generateMockData(): Record<string, unknown> {
+  return {
+    contract: {
+      title: "Mining Rig Repair 12654",
+      description: "Repair and maintenance for 12 mining rigs",
+      number: "20212345678",
+      value: formatMoney(5000000),
+      start_date: "01/01/2025",
+      end_date: "31/12/2025",
+      financing: formatMoney(1000000),
+      document: null,
+    },
+    customer: {
+      name: "Petronas Chemical Bhd",
+      entity_type: "Private Limited Company (Sdn Bhd)",
+      ssm_number: "202201234567",
+      country: "MY",
+      is_related_party: "no",
+      document: null,
+    },
+  };
+}
 
 type YesNo = "yes" | "no";
 
@@ -420,6 +445,7 @@ export function ContractDetailsStep({
 }: ContractDetailsStepProps) {
   const { getAccessToken } = useAuthToken();
   const { data: application } = useApplication(applicationId);
+  const devTools = useDevTools();
 
   // DEBUG: Toggle skeleton mode
   const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
@@ -483,6 +509,19 @@ export function ContractDetailsStep({
   React.useEffect(() => {
     setFinancingError(null);
   }, [formData.contract.financing]);
+
+  /** Apply dev-tools Auto Fill when requested. */
+  React.useEffect(() => {
+    if (!devTools?.autoFillData || devTools.autoFillData.stepKey !== "contract_details") return;
+    const data = devTools.autoFillData.data as { contract?: Record<string, unknown>; customer?: Record<string, unknown> };
+    if (data.contract || data.customer) {
+      setFormData((prev) => ({
+        contract: data.contract ? { ...prev.contract, ...data.contract } : prev.contract,
+        customer: data.customer ? { ...prev.customer, ...data.customer } : prev.customer,
+      }));
+    }
+    devTools.clearAutoFill();
+  }, [devTools]);
 
   /* ================================================================
      INITIALIZATION (run only once per applicationId)
@@ -1009,7 +1048,7 @@ export function ContractDetailsStep({
      RENDER
      ================================================================ */
 
-  if (!isInitializedRef.current || debugSkeletonMode) {
+  if (!isInitializedRef.current || debugSkeletonMode || devTools?.showSkeletonDebug) {
     return (
       <>
         <ContractDetailsSkeleton />

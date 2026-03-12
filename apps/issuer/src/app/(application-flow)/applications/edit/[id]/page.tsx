@@ -63,6 +63,9 @@ import { useProductVersionGuard } from "@/hooks/use-product-version-guard";
 import { VersionMismatchModal } from "@/components/VersionMismatchModal";
 import { useNavigationGuard } from "@/hooks/use-navigation-guard2";
 import { UnsavedChangesModal } from "@/components/unsaved-changes-modal";
+import { DevToolsProvider } from "../../components/dev-tools-context";
+import { DevToolsPanel } from "../../components/dev-tools-panel";
+import "../../components/dev-tools-registry";
 
 /**
  * SAVE & CONTINUE VALIDATION CONTRACT
@@ -1102,6 +1105,22 @@ export default function EditApplicationPage() {
 
   const [isCurrentStepValid, setIsCurrentStepValid] = React.useState(true);
 
+  const handlePreviewAmendment = React.useCallback(() => {
+    const next = !devPreviewAmendment;
+    setDevPreviewAmendment(next);
+    if (next) {
+      const mockFlagged = new Set(["contract_details", "invoice_details", "supporting_documents"]);
+      const firstFlagged = effectiveWorkflow.findIndex(
+        (s: Record<string, unknown>) =>
+          mockFlagged.has(getStepKeyFromStepId((s.id as string) || "") || "")
+      );
+      const targetStep = firstFlagged >= 0 ? firstFlagged + 1 : 1;
+      queueMicrotask(() =>
+        router.replace(`/applications/edit/${applicationId}?step=${targetStep}`)
+      );
+    }
+  }, [devPreviewAmendment, effectiveWorkflow, router, applicationId]);
+
   /* ================================================================
      RENDER LOGIC
      ================================================================ */
@@ -1114,6 +1133,7 @@ export default function EditApplicationPage() {
   }
 
   return (
+    <DevToolsProvider>
     <div className="flex flex-col h-full">
       {/* Main content */}
       <main className="flex-1 overflow-y-auto p-3 sm:p-4">
@@ -1133,21 +1153,7 @@ export default function EditApplicationPage() {
                 <div className="ml-4">
                   <Button
                     variant="outline"
-                    onClick={() => {
-                      const next = !devPreviewAmendment;
-                      setDevPreviewAmendment(next);
-                      if (next) {
-                        const mockFlagged = new Set(["contract_details", "invoice_details", "supporting_documents"]);
-                        const firstFlagged = effectiveWorkflow.findIndex(
-                          (s: Record<string, unknown>) =>
-                            mockFlagged.has(getStepKeyFromStepId((s.id as string) || "") || "")
-                        );
-                        const targetStep = firstFlagged >= 0 ? firstFlagged + 1 : 1;
-                        queueMicrotask(() =>
-                          router.replace(`/applications/edit/${applicationId}?step=${targetStep}`)
-                        );
-                      }
-                    }}
+                    onClick={handlePreviewAmendment}
                     className="text-xs px-3 py-1 rounded-md"
                   >
                     Preview Amendment UI
@@ -1288,5 +1294,11 @@ export default function EditApplicationPage() {
         />
       )}
     </div>
+    <DevToolsPanel
+      currentStepKey={currentStepKey}
+      onPreviewAmendment={handlePreviewAmendment}
+      isPreviewAmendmentActive={devPreviewAmendment}
+    />
+    </DevToolsProvider>
   );
 }

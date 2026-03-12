@@ -37,8 +37,34 @@ import { FinancialStatementsSkeleton } from "@/app/(application-flow)/applicatio
 import { FINANCIAL_FIELD_LABELS } from "@cashsouk/types";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
-import { parse, isValid as isValidDate, startOfDay } from "date-fns";
+import { parse, isValid as isValidDate, startOfDay, format, subMonths } from "date-fns";
 import { toast } from "sonner";
+import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
+
+/** Mock data for dev Auto Fill. Exported for registration. */
+export function generateMockData(): Record<string, unknown> {
+  const today = new Date();
+  const fyEnd = format(subMonths(today, 6), "dd/MM/yyyy");
+  const dataUntil = format(subMonths(today, 1), "dd/MM/yyyy");
+  return {
+    pldd: fyEnd,
+    bsdd: dataUntil,
+    bsfatot: formatMoney(500000),
+    othass: formatMoney(100000),
+    bscatot: formatMoney(200000),
+    bsclbank: formatMoney(50000),
+    curlib: formatMoney(150000),
+    bsslltd: formatMoney(80000),
+    bsclstd: formatMoney(20000),
+    bsqpuc: formatMoney(100000),
+    turnover: formatMoney(1200000),
+    plnpbt: formatMoney(150000),
+    plnpat: formatMoney(120000),
+    plminin: formatMoney(0),
+    plnetdiv: formatMoney(50000),
+    plyear: formatMoney(100000),
+  };
+}
 
 /* ================================================================
    TYPES & CONSTANTS
@@ -270,6 +296,7 @@ export function FinancialStatementsStep({
   readOnly = false,
 }: FinancialStatementsStepProps) {
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
+  const devTools = useDevTools();
   const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
   const [form, setForm] = React.useState<FinancialStatementsPayload>(DEFAULT_PAYLOAD);
   const [isInitialized, setIsInitialized] = React.useState(false);
@@ -289,6 +316,20 @@ export function FinancialStatementsStep({
     initialPayloadRef.current = JSON.stringify(toApiPayload(initial));
     setIsInitialized(true);
   }, [application, isInitialized]);
+
+  /** Apply dev-tools Auto Fill when requested. */
+  React.useEffect(() => {
+    if (!devTools?.autoFillData || devTools.autoFillData.stepKey !== "financial_statements") return;
+    const data = devTools.autoFillData.data as Partial<FinancialStatementsPayload>;
+    const merged = { ...DEFAULT_PAYLOAD };
+    for (const k of Object.keys(DEFAULT_PAYLOAD) as (keyof FinancialStatementsPayload)[]) {
+      if (data[k] !== undefined && data[k] !== null) {
+        (merged as Record<string, unknown>)[k] = String(data[k]);
+      }
+    }
+    setForm(merged);
+    devTools.clearAutoFill();
+  }, [devTools]);
 
   const handleFieldChange = React.useCallback(
     (field: keyof FinancialStatementsPayload, value: string) => {
@@ -378,7 +419,7 @@ export function FinancialStatementsStep({
 
   const getLabel = (key: keyof FinancialStatementsPayload) => FINANCIAL_FIELD_LABELS[key] ?? key;
 
-  if (isLoadingApp || !isInitialized || debugSkeletonMode) {
+  if (isLoadingApp || !isInitialized || debugSkeletonMode || devTools?.showSkeletonDebug) {
     return (
       <>
         <FinancialStatementsSkeleton />
