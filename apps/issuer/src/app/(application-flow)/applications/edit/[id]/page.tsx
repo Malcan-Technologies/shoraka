@@ -818,6 +818,10 @@ export default function EditApplicationPage() {
 
   const handleSubmitApplication = async () => {
     if (isSubmittingRef.current) return;
+    if (devPreviewAmendment) {
+      toast.info("Preview mode - no database changes");
+      return;
+    }
     isSubmittingRef.current = true;
 
     try {
@@ -1258,9 +1262,13 @@ export default function EditApplicationPage() {
             <div className="order-1 sm:order-2 flex flex-col items-end gap-1">
             <Button
               onClick={
-                currentStepKey === "review_and_submit" && application?.status === "AMENDMENT_REQUESTED"
+                currentStepKey === "review_and_submit" && (application?.status === "AMENDMENT_REQUESTED" || devPreviewAmendment)
                   ? async () => {
                       if (isSubmittingRef.current || !applicationId) return;
+                      if (devPreviewAmendment) {
+                        toast.info("Preview mode - no database changes");
+                        return;
+                      }
                       isSubmittingRef.current = true;
                       try {
                         const mismatch = await checkNow();
@@ -1279,7 +1287,7 @@ export default function EditApplicationPage() {
                   : handleSaveAndContinue
               }
               disabled={
-                currentStepKey === "review_and_submit" && application?.status === "AMENDMENT_REQUESTED"
+                currentStepKey === "review_and_submit" && (application?.status === "AMENDMENT_REQUESTED" || devPreviewAmendment)
                   ? resubmitMutation.isPending ||
                     isSubmittingRef.current ||
                     !allAmendmentStepsAcknowledged ||
@@ -1292,7 +1300,7 @@ export default function EditApplicationPage() {
               }
               className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2 h-11"
             >
-              {currentStepKey === "review_and_submit" && application?.status === "AMENDMENT_REQUESTED"
+              {currentStepKey === "review_and_submit" && (application?.status === "AMENDMENT_REQUESTED" || devPreviewAmendment)
                 ? resubmitMutation.isPending
                   ? "Resubmitting..."
                   : "Resubmit for Review"
