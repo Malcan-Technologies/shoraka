@@ -361,6 +361,25 @@ export class ApplicationService {
         return Number.isNaN(n) ? 0 : n;
       };
 
+      const nonNegativeFields: { key: keyof typeof raw; label: string }[] = [
+        { key: "turnover", label: "Turnover" },
+        { key: "bsfatot", label: "Fixed assets" },
+        { key: "othass", label: "Other assets" },
+        { key: "bscatot", label: "Current assets" },
+        { key: "bsclbank", label: "Non-current assets" },
+        { key: "curlib", label: "Current liability" },
+        { key: "bsslltd", label: "Long-term liability" },
+        { key: "bsclstd", label: "Non-current liability" },
+        { key: "bsqpuc", label: "Paid-up capital" },
+        { key: "plnetdiv", label: "Net dividend" },
+      ];
+      for (const { key, label } of nonNegativeFields) {
+        const val = toNum(raw[key]);
+        if (val < 0) {
+          throw new AppError(400, "VALIDATION_ERROR", `${label} cannot be negative`);
+        }
+      }
+
       dataToStore = {
         pldd: String(raw.pldd ?? ""),
         bsdd: String(raw.bsdd ?? ""),

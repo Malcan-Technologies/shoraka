@@ -30,14 +30,9 @@ import { MoneyInput } from "@/app/(application-flow)/applications/components/mon
 import { parseMoney, formatMoney } from "@/app/(application-flow)/applications/components/money";
 import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
 import { FinancialStatementsSkeleton } from "@/app/(application-flow)/applications/components/financial-statements-skeleton";
-import {
-  FINANCIAL_FIELD_LABELS,
-  calculateProfitMargin,
-  calculateReturnOnEquity,
-  calculateCurrentRatio,
-  calculateWorkingCapital,
-  calculateGearing,
-} from "@cashsouk/types";
+import { FINANCIAL_FIELD_LABELS } from "@cashsouk/types";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { InformationCircleIcon } from "@heroicons/react/24/outline";
 
 /* ================================================================
    TYPES & CONSTANTS
@@ -174,6 +169,9 @@ const formOuterClassName = "w-full max-w-[1200px] flex flex-col gap-10 px-3";
    MONEY FIELD ROW
    ================================================================ */
 
+const NEGATIVE_TOOLTIP_TEXT = "Negative values allowed for losses\nExample: -5000";
+const tooltipContentClassName = "max-w-[240px] whitespace-pre-line bg-primary px-2 py-1.5 text-primary-foreground text-xs shadow-md";
+
 function MoneyFieldRow({
   id,
   label,
@@ -181,6 +179,7 @@ function MoneyFieldRow({
   onValueChange,
   readOnly,
   allowNegative = false,
+  showNegativeTooltip = false,
 }: {
   id: string;
   label: string;
@@ -188,70 +187,48 @@ function MoneyFieldRow({
   onValueChange: (v: string) => void;
   readOnly?: boolean;
   allowNegative?: boolean;
+  showNegativeTooltip?: boolean;
 }) {
+  const inputEl = (
+    <MoneyInput
+      value={value}
+      onValueChange={onValueChange}
+      placeholder="0.00"
+      prefix="RM"
+      allowNegative={allowNegative}
+      inputClassName={cn(
+        inputClassName,
+        "pl-12",
+        showNegativeTooltip && "pr-10",
+        readOnly && formInputDisabledClassName
+      )}
+      disabled={readOnly}
+    />
+  );
+
   return (
     <>
       <Label htmlFor={id} className={labelClassName}>
         {label}
       </Label>
-      <MoneyInput
-        value={value}
-        onValueChange={onValueChange}
-        placeholder="0.00"
-        prefix="RM"
-        allowNegative={allowNegative}
-        inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
-        disabled={readOnly}
-      />
+      {showNegativeTooltip ? (
+        <div className="relative">
+          {inputEl}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-muted-foreground cursor-help hover:text-foreground transition-colors">
+                <InformationCircleIcon className="h-4 w-4" />
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top" className={tooltipContentClassName}>
+              {NEGATIVE_TOOLTIP_TEXT}
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      ) : (
+        inputEl
+      )}
     </>
-  );
-}
-
-/* ================================================================
-   CALCULATED METRICS (UI only, never persisted)
-   ================================================================ */
-
-function CalculatedMetricsSection({ form }: { form: FinancialStatementsPayload }) {
-  const metrics = React.useMemo(() => {
-    const bscatot = parseMoney(form.bscatot ?? "");
-    const curlib = parseMoney(form.curlib ?? "");
-    const bsslltd = parseMoney(form.bsslltd ?? "");
-    const bsclstd = parseMoney(form.bsclstd ?? "");
-    const bsqpuc = parseMoney(form.bsqpuc ?? "");
-    const turnover = parseMoney(form.turnover ?? "");
-    const plnpat = parseMoney(form.plnpat ?? "");
-
-    return {
-      profitMargin: calculateProfitMargin(plnpat, turnover),
-      returnOnEquity: calculateReturnOnEquity(plnpat, bsqpuc),
-      currentRatio: calculateCurrentRatio(bscatot, curlib),
-      workingCapital: calculateWorkingCapital(bscatot, curlib),
-      gearing: calculateGearing(curlib, bsslltd, bsclstd, bsqpuc),
-    };
-  }, [form.bscatot, form.curlib, form.bsslltd, form.bsclstd, form.bsqpuc, form.turnover, form.plnpat]);
-
-  const fmtPct = (v: number | null) =>
-    v == null ? "—" : `${(v * 100).toFixed(2)}%`;
-
-  return (
-    <section className={`${sectionWrapperClassName} space-y-3`}>
-      <div>
-        <h3 className={sectionHeaderClassName}>Calculated Metrics</h3>
-        <div className="border-b border-border mt-2 mb-4" />
-      </div>
-      <div className={rowGridClassName}>
-        <Label className={cn(labelClassName, "text-muted-foreground")}>Profit Margin</Label>
-        <span className={cn(inputClassName, "py-2")}>{fmtPct(metrics.profitMargin)}</span>
-        <Label className={cn(labelClassName, "text-muted-foreground")}>Return on Equity</Label>
-        <span className={cn(inputClassName, "py-2")}>{fmtPct(metrics.returnOnEquity)}</span>
-        <Label className={cn(labelClassName, "text-muted-foreground")}>Current Ratio</Label>
-        <span className={cn(inputClassName, "py-2")}>{metrics.currentRatio != null ? metrics.currentRatio.toFixed(2) : "—"}</span>
-        <Label className={cn(labelClassName, "text-muted-foreground")}>Working Capital</Label>
-        <span className={cn(inputClassName, "py-2")}>{formatMoney(metrics.workingCapital)}</span>
-        <Label className={cn(labelClassName, "text-muted-foreground")}>Gearing</Label>
-        <span className={cn(inputClassName, "py-2")}>{fmtPct(metrics.gearing)}</span>
-      </div>
-    </section>
   );
 }
 
@@ -426,7 +403,6 @@ export function FinancialStatementsStep({
               value={form.bsqpuc ?? ""}
               onValueChange={(v) => handleFieldChange("bsqpuc", v)}
               readOnly={readOnly}
-              allowNegative
             />
           </div>
         </section>
@@ -456,6 +432,8 @@ export function FinancialStatementsStep({
               value={form.plnpbt ?? ""}
               onValueChange={(v) => handleFieldChange("plnpbt", v)}
               readOnly={readOnly}
+              allowNegative
+              showNegativeTooltip
             />
             <MoneyFieldRow
               id="plnpat"
@@ -464,6 +442,7 @@ export function FinancialStatementsStep({
               onValueChange={(v) => handleFieldChange("plnpat", v)}
               readOnly={readOnly}
               allowNegative
+              showNegativeTooltip
             />
             <MoneyFieldRow
               id="plminin"
@@ -471,6 +450,8 @@ export function FinancialStatementsStep({
               value={form.plminin ?? ""}
               onValueChange={(v) => handleFieldChange("plminin", v)}
               readOnly={readOnly}
+              allowNegative
+              showNegativeTooltip
             />
             <MoneyFieldRow
               id="plnetdiv"
@@ -486,12 +467,10 @@ export function FinancialStatementsStep({
               onValueChange={(v) => handleFieldChange("plyear", v)}
               readOnly={readOnly}
               allowNegative
+              showNegativeTooltip
             />
           </div>
         </section>
-
-        {/* ===================== CALCULATED METRICS (read-only, never persisted) ===================== */}
-        <CalculatedMetricsSection form={form} />
       </div>
       <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>

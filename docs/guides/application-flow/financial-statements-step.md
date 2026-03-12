@@ -71,7 +71,7 @@ The UI is organized into sections: Financial Year (pldd, bsdd), Assets, Liabilit
 
 **Negative value handling:** `plnpat`, `bsqpuc`, and `plyear` support negative numbers via `MoneyInput` with `allowNegative={true}`. For `plyear`, a positive value indicates profit; a negative value indicates loss.
 
-**MoneyInput limits:** Regex `^-?\d{0,12}(\.\d{0,2})?$`. Maximum 12 digits before decimal; maximum 2 decimal places; negative numbers supported when `allowNegative={true}`.
+**MoneyInput limits:** Regex `^-?\d{0,15}(\.\d{0,2})?$`. Maximum 15 digits before decimal; maximum 2 decimal places; negative numbers supported when `allowNegative={true}`.
 
 **Financial Calculation Behaviour:** The metrics `profitMargin`, `returnOnEquity`, `currentRatio`, `workingCapital`, and `gearing` are computed only in the UI and **never** stored in the database. `toApiPayload` must exclude calculated metrics. They are displayed as read-only in the Calculated Metrics section.
 
