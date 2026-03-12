@@ -427,9 +427,17 @@ export class ApplicationService {
           updateData.contract = { disconnect: true };
         }
 
-        // Invoice-related persistence removed.
-        // Previously: clear contract_id from invoices via prisma.invoice.updateMany(...)
-        // That behavior has been removed as invoice APIs were deleted.
+        // invoice_only: clear contract_id on draft invoices to prevent inconsistent state
+        if (structureData?.structure_type === "invoice_only") {
+          await prisma.invoice.updateMany({
+            where: {
+              application_id: id,
+              status: "DRAFT",
+              contract_id: { not: null },
+            },
+            data: { contract_id: null },
+          });
+        }
       }
     }
 

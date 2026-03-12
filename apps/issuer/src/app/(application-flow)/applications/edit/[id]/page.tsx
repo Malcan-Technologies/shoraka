@@ -63,7 +63,6 @@ import { useProductVersionGuard } from "@/hooks/use-product-version-guard";
 import { VersionMismatchModal } from "@/components/VersionMismatchModal";
 import { useNavigationGuard } from "@/hooks/use-navigation-guard2";
 import { UnsavedChangesModal } from "@/components/unsaved-changes-modal";
-import { ApplicationFlowProvider } from "@/app/(application-flow)/applications/context/application-flow-context";
 
 /**
  * SAVE & CONTINUE VALIDATION CONTRACT
@@ -457,7 +456,6 @@ export default function EditApplicationPage() {
   const stepDataStepKeyRef = React.useRef<string | null>(null);
   const isSavingRef = React.useRef<boolean>(false);
   const isSubmittingRef = React.useRef<boolean>(false);
-  const resetOnStructureChangeRef = React.useRef<((newStructure: string, prevStructure?: string) => void) | null>(null);
 
   /* ================================================================
      MUTATIONS
@@ -1029,19 +1027,11 @@ export default function EditApplicationPage() {
         ...(structureChanged && { forceRewindToStep: stepFromUrl }),
       };
 
-      const newStructure = structureChanged ? ((dataToSave as Record<string, unknown>)?.structure_type as string | undefined) : undefined;
-      const prevStructure = (application?.financing_structure as { structure_type?: string } | undefined)?.structure_type;
-
       // Save to database
       await updateStepMutation.mutateAsync({
         id: applicationId,
         stepData: stepPayload,
       });
-
-      /** Part 2: Reset draft state after structure change. Frontend-only; backend already disconnects contract. */
-      if (structureChanged && newStructure && resetOnStructureChangeRef.current) {
-        resetOnStructureChangeRef.current(newStructure, prevStructure);
-      }
 
       // In amendment mode: if this step is flagged, acknowledge workflow
       try {
@@ -1115,7 +1105,6 @@ export default function EditApplicationPage() {
   }
 
   return (
-    <ApplicationFlowProvider application={application} resetOnStructureChangeRef={resetOnStructureChangeRef}>
     <div className="flex flex-col h-full">
       {/* Main content */}
       <main className="flex-1 overflow-y-auto p-3 sm:p-4">
@@ -1285,6 +1274,5 @@ export default function EditApplicationPage() {
         />
       )}
     </div>
-    </ApplicationFlowProvider>
   );
 }
