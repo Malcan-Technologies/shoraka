@@ -23,7 +23,7 @@ The stored JSON is a flat object. There is no nesting. Each key maps directly to
 **Stored fields** — These are the only keys written to `financial_statements`:
 
 - **pldd** — Financing year end (date string, e.g. `"2024-12-31"`).
-- **bsdd** — Balance sheet financial year (date string).
+- **bsdd** — Financial data until (management accounts date; date string).
 - **bsfatot** — Fixed assets (number).
 - **othass** — Other assets (number).
 - **bscatot** — Current assets (number).

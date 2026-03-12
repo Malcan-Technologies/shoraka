@@ -33,6 +33,8 @@ import { FinancialStatementsSkeleton } from "@/app/(application-flow)/applicatio
 import { FINANCIAL_FIELD_LABELS } from "@cashsouk/types";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
+import { parse, isValid as isValidDate, startOfDay } from "date-fns";
+import { toast } from "sonner";
 
 /* ================================================================
    TYPES & CONSTANTS
@@ -161,7 +163,7 @@ const sectionHeaderClassName = "text-base font-semibold text-foreground";
 const labelClassName = cn(formLabelClassName, "font-normal");
 const inputClassName = formInputClassName;
 const rowGridClassName =
-  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 w-full max-w-[1200px] items-start px-3";
+  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 w-full max-w-[1200px] items-center px-3";
 const sectionWrapperClassName = "w-full max-w-[1200px]";
 const formOuterClassName = "w-full max-w-[1200px] flex flex-col gap-10 px-3";
 
@@ -170,6 +172,7 @@ const formOuterClassName = "w-full max-w-[1200px] flex flex-col gap-10 px-3";
    ================================================================ */
 
 const NEGATIVE_TOOLTIP_TEXT = "Negative values allowed for losses\nExample: -5000";
+const FINANCIAL_DATA_UNTIL_TOOLTIP = "The latest date your financial numbers are updated to (management accounts).";
 const tooltipContentClassName = "max-w-[240px] whitespace-pre-line bg-primary px-2 py-1.5 text-primary-foreground text-xs shadow-md";
 
 function MoneyFieldRow({
@@ -180,6 +183,7 @@ function MoneyFieldRow({
   readOnly,
   allowNegative = false,
   showNegativeTooltip = false,
+  hasError = false,
 }: {
   id: string;
   label: string;
@@ -188,6 +192,7 @@ function MoneyFieldRow({
   readOnly?: boolean;
   allowNegative?: boolean;
   showNegativeTooltip?: boolean;
+  hasError?: boolean;
 }) {
   const inputEl = (
     <MoneyInput
@@ -200,7 +205,8 @@ function MoneyFieldRow({
         inputClassName,
         "pl-12",
         showNegativeTooltip && "pr-10",
-        readOnly && formInputDisabledClassName
+        readOnly && formInputDisabledClassName,
+        hasError && "border-destructive focus-visible:border-2 focus-visible:border-destructive"
       )}
       disabled={readOnly}
     />
@@ -251,6 +257,7 @@ export function FinancialStatementsStep({
   const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
   const [form, setForm] = React.useState<FinancialStatementsPayload>(DEFAULT_PAYLOAD);
   const [isInitialized, setIsInitialized] = React.useState(false);
+  const [hasSubmitted, setHasSubmitted] = React.useState(false);
   const initialPayloadRef = React.useRef<string>("");
 
   const onDataChangeRef = React.useRef(onDataChange);
@@ -283,8 +290,45 @@ export function FinancialStatementsStep({
 
   const hasValue = (v: unknown) => String(v ?? "").trim() !== "";
 
-  /** All fields required. turnover >= 0. plnpat, bsqpuc, plyear can be negative. */
+  /** Parse date string (ISO or d/M/yyyy) to Date or null. */
+  const parseDate = (s: string): Date | null => {
+    if (!s?.trim()) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const d = new Date(s);
+      return isValidDate(d) ? d : null;
+    }
+    try {
+      const parsed = parse(s, "d/M/yyyy", new Date());
+      return isValidDate(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  };
+
+  /** bsdd cannot be in the future. */
+  const bsddIsFuture = React.useMemo(() => {
+    const d = parseDate(form.bsdd ?? "");
+    if (!d) return false;
+    return startOfDay(d) > startOfDay(new Date());
+  }, [form.bsdd]);
+
+  /** Full validation: all fields, turnover >= 0, bsdd not in future. Used by saveFunction. */
   const isValid = React.useMemo(() => {
+    const dateFields: (keyof FinancialStatementsPayload)[] = ["pldd", "bsdd"];
+    const moneyFields: (keyof FinancialStatementsPayload)[] = [
+      "bsfatot", "othass", "bscatot", "bsclbank", "curlib", "bsslltd", "bsclstd", "bsqpuc",
+      "turnover", "plnpbt", "plnpat", "plminin", "plnetdiv", "plyear",
+    ];
+    if (!dateFields.every((k) => hasValue(form[k]))) return false;
+    if (bsddIsFuture) return false;
+    if (!moneyFields.every((k) => hasValue(form[k]))) return false;
+    const turnoverNum = parseMoney(form.turnover ?? "");
+    if (turnoverNum < 0) return false;
+    return true;
+  }, [form, bsddIsFuture]);
+
+  /** For Save button: exclude bsdd future check so user can click Save and see validation error. */
+  const isValidForButton = React.useMemo(() => {
     const dateFields: (keyof FinancialStatementsPayload)[] = ["pldd", "bsdd"];
     const moneyFields: (keyof FinancialStatementsPayload)[] = [
       "bsfatot", "othass", "bscatot", "bsclbank", "curlib", "bsslltd", "bsclstd", "bsqpuc",
@@ -297,14 +341,24 @@ export function FinancialStatementsStep({
     return true;
   }, [form]);
 
+  /** Runs when parent calls save on Save and Continue. Sets hasSubmitted and throws if invalid. */
+  const saveFunction = React.useCallback(async () => {
+    setHasSubmitted(true);
+    if (!isValid) {
+      toast.error("Please fix the highlighted fields");
+      throw new Error("VALIDATION_REQUIRED");
+    }
+  }, [isValid]);
+
   React.useEffect(() => {
     if (!onDataChangeRef.current || !isInitialized) return;
     onDataChangeRef.current({
       ...apiPayload,
       hasPendingChanges,
-      isValid,
+      isValid: isValidForButton,
+      saveFunction,
     });
-  }, [apiPayload, hasPendingChanges, isValid, isInitialized]);
+  }, [apiPayload, hasPendingChanges, isValidForButton, isInitialized, saveFunction]);
 
   const getLabel = (key: keyof FinancialStatementsPayload) => FINANCIAL_FIELD_LABELS[key] ?? key;
 
@@ -337,16 +391,34 @@ export function FinancialStatementsStep({
               className={cn(inputClassName, readOnly && formInputDisabledClassName)}
               placeholder="Enter date"
             />
-            <Label htmlFor="bsdd" className={labelClassName}>
-              {getLabel("bsdd")}
-            </Label>
-            <DateInput
-              value={form.bsdd}
-              onChange={(v) => handleFieldChange("bsdd", v)}
-              disabled={readOnly}
-              className={cn(inputClassName, readOnly && formInputDisabledClassName)}
-              placeholder="Enter date"
-            />
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="bsdd" className={labelClassName}>
+                {getLabel("bsdd")}
+              </Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="p-1 text-muted-foreground cursor-help hover:text-foreground transition-colors">
+                    <InformationCircleIcon className="h-4 w-4" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" className={tooltipContentClassName}>
+                  {FINANCIAL_DATA_UNTIL_TOOLTIP}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <div className="flex flex-col gap-1">
+              <DateInput
+                value={form.bsdd}
+                onChange={(v) => handleFieldChange("bsdd", v)}
+                disabled={readOnly}
+                className={cn(inputClassName, readOnly && formInputDisabledClassName)}
+                placeholder="Enter date"
+                isInvalid={hasSubmitted && bsddIsFuture}
+              />
+              {hasSubmitted && bsddIsFuture && (
+                <p className="text-xs text-destructive">Financial data date cannot be in the future.</p>
+              )}
+            </div>
           </div>
         </section>
 
@@ -421,8 +493,9 @@ export function FinancialStatementsStep({
                 value={form.turnover ?? ""}
                 onValueChange={(v) => handleFieldChange("turnover", v)}
                 readOnly={readOnly}
+                hasError={hasSubmitted && hasValue(form.turnover) && parseMoney(form.turnover ?? "") < 0}
               />
-              {hasValue(form.turnover) && parseMoney(form.turnover ?? "") < 0 && (
+              {hasSubmitted && hasValue(form.turnover) && parseMoney(form.turnover ?? "") < 0 && (
                 <p className="text-xs text-destructive sm:col-span-2">Turnover must be 0 or greater</p>
               )}
             </>

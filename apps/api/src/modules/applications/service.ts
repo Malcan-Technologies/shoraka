@@ -380,6 +380,39 @@ export class ApplicationService {
         }
       }
 
+      /** Parse bsdd date string (ISO yyyy-MM-dd or d/M/yyyy) to local midnight Date or null. */
+      const parseBsddDate = (s: string): Date | null => {
+        if (!s?.trim()) return null;
+        const t = s.trim();
+        let year: number;
+        let month: number;
+        let day: number;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
+          year = parseInt(t.slice(0, 4), 10);
+          month = parseInt(t.slice(5, 7), 10) - 1;
+          day = parseInt(t.slice(8, 10), 10);
+        } else {
+          const parts = t.split("/");
+          if (parts.length !== 3) return null;
+          day = parseInt(parts[0], 10);
+          month = parseInt(parts[1], 10) - 1;
+          year = parseInt(parts[2], 10);
+        }
+        if (Number.isNaN(day) || Number.isNaN(month) || Number.isNaN(year) || month < 0 || month > 11) return null;
+        const d = new Date(year, month, day);
+        if (d.getFullYear() !== year || d.getMonth() !== month || d.getDate() !== day) return null;
+        return d;
+      };
+
+      const bsddDate = parseBsddDate(String(raw.bsdd ?? ""));
+      if (bsddDate) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (bsddDate > today) {
+          throw new AppError(400, "VALIDATION_ERROR", "Financial data date cannot be in the future.");
+        }
+      }
+
       dataToStore = {
         pldd: String(raw.pldd ?? ""),
         bsdd: String(raw.bsdd ?? ""),

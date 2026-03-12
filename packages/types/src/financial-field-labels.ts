@@ -5,7 +5,7 @@
 
 export const FINANCIAL_FIELD_LABELS: Record<string, string> = {
   pldd: "Financing Year End",
-  bsdd: "Balance Sheet Financial Year",
+  bsdd: "Financial Data Until",
   bsfatot: "Fixed Assets",
   othass: "Other Assets",
   bscatot: "Current Assets",
