@@ -120,7 +120,9 @@ export default function EditApplicationPage() {
      ================================================================ */
 
   const applicationId = params.id as string;
+  /** Step is always derived from URL; never stored in React state. */
   const stepFromUrl = parseInt(searchParams.get("step") || "1", 10);
+  const currentStep = stepFromUrl;
 
   /** Load application from DB */
   const queryClient = useQueryClient();
@@ -856,28 +858,30 @@ export default function EditApplicationPage() {
 
 
 
+  /** Back moves one step backward via URL. Disabled when currentStep === 1. Does not modify acknowledgement or last_completed_step. */
   const handleBack = () => {
-    if (isSubmittingRef.current) return;
+    if (isSubmittingRef.current || currentStep <= 1) return;
 
     (async () => {
       const mismatch = await checkNow();
       if (mismatch) return;
 
-      if (stepFromUrl > 1) {
-        const prevStep = stepFromUrl - 1;
-
-        pendingNavRef.current = {
-          path: `/applications/edit/${applicationId}?step=${prevStep}`,
-          leavingPage: false,
-        };
-
-        requestNavigation(`/applications/edit/${applicationId}?step=${prevStep}`);
-      } else {
-        pendingNavRef.current = { path: "/", leavingPage: true };
-        requestNavigation("/");
-      }
+      const prevStep = currentStep - 1;
+      pendingNavRef.current = {
+        path: `/applications/edit/${applicationId}?step=${prevStep}`,
+        leavingPage: false,
+      };
+      requestNavigation(`/applications/edit/${applicationId}?step=${prevStep}`);
     })();
   };
+
+  /** Amendment mode only: navigate to step via URL. Does not modify amendment_acknowledged_workflow_ids. */
+  const handleStepClick = React.useCallback(
+    (step: number) => {
+      safeNavigate(`/applications/edit/${applicationId}?step=${step}`, { leavingPage: false });
+    },
+    [safeNavigate, applicationId]
+  );
 
   const handleDataChange = React.useCallback((data: Record<string, unknown> | null) => {
     stepDataRef.current = data;
@@ -1197,7 +1201,7 @@ export default function EditApplicationPage() {
               }
               return (s.name as string) ?? "";
             })}
-            currentStep={stepFromUrl}
+            currentStep={currentStep}
             isLoading={isLoading || !effectiveWorkflow.length}
             isAmendmentMode={isAmendmentModeEffective}
             amendmentFlaggedStepKeys={amendmentFlaggedStepKeys}
@@ -1206,6 +1210,7 @@ export default function EditApplicationPage() {
               (s: Record<string, unknown>) =>
                 getStepKeyFromStepId((s.id as string) || "") || ""
             )}
+            onStepClick={isAmendmentModeEffective ? handleStepClick : undefined}
           />
         </div>
 
@@ -1235,6 +1240,7 @@ export default function EditApplicationPage() {
             <Button
               variant="outline"
               onClick={handleBack}
+              disabled={currentStep === 1}
               className="text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-2 sm:order-1 h-11"
             >
               <ArrowLeftIcon className="h-4 w-4 mr-2" />
