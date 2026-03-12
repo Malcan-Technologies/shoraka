@@ -6,7 +6,7 @@ import { ProductList } from "../components/product-list";
 import { SelectionCard } from "../components/selection-card";
 import { ProductImagePreview } from "../components/product-image-preview";
 import { FinancingTypeSkeleton } from "@/app/(application-flow)/applications/components/financing-type-skeleton";
-import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
+import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 
 /**
  * FINANCING TYPE STEP
@@ -33,9 +33,8 @@ export function FinancingTypeStep({
   onDataChange,
   readOnly = false,
 }: FinancingTypeStepProps) {
-  // DEBUG: Toggle skeleton mode
-  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
-  
+  const devTools = useDevTools();
+
   // Load all products
   // If initialProductId is present (edit flow), fetch only that product.
   const { data: productsData, isLoading: isLoadingProducts } = initialProductId
@@ -105,13 +104,8 @@ export function FinancingTypeStep({
   };
 
   // Show loading state
-  if (isLoading || debugSkeletonMode) {
-    return (
-      <>
-        <FinancingTypeSkeleton />
-        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
-      </>
-    );
+  if (isLoading || devTools?.showSkeletonDebug) {
+    return <FinancingTypeSkeleton />;
   }
   // Show empty state
   const productList = products.products || [];
@@ -161,7 +155,6 @@ export function FinancingTypeStep({
         />
       )}
     </div>
-    <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>
   );
 }

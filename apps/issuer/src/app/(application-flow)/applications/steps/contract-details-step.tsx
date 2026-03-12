@@ -51,7 +51,6 @@ import {
 import { formatMoney, parseMoney } from "../components/money";
 import { MoneyInput } from "@/app/(application-flow)/applications/components/money-input";
 import { format, parse, isValid, parseISO } from "date-fns";
-import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -448,7 +447,6 @@ export function ContractDetailsStep({
   const devTools = useDevTools();
 
   // DEBUG: Toggle skeleton mode
-  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
 
   const contractId = ((application as unknown) as { contract?: { id?: string } })?.contract?.id;
   const { data: contract, isLoading: isLoadingContract } = useContract(contractId || "");
@@ -1054,13 +1052,8 @@ export function ContractDetailsStep({
      RENDER
      ================================================================ */
 
-  if (!isInitializedRef.current || debugSkeletonMode || devTools?.showSkeletonDebug) {
-    return (
-      <>
-        <ContractDetailsSkeleton />
-        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
-      </>
-    );
+  if (!isInitializedRef.current || devTools?.showSkeletonDebug) {
+    return <ContractDetailsSkeleton />;
   }
 
   const stepIsFlagged = isAmendmentMode && (flaggedSections?.has("contract_details") || (flaggedItems?.get("contract_details")?.size ?? 0) > 0);
@@ -1360,8 +1353,6 @@ export function ContractDetailsStep({
           </div>
         </section>
       </div>
-      <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>
   );
-
 }

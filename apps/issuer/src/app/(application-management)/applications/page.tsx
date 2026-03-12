@@ -577,9 +577,6 @@ export default function ApplicationsPage() {
   }, []);
 
   /* --- Dev only: toggle skeleton for testing. --- */
-  const [showSkeletonDev, setShowSkeletonDev] = React.useState(false);
-  const isDev = process.env.NODE_ENV === "development";
-
   /* --- FILTER: state. Status, Financing, Date (created + submitted), Search. --- */
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
@@ -955,7 +952,7 @@ export default function ApplicationsPage() {
 
           {/* Application cards */}
           <div className="rounded-xl border bg-muted/30 p-6">
-            {isLoading || showSkeletonDev ? (
+            {isLoading ? (
               <div className="space-y-4">
                 {Array.from({ length: perPage }).map((_, i) => (
                   <ApplicationCardSkeleton key={i} />
@@ -981,7 +978,7 @@ export default function ApplicationsPage() {
               </div>
             )}
 
-            {filteredApplications.length > 0 && !showSkeletonDev && (
+            {filteredApplications.length > 0 && (
               <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t border-border pt-4">
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -1037,19 +1034,6 @@ export default function ApplicationsPage() {
           </div>
         </CardContent>
       </Card>
-
-      {isDev && (
-        <div className="fixed bottom-4 right-4 z-50">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setShowSkeletonDev((s) => !s)}
-            className="rounded-xl shadow-md"
-          >
-            {showSkeletonDev ? "Hide" : "Show"} skeleton
-          </Button>
-        </div>
-      )}
 
       {reviewModalOpen && (
         <ReviewOfferModal

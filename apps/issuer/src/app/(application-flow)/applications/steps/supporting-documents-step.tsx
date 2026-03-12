@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { useApplication } from "@/hooks/use-applications";
 import { useAuthToken } from "@cashsouk/config";
 import { SupportingDocumentsSkeleton } from "@/app/(application-flow)/applications/components/supporting-documents-skeleton";
-import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
+import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -36,9 +36,7 @@ export function SupportingDocumentsStep({
   flaggedSections?: Set<string>;
   flaggedItems?: Map<string, Set<string>>;
 }) {
-  // DEBUG: Toggle skeleton mode
-  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
-  
+  const devTools = useDevTools();
   const { getAccessToken } = useAuthToken();
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
 
@@ -502,11 +500,8 @@ export function SupportingDocumentsStep({
   return (
     <>
     <div className="space-y-10 px-3">
-      {isLoadingApp || !stepConfig || debugSkeletonMode ? (
-        <>
-          <SupportingDocumentsSkeleton />
-          <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
-        </>
+      {isLoadingApp || !stepConfig || devTools?.showSkeletonDebug ? (
+        <SupportingDocumentsSkeleton />
       ) : (
         <>
           {categories.map((category: any, categoryIndex: number) => {
@@ -707,7 +702,6 @@ export function SupportingDocumentsStep({
         </>
       )}
     </div>
-    <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>
   );
 

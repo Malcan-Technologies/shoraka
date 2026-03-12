@@ -1146,27 +1146,13 @@ export default function EditApplicationPage() {
         <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 py-4 sm:py-8">
           {/* Page Title */}
           {application ? (
-            <div className="mb-4 sm:mb-6 flex items-start justify-between">
-              <div>
-                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">
-                  {currentStepInfo.title}
-                </h1>
-                <p className="text-sm sm:text-[15px] leading-6 sm:leading-7 text-muted-foreground mt-1">
-                  {currentStepInfo.description}
-                </p>
-              </div>
-              {process.env.NODE_ENV !== "production" ? (
-                <div className="ml-4">
-                  <Button
-                    variant="outline"
-                    onClick={handlePreviewAmendment}
-                    className="text-xs px-3 py-1 rounded-md"
-                  >
-                    Preview Amendment UI
-                    <span className="ml-2 text-[10px] text-muted-foreground">DEV</span>
-                  </Button>
-                </div>
-              ) : null}
+            <div className="mb-4 sm:mb-6">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">
+                {currentStepInfo.title}
+              </h1>
+              <p className="text-sm sm:text-[15px] leading-6 sm:leading-7 text-muted-foreground mt-1">
+                {currentStepInfo.description}
+              </p>
             </div>
           ) : null}
 

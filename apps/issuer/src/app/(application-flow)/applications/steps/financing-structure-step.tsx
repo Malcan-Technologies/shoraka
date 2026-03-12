@@ -19,7 +19,6 @@ import {
 import { formSelectTriggerClassName } from "@/app/(application-flow)/applications/components/form-control";
 import { FinancingStructureSkeleton } from "@/app/(application-flow)/applications/components/financing-structure-skeleton";
 import { SelectionCard } from "@/app/(application-flow)/applications/components/selection-card";
-import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 
 /**
@@ -48,9 +47,8 @@ export function FinancingStructureStep({
   onDataChange,
   readOnly = false,
 }: FinancingStructureStepProps) {
-  // DEBUG: Toggle skeleton mode
-  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
-  
+  const devTools = useDevTools();
+
   /** Local state
    *
    * What: Tracks user selection and initialization from DB.
@@ -63,7 +61,6 @@ export function FinancingStructureStep({
     application?.issuer_organization_id || ""
   );
   const hasApprovedContracts = approvedContracts.length > 0;
-  const devTools = useDevTools();
 
 
   /** Local state
@@ -230,13 +227,8 @@ export function FinancingStructureStep({
 
 
   // Loading state
-  if (isLoadingApp || debugSkeletonMode) {
-    return (
-      <>
-        <FinancingStructureSkeleton />
-        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
-      </>
-    );
+  if (isLoadingApp || devTools?.showSkeletonDebug) {
+    return <FinancingStructureSkeleton />;
   }
 
   /** Render blocks
@@ -310,7 +302,6 @@ export function FinancingStructureStep({
         />
       </div>
     </div>
-    <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>
   );
 }

@@ -71,7 +71,6 @@ import { InvoiceErrorCard } from "../components/amendments";
 import { formatMoney, parseMoney } from "../components/money";
 import { MoneyInput } from "@/app/(application-flow)/applications/components/money-input";
 import { InvoiceDetailsSkeleton } from "@/app/(application-flow)/applications/components/invoice-details-skeleton";
-import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 
@@ -169,8 +168,7 @@ export default function InvoiceDetailsStep({
   flaggedItems: _flaggedItems,
   remarks = [],
 }: InvoiceDetailsStepProps) {
-  // DEBUG: Toggle skeleton mode
-  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
+  const devTools = useDevTools();
 
   const [invoices, setInvoices] = React.useState<LocalInvoice[]>([]);
   const [selectedFiles, setSelectedFiles] = React.useState<Record<string, File>>({});
@@ -181,8 +179,6 @@ export default function InvoiceDetailsStep({
   const [isLoadingApplication, setIsLoadingApplication] = React.useState(true);
   const [isLoadingInvoices, setIsLoadingInvoices] = React.useState(true);
   const [isInitialized, setIsInitialized] = React.useState(false);
-
-  const devTools = useDevTools();
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
   const { data: productsData } = useProducts({ page: 1, pageSize: 100 });
@@ -909,7 +905,7 @@ export default function InvoiceDetailsStep({
   //   application?.financing_structure?.structure_type === "new_contract"; // Not used
   const hasFacilityData = approvedFacility > 0;
 
-  if (isLoadingApplication || debugSkeletonMode) {
+  if (isLoadingApplication || devTools?.showSkeletonDebug) {
     return (
       <>
         <InvoiceDetailsSkeleton
@@ -917,10 +913,6 @@ export default function InvoiceDetailsStep({
           showInvoiceTable={true}
         />
 
-        <DebugSkeletonToggle
-          isSkeletonMode={debugSkeletonMode}
-          onToggle={setDebugSkeletonMode}
-        />
       </>
     );
   }
@@ -1000,7 +992,7 @@ export default function InvoiceDetailsStep({
         )}
 
         {/* ================= Invoice Details ================= */}
-        {isLoadingApplication || debugSkeletonMode ? null : (
+        {isLoadingApplication || devTools?.showSkeletonDebug ? null : (
           <div className="space-y-3">
             <div className="flex items-start justify-between">
               <div>
@@ -1289,7 +1281,6 @@ export default function InvoiceDetailsStep({
           </div>
         )}
       </div>
-      <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>
   );
 }

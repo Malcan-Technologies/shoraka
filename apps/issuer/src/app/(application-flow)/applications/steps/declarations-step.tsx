@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useApplication } from "@/hooks/use-applications";
 import { DeclarationsSkeleton } from "@/app/(application-flow)/applications/components/declarations-skeleton";
-import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
+import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 
 /**
  * DECLARATIONS STEP
@@ -35,9 +35,7 @@ export function DeclarationsStep({
   onDataChange,
   readOnly = false,
 }: DeclarationsStepProps) {
-  // DEBUG: Toggle skeleton mode
-  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
-  
+  const devTools = useDevTools();
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
 
   /**
@@ -192,13 +190,8 @@ export function DeclarationsStep({
   /**
    * LOADING STATE
    */
-  if (isLoadingApp || !stepConfig || debugSkeletonMode) {
-    return (
-      <>
-        <DeclarationsSkeleton />
-        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
-      </>
-    );
+  if (isLoadingApp || !stepConfig || devTools?.showSkeletonDebug) {
+    return <DeclarationsSkeleton />;
   }
 
   /**
@@ -282,7 +275,6 @@ return (
       </div>
     </div>
     </div>
-    <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
   </>
 );
 }

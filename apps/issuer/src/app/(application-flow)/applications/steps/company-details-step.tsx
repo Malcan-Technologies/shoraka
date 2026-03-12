@@ -49,7 +49,7 @@ import {
   withFieldError,
 } from "@/app/(application-flow)/applications/components/form-control";
 import { CompanyDetailsSkeleton } from "@/app/(application-flow)/applications/components/company-details-skeleton";
-import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
+import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 
 interface CompanyDetailsStepProps {
   applicationId: string;
@@ -159,16 +159,12 @@ export function CompanyDetailsStep({
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
 
-  // DEBUG: Toggle skeleton mode
-  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
+  const devTools = useDevTools();
 
   const apiClient = React.useMemo(
     () => createApiClient(process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000", getAccessToken),
     [getAccessToken]
   );
-
-  // Dev-only "View as Member" toggle
-  const [devViewAsMember, setDevViewAsMember] = React.useState(false);
 
   // Fetch current user to derive organization edit permission
   const { data: currentUser } = useQuery({
@@ -181,7 +177,6 @@ export function CompanyDetailsStep({
     staleTime: 1000 * 60 * 5,
   });
 
-  // Temporary debug: log current user id and membership
   const canEditOrganization = React.useMemo(() => {
     if (!activeOrganization || !currentUser) return false;
     if (activeOrganization.isOwner) return true;
@@ -189,7 +184,7 @@ export function CompanyDetailsStep({
     return currentUserMember?.role === "ORGANIZATION_ADMIN";
   }, [activeOrganization, currentUser]);
 
-  const effectiveCanEdit = readOnly ? false : (devViewAsMember ? false : canEditOrganization);
+  const effectiveCanEdit = readOnly ? false : canEditOrganization;
 
   /* ================================================================
      DATA LOADING HOOKS
@@ -561,13 +556,8 @@ export function CompanyDetailsStep({
      RENDER
      ================================================================ */
 
-  if (isLoadingData || !hasHydratedRef.current || debugSkeletonMode) {
-    return (
-      <>
-        <CompanyDetailsSkeleton />
-        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
-      </>
-    );
+  if (isLoadingData || !hasHydratedRef.current || devTools?.showSkeletonDebug) {
+    return <CompanyDetailsSkeleton />;
   }
 
   if (!organizationId) {
@@ -590,18 +580,6 @@ export function CompanyDetailsStep({
   return (
     <>
       <div className="space-y-10 px-3">
-        {process.env.NODE_ENV === "development" && (
-          <div className="flex justify-end">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setDevViewAsMember((v) => !v)}
-              className="h-8 gap-2 rounded-xl"
-            >
-              {devViewAsMember ? "Exit member view" : "View as Member"}
-            </Button>
-          </div>
-        )}
         {/* Company Info Section */}
         <div className="space-y-3">
           <div>
@@ -969,7 +947,6 @@ export function CompanyDetailsStep({
           canEdit={effectiveCanEdit}
         />
       </div>
-      <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>
   );
 }

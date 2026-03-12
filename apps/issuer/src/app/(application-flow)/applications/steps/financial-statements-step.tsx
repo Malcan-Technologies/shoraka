@@ -32,7 +32,6 @@ import {
 } from "@/app/(application-flow)/applications/components/form-control";
 import { MoneyInput } from "@/app/(application-flow)/applications/components/money-input";
 import { parseMoney, formatMoney } from "@/app/(application-flow)/applications/components/money";
-import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
 import { FinancialStatementsSkeleton } from "@/app/(application-flow)/applications/components/financial-statements-skeleton";
 import { FINANCIAL_FIELD_LABELS } from "@cashsouk/types";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -297,7 +296,6 @@ export function FinancialStatementsStep({
 }: FinancialStatementsStepProps) {
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   const devTools = useDevTools();
-  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
   const [form, setForm] = React.useState<FinancialStatementsPayload>(DEFAULT_PAYLOAD);
   const [isInitialized, setIsInitialized] = React.useState(false);
   const [hasSubmitted, setHasSubmitted] = React.useState(false);
@@ -426,13 +424,8 @@ export function FinancialStatementsStep({
 
   const getLabel = (key: keyof FinancialStatementsPayload) => FINANCIAL_FIELD_LABELS[key] ?? key;
 
-  if (isLoadingApp || !isInitialized || debugSkeletonMode || devTools?.showSkeletonDebug) {
-    return (
-      <>
-        <FinancialStatementsSkeleton />
-        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
-      </>
-    );
+  if (isLoadingApp || !isInitialized || devTools?.showSkeletonDebug) {
+    return <FinancialStatementsSkeleton />;
   }
 
   return (
@@ -605,7 +598,6 @@ export function FinancialStatementsStep({
           </div>
         </section>
       </div>
-      <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>
   );
 }

@@ -21,7 +21,7 @@ import {
 } from "@/app/(application-flow)/applications/components/form-control";
 import { MoneyInput } from "@/app/(application-flow)/applications/components/money-input";
 import { parseMoney, formatMoney } from "@/app/(application-flow)/applications/components/money";
-import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
+import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import { BusinessDetailsSkeleton } from "@/app/(application-flow)/applications/components/business-details-skeleton";
 
 /**
@@ -371,9 +371,7 @@ export function BusinessDetailsStep({
   readOnly = false,
 }: BusinessDetailsStepProps) {
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
-
-  // DEBUG: Toggle skeleton mode
-  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
+  const devTools = useDevTools();
 
   const [aboutYourBusiness, setAboutYourBusiness] = React.useState<AboutYourBusiness>(defaultAbout);
   const [whyRaisingFunds, setWhyRaisingFunds] = React.useState<WhyRaisingFunds>(defaultWhy);
@@ -491,13 +489,8 @@ export function BusinessDetailsStep({
     });
   }, [snakePayload, hasPendingChanges, declarationConfirmed, isInitialized, validateBusinessDetails]);
 
-  if (isLoadingApp || !isInitialized || debugSkeletonMode) {
-    return (
-      <>
-        <BusinessDetailsSkeleton />
-        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
-      </>
-    );
+  if (isLoadingApp || !isInitialized || devTools?.showSkeletonDebug) {
+    return <BusinessDetailsSkeleton />;
   }
 
   return (
@@ -779,7 +772,6 @@ export function BusinessDetailsStep({
         </div>
       </section>
       </div>
-      <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>
   );
 

@@ -1,5 +1,6 @@
-// DEV TOOL PANEL
-// Safe to delete entirely without affecting application logic.
+// DEV TOOLS PANEL
+// Central location for development utilities.
+// Safe to delete if dev tools are no longer needed.
 
 "use client";
 

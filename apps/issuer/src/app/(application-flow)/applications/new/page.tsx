@@ -17,7 +17,6 @@ import { VersionMismatchModal } from "@/components/VersionMismatchModal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProductList } from "../components/product-list";
 import { ProgressIndicator } from "../components/progress-indicator";
-import { DebugSkeletonToggle } from "../components/debug-skeleton-toggle";
 import { FinancingTypeSkeleton } from "../components/financing-type-skeleton";
 
 /**
@@ -36,9 +35,6 @@ export default function NewApplicationPage() {
   const router = useRouter();
   const { activeOrganization } = useOrganization();
   const { setTitle } = useHeader();
-
-  // DEBUG: Toggle skeleton mode
-  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
 
   React.useEffect(() => {
     setTitle("New Application");
@@ -245,7 +241,7 @@ export default function NewApplicationPage() {
   };
 
   // Show loading state while fetching products
-  if (isLoadingProducts || debugSkeletonMode) {
+  if (isLoadingProducts) {
     return (
       <div className="flex flex-col h-full">
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
@@ -274,8 +270,6 @@ export default function NewApplicationPage() {
             <Skeleton className="h-12 w-40 rounded-xl" />
           </div>
         </footer>
-
-        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
       </div>
     );
   }
@@ -341,7 +335,6 @@ export default function NewApplicationPage() {
         </div>
       </footer>
 
-      <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
       {isModalOpen && (
         <UnsavedChangesModal onConfirm={() => confirmLeave()} onCancel={() => cancelLeave()} />
       )}
