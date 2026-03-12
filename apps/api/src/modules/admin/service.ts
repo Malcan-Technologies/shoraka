@@ -68,6 +68,10 @@ export interface AdminLogContext {
   deviceInfo?: string | null;
 }
 import { ProductRepository } from "../products/repository";
+import {
+  resolveRequestedFacility,
+  resolveApprovedFacilityForRefresh,
+} from "../../lib/contract-facility";
 
 export class AdminService {
   private repository: AdminRepository;
@@ -91,7 +95,8 @@ export class AdminService {
 
   /**
    * Recompute and update contract facility values (approved_facility, utilized_facility, available_facility).
-   * Used when contract is approved or when an invoice is approved/rejected.
+   * approved_facility is non-zero only when contract is APPROVED and issuer accepted the offer.
+   * Otherwise 0 (SUBMITTED, OFFER_SENT, REJECTED, DRAFT).
    */
   private async refreshContractFacilityValues(contractId: string): Promise<void> {
     const contract = await prisma.contract.findUnique({
@@ -100,8 +105,7 @@ export class AdminService {
     });
     if (!contract) return;
     const cd = contract.contract_details as Record<string, unknown> | null;
-    const financing = typeof cd?.financing === "number" ? cd.financing : 0;
-    const approvedFacility = financing;
+    const approvedFacility = resolveApprovedFacilityForRefresh(contract.status, cd);
     const utilizedFacility = contract.invoices
       .filter((inv) => inv.status === "APPROVED")
       .reduce((sum, inv) => {
@@ -4434,13 +4438,7 @@ export class AdminService {
     }
 
     const contractDetails = contract.contract_details as Record<string, unknown> | null;
-    const requestedFacilityRaw =
-      typeof contractDetails?.financing === "number"
-        ? contractDetails.financing
-        : typeof contractDetails?.value === "number"
-          ? contractDetails.value
-          : 0;
-    const requestedFacility = Number(requestedFacilityRaw);
+    const requestedFacility = resolveRequestedFacility(contractDetails);
     if (!Number.isFinite(requestedFacility) || requestedFacility <= 0) {
       throw new AppError(400, "INVALID_STATE", "Contract requested facility is invalid");
     }

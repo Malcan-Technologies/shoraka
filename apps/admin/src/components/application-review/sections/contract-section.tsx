@@ -104,8 +104,9 @@ export function ContractSection({
   const hasData = cd || cust;
   const offeredFacility = parseMoney(offeredFacilityInput);
   const offeredExceedsContractValue = contractValue > 0 && offeredFacility > contractValue;
+  const isContractApproved = sectionStatus === "APPROVED";
   const canSendContractOffer =
-    offeredFacility > 0 && !offeredExceedsContractValue;
+    !isContractApproved && offeredFacility > 0 && !offeredExceedsContractValue;
 
   const handleConfirmContractOffer = React.useCallback(async () => {
     if (!onSendOffer || !canSendContractOffer) return;
@@ -144,7 +145,12 @@ export function ContractSection({
                     value={offeredFacilityInput}
                     onValueChange={setOfferedFacilityInput}
                     placeholder="0.00"
-                    disabled={!isReviewable || !!isActionLocked || !onSendOffer}
+                    disabled={
+                      !isReviewable ||
+                      !!isActionLocked ||
+                      !onSendOffer ||
+                      isContractApproved
+                    }
                     inputClassName="h-9 w-[220px]"
                     prefix="RM"
                     maxIntDigits={12}

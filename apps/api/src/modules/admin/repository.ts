@@ -24,7 +24,10 @@ import type {
   GetAdminApplicationsQuery,
   GetAdminContractsQuery,
 } from "./schemas";
-
+import {
+  resolveRequestedFacility,
+  resolveOfferedFacility,
+} from "../../lib/contract-facility";
 
 export class AdminRepository {
   /**
@@ -2374,8 +2377,11 @@ export class AdminRepository {
       typeof offerDetails.responded_by_user_id === "string" && offerDetails.responded_by_user_id.trim().length > 0
         ? (offerDetails.responded_by_user_id as string)
         : null;
-    const requestedFacility = Number(offerDetails.requested_facility ?? contractDetails.financing ?? 0);
-    const offeredFacility = Number(offerDetails.offered_facility ?? 0);
+    const requestedFacility =
+      typeof offerDetails.requested_facility === "number" && Number.isFinite(offerDetails.requested_facility)
+        ? offerDetails.requested_facility
+        : resolveRequestedFacility(contractDetails);
+    const offeredFacility = resolveOfferedFacility(offerDetails);
     const approvedFacility = Number(contractDetails.approved_facility ?? 0);
 
     const applications = contract.applications.map((application) => {

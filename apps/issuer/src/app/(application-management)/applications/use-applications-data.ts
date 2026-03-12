@@ -108,12 +108,15 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
   if (contractDetails.facility_applied != null) facilityApplied = Number(contractDetails.facility_applied);
   else if (contractDetails.financing_amount != null) facilityApplied = Number(contractDetails.financing_amount);
 
-  let approvedFacility = "N/A";
-  if (contract?.offer_details && (contract.offer_details as any).offered_facility != null) {
-    approvedFacility = `RM ${Number((contract.offer_details as any).offered_facility).toLocaleString("en-MY", { minimumFractionDigits: 2 })}`;
-  } else {
-    const ras = (api as any).review_and_submit as Record<string, unknown> | undefined;
-    if (ras?.approved_facility != null) approvedFacility = String(ras.approved_facility);
+  let approvedFacility = "—";
+  if (contractStatus === "APPROVED") {
+    const cdApproved = typeof contractDetails.approved_facility === "number" && contractDetails.approved_facility > 0;
+    if (cdApproved) {
+      approvedFacility = `RM ${Number(contractDetails.approved_facility).toLocaleString("en-MY", { minimumFractionDigits: 2 })}`;
+    } else {
+      const ras = (api as any).review_and_submit as Record<string, unknown> | undefined;
+      if (ras?.approved_facility != null) approvedFacility = String(ras.approved_facility);
+    }
   }
 
   const created = api.created_at ? new Date(api.created_at) : new Date();

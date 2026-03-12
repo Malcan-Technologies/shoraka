@@ -1,6 +1,8 @@
 /**
  * Invoice & Contract - Implementation notes (extracted)
  *
+ * Facility flow (contract_details vs offer_details): see docs/guides/application-flow/contract-offer-facility-flow.md
+ *
  * What existed (before invoice APIs removal)
  * -----------------------------------------
  *
@@ -11,6 +13,7 @@
    - utilized_facility
    - available_facility
  - Invoices changed contract capacity on create/update/approve/reject/delete.
+ - See docs/guides/application-flow/contract-offer-facility-flow.md for facility sync and offer flow.
 
  2) Business rules / calculations
  - Max financing per invoice = 80% of invoice.value (maxFinancing = value * 0.8).
