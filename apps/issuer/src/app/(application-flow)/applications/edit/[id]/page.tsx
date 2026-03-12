@@ -541,7 +541,7 @@ export default function EditApplicationPage() {
     [router]
   );
 
-  const { isModalOpen, requestNavigation, confirmLeave, cancelLeave } = useNavigationGuard(
+  const { isModalOpen, requestNavigation, confirmLeave, cancelLeave, pendingPath } = useNavigationGuard(
     hasUnsavedChanges,
     onConfirmNavigation
   );
@@ -858,20 +858,25 @@ export default function EditApplicationPage() {
 
 
 
-  /** Back moves one step backward via URL. Disabled when currentStep === 1. Does not modify acknowledgement or last_completed_step. */
+  /** Back: step 1 → exit confirmation modal → navigate to /; step ≥2 → previous step. Does not modify acknowledgement or last_completed_step. */
   const handleBack = () => {
-    if (isSubmittingRef.current || currentStep <= 1) return;
+    if (isSubmittingRef.current) return;
 
     (async () => {
       const mismatch = await checkNow();
       if (mismatch) return;
 
-      const prevStep = currentStep - 1;
-      pendingNavRef.current = {
-        path: `/applications/edit/${applicationId}?step=${prevStep}`,
-        leavingPage: false,
-      };
-      requestNavigation(`/applications/edit/${applicationId}?step=${prevStep}`);
+      if (currentStep === 1) {
+        pendingNavRef.current = { path: "/", leavingPage: true };
+        requestNavigation("/", { forceModal: true });
+      } else {
+        const prevStep = currentStep - 1;
+        pendingNavRef.current = {
+          path: `/applications/edit/${applicationId}?step=${prevStep}`,
+          leavingPage: false,
+        };
+        requestNavigation(`/applications/edit/${applicationId}?step=${prevStep}`);
+      }
     })();
   };
 
@@ -1240,7 +1245,6 @@ export default function EditApplicationPage() {
             <Button
               variant="outline"
               onClick={handleBack}
-              disabled={currentStep === 1}
               className="text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-2 sm:order-1 h-11"
             >
               <ArrowLeftIcon className="h-4 w-4 mr-2" />
@@ -1311,7 +1315,7 @@ export default function EditApplicationPage() {
         onOpenChange={() => { }}
       />
 
-      {/* Unsaved Changes Modal (centralized) */}
+      {/* Unsaved Changes / Exit Confirmation Modal (centralized) */}
       {isModalOpen && (
         <UnsavedChangesModal
           onConfirm={() => {
@@ -1320,6 +1324,8 @@ export default function EditApplicationPage() {
           onCancel={() => {
             cancelLeave();
           }}
+          variant={pendingPath === "/" ? "exit" : "unsaved"}
+          hasUnsavedChanges={pendingPath === "/" ? hasUnsavedChanges : undefined}
         />
       )}
     </div>

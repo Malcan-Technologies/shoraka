@@ -78,9 +78,10 @@ export function useNavigationGuard(
   }, [hasUnsavedChanges]);
 
   const requestNavigation = useCallback(
-    (path: string) => {
+    (path: string, opts?: { forceModal?: boolean }) => {
       if (isModalOpenRef.current) return;
-      if (!hasUnsavedRef.current) {
+      const mustShowModal = opts?.forceModal === true || hasUnsavedRef.current;
+      if (!mustShowModal) {
         onConfirmNavigation(path);
         return;
       }
