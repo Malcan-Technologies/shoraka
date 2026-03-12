@@ -52,7 +52,12 @@ import { STATUS, FILTER_STATUSES, FINANCING_TYPES } from "./status";
 import { useApplicationsData } from "./use-applications-data";
 import { ReviewOfferModal } from "./components/ReviewOfferModal";
 import { useCancelApplication, useWithdrawInvoice } from "@/hooks/use-applications";
+import { generateMockApplications } from "@/dev/mockApplications";
+import { Separator } from "@/components/ui/separator";
 import type { NormalizedApplication, NormalizedInvoice } from "./status";
+
+const SKELETON_COUNT = 8;
+const MOCK_APPLICATION_COUNT = 10;
 
 const BADGE_BASE = "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold border";
 const BADGE_FALLBACK = "border-slate-500/30 bg-slate-500/10 text-slate-600";
@@ -182,7 +187,7 @@ function ApplicationCard({
 
   const useDraftCardLayout = isDraft && isGenericDraft;
 
-  const displayId = application.id.slice(-8);
+  const displayId = "#" + application.id.slice(-8);
   const showFinancingLabel = !isGenericDraft;
 
   return (
@@ -565,7 +570,14 @@ const PER_PAGE_OPTIONS = [4, 8, 12] as const;
 
 export default function ApplicationsPage() {
   const { setTitle } = useHeader();
-  const { applications, isLoading } = useApplicationsData();
+  const [debugShowSkeleton, setDebugShowSkeleton] = React.useState(false);
+  const [debugMockApplications, setDebugMockApplications] = React.useState<NormalizedApplication[] | null>(null);
+
+  const { applications, isLoading } = useApplicationsData({
+    debugShowSkeleton,
+    debugMockApplications,
+  });
+
   const cancelApplication = useCancelApplication();
   const withdrawInvoice = useWithdrawInvoice();
 
@@ -612,7 +624,21 @@ export default function ApplicationsPage() {
     [withdrawInvoice]
   );
 
-  /* --- Dev only: toggle skeleton for testing. --- */
+  const handleDebugSkeleton = React.useCallback(() => {
+    setDebugShowSkeleton((prev) => !prev);
+    if (!debugShowSkeleton) setDebugMockApplications(null);
+  }, [debugShowSkeleton]);
+
+  const handleDebugMockCards = React.useCallback(() => {
+    setDebugMockApplications(generateMockApplications(MOCK_APPLICATION_COUNT));
+    setDebugShowSkeleton(false);
+  }, []);
+
+  const handleDebugReset = React.useCallback(() => {
+    setDebugShowSkeleton(false);
+    setDebugMockApplications(null);
+  }, []);
+
   /* --- FILTER: state. Status, Financing, Date (created + submitted), Search. --- */
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
@@ -735,8 +761,48 @@ export default function ApplicationsPage() {
     }
   };
 
+  const isDev = process.env.NODE_ENV === "development";
+
   return (
     <div className="flex-1 space-y-6 p-4 md:p-8 pt-6">
+      {isDev && (
+        <Card
+          className="fixed bottom-5 right-5 z-[9999] w-[200px] shadow-lg border-2 border-amber-500/50"
+          data-testid="applications-debug-panel"
+        >
+          <CardHeader className="py-2 px-3">
+            <h3 className="text-sm font-semibold">Debug Panel</h3>
+          </CardHeader>
+          <Separator />
+          <CardContent className="py-2 px-3 space-y-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-start text-xs h-8"
+              onClick={handleDebugSkeleton}
+            >
+              {debugShowSkeleton ? "Hide Skeleton" : "Debug Skeleton"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-start text-xs h-8"
+              onClick={handleDebugMockCards}
+            >
+              Debug Mock Cards
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-start text-xs h-8"
+              onClick={handleDebugReset}
+            >
+              Reset Debug
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <section className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">
@@ -990,7 +1056,7 @@ export default function ApplicationsPage() {
           <div className="rounded-xl border bg-muted/30 p-6">
             {isLoading ? (
               <div className="space-y-4">
-                {Array.from({ length: perPage }).map((_, i) => (
+                {Array.from({ length: debugShowSkeleton ? SKELETON_COUNT : perPage }).map((_, i) => (
                   <ApplicationCardSkeleton key={i} />
                 ))}
               </div>

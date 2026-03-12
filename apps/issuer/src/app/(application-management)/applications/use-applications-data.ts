@@ -2,21 +2,25 @@
  * Applications data hook.
  *
  * WHAT IT DOES:
- * 1. Fetches applications (mock from data.ts, or API via useOrganizationApplications)
+ * 1. Fetches applications from API (or uses debug mock when provided)
  * 2. Prepares each for display: API returns nested objects (contract, invoices, offer_details).
  *    We flatten them, add cardStatus (badge + buttons), extract document keys.
  * 3. Hides archived apps
- * 4. Sorts by status (rejected first, draft last), then by date
+ * 4. Sorts by status priority, then by updatedAt DESC
  *
- * The "prepare for display" step converts API shape to what the page needs. API uses snake_case,
- * nested relations; page needs flat camelCase, one status per card, invoice rows ready for table.
+ * Debug overrides (dev only): debugShowSkeleton forces loading state; debugMockApplications
+ * replaces API data. Mock data is injected at UI layer only. API calls unchanged.
  */
 
 import { useMemo } from "react";
 import { useOrganization } from "@cashsouk/config";
 import { useOrganizationApplications } from "@/hooks/use-applications";
-import { USE_MOCK_DATA, mockApplications } from "./data";
 import { getCardStatus, APPLICATION_STATUS_PRIORITY, type NormalizedApplication, type NormalizedInvoice } from "./status";
+
+export interface UseApplicationsDataOptions {
+  debugShowSkeleton?: boolean;
+  debugMockApplications?: NormalizedApplication[] | null;
+}
 
 interface ApiContract {
   id?: string;
@@ -152,30 +156,36 @@ function sort(apps: NormalizedApplication[]): NormalizedApplication[] {
   });
 }
 
-export function useApplicationsData(): {
+export function useApplicationsData(options?: UseApplicationsDataOptions): {
   applications: NormalizedApplication[];
   isLoading: boolean;
   error: Error | null;
 } {
+  const { debugShowSkeleton = false, debugMockApplications } = options ?? {};
   const { activeOrganization } = useOrganization();
   const { data: apiApplications = [], isLoading, error } = useOrganizationApplications(
-    USE_MOCK_DATA ? undefined : activeOrganization?.id
+    debugMockApplications ? undefined : activeOrganization?.id
   );
 
   const applications = useMemo(() => {
+    if (debugShowSkeleton) {
+      return [];
+    }
     let list: NormalizedApplication[];
-    if (USE_MOCK_DATA) {
-      list = mockApplications;
+    if (debugMockApplications && debugMockApplications.length > 0) {
+      list = debugMockApplications;
     } else {
       list = (apiApplications as any[]).map((app) => prepareApplication(app));
     }
     const visible = list.filter((a) => a.status !== "archived");
     return sort(visible);
-  }, [USE_MOCK_DATA, apiApplications]);
+  }, [debugShowSkeleton, debugMockApplications, apiApplications]);
+
+  const isLoadingResolved = debugShowSkeleton || (debugMockApplications ? false : isLoading);
 
   return {
     applications,
-    isLoading: USE_MOCK_DATA ? false : isLoading,
+    isLoading: isLoadingResolved,
     error: error ?? null,
   };
 }
