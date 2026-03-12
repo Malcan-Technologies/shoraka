@@ -1,215 +1,163 @@
 ================================================================================
-ISSUER APPLICATION / CONTRACT / INVOICE SYSTEM GUIDE
+APPLICATION SYSTEM — SIMPLE GUIDE
 ================================================================================
 
-A complete developer guide to the financing lifecycle.
-Use simple English. Short sentences. Step by step.
-Assume the reader is new to the system.
+Combined guide: how it works + all scenarios.
+Written so anyone can understand. Short sentences. Plain words.
 
 ================================================================================
-1. WHAT THIS SYSTEM IS
+1. WHAT IS THIS?
 ================================================================================
 
-An Application is a request for financing.
-It belongs to one issuer organization.
-The system tracks the lifecycle of each financing request.
+You want to borrow money. You fill out a form. That form is an APPLICATION.
 
-A Contract is an agreement for financing.
-It is optional.
-Some applications have a contract.
-Some do not.
+Sometimes you need a big agreement (like a house contract). That's a CONTRACT.
+Sometimes you list things you want money for. Each thing is an INVOICE.
 
-An Invoice is a financing item.
-Each invoice represents one financing decision.
-An application can have many invoices.
-
-How they are related:
-
-  - An application may have one contract.
-  - An application may have many invoices.
-  - Sometimes there is only a contract (no invoices).
-  - Sometimes there are only invoices (no contract).
-  - Sometimes both exist.
-
-The system decides the final application result from the contract and invoices.
-Contract results always override invoice results.
+The system tracks: Did you get it? Was it turned down? Did you cancel?
 
 ================================================================================
-2. APPLICATION LIFECYCLE OVERVIEW
+2. THE THREE THINGS
 ================================================================================
 
-An application moves through statuses over time.
-Each status has a clear meaning.
+APPLICATION
+  - A request for money.
+  - Belongs to one company.
+  - Can have a contract, invoices, or both.
 
-DRAFT
-  The user has started creating the application.
-  The application is not yet submitted.
-  The user can edit and save.
+CONTRACT
+  - A big agreement. Optional.
+  - Some apps have one. Some don't.
 
-SUBMITTED
-  The user has submitted the application for review.
-  The application is waiting for the admin team.
-
-UNDER_REVIEW
-  The admin team is reviewing the application.
-  The user waits for a decision.
-
-AMENDMENT_REQUESTED
-  The admin asked for changes.
-  The user must update the application and resubmit.
-
-RESUBMITTED
-  The user made changes and sent the application again.
-  The admin will review the updates.
-
-APPROVED
-  The admin approved the application.
-  This status is used by the admin workflow.
-  Production may already use it.
-
-COMPLETED
-  The financing workflow finished.
-  At least one financing item was approved or has mixed outcomes.
-  The application is done.
-
-WITHDRAWN
-  The user cancelled the request.
-  All financing items were withdrawn.
-  The application is no longer active.
-
-REJECTED
-  The financing workflow finished.
-  All financing items were rejected.
-  No financing will happen.
-
-ARCHIVED
-  The application was archived.
-  It is no longer active.
-  Used for old or closed applications.
+INVOICE
+  - One item you want money for.
+  - You can have many invoices.
 
 ================================================================================
-3. CONTRACT STATUS
+3. THE GOLDEN RULE
 ================================================================================
 
-A contract has three final statuses:
+The contract is the boss.
 
-APPROVED
-  The contract was approved.
-  Financing can proceed.
-  The application can become COMPLETED.
-
-REJECTED
-  The contract was rejected.
-  No financing.
-  The application becomes REJECTED.
-
-WITHDRAWN
-  The issuer or system withdrew the contract.
-  The contract is no longer active.
-  The application becomes WITHDRAWN.
-
-Important rule:
-
-  The contract result has the highest priority.
-  If the contract is rejected, the application is rejected.
-  If the contract is withdrawn, the application becomes withdrawn.
-  Invoices cannot override the contract result.
+If the contract says "No" or "Cancelled", the whole application follows that.
+Invoices cannot change that.
 
 ================================================================================
-4. INVOICE STATUS
+4. WHAT EACH STATUS MEANS
 ================================================================================
 
-An invoice has three final statuses:
+APPLICATION STATUS
 
-APPROVED
-  The invoice was approved.
-  Financing can proceed for this invoice.
+  DRAFT
+    You're still filling it out. Not sent yet.
 
-REJECTED
-  The invoice was rejected.
-  No financing for this invoice.
+  SUBMITTED
+    You sent it. Waiting for someone to look.
 
-WITHDRAWN
-  The invoice was withdrawn.
-  The invoice is no longer active.
+  UNDER_REVIEW
+    Someone is looking at it right now.
 
-Invoices represent financing decisions.
-Each invoice can have a different result.
+  AMENDMENT_REQUESTED
+    They want you to fix something. Update and send again.
 
-Example: One invoice approved, one invoice rejected.
-  This is called mixed results.
-  When invoices have mixed results, the application becomes COMPLETED.
-  The system treats this as finished with at least one positive outcome.
+  RESUBMITTED
+    You fixed it and sent it again.
 
-================================================================================
-5. LIFECYCLE RULES
-================================================================================
+  APPROVED
+    They said yes.
 
-Main rule:
+  COMPLETED
+    All done. At least one thing was approved.
 
-  Contract results override invoice results.
-  Invoice rules only run when there is no contract.
-  If a contract exists and is REJECTED or WITHDRAWN, the application follows that.
-  Invoices never override the contract.
+  WITHDRAWN
+    You cancelled. Nothing will happen.
 
-Table: Contract status and application result
+  REJECTED
+    They said no. Nothing will happen.
 
-  Contract Status  |  Application Result
-  -----------------|--------------------
-  REJECTED         |  REJECTED
-  WITHDRAWN        |  WITHDRAWN
+  ARCHIVED
+    Old. Put away. Not active.
 
-When the contract is APPROVED, the application result depends on the invoices.
-See the next sections.
+CONTRACT STATUS
 
-================================================================================
-6. CONTRACT + INVOICE BEHAVIOUR
-================================================================================
+  APPROVED - Deal approved. You get the money.
+  REJECTED - Deal turned down. No money.
+  WITHDRAWN - Deal cancelled.
 
-When both a contract and invoices exist:
+INVOICE STATUS
 
-Contract APPROVED, Invoices APPROVED + APPROVED
-  Application becomes COMPLETED.
-  All items approved. Financing can proceed.
-
-Contract APPROVED, Invoices APPROVED + REJECTED
-  Application becomes COMPLETED.
-  Mixed results. At least one invoice approved.
-  The system treats mixed outcomes as COMPLETED.
-
-Contract APPROVED, Invoices REJECTED + REJECTED
-  Application becomes COMPLETED.
-  All invoices rejected but contract approved.
-  The contract approval counts. The workflow is finished.
-
-Why:
-  When the contract is APPROVED, the application is done once all invoices
-  reach a final state (APPROVED, REJECTED, or WITHDRAWN).
-  Any mix of final invoice states leads to COMPLETED.
+  APPROVED - This invoice got the green light.
+  REJECTED - This invoice was turned down.
+  WITHDRAWN - This invoice was cancelled.
 
 ================================================================================
-7. CONTRACT ONLY APPLICATIONS
+5. HOW THE SYSTEM DECIDES (STEP BY STEP)
 ================================================================================
 
-When an application has a contract but no invoices:
+The system asks questions in order. First answer wins.
 
-  Contract   |  Application
-  -----------|-------------
+Step 1: Check the contract first
+  - Contract cancelled? -> Application WITHDRAWN. Done.
+  - Contract rejected? -> Application REJECTED. Done.
+
+Step 2: If contract is approved (or no contract)
+  - Contract approved and all invoices done? -> COMPLETED.
+  - No contract? Check the invoices.
+
+Step 3: If only invoices (no contract)
+  - All invoices rejected? -> REJECTED.
+  - All invoices withdrawn? -> WITHDRAWN.
+  - Mix (one approved, one rejected)? -> COMPLETED.
+
+Step 4: Otherwise
+  - Keep current status (e.g. SUBMITTED, UNDER_REVIEW).
+
+================================================================================
+6. QUICK REFERENCE: HOW TO DETERMINE THE RESULT
+================================================================================
+
+Step 1: Check contract.
+  If contract is WITHDRAWN -> Result is WITHDRAWN.
+  If contract is REJECTED -> Result is REJECTED.
+  If contract is APPROVED -> Go to step 2.
+
+Step 2: If contract is APPROVED.
+  If no invoices -> Result is COMPLETED.
+  If all invoices in final state -> Result is COMPLETED.
+
+Step 3: If no contract and invoices exist.
+  If all withdrawn -> Result is WITHDRAWN.
+  If all rejected -> Result is REJECTED.
+  If all in final state (mixed) -> Result is COMPLETED.
+
+Step 4: Otherwise.
+  Keep the existing application status.
+
+================================================================================
+7. CONTRACT ONLY (NO INVOICES)
+================================================================================
+
+When an application has a contract but no invoices.
+The contract alone decides.
+
+  Contract   |  Result
+  -----------|----------
   APPROVED   |  COMPLETED
   REJECTED   |  REJECTED
   WITHDRAWN  |  WITHDRAWN
 
-The contract alone determines the result.
-No invoices means no invoice rules.
+Why: No invoices to wait for. The contract is the whole thing.
 
 ================================================================================
-8. INVOICE ONLY APPLICATIONS
+8. INVOICE ONLY (NO CONTRACT)
 ================================================================================
 
-When there is no contract, invoices determine the result:
+When an application has no contract.
+Invoices decide.
 
-  Invoices                |  Application
-  ------------------------|-------------
+  Invoices                |  Result
+  ------------------------|----------
+  APPROVED + APPROVED     |  COMPLETED
   REJECTED + REJECTED     |  REJECTED
   WITHDRAWN + WITHDRAWN   |  WITHDRAWN
   REJECTED + APPROVED     |  COMPLETED
@@ -217,260 +165,244 @@ When there is no contract, invoices determine the result:
   APPROVED + WITHDRAWN    |  COMPLETED
 
 Rule:
+  All same result? Application follows that result.
+  Mixed results? Application is COMPLETED.
 
-  If all invoices have the same result, the application follows that result.
-  If invoices have mixed results, the application becomes COMPLETED.
-
-Same result examples:
-  All rejected -> REJECTED.
-  All withdrawn -> WITHDRAWN.
-
-Mixed result examples:
-  One rejected, one approved -> COMPLETED.
-  One approved, one withdrawn -> COMPLETED.
+Why mixed = COMPLETED:
+  At least one invoice had a positive outcome. Or outcomes are mixed.
+  The system treats this as done.
 
 ================================================================================
-9. HOW computeApplicationStatus WORKS
+9. CONTRACT + INVOICES (BOTH EXIST)
 ================================================================================
 
-Purpose:
+Contract is checked first. Always.
 
-  The function determines the final application result.
-  It takes the contract, invoices, and stored application status.
-  It returns the correct status based on the lifecycle rules.
+  Contract  |  Invoices              |  Result
+  ----------|------------------------|----------
+  APPROVED  |  APPROVED + APPROVED   |  COMPLETED
+  APPROVED  |  APPROVED + REJECTED   |  COMPLETED
+  APPROVED  |  REJECTED + REJECTED   |  COMPLETED
+  APPROVED  |  WITHDRAWN + APPROVED  |  COMPLETED
+  APPROVED  |  WITHDRAWN + WITHDRAWN |  COMPLETED
+  REJECTED |  any                   |  REJECTED
+  WITHDRAWN|  any                   |  WITHDRAWN
 
-Evaluation order:
+Why contract APPROVED leads to COMPLETED:
+  The contract is approved. All invoices reached a final state.
+  Any mix of final invoice states (approved, rejected, withdrawn) -> COMPLETED.
+  Invoice outcomes do not change the result when contract is already approved.
 
-  1. Contract withdrawn -> Application withdrawn
-  2. Contract rejected -> Application rejected
-  3. Contract approved and invoices finished -> COMPLETED
-     (If no invoices, also COMPLETED)
-  4. No contract and invoices finished -> evaluate invoices
-  5. Otherwise keep existing status
-
-Why the order matters:
-
-  Contract rules must run first.
-  If the contract is REJECTED or WITHDRAWN, we return immediately.
-  Invoice rules only run when there is no contract.
-  This ensures contract priority is always respected.
+Why REJECTED or WITHDRAWN contract overrides invoices:
+  Contract rules run first. Invoice status does not matter.
 
 ================================================================================
-10. WITHDRAW BEHAVIOUR
+10. WITHDRAW SCENARIOS
 ================================================================================
 
-Users can withdraw invoices, contracts, and applications.
-Each has validation rules.
+Scenario: User withdraws all invoices (no contract).
+  Result: WITHDRAWN.
+  Why: All invoices withdrawn. No contract. Application follows that.
 
-Invoice withdraw:
+Scenario: User withdraws contract.
+  Result: WITHDRAWN.
+  Why: Contract withdraw overrides invoices. Invoices don't matter.
 
-  Users can withdraw an invoice that is not yet approved.
-  Invoices cannot be withdrawn if they are already approved.
-  Invoices cannot be withdrawn if they were already withdrawn.
+Scenario: User withdraws one invoice (contract approved).
+  Two invoices. User withdraws one.
+  Result: COMPLETED.
+  Why: Contract approved. Both invoices in final state. One approved, one withdrawn.
+  Mixed results -> COMPLETED.
 
-Contract withdraw:
-
-  Users can withdraw a contract that is not yet approved.
-  Contracts cannot be withdrawn if they are already approved.
-  Contracts cannot be withdrawn if they were already withdrawn.
-
-Application cancel:
-
-  Users can cancel an application by withdrawing all active items.
-  Only active invoices and the contract are withdrawn.
-  Approved, rejected, and withdrawn items are not changed.
-
-  Applications cannot be cancelled if they are:
-    COMPLETED
-    REJECTED
-    ARCHIVED
-    WITHDRAWN (already withdrawn)
+Scenario: User withdraws one invoice (invoice only, no contract).
+  Two invoices. User withdraws one.
+  Result: COMPLETED.
+  Why: One approved, one withdrawn. Mixed results -> COMPLETED.
 
 ================================================================================
-11. WITHDRAW REASONS
+11. APPLICATION CANCEL (USER CLICKS WITHDRAW APPLICATION)
 ================================================================================
 
-When an invoice or contract is withdrawn, a reason can be stored:
+What happens when user cancels:
 
-USER_CANCELLED
-  The issuer chose to withdraw.
-  Used when the user clicks Withdraw Invoice or Withdraw Application.
+  1. Active invoices become WITHDRAWN.
+     Each active invoice (DRAFT, SUBMITTED, OFFER_SENT, AMENDMENT_REQUESTED)
+     gets status WITHDRAWN. Reason: USER_CANCELLED.
 
-OFFER_EXPIRED
-  The offer expired.
-  The system withdrew it automatically.
-  Used for time-limited offers that were not accepted in time.
+  2. Contract becomes WITHDRAWN unless already approved.
+     If contract is not APPROVED, REJECTED, or WITHDRAWN, it is withdrawn.
+     Approved, rejected, and withdrawn contracts are not changed.
 
-================================================================================
-12. APPLICATION PAGE CARDS
-================================================================================
+  3. Application status is recalculated.
+     With all items withdrawn, the application becomes WITHDRAWN.
 
-The application page shows each application as a card.
+Exception: Contract already approved.
+  The contract stays APPROVED. Only active invoices are withdrawn.
+  Result depends on remaining invoice states.
 
-Each card displays:
-
-  - Application status (or the computed result)
-  - Contract status (if a contract exists)
-  - Invoice status (for each invoice)
-
-The card status may depend on the contract or invoices.
-The UI picks one badge to show based on priority rules.
-
-Example:
-
-  If the contract is withdrawn
-  The card shows Withdrawn.
-  The contract result overrides everything else.
-
-Example:
-
-  If the application is COMPLETED
-  The card shows Completed.
-  The financing workflow finished.
+Cannot cancel when:
+  Application is already COMPLETED, REJECTED, ARCHIVED, or WITHDRAWN.
+  All items are in final states. Nothing to withdraw.
 
 ================================================================================
-13. CARD STATUS DISPLAY LOGIC
+12. EDGE CASES
 ================================================================================
 
-The UI determines the card status from three inputs:
+Edge case 1: No contract, no invoices.
+  Result: Keep existing status.
+  Why: Empty array is not "all finished". We keep the stored status.
 
-  - Application status
-  - Contract status
-  - Invoice status (one value when many invoices exist)
+Edge case 2: Invoices exist but not finished.
+  Some invoices still DRAFT, SUBMITTED, or OFFER_SENT.
+  Result: Keep existing status.
+  Why: We wait until all invoices reach APPROVED, REJECTED, or WITHDRAWN.
 
-The UI checks them in order.
-The first match wins.
+Edge case 3: Contract approved, invoices not finished.
+  Result: Keep existing status.
+  Why: We wait for all invoices to reach final state first.
 
-Order of checks:
-
-  1. Rejected (app or contract)
-  2. Completed
-  3. Withdrawn (app, contract, or invoice)
-  4. Action Required (amendment requested)
-  5. Offer Received (offer sent)
-  6. Under Review
-  7. Submitted
-  8. Resubmitted
-  9. Draft
-  10. Approved
-  11. Archived
-
-Withdrawn and completed have their own badges.
-  Withdrawn: slate color, "Withdrawn" label
-  Completed: emerald color, "Completed" label
-
-When multiple invoices exist, the UI picks one invoice status first.
-It uses INVOICE_PRIORITY to decide which invoice status to show.
-Then it combines that with app and contract status.
+Edge case 4: Contract exists but not in final state.
+  Contract is DRAFT, SUBMITTED, or OFFER_SENT.
+  Result: Keep existing status.
+  Why: Contract rules only apply when contract is WITHDRAWN, REJECTED, or APPROVED.
 
 ================================================================================
-14. SORTING ON APPLICATION PAGE
+13. FULL SCENARIO MATRIX (LOOKUP TABLE)
 ================================================================================
 
-Cards are sorted by two rules:
+Look up any combination to see the expected result.
 
-  1. Status priority (first)
-  2. Updated date (second)
+  Contract   |  Invoice Statuses        |  Result    |  Why
+  -----------|--------------------------|------------|----------------------------------
+  none       |  APPROVED + APPROVED     |  COMPLETED |  All invoices approved
+  none       |  APPROVED + REJECTED     |  COMPLETED |  Mixed results
+  none       |  APPROVED + WITHDRAWN    |  COMPLETED |  Mixed results
+  none       |  REJECTED + REJECTED     |  REJECTED  |  All invoices rejected
+  none       |  REJECTED + APPROVED     |  COMPLETED |  Mixed results
+  none       |  REJECTED + WITHDRAWN    |  COMPLETED |  Mixed results
+  none       |  WITHDRAWN + WITHDRAWN   |  WITHDRAWN |  All invoices withdrawn
+  none       |  WITHDRAWN + APPROVED    |  COMPLETED |  Mixed results
+  none       |  WITHDRAWN + REJECTED    |  COMPLETED |  Mixed results
+  none       |  (empty)                 |  (keep)    |  Empty array, keep stored status
+  APPROVED   |  none                    |  COMPLETED |  Contract only, approved
+  APPROVED   |  APPROVED + APPROVED     |  COMPLETED |  All approved
+  APPROVED   |  APPROVED + REJECTED     |  COMPLETED |  Contract approved, invoices done
+  APPROVED   |  APPROVED + WITHDRAWN    |  COMPLETED |  Contract approved, invoices done
+  APPROVED   |  REJECTED + REJECTED     |  COMPLETED |  Contract approved, invoices done
+  APPROVED   |  REJECTED + WITHDRAWN    |  COMPLETED |  Contract approved, invoices done
+  APPROVED   |  WITHDRAWN + WITHDRAWN   |  COMPLETED |  Contract approved, invoices done
+  REJECTED   |  any                     |  REJECTED  |  Contract overrides invoices
+  REJECTED   |  none                    |  REJECTED  |  Contract only, rejected
+  REJECTED   |  APPROVED + APPROVED     |  REJECTED  |  Contract overrides
+  REJECTED   |  APPROVED + REJECTED     |  REJECTED  |  Contract overrides
+  WITHDRAWN  |  any                     |  WITHDRAWN |  Contract overrides invoices
+  WITHDRAWN  |  none                    |  WITHDRAWN |  Contract only, withdrawn
+  WITHDRAWN  |  APPROVED + APPROVED     |  WITHDRAWN |  Contract overrides
+  WITHDRAWN  |  REJECTED + REJECTED     |  WITHDRAWN |  Contract overrides
 
-Status priority order (lower number = higher in list):
-
-  draft           - first
-  submitted       - next
-  under_review    - next
-  pending_amendment - next
-  resubmitted     - next
-  sent (offer received) - next
-  completed       - later
-  withdrawn       - later
-  rejected        - later
-  archived        - last
-
-Within the same status, newer items appear first.
-Updated date is sorted descending (newest first).
+Note: (keep) = keep current stored status.
+Note: (any) = any combination of invoice statuses.
 
 ================================================================================
-15. EXAMPLE USER SCENARIOS
+14. REAL USER EXAMPLES
 ================================================================================
 
-Example 1: Full approval flow
+Example 1: Full approval with mixed invoices
+  User submits. Admin approves contract. Two invoices.
+  Admin approves one. Admin rejects one.
+  Result: COMPLETED.
+  Why: Contract approved. Both invoices in final state. Mixed results.
 
-  User submits application.
-  Admin approves contract.
-  Invoices are approved.
+Example 2: User withdraws everything
+  Invoice-only app. Two invoices in OFFER_SENT.
+  User withdraws first, then second.
+  Result: WITHDRAWN.
+  Why: All invoices withdrawn. No contract. Same result for all.
 
-  Result: Application becomes COMPLETED.
+Example 3: Contract rejected early
+  User submits with contract. Admin rejects contract.
+  Invoices never created or still in progress.
+  Result: REJECTED.
+  Why: Contract rejected. Contract overrides everything.
 
-Example 2: User withdraws all invoices
-
-  User has an invoice-only application.
-  User withdraws each invoice.
-
-  Result: Application becomes WITHDRAWN.
-
-Example 3: Mixed invoice outcomes
-
-  Application has two invoices.
-  One invoice approved.
-  One invoice rejected.
-
-  Result: Application becomes COMPLETED.
-  Mixed results always lead to COMPLETED.
-
-Example 4: Contract rejected
-
-  Application has a contract.
-  Admin rejects the contract.
-
-  Result: Application becomes REJECTED.
-  Contract result overrides everything.
-
-Example 5: User cancels application
-
+Example 4: User cancels mid-flow
+  Contract OFFER_SENT. Two invoices SUBMITTED.
   User clicks Withdraw Application.
-  System withdraws all active invoices and contract.
+  Result: Contract and invoices become WITHDRAWN. Application WITHDRAWN.
+  Why: Cancel withdraws all active items. Then recompute.
 
-  Result: Application becomes WITHDRAWN.
+Example 5: Three invoices, mixed outcomes
+  No contract. Three invoices: APPROVED, REJECTED, WITHDRAWN.
+  Result: COMPLETED.
+  Why: Mixed results. Not all the same. Mixed -> COMPLETED.
 
 ================================================================================
-16. LIFECYCLE DIAGRAM
+15. WHAT THE USER SEES (STATUS ALIAS)
 ================================================================================
 
-The following Mermaid diagram shows the lifecycle flow.
-Copy it to a Mermaid viewer or documentation tool to render.
+The system uses codes. The screen shows friendly words.
 
---- BEGIN MERMAID ---
+  System Code          |  User Sees
+  ---------------------|------------------
+  REJECTED             |  Rejected
+  COMPLETED            |  Completed
+  WITHDRAWN            |  Withdrawn
+  AMENDMENT_REQUESTED  |  Action Required
+  OFFER_SENT           |  Offer Received
+  UNDER_REVIEW         |  Under Review
+  SUBMITTED            |  Submitted
+  RESUBMITTED          |  Resubmitted
+  DRAFT                |  Draft
+  APPROVED             |  Approved
+  ARCHIVED             |  Archived
 
-flowchart TD
-  ContractWithdrawn --> ApplicationWithdrawn
-  ContractRejected --> ApplicationRejected
-  ContractApproved --> CheckInvoices
-  CheckInvoices --> Completed
-  InvoiceOnly --> EvaluateInvoices
-  EvaluateInvoices --> Completed
-  EvaluateInvoices --> Rejected
-  EvaluateInvoices --> Withdrawn
+Why only one badge per card?
 
---- END MERMAID ---
+  Each card shows one badge. But we have app + contract + maybe many invoices.
+  So we pick the "most important" one.
 
-Meaning:
+  Step 1: Many invoices? Pick the loudest.
+    Order: Rejected > Action Required > Offer Received > Submitted > Draft > Approved > Withdrawn
 
-  ContractWithdrawn -> ApplicationWithdrawn
-    If contract is withdrawn, application is withdrawn.
+  Step 2: Combine app + contract + that invoice. Check in order:
+    Rejected > Completed > Withdrawn > Action Required > Offer Received >
+    Under Review > Submitted > Resubmitted > Draft > Approved > Archived
 
-  ContractRejected -> ApplicationRejected
-    If contract is rejected, application is rejected.
+  Example: App says "Submitted", contract says "Offer Received".
+  We show "Offer Received" because that's checked first.
 
-  ContractApproved -> CheckInvoices
-    If contract is approved, check if invoices are finished.
+================================================================================
+16. WITHDRAW REASONS
+================================================================================
 
-  CheckInvoices -> Completed
-    When invoices are finished, application is COMPLETED.
+  USER_CANCELLED - You clicked cancel.
+  OFFER_EXPIRED  - The offer ran out of time.
 
-  InvoiceOnly -> EvaluateInvoices
-    When there is no contract, evaluate invoice outcomes.
+================================================================================
+17. WITHDRAW RULES (WHO CAN CANCEL WHAT)
+================================================================================
 
-  EvaluateInvoices -> Completed, Rejected, Withdrawn
-    Invoice outcomes lead to one of these three results.
+Invoice: You can withdraw if not yet approved.
+Contract: You can withdraw if not yet approved.
+Application: You cancel by withdrawing all active items. Cannot cancel if
+  already COMPLETED, REJECTED, ARCHIVED, or WITHDRAWN.
+
+================================================================================
+18. CARD SORTING
+================================================================================
+
+Cards are sorted by:
+  1. Status (Draft first, Archived last)
+  2. Date (newest first within same status)
+
+================================================================================
+19. LIFECYCLE DIAGRAM
+================================================================================
+
+  Contract cancelled -> Application withdrawn
+  Contract rejected  -> Application rejected
+  Contract approved -> Check invoices -> COMPLETED
+  No contract       -> Check invoices -> COMPLETED or REJECTED or WITHDRAWN
 
 ================================================================================
 END OF GUIDE

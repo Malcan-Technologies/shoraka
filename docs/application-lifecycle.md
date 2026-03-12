@@ -1,132 +1,163 @@
-# Application Lifecycle
+# Application Lifecycle — Simple Guide
 
-This document explains how applications, contracts, and invoices work together. It is written for developers new to the system.
-
----
-
-## What an Application Is
-
-An application is a request for financing. It belongs to one issuer organization.
-
-An application can have:
-
-- **One contract** (optional). Used when the financing structure is contract-based.
-- **Many invoices**. Each invoice is a financing item.
-
-The application status is computed from the contract and invoices. Contract status always overrides invoice status.
+This guide explains how applications work. Written in plain language.
 
 ---
 
-## Application Status Meaning
+## The Big Picture (Like a Story)
 
-| Status | Meaning |
-| ------ | ------- |
-| DRAFT | The application is being set up. Not yet submitted. |
-| SUBMITTED | The issuer sent the application to the admin for review. |
-| UNDER_REVIEW | The admin is reviewing the application. |
-| AMENDMENT_REQUESTED | The admin asked for changes. The issuer must update and resubmit. |
-| RESUBMITTED | The issuer made changes and sent the application again. |
-| APPROVED | The admin approved the application. (Used by admin workflow.) |
-| COMPLETED | The financing workflow finished. At least one item was approved or has mixed outcomes. |
-| WITHDRAWN | The issuer cancelled the request. All items were withdrawn. |
-| REJECTED | The financing workflow finished. All items were rejected. |
-| ARCHIVED | The application was archived. No longer active. |
+Imagine you want to borrow money.
+
+1. You fill out a form. That's your **application**.
+2. Sometimes you need a big agreement. That's a **contract**.
+3. Sometimes you list things you want money for. Each thing is an **invoice**.
+
+The system tracks: Did you get the money? Was it turned down? Did you cancel?
 
 ---
 
-## Contract Status Meaning
+## What Is What?
 
-| Status | Meaning |
-| ------ | ------- |
-| APPROVED | The contract was approved. Financing can proceed. |
-| REJECTED | The contract was rejected. No financing. |
-| WITHDRAWN | The issuer or system withdrew the contract. No longer active. |
+### Application
 
----
+- A request for money.
+- Belongs to one company (the issuer).
+- Can have a contract, invoices, or both.
 
-## Invoice Status Meaning
+### Contract
 
-| Status | Meaning |
-| ------ | ------- |
-| APPROVED | The invoice was approved. Financing can proceed. |
-| REJECTED | The invoice was rejected. No financing for this invoice. |
-| WITHDRAWN | The invoice was withdrawn. No longer active. |
+- A big agreement. Optional.
+- Some applications have one. Some don't.
+- Like signing a deal for a house.
 
----
+### Invoice
 
-## Lifecycle Rules
-
-### Contract Priority
-
-Contract status always overrides invoice status. Invoices never override a contract result.
-
-| Contract Status | Application Result |
-| --------------- | ------------------ |
-| REJECTED | REJECTED |
-| WITHDRAWN | WITHDRAWN |
-
-### Contract Approved Rule
-
-If the contract is APPROVED, the application becomes COMPLETED once all invoices reach a final state (APPROVED, REJECTED, or WITHDRAWN).
-
-### Contract-Only Applications
-
-If there are no invoices, the contract determines the result:
-
-| Contract | Application |
-| -------- | ----------- |
-| APPROVED | COMPLETED |
-| REJECTED | REJECTED |
-| WITHDRAWN | WITHDRAWN |
-
-### Invoice-Only Applications
-
-When there is no contract, invoices determine the result:
-
-| Invoices | Application |
-| -------- | ----------- |
-| All REJECTED | REJECTED |
-| All WITHDRAWN | WITHDRAWN |
-| Mixed (e.g. REJECTED + APPROVED) | COMPLETED |
-
-If all invoices have the same final result, the application follows that result. If invoices have mixed final results, the application is COMPLETED.
+- One item you want money for.
+- You can have many invoices.
+- Like a bill for one thing.
 
 ---
 
-## Withdraw Reason
+## The Golden Rule
 
-When an invoice or contract is withdrawn, a reason can be stored:
+**The contract is the boss.**
+
+If the contract says "No" or "Cancelled", the whole application follows that. Invoices cannot change that.
+
+---
+
+## What Each Status Means (Plain Words)
+
+### Application Status
+
+| Status | In Plain Words |
+| ------ | -------------- |
+| **DRAFT** | You're still filling it out. Not sent yet. |
+| **SUBMITTED** | You sent it. Waiting for someone to look at it. |
+| **UNDER_REVIEW** | Someone is looking at it right now. |
+| **AMENDMENT_REQUESTED** | They want you to fix something. You must update and send again. |
+| **RESUBMITTED** | You fixed it and sent it again. |
+| **APPROVED** | They said yes. |
+| **COMPLETED** | All done. At least one thing was approved. |
+| **WITHDRAWN** | You cancelled. Nothing will happen. |
+| **REJECTED** | They said no. Nothing will happen. |
+| **ARCHIVED** | Old. Put away. Not active anymore. |
+
+### Contract Status
+
+| Status | In Plain Words |
+| ------ | -------------- |
+| **APPROVED** | The deal is approved. You get the money. |
+| **REJECTED** | The deal is turned down. No money. |
+| **WITHDRAWN** | The deal was cancelled. |
+
+### Invoice Status
+
+| Status | In Plain Words |
+| ------ | -------------- |
+| **APPROVED** | This invoice got the green light. |
+| **REJECTED** | This invoice was turned down. |
+| **WITHDRAWN** | This invoice was cancelled. |
+
+---
+
+## How the System Decides (Step by Step)
+
+The system asks questions in order. First answer wins.
+
+### Step 1: Check the contract first
+
+- Contract cancelled? → Application is **WITHDRAWN**. Done.
+- Contract rejected? → Application is **REJECTED**. Done.
+
+### Step 2: If contract is approved (or no contract)
+
+- Contract approved and all invoices are done? → **COMPLETED**.
+- No contract? Check the invoices.
+
+### Step 3: If only invoices (no contract)
+
+- All invoices rejected? → **REJECTED**.
+- All invoices withdrawn? → **WITHDRAWN**.
+- Mix (e.g. one approved, one rejected)? → **COMPLETED**.
+
+### Step 4: Otherwise
+
+- Keep the current status (e.g. SUBMITTED, UNDER_REVIEW).
+
+---
+
+## Simple Examples
+
+| What Happened | Result |
+| ------------- | ------ |
+| No contract. Both invoices rejected. | REJECTED |
+| No contract. Both invoices cancelled. | WITHDRAWN |
+| No contract. One approved, one rejected. | COMPLETED |
+| Contract rejected. (Invoices don't matter.) | REJECTED |
+| Contract approved. All invoices done. | COMPLETED |
+
+---
+
+## What the User Sees (Status Alias)
+
+The system uses codes like `OFFER_SENT` or `AMENDMENT_REQUESTED`. The screen shows friendly words instead.
+
+| System Code | What User Sees |
+| ----------- | -------------- |
+| REJECTED | Rejected |
+| COMPLETED | Completed |
+| WITHDRAWN | Withdrawn |
+| AMENDMENT_REQUESTED | Action Required |
+| OFFER_SENT | Offer Received |
+| UNDER_REVIEW | Under Review |
+| SUBMITTED | Submitted |
+| RESUBMITTED | Resubmitted |
+| DRAFT | Draft |
+| APPROVED | Approved |
+| ARCHIVED | Archived |
+
+### Why only one badge?
+
+Each card shows one badge. But an application can have many statuses at once (app + contract + invoices). So we pick the most important one.
+
+**How we pick:**
+
+1. **Many invoices?** Pick the "loudest" one. Order: Rejected > Action Required > Offer Received > Submitted > Draft > Approved > Withdrawn.
+2. **Then** combine app + contract + that invoice. Check in order: Rejected > Completed > Withdrawn > Action Required > Offer Received > Under Review > Submitted > Resubmitted > Draft > Approved > Archived.
+
+Example: App says "Submitted", contract says "Offer Received". We show **Offer Received** because that's checked first.
+
+---
+
+## Withdraw Reasons
+
+When something is cancelled, we can store why:
 
 | Reason | Meaning |
 | ------ | ------- |
-| USER_CANCELLED | The issuer chose to withdraw. |
-| OFFER_EXPIRED | The offer expired. The system withdrew it. |
-
----
-
-## Lifecycle Decision Order
-
-The system evaluates status in this order:
-
-1. Contract WITHDRAWN → Application WITHDRAWN
-2. Contract REJECTED → Application REJECTED
-3. Contract APPROVED and invoices finished → COMPLETED (or no invoices → COMPLETED)
-4. No contract and invoices finished → determine from invoice outcomes
-5. Otherwise keep the stored application status
-
----
-
-## Example Scenarios
-
-| Contract | Invoices | Application |
-| -------- | -------- | ----------- |
-| none | REJECTED + REJECTED | REJECTED |
-| none | WITHDRAWN + WITHDRAWN | WITHDRAWN |
-| none | REJECTED + APPROVED | COMPLETED |
-| none | REJECTED + WITHDRAWN | COMPLETED |
-| none | APPROVED + WITHDRAWN | COMPLETED |
-| APPROVED | APPROVED + REJECTED | COMPLETED |
-| REJECTED | any | REJECTED |
+| USER_CANCELLED | You clicked cancel. |
+| OFFER_EXPIRED | The offer ran out of time. |
 
 ---
 
@@ -146,26 +177,8 @@ flowchart TD
 
 ---
 
-## computeApplicationStatus
+## For Developers: computeApplicationStatus
 
-### What it does
+This function figures out the final status. It looks at the contract, invoices, and stored status. It returns the right answer using the rules above.
 
-`computeApplicationStatus` takes the contract, invoices, and stored application status. It returns the correct application status based on the lifecycle rules.
-
-### Why it exists
-
-The application status must reflect the state of its contract and invoices. This function centralizes that logic in one place.
-
-### Why evaluation order matters
-
-Contract status must be checked first. If the contract is REJECTED or WITHDRAWN, the application follows that outcome. Invoice rules only run when there is no contract.
-
-### How contract priority works
-
-Contract rules run first. Invoice rules run only when `!contract && invoices.length > 0`. Invoices never override REJECTED or WITHDRAWN contract outcomes.
-
-### How invoice outcomes affect results
-
-- All invoices same result → application follows that result
-- Mixed invoice results → application is COMPLETED
-- Empty invoice array is never treated as finished. Contract-only applications are handled separately.
+Contract is checked first. Invoices only matter when there is no contract (or when the contract is approved and we're checking if invoices are done).
