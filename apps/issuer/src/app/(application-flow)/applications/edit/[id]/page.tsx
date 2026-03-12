@@ -120,7 +120,7 @@ export default function EditApplicationPage() {
      ================================================================ */
 
   const applicationId = params.id as string;
-  const stepFromUrl = parseInt(searchParams.get("step") || "1");
+  const stepFromUrl = parseInt(searchParams.get("step") || "1", 10);
 
   /** Load application from DB */
   const queryClient = useQueryClient();
@@ -571,19 +571,52 @@ export default function EditApplicationPage() {
      RESUME LOGIC
      ================================================================ */
 
-  /** When the URL has no step param, redirects to the max allowed step (last_completed_step + 1). */
+  /** When URL has no step param: amendment mode → first unacknowledged step or review_and_submit; normal flow → max allowed step. */
   React.useEffect(() => {
     if (isSubmittingRef.current) return;
     if (!application || isLoadingApp || wizardState === null) return;
 
     if (!searchParams.get("step")) {
-      const isRealAmendmentMode = (application as any)?.status === "AMENDMENT_REQUESTED";
+      const isRealAmendmentMode = (application as { status?: string })?.status === "AMENDMENT_REQUESTED";
       const isAmendmentMode = isRealAmendmentMode || devPreviewAmendment;
-      const targetStep = isAmendmentMode ? 1 : wizardState.allowedMaxStep;
-      // dev-only debug
+
+      let targetStep: number;
+      if (isAmendmentMode) {
+        const amendmentStepsToCheck = amendmentFlaggedStepKeys.filter(
+          (k) => !k.startsWith("financial") && k !== "review_and_submit"
+        );
+        const firstUnack = effectiveWorkflow.findIndex(
+          (s: Record<string, unknown>) => {
+            const key = getStepKeyFromStepId((s.id as string) || "") || "";
+            return amendmentStepsToCheck.includes(key) && !acknowledgedWorkflowIds.includes(key);
+          }
+        );
+        if (firstUnack >= 0) {
+          targetStep = firstUnack + 1;
+        } else {
+          const reviewIndex = effectiveWorkflow.findIndex(
+            (s: Record<string, unknown>) =>
+              (getStepKeyFromStepId((s.id as string) || "") || "") === "review_and_submit"
+          );
+          targetStep = reviewIndex >= 0 ? reviewIndex + 1 : effectiveWorkflow.length;
+        }
+      } else {
+        targetStep = wizardState.allowedMaxStep;
+      }
       router.replace(`/applications/edit/${applicationId}?step=${targetStep}`);
     }
-  }, [application, applicationId, router, searchParams, isLoadingApp, wizardState, devPreviewAmendment]);
+  }, [
+    application,
+    applicationId,
+    router,
+    searchParams,
+    isLoadingApp,
+    wizardState,
+    devPreviewAmendment,
+    amendmentFlaggedStepKeys,
+    acknowledgedWorkflowIds,
+    effectiveWorkflow,
+  ]);
 
   /* ================================================================
      NAVIGATION GATING & VALIDATION
@@ -606,32 +639,30 @@ export default function EditApplicationPage() {
     }
     const maxStepInWorkflow = effectiveWorkflow.length;
     const maxAllowed = wizardState.allowedMaxStep;
+    const isAmendmentMode = (application as { status?: string })?.status === "AMENDMENT_REQUESTED" || devPreviewAmendment;
 
-    // SCENARIO 1: Invalid step (< 1)
+    // NaN guard: parseInt("abc") returns NaN; NaN < 1 is false, so explicit check required
+    if (!Number.isFinite(stepFromUrl)) {
+      router.replace(`/applications/edit/${applicationId}?step=1`);
+      return;
+    }
+
+    // Lower bound: requestedStep < 1 → redirect to step 1
     if (stepFromUrl < 1) {
-      toast.error("Invalid step number");
-      router.replace(`/applications/edit/${applicationId}?step=${maxAllowed}`);
+      router.replace(`/applications/edit/${applicationId}?step=1`);
       return;
     }
 
-    // SCENARIO 2: Step beyond workflow but within completed steps (allow viewing)
+    // Upper bound: requestedStep > totalSteps → redirect to last step
     if (maxStepInWorkflow > 0 && stepFromUrl > maxStepInWorkflow) {
-      // if (stepFromUrl <= wizardState.lastCompletedStep + 1) {
-      if (stepFromUrl < wizardState.lastCompletedStep + 1) {
-        return; // Allow viewing completed steps even if workflow changed
-      }
-      const safeStep = Math.min(maxAllowed, maxStepInWorkflow);
-      toast.error("This step no longer exists in the workflow");
-      router.replace(`/applications/edit/${applicationId}?step=${safeStep}`);
+      router.replace(`/applications/edit/${applicationId}?step=${maxStepInWorkflow}`);
       return;
     }
 
-    // SCENARIO 3: Step beyond max allowed (skip ahead) — redirect to last step (Review and Submit) when beyond workflow
-    if (stepFromUrl > maxAllowed) {
+    // Sequential guard: requestedStep > maxAllowed — SKIP in amendment mode
+    if (!isAmendmentMode && stepFromUrl > maxAllowed) {
       toast.error("Please complete steps in order");
-      const targetStep = maxStepInWorkflow > 0
-        ? Math.min(maxAllowed, maxStepInWorkflow)
-        : maxAllowed;
+      const targetStep = maxStepInWorkflow > 0 ? Math.min(maxAllowed, maxStepInWorkflow) : maxAllowed;
       router.replace(`/applications/edit/${applicationId}?step=${targetStep}`);
       return;
     }
@@ -647,6 +678,7 @@ export default function EditApplicationPage() {
     isMismatch,
     searchParams,
     wizardState,
+    devPreviewAmendment,
   ]);
 
   /* ================================================================
@@ -1166,7 +1198,6 @@ export default function EditApplicationPage() {
               return (s.name as string) ?? "";
             })}
             currentStep={stepFromUrl}
-            lastCompletedStep={wizardState?.lastCompletedStep}
             isLoading={isLoading || !effectiveWorkflow.length}
             isAmendmentMode={isAmendmentModeEffective}
             amendmentFlaggedStepKeys={amendmentFlaggedStepKeys}
