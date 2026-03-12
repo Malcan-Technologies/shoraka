@@ -960,8 +960,9 @@ export class ApplicationService {
     if (!contract) {
       throw new AppError(404, "NOT_FOUND", "Contract not found");
     }
-    if (contract.status !== "OFFER_SENT") {
-      throw new AppError(400, "INVALID_STATE", "No pending contract offer");
+    const allowedStatuses = ["OFFER_SENT", "APPROVED", "REJECTED"] as const;
+    if (!allowedStatuses.includes(contract.status as (typeof allowedStatuses)[number])) {
+      throw new AppError(400, "INVALID_STATE", "No contract offer to download");
     }
 
     const offer = contract.offer_details as Record<string, unknown> | null;
@@ -1008,8 +1009,9 @@ export class ApplicationService {
     if (!dbInvoice) {
       throw new AppError(404, "NOT_FOUND", "Invoice not found");
     }
-    if (dbInvoice.status !== "OFFER_SENT") {
-      throw new AppError(400, "INVALID_STATE", "No pending invoice offer");
+    const allowedStatuses = ["OFFER_SENT", "APPROVED", "REJECTED"] as const;
+    if (!allowedStatuses.includes(dbInvoice.status as (typeof allowedStatuses)[number])) {
+      throw new AppError(400, "INVALID_STATE", "No invoice offer to download");
     }
 
     const offer = dbInvoice.offer_details as Record<string, unknown> | null;

@@ -77,15 +77,18 @@ export function ReviewOfferModal({
     type === "contract" ? "Contract Financing Offer" : "Invoice Financing Offer";
 
   const handleDownload = async () => {
+    if (type === "invoice" && !invoice?.id) {
+      toast.error("Cannot download", {
+        description: "Invoice ID is missing. Please refresh and try again.",
+      });
+      return;
+    }
     setDownloading(true);
     try {
       const blob =
         type === "contract"
           ? await apiClient.getContractOfferLetterBlob(applicationId)
-          : await apiClient.getInvoiceOfferLetterBlob(
-              applicationId,
-              invoice?.id ?? ""
-            );
+          : await apiClient.getInvoiceOfferLetterBlob(applicationId, invoice!.id);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -172,6 +175,9 @@ export function ReviewOfferModal({
     acceptInvoice.isPending ||
     rejectInvoice.isPending;
 
+  const canDownload =
+    type === "contract" || (type === "invoice" && !!invoice?.id);
+
   return (
     <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-[560px]">
@@ -207,7 +213,7 @@ export function ReviewOfferModal({
             variant="outline"
             size="sm"
             onClick={handleDownload}
-            disabled={isLoading || downloading}
+            disabled={!canDownload || isLoading || downloading}
             className="w-full sm:w-auto shrink-0"
           >
             <ArrowDownTrayIcon className="h-4 w-4 mr-2 shrink-0" />

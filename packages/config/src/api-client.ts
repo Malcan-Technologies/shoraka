@@ -1326,18 +1326,45 @@ export class ApiClient {
     const headers: HeadersInit = {};
     if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
     const response = await fetch(url, { method: "GET", credentials: "include", headers });
-    if (!response.ok) throw new Error(`Failed to download offer letter: ${response.statusText}`);
+    if (!response.ok) {
+      const msg = await this.parseErrorResponse(response);
+      throw new Error(msg);
+    }
     return response.blob();
   }
 
   async getInvoiceOfferLetterBlob(applicationId: string, invoiceId: string): Promise<Blob> {
-    const url = `${this.baseUrl}/v1/applications/${applicationId}/offers/invoices/${invoiceId}/letter`;
+    const id = typeof invoiceId === "string" ? invoiceId.trim() : "";
+    if (!id) {
+      throw new Error("Invoice ID is required for invoice offer letter download");
+    }
+    const url = `${this.baseUrl}/v1/applications/${applicationId}/offers/invoices/${id}/letter`;
     const authToken = await this.getAuthToken();
     const headers: HeadersInit = {};
     if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
     const response = await fetch(url, { method: "GET", credentials: "include", headers });
-    if (!response.ok) throw new Error(`Failed to download offer letter: ${response.statusText}`);
+    if (!response.ok) {
+      const msg = await this.parseErrorResponse(response);
+      throw new Error(msg);
+    }
     return response.blob();
+  }
+
+  private async parseErrorResponse(response: Response): Promise<string> {
+    const text = await response.text();
+    if (!text) return response.statusText;
+    try {
+      const body = JSON.parse(text) as Record<string, unknown>;
+      const err = body?.error;
+      if (err && typeof err === "object" && typeof (err as { message?: string }).message === "string") {
+        return (err as { message: string }).message;
+      }
+      if (typeof body?.message === "string") return body.message;
+      if (typeof err === "string") return err;
+    } catch {
+      // not JSON
+    }
+    return text.trim() || response.statusText;
   }
 
   // Notifications
