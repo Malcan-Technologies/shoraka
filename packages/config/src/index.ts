@@ -5,4 +5,5 @@ export * from "./organization-context";
 export * from "./currency";
 export * from "./version";
 export * from "./token-refresh-service";
+export * from "./offer-resolvers";
 export * from "./hooks/use-notifications";

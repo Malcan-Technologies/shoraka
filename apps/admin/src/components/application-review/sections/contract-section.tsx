@@ -14,7 +14,7 @@ import {
 import { MoneyInput } from "@/app/settings/products/components/money-input";
 import { formatMoney, parseMoney } from "@/app/settings/products/components/money";
 import { DocumentTextIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
-import { formatCurrency } from "@cashsouk/config";
+import { formatCurrency, resolveRequestedFacility, resolveOfferedFacility } from "@cashsouk/config";
 import { ReviewSectionCard } from "../review-section-card";
 import { ReviewFieldBlock } from "../review-field-block";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
@@ -84,22 +84,16 @@ export function ContractSection({
 
   const contractDoc = cd?.document as FileDoc | undefined;
   const customerDoc = cust?.document as FileDoc | undefined;
-  const requestedFacility =
-    typeof cd?.financing === "number"
-      ? cd.financing
-      : typeof cd?.value === "number"
-        ? cd.value
-        : 0;
+  const requestedFacility = resolveRequestedFacility(cd);
   const contractValue = typeof cd?.value === "number" ? cd.value : 0;
-  const offeredFacilityFromOffer =
-    typeof offer?.offered_facility === "number" ? offer.offered_facility : null;
-  const initialOffered = formatMoney(offeredFacilityFromOffer ?? requestedFacility);
+  const offeredOrRequested = resolveOfferedFacility(offer) || requestedFacility;
+  const initialOffered = formatMoney(offeredOrRequested);
   const [offeredFacilityInput, setOfferedFacilityInput] = React.useState<string>(initialOffered);
   const [contractOfferConfirmOpen, setContractOfferConfirmOpen] = React.useState(false);
 
   React.useEffect(() => {
-    setOfferedFacilityInput(formatMoney(offeredFacilityFromOffer ?? requestedFacility));
-  }, [offeredFacilityFromOffer, requestedFacility]);
+    setOfferedFacilityInput(formatMoney(offeredOrRequested));
+  }, [offeredOrRequested]);
 
   const hasData = cd || cust;
   const offeredFacility = parseMoney(offeredFacilityInput);

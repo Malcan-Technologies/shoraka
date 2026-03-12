@@ -13,7 +13,13 @@
  */
 
 import { useMemo } from "react";
-import { useOrganization } from "@cashsouk/config";
+import {
+  useOrganization,
+  resolveOfferedAmount,
+  resolveOfferedProfitRate,
+  resolveRequestedInvoiceAmount,
+  resolveApprovedFacility,
+} from "@cashsouk/config";
 import { useOrganizationApplications } from "@/hooks/use-applications";
 import { USE_MOCK_DATA, mockApplications } from "./data";
 import { getCardStatus, getSortOrder, type NormalizedApplication, type NormalizedInvoice } from "./status";
@@ -52,20 +58,27 @@ function prepareInvoice(api: ApiInvoice, contractStatus: string | null): Normali
   const offerStatus = api.status === "OFFER_SENT" && api.offer_details ? "Offer received" : null;
   const canReviewOffer = offerStatus === "Offer received" && (contractStatus === "APPROVED" || !contractStatus);
 
-  let financingOffered = "—";
-  let profitRate = "—";
-  if (api.offer_details && offerStatus) {
-    const od = api.offer_details as any;
-    if (typeof od.offered_amount === "number") financingOffered = `RM ${od.offered_amount.toLocaleString("en-MY", { minimumFractionDigits: 2 })}`;
-    if (typeof od.offered_profit_rate_percent === "number") profitRate = `${od.offered_profit_rate_percent}%`;
-  }
+  const offeredAmount = resolveOfferedAmount(api.offer_details);
+  const profitRateVal = resolveOfferedProfitRate(api.offer_details);
+  const financingOffered =
+    offeredAmount > 0
+      ? `RM ${offeredAmount.toLocaleString("en-MY", { minimumFractionDigits: 2 })}`
+      : offeredAmount === 0
+        ? "RM 0.00"
+        : "—";
+  const profitRate =
+    profitRateVal != null ? `${profitRateVal}%` : offeredAmount === 0 ? "0%" : "—";
+
+  const invoiceValue =
+    typeof details.value === "number" ? details.value : typeof details.invoice_value === "number" ? details.invoice_value : null;
+  const appliedFinancing = resolveRequestedInvoiceAmount(details);
 
   return {
     id: api.id,
     number: String(details.invoice_number ?? details.number ?? "—"),
     maturityDate: details.maturity_date ? String(details.maturity_date) : null,
-    value: typeof details.value === "number" ? details.value : typeof details.invoice_value === "number" ? details.invoice_value : null,
-    appliedFinancing: typeof details.applied_financing === "number" ? details.applied_financing : typeof details.financing_amount === "number" ? details.financing_amount : null,
+    value: invoiceValue,
+    appliedFinancing,
     document: documentName,
     documentS3Key,
     financingOffered,
@@ -109,14 +122,12 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
   else if (contractDetails.financing_amount != null) facilityApplied = Number(contractDetails.financing_amount);
 
   let approvedFacility = "—";
-  if (contractStatus === "APPROVED") {
-    const cdApproved = typeof contractDetails.approved_facility === "number" && contractDetails.approved_facility > 0;
-    if (cdApproved) {
-      approvedFacility = `RM ${Number(contractDetails.approved_facility).toLocaleString("en-MY", { minimumFractionDigits: 2 })}`;
-    } else {
-      const ras = (api as any).review_and_submit as Record<string, unknown> | undefined;
-      if (ras?.approved_facility != null) approvedFacility = String(ras.approved_facility);
-    }
+  const approvedVal = resolveApprovedFacility(contractStatus ?? "", contractDetails);
+  if (approvedVal > 0) {
+    approvedFacility = `RM ${approvedVal.toLocaleString("en-MY", { minimumFractionDigits: 2 })}`;
+  } else if (contractStatus === "APPROVED") {
+    const ras = (api as any).review_and_submit as Record<string, unknown> | undefined;
+    if (ras?.approved_facility != null) approvedFacility = String(ras.approved_facility);
   }
 
   const created = api.created_at ? new Date(api.created_at) : new Date();

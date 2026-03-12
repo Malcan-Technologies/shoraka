@@ -1,5 +1,9 @@
 "use client";
 
+import {
+  resolveApprovedFacility,
+  resolveRequestedFacility,
+} from "@cashsouk/config";
 import { FinancialSection } from "./sections/financial-section";
 import { BusinessSection } from "./sections/business-section";
 import { DocumentsSection } from "./sections/documents-section";
@@ -86,6 +90,8 @@ export interface SectionContentProps {
   invoiceRatioLimits?: { min: number; max: number };
   /** Product offer expiry in days. Used for invoice estimates and offer expiry when sending. */
   offerExpiryDays?: number | null;
+  /** Map of section id to status. Used for contract facility resolution in invoice section. */
+  sectionStatusMap?: ReadonlyMap<string, string>;
 }
 
 /** Renders section content by descriptor. Single place to map descriptor → component. */
@@ -115,6 +121,7 @@ export function SectionContent({
   onAddSectionComment,
   invoiceRatioLimits,
   offerExpiryDays,
+  sectionStatusMap,
 }: SectionContentProps) {
   const reviewItems =
     (app.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? [];
@@ -252,15 +259,10 @@ export function SectionContent({
           : [];
       const mergedInvoices = [...appInvoices, ...otherContractInvoices];
       const readOnlyInvoiceIds = new Set(otherContractInvoices.map((inv) => inv.id));
-      const cd = contract?.contract_details;
+      const cd = contract?.contract_details as Record<string, unknown> | null | undefined;
+      const contractStatus = sectionStatusMap?.get("contract_details") ?? "";
       const approvedFacility =
-        (typeof cd?.approved_facility === "number" && cd.approved_facility > 0
-          ? cd.approved_facility
-          : typeof cd?.financing === "number"
-            ? cd.financing
-            : typeof cd?.value === "number"
-              ? cd.value
-              : 0) as number;
+        (resolveApprovedFacility(contractStatus, cd) || resolveRequestedFacility(cd)) as number;
       const availableFacility =
         typeof cd?.available_facility === "number" ? cd.available_facility : approvedFacility;
       const utilizedFacility =

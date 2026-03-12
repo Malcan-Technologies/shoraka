@@ -804,6 +804,7 @@ export default function DynamicApplicationDetailPage() {
                             isActionLocked={actionLocked}
                             actionLockTooltip={actionLockTooltip}
                             sectionStatus={sectionStatus}
+                            sectionStatusMap={sectionStatusMap}
                             onResetSectionToPending={async (section) => {
                               try {
                                 await resetSectionToPending.mutateAsync({ applicationId, section });

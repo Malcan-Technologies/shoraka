@@ -50,3 +50,19 @@ OFFER_SENT → APPROVED (issuer accepts)
 OFFER_SENT → REJECTED (issuer rejects)
 OFFER_SENT → SUBMITTED (admin retracts)
 ```
+
+## Invoice offers (per invoice)
+
+| Location | Fields | Meaning |
+|----------|--------|---------|
+| `invoice.details` | `applied_financing`, `financing_amount`, `value` + `financing_ratio_percent` | Requested financing for invoice |
+| `invoice.offer_details` | `offered_amount`, `offered_ratio_percent`, `offered_profit_rate_percent` | CashSouk offer terms |
+
+Helpers: `resolveRequestedInvoiceAmount`, `resolveOfferedAmount`, `resolveOfferedProfitRate` in `packages/config/offer-resolvers.ts` and `apps/api/src/lib/invoice-offer.ts`.
+
+### Invoice flow (mirrors contract)
+
+1. **Send offer (admin)** – Writes `offer_details`, sets invoice status `OFFER_SENT`.
+2. **Accept / Reject (issuer)** – Responds to offer.
+3. **Retract offer (admin – reset item to PENDING)** – Clears `offer_details`, sets status `SUBMITTED`. Same pattern as contract: admin uses "Retract Offer" (or "Set to Pending" in item dropdown).
+4. **Status transitions** – `SUBMITTED → OFFER_SENT → APPROVED | REJECTED`; `OFFER_SENT → SUBMITTED` (admin retracts).
