@@ -1,32 +1,32 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import { applicationsKeys } from "@/applications/query-keys";
+import type { GetAdminContractsParams } from "@cashsouk/types";
+import { contractsKeys } from "@/contracts/query-keys";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-export function useApplicationDetail(id: string) {
+export function useContracts(params: GetAdminContractsParams) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
 
   return useQuery({
-    queryKey: applicationsKeys.detail(id),
+    queryKey: contractsKeys.list(params),
     queryFn: async () => {
-      const response = await apiClient.getAdminApplicationDetail(id);
+      const response = await apiClient.getAdminContracts(params);
       if (!response.success) {
         throw new Error(response.error.message);
       }
       return response.data;
     },
-    enabled: !!id,
     staleTime: 0,
     refetchOnMount: true,
   });
 }
 
-export function useInvalidateApplicationDetail(id: string) {
+export function useInvalidateContracts() {
   const queryClient = useQueryClient();
 
   return () => {
-    queryClient.invalidateQueries({ queryKey: applicationsKeys.detail(id) });
+    queryClient.invalidateQueries({ queryKey: contractsKeys.all });
   };
 }

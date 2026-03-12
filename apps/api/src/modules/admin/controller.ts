@@ -26,6 +26,7 @@ import {
   getOnboardingApplicationsQuerySchema,
   updateSophisticatedStatusSchema,
   getAdminApplicationsQuerySchema,
+  getAdminContractsQuerySchema,
   updateApplicationStatusSchema,
   reopenApplicationForCorrectionSchema,
   reviewSectionSchema,
@@ -1855,6 +1856,81 @@ router.get(
       });
     } catch (error) {
       next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /v1/admin/contracts:
+ *   get:
+ *     summary: List contracts with pagination and filters (admin only)
+ *     tags: [Admin]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [DRAFT, SUBMITTED, OFFER_SENT, APPROVED, REJECTED, AMENDMENT_REQUESTED]
+ *       - in: query
+ *         name: statuses
+ *         schema:
+ *           type: string
+ *         description: Comma-separated contract statuses for multi-select filtering.
+ *     responses:
+ *       200:
+ *         description: Contracts list with pagination
+ */
+router.get(
+  "/contracts",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = getAdminContractsQuerySchema.parse(req.query);
+      const result = await adminService.listContracts(validated);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+    }
+  }
+);
+
+router.get(
+  "/contracts/:id",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const result = await adminService.getContractDetail(id);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
     }
   }
 );

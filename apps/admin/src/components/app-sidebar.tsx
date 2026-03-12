@@ -88,6 +88,11 @@ const navPlatform = [
     icon: FolderOpenIcon,
   },
   {
+    title: "Contracts",
+    url: "/contracts",
+    icon: DocumentDuplicateIcon,
+  },
+  {
     title: "Settings",
     url: "#",
     icon: Cog6ToothIcon,

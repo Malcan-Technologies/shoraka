@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { UserRole, AdminRole, ApplicationStatus, ReviewSection } from "@prisma/client";
+import { UserRole, AdminRole, ApplicationStatus, ContractStatus, ReviewSection } from "@prisma/client";
 
 // Helper for parsing boolean query params (handles "true"/"false" strings properly)
 const booleanQueryParam = z
@@ -263,6 +263,26 @@ const applicationStatusesQueryParam = z
   )
   .transform((statuses) => statuses as ApplicationStatus[] | undefined);
 
+const contractStatusesQueryParam = z
+  .union([z.string(), z.array(z.string())])
+  .optional()
+  .transform((value) => {
+    if (!value) return undefined;
+    const rawValues = Array.isArray(value) ? value : [value];
+    const normalized = rawValues
+      .flatMap((entry) => entry.split(","))
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+
+    if (normalized.length === 0) return undefined;
+    return normalized.map((entry) => ContractStatus[entry as keyof typeof ContractStatus]);
+  })
+  .refine(
+    (statuses) => !statuses || statuses.every((status) => status !== undefined),
+    "Invalid contract status in statuses filter"
+  )
+  .transform((statuses) => statuses as ContractStatus[] | undefined);
+
 export const getAdminApplicationsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(10),
@@ -270,6 +290,14 @@ export const getAdminApplicationsQuerySchema = z.object({
   status: z.nativeEnum(ApplicationStatus).optional(),
   statuses: applicationStatusesQueryParam,
   productId: z.string().optional(),
+});
+
+export const getAdminContractsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(10),
+  search: z.string().optional(),
+  status: z.nativeEnum(ContractStatus).optional(),
+  statuses: contractStatusesQueryParam,
 });
 
 export const updateApplicationStatusSchema = z.object({
@@ -285,6 +313,7 @@ export const reopenApplicationForCorrectionSchema = z.object({
 });
 
 export type GetAdminApplicationsQuery = z.infer<typeof getAdminApplicationsQuerySchema>;
+export type GetAdminContractsQuery = z.infer<typeof getAdminContractsQuerySchema>;
 
 export const reviewSectionSchema = z.nativeEnum(ReviewSection);
 

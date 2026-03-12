@@ -22,6 +22,7 @@ import type {
   GetSecurityLogsQuery,
   GetOnboardingLogsQuery,
   GetAdminApplicationsQuery,
+  GetAdminContractsQuery,
 } from "./schemas";
 
 
@@ -2220,6 +2221,233 @@ export class AdminRepository {
     });
 
     return { applications: transformedApplications, total };
+  }
+
+  /**
+   * Get contracts with pagination and filters
+   */
+  async getContracts(params: GetAdminContractsQuery): Promise<{
+    contracts: {
+      id: string;
+      contractNumber: string | null;
+      title: string | null;
+      issuerOrganizationName: string | null;
+      contractValue: number;
+      status: string;
+      updatedAt: Date;
+    }[];
+    total: number;
+  }> {
+    const { page, pageSize, search, status, statuses } = params;
+    const skip = (page - 1) * pageSize;
+
+    const where: Prisma.ContractWhereInput = {};
+
+    if (statuses && statuses.length > 0) {
+      where.status = { in: statuses };
+    } else if (status) {
+      where.status = status;
+    }
+
+    if (search) {
+      where.OR = [
+        { id: { contains: search, mode: "insensitive" } },
+        {
+          contract_details: {
+            path: ["number"],
+            string_contains: search,
+          },
+        },
+        { issuer_organization: { name: { contains: search, mode: "insensitive" } } },
+        { applications: { some: { id: { contains: search, mode: "insensitive" } } } },
+      ];
+    }
+
+    const [contracts, total] = await Promise.all([
+      prisma.contract.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { updated_at: "desc" },
+        include: {
+          issuer_organization: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      }),
+      prisma.contract.count({ where }),
+    ]);
+
+    const transformedContracts = contracts.map((contract) => {
+      const contractDetails = (contract.contract_details ?? {}) as Record<string, unknown>;
+      const contractValue = Number(contractDetails.value ?? contractDetails.financing ?? 0);
+
+      return {
+        id: contract.id,
+        contractNumber:
+          typeof contractDetails.number === "string" && contractDetails.number.trim().length > 0
+            ? contractDetails.number
+            : null,
+        title: typeof contractDetails.title === "string" && contractDetails.title.trim().length > 0
+          ? contractDetails.title
+          : null,
+        issuerOrganizationName: contract.issuer_organization?.name ?? null,
+        contractValue: Number.isFinite(contractValue) ? contractValue : 0,
+        status: contract.status,
+        updatedAt: contract.updated_at,
+      };
+    });
+
+    return { contracts: transformedContracts, total };
+  }
+
+  async getContractById(id: string): Promise<{
+    id: string;
+    contractNumber: string | null;
+    title: string | null;
+    description: string | null;
+    issuerOrganizationName: string | null;
+    requestedFacility: number;
+    approvedFacility: number;
+    status: string;
+    createdAt: Date;
+    updatedAt: Date;
+    contractDetails: Record<string, unknown> | null;
+    offerDetails: Record<string, unknown> | null;
+    offerSentByUserName: string | null;
+    offerRespondedByUserName: string | null;
+    customerDetails: Record<string, unknown> | null;
+    applications: {
+      id: string;
+      productId: string | null;
+      status: string;
+      submittedAt: Date | null;
+      updatedAt: Date;
+      requestedAmount: number;
+    }[];
+  } | null> {
+    const contract = await prisma.contract.findUnique({
+      where: { id },
+      include: {
+        issuer_organization: {
+          select: {
+            name: true,
+          },
+        },
+        applications: {
+          orderBy: { created_at: "desc" },
+          select: {
+            id: true,
+            status: true,
+            submitted_at: true,
+            updated_at: true,
+            financing_type: true,
+            invoices: {
+              select: {
+                details: true,
+              },
+            },
+            contract: {
+              select: {
+                contract_details: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!contract) {
+      return null;
+    }
+
+    const contractDetails = (contract.contract_details ?? {}) as Record<string, unknown>;
+    const offerDetails = (contract.offer_details ?? {}) as Record<string, unknown>;
+    const customerDetails = (contract.customer_details ?? {}) as Record<string, unknown>;
+    const sentByUserId =
+      typeof offerDetails.sent_by_user_id === "string" && offerDetails.sent_by_user_id.trim().length > 0
+        ? (offerDetails.sent_by_user_id as string)
+        : null;
+    const respondedByUserId =
+      typeof offerDetails.responded_by_user_id === "string" && offerDetails.responded_by_user_id.trim().length > 0
+        ? (offerDetails.responded_by_user_id as string)
+        : null;
+    const requestedFacility = Number(offerDetails.requested_facility ?? contractDetails.financing ?? 0);
+    const offeredFacility = Number(offerDetails.offered_facility ?? 0);
+    const approvedFacility = Number(contractDetails.approved_facility ?? 0);
+
+    const applications = contract.applications.map((application) => {
+      let requestedAmount = 0;
+
+      if (application.invoices.length > 0) {
+        requestedAmount = application.invoices.reduce((sum, invoice) => {
+          const details = (invoice.details ?? {}) as Record<string, unknown>;
+          const invoiceValue = Number(details.value ?? 0);
+          const financingRatio = Number(details.financing_ratio_percent ?? 80);
+          return sum + (invoiceValue * financingRatio) / 100;
+        }, 0);
+      } else if (application.contract?.contract_details) {
+        const appContractDetails = application.contract.contract_details as Record<string, unknown>;
+        requestedAmount = Number(appContractDetails.value ?? appContractDetails.approved_facility ?? 0);
+      }
+
+      return {
+        id: application.id,
+        productId:
+          typeof (application.financing_type as Record<string, unknown> | null)?.product_id === "string"
+            ? ((application.financing_type as Record<string, unknown>).product_id as string)
+            : null,
+        status: application.status,
+        submittedAt: application.submitted_at,
+        updatedAt: application.updated_at,
+        requestedAmount: Number.isFinite(requestedAmount) ? requestedAmount : 0,
+      };
+    });
+
+    const userIds = [sentByUserId, respondedByUserId].filter((id): id is string => Boolean(id));
+    const users = userIds.length
+      ? await prisma.user.findMany({
+          where: { user_id: { in: userIds } },
+          select: { user_id: true, first_name: true, last_name: true, email: true },
+        })
+      : [];
+    const userNameById = new Map(
+      users.map((user) => {
+        const fullName = [user.first_name, user.last_name].filter(Boolean).join(" ").trim();
+        return [user.user_id, fullName.length > 0 ? fullName : user.email];
+      })
+    );
+
+    return {
+      id: contract.id,
+      contractNumber:
+        typeof contractDetails.number === "string" && contractDetails.number.trim().length > 0
+          ? contractDetails.number
+          : null,
+      title: typeof contractDetails.title === "string" ? contractDetails.title : null,
+      description: typeof contractDetails.description === "string" ? contractDetails.description : null,
+      issuerOrganizationName: contract.issuer_organization?.name ?? null,
+      requestedFacility: Number.isFinite(requestedFacility) ? requestedFacility : 0,
+      approvedFacility:
+        Number.isFinite(offeredFacility) && offeredFacility > 0
+          ? offeredFacility
+          : Number.isFinite(approvedFacility)
+            ? approvedFacility
+            : 0,
+      status: contract.status,
+      createdAt: contract.created_at,
+      updatedAt: contract.updated_at,
+      contractDetails: contract.contract_details ? contractDetails : null,
+      offerDetails: contract.offer_details ? offerDetails : null,
+      offerSentByUserName: sentByUserId ? userNameById.get(sentByUserId) ?? sentByUserId : null,
+      offerRespondedByUserName: respondedByUserId
+        ? userNameById.get(respondedByUserId) ?? respondedByUserId
+        : null,
+      customerDetails: contract.customer_details ? customerDetails : null,
+      applications,
+    };
   }
 
   /**

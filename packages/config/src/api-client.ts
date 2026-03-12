@@ -35,6 +35,9 @@ import type {
   OnboardingApplicationResponse,
   GetAdminApplicationsParams,
   AdminApplicationsResponse,
+  GetAdminContractsParams,
+  AdminContractsResponse,
+  AdminContractDetail,
   GetSiteDocumentsParams,
   SiteDocumentsResponse,
   SiteDocumentResponse,
@@ -351,6 +354,25 @@ export class ApiClient {
     if (params.productId) queryParams.append("productId", params.productId);
 
     return this.get<AdminApplicationsResponse>(`/v1/admin/applications?${queryParams.toString()}`);
+  }
+
+  async getAdminContracts(
+    params: GetAdminContractsParams
+  ): Promise<ApiResponse<AdminContractsResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", String(params.page));
+    queryParams.append("pageSize", String(params.pageSize));
+    if (params.search) queryParams.append("search", params.search);
+    if (params.status) queryParams.append("status", params.status);
+    if (params.statuses && params.statuses.length > 0) {
+      queryParams.append("statuses", params.statuses.join(","));
+    }
+
+    return this.get<AdminContractsResponse>(`/v1/admin/contracts?${queryParams.toString()}`);
+  }
+
+  async getAdminContractDetail(id: string): Promise<ApiResponse<AdminContractDetail> | ApiError> {
+    return this.get<AdminContractDetail>(`/v1/admin/contracts/${id}`);
   }
 
   async getAdminApplicationDetail(id: string): Promise<ApiResponse<any> | ApiError> {

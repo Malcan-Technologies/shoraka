@@ -8,18 +8,18 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@cashsouk/ui";
-import { ApplicationsTableRow } from "./applications-table-row";
-import type { ApplicationListItem } from "@cashsouk/types";
+import { ContractsTableRow } from "./contracts-table-row";
+import type { ContractListItem } from "@cashsouk/types";
 import { TablePagination } from "@/shared/admin-list/components/table-pagination";
 
-interface ApplicationsTableProps {
-  applications: ApplicationListItem[];
+interface ContractsTableProps {
+  contracts: ContractListItem[];
   loading: boolean;
   currentPage: number;
   pageSize: number;
-  totalApplications: number;
+  totalContracts: number;
   onPageChange: (page: number) => void;
-  onViewDetails?: (application: ApplicationListItem) => void;
+  onViewDetails?: (contract: ContractListItem) => void;
 }
 
 function TableSkeleton() {
@@ -28,9 +28,9 @@ function TableSkeleton() {
       {Array.from({ length: 5 }).map((_, i) => (
         <TableRow key={i}>
           <TableCell><Skeleton className="h-5 w-24" /></TableCell>
-          <TableCell><Skeleton className="h-5 w-40" /></TableCell>
-          <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-          <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+          <TableCell><Skeleton className="h-5 w-36" /></TableCell>
+          <TableCell><Skeleton className="h-5 w-44" /></TableCell>
+          <TableCell><Skeleton className="h-5 w-44" /></TableCell>
           <TableCell><Skeleton className="h-5 w-24" /></TableCell>
           <TableCell><Skeleton className="h-5 w-20" /></TableCell>
           <TableCell><Skeleton className="h-5 w-24" /></TableCell>
@@ -41,18 +41,18 @@ function TableSkeleton() {
   );
 }
 
-export function ApplicationsTable({
-  applications,
+export function ContractsTable({
+  contracts,
   loading,
   currentPage,
   pageSize,
-  totalApplications,
+  totalContracts,
   onPageChange,
   onViewDetails,
-}: ApplicationsTableProps) {
-  const totalPages = Math.ceil(totalApplications / pageSize);
+}: ContractsTableProps) {
+  const totalPages = Math.ceil(totalContracts / pageSize);
   const startIndex = (currentPage - 1) * pageSize + 1;
-  const endIndex = Math.min(currentPage * pageSize, totalApplications);
+  const endIndex = Math.min(currentPage * pageSize, totalContracts);
 
   return (
     <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
@@ -60,11 +60,11 @@ export function ApplicationsTable({
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead className="text-sm font-semibold">Reference</TableHead>
-              <TableHead className="text-sm font-semibold">Applicant</TableHead>
-              <TableHead className="text-sm font-semibold">Financing Structure</TableHead>
-              <TableHead className="text-sm font-semibold">Requested Amount</TableHead>
-              <TableHead className="text-sm font-semibold">Submitted</TableHead>
+              <TableHead className="text-sm font-semibold">Contract Ref</TableHead>
+              <TableHead className="text-sm font-semibold">Contract Number</TableHead>
+              <TableHead className="text-sm font-semibold">Contract Title</TableHead>
+              <TableHead className="text-sm font-semibold">Organization</TableHead>
+              <TableHead className="text-sm font-semibold">Contract Value</TableHead>
               <TableHead className="text-sm font-semibold">Status</TableHead>
               <TableHead className="text-sm font-semibold">Updated</TableHead>
               <TableHead className="text-sm font-semibold">Actions</TableHead>
@@ -73,17 +73,17 @@ export function ApplicationsTable({
           <TableBody>
             {loading ? (
               <TableSkeleton />
-            ) : applications.length === 0 ? (
+            ) : contracts.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
-                  No applications found
+                  No contracts found
                 </TableCell>
               </TableRow>
             ) : (
-              applications.map((app) => (
-                <ApplicationsTableRow
-                  key={app.id}
-                  application={app}
+              contracts.map((contract) => (
+                <ContractsTableRow
+                  key={contract.id}
+                  contract={contract}
                   onViewDetails={onViewDetails}
                 />
               ))
@@ -92,13 +92,13 @@ export function ApplicationsTable({
         </Table>
       </div>
 
-      {!loading && applications.length > 0 && (
+      {!loading && contracts.length > 0 && (
         <TablePagination
           currentPage={currentPage}
           totalPages={totalPages}
           startIndex={startIndex}
           endIndex={endIndex}
-          totalItems={totalApplications}
+          totalItems={totalContracts}
           onPageChange={onPageChange}
         />
       )}
