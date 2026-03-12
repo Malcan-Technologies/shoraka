@@ -983,7 +983,38 @@ export class ApplicationService {
         });
       }
 
-      return { now, offeredAmount, requestedAmount };
+      const [invoiceCount, resolvedCount] = await Promise.all([
+        tx.invoice.count({ where: { application_id: applicationId } }),
+        tx.invoice.count({
+          where: {
+            application_id: applicationId,
+            status: { in: ["APPROVED", "REJECTED"] },
+          },
+        }),
+      ]);
+      let sectionApproved = false;
+      if (invoiceCount > 0 && resolvedCount === invoiceCount) {
+        await tx.applicationReview.upsert({
+          where: {
+            application_id_section: { application_id: applicationId, section: "invoice_details" },
+          },
+          create: {
+            application_id: applicationId,
+            section: "invoice_details",
+            status: "APPROVED",
+            reviewer_user_id: userId,
+            reviewed_at: new Date(),
+          },
+          update: {
+            status: "APPROVED",
+            reviewer_user_id: userId,
+            reviewed_at: new Date(),
+          },
+        });
+        sectionApproved = true;
+      }
+
+      return { now, offeredAmount, requestedAmount, sectionApproved };
     });
 
     const eventType =
@@ -1014,6 +1045,17 @@ export class ApplicationService {
         status: action === "accept" ? "APPROVED" : "REJECTED",
         emittedAt: responseMeta.now,
       });
+      if (responseMeta.sectionApproved) {
+        publishOfferStateEvent({
+          eventType: "INVOICE_SECTION_APPROVED",
+          applicationId,
+          issuerOrganizationId: application.issuer_organization_id,
+          scope: "section",
+          scopeKey: "invoice_details",
+          status: "APPROVED",
+          emittedAt: responseMeta.now,
+        });
+      }
     }
 
     const updated = await this.repository.findById(applicationId);
