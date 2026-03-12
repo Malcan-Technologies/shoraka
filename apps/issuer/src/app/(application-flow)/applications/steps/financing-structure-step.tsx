@@ -20,6 +20,7 @@ import { formSelectTriggerClassName } from "@/app/(application-flow)/application
 import { FinancingStructureSkeleton } from "@/app/(application-flow)/applications/components/financing-structure-skeleton";
 import { SelectionCard } from "@/app/(application-flow)/applications/components/selection-card";
 import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
+import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 
 /**
  * FINANCING STRUCTURE STEP
@@ -62,6 +63,7 @@ export function FinancingStructureStep({
     application?.issuer_organization_id || ""
   );
   const hasApprovedContracts = approvedContracts.length > 0;
+  const devTools = useDevTools();
 
 
   /** Local state
@@ -117,6 +119,20 @@ export function FinancingStructureStep({
 
     setIsInitialized(true);
   }, [application, isInitialized]);
+
+  /** Apply dev-tools Fill Entire Application (autoFillDataMap). */
+  React.useEffect(() => {
+    const data = devTools?.autoFillDataMap?.["financing_structure"] as
+      | { structure_type?: string; existing_contract_id?: string | null }
+      | undefined;
+    if (!data?.structure_type) return;
+    const type = data.structure_type as FinancingStructureType;
+    const contractId = data.structure_type === "existing_contract" ? (data.existing_contract_id ?? "") : "";
+    if (type === "existing_contract" && !contractId) return;
+    setSelectedStructure(type);
+    setSelectedContractId(contractId);
+    devTools?.clearAutoFillForStep("financing_structure");
+  }, [devTools]);
 
   /**
    * NOTIFY PARENT WHEN DATA CHANGES

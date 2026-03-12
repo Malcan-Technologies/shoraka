@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useDevTools } from "./dev-tools-context";
 import { toast } from "sonner";
+import { generateAllDataForSteps } from "../utils/dev-data-generator";
 
 /** Registry of step keys to mock data generators. Add new steps here. */
 const MOCK_GENERATORS: Record<string, () => Record<string, unknown>> = {};
@@ -22,12 +23,14 @@ interface DevToolsPanelProps {
   currentStepKey: string | null;
   onPreviewAmendment: () => void;
   isPreviewAmendmentActive: boolean;
+  approvedContractIds?: string[];
 }
 
 export function DevToolsPanel({
   currentStepKey,
   onPreviewAmendment,
   isPreviewAmendmentActive,
+  approvedContractIds = [],
 }: DevToolsPanelProps) {
   if (process.env.NODE_ENV !== "development") {
     return null;
@@ -62,7 +65,19 @@ export function DevToolsPanel({
     toast.success(isPreviewAmendmentActive ? "Amendment preview off" : "Amendment preview on");
   }, [onPreviewAmendment, isPreviewAmendmentActive]);
 
+  const handleFillEntireApplication = React.useCallback(() => {
+    if (!devTools) return;
+    try {
+      const map = generateAllDataForSteps({ approvedContractIds });
+      devTools.requestAutoFillForAllSteps(map);
+      toast.success("Dummy data filled. You can now navigate through steps quickly.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Fill entire application failed");
+    }
+  }, [devTools, approvedContractIds]);
+
   const devActions = [
+    { label: "Fill Entire Application", action: handleFillEntireApplication },
     { label: "Auto Fill Step", action: handleAutoFill },
     { label: "Toggle Skeleton", action: handleToggleSkeleton },
     { label: "Preview Amendment", action: handlePreviewAmendment },

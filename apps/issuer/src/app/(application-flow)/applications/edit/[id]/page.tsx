@@ -37,6 +37,7 @@ import {
   useUpdateApplicationStatus,
   useResubmitApplication,
 } from "@/hooks/use-applications";
+import { useApprovedContracts } from "@/hooks/use-contracts";
 import { useProducts } from "@/hooks/use-products";
 import { toast } from "sonner";
 import {
@@ -134,6 +135,11 @@ export default function EditApplicationPage() {
     page: 1,
     pageSize: 100,
   });
+
+  /** Approved contracts for Fill Entire Application (existing_contract option). */
+  const { data: approvedContracts = [] } = useApprovedContracts(
+    application?.issuer_organization_id || ""
+  );
 
   /** Handle application not found */
   React.useEffect(() => {
@@ -1298,6 +1304,7 @@ export default function EditApplicationPage() {
       currentStepKey={currentStepKey}
       onPreviewAmendment={handlePreviewAmendment}
       isPreviewAmendmentActive={devPreviewAmendment}
+      approvedContractIds={approvedContracts?.map((c: { id: string }) => c.id) ?? []}
     />
     </DevToolsProvider>
   );

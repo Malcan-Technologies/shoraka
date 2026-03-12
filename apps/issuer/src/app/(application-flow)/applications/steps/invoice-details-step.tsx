@@ -72,6 +72,7 @@ import { formatMoney, parseMoney } from "../components/money";
 import { MoneyInput } from "@/app/(application-flow)/applications/components/money-input";
 import { InvoiceDetailsSkeleton } from "@/app/(application-flow)/applications/components/invoice-details-skeleton";
 import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
+import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -181,6 +182,7 @@ export default function InvoiceDetailsStep({
   const [isLoadingInvoices, setIsLoadingInvoices] = React.useState(true);
   const [isInitialized, setIsInitialized] = React.useState(false);
 
+  const devTools = useDevTools();
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
   const { data: productsData } = useProducts({ page: 1, pageSize: 100 });
@@ -241,6 +243,19 @@ export default function InvoiceDetailsStep({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applicationId]);
+
+  /** Apply dev-tools Fill Entire Application (autoFillDataMap). */
+  React.useEffect(() => {
+    const data = devTools?.autoFillDataMap?.["invoice_details"] as { invoices?: LocalInvoice[] } | undefined;
+    if (!data?.invoices?.length) return;
+    setInvoices(
+      data.invoices.map((inv) => ({
+        ...inv,
+        document: inv.document ?? null,
+      }))
+    );
+    devTools?.clearAutoFillForStep("invoice_details");
+  }, [devTools]);
 
   const addInvoice = () => {
     setInvoices((s) => [

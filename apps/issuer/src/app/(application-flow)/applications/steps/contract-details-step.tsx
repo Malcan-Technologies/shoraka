@@ -510,17 +510,23 @@ export function ContractDetailsStep({
     setFinancingError(null);
   }, [formData.contract.financing]);
 
-  /** Apply dev-tools Auto Fill when requested. */
+  /** Apply dev-tools Auto Fill when requested (single step or Fill Entire Application). */
   React.useEffect(() => {
-    if (!devTools?.autoFillData || devTools.autoFillData.stepKey !== "contract_details") return;
-    const data = devTools.autoFillData.data as { contract?: Record<string, unknown>; customer?: Record<string, unknown> };
-    if (data.contract || data.customer) {
-      setFormData((prev) => ({
-        contract: data.contract ? { ...prev.contract, ...data.contract } : prev.contract,
-        customer: data.customer ? { ...prev.customer, ...data.customer } : prev.customer,
-      }));
+    const data =
+      devTools?.autoFillData?.stepKey === "contract_details"
+        ? (devTools.autoFillData.data as { contract?: Record<string, unknown>; customer?: Record<string, unknown> })
+        : devTools?.autoFillDataMap?.["contract_details"] as
+            | { contract?: Record<string, unknown>; customer?: Record<string, unknown> }
+            | undefined;
+    if (!data || (!data.contract && !data.customer)) return;
+    setFormData((prev) => ({
+      contract: data.contract ? { ...prev.contract, ...data.contract } : prev.contract,
+      customer: data.customer ? { ...prev.customer, ...data.customer } : prev.customer,
+    }));
+    if (devTools) {
+      if (devTools.autoFillData?.stepKey === "contract_details") devTools.clearAutoFill();
+      else devTools.clearAutoFillForStep("contract_details");
     }
-    devTools.clearAutoFill();
   }, [devTools]);
 
   /* ================================================================

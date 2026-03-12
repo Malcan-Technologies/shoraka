@@ -317,10 +317,14 @@ export function FinancialStatementsStep({
     setIsInitialized(true);
   }, [application, isInitialized]);
 
-  /** Apply dev-tools Auto Fill when requested. */
+  /** Apply dev-tools Auto Fill when requested (single step or Fill Entire Application). */
   React.useEffect(() => {
-    if (!devTools?.autoFillData || devTools.autoFillData.stepKey !== "financial_statements") return;
-    const data = devTools.autoFillData.data as Partial<FinancialStatementsPayload>;
+    const raw =
+      devTools?.autoFillData?.stepKey === "financial_statements"
+        ? devTools.autoFillData.data
+        : devTools?.autoFillDataMap?.["financial_statements"];
+    if (!raw) return;
+    const data = raw as Partial<FinancialStatementsPayload>;
     const merged = { ...DEFAULT_PAYLOAD };
     for (const k of Object.keys(DEFAULT_PAYLOAD) as (keyof FinancialStatementsPayload)[]) {
       if (data[k] !== undefined && data[k] !== null) {
@@ -328,7 +332,10 @@ export function FinancialStatementsStep({
       }
     }
     setForm(merged);
-    devTools.clearAutoFill();
+    if (devTools) {
+      if (devTools.autoFillData?.stepKey === "financial_statements") devTools.clearAutoFill();
+      else devTools.clearAutoFillForStep("financial_statements");
+    }
   }, [devTools]);
 
   const handleFieldChange = React.useCallback(

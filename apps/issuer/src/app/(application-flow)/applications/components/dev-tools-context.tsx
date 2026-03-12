@@ -9,8 +9,11 @@ interface DevToolsContextValue {
   showSkeletonDebug: boolean;
   setShowSkeletonDebug: (v: boolean) => void;
   autoFillData: { stepKey: string; data: Record<string, unknown> } | null;
+  autoFillDataMap: Record<string, Record<string, unknown>>;
   requestAutoFill: (stepKey: string, data: Record<string, unknown>) => void;
+  requestAutoFillForAllSteps: (map: Record<string, Record<string, unknown>>) => void;
   clearAutoFill: () => void;
+  clearAutoFillForStep: (stepKey: string) => void;
 }
 
 const DevToolsContext = React.createContext<DevToolsContextValue | null>(null);
@@ -21,13 +24,33 @@ export function DevToolsProvider({ children }: { children: React.ReactNode }) {
     stepKey: string;
     data: Record<string, unknown>;
   } | null>(null);
+  const [autoFillDataMap, setAutoFillDataMap] = React.useState<
+    Record<string, Record<string, unknown>>
+  >({});
 
   const requestAutoFill = React.useCallback((stepKey: string, data: Record<string, unknown>) => {
     setAutoFillData({ stepKey, data });
   }, []);
 
+  const requestAutoFillForAllSteps = React.useCallback(
+    (map: Record<string, Record<string, unknown>>) => {
+      setAutoFillData(null);
+      setAutoFillDataMap(map);
+    },
+    []
+  );
+
   const clearAutoFill = React.useCallback(() => {
     setAutoFillData(null);
+    setAutoFillDataMap({});
+  }, []);
+
+  const clearAutoFillForStep = React.useCallback((stepKey: string) => {
+    setAutoFillDataMap((prev) => {
+      const next = { ...prev };
+      delete next[stepKey];
+      return next;
+    });
   }, []);
 
   const value = React.useMemo(
@@ -35,10 +58,21 @@ export function DevToolsProvider({ children }: { children: React.ReactNode }) {
       showSkeletonDebug,
       setShowSkeletonDebug,
       autoFillData,
+      autoFillDataMap,
       requestAutoFill,
+      requestAutoFillForAllSteps,
       clearAutoFill,
+      clearAutoFillForStep,
     }),
-    [showSkeletonDebug, autoFillData, requestAutoFill, clearAutoFill]
+    [
+      showSkeletonDebug,
+      autoFillData,
+      autoFillDataMap,
+      requestAutoFill,
+      requestAutoFillForAllSteps,
+      clearAutoFill,
+      clearAutoFillForStep,
+    ]
   );
 
   return <DevToolsContext.Provider value={value}>{children}</DevToolsContext.Provider>;
