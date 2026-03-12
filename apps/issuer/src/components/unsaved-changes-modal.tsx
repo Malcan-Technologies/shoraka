@@ -31,7 +31,7 @@ export function UnsavedChangesModal({
   const description = isExit
     ? hasUnsavedChanges
       ? "You have unsaved changes. You will be navigated back to the dashboard page. Any unsaved changes will be lost."
-      : "You will be navigated back to the dashboard page. Any unsaved changes will be lost."
+      : "You will be navigated back to the dashboard page."
     : "You have unsaved changes. If you leave now, they will be lost.";
   const confirmLabel = isExit ? "Leave Application" : "Don't Save";
 
