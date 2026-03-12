@@ -1,4 +1,5 @@
 import { cn } from "@cashsouk/ui";
+import { formatWithdrawLabel, WithdrawReason } from "@cashsouk/types";
 
 const ALLOWED_STATUSES = [
   "DRAFT",
@@ -7,10 +8,17 @@ const ALLOWED_STATUSES = [
   "APPROVED",
   "REJECTED",
   "AMENDMENT_REQUESTED",
+  "WITHDRAWN",
 ] as const;
 type Status = (typeof ALLOWED_STATUSES)[number];
 
-export function StatusBadge({ status }: { status?: string }) {
+export function StatusBadge({
+  status,
+  withdrawReason,
+}: {
+  status?: string;
+  withdrawReason?: WithdrawReason;
+}) {
   if (!ALLOWED_STATUSES.includes(status as Status)) {
     return null;
   }
@@ -22,9 +30,11 @@ export function StatusBadge({ status }: { status?: string }) {
     APPROVED: "bg-emerald-50 text-emerald-800 border-emerald-200",
     REJECTED: "bg-red-50 text-red-800 border-red-200",
     AMENDMENT_REQUESTED: "bg-amber-50 text-amber-800 border-amber-200",
+    WITHDRAWN: "bg-slate-100 text-slate-700 border-slate-300",
   };
 
   const safeStatus = status as Status;
+  const label = safeStatus === "WITHDRAWN" ? formatWithdrawLabel(withdrawReason) : safeStatus;
 
   return (
     <span
@@ -33,7 +43,7 @@ export function StatusBadge({ status }: { status?: string }) {
         styles[safeStatus]
       )}
     >
-      {safeStatus}
+      {label}
     </span>
   );
 }

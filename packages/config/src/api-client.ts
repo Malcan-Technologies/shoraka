@@ -1260,6 +1260,10 @@ export class ApiClient {
     return this.post<Application>(`/v1/applications/${id}/archive`, {});
   }
 
+  async cancelApplication(id: string): Promise<ApiResponse<Application> | ApiError> {
+    return this.post<Application>(`/v1/applications/${id}/cancel`, {});
+  }
+
   /** Request presigned download URL for S3 object. Used for document download from document column. */
   async getS3DownloadUrl(s3Key: string): Promise<
     ApiResponse<{ downloadUrl: string; expiresIn: number }> | ApiError
@@ -1436,6 +1440,10 @@ export class ApiClient {
     return this.post<void>(`/v1/contracts/${id}/unlink`, {});
   }
 
+  async withdrawContract(id: string): Promise<ApiResponse<Contract> | ApiError> {
+    return this.post<Contract>(`/v1/contracts/${id}/withdraw`, {});
+  }
+
   async getApprovedContracts(organizationId: string): Promise<ApiResponse<Contract[]> | ApiError> {
     return this.get<Contract[]>(`/v1/contracts/approved?organizationId=${organizationId}`);
   }
@@ -1501,6 +1509,13 @@ export class ApiClient {
 
   async deleteInvoice(id: string): Promise<ApiResponse<{ message: string }> | ApiError> {
     return this.delete<{ message: string }>(`/v1/invoices/${id}`);
+  }
+
+  async withdrawInvoice(
+    id: string,
+    reason?: "USER_CANCELLED" | "OFFER_EXPIRED"
+  ): Promise<ApiResponse<Invoice> | ApiError> {
+    return this.post<Invoice>(`/v1/invoices/${id}/withdraw`, reason ? { reason } : {});
   }
 
   async getInvoicesByApplication(applicationId: string): Promise<ApiResponse<Invoice[]> | ApiError> {

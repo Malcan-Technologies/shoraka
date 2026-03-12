@@ -51,6 +51,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { STATUS, FILTER_STATUSES, FINANCING_TYPES } from "./status";
 import { useApplicationsData } from "./use-applications-data";
 import { ReviewOfferModal } from "./components/ReviewOfferModal";
+import { useCancelApplication, useWithdrawInvoice } from "@/hooks/use-applications";
 import type { NormalizedApplication, NormalizedInvoice } from "./status";
 
 const BADGE_BASE = "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold border";
@@ -160,11 +161,15 @@ function ApplicationCard({
   onDocumentDownload,
   onReviewContractOffer,
   onReviewInvoiceOffer,
+  onCancelApplication,
+  onWithdrawInvoice,
 }: {
   application: NormalizedApplication;
   onDocumentDownload: (s3Key: string) => Promise<void>;
   onReviewContractOffer?: (contractId: string) => void;
   onReviewInvoiceOffer?: (invoice: NormalizedInvoice) => void;
+  onCancelApplication?: (applicationId: string) => void;
+  onWithdrawInvoice?: (invoiceId: string, applicationId: string, organizationId?: string) => void;
 }) {
   const [expanded, setExpanded] = React.useState(false);
 
@@ -265,7 +270,11 @@ function ApplicationCard({
                   ) : (
                     <DropdownMenuItem
                       className="cursor-pointer"
-                      onClick={() => {}}
+                      onClick={() => {
+                        if (onCancelApplication) {
+                          onCancelApplication(application.id);
+                        }
+                      }}
                     >
                       Withdraw Application
                     </DropdownMenuItem>
@@ -525,7 +534,11 @@ function ApplicationCard({
                                 <DropdownMenuContent align="end" className="rounded-xl">
                                   <DropdownMenuItem
                                     className="cursor-pointer"
-                                    onClick={() => {}}
+                                    onClick={() => {
+                                      if (onWithdrawInvoice) {
+                                        onWithdrawInvoice(inv.id, application.id, application.issuerOrganizationId);
+                                      }
+                                    }}
                                   >
                                     Withdraw Invoice
                                   </DropdownMenuItem>
@@ -553,6 +566,8 @@ const PER_PAGE_OPTIONS = [4, 8, 12] as const;
 export default function ApplicationsPage() {
   const { setTitle } = useHeader();
   const { applications, isLoading } = useApplicationsData();
+  const cancelApplication = useCancelApplication();
+  const withdrawInvoice = useWithdrawInvoice();
 
   /* --- Review offer modal: opens when user clicks Review Offer. --- */
   const [reviewModalOpen, setReviewModalOpen] = React.useState(false);
@@ -569,12 +584,33 @@ export default function ApplicationsPage() {
   }, []);
 
   const openReviewInvoiceOffer = React.useCallback((invoice: NormalizedInvoice) => {
-    console.log("Opening review offer modal", { type: "invoice", invoice });
     setOfferType("invoice");
     setSelectedContractId(null);
     setSelectedInvoice(invoice);
     setReviewModalOpen(true);
   }, []);
+
+  const handleCancelApplication = React.useCallback(
+    async (applicationId: string) => {
+      try {
+        await cancelApplication.mutateAsync(applicationId);
+      } catch {
+        // toast handled by mutation onError
+      }
+    },
+    [cancelApplication]
+  );
+
+  const handleWithdrawInvoice = React.useCallback(
+    async (invoiceId: string, applicationId: string, organizationId?: string) => {
+      try {
+        await withdrawInvoice.mutateAsync({ invoiceId, applicationId, organizationId });
+      } catch {
+        // toast handled by mutation onError
+      }
+    },
+    [withdrawInvoice]
+  );
 
   /* --- Dev only: toggle skeleton for testing. --- */
   /* --- FILTER: state. Status, Financing, Date (created + submitted), Search. --- */
@@ -967,6 +1003,8 @@ export default function ApplicationsPage() {
                     onDocumentDownload={handleDocumentDownload}
                     onReviewContractOffer={openReviewContractOffer}
                     onReviewInvoiceOffer={openReviewInvoiceOffer}
+                    onCancelApplication={handleCancelApplication}
+                    onWithdrawInvoice={handleWithdrawInvoice}
                   />
                 ))}
               </div>

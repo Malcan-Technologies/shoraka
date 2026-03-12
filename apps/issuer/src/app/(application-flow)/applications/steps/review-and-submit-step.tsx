@@ -472,7 +472,7 @@ export function ReviewAndSubmitStep({
 
                                   {/* Status */}
                                   <TableCell className="p-2">
-                                    <StatusBadge status={invoice.status} />
+                                    <StatusBadge status={invoice.status} withdrawReason={invoice.withdraw_reason} />
                                   </TableCell>
 
                                   {/* Maturity */}

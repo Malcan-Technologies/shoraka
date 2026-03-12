@@ -127,6 +127,8 @@ export interface NormalizedApplication {
   updatedAt: string;
   invoices: NormalizedInvoice[];
   contractStatus: string | null;
+  /** Issuer organization ID for query invalidation. */
+  issuerOrganizationId?: string;
 }
 
 /* =============================================================================
@@ -150,8 +152,9 @@ export const STATUS: Record<
   draft: { label: "Draft", color: "border-slate-500/30 bg-slate-500/10 text-slate-700", sortOrder: 7 },
   accepted: { label: "Approved", color: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700", sortOrder: 8 },
   approved: { label: "Approved", color: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700", sortOrder: 8 },
-  archived: { label: "Archived", color: "border-slate-500/30 bg-slate-500/10 text-slate-600", sortOrder: 10 },
-  /* withdrawn: border-slate-500/30 bg-slate-500/10 text-slate-600 */
+  completed: { label: "Completed", color: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700", sortOrder: 9 },
+  withdrawn: { label: "Withdrawn", color: "border-slate-500/30 bg-slate-500/10 text-slate-600", sortOrder: 10 },
+  archived: { label: "Archived", color: "border-slate-500/30 bg-slate-500/10 text-slate-600", sortOrder: 11 },
   amendment_requested: { label: "Action Required", color: "border-amber-500/30 bg-amber-500/10 text-amber-700", sortOrder: 2 },
 };
 
@@ -197,6 +200,7 @@ export const INVOICE_PRIORITY = [
   "SUBMITTED",
   "DRAFT",
   "APPROVED",
+  "WITHDRAWN",
 ] as const;
 
 function pickInvoiceStatus(invoiceStatuses: string[]): string | null {
@@ -226,6 +230,12 @@ export function getCardStatus(input: {
   if (app === "REJECTED" || contract === "REJECTED") {
     return { badgeKey: "rejected", displayLabel: "Rejected", showReviewOffer: false, showMakeAmendments: false };
   }
+  if (app === "COMPLETED") {
+    return { badgeKey: "completed", displayLabel: "Completed", showReviewOffer: false, showMakeAmendments: false };
+  }
+  if (app === "WITHDRAWN" || contract === "WITHDRAWN" || inv === "WITHDRAWN") {
+    return { badgeKey: "withdrawn", displayLabel: "Withdrawn", showReviewOffer: false, showMakeAmendments: false };
+  }
   if (app === "AMENDMENT_REQUESTED") {
     return { badgeKey: "pending_amendment", displayLabel: "Action Required", showReviewOffer: false, showMakeAmendments: true };
   }
@@ -244,3 +254,20 @@ export function getCardStatus(input: {
 
   return { badgeKey: "draft", displayLabel: "Draft", showReviewOffer: false, showMakeAmendments: false };
 }
+
+/** Application status priority for sorting. Lower = higher in list. */
+export const APPLICATION_STATUS_PRIORITY: Record<string, number> = Object.freeze({
+  draft: 1,
+  submitted: 2,
+  under_review: 3,
+  pending_amendment: 4,
+  amendment_requested: 4,
+  resubmitted: 5,
+  sent: 6,
+  completed: 7,
+  withdrawn: 8,
+  rejected: 9,
+  archived: 10,
+  accepted: 11,
+  approved: 12,
+});

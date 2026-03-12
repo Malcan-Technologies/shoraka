@@ -25,6 +25,8 @@ import {
 import { prisma } from "../../lib/prisma";
 import { logApplicationActivity } from "./logs/service";
 import { ActivityLevel, ActivityTarget, ActivityAction, ActivityPortal } from "./logs/types";
+import { ApplicationStatus, ContractStatus, InvoiceStatus, WithdrawReason } from "@cashsouk/types";
+import { computeApplicationStatus } from "./lifecycle";
 
 export class ApplicationService {
   private repository: ApplicationRepository;
@@ -525,6 +527,94 @@ export class ApplicationService {
       status: "ARCHIVED",
       updated_at: new Date(),
     });
+  }
+
+  /**
+   * Cancel an application (issuer-only). Withdraws active invoices and contract only.
+   */
+  async cancelApplication(id: string, userId: string): Promise<Application> {
+    await this.verifyApplicationAccess(id, userId);
+
+    const application = await this.repository.findById(id);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+
+    const status = application.status as ApplicationStatus;
+
+    if (status === ApplicationStatus.WITHDRAWN) {
+      throw new AppError(400, "BAD_REQUEST", "This application has already been withdrawn and cannot be cancelled again.");
+    }
+
+    if (
+      status === ApplicationStatus.COMPLETED ||
+      status === ApplicationStatus.REJECTED ||
+      status === ApplicationStatus.ARCHIVED
+    ) {
+      throw new AppError(400, "BAD_REQUEST", "This application can no longer be cancelled.");
+    }
+
+    const contract = (application as any).contract ?? null;
+    const invoices = (application as any).invoices ?? [];
+
+    await prisma.$transaction(async (tx) => {
+      for (const invoice of invoices) {
+        if (
+          invoice.status === InvoiceStatus.DRAFT ||
+          invoice.status === InvoiceStatus.SUBMITTED ||
+          invoice.status === InvoiceStatus.OFFER_SENT ||
+          invoice.status === InvoiceStatus.AMENDMENT_REQUESTED
+        ) {
+          await tx.invoice.update({
+            where: { id: invoice.id },
+            data: {
+              status: InvoiceStatus.WITHDRAWN,
+              withdraw_reason: WithdrawReason.USER_CANCELLED,
+            },
+          });
+        }
+      }
+
+      if (
+        contract &&
+        contract.status !== ContractStatus.APPROVED &&
+        contract.status !== ContractStatus.WITHDRAWN &&
+        contract.status !== ContractStatus.REJECTED
+      ) {
+        await tx.contract.update({
+          where: { id: contract.id },
+          data: {
+            status: ContractStatus.WITHDRAWN,
+            withdraw_reason: WithdrawReason.USER_CANCELLED,
+          },
+        });
+      }
+
+      const updatedInvoices = await tx.invoice.findMany({
+        where: { application_id: id },
+      });
+
+      const updatedContract = contract
+        ? await tx.contract.findFirst({ where: { id: contract.id } })
+        : null;
+
+      const newStatus = computeApplicationStatus(
+        updatedContract as { status: ContractStatus } | null,
+        updatedInvoices.map((i) => ({ status: i.status as InvoiceStatus })),
+        status
+      );
+
+      await tx.application.update({
+        where: { id },
+        data: { status: newStatus },
+      });
+    });
+
+    const updated = await this.repository.findById(id);
+    if (!updated) {
+      throw new AppError(500, "INTERNAL_ERROR", "Failed to fetch updated application");
+    }
+    return updated;
   }
 
   /**

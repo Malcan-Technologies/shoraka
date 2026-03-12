@@ -3,6 +3,7 @@ import { ApplicationRepository } from "../applications/repository";
 import { OrganizationRepository } from "../organization/repository";
 import { AppError } from "../../lib/http/error-handler";
 import { ApplicationReviewRemark, Contract, Prisma } from "@prisma/client";
+import { ContractStatus, WithdrawReason } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import {
   generateContractDocumentKey,
@@ -242,6 +243,25 @@ export class ContractService {
     } catch (error) {
       throw new AppError(500, "DELETE_FAILED", "Failed to delete document from S3");
     }
+  }
+
+  async withdrawContract(id: string, userId: string, reason?: WithdrawReason): Promise<Contract> {
+    const contract = await this.verifyContractAccess(id, userId);
+
+    if (contract.status === ContractStatus.APPROVED) {
+      throw new AppError(400, "BAD_REQUEST", "This contract has already been approved and can no longer be withdrawn.");
+    }
+
+    if (contract.status === ContractStatus.WITHDRAWN) {
+      throw new AppError(400, "BAD_REQUEST", "This contract was already withdrawn.");
+    }
+
+    const finalReason = reason ?? WithdrawReason.USER_CANCELLED;
+
+    return this.repository.update(id, {
+      status: ContractStatus.WITHDRAWN,
+      withdraw_reason: finalReason,
+    });
   }
 }
 

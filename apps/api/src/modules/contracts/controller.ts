@@ -140,6 +140,22 @@ async function deleteDocument(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+async function withdrawContract(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = contractIdParamSchema.parse(req.params);
+    const userId = getUserId(req);
+    const contract = await contractService.withdrawContract(id, userId);
+
+    res.json({
+      success: true,
+      data: contract,
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function unlinkContract(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = contractIdParamSchema.parse(req.params);
@@ -155,12 +171,12 @@ async function unlinkContract(req: Request, res: Response, next: NextFunction) {
 export function createContractRouter(): Router {
   const router = Router();
 
-  console.log('byeeee')
   router.post("/", requireAuth, createContract);
   router.get("/approved", requireAuth, getApprovedContracts);
   router.get("/:id", requireAuth, getContract);
   router.patch("/:id", requireAuth, updateContract);
   router.post("/:id/unlink", requireAuth, unlinkContract);
+  router.post("/:id/withdraw", requireAuth, withdrawContract);
   router.post("/:id/upload-url", requireAuth, requestUploadUrl);
   router.delete("/:id/document", requireAuth, deleteDocument);
 

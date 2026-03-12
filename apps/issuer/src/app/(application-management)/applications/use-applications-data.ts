@@ -16,7 +16,7 @@ import { useMemo } from "react";
 import { useOrganization } from "@cashsouk/config";
 import { useOrganizationApplications } from "@/hooks/use-applications";
 import { USE_MOCK_DATA, mockApplications } from "./data";
-import { getCardStatus, getSortOrder, type NormalizedApplication, type NormalizedInvoice } from "./status";
+import { getCardStatus, APPLICATION_STATUS_PRIORITY, type NormalizedApplication, type NormalizedInvoice } from "./status";
 
 interface ApiContract {
   id?: string;
@@ -120,6 +120,7 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
   const submittedAt = (api as any).submitted_at != null ? String((api as any).submitted_at) : null;
 
   const contractId = (contract as ApiContract & { id?: string })?.id ?? (api as any).contract_id ?? null;
+  const issuerOrganizationId = (api as any).issuer_organization_id as string | undefined;
 
   return {
     id: api.id,
@@ -137,14 +138,15 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
     updatedAt: updated.toISOString(),
     invoices: invoices.map((inv) => prepareInvoice(inv, contractStatus)),
     contractStatus,
+    issuerOrganizationId,
   };
 }
 
-/* Sort: 1) by status (rejected first, draft last), 2) by last updated (newest first). */
+/* Sort: 1) by status priority, 2) by last updated (newest first). */
 function sort(apps: NormalizedApplication[]): NormalizedApplication[] {
   return [...apps].sort((a, b) => {
-    const pa = getSortOrder(a.status);
-    const pb = getSortOrder(b.status);
+    const pa = APPLICATION_STATUS_PRIORITY[a.status] ?? 999;
+    const pb = APPLICATION_STATUS_PRIORITY[b.status] ?? 999;
     if (pa !== pb) return pa - pb;
     return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
   });
