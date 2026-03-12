@@ -112,15 +112,20 @@ export class ContractService {
 
   async updateContract(id: string, data: Prisma.ContractUpdateInput, userId: string): Promise<Contract> {
     const contract = await this.verifyContractAccess(id, userId);
-    
-    // NOTE: Do not auto-initialize available_facility when contract value changes.
-    // The frontend is responsible for setting available_facility when appropriate.
 
-    // Enforce amendment boundaries: if application is in AMENDMENT_REQUESTED, contract edits
-    // are only allowed if there is an active REQUEST_AMENDMENT remark for contract_details.
+    /** invoice_only: allow customer_details only; reject contract_details updates. */
+    /** Enforce amendment boundaries: if application is in AMENDMENT_REQUESTED, contract edits
+     * are only allowed if there is an active REQUEST_AMENDMENT remark for contract_details. */
     const applicationId = (contract as any)?.applications?.[0]?.id;
     if (applicationId) {
       const application = await this.applicationRepository.findById(applicationId);
+      const structure = application?.financing_structure as { structure_type?: string } | null;
+      if (structure?.structure_type === "invoice_only") {
+        const isClearingContractDetails = data.contract_details === Prisma.JsonNull || data.contract_details === null;
+        if (!isClearingContractDetails && data.contract_details != null) {
+          throw new AppError(400, "VALIDATION_ERROR", "Contract financing fields are not allowed for invoice-only structure.");
+        }
+      }
       if (application && (application as any).status === "AMENDMENT_REQUESTED") {
         const remarks = await prisma.applicationReviewRemark.findMany({
           where: { application_id: applicationId, action_type: "REQUEST_AMENDMENT" } as any,

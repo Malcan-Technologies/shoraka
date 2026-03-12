@@ -28,6 +28,7 @@ import { formatMoney } from "./money";
  * - prefix?: string — optional prefix (e.g. "RM"); shown inside input on left
  * - maxIntDigits?: number — max digits before decimal (default 12)
  * - allowEmpty?: boolean — allow empty string (default true)
+ * - allowNegative?: boolean — allow negative numbers (default false)
  */
 interface MoneyInputProps {
   value: string;
@@ -39,6 +40,7 @@ interface MoneyInputProps {
   prefix?: string;
   maxIntDigits?: number;
   allowEmpty?: boolean;
+  allowNegative?: boolean;
 }
 
 export function MoneyInput({
@@ -51,22 +53,22 @@ export function MoneyInput({
   prefix = "",
   maxIntDigits = 12,
   allowEmpty = true,
+  allowNegative = false,
 }: MoneyInputProps) {
   /**
    * Validation helper
    *
    * What: Validates raw input and returns acceptance decision.
    * Why: Strict parsing avoids invalid money formats.
+   * Regex: ^-?\d{0,12}(\.\d{0,2})?$ — max 12 digits before decimal, max 2 decimal places.
    */
   const isValidMoneyInput = (raw: string): boolean => {
-    // empty is valid if allowed
     if (raw === "") return allowEmpty;
 
-    // digits + optional decimal (max 2 dp)
-    if (!/^\d+(\.\d{0,2})?$/.test(raw)) return false;
+    const regex = allowNegative ? /^-?\d{0,12}(\.\d{0,2})?$/ : /^\d{0,12}(\.\d{0,2})?$/;
+    if (!regex.test(raw)) return false;
 
-    // enforce max integer digits
-    const [intPart] = raw.split(".");
+    const [intPart] = raw.replace(/^-/, "").split(".");
     if (intPart.length > maxIntDigits) return false;
 
     return true;

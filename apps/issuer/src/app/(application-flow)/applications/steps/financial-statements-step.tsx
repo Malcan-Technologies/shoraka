@@ -30,13 +30,20 @@ import { MoneyInput } from "@/app/(application-flow)/applications/components/mon
 import { parseMoney, formatMoney } from "@/app/(application-flow)/applications/components/money";
 import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
 import { FinancialStatementsSkeleton } from "@/app/(application-flow)/applications/components/financial-statements-skeleton";
-import { FINANCIAL_FIELD_LABELS } from "@cashsouk/types";
+import {
+  FINANCIAL_FIELD_LABELS,
+  calculateProfitMargin,
+  calculateReturnOnEquity,
+  calculateCurrentRatio,
+  calculateWorkingCapital,
+  calculateGearing,
+} from "@cashsouk/types";
 
 /* ================================================================
    TYPES & CONSTANTS
    ================================================================ */
 
-/** API/DB shape: flat canonical keys */
+/** API/DB shape: flat canonical keys. plyear stored as string in form; parsed to number for API. */
 interface FinancialStatementsPayload {
   pldd: string;
   bsdd: string;
@@ -53,7 +60,7 @@ interface FinancialStatementsPayload {
   plnpat: string;
   plminin: string;
   plnetdiv: string;
-  plyear: number;
+  plyear: string;
 }
 
 const DEFAULT_PAYLOAD: FinancialStatementsPayload = {
@@ -72,7 +79,7 @@ const DEFAULT_PAYLOAD: FinancialStatementsPayload = {
   plnpat: "",
   plminin: "",
   plnetdiv: "",
-  plyear: 0,
+  plyear: "",
 };
 
 /** Legacy key mapping for backward compatibility */
@@ -116,7 +123,8 @@ function fromSaved(saved: unknown): FinancialStatementsPayload {
     if (key === "pldd" || key === "bsdd") {
       (out as unknown as Record<string, unknown>)[key] = String(val);
     } else if (key === "plyear") {
-      (out as unknown as Record<string, unknown>)[key] = toNum(val);
+      const n = toNum(val);
+      (out as unknown as Record<string, unknown>)[key] = n === 0 ? "" : formatMoney(n);
     } else {
       const n = toNum(val);
       (out as unknown as Record<string, unknown>)[key] = n === 0 ? "" : formatMoney(n);
@@ -141,7 +149,7 @@ function toApiPayload(form: FinancialStatementsPayload): Record<string, unknown>
     if (k === "pldd" || k === "bsdd") {
       out[k] = form[k];
     } else if (k === "plyear") {
-      out[k] = form.plyear;
+      out[k] = parseMoney(form.plyear ?? "");
     } else {
       const val = (form as unknown as Record<string, unknown>)[k];
       out[k] = parseMoney(String(val ?? ""));
@@ -162,113 +170,6 @@ const rowGridClassName =
 const sectionWrapperClassName = "w-full max-w-[1200px]";
 const formOuterClassName = "w-full max-w-[1200px] flex flex-col gap-10 px-3";
 
-const radioSelectedLabel = formLabelClassName;
-const radioUnselectedLabel = formLabelClassName.replace("text-foreground", "text-muted-foreground");
-
-/* ================================================================
-   CUSTOM RADIO
-   ================================================================ */
-
-function CustomRadio({
-  name,
-  value,
-  checked,
-  onChange,
-  label,
-  selectedLabelClass,
-  unselectedLabelClass,
-  disabled,
-}: {
-  name: string;
-  value: string;
-  checked: boolean;
-  onChange: () => void;
-  label: string;
-  selectedLabelClass: string;
-  unselectedLabelClass: string;
-  disabled?: boolean;
-}) {
-  return (
-    <label className={cn("flex items-center gap-2", disabled ? "cursor-not-allowed" : "cursor-pointer")}>
-      <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
-        <input
-          type="radio"
-          name={name}
-          value={value}
-          checked={checked}
-          onChange={onChange}
-          disabled={disabled}
-          className="sr-only"
-          aria-hidden
-        />
-        <span
-          className={cn(
-            "pointer-events-none relative block h-5 w-5 shrink-0 rounded-full",
-            checked
-              ? disabled
-                ? "bg-muted border-2 border-muted-foreground/50"
-                : "bg-primary"
-              : "border-2 border-muted-foreground/50 bg-muted/30"
-          )}
-          aria-hidden
-        >
-          {checked && (
-            <span
-              className={cn(
-                "absolute inset-1 rounded-full",
-                disabled ? "bg-muted-foreground/60" : "bg-white"
-              )}
-              aria-hidden
-            />
-          )}
-          {!checked && (
-            <span
-              className="absolute inset-1.5 rounded-full bg-muted-foreground/40"
-              aria-hidden
-            />
-          )}
-        </span>
-      </span>
-      <span className={checked ? selectedLabelClass : unselectedLabelClass}>{label}</span>
-    </label>
-  );
-}
-
-function ProfitLossRadioGroup({
-  value,
-  onValueChange,
-  disabled,
-}: {
-  value: "profit" | "loss" | "";
-  onValueChange: (v: "profit" | "loss") => void;
-  disabled?: boolean;
-}) {
-  return (
-    <div className="flex gap-6 items-center">
-      <CustomRadio
-        name="plyear-type"
-        value="profit"
-        checked={value === "profit"}
-        onChange={() => !disabled && onValueChange("profit")}
-        label="Profit"
-        selectedLabelClass={radioSelectedLabel}
-        unselectedLabelClass={radioUnselectedLabel}
-        disabled={disabled}
-      />
-      <CustomRadio
-        name="plyear-type"
-        value="loss"
-        checked={value === "loss"}
-        onChange={() => !disabled && onValueChange("loss")}
-        label="Loss"
-        selectedLabelClass={radioSelectedLabel}
-        unselectedLabelClass={radioUnselectedLabel}
-        disabled={disabled}
-      />
-    </div>
-  );
-}
-
 /* ================================================================
    MONEY FIELD ROW
    ================================================================ */
@@ -279,12 +180,14 @@ function MoneyFieldRow({
   value,
   onValueChange,
   readOnly,
+  allowNegative = false,
 }: {
   id: string;
   label: string;
   value: string;
   onValueChange: (v: string) => void;
   readOnly?: boolean;
+  allowNegative?: boolean;
 }) {
   return (
     <>
@@ -296,10 +199,59 @@ function MoneyFieldRow({
         onValueChange={onValueChange}
         placeholder="0.00"
         prefix="RM"
+        allowNegative={allowNegative}
         inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
         disabled={readOnly}
       />
     </>
+  );
+}
+
+/* ================================================================
+   CALCULATED METRICS (UI only, never persisted)
+   ================================================================ */
+
+function CalculatedMetricsSection({ form }: { form: FinancialStatementsPayload }) {
+  const metrics = React.useMemo(() => {
+    const bscatot = parseMoney(form.bscatot ?? "");
+    const curlib = parseMoney(form.curlib ?? "");
+    const bsslltd = parseMoney(form.bsslltd ?? "");
+    const bsclstd = parseMoney(form.bsclstd ?? "");
+    const bsqpuc = parseMoney(form.bsqpuc ?? "");
+    const turnover = parseMoney(form.turnover ?? "");
+    const plnpat = parseMoney(form.plnpat ?? "");
+
+    return {
+      profitMargin: calculateProfitMargin(plnpat, turnover),
+      returnOnEquity: calculateReturnOnEquity(plnpat, bsqpuc),
+      currentRatio: calculateCurrentRatio(bscatot, curlib),
+      workingCapital: calculateWorkingCapital(bscatot, curlib),
+      gearing: calculateGearing(curlib, bsslltd, bsclstd, bsqpuc),
+    };
+  }, [form.bscatot, form.curlib, form.bsslltd, form.bsclstd, form.bsqpuc, form.turnover, form.plnpat]);
+
+  const fmtPct = (v: number | null) =>
+    v == null ? "—" : `${(v * 100).toFixed(2)}%`;
+
+  return (
+    <section className={`${sectionWrapperClassName} space-y-3`}>
+      <div>
+        <h3 className={sectionHeaderClassName}>Calculated Metrics</h3>
+        <div className="border-b border-border mt-2 mb-4" />
+      </div>
+      <div className={rowGridClassName}>
+        <Label className={cn(labelClassName, "text-muted-foreground")}>Profit Margin</Label>
+        <span className={cn(inputClassName, "py-2")}>{fmtPct(metrics.profitMargin)}</span>
+        <Label className={cn(labelClassName, "text-muted-foreground")}>Return on Equity</Label>
+        <span className={cn(inputClassName, "py-2")}>{fmtPct(metrics.returnOnEquity)}</span>
+        <Label className={cn(labelClassName, "text-muted-foreground")}>Current Ratio</Label>
+        <span className={cn(inputClassName, "py-2")}>{metrics.currentRatio != null ? metrics.currentRatio.toFixed(2) : "—"}</span>
+        <Label className={cn(labelClassName, "text-muted-foreground")}>Working Capital</Label>
+        <span className={cn(inputClassName, "py-2")}>{formatMoney(metrics.workingCapital)}</span>
+        <Label className={cn(labelClassName, "text-muted-foreground")}>Gearing</Label>
+        <span className={cn(inputClassName, "py-2")}>{fmtPct(metrics.gearing)}</span>
+      </div>
+    </section>
   );
 }
 
@@ -321,8 +273,6 @@ export function FinancialStatementsStep({
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
   const [form, setForm] = React.useState<FinancialStatementsPayload>(DEFAULT_PAYLOAD);
-  const [profitLossType, setProfitLossType] = React.useState<"profit" | "loss" | "">("");
-  const [profitLossAmount, setProfitLossAmount] = React.useState<string>("");
   const [isInitialized, setIsInitialized] = React.useState(false);
   const initialPayloadRef = React.useRef<string>("");
 
@@ -336,16 +286,6 @@ export function FinancialStatementsStep({
     const saved = (application as unknown as Record<string, unknown>)?.financial_statements;
     const initial = fromSaved(saved);
     setForm(initial);
-    if (initial.plyear === 0) {
-      setProfitLossType("");
-      setProfitLossAmount("");
-    } else if (initial.plyear < 0) {
-      setProfitLossType("loss");
-      setProfitLossAmount(formatMoney(Math.abs(initial.plyear)));
-    } else {
-      setProfitLossType("profit");
-      setProfitLossAmount(formatMoney(initial.plyear));
-    }
     initialPayloadRef.current = JSON.stringify(toApiPayload(initial));
     setIsInitialized(true);
   }, [application, isInitialized]);
@@ -357,23 +297,6 @@ export function FinancialStatementsStep({
     []
   );
 
-  const handlePlyearTypeChange = React.useCallback((type: "profit" | "loss") => {
-    setProfitLossType(type);
-  }, []);
-
-  const handlePlyearAmountChange = React.useCallback((v: string) => {
-    setProfitLossAmount(v);
-  }, []);
-
-  React.useEffect(() => {
-    if (profitLossType === "profit" || profitLossType === "loss") {
-      const amount = parseMoney(profitLossAmount);
-      setForm((prev) => ({ ...prev, plyear: profitLossType === "loss" ? -amount : amount }));
-    } else {
-      setForm((prev) => ({ ...prev, plyear: 0 }));
-    }
-  }, [profitLossType, profitLossAmount]);
-
   const apiPayload = React.useMemo(() => toApiPayload(form), [form]);
 
   const hasPendingChanges = React.useMemo(() => {
@@ -381,20 +304,21 @@ export function FinancialStatementsStep({
     return JSON.stringify(apiPayload) !== initialPayloadRef.current;
   }, [apiPayload, isInitialized]);
 
-  /** All fields required. Save and Continue disabled until every field has a value. */
+  const hasValue = (v: unknown) => String(v ?? "").trim() !== "";
+
+  /** All fields required. turnover >= 0. plnpat, bsqpuc, plyear can be negative. */
   const isValid = React.useMemo(() => {
     const dateFields: (keyof FinancialStatementsPayload)[] = ["pldd", "bsdd"];
     const moneyFields: (keyof FinancialStatementsPayload)[] = [
       "bsfatot", "othass", "bscatot", "bsclbank", "curlib", "bsslltd", "bsclstd", "bsqpuc",
-      "turnover", "plnpbt", "plnpat", "plminin", "plnetdiv",
+      "turnover", "plnpbt", "plnpat", "plminin", "plnetdiv", "plyear",
     ];
-    const hasValue = (v: unknown) => String(v ?? "").trim() !== "";
     if (!dateFields.every((k) => hasValue(form[k]))) return false;
     if (!moneyFields.every((k) => hasValue(form[k]))) return false;
-    if (profitLossType !== "profit" && profitLossType !== "loss") return false;
-    if (!hasValue(profitLossAmount)) return false;
+    const turnoverNum = parseMoney(form.turnover ?? "");
+    if (turnoverNum < 0) return false;
     return true;
-  }, [form, profitLossType, profitLossAmount]);
+  }, [form]);
 
   React.useEffect(() => {
     if (!onDataChangeRef.current || !isInitialized) return;
@@ -502,6 +426,7 @@ export function FinancialStatementsStep({
               value={form.bsqpuc ?? ""}
               onValueChange={(v) => handleFieldChange("bsqpuc", v)}
               readOnly={readOnly}
+              allowNegative
             />
           </div>
         </section>
@@ -513,13 +438,18 @@ export function FinancialStatementsStep({
             <div className="border-b border-border mt-2 mb-4" />
           </div>
           <div className={rowGridClassName}>
-            <MoneyFieldRow
-              id="turnover"
-              label={getLabel("turnover")}
-              value={form.turnover ?? ""}
-              onValueChange={(v) => handleFieldChange("turnover", v)}
-              readOnly={readOnly}
-            />
+            <>
+              <MoneyFieldRow
+                id="turnover"
+                label={getLabel("turnover")}
+                value={form.turnover ?? ""}
+                onValueChange={(v) => handleFieldChange("turnover", v)}
+                readOnly={readOnly}
+              />
+              {hasValue(form.turnover) && parseMoney(form.turnover ?? "") < 0 && (
+                <p className="text-xs text-destructive sm:col-span-2">Turnover must be 0 or greater</p>
+              )}
+            </>
             <MoneyFieldRow
               id="plnpbt"
               label={getLabel("plnpbt")}
@@ -533,6 +463,7 @@ export function FinancialStatementsStep({
               value={form.plnpat ?? ""}
               onValueChange={(v) => handleFieldChange("plnpat", v)}
               readOnly={readOnly}
+              allowNegative
             />
             <MoneyFieldRow
               id="plminin"
@@ -548,34 +479,19 @@ export function FinancialStatementsStep({
               onValueChange={(v) => handleFieldChange("plnetdiv", v)}
               readOnly={readOnly}
             />
-            <Label className={labelClassName}>Profit / Loss of the Year</Label>
-            <div className="space-y-4">
-              <div>
-                <span className="text-sm text-muted-foreground">Type</span>
-                <div className="mt-2">
-                  <ProfitLossRadioGroup
-                    value={profitLossType}
-                    onValueChange={handlePlyearTypeChange}
-                    disabled={readOnly}
-                  />
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="plyear-amount" className={cn(labelClassName, "block mb-2")}>
-                  Amount
-                </Label>
-                <MoneyInput
-                  value={profitLossAmount}
-                  onValueChange={handlePlyearAmountChange}
-                  placeholder="0.00"
-                  prefix="RM"
-                  inputClassName={cn(inputClassName, "pl-12", (readOnly || profitLossType === "") && formInputDisabledClassName)}
-                  disabled={readOnly || profitLossType === ""}
-                />
-              </div>
-            </div>
+            <MoneyFieldRow
+              id="plyear"
+              label={getLabel("plyear")}
+              value={form.plyear ?? ""}
+              onValueChange={(v) => handleFieldChange("plyear", v)}
+              readOnly={readOnly}
+              allowNegative
+            />
           </div>
         </section>
+
+        {/* ===================== CALCULATED METRICS (read-only, never persisted) ===================== */}
+        <CalculatedMetricsSection form={form} />
       </div>
       <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>

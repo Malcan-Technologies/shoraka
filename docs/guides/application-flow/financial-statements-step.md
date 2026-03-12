@@ -67,7 +67,17 @@ When the step being updated is financial statements, the service validates the p
 
 The step loads saved data from `application.financial_statements`. A `fromSaved` helper supports both the legacy nested format (`{ input: { ... } }`) and the current flat format. Legacy keys are mapped to the canonical keys via `LEGACY_KEY_MAP`. On save, `toApiPayload` returns a flat object with only the canonical keys.
 
-The UI is organized into sections: Financial Year (pldd, bsdd), Assets (bsfatot, othass, bscatot, bsclbank), Liabilities (curlib, bsslltd, bsclstd), Equity (bsqpuc), and Profit and Loss (turnover, plnpbt, plnpat, plminin, plnetdiv, plyear). Labels come from `FINANCIAL_FIELD_LABELS` in `packages/types/src/financial-field-labels.ts`. The issuer step does not show Total Assets, Total Liability, or financial ratios; those are used elsewhere (e.g. admin) when `calculateFinancialMetrics` is called.
+The UI is organized into sections: Financial Year (pldd, bsdd), Assets, Liabilities, Equity, Profit and Loss, and Calculated Metrics. Labels come from `FINANCIAL_FIELD_LABELS` in `packages/types/src/financial-field-labels.ts`.
+
+**Negative value handling:** `plnpat`, `bsqpuc`, and `plyear` support negative numbers via `MoneyInput` with `allowNegative={true}`. For `plyear`, a positive value indicates profit; a negative value indicates loss.
+
+**MoneyInput limits:** Regex `^-?\d{0,12}(\.\d{0,2})?$`. Maximum 12 digits before decimal; maximum 2 decimal places; negative numbers supported when `allowNegative={true}`.
+
+**Financial Calculation Behaviour:** The metrics `profitMargin`, `returnOnEquity`, `currentRatio`, `workingCapital`, and `gearing` are computed only in the UI and **never** stored in the database. `toApiPayload` must exclude calculated metrics. They are displayed as read-only in the Calculated Metrics section.
+
+**Validation rules:** `turnover >= 0`; `plnpat`, `bsqpuc`, and `plyear` may be negative.
+
+**Financial helper functions:** See `packages/types/src/financial-calculator.ts` for `calculateProfitMargin`, `calculateReturnOnEquity`, `calculateCurrentRatio`, `calculateWorkingCapital`, `calculateGearing`, and `calculateFinancialMetrics`.
 
 ---
 

@@ -1424,12 +1424,11 @@ export class ApiClient {
   async updateContract(
     id: string,
     data: {
-      contract_details?: ContractDetails;
+      contract_details?: ContractDetails | null;
       customer_details?: CustomerDetails;
       status?: string;
     }
   ): Promise<ApiResponse<Contract> | ApiError> {
-    console.log('dataaaaaaa', data)
     return this.patch<Contract>(`/v1/contracts/${id}`, data);
   }
 

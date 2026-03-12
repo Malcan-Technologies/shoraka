@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction, Router } from "express";
+import { Prisma } from "@prisma/client";
 import { contractService } from "./service";
 import {
   createContractSchema,
@@ -54,9 +55,11 @@ async function updateContract(req: Request, res: Response, next: NextFunction) {
     const { id } = contractIdParamSchema.parse(req.params);
     const input = updateContractSchema.parse(req.body);
     const userId = getUserId(req);
-    console.log('byeeeeeeee', input)
-    const contract = await contractService.updateContract(id, input, userId);
-    console.log('hihih', contract)
+    const data: Prisma.ContractUpdateInput = {
+      ...input,
+      contract_details: input.contract_details === null ? Prisma.JsonNull : input.contract_details,
+    };
+    const contract = await contractService.updateContract(id, data, userId);
 
     res.json({
       success: true,

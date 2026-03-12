@@ -38,6 +38,58 @@ function safeNum(input: FinancialStatementsInput, key: keyof FinancialStatements
 }
 
 /**
+ * Returns profit margin (plnpat / turnover). Divide-by-zero safe.
+ */
+export function calculateProfitMargin(plnpat: number, turnover: number): number | null {
+  if (turnover === 0) return null;
+  return plnpat / turnover;
+}
+
+/**
+ * Returns return on equity (plnpat / bsqpuc). Divide-by-zero safe.
+ */
+export function calculateReturnOnEquity(plnpat: number, bsqpuc: number): number | null {
+  if (bsqpuc === 0) return null;
+  return plnpat / bsqpuc;
+}
+
+/**
+ * Returns current ratio (bscatot / curlib). Divide-by-zero safe.
+ */
+export function calculateCurrentRatio(bscatot: number, curlib: number): number | null {
+  if (curlib === 0) return null;
+  return bscatot / curlib;
+}
+
+/**
+ * Returns working capital (bscatot - curlib).
+ */
+export function calculateWorkingCapital(bscatot: number, curlib: number): number {
+  return (bscatot ?? 0) - (curlib ?? 0);
+}
+
+/**
+ * Returns gearing (totlib / bsqpuc). Computes totlib internally from curlib, bsslltd, bsclstd.
+ */
+export function calculateGearing(
+  curlib: number,
+  bsslltd: number,
+  bsclstd: number,
+  bsqpuc: number
+): number | null {
+  const totlib = (curlib ?? 0) + (bsslltd ?? 0) + (bsclstd ?? 0);
+  if (bsqpuc === 0) return null;
+  return totlib / bsqpuc;
+}
+
+/**
+ * Returns turnover growth. Always null (no prior-year data).
+ */
+export function calculateTurnoverGrowth(): number | null {
+  return null;
+}
+
+/**
  * Returns computed financial metrics from input values.
  * Divide-by-zero safe; missing values default to 0.
  */

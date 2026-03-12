@@ -402,6 +402,8 @@ interface ContractDetailsStepProps {
   flaggedItems?: Map<string, Set<string>>;
   remarks?: { scope?: string; scope_key?: string; remark?: string }[];
   readOnly?: boolean;
+  /** When true, show only Customer Details; hide Contract Details. Save customer_details only. */
+  isInvoiceOnly?: boolean;
 }
 
 export function ContractDetailsStep({
@@ -413,6 +415,7 @@ export function ContractDetailsStep({
   flaggedItems,
   remarks: _remarks,
   readOnly = false,
+  isInvoiceOnly = false,
 }: ContractDetailsStepProps) {
   const { getAccessToken } = useAuthToken();
   const { data: application } = useApplication(applicationId);
@@ -599,63 +602,46 @@ export function ContractDetailsStep({
 
   const saveFunction = React.useCallback(async () => {
     setHasSubmitted(true);
-    if (productMinMonths == null) {
-      toast.error("System configuration error. Please contact administrator.");
-      throw new Error("VALIDATION_PRODUCT_CONFIG_MISSING_MIN_CONTRACT_MONTHS");
-    }
-
-    // Collect validation errors so we can show all inline errors at once.
     const validationErrors: string[] = [];
-    // Clear previous financing error before validating
     setFinancingError(null);
 
-    // Required fields
-    if (!formData.contract.start_date)
-      validationErrors.push("VALIDATION_CONTRACT_START_DATE_REQUIRED");
-
-    if (!formData.contract.end_date)
-      validationErrors.push("VALIDATION_CONTRACT_END_DATE_REQUIRED");
-
-    // Date format
-    if (formData.contract.start_date && !isValidCalendarDate(formData.contract.start_date))
-      validationErrors.push("VALIDATION_CONTRACT_INVALID_START_DATE");
-
-    if (formData.contract.end_date && !isValidCalendarDate(formData.contract.end_date))
-      validationErrors.push("VALIDATION_CONTRACT_INVALID_END_DATE");
-
-    // Logical order
-    if (!isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date))
-      validationErrors.push("VALIDATION_CONTRACT_DATE_ORDER");
-
-    // Duration rule (product-level)
-    if (
-      isEndDateTooSoon(
-        formData.contract.start_date,
-        formData.contract.end_date,
-        productMinMonths
-      )
-    ) {
-      validationErrors.push("VALIDATION_CONTRACT_DURATION_TOO_SHORT");
+    if (!isInvoiceOnly) {
+      if (productMinMonths == null) {
+        toast.error("System configuration error. Please contact administrator.");
+        throw new Error("VALIDATION_PRODUCT_CONFIG_MISSING_MIN_CONTRACT_MONTHS");
+      }
+      if (!formData.contract.start_date)
+        validationErrors.push("VALIDATION_CONTRACT_START_DATE_REQUIRED");
+      if (!formData.contract.end_date)
+        validationErrors.push("VALIDATION_CONTRACT_END_DATE_REQUIRED");
+      if (formData.contract.start_date && !isValidCalendarDate(formData.contract.start_date))
+        validationErrors.push("VALIDATION_CONTRACT_INVALID_START_DATE");
+      if (formData.contract.end_date && !isValidCalendarDate(formData.contract.end_date))
+        validationErrors.push("VALIDATION_CONTRACT_INVALID_END_DATE");
+      if (!isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date))
+        validationErrors.push("VALIDATION_CONTRACT_DATE_ORDER");
+      if (
+        isEndDateTooSoon(
+          formData.contract.start_date,
+          formData.contract.end_date,
+          productMinMonths
+        )
+      ) {
+        validationErrors.push("VALIDATION_CONTRACT_DURATION_TOO_SHORT");
+      }
+      const contractValueNum = parseMoney(formData.contract.value);
+      const financingAmountNum = parseMoney(formData.contract.financing);
+      if (financingAmountNum <= 0) {
+        setFinancingError("Financing amount must be greater than 0");
+        validationErrors.push("VALIDATION_CONTRACT_FINANCING_REQUIRED");
+      } else if (financingAmountNum > contractValueNum) {
+        setFinancingError(`Financing cannot exceed ${formatMoney(contractValueNum)}`);
+        validationErrors.push("VALIDATION_CONTRACT_FINANCING_EXCEEDS_VALUE");
+      }
     }
-
 
     if (!/^\d{12}$/.test(formData.customer.ssm_number)) validationErrors.push("VALIDATION_CONTRACT_SSM_FORMAT");
 
-
-    /* Validate financing amount only on Save (not during typing).
-       Follow CashSouk pattern: validation happens at save boundary. */
-    const contractValueNum = parseMoney(formData.contract.value);
-    const financingAmountNum = parseMoney(formData.contract.financing);
-
-    if (financingAmountNum <= 0) {
-      setFinancingError("Financing amount must be greater than 0");
-      validationErrors.push("VALIDATION_CONTRACT_FINANCING_REQUIRED");
-    } else if (financingAmountNum > contractValueNum) {
-      setFinancingError(`Financing cannot exceed ${formatMoney(contractValueNum)}`);
-      validationErrors.push("VALIDATION_CONTRACT_FINANCING_EXCEEDS_VALUE");
-    }
-
-    // If any validation errors, show a single toast and abort save so UI shows all inline errors.
     if (validationErrors.length > 0) {
       toast.error("Please fix the highlighted fields");
       throw new Error("VALIDATION_CONTRACT_FAILED");
@@ -679,8 +665,8 @@ export function ContractDetailsStep({
     const apiClient = createApiClient(API_URL, () => Promise.resolve(token));
     const updatedFormData = { ...formData };
 
-    // Upload contract file if pending
-    if (pendingFiles.contract) {
+    /** Upload contract file only when not invoice_only. */
+    if (!isInvoiceOnly && pendingFiles.contract) {
       try {
         setIsUploading((prev) => ({ ...prev, contract: true }));
 
@@ -775,7 +761,28 @@ export function ContractDetailsStep({
       }
     }
 
-    // Convert values to numbers
+    const updatedCustomerDetails = {
+      ...updatedFormData.customer,
+      is_related_party: updatedFormData.customer.is_related_party === "yes",
+      document: updatedFormData.customer.document || undefined,
+    };
+
+    if (isInvoiceOnly) {
+      const existingContractDetails = (contract as unknown as { contract_details?: Record<string, unknown> })?.contract_details;
+      const updatePayload: { customer_details: typeof updatedCustomerDetails; contract_details?: null } = {
+        customer_details: updatedCustomerDetails,
+      };
+      if (existingContractDetails != null && Object.keys(existingContractDetails).length > 0) {
+        updatePayload.contract_details = null;
+      }
+      await updateContractMutation.mutateAsync({
+        id: effectiveContractId,
+        data: updatePayload,
+      });
+      setPendingFiles({});
+      return { contract_details: undefined, customer_details: updatedCustomerDetails };
+    }
+
     const valueNum = parseMoney(updatedFormData.contract.value);
     const contractFinancingNum = parseMoney(updatedFormData.contract.financing);
     const existingCd = (contract as unknown as { contract_details?: Record<string, unknown> })?.contract_details;
@@ -801,14 +808,6 @@ export function ContractDetailsStep({
       document: updatedFormData.contract.document || undefined,
     };
 
-
-    const updatedCustomerDetails = {
-      ...updatedFormData.customer,
-      is_related_party: updatedFormData.customer.is_related_party === "yes",
-      document: updatedFormData.customer.document || undefined,
-    };
-
-    // Save to DB
     await updateContractMutation.mutateAsync({
       id: effectiveContractId,
       data: {
@@ -817,10 +816,7 @@ export function ContractDetailsStep({
       },
     });
 
-    // Clear pending files
     setPendingFiles({});
-
-    // Return persisted data
     return {
       contract_details: updatedContractDetails,
       customer_details: updatedCustomerDetails,
@@ -834,6 +830,8 @@ export function ContractDetailsStep({
     getAccessToken,
     createContractMutation,
     updateContractMutation,
+    isInvoiceOnly,
+    contract,
   ]);
 
   /* ================================================================
@@ -920,25 +918,28 @@ export function ContractDetailsStep({
     const hasFormChanges = hasFormChanged();
     const hasContractDocument = !!formData.contract.document || !!pendingFiles.contract;
     const hasConsentDocument = !!formData.customer.document || !!pendingFiles.consent;
-
-    // Check if dates are present and valid (parents store free-text dates)
     const hasValidStartDate = !!formData.contract.start_date && isValidCalendarDate(formData.contract.start_date);
     const hasValidEndDate = !!formData.contract.end_date && isValidCalendarDate(formData.contract.end_date);
 
-    const isValid =
-      !!formData.contract.title &&
-      !!formData.contract.description &&
-      !!formData.contract.number &&
-      !!formData.contract.value &&
-      !!formData.contract.financing &&
-      hasValidStartDate &&
-      hasValidEndDate &&
-      hasContractDocument &&
-      !!formData.customer.name &&
-      !!formData.customer.entity_type &&
-      !!formData.customer.ssm_number &&
-      !!formData.customer.country &&
-      hasConsentDocument;
+    const isValid = isInvoiceOnly
+      ? !!formData.customer.name &&
+        !!formData.customer.entity_type &&
+        !!formData.customer.ssm_number &&
+        !!formData.customer.country &&
+        hasConsentDocument
+      : !!formData.contract.title &&
+        !!formData.contract.description &&
+        !!formData.contract.number &&
+        !!formData.contract.value &&
+        !!formData.contract.financing &&
+        hasValidStartDate &&
+        hasValidEndDate &&
+        hasContractDocument &&
+        !!formData.customer.name &&
+        !!formData.customer.entity_type &&
+        !!formData.customer.ssm_number &&
+        !!formData.customer.country &&
+        hasConsentDocument;
 
     /** Send a stable payload to parent.
      *
@@ -954,9 +955,8 @@ export function ContractDetailsStep({
       saveFunction: saveFunctionRef.current || undefined,
       _saveFunctionRef: saveFunctionRef, // internal fallback for debugging/tests
     });
-    // Intentionally omit dependencies that would retrigger this effect too often.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData, pendingFiles]);
+  }, [formData, pendingFiles, isInvoiceOnly]);
   // Determine whether the step is editable (amendment mode + flagged, or explicit readOnly override)
   const stepIsEditable = React.useMemo(() => {
     if (readOnly) return false;
@@ -1027,7 +1027,8 @@ export function ContractDetailsStep({
   return (
     <>
       <div className="space-y-10 px-3">
-        {/* Contract Details Section */}
+        {/* Contract Details Section — hidden when invoice_only */}
+        {!isInvoiceOnly && (
         <section className="space-y-3">
           <div>
             <h3 className={sectionHeaderClassName}>Contract details</h3>
@@ -1189,11 +1190,14 @@ export function ContractDetailsStep({
               />
           </div>
         </section>
+        )}
 
         {/* Customer Details Section */}
         <section className="space-y-3">
           <div>
-            <h3 className={sectionHeaderClassName}>Customer details</h3>
+            <h3 className={sectionHeaderClassName}>
+              {isInvoiceOnly ? "Customer Details (Required for Invoice Financing)" : "Customer details"}
+            </h3>
             <div className="border-b border-border mt-2 mb-4" />
           </div>
 

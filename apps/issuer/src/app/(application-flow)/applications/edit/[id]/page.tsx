@@ -356,10 +356,7 @@ export default function EditApplicationPage() {
     if (!productWorkflow.length) return [];
     if (!isStructureResolved) return productWorkflow;
 
-    if (
-      effectiveStructureType === "existing_contract" ||
-      effectiveStructureType === "invoice_only"
-    ) {
+    if (effectiveStructureType === "existing_contract") {
       return productWorkflow.filter(
         (step: Record<string, unknown>) =>
           getStepKeyFromStepId((step.id as string) || "") !== "contract_details"
@@ -733,6 +730,7 @@ export default function EditApplicationPage() {
           flaggedItems={flaggedItems}
           remarks={amendmentContext?.remarks ?? []}
           readOnly={stepReadOnly}
+          isInvoiceOnly={effectiveStructureType === "invoice_only"}
         />
       );
     }
