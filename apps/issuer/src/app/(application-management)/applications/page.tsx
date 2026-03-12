@@ -183,8 +183,6 @@ function ApplicationCard({
   const isGenericDraft = application.type === "Generic";
   const hasContract = application.type === "Contract financing";
 
-  const invoicesDisabled = hasContract && application.contractStatus !== "APPROVED";
-
   const useDraftCardLayout = isDraft && isGenericDraft;
 
   const displayId = "#" + application.id.slice(-8);
@@ -382,18 +380,7 @@ function ApplicationCard({
               <h3 className="text-sm font-semibold text-foreground mb-3">
                 Invoice table
               </h3>
-              {invoicesDisabled && (
-                <p className="text-xs text-muted-foreground mb-2">
-                  Invoices will be available after the contract offer is accepted.
-                </p>
-              )}
-              <div className={cn("overflow-hidden rounded-xl border", invoicesDisabled && "relative opacity-90")}>
-              {invoicesDisabled && (
-                <div
-                  className="absolute inset-0 bg-slate-500/15 z-10 rounded-xl pointer-events-auto"
-                  aria-hidden
-                />
-              )}
+              <div className="overflow-hidden rounded-xl border">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/30 hover:bg-muted/30 border-b border-border">
@@ -442,7 +429,7 @@ function ApplicationCard({
                       const showReviewOffer = invStatus === "OFFER_SENT" && inv.offerStatus === "Offer received";
                       const canReview = inv.canReviewOffer;
                       const showMakeAmendments = invStatus === "AMENDMENT_REQUESTED";
-                      const invDisabled = invoicesDisabled;
+                      const canWithdrawInvoice = !["APPROVED", "REJECTED", "WITHDRAWN"].includes(invStatus);
                       return (
                         <TableRow
                           key={inv.id}
@@ -467,7 +454,6 @@ function ApplicationCard({
                               documentName={inv.document}
                               documentS3Key={inv.documentS3Key}
                               onDownload={onDocumentDownload}
-                              disabled={invDisabled}
                             />
                           </TableCell>
                           <TableCell className="text-right text-[15px] py-3 px-4 align-middle tabular-nums">
@@ -482,16 +468,11 @@ function ApplicationCard({
                             />
                           </TableCell>
                           <TableCell className="py-3 px-4 align-top">
-                            <div
-                              className={cn(
-                                "flex items-start justify-end gap-2",
-                                invDisabled && "pointer-events-none opacity-60"
-                              )}
-                            >
+                            <div className="flex items-start justify-end gap-2">
                               {(showReviewOffer || showMakeAmendments) && (
                                 <div className="flex flex-col items-center gap-1 min-w-[140px]">
                                   {showReviewOffer && (
-                                    canReview && !invDisabled && onReviewInvoiceOffer ? (
+                                    canReview && onReviewInvoiceOffer ? (
                                       <Button
                                         type="button"
                                         size="sm"
@@ -539,11 +520,17 @@ function ApplicationCard({
                                 <DropdownMenuContent align="end" className="rounded-xl">
                                   <DropdownMenuItem
                                     className="cursor-pointer"
+                                    disabled={!canWithdrawInvoice}
                                     onClick={() => {
-                                      if (onWithdrawInvoice) {
+                                      if (canWithdrawInvoice && onWithdrawInvoice) {
                                         onWithdrawInvoice(inv.id, application.id, application.issuerOrganizationId);
                                       }
                                     }}
+                                    title={
+                                      !canWithdrawInvoice
+                                        ? "Cannot withdraw: invoice is already approved, rejected, or withdrawn"
+                                        : undefined
+                                    }
                                   >
                                     Withdraw Invoice
                                   </DropdownMenuItem>
