@@ -718,25 +718,15 @@ export default function ApplicationsPage() {
   );
 
   const totalCount = applications.length;
-  const filterCount = [
+  const statusMoreFilterCount = [
     statusFilter !== "all",
     financingFilter !== "all",
-    submittedFilter !== "all",
     offerExpiryFilter !== "all",
   ].filter(Boolean).length;
-  const hasFilters = search !== "" || filterCount > 0;
-
-  /** Date range label when filter active. e.g. "4 Mar 2026 – 11 Mar 2026" */
-  function getDateRangeLabel(filter: string): string | null {
-    if (filter === "all") return null;
-    const now = new Date();
-    const start = new Date(now);
-    if (filter === "7d") start.setDate(now.getDate() - 7);
-    else if (filter === "30d") start.setDate(now.getDate() - 30);
-    else if (filter === "90d") start.setDate(now.getDate() - 90);
-    return `${formatDate(start)} – ${formatDate(now)}`;
-  }
-  const submittedRangeLabel = getDateRangeLabel(submittedFilter);
+  const hasFilters =
+    search !== "" ||
+    submittedFilter !== "all" ||
+    statusMoreFilterCount > 0;
   const totalPages = Math.ceil(filteredApplications.length / perPage) || 1;
   const startIndex = (page - 1) * perPage + 1;
   const endIndex = Math.min(
@@ -840,7 +830,7 @@ export default function ApplicationsPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0 space-y-6">
-          {/* FILTER: Same pattern as ActivityToolbar — search + FunnelIcon dropdowns + Clear + count. */}
+          {/* FILTER: Matches ActivityToolbar — search + 2 dropdowns (Submitted, Filter) + Clear + count. */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full">
             <div className="relative flex-1 w-full">
               <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -855,7 +845,7 @@ export default function ApplicationsPage() {
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -866,7 +856,7 @@ export default function ApplicationsPage() {
                     Submitted
                     {submittedFilter !== "all" && (
                       <Badge
-                        variant="default"
+                        variant="secondary"
                         className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs shadow-none"
                       >
                         1
@@ -909,84 +899,90 @@ export default function ApplicationsPage() {
                   >
                     <FunnelIcon className="h-4 w-4" />
                     Filter
-                    {filterCount > 0 && (
+                    {statusMoreFilterCount > 0 && (
                       <Badge
                         variant="default"
                         className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs shadow-none"
                       >
-                        {filterCount}
+                        {statusMoreFilterCount}
                       </Badge>
                     )}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 p-1">
-                  <DropdownMenuLabel>Application status</DropdownMenuLabel>
-                  {[
-                    { value: "all", label: "All" },
-                    ...FILTER_STATUSES.map((key) => ({ value: key, label: STATUS[key]?.label ?? key })),
-                  ].map((opt) => (
-                    <DropdownMenuItem
-                      key={`status-${opt.value}`}
-                      className="pl-8 relative"
-                      onClick={() => {
-                        setStatusFilter(opt.value);
-                        setPage(1);
-                      }}
-                    >
-                      {statusFilter === opt.value && (
-                        <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                          <span className="h-2 w-2 rounded-full bg-foreground" />
-                        </span>
-                      )}
-                      {opt.label}
-                    </DropdownMenuItem>
-                  ))}
+                <DropdownMenuContent align="end" className="w-56 p-0">
+                  <div className="p-1">
+                    <DropdownMenuLabel>Status</DropdownMenuLabel>
+                    {[
+                      { value: "all", label: "All" },
+                      ...FILTER_STATUSES.map((key) => ({ value: key, label: STATUS[key]?.label ?? key })),
+                    ].map((opt) => (
+                      <DropdownMenuItem
+                        key={`status-${opt.value}`}
+                        className="pl-8 relative"
+                        onClick={() => {
+                          setStatusFilter(opt.value);
+                          setPage(1);
+                        }}
+                      >
+                        {statusFilter === opt.value && (
+                          <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                            <span className="h-2 w-2 rounded-full bg-foreground" />
+                          </span>
+                        )}
+                        {opt.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </div>
                   <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Financing structure</DropdownMenuLabel>
-                  {[
-                    { value: "all", label: "All" },
-                    ...FINANCING_TYPES.map(({ value, label }) => ({ value, label })),
-                  ].map((opt) => (
-                    <DropdownMenuItem
-                      key={`fin-${opt.value}`}
-                      className="pl-8 relative"
-                      onClick={() => {
-                        setFinancingFilter(opt.value);
-                        setPage(1);
-                      }}
-                    >
-                      {financingFilter === opt.value && (
-                        <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                          <span className="h-2 w-2 rounded-full bg-foreground" />
-                        </span>
-                      )}
-                      {opt.label}
-                    </DropdownMenuItem>
-                  ))}
+                  <div className="p-1">
+                    <DropdownMenuLabel>Financing</DropdownMenuLabel>
+                    {[
+                      { value: "all", label: "All" },
+                      ...FINANCING_TYPES.map(({ value, label }) => ({ value, label })),
+                    ].map((opt) => (
+                      <DropdownMenuItem
+                        key={`fin-${opt.value}`}
+                        className="pl-8 relative"
+                        onClick={() => {
+                          setFinancingFilter(opt.value);
+                          setPage(1);
+                        }}
+                      >
+                        {financingFilter === opt.value && (
+                          <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                            <span className="h-2 w-2 rounded-full bg-foreground" />
+                          </span>
+                        )}
+                        {opt.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </div>
                   <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Offer expiring</DropdownMenuLabel>
-                  {[
-                    { value: "all", label: "All" },
-                    { value: "3d", label: "Within 3 days" },
-                    { value: "7d", label: "Within 7 days" },
-                    { value: "14d", label: "Within 14 days" },
-                  ].map((opt) => (
-                    <DropdownMenuItem
-                      key={`expiry-${opt.value}`}
-                      className="pl-8 relative"
-                      onClick={() => {
-                        setOfferExpiryFilter(opt.value);
-                        setPage(1);
-                      }}
-                    >
-                      {offerExpiryFilter === opt.value && (
-                        <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                          <span className="h-2 w-2 rounded-full bg-foreground" />
-                        </span>
-                      )}
-                      {opt.label}
-                    </DropdownMenuItem>
-                  ))}
+                  <div className="p-1">
+                    <DropdownMenuLabel>Offer expiring</DropdownMenuLabel>
+                    {[
+                      { value: "all", label: "All" },
+                      { value: "3d", label: "Within 3 days" },
+                      { value: "7d", label: "Within 7 days" },
+                      { value: "14d", label: "Within 14 days" },
+                    ].map((opt) => (
+                      <DropdownMenuItem
+                        key={`expiry-${opt.value}`}
+                        className="pl-8 relative"
+                        onClick={() => {
+                          setOfferExpiryFilter(opt.value);
+                          setPage(1);
+                        }}
+                      >
+                        {offerExpiryFilter === opt.value && (
+                          <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                            <span className="h-2 w-2 rounded-full bg-foreground" />
+                          </span>
+                        )}
+                        {opt.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </div>
                 </DropdownMenuContent>
               </DropdownMenu>
 
@@ -1006,13 +1002,6 @@ export default function ApplicationsPage() {
                   <XMarkIcon className="h-4 w-4" />
                   <span className="hidden sm:inline">Clear</span>
                 </Button>
-              )}
-
-
-              {submittedRangeLabel && (
-                <span className="text-sm text-muted-foreground">
-                  Submitted: {submittedRangeLabel}
-                </span>
               )}
 
               <Badge
