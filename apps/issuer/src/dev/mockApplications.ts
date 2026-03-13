@@ -2,6 +2,8 @@
  * Mock application generator for dev debug mode.
  * Only used when process.env.NODE_ENV === "development".
  * Generates realistic NormalizedApplication cards for testing filters, sorting, and lifecycle UI.
+ * Covers all FILTER_STATUSES (draft, submitted, under_review, pending_amendment, sent, accepted,
+ * completed, withdrawn, rejected) and all NormalizedApplication/NormalizedInvoice fields.
  */
 
 import type { NormalizedApplication, NormalizedInvoice } from "@/app/(application-management)/applications/status";
@@ -48,6 +50,17 @@ const CUSTOMERS = [
   "Sigma Solutions",
 ];
 
+const CONTRACT_TITLES = [
+  "Supply Agreement 2026",
+  "Master Service Contract",
+  "Framework Agreement",
+  "Annual Procurement Contract",
+  "Distribution Agreement",
+];
+
+const DOCUMENT_NAMES = ["invoice.pdf", "proforma_invoice.pdf", "commercial_invoice.pdf", "tax_invoice.pdf"];
+
+/** Scenarios covering all filter statuses. Offer Received at 1–2, Make Amendments at 3, so both appear with default mock count (10). */
 const SCENARIOS: Array<{
   appStatus: string;
   contractStatus: string | null;
@@ -57,8 +70,17 @@ const SCENARIOS: Array<{
   invoiceCount: number;
   withdrawReason?: "USER_CANCELLED" | "OFFER_EXPIRED";
   hasExpiry?: boolean;
+  contractTitle?: string;
+  hasDocumentS3Key?: boolean;
+  maturityDateNull?: boolean;
 }> = [
   { appStatus: "DRAFT", contractStatus: null, invoiceStatuses: [], type: "Generic", hasContract: false, invoiceCount: 0 },
+  /** Offer Received — Contract: shows "Review Contract Financing Offer". */
+  { appStatus: "SUBMITTED", contractStatus: "OFFER_SENT", invoiceStatuses: [], type: "Contract financing", hasContract: true, invoiceCount: 0, hasExpiry: true },
+  /** Offer Received — Invoice: shows "Review Invoice Financing Offer" on card. */
+  { appStatus: "SUBMITTED", contractStatus: null, invoiceStatuses: ["OFFER_SENT"], type: "Invoice financing", hasContract: false, invoiceCount: 1, hasExpiry: true, hasDocumentS3Key: true },
+  /** Action Required — app AMENDMENT_REQUESTED: shows "Make Amendments" on card and in invoice table. */
+  { appStatus: "AMENDMENT_REQUESTED", contractStatus: null, invoiceStatuses: ["AMENDMENT_REQUESTED"], type: "Invoice financing", hasContract: false, invoiceCount: 1 },
   { appStatus: "SUBMITTED", contractStatus: "SUBMITTED", invoiceStatuses: ["SUBMITTED"], type: "Contract financing", hasContract: true, invoiceCount: 1 },
   { appStatus: "APPROVED", contractStatus: "APPROVED", invoiceStatuses: ["APPROVED", "APPROVED"], type: "Contract financing", hasContract: true, invoiceCount: 2 },
   { appStatus: "COMPLETED", contractStatus: null, invoiceStatuses: ["APPROVED", "REJECTED"], type: "Invoice financing", hasContract: false, invoiceCount: 2 },
@@ -68,9 +90,14 @@ const SCENARIOS: Array<{
   { appStatus: "COMPLETED", contractStatus: null, invoiceStatuses: ["APPROVED"], type: "Invoice financing", hasContract: false, invoiceCount: 1 },
   { appStatus: "DRAFT", contractStatus: "DRAFT", invoiceStatuses: ["DRAFT"], type: "Contract financing", hasContract: true, invoiceCount: 1 },
   { appStatus: "UNDER_REVIEW", contractStatus: "SUBMITTED", invoiceStatuses: ["SUBMITTED"], type: "Contract financing", hasContract: true, invoiceCount: 1 },
-  { appStatus: "AMENDMENT_REQUESTED", contractStatus: null, invoiceStatuses: ["AMENDMENT_REQUESTED"], type: "Invoice financing", hasContract: false, invoiceCount: 1 },
   { appStatus: "COMPLETED", contractStatus: "APPROVED", invoiceStatuses: ["APPROVED", "REJECTED"], type: "Contract financing", hasContract: true, invoiceCount: 2 },
   { appStatus: "WITHDRAWN", contractStatus: null, invoiceStatuses: ["WITHDRAWN"], type: "Invoice financing", hasContract: false, invoiceCount: 1, withdrawReason: "OFFER_EXPIRED" },
+  { appStatus: "SUBMITTED", contractStatus: "OFFER_SENT", invoiceStatuses: ["OFFER_SENT", "DRAFT"], type: "Contract financing", hasContract: true, invoiceCount: 2, hasExpiry: true },
+  { appStatus: "SUBMITTED", contractStatus: null, invoiceStatuses: ["OFFER_SENT", "SUBMITTED", "DRAFT"], type: "Invoice financing", hasContract: false, invoiceCount: 3, hasExpiry: true },
+  { appStatus: "RESUBMITTED", contractStatus: "SUBMITTED", invoiceStatuses: ["SUBMITTED"], type: "Contract financing", hasContract: true, invoiceCount: 1 },
+  { appStatus: "APPROVED", contractStatus: null, invoiceStatuses: ["APPROVED", "APPROVED"], type: "Invoice financing", hasContract: false, invoiceCount: 2 },
+  { appStatus: "SUBMITTED", contractStatus: "AMENDMENT_REQUESTED", invoiceStatuses: ["SUBMITTED"], type: "Contract financing", hasContract: true, invoiceCount: 1 },
+  { appStatus: "SUBMITTED", contractStatus: null, invoiceStatuses: ["SUBMITTED"], type: "Invoice financing", hasContract: false, invoiceCount: 1, maturityDateNull: true },
 ];
 
 export function generateMockApplications(count: number): NormalizedApplication[] {
@@ -86,16 +113,30 @@ export function generateMockApplications(count: number): NormalizedApplication[]
     const invoices: NormalizedInvoice[] = [];
     for (let j = 0; j < scenario.invoiceCount; j++) {
       const invStatus = scenario.invoiceStatuses[j] ?? "DRAFT";
-      const offerStatus = invStatus === "OFFER_SENT" ? "Offer received" : null;
-      const canReview = offerStatus && (scenario.contractStatus === "APPROVED" || !scenario.contractStatus);
+      const offerStatus = invStatus === "OFFER_SENT" ? ("Offer received" as const) : null;
+      const canReview =
+        offerStatus === "Offer received" &&
+        (scenario.contractStatus === "APPROVED" || scenario.contractStatus === "OFFER_SENT" || !scenario.contractStatus);
+      const hasOffer = invStatus === "OFFER_SENT" || invStatus === "APPROVED";
+      const invDocS3 = scenario.hasDocumentS3Key && j === 0 ? "uploads/mock-invoice-sample.pdf" : null;
+      const matDate = scenario.maturityDateNull && j === 0 ? null : `2026-0${6 + (j % 3)}-${Math.min(15 + j, 28)}`;
+      const invValue = 30000 + Math.floor(Math.random() * 120000);
+      const invApplied = Math.floor(invValue * 0.8);
+
       invoices.push(
         makeInvoice({
           id: "inv-" + cuidLike().slice(0, 12),
+          number: `INV-${2000 + i * 10 + j}`,
+          maturityDate: matDate,
+          value: invValue,
+          appliedFinancing: invApplied,
+          document: DOCUMENT_NAMES[j % DOCUMENT_NAMES.length],
+          documentS3Key: invDocS3,
           status: invStatus,
           offerStatus,
           canReviewOffer: !!canReview,
-          financingOffered: invStatus === "OFFER_SENT" || invStatus === "APPROVED" ? "RM 50,000.00" : "—",
-          profitRate: invStatus === "OFFER_SENT" || invStatus === "APPROVED" ? "8%" : "—",
+          financingOffered: hasOffer ? `RM ${(invApplied * 1.1).toLocaleString("en-MY", { minimumFractionDigits: 2 })}` : "—",
+          profitRate: hasOffer ? `${7 + (j % 3)}%` : "—",
         })
       );
     }
@@ -128,19 +169,33 @@ export function generateMockApplications(count: number): NormalizedApplication[]
       expiresAt = exp.toISOString();
     }
 
+    const contractVal = scenario.hasContract ? 200000 + Math.floor(Math.random() * 300000) : null;
+    const facilityApplied = scenario.hasContract ? Math.floor((contractVal ?? 0) * 0.9) : null;
+    const hasOfferOrApproved =
+      scenario.contractStatus === "OFFER_SENT" || scenario.contractStatus === "APPROVED";
+    const approvedFacility = hasOfferOrApproved
+      ? `RM ${((facilityApplied ?? 180000) * 1.05).toLocaleString("en-MY", { minimumFractionDigits: 2 })}`
+      : scenario.contractStatus === "APPROVED"
+        ? "RM 200,000.00"
+        : "N/A";
+
+    const contractTitle = scenario.hasContract
+      ? scenario.contractTitle ?? CONTRACT_TITLES[i % CONTRACT_TITLES.length]
+      : null;
+
     result.push({
       id: appId,
       type: scenario.type,
       status: cardStatus.badgeKey,
       cardStatus,
-      contractTitle: scenario.hasContract ? "Contract " + (i + 1) : null,
+      contractTitle,
       contractId,
       customer,
       applicationDate: createdDate.toISOString().slice(0, 10),
       submittedAt,
-      contractValue: scenario.hasContract ? 200000 + Math.floor(Math.random() * 300000) : null,
-      facilityApplied: scenario.hasContract ? 180000 : null,
-      approvedFacility: scenario.contractStatus === "APPROVED" ? "RM 200,000.00" : "N/A",
+      contractValue: contractVal,
+      facilityApplied,
+      approvedFacility,
       updatedAt: updatedDate.toISOString(),
       invoices,
       contractStatus: scenario.contractStatus,

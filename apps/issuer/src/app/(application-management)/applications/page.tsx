@@ -245,13 +245,13 @@ function ApplicationCard({
                         onReviewInvoiceOffer(invoiceLink);
                       }}
                     >
-                      Review Offer
+                      Review Invoice Financing Offer
                     </Button>
                   );
                 }
                 return (
                   <Button size="sm" className="rounded-xl bg-teal-600 text-white hover:bg-teal-700 shadow-sm" disabled>
-                    Review Offer
+                    Review Invoice Financing Offer
                   </Button>
                 );
               })()}
@@ -303,14 +303,10 @@ function ApplicationCard({
               </p>
               <div className="space-y-1 pt-2">
               <div className="text-sm text-muted-foreground">
-                Application created:{" "}
+                Created:{" "}
                 <span className="text-foreground">
                   {formatDate(application.applicationDate)}
                 </span>
-              </div>
-              <div className="text-sm text-muted-foreground">
-                Submitted:{" "}
-                <span className="text-foreground">—</span>
               </div>
               </div>
             </div>
