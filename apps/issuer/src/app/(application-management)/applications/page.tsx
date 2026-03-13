@@ -197,7 +197,7 @@ function ApplicationCard({
   isCancelApplicationPending?: boolean;
   isWithdrawInvoicePending?: boolean;
 }) {
-  const [expanded, setExpanded] = React.useState(false);
+  const [expanded, setExpanded] = React.useState(application.status === "offer_sent");
 
   const { cardStatus } = application;
   const isDraft = application.status === "draft";
@@ -238,47 +238,21 @@ function ApplicationCard({
                   </Link>
                 </Button>
               )}
-              {cardStatus.showReviewOffer && (() => {
-                const contractLink = hasContract && application.contractId;
-                const invoiceLink = !hasContract && application.invoices.find((inv) => inv.canReviewOffer);
-                if (contractLink && onReviewContractOffer) {
-                  return (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="reviewOffer"
-                      className="rounded-xl"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onReviewContractOffer(application.contractId!);
-                      }}
-                    >
-                      Review Contract Financing Offer
-                    </Button>
-                  );
-                }
-                if (invoiceLink && onReviewInvoiceOffer) {
-                  return (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="reviewOffer"
-                      className="rounded-xl"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onReviewInvoiceOffer(invoiceLink);
-                      }}
-                    >
-                      Review Invoice Financing Offer
-                    </Button>
-                  );
-                }
-                return (
-                  <Button size="sm" variant="reviewOffer" className="rounded-xl" disabled>
-                    Review Invoice Financing Offer
-                  </Button>
-                );
-              })()}
+              {/** Review Offer on card: contract only. Invoice review is per-invoice in the table. */}
+              {cardStatus.showReviewOffer && hasContract && application.contractId && onReviewContractOffer && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="reviewOffer"
+                  className="rounded-xl"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onReviewContractOffer(application.contractId!);
+                  }}
+                >
+                  Review Contract Financing Offer
+                </Button>
+              )}
               {/* Edit Application: only for drafts. Links to /edit. Non-drafts get Withdraw only. */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

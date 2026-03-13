@@ -243,7 +243,7 @@ export const FILTER_STATUSES = [
   "submitted",
   "under_review",
   "pending_amendment",
-  "sent",
+  "offer_sent",
   "accepted",
   "completed",
   "withdrawn",
@@ -315,7 +315,7 @@ export function getCardStatus(input: {
     return { badgeKey: "pending_amendment", displayLabel: "Action Required", showReviewOffer: false, showMakeAmendments: false };
   }
   if (contract === "OFFER_SENT" || inv === "OFFER_SENT") {
-    return { badgeKey: "sent", displayLabel: "Offer Received", showReviewOffer: true, showMakeAmendments: false };
+    return { badgeKey: "offer_sent", displayLabel: "Offer Received", showReviewOffer: true, showMakeAmendments: false };
   }
   if (app === "UNDER_REVIEW") return { badgeKey: "under_review", displayLabel: "Under Review", showReviewOffer: false, showMakeAmendments: false };
   if (app === "SUBMITTED") return { badgeKey: "submitted", displayLabel: "Submitted", showReviewOffer: false, showMakeAmendments: false };
