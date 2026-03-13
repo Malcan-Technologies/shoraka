@@ -136,7 +136,8 @@ router.get("/:id", async (req: Request, res: Response, next: NextFunction) => {
 
 /**
  * PATCH /v1/products/:id
- * Update a product (admin only). Replaced S3 keys (image, document templates) are deleted from S3 after a successful update.
+ * Update a product (admin only). Creates a new product record and deactivates the previous one (versioned entities).
+ * Response returns the NEW product (new id). Replaced S3 keys are deleted from S3 after a successful update.
  */
 router.patch("/:id", async (req: Request, res: Response, next: NextFunction) => {
   try {
