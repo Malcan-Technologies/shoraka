@@ -48,13 +48,14 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { STATUS, FILTER_STATUSES, FINANCING_TYPES } from "./status";
+import { STATUS, FILTER_STATUSES, FINANCING_TYPES, WITHDRAW_REASON_FILTERS } from "./status";
 import { useApplicationsData } from "./use-applications-data";
 import { ReviewOfferModal } from "./components/ReviewOfferModal";
 import { useCancelApplication, useWithdrawInvoice, useDeleteDraftApplication } from "@/hooks/use-applications";
 import { generateMockApplications } from "@/dev/mockApplications";
 import { Separator } from "@/components/ui/separator";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { formatWithdrawLabel } from "@cashsouk/types";
 import type { NormalizedApplication, NormalizedInvoice } from "./status";
 
 const SKELETON_COUNT = 8;
@@ -100,11 +101,21 @@ function ApplicationCardSkeleton() {
   );
 }
 
-function StatusBadge({ badgeKey }: { badgeKey: string }) {
+function StatusBadge({
+  badgeKey,
+  withdrawReason,
+}: {
+  badgeKey: string;
+  withdrawReason?: "USER_CANCELLED" | "OFFER_EXPIRED";
+}) {
   const s = STATUS[badgeKey];
+  const label =
+    badgeKey === "withdrawn" && withdrawReason
+      ? formatWithdrawLabel(withdrawReason as any)
+      : (s?.label ?? badgeKey);
   return (
     <span className={cn(BADGE_BASE, s?.color ?? BADGE_FALLBACK)}>
-      {s?.label ?? badgeKey}
+      {label}
     </span>
   );
 }
@@ -205,7 +216,7 @@ function ApplicationCard({
                 Application ID {displayId}
                 {showFinancingLabel ? ` - ${application.type}` : ""}
               </span>
-              <StatusBadge badgeKey={cardStatus.badgeKey} />
+              <StatusBadge badgeKey={cardStatus.badgeKey} withdrawReason={application.withdrawReason} />
             </div>
             <div className="flex items-center gap-2">
               {/* Make Amendments: only for Action Required (AMENDMENT_REQUESTED). Links to /edit amendment flow. */}
@@ -309,7 +320,7 @@ function ApplicationCard({
                 </span>
               </div>
               <div className="text-sm text-muted-foreground">
-                Application submitted:{" "}
+                Submitted:{" "}
                 <span className="text-foreground">—</span>
               </div>
               </div>
@@ -330,14 +341,7 @@ function ApplicationCard({
                 <span className="text-foreground">{application.customer}</span>
               </div>
               <div className="text-sm text-muted-foreground">
-                Application created:{" "}
-                <span className="text-foreground">
-                  {formatDate(application.applicationDate)}
-                </span>
-              </div>
-              {/* When the issuer submitted the application to admin. Helps issuer know how long it has been waiting. */}
-              <div className="text-sm text-muted-foreground">
-                Application submitted:{" "}
+                Submitted:{" "}
                 <span className="text-foreground">
                   {formatDate(application.submittedAt)}
                 </span>
@@ -657,13 +661,13 @@ export default function ApplicationsPage() {
     setDebugMockApplications(null);
   }, []);
 
-  /* --- FILTER: state. Status, Financing, Date (created + submitted), Search. --- */
+  /* --- FILTER: state. Status, Financing, Submitted date, Withdraw reason, Offer expiry, Search. --- */
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [financingFilter, setFinancingFilter] = React.useState("all");
-  const [createdFilter, setCreatedFilter] = React.useState("all");
   const [submittedFilter, setSubmittedFilter] = React.useState("all");
-  const [customerFilter, setCustomerFilter] = React.useState("all");
+  const [withdrawReasonFilter, setWithdrawReasonFilter] = React.useState("all");
+  const [offerExpiryFilter, setOfferExpiryFilter] = React.useState("all");
   const [page, setPage] = React.useState(1);
   const [perPage, setPerPage] = React.useState(4);
 
@@ -692,17 +696,6 @@ export default function ApplicationsPage() {
           : "Invoice financing";
       list = list.filter((a) => a.type === match);
     }
-    if (createdFilter !== "all") {
-      const now = new Date();
-      const cutoff = new Date(now);
-      if (createdFilter === "7d") cutoff.setDate(now.getDate() - 7);
-      else if (createdFilter === "30d") cutoff.setDate(now.getDate() - 30);
-      else if (createdFilter === "90d") cutoff.setDate(now.getDate() - 90);
-      const cutoffTime = cutoff.getTime();
-      list = list.filter(
-        (a) => new Date(a.applicationDate).getTime() >= cutoffTime
-      );
-    }
     if (submittedFilter !== "all") {
       const now = new Date();
       const cutoff = new Date(now);
@@ -715,11 +708,26 @@ export default function ApplicationsPage() {
         return new Date(a.submittedAt).getTime() >= cutoffTime;
       });
     }
-    if (customerFilter !== "all") {
-      list = list.filter((a) => a.customer === customerFilter);
+    if (withdrawReasonFilter === "withdrawn_user_cancelled") {
+      list = list.filter((a) => a.status === "withdrawn" && a.withdrawReason === "USER_CANCELLED");
+    } else if (withdrawReasonFilter === "withdrawn_offer_expired") {
+      list = list.filter((a) => a.status === "withdrawn" && a.withdrawReason === "OFFER_EXPIRED");
+    }
+    if (offerExpiryFilter !== "all") {
+      const now = new Date();
+      const days = offerExpiryFilter === "3d" ? 3 : offerExpiryFilter === "7d" ? 7 : 14;
+      const cutoff = new Date(now);
+      cutoff.setDate(now.getDate() + days);
+      const nowTime = now.getTime();
+      const cutoffTime = cutoff.getTime();
+      list = list.filter((a) => {
+        if (!a.expiresAt) return false;
+        const exp = new Date(a.expiresAt).getTime();
+        return exp > nowTime && exp <= cutoffTime;
+      });
     }
     return list;
-  }, [applications, search, statusFilter, financingFilter, createdFilter, submittedFilter, customerFilter]);
+  }, [applications, search, statusFilter, financingFilter, submittedFilter, withdrawReasonFilter, offerExpiryFilter]);
 
   const paginatedApplications = filteredApplications.slice(
     (page - 1) * perPage,
@@ -727,16 +735,12 @@ export default function ApplicationsPage() {
   );
 
   const totalCount = applications.length;
-  const uniqueCustomers = React.useMemo(
-    () => [...new Set(applications.map((a) => a.customer).filter(Boolean))].sort(),
-    [applications]
-  );
   const filterCount = [
     statusFilter !== "all",
     financingFilter !== "all",
-    createdFilter !== "all",
     submittedFilter !== "all",
-    customerFilter !== "all",
+    withdrawReasonFilter !== "all",
+    offerExpiryFilter !== "all",
   ].filter(Boolean).length;
   const hasFilters = search !== "" || filterCount > 0;
 
@@ -877,43 +881,19 @@ export default function ApplicationsPage() {
                     className="gap-2 h-11 rounded-xl focus-visible:ring-1 focus-visible:ring-offset-0"
                   >
                     <FunnelIcon className="h-4 w-4" />
-                    Date
-                    {(createdFilter !== "all" || submittedFilter !== "all") && (
+                    Submitted
+                    {submittedFilter !== "all" && (
                       <Badge
                         variant="default"
                         className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs shadow-none"
                       >
-                        {(createdFilter !== "all" ? 1 : 0) + (submittedFilter !== "all" ? 1 : 0)}
+                        1
                       </Badge>
                     )}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56 p-1">
-                  <DropdownMenuLabel>Application created</DropdownMenuLabel>
-                  {[
-                    { value: "all", label: "All time" },
-                    { value: "7d", label: "Last 7 days" },
-                    { value: "30d", label: "Last 30 days" },
-                    { value: "90d", label: "Last 90 days" },
-                  ].map((opt) => (
-                    <DropdownMenuItem
-                      key={`created-${opt.value}`}
-                      className="pl-8 relative"
-                      onClick={() => {
-                        setCreatedFilter(opt.value);
-                        setPage(1);
-                      }}
-                    >
-                      {createdFilter === opt.value && (
-                        <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                          <span className="h-2 w-2 rounded-full bg-foreground" />
-                        </span>
-                      )}
-                      {opt.label}
-                    </DropdownMenuItem>
-                  ))}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Application submitted</DropdownMenuLabel>
+                  <DropdownMenuLabel>Submitted</DropdownMenuLabel>
                   {[
                     { value: "all", label: "All time" },
                     { value: "7d", label: "Last 7 days" },
@@ -1002,20 +982,44 @@ export default function ApplicationsPage() {
                     </DropdownMenuItem>
                   ))}
                   <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Customer</DropdownMenuLabel>
+                  <DropdownMenuLabel>Withdraw reason</DropdownMenuLabel>
                   {[
                     { value: "all", label: "All" },
-                    ...uniqueCustomers.map((c) => ({ value: c, label: c })),
+                    ...WITHDRAW_REASON_FILTERS.map(({ value, label }) => ({ value, label })),
                   ].map((opt) => (
                     <DropdownMenuItem
-                      key={`cust-${opt.value}`}
+                      key={`withdraw-${opt.value}`}
                       className="pl-8 relative"
                       onClick={() => {
-                        setCustomerFilter(opt.value);
+                        setWithdrawReasonFilter(opt.value);
                         setPage(1);
                       }}
                     >
-                      {customerFilter === opt.value && (
+                      {withdrawReasonFilter === opt.value && (
+                        <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                          <span className="h-2 w-2 rounded-full bg-foreground" />
+                        </span>
+                      )}
+                      {opt.label}
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel>Offer expiring</DropdownMenuLabel>
+                  {[
+                    { value: "all", label: "All" },
+                    { value: "3d", label: "Within 3 days" },
+                    { value: "7d", label: "Within 7 days" },
+                    { value: "14d", label: "Within 14 days" },
+                  ].map((opt) => (
+                    <DropdownMenuItem
+                      key={`expiry-${opt.value}`}
+                      className="pl-8 relative"
+                      onClick={() => {
+                        setOfferExpiryFilter(opt.value);
+                        setPage(1);
+                      }}
+                    >
+                      {offerExpiryFilter === opt.value && (
                         <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
                           <span className="h-2 w-2 rounded-full bg-foreground" />
                         </span>
@@ -1033,9 +1037,9 @@ export default function ApplicationsPage() {
                     setSearch("");
                     setStatusFilter("all");
                     setFinancingFilter("all");
-                    setCreatedFilter("all");
                     setSubmittedFilter("all");
-                    setCustomerFilter("all");
+                    setWithdrawReasonFilter("all");
+                    setOfferExpiryFilter("all");
                     setPage(1);
                   }}
                   className="gap-2 h-11 rounded-xl focus-visible:ring-1 focus-visible:ring-offset-0"

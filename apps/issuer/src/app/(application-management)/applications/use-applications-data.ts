@@ -25,6 +25,7 @@ export interface UseApplicationsDataOptions {
 interface ApiContract {
   id?: string;
   status?: string;
+  withdraw_reason?: string | null;
   offer_details?: { expires_at?: string | null; offered_facility?: number } | null;
   contract_details?: Record<string, unknown> | null;
   customer_details?: Record<string, unknown> | null;
@@ -33,7 +34,8 @@ interface ApiContract {
 interface ApiInvoice {
   id: string;
   status?: string;
-  offer_details?: Record<string, unknown> | null;
+  withdraw_reason?: string | null;
+  offer_details?: { expires_at?: string | null } | Record<string, unknown> | null;
   details?: Record<string, unknown>;
 }
 
@@ -126,6 +128,27 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
   const contractId = (contract as ApiContract & { id?: string })?.id ?? (api as any).contract_id ?? null;
   const issuerOrganizationId = (api as any).issuer_organization_id as string | undefined;
 
+  /** Withdraw reason: from contract or first withdrawn invoice. */
+  let withdrawReason: "USER_CANCELLED" | "OFFER_EXPIRED" | undefined;
+  const contractWithdraw = (contract as ApiContract)?.withdraw_reason;
+  if (contractWithdraw === "USER_CANCELLED" || contractWithdraw === "OFFER_EXPIRED") {
+    withdrawReason = contractWithdraw;
+  } else {
+    const withdrawnInv = invoices.find((i) => (i.status ?? "").toUpperCase() === "WITHDRAWN");
+    const invReason = (withdrawnInv as ApiInvoice)?.withdraw_reason;
+    if (invReason === "USER_CANCELLED" || invReason === "OFFER_EXPIRED") withdrawReason = invReason;
+  }
+
+  /** Offer expiry: from contract or first invoice with offer. */
+  let expiresAt: string | null | undefined;
+  const co = contract?.offer_details as { expires_at?: string | null } | undefined;
+  if (co?.expires_at) expiresAt = String(co.expires_at);
+  else {
+    const invWithOffer = invoices.find((i) => i.status === "OFFER_SENT" && i.offer_details);
+    const io = (invWithOffer?.offer_details ?? {}) as { expires_at?: string | null };
+    if (io?.expires_at) expiresAt = String(io.expires_at);
+  }
+
   return {
     id: api.id,
     type,
@@ -143,6 +166,8 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
     invoices: invoices.map((inv) => prepareInvoice(inv, contractStatus)),
     contractStatus,
     issuerOrganizationId,
+    withdrawReason,
+    expiresAt,
   };
 }
 

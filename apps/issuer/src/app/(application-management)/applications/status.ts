@@ -129,6 +129,10 @@ export interface NormalizedApplication {
   contractStatus: string | null;
   /** Issuer organization ID for query invalidation. */
   issuerOrganizationId?: string;
+  /** Withdraw reason when status is withdrawn. From contract or invoice. */
+  withdrawReason?: "USER_CANCELLED" | "OFFER_EXPIRED";
+  /** Offer expiry (contract or invoice). ISO string. Used for expiry indicator and filter. */
+  expiresAt?: string | null;
 }
 
 /* =============================================================================
@@ -167,7 +171,7 @@ export function getSortOrder(status: string): number {
    Add a status here to show it in the Filter menu. Remove to hide it.
    ============================================================================= */
 
-/** Status filter options. Order: Draft, Submitted, Under Review, Action Required, Offer Received, Approved, Rejected. */
+/** Status filter options. Includes all application statuses. */
 export const FILTER_STATUSES = [
   "draft",
   "submitted",
@@ -175,7 +179,16 @@ export const FILTER_STATUSES = [
   "pending_amendment",
   "sent",
   "accepted",
+  "completed",
+  "withdrawn",
   "rejected",
+  "archived",
+] as const;
+
+/** Withdraw reason filter options (subset of withdrawn). */
+export const WITHDRAW_REASON_FILTERS = [
+  { value: "withdrawn_user_cancelled", label: "Withdrawn (User cancelled)" },
+  { value: "withdrawn_offer_expired", label: "Withdrawn (Offer expired)" },
 ] as const;
 
 /** Financing type filter options. */

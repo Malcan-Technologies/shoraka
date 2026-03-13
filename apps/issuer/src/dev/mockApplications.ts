@@ -55,19 +55,22 @@ const SCENARIOS: Array<{
   type: "Contract financing" | "Invoice financing" | "Generic";
   hasContract: boolean;
   invoiceCount: number;
+  withdrawReason?: "USER_CANCELLED" | "OFFER_EXPIRED";
+  hasExpiry?: boolean;
 }> = [
   { appStatus: "DRAFT", contractStatus: null, invoiceStatuses: [], type: "Generic", hasContract: false, invoiceCount: 0 },
   { appStatus: "SUBMITTED", contractStatus: "SUBMITTED", invoiceStatuses: ["SUBMITTED"], type: "Contract financing", hasContract: true, invoiceCount: 1 },
   { appStatus: "APPROVED", contractStatus: "APPROVED", invoiceStatuses: ["APPROVED", "APPROVED"], type: "Contract financing", hasContract: true, invoiceCount: 2 },
   { appStatus: "COMPLETED", contractStatus: null, invoiceStatuses: ["APPROVED", "REJECTED"], type: "Invoice financing", hasContract: false, invoiceCount: 2 },
-  { appStatus: "WITHDRAWN", contractStatus: null, invoiceStatuses: ["WITHDRAWN", "WITHDRAWN"], type: "Invoice financing", hasContract: false, invoiceCount: 2 },
+  { appStatus: "WITHDRAWN", contractStatus: null, invoiceStatuses: ["WITHDRAWN", "WITHDRAWN"], type: "Invoice financing", hasContract: false, invoiceCount: 2, withdrawReason: "USER_CANCELLED" },
   { appStatus: "REJECTED", contractStatus: "REJECTED", invoiceStatuses: [], type: "Contract financing", hasContract: true, invoiceCount: 0 },
-  { appStatus: "APPROVED", contractStatus: "APPROVED", invoiceStatuses: [], type: "Contract financing", hasContract: true, invoiceCount: 0 },
+  { appStatus: "APPROVED", contractStatus: "APPROVED", invoiceStatuses: [], type: "Contract financing", hasContract: true, invoiceCount: 0, hasExpiry: true },
   { appStatus: "COMPLETED", contractStatus: null, invoiceStatuses: ["APPROVED"], type: "Invoice financing", hasContract: false, invoiceCount: 1 },
   { appStatus: "DRAFT", contractStatus: "DRAFT", invoiceStatuses: ["DRAFT"], type: "Contract financing", hasContract: true, invoiceCount: 1 },
   { appStatus: "UNDER_REVIEW", contractStatus: "SUBMITTED", invoiceStatuses: ["SUBMITTED"], type: "Contract financing", hasContract: true, invoiceCount: 1 },
   { appStatus: "AMENDMENT_REQUESTED", contractStatus: null, invoiceStatuses: ["AMENDMENT_REQUESTED"], type: "Invoice financing", hasContract: false, invoiceCount: 1 },
   { appStatus: "COMPLETED", contractStatus: "APPROVED", invoiceStatuses: ["APPROVED", "REJECTED"], type: "Contract financing", hasContract: true, invoiceCount: 2 },
+  { appStatus: "WITHDRAWN", contractStatus: null, invoiceStatuses: ["WITHDRAWN"], type: "Invoice financing", hasContract: false, invoiceCount: 1, withdrawReason: "OFFER_EXPIRED" },
 ];
 
 export function generateMockApplications(count: number): NormalizedApplication[] {
@@ -118,6 +121,13 @@ export function generateMockApplications(count: number): NormalizedApplication[]
     const hasSubmitted = !["DRAFT", "Generic"].includes(scenario.appStatus) && scenario.type !== "Generic";
     const submittedAt = hasSubmitted ? createdDate.toISOString() : null;
 
+    let expiresAt: string | undefined;
+    if (scenario.hasExpiry) {
+      const exp = new Date(now);
+      exp.setDate(exp.getDate() + (i % 3 === 0 ? 2 : i % 3 === 1 ? 7 : 15));
+      expiresAt = exp.toISOString();
+    }
+
     result.push({
       id: appId,
       type: scenario.type,
@@ -135,6 +145,8 @@ export function generateMockApplications(count: number): NormalizedApplication[]
       invoices,
       contractStatus: scenario.contractStatus,
       issuerOrganizationId: "org-mock-1",
+      withdrawReason: scenario.withdrawReason,
+      expiresAt,
     });
   }
 
