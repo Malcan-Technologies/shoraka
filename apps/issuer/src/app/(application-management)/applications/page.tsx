@@ -438,7 +438,8 @@ function ApplicationCard({
                       const invStatus = String(inv.status ?? "").toUpperCase();
                       const showReviewOffer = invStatus === "OFFER_SENT" && inv.offerStatus === "Offer received";
                       const canReview = inv.canReviewOffer;
-                      const showMakeAmendments = invStatus === "AMENDMENT_REQUESTED";
+                      const showMakeAmendments =
+                        application.cardStatus.showMakeAmendments && invStatus === "AMENDMENT_REQUESTED";
                       const canWithdrawInvoice = !["APPROVED", "REJECTED", "WITHDRAWN"].includes(invStatus);
                       return (
                         <TableRow
