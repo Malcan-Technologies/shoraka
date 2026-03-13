@@ -75,6 +75,7 @@ import type {
   AdminSendNotificationPayload,
   AdminUpdateNotificationTypePayload,
   AdminSeedTypesResponse,
+  WithdrawReason,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
 
@@ -1282,6 +1283,14 @@ export class ApiClient {
     return this.post<Application>(`/v1/applications/${id}/archive`, {});
   }
 
+  async cancelApplication(id: string): Promise<ApiResponse<Application> | ApiError> {
+    return this.post<Application>(`/v1/applications/${id}/cancel`, {});
+  }
+
+  async deleteDraftApplication(id: string): Promise<ApiResponse<{ message: string }> | ApiError> {
+    return this.delete<{ message: string }>(`/v1/applications/${id}`);
+  }
+
   /** Request presigned download URL for S3 object. Used for document download from document column. */
   async getS3DownloadUrl(s3Key: string): Promise<
     ApiResponse<{ downloadUrl: string; expiresIn: number }> | ApiError
@@ -1493,17 +1502,20 @@ export class ApiClient {
   async updateContract(
     id: string,
     data: {
-      contract_details?: ContractDetails;
+      contract_details?: ContractDetails | null;
       customer_details?: CustomerDetails;
       status?: string;
     }
   ): Promise<ApiResponse<Contract> | ApiError> {
-    console.log('dataaaaaaa', data)
     return this.patch<Contract>(`/v1/contracts/${id}`, data);
   }
 
   async unlinkContract(id: string): Promise<ApiResponse<void> | ApiError> {
     return this.post<void>(`/v1/contracts/${id}/unlink`, {});
+  }
+
+  async withdrawContract(id: string): Promise<ApiResponse<Contract> | ApiError> {
+    return this.post<Contract>(`/v1/contracts/${id}/withdraw`, {});
   }
 
   async getApprovedContracts(organizationId: string): Promise<ApiResponse<Contract[]> | ApiError> {
@@ -1571,6 +1583,13 @@ export class ApiClient {
 
   async deleteInvoice(id: string): Promise<ApiResponse<{ message: string }> | ApiError> {
     return this.delete<{ message: string }>(`/v1/invoices/${id}`);
+  }
+
+  async withdrawInvoice(
+    id: string,
+    reason?: WithdrawReason
+  ): Promise<ApiResponse<Invoice> | ApiError> {
+    return this.post<Invoice>(`/v1/invoices/${id}/withdraw`, reason ? { reason } : {});
   }
 
   async getInvoicesByApplication(applicationId: string): Promise<ApiResponse<Invoice[]> | ApiError> {

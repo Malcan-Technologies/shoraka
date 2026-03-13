@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { useApplication } from "@/hooks/use-applications";
 import { useAuthToken } from "@cashsouk/config";
 import { SupportingDocumentsSkeleton } from "@/app/(application-flow)/applications/components/supporting-documents-skeleton";
-import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
+import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -36,9 +36,7 @@ export function SupportingDocumentsStep({
   flaggedSections?: Set<string>;
   flaggedItems?: Map<string, Set<string>>;
 }) {
-  // DEBUG: Toggle skeleton mode
-  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
-  
+  const devTools = useDevTools();
   const { getAccessToken } = useAuthToken();
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
 
@@ -207,7 +205,11 @@ export function SupportingDocumentsStep({
 
     let data = application.supporting_documents;
     if (typeof data === "string") {
-      data = JSON.parse(data);
+      try {
+        data = JSON.parse(data);
+      } catch {
+        return;
+      }
     }
     if (data?.supporting_documents) {
       data = data.supporting_documents;
@@ -502,11 +504,8 @@ export function SupportingDocumentsStep({
   return (
     <>
     <div className="space-y-10 px-3">
-      {isLoadingApp || !stepConfig || debugSkeletonMode ? (
-        <>
-          <SupportingDocumentsSkeleton />
-          <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
-        </>
+      {isLoadingApp || !stepConfig || devTools?.showSkeletonDebug ? (
+        <SupportingDocumentsSkeleton />
       ) : (
         <>
           {categories.map((category: any, categoryIndex: number) => {
@@ -633,7 +632,7 @@ export function SupportingDocumentsStep({
                             {/* Upload slot: item-level amendment message beside document (CashSouk styling) */}
                             <div className="flex items-center gap-2 min-w-0">
                               {isItemFlagged && itemRemark ? (
-                                <span className="inline-flex items-center gap-1.5 text-xs text-red-600 shrink-0 max-w-[180px]" title={itemRemark}>
+                                <span className="inline-flex items-center gap-1.5 text-xs text-destructive shrink-0 max-w-[180px]" title={itemRemark}>
                                   <ExclamationTriangleIcon className="h-3.5 w-3.5 shrink-0" />
                                   {itemRemark.split("\n")[0]}
                                 </span>
@@ -707,7 +706,6 @@ export function SupportingDocumentsStep({
         </>
       )}
     </div>
-    <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>
   );
 

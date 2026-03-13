@@ -4,6 +4,7 @@ import { OrganizationRepository } from "../organization/repository";
 import { ContractRepository } from "../contracts/repository";
 import { AppError } from "../../lib/http/error-handler";
 import { Invoice } from "@prisma/client";
+import { InvoiceStatus, WithdrawReason } from "@cashsouk/types";
 import {
   generateApplicationDocumentKey,
   parseApplicationDocumentKey,
@@ -134,7 +135,7 @@ export class InvoiceService {
   async updateInvoice(id: string, payload: any, userId: string): Promise<Invoice> {
   const invoice = await this.verifyInvoiceAccess(id, userId);
 
-  if (invoice.status === "APPROVED") {
+  if (invoice.status === InvoiceStatus.APPROVED) {
     throw new AppError(400, "BAD_REQUEST", "Cannot update an approved invoice");
   }
 
@@ -311,6 +312,25 @@ async deleteInvoice(id: string, userId: string) {
     } catch (error) {
       throw new AppError(500, "DELETE_FAILED", "Failed to delete document from S3");
     }
+  }
+
+  async withdrawInvoice(id: string, userId: string, reason?: WithdrawReason): Promise<Invoice> {
+    const invoice = await this.verifyInvoiceAccess(id, userId);
+
+    if (invoice.status === InvoiceStatus.APPROVED) {
+      throw new AppError(400, "BAD_REQUEST", "This invoice has already been approved and can no longer be withdrawn.");
+    }
+
+    if (invoice.status === InvoiceStatus.WITHDRAWN) {
+      throw new AppError(400, "BAD_REQUEST", "This invoice was already withdrawn.");
+    }
+
+    const finalReason = reason ?? WithdrawReason.USER_CANCELLED;
+
+    return this.repository.update(id, {
+      status: InvoiceStatus.WITHDRAWN,
+      withdraw_reason: finalReason,
+    });
   }
 }
 

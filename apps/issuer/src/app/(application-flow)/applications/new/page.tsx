@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useHeader, SidebarTrigger } from "@cashsouk/ui";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { ArrowRightIcon } from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useProducts } from "@/hooks/use-products";
 import { useCreateApplication } from "@/hooks/use-applications";
 import { useOrganization } from "@cashsouk/config";
@@ -17,7 +17,6 @@ import { VersionMismatchModal } from "@/components/VersionMismatchModal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProductList } from "../components/product-list";
 import { ProgressIndicator } from "../components/progress-indicator";
-import { DebugSkeletonToggle } from "../components/debug-skeleton-toggle";
 import { FinancingTypeSkeleton } from "../components/financing-type-skeleton";
 
 /**
@@ -36,9 +35,6 @@ export default function NewApplicationPage() {
   const router = useRouter();
   const { activeOrganization } = useOrganization();
   const { setTitle } = useHeader();
-
-  // DEBUG: Toggle skeleton mode
-  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
 
   React.useEffect(() => {
     setTitle("New Application");
@@ -73,9 +69,8 @@ export default function NewApplicationPage() {
 
   const onConfirmNavigation = React.useCallback(
     (path: string) => {
-      // Reset unsaved then navigate
       setHasUnsavedChanges(false);
-      if (path === "__BACK__") {
+      if (path === "__BACK__" || path === "/") {
         router.replace("/");
         return;
       }
@@ -87,7 +82,7 @@ export default function NewApplicationPage() {
     [router]
   );
 
-  const { isModalOpen, confirmLeave, cancelLeave } = useNavigationGuard(
+  const { isModalOpen, requestNavigation, confirmLeave, cancelLeave } = useNavigationGuard(
     hasUnsavedChanges,
     onConfirmNavigation
   );
@@ -245,7 +240,7 @@ export default function NewApplicationPage() {
   };
 
   // Show loading state while fetching products
-  if (isLoadingProducts || debugSkeletonMode) {
+  if (isLoadingProducts) {
     return (
       <div className="flex flex-col h-full">
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
@@ -274,8 +269,6 @@ export default function NewApplicationPage() {
             <Skeleton className="h-12 w-40 rounded-xl" />
           </div>
         </footer>
-
-        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
       </div>
     );
   }
@@ -327,13 +320,22 @@ export default function NewApplicationPage() {
         </div>
       </main>
 
-      {/* Bottom button */}
+      {/* Bottom buttons - Back + Continue, same visibility as edit (hidden when loading) */}
       <footer className="sticky bottom-0 border-t bg-background">
-        <div className="max-w-7xl mx-auto w-full px-4 py-4 flex justify-end">
+        <div className="max-w-7xl mx-auto w-full px-4 py-4 flex justify-between">
+          <Button
+            variant="outline"
+            onClick={() => requestNavigation("/", { forceModal: true })}
+            disabled={createApplicationMutation.isPending}
+            className="text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-2 sm:order-1 h-11"
+          >
+            <ArrowLeftIcon className="h-4 w-4 mr-2" />
+            Back
+          </Button>
           <Button
             onClick={handleContinue}
             disabled={!selectedProductId || createApplicationMutation.isPending}
-            className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-[17px] font-semibold px-6 py-3 rounded-xl h-11"
+            className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2 h-11"
           >
             {createApplicationMutation.isPending ? "Creating..." : "Continue"}
             <ArrowRightIcon className="h-4 w-4 ml-2" />
@@ -341,9 +343,13 @@ export default function NewApplicationPage() {
         </div>
       </footer>
 
-      <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
       {isModalOpen && (
-        <UnsavedChangesModal onConfirm={() => confirmLeave()} onCancel={() => cancelLeave()} />
+        <UnsavedChangesModal
+          variant="exit"
+          hasUnsavedChanges={hasUnsavedChanges}
+          onConfirm={() => confirmLeave()}
+          onCancel={() => cancelLeave()}
+        />
       )}
 
       <VersionMismatchModal

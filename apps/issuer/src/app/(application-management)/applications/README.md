@@ -6,14 +6,14 @@ List of financing applications. User sees cards with status badges, invoice tabl
 
 | File | What it does |
 |------|--------------|
-| **page.tsx** | The screen. Renders cards, search, filter, pagination. |
+| **page.tsx** | The screen. Renders cards, search, filter, pagination. Dev-only Debug Panel for skeleton/mock testing. |
 | **status.ts** | Status config (label, color, sort order) and logic. Add/remove statuses here. Filter options come from here. |
-| **use-applications-data.ts** | Fetches data (mock or API), prepares each app for display (flatten, add cardStatus), hides archived, sorts. |
-| **data.ts** | Mock data when USE_MOCK_DATA is true. |
+| **use-applications-data.ts** | Fetches from API. Accepts debug overrides (skeleton, mock) for dev testing. Prepares each app for display. |
+| **dev/mockApplications.ts** | Mock generator for Debug Panel. Generates NormalizedApplication cards with varied lifecycle states. |
 
 ## Data flow
 
-1. **Fetch** — use-applications-data calls API (or loads mock from data.ts)
+1. **Fetch** — use-applications-data calls API (or uses debug mock when Debug Panel injects mock data)
 2. **Prepare** — API returns nested objects (contract, invoices, offer_details). We flatten them, add cardStatus (badge, buttons), extract document keys. Done in use-applications-data via prepareApplication.
 3. **Filter** — Archived apps are hidden
 4. **Sort** — By status (rejected first, draft last), then by date

@@ -12,7 +12,7 @@ import { cn } from "@cashsouk/ui";
 interface ProgressIndicatorProps {
   steps: string[];
   currentStep: number;
-  /** Last step user saved. Steps <= this show as completed when clicking Back. */
+  /** @deprecated Used only for navigation gating; must NOT affect progress indicator rendering. */
   lastCompletedStep?: number;
   isLoading?: boolean;
   disabledSteps?: number[]; // Steps that are visible but locked (non-clickable)
@@ -26,7 +26,7 @@ interface ProgressIndicatorProps {
 export function ProgressIndicator({
   steps,
   currentStep,
-  lastCompletedStep,
+  lastCompletedStep: _lastCompletedStep,
   isLoading = false,
   disabledSteps = [],
   onStepClick,
@@ -103,13 +103,15 @@ export function ProgressIndicator({
             isAmendmentMode &&
             amendmentFlaggedStepKeys.includes(stepKey);
           const isAcknowledged = acknowledgedWorkflowIds.includes(stepKey);
-          /** Non-flagged: completed if saved or before current. Flagged: only when acknowledged. Review and Submit: never completed until Resubmit. */
+          /** Plan: amendment flagged → acknowledgement; amendment NOT flagged → always checked; normal flow → stepIndex < currentStep. Never use lastCompletedStep for UI. */
           const isCompleted =
             isAmendmentMode && stepKey === "review_and_submit"
               ? false
               : isAmendmentMode && isFlagged
                 ? isAcknowledged
-                : stepNumber <= (lastCompletedStep ?? currentStep - 1);
+                : isAmendmentMode && !isFlagged
+                  ? true
+                  : stepNumber < currentStep;
           const isActive = stepNumber === currentStep;
           const isFilled = isCompleted || isActive;
           const isDisabled = disabledSteps.includes(stepNumber);

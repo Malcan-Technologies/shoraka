@@ -71,8 +71,15 @@ import { InvoiceErrorCard } from "../components/amendments";
 import { formatMoney, parseMoney } from "../components/money";
 import { MoneyInput } from "@/app/(application-flow)/applications/components/money-input";
 import { InvoiceDetailsSkeleton } from "@/app/(application-flow)/applications/components/invoice-details-skeleton";
-import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
+import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
+import { generateInvoiceData } from "../utils/dev-data-generator";
+
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
+
+/** Mock data for dev Auto Fill Step. Random 1–5 invoices. */
+export function generateMockData(): Record<string, unknown> {
+  return generateInvoiceData();
+}
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -168,8 +175,7 @@ export default function InvoiceDetailsStep({
   flaggedItems: _flaggedItems,
   remarks = [],
 }: InvoiceDetailsStepProps) {
-  // DEBUG: Toggle skeleton mode
-  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
+  const devTools = useDevTools();
 
   const [invoices, setInvoices] = React.useState<LocalInvoice[]>([]);
   const [selectedFiles, setSelectedFiles] = React.useState<Record<string, File>>({});
@@ -180,38 +186,56 @@ export default function InvoiceDetailsStep({
   const [isLoadingApplication, setIsLoadingApplication] = React.useState(true);
   const [isLoadingInvoices, setIsLoadingInvoices] = React.useState(true);
   const [isInitialized, setIsInitialized] = React.useState(false);
-
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
   const { data: productsData } = useProducts({ page: 1, pageSize: 100 });
 
-  /** Map invoice index -> remark. Simple: scope_key "invoice_details:N:..." -> index N */
-  const flaggedInvoiceRemarks = React.useMemo(() => {
-    const map = new Map<number, string>();
+  /** Parse remark text: split by /n for bullets, else by newline. Returns trimmed non-empty lines. */
+  const parseRemarkBullets = React.useCallback((text: string): string[] => {
+    if (!text?.trim()) return [];
+    const raw = text.trim();
+    const delimiter = raw.includes("/n") ? "/n" : "\n";
+    return raw.split(delimiter).map((s) => s.trim()).filter(Boolean);
+  }, []);
+
+  /** Map invoice index -> list of remark texts. Scope keys: invoice_details:N:... or invoice:N:... */
+  const invoiceRemarksByIndex = React.useMemo(() => {
+    const map = new Map<number, string[]>();
     for (const r of remarks) {
       const rem = r as { scope?: string; scope_key?: string; remark?: string };
-      if (rem.scope !== "item" || !rem.scope_key?.startsWith("invoice_details:")) continue;
-      const parts = rem.scope_key.split(":");
+      if (rem.scope !== "item") continue;
+      const sk = rem.scope_key || "";
+      if (!sk.startsWith("invoice_details:") && !sk.startsWith("invoice:")) continue;
+      const parts = sk.split(":");
       if (parts.length >= 2) {
         const idx = parseInt(parts[1], 10);
-        if (!Number.isNaN(idx) && (rem.remark || "").trim()) map.set(idx, (rem.remark || "").trim());
+        if (!Number.isNaN(idx) && idx >= 0 && (rem.remark || "").trim()) {
+          const bullets = parseRemarkBullets(rem.remark || "");
+          if (bullets.length > 0) {
+            const existing = map.get(idx) ?? [];
+            map.set(idx, [...existing, ...bullets]);
+          }
+        }
       }
     }
     return map;
-  }, [remarks]);
+  }, [remarks, parseRemarkBullets]);
 
-  /** Item-level invoice errors for InvoiceErrorCard above table */
-  const invoiceErrorLines = React.useMemo(() => {
-    const lines: string[] = [];
-    flaggedInvoiceRemarks.forEach((remark, idx) => {
+  /** Indices of invoices that have amendment remarks (for row highlighting). */
+  const invoicesWithRemarks = React.useMemo(
+    () => new Set(invoiceRemarksByIndex.keys()),
+    [invoiceRemarksByIndex]
+  );
+
+  /** Grouped invoice amendment data for card: { invoiceLabel, bullets }[]. */
+  const invoiceAmendmentGroups = React.useMemo(() => {
+    const sorted = Array.from(invoiceRemarksByIndex.entries()).sort((a, b) => a[0] - b[0]);
+    return sorted.map(([idx, bullets]) => {
       const inv = invoices[idx];
-      const prefix = inv?.number ? `Invoice #${inv.number}: ` : `Invoice #${idx + 1}: `;
-      for (const line of (remark || "").split("\n").filter(Boolean)) {
-        lines.push(prefix + line.trim());
-      }
+      const label = inv?.number ? `Invoice ${inv.number}` : `Invoice #${idx + 1}`;
+      return { invoiceLabel: label, bullets };
     });
-    return lines;
-  }, [flaggedInvoiceRemarks, invoices]);
+  }, [invoiceRemarksByIndex, invoices]);
 
   React.useEffect(() => {
     let mounted = true;
@@ -241,6 +265,23 @@ export default function InvoiceDetailsStep({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applicationId]);
+
+  /** Apply dev-tools Fill Entire Application (autoFillDataMap) or Auto Fill Step (autoFillData). */
+  React.useEffect(() => {
+    const data =
+      devTools?.autoFillData?.stepKey === "invoice_details"
+        ? (devTools.autoFillData.data as { invoices?: LocalInvoice[] })
+        : (devTools?.autoFillDataMap?.["invoice_details"] as { invoices?: LocalInvoice[] } | undefined);
+    if (!data?.invoices?.length) return;
+    setInvoices(
+      data.invoices.map((inv) => ({
+        ...inv,
+        document: inv.document ?? null,
+      }))
+    );
+    if (devTools?.autoFillData?.stepKey === "invoice_details") devTools.clearAutoFill();
+    else devTools?.clearAutoFillForStep("invoice_details");
+  }, [devTools]);
 
   const addInvoice = () => {
     setInvoices((s) => [
@@ -894,7 +935,7 @@ export default function InvoiceDetailsStep({
   //   application?.financing_structure?.structure_type === "new_contract"; // Not used
   const hasFacilityData = approvedFacility > 0;
 
-  if (isLoadingApplication || debugSkeletonMode) {
+  if (isLoadingApplication || devTools?.showSkeletonDebug) {
     return (
       <>
         <InvoiceDetailsSkeleton
@@ -902,10 +943,6 @@ export default function InvoiceDetailsStep({
           showInvoiceTable={true}
         />
 
-        <DebugSkeletonToggle
-          isSkeletonMode={debugSkeletonMode}
-          onToggle={setDebugSkeletonMode}
-        />
       </>
     );
   }
@@ -985,7 +1022,7 @@ export default function InvoiceDetailsStep({
         )}
 
         {/* ================= Invoice Details ================= */}
-        {isLoadingApplication || debugSkeletonMode ? null : (
+        {isLoadingApplication || devTools?.showSkeletonDebug ? null : (
           <div className="space-y-3">
             <div className="flex items-start justify-between">
               <div>
@@ -1004,9 +1041,9 @@ export default function InvoiceDetailsStep({
 
             <div className="border-b border-border mt-2 mb-4" />
 
-            {/* Item-level invoice errors above table (no space inside table for long errors) */}
-            {invoiceErrorLines.length > 0 && (
-              <InvoiceErrorCard errors={invoiceErrorLines} />
+            {/* Item-level invoice amendment remarks above table */}
+            {invoiceAmendmentGroups.length > 0 && (
+              <InvoiceErrorCard groups={invoiceAmendmentGroups} />
             )}
 
             {/* ================= Table ================= */}
@@ -1065,8 +1102,7 @@ export default function InvoiceDetailsStep({
                               inv.status === "AMENDMENT_REQUESTED" ||
                               !inv.status) &&
                             !readOnly;
-                          const invRemark = flaggedInvoiceRemarks.get(invIndex);
-                          const isInvFlagged = Boolean(invRemark);
+                          const isInvFlagged = invoicesWithRemarks.has(invIndex);
 
                           return (
                             <TableRow
@@ -1074,7 +1110,7 @@ export default function InvoiceDetailsStep({
                               className={cn(
                                 "hover:bg-muted/40 transition-colors",
                                 (isLocked || readOnly) && "bg-muted/30",
-                                isInvFlagged && "border-l-4 border-l-destructive bg-destructive/5"
+                                isInvFlagged && "border-l-4 border-l-destructive bg-red-50"
                               )}
                             >
                               <TableCell className="p-2">
@@ -1274,7 +1310,6 @@ export default function InvoiceDetailsStep({
           </div>
         )}
       </div>
-      <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>
   );
 }

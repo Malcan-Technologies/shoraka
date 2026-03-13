@@ -36,6 +36,14 @@ export function useProductVersionGuard(applicationId: string) {
       return false;
     }
 
+    /** Amendment flow must skip all product validation; use original product configuration. */
+    if ((application as { status?: string }).status === "AMENDMENT_REQUESTED") {
+      setIsMismatch(false);
+      setBlockReason(null);
+      setIsChecking(false);
+      return false;
+    }
+
     if (!productId) {
       // No product selected on application — treat as no mismatch here (higher-level logic may block)
       setIsChecking(false);

@@ -33,6 +33,8 @@ import {
 } from "./offer-letter-pdf";
 import { computeContractFacilitySnapshot } from "../../lib/contract-facility";
 import { publishOfferStateEvent } from "../../lib/offer-events";
+import { ApplicationStatus, ContractStatus, InvoiceStatus, WithdrawReason } from "@cashsouk/types";
+import { computeApplicationStatus } from "./lifecycle";
 
 export class ApplicationService {
   private repository: ApplicationRepository;
@@ -215,7 +217,6 @@ export class ApplicationService {
    * Get application and check product version
    */
   async getApplication(id: string, userId: string) {
-    // Verify user has access to this application
     await this.verifyApplicationAccess(id, userId);
 
     const application = await this.repository.findById(id);
@@ -223,9 +224,13 @@ export class ApplicationService {
       throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
     }
 
+    /** Archived applications must not be accessible through the edit flow. */
+    const status = (application as { status?: string }).status;
+    if (status === "ARCHIVED") {
+      throw new AppError(403, "EDIT_NOT_ALLOWED", "Application cannot be edited in its current status");
+    }
+
     return application;
-
-
   }
 
   /**
@@ -399,6 +404,58 @@ export class ApplicationService {
         return Number.isNaN(n) ? 0 : n;
       };
 
+      const nonNegativeFields: { key: keyof typeof raw; label: string }[] = [
+        { key: "turnover", label: "Turnover" },
+        { key: "bsfatot", label: "Fixed assets" },
+        { key: "othass", label: "Other assets" },
+        { key: "bscatot", label: "Current assets" },
+        { key: "bsclbank", label: "Non-current assets" },
+        { key: "curlib", label: "Current liability" },
+        { key: "bsslltd", label: "Long-term liability" },
+        { key: "bsclstd", label: "Non-current liability" },
+        { key: "bsqpuc", label: "Paid-up capital" },
+        { key: "plnetdiv", label: "Net dividend" },
+      ];
+      for (const { key, label } of nonNegativeFields) {
+        const val = toNum(raw[key]);
+        if (val < 0) {
+          throw new AppError(400, "VALIDATION_ERROR", `${label} cannot be negative`);
+        }
+      }
+
+      /** Parse bsdd date string (ISO yyyy-MM-dd or d/M/yyyy) to local midnight Date or null. */
+      const parseBsddDate = (s: string): Date | null => {
+        if (!s?.trim()) return null;
+        const t = s.trim();
+        let year: number;
+        let month: number;
+        let day: number;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
+          year = parseInt(t.slice(0, 4), 10);
+          month = parseInt(t.slice(5, 7), 10) - 1;
+          day = parseInt(t.slice(8, 10), 10);
+        } else {
+          const parts = t.split("/");
+          if (parts.length !== 3) return null;
+          day = parseInt(parts[0], 10);
+          month = parseInt(parts[1], 10) - 1;
+          year = parseInt(parts[2], 10);
+        }
+        if (Number.isNaN(day) || Number.isNaN(month) || Number.isNaN(year) || month < 0 || month > 11) return null;
+        const d = new Date(year, month, day);
+        if (d.getFullYear() !== year || d.getMonth() !== month || d.getDate() !== day) return null;
+        return d;
+      };
+
+      const bsddDate = parseBsddDate(String(raw.bsdd ?? ""));
+      if (bsddDate) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (bsddDate > today) {
+          throw new AppError(400, "VALIDATION_ERROR", "Financial data date cannot be in the future.");
+        }
+      }
+
       dataToStore = {
         pldd: String(raw.pldd ?? ""),
         bsdd: String(raw.bsdd ?? ""),
@@ -465,9 +522,17 @@ export class ApplicationService {
           updateData.contract = { disconnect: true };
         }
 
-        // Invoice-related persistence removed.
-        // Previously: clear contract_id from invoices via prisma.invoice.updateMany(...)
-        // That behavior has been removed as invoice APIs were deleted.
+        // invoice_only: clear contract_id on draft invoices to prevent inconsistent state
+        if (structureData?.structure_type === "invoice_only") {
+          await prisma.invoice.updateMany({
+            where: {
+              application_id: id,
+              status: "DRAFT",
+              contract_id: { not: null },
+            },
+            data: { contract_id: null },
+          });
+        }
       }
     }
 
@@ -482,6 +547,65 @@ export class ApplicationService {
     }
 
     return this.repository.update(id, updateData);
+  }
+
+  /**
+   * Delete a draft application. Safe deletion: only removes draft data.
+   * - Deletes DRAFT invoices (application_id = id, status = DRAFT)
+   * - Deletes DRAFT contract if it was created inside the draft
+   * - Never deletes existing contracts or approved/submitted invoices
+   */
+  async deleteDraftApplication(id: string, userId: string): Promise<void> {
+    await this.verifyApplicationAccess(id, userId);
+
+    const application = await this.repository.findById(id);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+
+    const status = application.status as ApplicationStatus;
+    if (status !== ApplicationStatus.DRAFT) {
+      throw new AppError(400, "INVALID_STATE", "Only draft applications can be deleted");
+    }
+
+    const contract = (application as any).contract ?? null;
+
+    await prisma.$transaction(async (tx) => {
+      /** Delete only DRAFT invoices belonging to this application. Never delete APPROVED/SUBMITTED. */
+      await tx.invoice.deleteMany({
+        where: {
+          application_id: id,
+          status: InvoiceStatus.DRAFT,
+        },
+      });
+
+      /** Safety check: if any non-DRAFT invoices remain, refuse to delete (cascade would remove them). */
+      const remainingInvoices = await tx.invoice.count({
+        where: { application_id: id },
+      });
+      if (remainingInvoices > 0) {
+        throw new AppError(
+          400,
+          "HAS_REAL_RECORDS",
+          "Cannot delete: application has real financing records. Please contact support."
+        );
+      }
+
+      /** Delete DRAFT contract only if it was created inside this draft. Never delete existing (APPROVED) contracts. */
+      if (contract?.status === ContractStatus.DRAFT && application.contract_id) {
+        await tx.application.update({
+          where: { id },
+          data: { contract_id: null },
+        });
+        await tx.contract.delete({
+          where: { id: contract.id },
+        });
+      }
+
+      await tx.application.delete({
+        where: { id },
+      });
+    });
   }
 
   /**
@@ -500,6 +624,94 @@ export class ApplicationService {
       status: "ARCHIVED",
       updated_at: new Date(),
     });
+  }
+
+  /**
+   * Cancel an application (issuer-only). Withdraws active invoices and contract only.
+   */
+  async cancelApplication(id: string, userId: string): Promise<Application> {
+    await this.verifyApplicationAccess(id, userId);
+
+    const application = await this.repository.findById(id);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+
+    const status = application.status as ApplicationStatus;
+
+    if (status === ApplicationStatus.WITHDRAWN) {
+      throw new AppError(400, "BAD_REQUEST", "This application has already been withdrawn and cannot be cancelled again.");
+    }
+
+    if (
+      status === ApplicationStatus.COMPLETED ||
+      status === ApplicationStatus.REJECTED ||
+      status === ApplicationStatus.ARCHIVED
+    ) {
+      throw new AppError(400, "BAD_REQUEST", "This application can no longer be cancelled.");
+    }
+
+    const contract = (application as any).contract ?? null;
+    const invoices = (application as any).invoices ?? [];
+
+    await prisma.$transaction(async (tx) => {
+      for (const invoice of invoices) {
+        if (
+          invoice.status === InvoiceStatus.DRAFT ||
+          invoice.status === InvoiceStatus.SUBMITTED ||
+          invoice.status === InvoiceStatus.OFFER_SENT ||
+          invoice.status === InvoiceStatus.AMENDMENT_REQUESTED
+        ) {
+          await tx.invoice.update({
+            where: { id: invoice.id },
+            data: {
+              status: InvoiceStatus.WITHDRAWN,
+              withdraw_reason: WithdrawReason.USER_CANCELLED,
+            },
+          });
+        }
+      }
+
+      if (
+        contract &&
+        contract.status !== ContractStatus.APPROVED &&
+        contract.status !== ContractStatus.WITHDRAWN &&
+        contract.status !== ContractStatus.REJECTED
+      ) {
+        await tx.contract.update({
+          where: { id: contract.id },
+          data: {
+            status: ContractStatus.WITHDRAWN,
+            withdraw_reason: WithdrawReason.USER_CANCELLED,
+          },
+        });
+      }
+
+      const updatedInvoices = await tx.invoice.findMany({
+        where: { application_id: id },
+      });
+
+      const updatedContract = contract
+        ? await tx.contract.findFirst({ where: { id: contract.id } })
+        : null;
+
+      const newStatus = computeApplicationStatus(
+        updatedContract as { status: ContractStatus } | null,
+        updatedInvoices.map((i) => ({ status: i.status as InvoiceStatus })),
+        status
+      );
+
+      await tx.application.update({
+        where: { id },
+        data: { status: newStatus },
+      });
+    });
+
+    const updated = await this.repository.findById(id);
+    if (!updated) {
+      throw new AppError(500, "INTERNAL_ERROR", "Failed to fetch updated application");
+    }
+    return updated;
   }
 
   /**

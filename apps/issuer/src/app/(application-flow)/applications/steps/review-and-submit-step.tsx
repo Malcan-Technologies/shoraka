@@ -22,7 +22,7 @@ import { ReviewCompanySkeleton } from "../components/review-company-skeleton";
 import { ReviewBusinessSkeleton } from "../components/review-business-skeleton";
 import { ReviewSupportingDocsSkeleton } from "../components/review-supporting-docs-skeleton";
 import { ReviewFinancingSkeleton } from "../components/review-financing-skeleton";
-import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
+import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import { formatMoney } from "../components/money";
 
 const INVOICE_TABLE_COLUMNS = {
@@ -72,7 +72,7 @@ const pageWrapperClassName = "mx-auto max-w-7xl px-6 "; //py-10 md:py-12
 const labelClassName = formLabelClassName; // canonical label class from shared form control
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 const sectionHeaderClassName = "text-base font-semibold text-foreground";
-const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 px-3";
+const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 px-3 items-center";
 const sectionSpacingClassName = "space-y-6";
 export function ReviewAndSubmitStep({
   applicationId,
@@ -80,7 +80,7 @@ export function ReviewAndSubmitStep({
   readOnly: _readOnly = false,
 }: ReviewAndSubmitStepProps) {
   // DEBUG: Toggle skeleton mode
-  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
+  const devTools = useDevTools();
 
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   const organizationId = (application as any)?.issuer_organization_id || (application as any)?.company_details?.issuer_organization_id;
@@ -332,7 +332,7 @@ export function ReviewAndSubmitStep({
             </div>
 
             {financingTypeConfig ? (
-              financingLoading || debugSkeletonMode ? (
+              financingLoading || devTools?.showSkeletonDebug ? (
                 <ReviewFinancingSkeleton />
               ) : (
                 <SelectionCard
@@ -359,7 +359,7 @@ export function ReviewAndSubmitStep({
               <h3 className={sectionHeaderClassName}>Contract</h3>
               <div className="border-b border-border mt-2 mb-4" />
             </div>
-            {contractLoading || debugSkeletonMode ? (
+            {contractLoading || devTools?.showSkeletonDebug ? (
               <ReviewContractSkeleton />
             ) : (
               <div className={sectionGridClassName}>
@@ -410,7 +410,7 @@ export function ReviewAndSubmitStep({
               <h3 className={sectionHeaderClassName}>Invoices</h3>
               <div className="border-b border-border mt-2 mb-4" />
             </div>
-            {invoiceLoading || debugSkeletonMode ? (
+            {invoiceLoading || devTools?.showSkeletonDebug ? (
               <ReviewInvoiceSkeleton />
             ) : (
               <>
@@ -472,7 +472,7 @@ export function ReviewAndSubmitStep({
 
                                   {/* Status */}
                                   <TableCell className="p-2">
-                                    <StatusBadge status={invoice.status} />
+                                    <StatusBadge status={invoice.status} withdrawReason={invoice.withdraw_reason} />
                                   </TableCell>
 
                                   {/* Maturity */}
@@ -547,7 +547,7 @@ export function ReviewAndSubmitStep({
                 <h3 className={sectionHeaderClassName}>Company Info</h3>
                 <div className="border-b border-border mt-2 mb-4" />
               </div>
-              {companyLoading || debugSkeletonMode ? (
+              {companyLoading || devTools?.showSkeletonDebug ? (
                 <ReviewCompanySkeleton />
               ) : (
                 <div className={sectionGridClassName}>
@@ -578,7 +578,7 @@ export function ReviewAndSubmitStep({
                 <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
                 <div className="border-b border-border mt-2 mb-4" />
               </div>
-              {companyLoading || debugSkeletonMode ? (
+              {companyLoading || devTools?.showSkeletonDebug ? (
                 <ReviewBusinessSkeleton />
               ) : combinedList.length === 0 ? (
                 <div className="text-sm text-muted-foreground px-3">
@@ -630,7 +630,7 @@ export function ReviewAndSubmitStep({
                 <h3 className={sectionHeaderClassName}>Banking Details</h3>
                 <div className="border-b border-border mt-2 mb-4" />
               </div>
-              {companyLoading || debugSkeletonMode ? (
+              {companyLoading || devTools?.showSkeletonDebug ? (
                 <ReviewBusinessSkeleton />
               ) : (
                 <div className={sectionGridClassName}>
@@ -649,7 +649,7 @@ export function ReviewAndSubmitStep({
                 <h3 className={sectionHeaderClassName}>Address</h3>
                 <div className="border-b border-border mt-2 mb-4" />
               </div>
-              {companyLoading || debugSkeletonMode ? (
+              {companyLoading || devTools?.showSkeletonDebug ? (
                 <ReviewBusinessSkeleton />
               ) : (
                 <div className={sectionGridClassName}>
@@ -668,7 +668,7 @@ export function ReviewAndSubmitStep({
                 <h3 className={sectionHeaderClassName}>Contact Person</h3>
                 <div className="border-b border-border mt-2 mb-4" />
               </div>
-              {companyLoading || debugSkeletonMode ? (
+              {companyLoading || devTools?.showSkeletonDebug ? (
                 <ReviewBusinessSkeleton />
               ) : (
                 <div className={sectionGridClassName}>
@@ -696,7 +696,7 @@ export function ReviewAndSubmitStep({
               <h3 className={sectionHeaderClassName}>Legal Docs</h3>
               <div className="border-b border-border mt-2 mb-4" />
             </div>
-            {supportingLoading || debugSkeletonMode ? (
+            {supportingLoading || devTools?.showSkeletonDebug ? (
               <ReviewSupportingDocsSkeleton />
             ) : (
               <div className="space-y-3 px-3">
@@ -720,7 +720,6 @@ export function ReviewAndSubmitStep({
           </section>
         )}
       </div>
-      <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>
   );
 }

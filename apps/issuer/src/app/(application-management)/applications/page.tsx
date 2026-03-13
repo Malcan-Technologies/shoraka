@@ -17,6 +17,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { useHeader } from "@cashsouk/ui";
 import { formatCurrency, createApiClient } from "@cashsouk/config";
+import { WithdrawReason } from "@cashsouk/types";
 import { useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,10 +52,23 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { STATUS, FILTER_STATUSES, FINANCING_TYPES } from "./status";
 import { useApplicationsData } from "./use-applications-data";
 import { ReviewOfferModal } from "./components/ReviewOfferModal";
+import { useCancelApplication, useWithdrawInvoice, useDeleteDraftApplication } from "@/hooks/use-applications";
+import { generateMockApplications } from "@/dev/mockApplications";
+import { Separator } from "@/components/ui/separator";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import type { NormalizedApplication, NormalizedInvoice } from "./status";
+
+const SKELETON_COUNT = 8;
+const MOCK_APPLICATION_COUNT = 10;
 
 const BADGE_BASE = "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold border";
 const BADGE_FALLBACK = "border-slate-500/30 bg-slate-500/10 text-slate-600";
+
+/** Resolves badge key for withdrawn: OFFER_EXPIRED uses amber, else slate. */
+function resolveBadgeKey(badgeKey: string, withdrawReason?: WithdrawReason): string {
+  if (badgeKey === "withdrawn" && withdrawReason === WithdrawReason.OFFER_EXPIRED) return "withdrawn_offer_expired";
+  return badgeKey;
+}
 
 /** Skeleton that matches ApplicationCard layout. */
 function ApplicationCardSkeleton() {
@@ -93,8 +107,15 @@ function ApplicationCardSkeleton() {
   );
 }
 
-function StatusBadge({ badgeKey }: { badgeKey: string }) {
-  const s = STATUS[badgeKey];
+function StatusBadge({
+  badgeKey,
+  withdrawReason,
+}: {
+  badgeKey: string;
+  withdrawReason?: WithdrawReason;
+}) {
+  const resolved = resolveBadgeKey(badgeKey, withdrawReason);
+  const s = STATUS[resolved];
   return (
     <span className={cn(BADGE_BASE, s?.color ?? BADGE_FALLBACK)}>
       {s?.label ?? badgeKey}
@@ -160,24 +181,32 @@ function ApplicationCard({
   onDocumentDownload,
   onReviewContractOffer,
   onReviewInvoiceOffer,
+  onCancelApplication,
+  onDeleteDraft,
+  onWithdrawInvoice,
+  isCancelApplicationPending,
+  isWithdrawInvoicePending,
 }: {
   application: NormalizedApplication;
   onDocumentDownload: (s3Key: string) => Promise<void>;
   onReviewContractOffer?: (applicationId: string, contractId: string) => void;
   onReviewInvoiceOffer?: (applicationId: string, invoice: NormalizedInvoice) => void;
+  onCancelApplication?: (applicationId: string) => void;
+  onDeleteDraft?: (applicationId: string) => void;
+  onWithdrawInvoice?: (invoiceId: string, applicationId: string, organizationId?: string) => void;
+  isCancelApplicationPending?: boolean;
+  isWithdrawInvoicePending?: boolean;
 }) {
-  const [expanded, setExpanded] = React.useState(false);
+  const [expanded, setExpanded] = React.useState(application.status === "offer_sent");
 
   const { cardStatus } = application;
   const isDraft = application.status === "draft";
   const isGenericDraft = application.type === "Generic";
   const hasContract = application.type === "Contract financing";
 
-  const invoicesDisabled = hasContract && application.contractStatus !== "APPROVED";
-
   const useDraftCardLayout = isDraft && isGenericDraft;
 
-  const displayId = application.id.slice(-8);
+  const displayId = "#" + application.id.slice(-8);
   const showFinancingLabel = !isGenericDraft;
 
   return (
@@ -188,14 +217,22 @@ function ApplicationCard({
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-base font-semibold">
                 Application ID {displayId}
-                {showFinancingLabel ? ` - ${application.type}` : ""}
+                {showFinancingLabel
+                  ? ` - ${application.type
+                      .split(" ")
+                      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+                      .join(" ")}`
+                  : ""}
               </span>
-              <StatusBadge badgeKey={cardStatus.badgeKey} />
+              <StatusBadge
+                badgeKey={cardStatus.badgeKey}
+                withdrawReason={cardStatus.badgeKey === "withdrawn" ? application.withdrawReason : undefined}
+              />
             </div>
             <div className="flex items-center gap-2">
               {/* Make Amendments: only for Action Required (AMENDMENT_REQUESTED). Links to /edit amendment flow. */}
               {cardStatus.showMakeAmendments && (
-                <Button size="sm" className="rounded-xl bg-amber-600 text-white hover:bg-amber-700 shadow-sm" asChild>
+                <Button size="sm" variant="makeAmendments" className="rounded-xl" asChild>
                   <Link href={`/applications/edit/${application.id}`}>
                     Make Amendments
                   </Link>
@@ -209,7 +246,8 @@ function ApplicationCard({
                     <Button
                       type="button"
                       size="sm"
-                      className="rounded-xl bg-teal-600 text-white hover:bg-teal-700 shadow-sm"
+                      variant="reviewOffer"
+                      className="rounded-xl"
                       onClick={(e) => {
                         e.stopPropagation();
                         onReviewContractOffer(application.id, application.contractId!);
@@ -256,8 +294,8 @@ function ApplicationCard({
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        className="cursor-pointer text-destructive focus:text-destructive"
-                        onClick={() => {}}
+                        className="cursor-pointer"
+                        onClick={() => onDeleteDraft?.(application.id)}
                       >
                         Delete Draft
                       </DropdownMenuItem>
@@ -265,9 +303,14 @@ function ApplicationCard({
                   ) : (
                     <DropdownMenuItem
                       className="cursor-pointer"
-                      onClick={() => {}}
+                      disabled={isCancelApplicationPending}
+                      onClick={() => {
+                        if (!isCancelApplicationPending && onCancelApplication) {
+                          onCancelApplication(application.id);
+                        }
+                      }}
                     >
-                      Withdraw Application
+                      {isCancelApplicationPending ? "Withdrawing..." : "Withdraw Application"}
                     </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>
@@ -277,23 +320,9 @@ function ApplicationCard({
         </CardHeader>
         <CardContent className="space-y-4">
           {useDraftCardLayout ? (
-            <div className="space-y-4">
-              <p className="text-sm leading-6 text-muted-foreground">
-                This application is still being set up.
-              </p>
-              <div className="space-y-1 pt-2">
-              <div className="text-sm text-muted-foreground">
-                Application created:{" "}
-                <span className="text-foreground">
-                  {formatDate(application.applicationDate)}
-                </span>
-              </div>
-              <div className="text-sm text-muted-foreground">
-                Application submitted:{" "}
-                <span className="text-foreground">—</span>
-              </div>
-              </div>
-            </div>
+            <p className="text-sm leading-6 text-muted-foreground">
+              This application is still being set up.
+            </p>
           ) : (
           <div className="flex flex-wrap justify-between gap-6">
             <div className="space-y-1">
@@ -310,14 +339,7 @@ function ApplicationCard({
                 <span className="text-foreground">{application.customer}</span>
               </div>
               <div className="text-sm text-muted-foreground">
-                Application created:{" "}
-                <span className="text-foreground">
-                  {formatDate(application.applicationDate)}
-                </span>
-              </div>
-              {/* When the issuer submitted the application to admin. Helps issuer know how long it has been waiting. */}
-              <div className="text-sm text-muted-foreground">
-                Application submitted:{" "}
+                Submitted:{" "}
                 <span className="text-foreground">
                   {formatDate(application.submittedAt)}
                 </span>
@@ -368,18 +390,7 @@ function ApplicationCard({
               <h3 className="text-sm font-semibold text-foreground mb-3">
                 Invoice table
               </h3>
-              {invoicesDisabled && (
-                <p className="text-xs text-muted-foreground mb-2">
-                  Invoices will be available after the contract offer is accepted.
-                </p>
-              )}
-              <div className={cn("overflow-hidden rounded-xl border", invoicesDisabled && "relative opacity-90")}>
-              {invoicesDisabled && (
-                <div
-                  className="absolute inset-0 bg-slate-500/15 z-10 rounded-xl pointer-events-auto"
-                  aria-hidden
-                />
-              )}
+              <div className="overflow-hidden rounded-xl border">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/30 hover:bg-muted/30 border-b border-border">
@@ -427,8 +438,9 @@ function ApplicationCard({
                       const invStatus = String(inv.status ?? "").toUpperCase();
                       const showReviewOffer = invStatus === "OFFER_SENT" && inv.offerStatus === "Offer received";
                       const canReview = inv.canReviewOffer;
-                      const showMakeAmendments = invStatus === "AMENDMENT_REQUESTED";
-                      const invDisabled = invoicesDisabled;
+                      const showMakeAmendments =
+                        application.cardStatus.showMakeAmendments && invStatus === "AMENDMENT_REQUESTED";
+                      const canWithdrawInvoice = !["APPROVED", "REJECTED", "WITHDRAWN"].includes(invStatus);
                       return (
                         <TableRow
                           key={inv.id}
@@ -453,7 +465,6 @@ function ApplicationCard({
                               documentName={inv.document}
                               documentS3Key={inv.documentS3Key}
                               onDownload={onDocumentDownload}
-                              disabled={invDisabled}
                             />
                           </TableCell>
                           <TableCell className="text-right text-[15px] py-3 px-4 align-middle tabular-nums">
@@ -468,20 +479,16 @@ function ApplicationCard({
                             />
                           </TableCell>
                           <TableCell className="py-3 px-4 align-top">
-                            <div
-                              className={cn(
-                                "flex items-start justify-end gap-2",
-                                invDisabled && "pointer-events-none opacity-60"
-                              )}
-                            >
+                            <div className="flex items-start justify-end gap-2">
                               {(showReviewOffer || showMakeAmendments) && (
                                 <div className="flex flex-col items-center gap-1 min-w-[140px]">
                                   {showReviewOffer && (
-                                    canReview && !invDisabled && onReviewInvoiceOffer ? (
+                                    canReview && onReviewInvoiceOffer ? (
                                       <Button
                                         type="button"
                                         size="sm"
-                                        className="h-8 w-full min-w-[140px] rounded-xl text-xs font-medium bg-teal-600 text-white hover:bg-teal-700"
+                                        variant="reviewOffer"
+                                        className="h-8 w-full min-w-[140px] text-xs font-medium rounded-xl"
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           onReviewInvoiceOffer(application.id, inv);
@@ -492,7 +499,8 @@ function ApplicationCard({
                                     ) : (
                                       <Button
                                         size="sm"
-                                        className="h-8 w-full min-w-[140px] rounded-xl text-xs font-medium bg-teal-600 text-white hover:bg-teal-700"
+                                        variant="reviewOffer"
+                                        className="h-8 w-full min-w-[140px] text-xs font-medium rounded-xl"
                                         disabled
                                       >
                                         Review Offer
@@ -502,7 +510,8 @@ function ApplicationCard({
                                   {showMakeAmendments && (
                                     <Button
                                       size="sm"
-                                      className="h-8 w-full min-w-[140px] rounded-xl text-xs font-medium bg-amber-600 text-white hover:bg-amber-700"
+                                      variant="makeAmendments"
+                                      className="h-8 w-full min-w-[140px] text-xs font-medium rounded-xl"
                                       asChild
                                     >
                                       <Link href={`/applications/edit/${application.id}`}>
@@ -525,9 +534,21 @@ function ApplicationCard({
                                 <DropdownMenuContent align="end" className="rounded-xl">
                                   <DropdownMenuItem
                                     className="cursor-pointer"
-                                    onClick={() => {}}
+                                    disabled={!canWithdrawInvoice || isWithdrawInvoicePending}
+                                    onClick={() => {
+                                      if (canWithdrawInvoice && !isWithdrawInvoicePending && onWithdrawInvoice) {
+                                        onWithdrawInvoice(inv.id, application.id, application.issuerOrganizationId);
+                                      }
+                                    }}
+                                    title={
+                                      !canWithdrawInvoice
+                                        ? "Cannot withdraw: invoice is already approved, rejected, or withdrawn"
+                                        : isWithdrawInvoicePending
+                                          ? "Withdrawal in progress"
+                                          : undefined
+                                    }
                                   >
-                                    Withdraw Invoice
+                                    {isWithdrawInvoicePending ? "Withdrawing..." : "Withdraw Invoice"}
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -552,7 +573,20 @@ const PER_PAGE_OPTIONS = [4, 8, 12] as const;
 
 export default function ApplicationsPage() {
   const { setTitle } = useHeader();
-  const { applications, isLoading } = useApplicationsData();
+  const [debugShowSkeleton, setDebugShowSkeleton] = React.useState(false);
+  const [debugMockApplications, setDebugMockApplications] = React.useState<NormalizedApplication[] | null>(null);
+
+  const { applications, isLoading } = useApplicationsData({
+    debugShowSkeleton,
+    debugMockApplications,
+  });
+
+  const cancelApplication = useCancelApplication();
+  const withdrawInvoice = useWithdrawInvoice();
+  const deleteDraftApplication = useDeleteDraftApplication();
+
+  const [deleteDraftDialogOpen, setDeleteDraftDialogOpen] = React.useState(false);
+  const [deleteDraftApplicationId, setDeleteDraftApplicationId] = React.useState<string | null>(null);
 
   /* --- Review offer modal: opens when user clicks Review Offer. --- */
   const [reviewModalOpen, setReviewModalOpen] = React.useState(false);
@@ -577,17 +611,70 @@ export default function ApplicationsPage() {
     setReviewModalOpen(true);
   }, []);
 
-  /* --- Dev only: toggle skeleton for testing. --- */
-  const [showSkeletonDev, setShowSkeletonDev] = React.useState(false);
-  const isDev = process.env.NODE_ENV === "development";
+  const handleCancelApplication = React.useCallback(
+    async (applicationId: string) => {
+      try {
+        await cancelApplication.mutateAsync(applicationId);
+      } catch {
+        // toast handled by mutation onError
+      }
+    },
+    [cancelApplication]
+  );
 
-  /* --- FILTER: state. Status, Financing, Date (created + submitted), Search. --- */
+  const handleWithdrawInvoice = React.useCallback(
+    async (invoiceId: string, applicationId: string, organizationId?: string) => {
+      try {
+        await withdrawInvoice.mutateAsync({ invoiceId, applicationId, organizationId });
+      } catch {
+        // toast handled by mutation onError
+      }
+    },
+    [withdrawInvoice]
+  );
+
+  /** Defer dialog open to next tick so dropdown fully closes first; avoids flash/double-open. */
+  const handleDeleteDraftClick = React.useCallback((applicationId: string) => {
+    const id = applicationId;
+    queueMicrotask(() => {
+      setDeleteDraftApplicationId(id);
+      setDeleteDraftDialogOpen(true);
+    });
+  }, []);
+
+  const handleDeleteDraftConfirm = React.useCallback(async () => {
+    if (!deleteDraftApplicationId) return;
+    try {
+      await deleteDraftApplication.mutateAsync(deleteDraftApplicationId);
+      toast.success("Draft application deleted");
+      setDeleteDraftDialogOpen(false);
+      setDeleteDraftApplicationId(null);
+    } catch {
+      // toast handled by mutation onError
+    }
+  }, [deleteDraftApplicationId, deleteDraftApplication]);
+
+  const handleDebugSkeleton = React.useCallback(() => {
+    setDebugShowSkeleton((prev) => !prev);
+    if (!debugShowSkeleton) setDebugMockApplications(null);
+  }, [debugShowSkeleton]);
+
+  const handleDebugMockCards = React.useCallback(() => {
+    setDebugMockApplications(generateMockApplications(MOCK_APPLICATION_COUNT));
+    setDebugShowSkeleton(false);
+  }, []);
+
+  const handleDebugReset = React.useCallback(() => {
+    setDebugShowSkeleton(false);
+    setDebugMockApplications(null);
+  }, []);
+
+  /* --- FILTER: state. Status, Financing, Submitted date, Withdraw reason, Offer expiry, Search. --- */
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [financingFilter, setFinancingFilter] = React.useState("all");
-  const [createdFilter, setCreatedFilter] = React.useState("all");
   const [submittedFilter, setSubmittedFilter] = React.useState("all");
-  const [customerFilter, setCustomerFilter] = React.useState("all");
+  const [offerExpiryFilter, setOfferExpiryFilter] = React.useState("all");
   const [page, setPage] = React.useState(1);
   const [perPage, setPerPage] = React.useState(4);
 
@@ -616,17 +703,6 @@ export default function ApplicationsPage() {
           : "Invoice financing";
       list = list.filter((a) => a.type === match);
     }
-    if (createdFilter !== "all") {
-      const now = new Date();
-      const cutoff = new Date(now);
-      if (createdFilter === "7d") cutoff.setDate(now.getDate() - 7);
-      else if (createdFilter === "30d") cutoff.setDate(now.getDate() - 30);
-      else if (createdFilter === "90d") cutoff.setDate(now.getDate() - 90);
-      const cutoffTime = cutoff.getTime();
-      list = list.filter(
-        (a) => new Date(a.applicationDate).getTime() >= cutoffTime
-      );
-    }
     if (submittedFilter !== "all") {
       const now = new Date();
       const cutoff = new Date(now);
@@ -639,11 +715,21 @@ export default function ApplicationsPage() {
         return new Date(a.submittedAt).getTime() >= cutoffTime;
       });
     }
-    if (customerFilter !== "all") {
-      list = list.filter((a) => a.customer === customerFilter);
+    if (offerExpiryFilter !== "all") {
+      const now = new Date();
+      const days = offerExpiryFilter === "3d" ? 3 : offerExpiryFilter === "7d" ? 7 : 14;
+      const cutoff = new Date(now);
+      cutoff.setDate(now.getDate() + days);
+      const nowTime = now.getTime();
+      const cutoffTime = cutoff.getTime();
+      list = list.filter((a) => {
+        if (!a.expiresAt) return false;
+        const exp = new Date(a.expiresAt).getTime();
+        return exp > nowTime && exp <= cutoffTime;
+      });
     }
     return list;
-  }, [applications, search, statusFilter, financingFilter, createdFilter, submittedFilter, customerFilter]);
+  }, [applications, search, statusFilter, financingFilter, submittedFilter, offerExpiryFilter]);
 
   const paginatedApplications = filteredApplications.slice(
     (page - 1) * perPage,
@@ -651,30 +737,15 @@ export default function ApplicationsPage() {
   );
 
   const totalCount = applications.length;
-  const uniqueCustomers = React.useMemo(
-    () => [...new Set(applications.map((a) => a.customer).filter(Boolean))].sort(),
-    [applications]
-  );
-  const filterCount = [
+  const statusMoreFilterCount = [
     statusFilter !== "all",
     financingFilter !== "all",
-    createdFilter !== "all",
-    submittedFilter !== "all",
-    customerFilter !== "all",
+    offerExpiryFilter !== "all",
   ].filter(Boolean).length;
-  const hasFilters = search !== "" || filterCount > 0;
-
-  /** Date range label when filter active. e.g. "4 Mar 2026 – 11 Mar 2026" */
-  function getDateRangeLabel(filter: string): string | null {
-    if (filter === "all") return null;
-    const now = new Date();
-    const start = new Date(now);
-    if (filter === "7d") start.setDate(now.getDate() - 7);
-    else if (filter === "30d") start.setDate(now.getDate() - 30);
-    else if (filter === "90d") start.setDate(now.getDate() - 90);
-    return `${formatDate(start)} – ${formatDate(now)}`;
-  }
-  const submittedRangeLabel = getDateRangeLabel(submittedFilter);
+  const hasFilters =
+    search !== "" ||
+    submittedFilter !== "all" ||
+    statusMoreFilterCount > 0;
   const totalPages = Math.ceil(filteredApplications.length / perPage) || 1;
   const startIndex = (page - 1) * perPage + 1;
   const endIndex = Math.min(
@@ -703,8 +774,48 @@ export default function ApplicationsPage() {
     }
   };
 
+  const isDev = process.env.NODE_ENV === "development";
+
   return (
     <div className="flex-1 space-y-6 p-4 md:p-8 pt-6">
+      {isDev && (
+        <Card
+          className="fixed bottom-5 right-5 z-[9999] w-[200px] shadow-lg border-2 border-amber-500/50"
+          data-testid="applications-debug-panel"
+        >
+          <CardHeader className="py-2 px-3">
+            <h3 className="text-sm font-semibold">Debug Panel</h3>
+          </CardHeader>
+          <Separator />
+          <CardContent className="py-2 px-3 space-y-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-start text-xs h-8"
+              onClick={handleDebugSkeleton}
+            >
+              {debugShowSkeleton ? "Hide Skeleton" : "Debug Skeleton"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-start text-xs h-8"
+              onClick={handleDebugMockCards}
+            >
+              Debug Mock Cards
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-start text-xs h-8"
+              onClick={handleDebugReset}
+            >
+              Reset Debug
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       <section className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">
@@ -738,7 +849,7 @@ export default function ApplicationsPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0 space-y-6">
-          {/* FILTER: Same pattern as ActivityToolbar — search + FunnelIcon dropdowns + Clear + count. */}
+          {/* FILTER: Matches ActivityToolbar — search + 2 dropdowns (Submitted, Filter) + Clear + count. */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full">
             <div className="relative flex-1 w-full">
               <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -753,7 +864,7 @@ export default function ApplicationsPage() {
               />
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -761,43 +872,19 @@ export default function ApplicationsPage() {
                     className="gap-2 h-11 rounded-xl focus-visible:ring-1 focus-visible:ring-offset-0"
                   >
                     <FunnelIcon className="h-4 w-4" />
-                    Date
-                    {(createdFilter !== "all" || submittedFilter !== "all") && (
+                    Submitted
+                    {submittedFilter !== "all" && (
                       <Badge
-                        variant="default"
+                        variant="secondary"
                         className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs shadow-none"
                       >
-                        {(createdFilter !== "all" ? 1 : 0) + (submittedFilter !== "all" ? 1 : 0)}
+                        1
                       </Badge>
                     )}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56 p-1">
-                  <DropdownMenuLabel>Application created</DropdownMenuLabel>
-                  {[
-                    { value: "all", label: "All time" },
-                    { value: "7d", label: "Last 7 days" },
-                    { value: "30d", label: "Last 30 days" },
-                    { value: "90d", label: "Last 90 days" },
-                  ].map((opt) => (
-                    <DropdownMenuItem
-                      key={`created-${opt.value}`}
-                      className="pl-8 relative"
-                      onClick={() => {
-                        setCreatedFilter(opt.value);
-                        setPage(1);
-                      }}
-                    >
-                      {createdFilter === opt.value && (
-                        <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                          <span className="h-2 w-2 rounded-full bg-foreground" />
-                        </span>
-                      )}
-                      {opt.label}
-                    </DropdownMenuItem>
-                  ))}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Application submitted</DropdownMenuLabel>
+                  <DropdownMenuLabel>Submitted</DropdownMenuLabel>
                   {[
                     { value: "all", label: "All time" },
                     { value: "7d", label: "Last 7 days" },
@@ -831,82 +918,90 @@ export default function ApplicationsPage() {
                   >
                     <FunnelIcon className="h-4 w-4" />
                     Filter
-                    {filterCount > 0 && (
+                    {statusMoreFilterCount > 0 && (
                       <Badge
                         variant="default"
                         className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs shadow-none"
                       >
-                        {filterCount}
+                        {statusMoreFilterCount}
                       </Badge>
                     )}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 p-1">
-                  <DropdownMenuLabel>Application status</DropdownMenuLabel>
-                  {[
-                    { value: "all", label: "All" },
-                    ...FILTER_STATUSES.map((key) => ({ value: key, label: STATUS[key]?.label ?? key })),
-                  ].map((opt) => (
-                    <DropdownMenuItem
-                      key={`status-${opt.value}`}
-                      className="pl-8 relative"
-                      onClick={() => {
-                        setStatusFilter(opt.value);
-                        setPage(1);
-                      }}
-                    >
-                      {statusFilter === opt.value && (
-                        <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                          <span className="h-2 w-2 rounded-full bg-foreground" />
-                        </span>
-                      )}
-                      {opt.label}
-                    </DropdownMenuItem>
-                  ))}
+                <DropdownMenuContent align="end" className="w-56 p-0">
+                  <div className="p-1">
+                    <DropdownMenuLabel>Status</DropdownMenuLabel>
+                    {[
+                      { value: "all", label: "All" },
+                      ...FILTER_STATUSES.map((key) => ({ value: key, label: STATUS[key]?.label ?? key })),
+                    ].map((opt) => (
+                      <DropdownMenuItem
+                        key={`status-${opt.value}`}
+                        className="pl-8 relative"
+                        onClick={() => {
+                          setStatusFilter(opt.value);
+                          setPage(1);
+                        }}
+                      >
+                        {statusFilter === opt.value && (
+                          <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                            <span className="h-2 w-2 rounded-full bg-foreground" />
+                          </span>
+                        )}
+                        {opt.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </div>
                   <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Financing structure</DropdownMenuLabel>
-                  {[
-                    { value: "all", label: "All" },
-                    ...FINANCING_TYPES.map(({ value, label }) => ({ value, label })),
-                  ].map((opt) => (
-                    <DropdownMenuItem
-                      key={`fin-${opt.value}`}
-                      className="pl-8 relative"
-                      onClick={() => {
-                        setFinancingFilter(opt.value);
-                        setPage(1);
-                      }}
-                    >
-                      {financingFilter === opt.value && (
-                        <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                          <span className="h-2 w-2 rounded-full bg-foreground" />
-                        </span>
-                      )}
-                      {opt.label}
-                    </DropdownMenuItem>
-                  ))}
+                  <div className="p-1">
+                    <DropdownMenuLabel>Financing</DropdownMenuLabel>
+                    {[
+                      { value: "all", label: "All" },
+                      ...FINANCING_TYPES.map(({ value, label }) => ({ value, label })),
+                    ].map((opt) => (
+                      <DropdownMenuItem
+                        key={`fin-${opt.value}`}
+                        className="pl-8 relative"
+                        onClick={() => {
+                          setFinancingFilter(opt.value);
+                          setPage(1);
+                        }}
+                      >
+                        {financingFilter === opt.value && (
+                          <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                            <span className="h-2 w-2 rounded-full bg-foreground" />
+                          </span>
+                        )}
+                        {opt.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </div>
                   <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Customer</DropdownMenuLabel>
-                  {[
-                    { value: "all", label: "All" },
-                    ...uniqueCustomers.map((c) => ({ value: c, label: c })),
-                  ].map((opt) => (
-                    <DropdownMenuItem
-                      key={`cust-${opt.value}`}
-                      className="pl-8 relative"
-                      onClick={() => {
-                        setCustomerFilter(opt.value);
-                        setPage(1);
-                      }}
-                    >
-                      {customerFilter === opt.value && (
-                        <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                          <span className="h-2 w-2 rounded-full bg-foreground" />
-                        </span>
-                      )}
-                      {opt.label}
-                    </DropdownMenuItem>
-                  ))}
+                  <div className="p-1">
+                    <DropdownMenuLabel>Offer expiring</DropdownMenuLabel>
+                    {[
+                      { value: "all", label: "All" },
+                      { value: "3d", label: "Within 3 days" },
+                      { value: "7d", label: "Within 7 days" },
+                      { value: "14d", label: "Within 14 days" },
+                    ].map((opt) => (
+                      <DropdownMenuItem
+                        key={`expiry-${opt.value}`}
+                        className="pl-8 relative"
+                        onClick={() => {
+                          setOfferExpiryFilter(opt.value);
+                          setPage(1);
+                        }}
+                      >
+                        {offerExpiryFilter === opt.value && (
+                          <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                            <span className="h-2 w-2 rounded-full bg-foreground" />
+                          </span>
+                        )}
+                        {opt.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </div>
                 </DropdownMenuContent>
               </DropdownMenu>
 
@@ -917,9 +1012,8 @@ export default function ApplicationsPage() {
                     setSearch("");
                     setStatusFilter("all");
                     setFinancingFilter("all");
-                    setCreatedFilter("all");
                     setSubmittedFilter("all");
-                    setCustomerFilter("all");
+                    setOfferExpiryFilter("all");
                     setPage(1);
                   }}
                   className="gap-2 h-11 rounded-xl focus-visible:ring-1 focus-visible:ring-offset-0"
@@ -927,13 +1021,6 @@ export default function ApplicationsPage() {
                   <XMarkIcon className="h-4 w-4" />
                   <span className="hidden sm:inline">Clear</span>
                 </Button>
-              )}
-
-
-              {submittedRangeLabel && (
-                <span className="text-sm text-muted-foreground">
-                  Submitted: {submittedRangeLabel}
-                </span>
               )}
 
               <Badge
@@ -956,9 +1043,9 @@ export default function ApplicationsPage() {
 
           {/* Application cards */}
           <div className="rounded-xl border bg-muted/30 p-6">
-            {isLoading || showSkeletonDev ? (
+            {isLoading ? (
               <div className="space-y-4">
-                {Array.from({ length: perPage }).map((_, i) => (
+                {Array.from({ length: debugShowSkeleton ? SKELETON_COUNT : perPage }).map((_, i) => (
                   <ApplicationCardSkeleton key={i} />
                 ))}
               </div>
@@ -971,6 +1058,11 @@ export default function ApplicationsPage() {
                     onDocumentDownload={handleDocumentDownload}
                     onReviewContractOffer={openReviewContractOffer}
                     onReviewInvoiceOffer={openReviewInvoiceOffer}
+                    onCancelApplication={handleCancelApplication}
+                    onDeleteDraft={handleDeleteDraftClick}
+                    onWithdrawInvoice={handleWithdrawInvoice}
+                    isCancelApplicationPending={cancelApplication.isPending}
+                    isWithdrawInvoicePending={withdrawInvoice.isPending}
                   />
                 ))}
               </div>
@@ -982,7 +1074,7 @@ export default function ApplicationsPage() {
               </div>
             )}
 
-            {filteredApplications.length > 0 && !showSkeletonDev && (
+            {filteredApplications.length > 0 && (
               <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t border-border pt-4">
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -1039,18 +1131,19 @@ export default function ApplicationsPage() {
         </CardContent>
       </Card>
 
-      {isDev && (
-        <div className="fixed bottom-4 right-4 z-50">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setShowSkeletonDev((s) => !s)}
-            className="rounded-xl shadow-md"
-          >
-            {showSkeletonDev ? "Hide" : "Show"} skeleton
-          </Button>
-        </div>
-      )}
+      <ConfirmDialog
+        open={deleteDraftDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDraftDialogOpen(open);
+          if (!open) setDeleteDraftApplicationId(null);
+        }}
+        title="Delete draft?"
+        description="Are you sure you want to delete this draft? This cannot be undone."
+        confirmText="Delete"
+        variant="destructive"
+        onConfirm={handleDeleteDraftConfirm}
+        isLoading={deleteDraftApplication.isPending}
+      />
 
       {reviewModalOpen && selectedApplicationId && (
         <ReviewOfferModal

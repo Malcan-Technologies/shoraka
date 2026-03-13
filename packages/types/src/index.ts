@@ -106,16 +106,35 @@ export interface ActivitiesResponse {
   };
 }
 
-// Application Types
-export type ApplicationStatus =
-  | "DRAFT"
-  | "SUBMITTED"
-  | "UNDER_REVIEW"
-  | "AMENDMENT_REQUESTED"
-  | "RESUBMITTED"
-  | "APPROVED"
-  | "REJECTED"
-  | "ARCHIVED";
+// Application Types - runtime enums for backend use
+export enum ApplicationStatus {
+  DRAFT = "DRAFT",
+  SUBMITTED = "SUBMITTED",
+  UNDER_REVIEW = "UNDER_REVIEW",
+  AMENDMENT_REQUESTED = "AMENDMENT_REQUESTED",
+  RESUBMITTED = "RESUBMITTED",
+  APPROVED = "APPROVED",
+  COMPLETED = "COMPLETED",
+  WITHDRAWN = "WITHDRAWN",
+  REJECTED = "REJECTED",
+  ARCHIVED = "ARCHIVED",
+}
+
+export enum WithdrawReason {
+  USER_CANCELLED = "USER_CANCELLED",
+  OFFER_EXPIRED = "OFFER_EXPIRED",
+}
+
+export function formatWithdrawLabel(reason?: WithdrawReason): string {
+  switch (reason) {
+    case WithdrawReason.OFFER_EXPIRED:
+      return "Withdrawn (Offer expired)";
+    case WithdrawReason.USER_CANCELLED:
+      return "Withdrawn (User cancelled)";
+    default:
+      return "Withdrawn";
+  }
+}
 
 export type ReviewStepStatus =
   | "PENDING"
@@ -175,20 +194,25 @@ export interface GetProductsResponse {
   };
 }
 
-export type ContractStatus =
-  | "DRAFT"
-  | "SUBMITTED"
-  | "OFFER_SENT"
-  | "APPROVED"
-  | "REJECTED"
-  | "AMENDMENT_REQUESTED";
-export type InvoiceStatus =
-  | "DRAFT"
-  | "SUBMITTED"
-  | "OFFER_SENT"
-  | "APPROVED"
-  | "REJECTED"
-  | "AMENDMENT_REQUESTED";
+export enum ContractStatus {
+  DRAFT = "DRAFT",
+  SUBMITTED = "SUBMITTED",
+  OFFER_SENT = "OFFER_SENT",
+  APPROVED = "APPROVED",
+  REJECTED = "REJECTED",
+  AMENDMENT_REQUESTED = "AMENDMENT_REQUESTED",
+  WITHDRAWN = "WITHDRAWN",
+}
+
+export enum InvoiceStatus {
+  DRAFT = "DRAFT",
+  SUBMITTED = "SUBMITTED",
+  OFFER_SENT = "OFFER_SENT",
+  APPROVED = "APPROVED",
+  REJECTED = "REJECTED",
+  AMENDMENT_REQUESTED = "AMENDMENT_REQUESTED",
+  WITHDRAWN = "WITHDRAWN",
+}
 
 export interface ContractDetails {
   title: string;

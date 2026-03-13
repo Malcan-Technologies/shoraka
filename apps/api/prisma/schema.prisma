@@ -440,6 +440,7 @@ model Contract {
   customer_details       Json?
   issuer_organization_id String
   status                 ContractStatus     @default(DRAFT)
+  withdraw_reason        WithdrawReason?
   applications           Application[]
   issuer_organization    IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
   invoices               Invoice[]
@@ -448,16 +449,17 @@ model Contract {
 }
 
 model Invoice {
-  id             String        @id @default(cuid())
+  id             String         @id @default(cuid())
   contract_id    String?
   application_id String
   details        Json
   offer_details  Json?
-  created_at     DateTime      @default(now())
-  updated_at     DateTime      @updatedAt
-  status         InvoiceStatus @default(DRAFT)
-  application    Application   @relation(fields: [application_id], references: [id], onDelete: Cascade)
-  contract       Contract?     @relation(fields: [contract_id], references: [id])
+  created_at     DateTime       @default(now())
+  updated_at     DateTime       @updatedAt
+  status         InvoiceStatus  @default(DRAFT)
+  withdraw_reason WithdrawReason?
+  application    Application    @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  contract       Contract?      @relation(fields: [contract_id], references: [id])
 
   @@index([contract_id])
   @@index([application_id])
@@ -683,6 +685,7 @@ model ApplicationLog {
 
 model Product {
   id         String   @id @default(cuid())
+  base_id    String?
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
   workflow   Json
@@ -913,12 +916,14 @@ enum SiteDocumentType {
 enum ApplicationStatus {
   DRAFT
   SUBMITTED
-  APPROVED
-  REJECTED
-  ARCHIVED
   UNDER_REVIEW
   AMENDMENT_REQUESTED
   RESUBMITTED
+  APPROVED
+  COMPLETED
+  WITHDRAWN
+  REJECTED
+  ARCHIVED
 }
 
 enum ContractStatus {
@@ -928,6 +933,7 @@ enum ContractStatus {
   APPROVED
   REJECTED
   AMENDMENT_REQUESTED
+  WITHDRAWN
 }
 
 enum InvoiceStatus {
@@ -937,6 +943,12 @@ enum InvoiceStatus {
   APPROVED
   REJECTED
   AMENDMENT_REQUESTED
+  WITHDRAWN
+}
+
+enum WithdrawReason {
+  USER_CANCELLED
+  OFFER_EXPIRED
 }
 
 enum ActivityLevel {

@@ -1,5 +1,7 @@
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { toast } from "sonner";
 import type { GetProductsParams, GetProductsResponse } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -11,7 +13,7 @@ export function useProducts(
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
 
-  return useQuery<GetProductsResponse>({
+  const result = useQuery<GetProductsResponse>({
     queryKey: ["products", params.page, params.pageSize, params.search, params.activeOnly],
     queryFn: async () => {
       const response = await apiClient.getProducts({
@@ -28,13 +30,22 @@ export function useProducts(
     staleTime: 5 * 60 * 1000, // 5 minutes (default)
     ...(queryOptions || {}),
   });
+
+  /** Surface backend errors via toast; do not swallow silently. */
+  useEffect(() => {
+    if (result.isError && result.error) {
+      toast.error(result.error instanceof Error ? result.error.message : "Failed to load products");
+    }
+  }, [result.isError, result.error]);
+
+  return result;
 }
 
 export function useProduct(id: string) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
 
-  return useQuery({
+  const result = useQuery({
     queryKey: ["product", id],
     queryFn: async () => {
       if (!id) return null;
@@ -46,4 +57,13 @@ export function useProduct(id: string) {
     },
     enabled: !!id,
   });
+
+  /** Surface backend errors via toast; do not swallow silently. */
+  useEffect(() => {
+    if (result.isError && result.error) {
+      toast.error(result.error instanceof Error ? result.error.message : "Failed to load product");
+    }
+  }, [result.isError, result.error]);
+
+  return result;
 }

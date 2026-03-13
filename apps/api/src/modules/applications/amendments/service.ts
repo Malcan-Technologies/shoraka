@@ -138,7 +138,7 @@ export async function resubmitApplication(
     throw new AppError(
       400,
       "MISSING_ACKNOWLEDGEMENTS",
-      "All amendment steps must be completed before resubmitting"
+      "All amendments must be acknowledged before resubmitting."
     );
   }
 

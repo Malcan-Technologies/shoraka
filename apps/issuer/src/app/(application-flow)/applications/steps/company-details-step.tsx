@@ -49,7 +49,7 @@ import {
   withFieldError,
 } from "@/app/(application-flow)/applications/components/form-control";
 import { CompanyDetailsSkeleton } from "@/app/(application-flow)/applications/components/company-details-skeleton";
-import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
+import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 
 interface CompanyDetailsStepProps {
   applicationId: string;
@@ -74,10 +74,10 @@ interface FormState {
 }
 
 function getBankField(bankDetails: Record<string, unknown> | null, fieldName: string): string {
-  if (!bankDetails?.content) return "";
-  const content = bankDetails.content as Array<{ fieldName: string; fieldValue: string }>;
-  const field = content.find((f) => f.fieldName === fieldName);
-  return field?.fieldValue || "";
+  const content = bankDetails?.content;
+  if (!Array.isArray(content)) return "";
+  const field = content.find((f: { fieldName?: string; fieldValue?: string }) => f?.fieldName === fieldName);
+  return field?.fieldValue ?? "";
 }
 
 const MALAYSIAN_BANKS = [
@@ -159,16 +159,12 @@ export function CompanyDetailsStep({
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
 
-  // DEBUG: Toggle skeleton mode
-  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
+  const devTools = useDevTools();
 
   const apiClient = React.useMemo(
     () => createApiClient(process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000", getAccessToken),
     [getAccessToken]
   );
-
-  // Dev-only "View as Member" toggle
-  const [devViewAsMember, setDevViewAsMember] = React.useState(false);
 
   // Fetch current user to derive organization edit permission
   const { data: currentUser } = useQuery({
@@ -181,7 +177,6 @@ export function CompanyDetailsStep({
     staleTime: 1000 * 60 * 5,
   });
 
-  // Temporary debug: log current user id and membership
   const canEditOrganization = React.useMemo(() => {
     if (!activeOrganization || !currentUser) return false;
     if (activeOrganization.isOwner) return true;
@@ -189,7 +184,7 @@ export function CompanyDetailsStep({
     return currentUserMember?.role === "ORGANIZATION_ADMIN";
   }, [activeOrganization, currentUser]);
 
-  const effectiveCanEdit = readOnly ? false : (devViewAsMember ? false : canEditOrganization);
+  const effectiveCanEdit = readOnly ? false : canEditOrganization;
 
   /* ================================================================
      DATA LOADING HOOKS
@@ -561,13 +556,8 @@ export function CompanyDetailsStep({
      RENDER
      ================================================================ */
 
-  if (isLoadingData || !hasHydratedRef.current || debugSkeletonMode) {
-    return (
-      <>
-        <CompanyDetailsSkeleton />
-        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
-      </>
-    );
+  if (isLoadingData || !hasHydratedRef.current || devTools?.showSkeletonDebug) {
+    return <CompanyDetailsSkeleton />;
   }
 
   if (!organizationId) {
@@ -590,18 +580,6 @@ export function CompanyDetailsStep({
   return (
     <>
       <div className="space-y-10 px-3">
-        {process.env.NODE_ENV === "development" && (
-          <div className="flex justify-end">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setDevViewAsMember((v) => !v)}
-              className="h-8 gap-2 rounded-xl"
-            >
-              {devViewAsMember ? "Exit member view" : "View as Member"}
-            </Button>
-          </div>
-        )}
         {/* Company Info Section */}
         <div className="space-y-3">
           <div>
@@ -609,7 +587,7 @@ export function CompanyDetailsStep({
             <div className="border-b border-border mt-2 mb-4" />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center">
             <div className={labelClassName}>Company name</div>
             <Input
               value={corporateInfo?.basicInfo?.businessName || "eg. Company Name"}
@@ -632,7 +610,7 @@ export function CompanyDetailsStep({
             />
 
             <div className={labelClassNameEditable}>Industry</div>
-            <div>
+            <div className="flex flex-col gap-1">
               <Input
                 value={formState.industry}
                 onChange={(e) => setFormState((prev) => ({ ...prev, industry: e.target.value }))}
@@ -644,12 +622,12 @@ export function CompanyDetailsStep({
                 )}
               />
               {fieldErrors.industry && (
-                <p className="text-destructive text-sm mt-1">{fieldErrors.industry}</p>
+                <p className="text-xs text-destructive">{fieldErrors.industry}</p>
               )}
             </div>
 
             <div className={labelClassNameEditable}>Number of employees</div>
-            <div>
+            <div className="flex flex-col gap-1">
               <Input
                 value={formState.numberOfEmployees}
                 onChange={(e) =>
@@ -666,7 +644,7 @@ export function CompanyDetailsStep({
                 )}
               />
               {fieldErrors.numberOfEmployees && (
-                <p className="text-destructive text-sm mt-1">
+                <p className="text-xs text-destructive">
                   {fieldErrors.numberOfEmployees}
                 </p>
               )}
@@ -693,7 +671,7 @@ export function CompanyDetailsStep({
           </div>
           <div className="border-b border-border mt-2 mb-4" />
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center">
             <div className={labelClassName}>Business address</div>
             <Input
               value={formatAddress(formState.businessAddress)}
@@ -717,7 +695,7 @@ export function CompanyDetailsStep({
             <div className="border-b border-border mt-2 mb-4" />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center">
             {!hasDirectorsOrShareholders ? (
               <p className="text-[17px] leading-7 text-muted-foreground col-span-2">
                 No directors or shareholders found
@@ -759,9 +737,9 @@ export function CompanyDetailsStep({
             <div className="border-b border-border mt-2 mb-4" />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center">
             <div className={labelClassNameEditable}>Bank name</div>
-            <div>
+            <div className="flex flex-col gap-1">
               {effectiveCanEdit ? (
                 <Select
                   value={formState.bankName}
@@ -790,12 +768,12 @@ export function CompanyDetailsStep({
               )}
 
               {fieldErrors.bankName && (
-                <p className="text-destructive text-sm mt-1">{fieldErrors.bankName}</p>
+                <p className="text-xs text-destructive">{fieldErrors.bankName}</p>
               )}
             </div>
 
             <div className={labelClassNameEditable}>Bank account number</div>
-            <div>
+            <div className="flex flex-col gap-1">
               <Input
                 value={formState.bankAccountNumber}
                 onChange={(e) => {
@@ -814,9 +792,9 @@ export function CompanyDetailsStep({
                 )}
               />
 
-              <div className="min-h-[20px] mt-1">
+              <div className="min-h-[20px]">
                 {fieldErrors.bankAccountNumber ? (
-                  <p className="text-destructive text-sm">
+                  <p className="text-xs text-destructive">
                     {fieldErrors.bankAccountNumber}
                   </p>
                 ) : (
@@ -836,9 +814,9 @@ export function CompanyDetailsStep({
             <div className="border-b border-border mt-2 mb-4" />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center">
             <div className={labelClassNameEditable}>Applicant name</div>
-            <div>
+            <div className="flex flex-col gap-1">
               <Input
                 value={formState.contactPersonName}
                 onChange={(e) =>
@@ -858,14 +836,14 @@ export function CompanyDetailsStep({
                 )}
               />
               {fieldErrors.contactPersonName && (
-                <p className="text-destructive text-sm mt-1">
+                <p className="text-xs text-destructive">
                   {fieldErrors.contactPersonName}
                 </p>
               )}
             </div>
 
             <div className={labelClassNameEditable}>Applicant position</div>
-            <div>
+            <div className="flex flex-col gap-1">
               <Input
                 value={formState.contactPersonPosition}
                 onChange={(e) =>
@@ -885,14 +863,14 @@ export function CompanyDetailsStep({
                 )}
               />
               {fieldErrors.contactPersonPosition && (
-                <p className="text-destructive text-sm mt-1">
+                <p className="text-xs text-destructive">
                   {fieldErrors.contactPersonPosition}
                 </p>
               )}
             </div>
 
             <div className={labelClassNameEditable}>Applicant IC no</div>
-            <div>
+            <div className="flex flex-col gap-1">
               <Input
                 value={formState.contactPersonIc}
                 onChange={(e) =>
@@ -912,14 +890,14 @@ export function CompanyDetailsStep({
                 )}
               />
               {fieldErrors.contactPersonIc && (
-                <p className="text-destructive text-sm mt-1">
+                <p className="text-xs text-destructive">
                   {fieldErrors.contactPersonIc}
                 </p>
               )}
             </div>
 
             <div className={labelClassNameEditable}>Applicant contact</div>
-            <div>
+            <div className="flex flex-col gap-1">
               <PhoneInput
                 international
                 defaultCountry="MY"
@@ -938,7 +916,7 @@ export function CompanyDetailsStep({
                 )}
               />
               {fieldErrors.contactPersonContact && (
-                <p className="text-destructive text-sm mt-1">
+                <p className="text-xs text-destructive">
                   {fieldErrors.contactPersonContact}
                 </p>
               )}
@@ -969,7 +947,6 @@ export function CompanyDetailsStep({
           canEdit={effectiveCanEdit}
         />
       </div>
-      <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>
   );
 }

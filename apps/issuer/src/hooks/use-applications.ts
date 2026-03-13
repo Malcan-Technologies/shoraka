@@ -1,5 +1,6 @@
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { WithdrawReason } from "@cashsouk/types";
 import type { CreateApplicationInput, UpdateApplicationStepInput } from "@cashsouk/types";
 import { toast } from "sonner";
 import { useEffect } from "react";
@@ -147,6 +148,137 @@ export function useArchiveApplication() {
     },
     onError: (error: Error) => {
       toast.error("Failed to archive application", {
+        description: error.message,
+      });
+    },
+  });
+}
+
+export function useDeleteDraftApplication() {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.deleteDraftApplication(id);
+      if (!response.success) {
+        throw new Error((response as any).error?.message ?? "Failed to delete draft");
+      }
+      return { id };
+    },
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ["application", id] });
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to delete draft", {
+        description: error.message,
+      });
+    },
+  });
+}
+
+export function useCancelApplication() {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.cancelApplication(id);
+      if (!response.success) {
+        throw new Error((response as any).error?.message ?? "Failed to cancel");
+      }
+      return (response as any).data;
+    },
+    onSuccess: (data, id) => {
+      queryClient.invalidateQueries({ queryKey: ["application", id] });
+      const organizationId = (data as any)?.issuer_organization_id as string | undefined;
+      if (organizationId) {
+        queryClient.invalidateQueries({ queryKey: ["applications", organizationId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["applications"] });
+      }
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to withdraw application", {
+        description: error.message,
+      });
+    },
+  });
+}
+
+export function useWithdrawInvoice() {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      invoiceId,
+      applicationId,
+      organizationId,
+      reason,
+    }: {
+      invoiceId: string;
+      applicationId: string;
+      organizationId?: string;
+      reason?: WithdrawReason;
+    }) => {
+      const response = await apiClient.withdrawInvoice(invoiceId, reason);
+      if (!response.success) {
+        throw new Error((response as any).error?.message ?? "Failed to withdraw invoice");
+      }
+      return { data: (response as any).data, applicationId, organizationId };
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["application", variables.applicationId] });
+      if (variables.organizationId) {
+        queryClient.invalidateQueries({ queryKey: ["applications", variables.organizationId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["applications"] });
+      }
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to withdraw invoice", {
+        description: error.message,
+      });
+    },
+  });
+}
+
+export function useWithdrawContract() {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      contractId,
+      applicationId,
+      organizationId,
+    }: {
+      contractId: string;
+      applicationId: string;
+      organizationId?: string;
+    }) => {
+      const response = await apiClient.withdrawContract(contractId);
+      if (!response.success) {
+        throw new Error((response as any).error?.message ?? "Failed to withdraw contract");
+      }
+      return { data: (response as any).data, applicationId, organizationId };
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["application", variables.applicationId] });
+      if (variables.organizationId) {
+        queryClient.invalidateQueries({ queryKey: ["applications", variables.organizationId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["applications"] });
+      }
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to withdraw contract", {
         description: error.message,
       });
     },

@@ -19,7 +19,7 @@ import {
 import { formSelectTriggerClassName } from "@/app/(application-flow)/applications/components/form-control";
 import { FinancingStructureSkeleton } from "@/app/(application-flow)/applications/components/financing-structure-skeleton";
 import { SelectionCard } from "@/app/(application-flow)/applications/components/selection-card";
-import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
+import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 
 /**
  * FINANCING STRUCTURE STEP
@@ -47,9 +47,8 @@ export function FinancingStructureStep({
   onDataChange,
   readOnly = false,
 }: FinancingStructureStepProps) {
-  // DEBUG: Toggle skeleton mode
-  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
-  
+  const devTools = useDevTools();
+
   /** Local state
    *
    * What: Tracks user selection and initialization from DB.
@@ -117,6 +116,20 @@ export function FinancingStructureStep({
 
     setIsInitialized(true);
   }, [application, isInitialized]);
+
+  /** Apply dev-tools Fill Entire Application (autoFillDataMap). */
+  React.useEffect(() => {
+    const data = devTools?.autoFillDataMap?.["financing_structure"] as
+      | { structure_type?: string; existing_contract_id?: string | null }
+      | undefined;
+    if (!data?.structure_type) return;
+    const type = data.structure_type as FinancingStructureType;
+    const contractId = data.structure_type === "existing_contract" ? (data.existing_contract_id ?? "") : "";
+    if (type === "existing_contract" && !contractId) return;
+    setSelectedStructure(type);
+    setSelectedContractId(contractId);
+    devTools?.clearAutoFillForStep("financing_structure");
+  }, [devTools]);
 
   /**
    * NOTIFY PARENT WHEN DATA CHANGES
@@ -214,13 +227,8 @@ export function FinancingStructureStep({
 
 
   // Loading state
-  if (isLoadingApp || debugSkeletonMode) {
-    return (
-      <>
-        <FinancingStructureSkeleton />
-        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
-      </>
-    );
+  if (isLoadingApp || devTools?.showSkeletonDebug) {
+    return <FinancingStructureSkeleton />;
   }
 
   /** Render blocks
@@ -294,7 +302,6 @@ export function FinancingStructureStep({
         />
       </div>
     </div>
-    <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>
   );
 }

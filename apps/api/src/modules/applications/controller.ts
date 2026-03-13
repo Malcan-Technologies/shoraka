@@ -128,6 +128,47 @@ async function archiveApplication(req: Request, res: Response, next: NextFunctio
   }
 }
 
+/**
+ * Delete a draft application (issuer-only). Only draft applications. Safe deletion of draft data only.
+ * DELETE /v1/applications/:id
+ */
+async function deleteDraftApplication(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = applicationIdParamSchema.parse(req.params);
+    const userId = getUserId(req);
+
+    await applicationService.deleteDraftApplication(id, userId);
+
+    res.json({
+      success: true,
+      data: { message: "Draft application deleted" },
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Cancel an application (issuer-only). Withdraws active invoices and contract.
+ * POST /v1/applications/:id/cancel
+ */
+async function cancelApplication(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = applicationIdParamSchema.parse(req.params);
+    const userId = getUserId(req);
+    const application = await applicationService.cancelApplication(id, userId);
+
+    res.json({
+      success: true,
+      data: application,
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 const requestUploadUrlSchema = z.object({
   fileName: z.string().min(1),
   contentType: z.literal("application/pdf"),
@@ -497,6 +538,8 @@ router.get("/", requireAuth, async function listApplications(req, res, next) {
   }
 });
   router.post("/:id/archive", requireAuth, archiveApplication);
+  router.post("/:id/cancel", requireAuth, cancelApplication);
+  router.delete("/:id", requireAuth, deleteDraftApplication);
 
   // Parameterized route comes last
   

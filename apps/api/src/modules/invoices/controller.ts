@@ -5,10 +5,12 @@ import {
   updateInvoiceSchema,
   invoiceIdParamSchema,
   requestInvoiceUploadUrlSchema,
+  withdrawInvoiceSchema,
 } from "./schemas";
 import { requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { z } from "zod";
+import { WithdrawReason } from "@cashsouk/types";
 
 function getUserId(req: Request): string {
   if (!req.user?.user_id) {
@@ -115,6 +117,20 @@ async function requestUploadUrl(req: Request, res: Response, next: NextFunction)
   }
 }
 
+async function withdrawInvoice(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = invoiceIdParamSchema.parse(req.params);
+    const body = withdrawInvoiceSchema.parse(req.body);
+    const userId = getUserId(req);
+    const reason = body.reason === "OFFER_EXPIRED" ? WithdrawReason.OFFER_EXPIRED : body.reason === "USER_CANCELLED" ? WithdrawReason.USER_CANCELLED : undefined;
+    const invoice = await invoiceService.withdrawInvoice(id, userId, reason);
+
+    res.json({ success: true, data: invoice, correlationId: res.locals.correlationId || "unknown" });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function deleteDocument(req: Request, res: Response, next: NextFunction) {
   try {
     const { id } = invoiceIdParamSchema.parse(req.params);
@@ -144,6 +160,7 @@ export function createInvoiceRouter(): Router {
   router.get("/by-contract/:contractId", requireAuth, getInvoicesByContract);
   router.get("/:id", requireAuth, getInvoice);
   router.patch("/:id", requireAuth, updateInvoice);
+  router.post("/:id/withdraw", requireAuth, withdrawInvoice);
   router.delete("/:id", requireAuth, deleteInvoice);
   router.post("/:id/upload-url", requireAuth, requestUploadUrl);
   router.delete("/:id/document", requireAuth, deleteDocument);
