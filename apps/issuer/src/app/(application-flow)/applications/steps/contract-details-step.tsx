@@ -1206,7 +1206,9 @@ export function ContractDetailsStep({
                 productMinMonths ?? undefined
               ) && (
                   <p className="text-xs text-destructive">
-                    Use Invoice-only financing. Please return to the financing structure selection and choose invoice-only financing.
+                    {productMinMonths != null
+                      ? `The contract must run for at least ${productMinMonths} months from the later of today or the contract start date. Extend the end date or select Invoice-only financing in the Financing Structure step.`
+                      : "Contract duration is too short. Extend the end date or select Invoice-only financing in the Financing Structure step."}
                   </p>
                 )}
             </div>
