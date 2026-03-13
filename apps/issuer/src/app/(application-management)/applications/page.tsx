@@ -48,14 +48,13 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { STATUS, FILTER_STATUSES, FINANCING_TYPES, WITHDRAW_REASON_FILTERS } from "./status";
+import { STATUS, FILTER_STATUSES, FINANCING_TYPES } from "./status";
 import { useApplicationsData } from "./use-applications-data";
 import { ReviewOfferModal } from "./components/ReviewOfferModal";
 import { useCancelApplication, useWithdrawInvoice, useDeleteDraftApplication } from "@/hooks/use-applications";
 import { generateMockApplications } from "@/dev/mockApplications";
 import { Separator } from "@/components/ui/separator";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { formatWithdrawLabel } from "@cashsouk/types";
 import type { NormalizedApplication, NormalizedInvoice } from "./status";
 
 const SKELETON_COUNT = 8;
@@ -101,21 +100,11 @@ function ApplicationCardSkeleton() {
   );
 }
 
-function StatusBadge({
-  badgeKey,
-  withdrawReason,
-}: {
-  badgeKey: string;
-  withdrawReason?: "USER_CANCELLED" | "OFFER_EXPIRED";
-}) {
+function StatusBadge({ badgeKey }: { badgeKey: string }) {
   const s = STATUS[badgeKey];
-  const label =
-    badgeKey === "withdrawn" && withdrawReason
-      ? formatWithdrawLabel(withdrawReason as any)
-      : (s?.label ?? badgeKey);
   return (
     <span className={cn(BADGE_BASE, s?.color ?? BADGE_FALLBACK)}>
-      {label}
+      {s?.label ?? badgeKey}
     </span>
   );
 }
@@ -216,7 +205,7 @@ function ApplicationCard({
                 Application ID {displayId}
                 {showFinancingLabel ? ` - ${application.type}` : ""}
               </span>
-              <StatusBadge badgeKey={cardStatus.badgeKey} withdrawReason={application.withdrawReason} />
+              <StatusBadge badgeKey={cardStatus.badgeKey} />
             </div>
             <div className="flex items-center gap-2">
               {/* Make Amendments: only for Action Required (AMENDMENT_REQUESTED). Links to /edit amendment flow. */}
@@ -666,7 +655,6 @@ export default function ApplicationsPage() {
   const [statusFilter, setStatusFilter] = React.useState("all");
   const [financingFilter, setFinancingFilter] = React.useState("all");
   const [submittedFilter, setSubmittedFilter] = React.useState("all");
-  const [withdrawReasonFilter, setWithdrawReasonFilter] = React.useState("all");
   const [offerExpiryFilter, setOfferExpiryFilter] = React.useState("all");
   const [page, setPage] = React.useState(1);
   const [perPage, setPerPage] = React.useState(4);
@@ -708,11 +696,6 @@ export default function ApplicationsPage() {
         return new Date(a.submittedAt).getTime() >= cutoffTime;
       });
     }
-    if (withdrawReasonFilter === "withdrawn_user_cancelled") {
-      list = list.filter((a) => a.status === "withdrawn" && a.withdrawReason === "USER_CANCELLED");
-    } else if (withdrawReasonFilter === "withdrawn_offer_expired") {
-      list = list.filter((a) => a.status === "withdrawn" && a.withdrawReason === "OFFER_EXPIRED");
-    }
     if (offerExpiryFilter !== "all") {
       const now = new Date();
       const days = offerExpiryFilter === "3d" ? 3 : offerExpiryFilter === "7d" ? 7 : 14;
@@ -727,7 +710,7 @@ export default function ApplicationsPage() {
       });
     }
     return list;
-  }, [applications, search, statusFilter, financingFilter, submittedFilter, withdrawReasonFilter, offerExpiryFilter]);
+  }, [applications, search, statusFilter, financingFilter, submittedFilter, offerExpiryFilter]);
 
   const paginatedApplications = filteredApplications.slice(
     (page - 1) * perPage,
@@ -739,7 +722,6 @@ export default function ApplicationsPage() {
     statusFilter !== "all",
     financingFilter !== "all",
     submittedFilter !== "all",
-    withdrawReasonFilter !== "all",
     offerExpiryFilter !== "all",
   ].filter(Boolean).length;
   const hasFilters = search !== "" || filterCount > 0;
@@ -982,28 +964,6 @@ export default function ApplicationsPage() {
                     </DropdownMenuItem>
                   ))}
                   <DropdownMenuSeparator />
-                  <DropdownMenuLabel>Withdraw reason</DropdownMenuLabel>
-                  {[
-                    { value: "all", label: "All" },
-                    ...WITHDRAW_REASON_FILTERS.map(({ value, label }) => ({ value, label })),
-                  ].map((opt) => (
-                    <DropdownMenuItem
-                      key={`withdraw-${opt.value}`}
-                      className="pl-8 relative"
-                      onClick={() => {
-                        setWithdrawReasonFilter(opt.value);
-                        setPage(1);
-                      }}
-                    >
-                      {withdrawReasonFilter === opt.value && (
-                        <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                          <span className="h-2 w-2 rounded-full bg-foreground" />
-                        </span>
-                      )}
-                      {opt.label}
-                    </DropdownMenuItem>
-                  ))}
-                  <DropdownMenuSeparator />
                   <DropdownMenuLabel>Offer expiring</DropdownMenuLabel>
                   {[
                     { value: "all", label: "All" },
@@ -1038,7 +998,6 @@ export default function ApplicationsPage() {
                     setStatusFilter("all");
                     setFinancingFilter("all");
                     setSubmittedFilter("all");
-                    setWithdrawReasonFilter("all");
                     setOfferExpiryFilter("all");
                     setPage(1);
                   }}

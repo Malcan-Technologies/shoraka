@@ -171,7 +171,7 @@ export function getSortOrder(status: string): number {
    Add a status here to show it in the Filter menu. Remove to hide it.
    ============================================================================= */
 
-/** Status filter options. Includes all application statuses. */
+/** Status filter options. Archived is excluded — never shown to user. */
 export const FILTER_STATUSES = [
   "draft",
   "submitted",
@@ -182,13 +182,6 @@ export const FILTER_STATUSES = [
   "completed",
   "withdrawn",
   "rejected",
-  "archived",
-] as const;
-
-/** Withdraw reason filter options (subset of withdrawn). */
-export const WITHDRAW_REASON_FILTERS = [
-  { value: "withdrawn_user_cancelled", label: "Withdrawn (User cancelled)" },
-  { value: "withdrawn_offer_expired", label: "Withdrawn (Offer expired)" },
 ] as const;
 
 /** Financing type filter options. */
