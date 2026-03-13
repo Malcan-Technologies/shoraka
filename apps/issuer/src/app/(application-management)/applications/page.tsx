@@ -294,7 +294,7 @@ function ApplicationCard({
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        className="cursor-pointer text-destructive focus:bg-destructive/10 focus:text-destructive"
+                        className="cursor-pointer"
                         onClick={() => onDeleteDraft?.(application.id)}
                       >
                         Delete Draft
