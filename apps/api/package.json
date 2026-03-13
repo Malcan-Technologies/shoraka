@@ -19,6 +19,8 @@
     "cleanup-notifications": "tsx scripts/cleanup-notifications.ts",
     "seed-notifications": "tsx prisma/seed-notification-types.ts",
     "create-admin": "tsx scripts/create-admin.ts",
+    "seed-application-new-contract": "tsx scripts/seed-application-new-contract.ts",
+    "seed-application-invoice-only": "tsx scripts/seed-application-invoice-only.ts",
     "clean": "rm -rf dist"
   },
   "prisma": {
