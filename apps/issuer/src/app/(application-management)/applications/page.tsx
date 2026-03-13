@@ -216,7 +216,12 @@ function ApplicationCard({
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-base font-semibold">
                 Application ID {displayId}
-                {showFinancingLabel ? ` - ${application.type}` : ""}
+                {showFinancingLabel
+                  ? ` - ${application.type
+                      .split(" ")
+                      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+                      .join(" ")}`
+                  : ""}
               </span>
               <StatusBadge
                 badgeKey={cardStatus.badgeKey}
