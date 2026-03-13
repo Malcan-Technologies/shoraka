@@ -63,6 +63,12 @@ const MOCK_APPLICATION_COUNT = 10;
 const BADGE_BASE = "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold border";
 const BADGE_FALLBACK = "border-slate-500/30 bg-slate-500/10 text-slate-600";
 
+/** Resolves badge key for withdrawn: OFFER_EXPIRED uses amber, else slate. */
+function resolveBadgeKey(badgeKey: string, withdrawReason?: "USER_CANCELLED" | "OFFER_EXPIRED"): string {
+  if (badgeKey === "withdrawn" && withdrawReason === "OFFER_EXPIRED") return "withdrawn_offer_expired";
+  return badgeKey;
+}
+
 /** Skeleton that matches ApplicationCard layout. */
 function ApplicationCardSkeleton() {
   return (
@@ -100,8 +106,15 @@ function ApplicationCardSkeleton() {
   );
 }
 
-function StatusBadge({ badgeKey }: { badgeKey: string }) {
-  const s = STATUS[badgeKey];
+function StatusBadge({
+  badgeKey,
+  withdrawReason,
+}: {
+  badgeKey: string;
+  withdrawReason?: "USER_CANCELLED" | "OFFER_EXPIRED";
+}) {
+  const resolved = resolveBadgeKey(badgeKey, withdrawReason);
+  const s = STATUS[resolved];
   return (
     <span className={cn(BADGE_BASE, s?.color ?? BADGE_FALLBACK)}>
       {s?.label ?? badgeKey}
@@ -205,12 +218,15 @@ function ApplicationCard({
                 Application ID {displayId}
                 {showFinancingLabel ? ` - ${application.type}` : ""}
               </span>
-              <StatusBadge badgeKey={cardStatus.badgeKey} />
+              <StatusBadge
+                badgeKey={cardStatus.badgeKey}
+                withdrawReason={cardStatus.badgeKey === "withdrawn" ? application.withdrawReason : undefined}
+              />
             </div>
             <div className="flex items-center gap-2">
               {/* Make Amendments: only for Action Required (AMENDMENT_REQUESTED). Links to /edit amendment flow. */}
               {cardStatus.showMakeAmendments && (
-                <Button size="sm" className="rounded-xl bg-amber-600 text-white hover:bg-amber-700 shadow-sm" asChild>
+                <Button size="sm" variant="makeAmendments" className="rounded-xl" asChild>
                   <Link href={`/applications/edit/${application.id}`}>
                     Make Amendments
                   </Link>
@@ -224,7 +240,8 @@ function ApplicationCard({
                     <Button
                       type="button"
                       size="sm"
-                      className="rounded-xl bg-teal-600 text-white hover:bg-teal-700 shadow-sm"
+                      variant="reviewOffer"
+                      className="rounded-xl"
                       onClick={(e) => {
                         e.stopPropagation();
                         onReviewContractOffer(application.contractId!);
@@ -239,7 +256,8 @@ function ApplicationCard({
                     <Button
                       type="button"
                       size="sm"
-                      className="rounded-xl bg-teal-600 text-white hover:bg-teal-700 shadow-sm"
+                      variant="reviewOffer"
+                      className="rounded-xl"
                       onClick={(e) => {
                         e.stopPropagation();
                         onReviewInvoiceOffer(invoiceLink);
@@ -250,7 +268,7 @@ function ApplicationCard({
                   );
                 }
                 return (
-                  <Button size="sm" className="rounded-xl bg-teal-600 text-white hover:bg-teal-700 shadow-sm" disabled>
+                  <Button size="sm" variant="reviewOffer" className="rounded-xl" disabled>
                     Review Invoice Financing Offer
                   </Button>
                 );
@@ -473,7 +491,8 @@ function ApplicationCard({
                                       <Button
                                         type="button"
                                         size="sm"
-                                        className="h-8 w-full min-w-[140px] rounded-xl text-xs font-medium bg-teal-600 text-white hover:bg-teal-700"
+                                        variant="reviewOffer"
+                                        className="h-8 w-full min-w-[140px] text-xs font-medium rounded-xl"
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           onReviewInvoiceOffer(inv);
@@ -484,7 +503,8 @@ function ApplicationCard({
                                     ) : (
                                       <Button
                                         size="sm"
-                                        className="h-8 w-full min-w-[140px] rounded-xl text-xs font-medium bg-teal-600 text-white hover:bg-teal-700"
+                                        variant="reviewOffer"
+                                        className="h-8 w-full min-w-[140px] text-xs font-medium rounded-xl"
                                         disabled
                                       >
                                         Review Offer
@@ -494,7 +514,8 @@ function ApplicationCard({
                                   {showMakeAmendments && (
                                     <Button
                                       size="sm"
-                                      className="h-8 w-full min-w-[140px] rounded-xl text-xs font-medium bg-amber-600 text-white hover:bg-amber-700"
+                                      variant="makeAmendments"
+                                      className="h-8 w-full min-w-[140px] text-xs font-medium rounded-xl"
                                       asChild
                                     >
                                       <Link href={`/applications/edit/${application.id}`}>

@@ -21,6 +21,12 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground shadow-sm hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+        /** Review Offer: green #15803d. Hover/focus stay green. */
+        reviewOffer:
+          "bg-[#15803d] text-white border border-[#15803d]/[0.27] shadow-sm hover:bg-[#166534] focus-visible:ring-2 focus-visible:ring-[#15803d]/50 focus-visible:ring-offset-2",
+        /** Make Amendments: amber #ca8a04. Hover/focus stay amber. */
+        makeAmendments:
+          "bg-[#ca8a04] text-white border border-[#ca8a04]/[0.27] shadow-sm hover:bg-[#a16207] focus-visible:ring-2 focus-visible:ring-[#ca8a04]/50 focus-visible:ring-offset-2",
       },
       size: {
         default: "h-9 px-4 py-2",

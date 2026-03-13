@@ -137,29 +137,60 @@ export interface NormalizedApplication {
 
 /* =============================================================================
    SECTION A — BADGES (label, color, list order)
-   label = what user sees on the badge
-   color = Tailwind classes for the badge
-   sortOrder = where the card goes in the list (1 = top, 999 = bottom)
+   Muted, professional colors aligned with Cashsouk branding and Admin UI.
+   Each status has a distinct color. Withdrawn: slate (user) vs amber (expired).
+   #ca8a04 = Amendment Requested (manual brand color).
    ============================================================================= */
+
+/** Centralized status color map. Matches Admin: border-*-500/30 bg-*-500/10 text. */
+export const STATUS_COLOR_MAP: Record<
+  string,
+  { bg: string; text: string; border: string }
+> = {
+  draft: { bg: "bg-slate-500/10", text: "text-slate-600", border: "border-slate-500/30" },
+  submitted: { bg: "bg-blue-500/10", text: "text-blue-600", border: "border-blue-500/30" },
+  under_review: { bg: "bg-indigo-500/10", text: "text-indigo-600", border: "border-indigo-500/30" },
+  pending_amendment: { bg: "bg-[#ca8a04]/10", text: "text-[#a16207]", border: "border-[#ca8a04]/30" },
+  amendment_requested: { bg: "bg-[#ca8a04]/10", text: "text-[#a16207]", border: "border-[#ca8a04]/30" },
+  resubmitted: { bg: "bg-orange-500/10", text: "text-orange-600", border: "border-orange-500/30" },
+  sent: { bg: "bg-green-500/10", text: "text-green-700", border: "border-green-500/30" },
+  offer_sent: { bg: "bg-green-500/10", text: "text-green-700", border: "border-green-500/30" },
+  accepted: { bg: "bg-green-500/10", text: "text-green-700", border: "border-green-500/30" },
+  approved: { bg: "bg-green-500/10", text: "text-green-700", border: "border-green-500/30" },
+  completed: { bg: "bg-green-500/10", text: "text-green-700", border: "border-green-500/30" },
+  withdrawn: { bg: "bg-slate-500/10", text: "text-slate-600", border: "border-slate-500/30" },
+  withdrawn_offer_expired: { bg: "bg-amber-500/10", text: "text-amber-700", border: "border-amber-500/30" },
+  rejected: { bg: "bg-red-500/10", text: "text-red-600", border: "border-red-500/30" },
+  archived: { bg: "bg-slate-500/10", text: "text-slate-500", border: "border-slate-500/30" },
+};
+
+const BADGE_FALLBACK = "border-slate-500/30 bg-slate-500/10 text-slate-600";
+
+function statusColorClass(badgeKey: string): string {
+  const c = STATUS_COLOR_MAP[badgeKey];
+  if (!c) return BADGE_FALLBACK;
+  return `${c.border} ${c.bg} ${c.text}`;
+}
 
 export const STATUS: Record<
   string,
   { label: string; color: string; sortOrder: number }
 > = {
-  rejected: { label: "Rejected", color: "border-red-500/30 bg-red-500/10 text-red-700", sortOrder: 1 },
-  pending_amendment: { label: "Action Required", color: "border-amber-500/30 bg-amber-500/10 text-amber-700", sortOrder: 2 },
-  sent: { label: "Offer Received", color: "border-teal-500/30 bg-teal-500/10 text-teal-700", sortOrder: 3 },
-  /* offer_expired: { label: "Offer expired", color: "border-slate-500/30 bg-slate-500/10 text-slate-600", sortOrder: 3 } */
-  under_review: { label: "Under Review", color: "border-indigo-500/30 bg-indigo-500/10 text-indigo-700", sortOrder: 4 },
-  submitted: { label: "Submitted", color: "border-blue-500/30 bg-blue-500/10 text-blue-700", sortOrder: 5 },
-  resubmitted: { label: "Resubmitted", color: "border-blue-500/30 bg-blue-500/10 text-blue-700", sortOrder: 6 },
-  draft: { label: "Draft", color: "border-slate-500/30 bg-slate-500/10 text-slate-700", sortOrder: 7 },
-  accepted: { label: "Approved", color: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700", sortOrder: 8 },
-  approved: { label: "Approved", color: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700", sortOrder: 8 },
-  completed: { label: "Completed", color: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700", sortOrder: 9 },
-  withdrawn: { label: "Withdrawn", color: "border-slate-500/30 bg-slate-500/10 text-slate-600", sortOrder: 10 },
-  archived: { label: "Archived", color: "border-slate-500/30 bg-slate-500/10 text-slate-600", sortOrder: 11 },
-  amendment_requested: { label: "Action Required", color: "border-amber-500/30 bg-amber-500/10 text-amber-700", sortOrder: 2 },
+  rejected: { label: "Rejected", color: statusColorClass("rejected"), sortOrder: 1 },
+  pending_amendment: { label: "Action Required", color: statusColorClass("pending_amendment"), sortOrder: 2 },
+  sent: { label: "Offer Received", color: statusColorClass("sent"), sortOrder: 3 },
+  under_review: { label: "Under Review", color: statusColorClass("under_review"), sortOrder: 4 },
+  submitted: { label: "Submitted", color: statusColorClass("submitted"), sortOrder: 5 },
+  resubmitted: { label: "Resubmitted", color: statusColorClass("resubmitted"), sortOrder: 6 },
+  draft: { label: "Draft", color: statusColorClass("draft"), sortOrder: 7 },
+  accepted: { label: "Approved", color: statusColorClass("accepted"), sortOrder: 8 },
+  approved: { label: "Approved", color: statusColorClass("approved"), sortOrder: 8 },
+  completed: { label: "Completed", color: statusColorClass("completed"), sortOrder: 9 },
+  withdrawn: { label: "Withdrawn", color: statusColorClass("withdrawn"), sortOrder: 10 },
+  withdrawn_offer_expired: { label: "Withdrawn", color: statusColorClass("withdrawn_offer_expired"), sortOrder: 10 },
+  archived: { label: "Archived", color: statusColorClass("archived"), sortOrder: 11 },
+  amendment_requested: { label: "Action Required", color: statusColorClass("amendment_requested"), sortOrder: 2 },
+  offer_sent: { label: "Offer Received", color: statusColorClass("offer_sent"), sortOrder: 3 },
 };
 
 export function getSortOrder(status: string): number {
@@ -270,8 +301,10 @@ export const APPLICATION_STATUS_PRIORITY: Record<string, number> = Object.freeze
   amendment_requested: 4,
   resubmitted: 5,
   sent: 6,
+  offer_sent: 6,
   completed: 7,
   withdrawn: 8,
+  withdrawn_offer_expired: 8,
   rejected: 9,
   archived: 10,
   accepted: 11,
