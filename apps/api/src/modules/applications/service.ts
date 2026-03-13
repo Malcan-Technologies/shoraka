@@ -512,6 +512,65 @@ export class ApplicationService {
   }
 
   /**
+   * Delete a draft application. Safe deletion: only removes draft data.
+   * - Deletes DRAFT invoices (application_id = id, status = DRAFT)
+   * - Deletes DRAFT contract if it was created inside the draft
+   * - Never deletes existing contracts or approved/submitted invoices
+   */
+  async deleteDraftApplication(id: string, userId: string): Promise<void> {
+    await this.verifyApplicationAccess(id, userId);
+
+    const application = await this.repository.findById(id);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+
+    const status = application.status as ApplicationStatus;
+    if (status !== ApplicationStatus.DRAFT) {
+      throw new AppError(400, "INVALID_STATE", "Only draft applications can be deleted");
+    }
+
+    const contract = (application as any).contract ?? null;
+
+    await prisma.$transaction(async (tx) => {
+      /** Delete only DRAFT invoices belonging to this application. Never delete APPROVED/SUBMITTED. */
+      await tx.invoice.deleteMany({
+        where: {
+          application_id: id,
+          status: InvoiceStatus.DRAFT,
+        },
+      });
+
+      /** Safety check: if any non-DRAFT invoices remain, refuse to delete (cascade would remove them). */
+      const remainingInvoices = await tx.invoice.count({
+        where: { application_id: id },
+      });
+      if (remainingInvoices > 0) {
+        throw new AppError(
+          400,
+          "HAS_REAL_RECORDS",
+          "Cannot delete: application has real financing records. Please contact support."
+        );
+      }
+
+      /** Delete DRAFT contract only if it was created inside this draft. Never delete existing (APPROVED) contracts. */
+      if (contract?.status === ContractStatus.DRAFT && application.contract_id) {
+        await tx.application.update({
+          where: { id },
+          data: { contract_id: null },
+        });
+        await tx.contract.delete({
+          where: { id: contract.id },
+        });
+      }
+
+      await tx.application.delete({
+        where: { id },
+      });
+    });
+  }
+
+  /**
    * Archive an application
    */
   async archiveApplication(id: string, userId: string): Promise<Application> {

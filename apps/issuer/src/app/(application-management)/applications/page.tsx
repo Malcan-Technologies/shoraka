@@ -51,9 +51,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { STATUS, FILTER_STATUSES, FINANCING_TYPES } from "./status";
 import { useApplicationsData } from "./use-applications-data";
 import { ReviewOfferModal } from "./components/ReviewOfferModal";
-import { useCancelApplication, useWithdrawInvoice } from "@/hooks/use-applications";
+import { useCancelApplication, useWithdrawInvoice, useDeleteDraftApplication } from "@/hooks/use-applications";
 import { generateMockApplications } from "@/dev/mockApplications";
 import { Separator } from "@/components/ui/separator";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import type { NormalizedApplication, NormalizedInvoice } from "./status";
 
 const SKELETON_COUNT = 8;
@@ -167,6 +168,7 @@ function ApplicationCard({
   onReviewContractOffer,
   onReviewInvoiceOffer,
   onCancelApplication,
+  onDeleteDraft,
   onWithdrawInvoice,
 }: {
   application: NormalizedApplication;
@@ -174,6 +176,7 @@ function ApplicationCard({
   onReviewContractOffer?: (contractId: string) => void;
   onReviewInvoiceOffer?: (invoice: NormalizedInvoice) => void;
   onCancelApplication?: (applicationId: string) => void;
+  onDeleteDraft?: (applicationId: string) => void;
   onWithdrawInvoice?: (invoiceId: string, applicationId: string, organizationId?: string) => void;
 }) {
   const [expanded, setExpanded] = React.useState(false);
@@ -265,7 +268,7 @@ function ApplicationCard({
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="cursor-pointer text-destructive focus:text-destructive"
-                        onClick={() => {}}
+                        onClick={() => onDeleteDraft?.(application.id)}
                       >
                         Delete Draft
                       </DropdownMenuItem>
@@ -567,6 +570,10 @@ export default function ApplicationsPage() {
 
   const cancelApplication = useCancelApplication();
   const withdrawInvoice = useWithdrawInvoice();
+  const deleteDraftApplication = useDeleteDraftApplication();
+
+  const [deleteDraftDialogOpen, setDeleteDraftDialogOpen] = React.useState(false);
+  const [deleteDraftApplicationId, setDeleteDraftApplicationId] = React.useState<string | null>(null);
 
   /* --- Review offer modal: opens when user clicks Review Offer. --- */
   const [reviewModalOpen, setReviewModalOpen] = React.useState(false);
@@ -610,6 +617,23 @@ export default function ApplicationsPage() {
     },
     [withdrawInvoice]
   );
+
+  const handleDeleteDraftClick = React.useCallback((applicationId: string) => {
+    setDeleteDraftApplicationId(applicationId);
+    setDeleteDraftDialogOpen(true);
+  }, []);
+
+  const handleDeleteDraftConfirm = React.useCallback(async () => {
+    if (!deleteDraftApplicationId) return;
+    try {
+      await deleteDraftApplication.mutateAsync(deleteDraftApplicationId);
+      toast.success("Draft application deleted");
+      setDeleteDraftDialogOpen(false);
+      setDeleteDraftApplicationId(null);
+    } catch {
+      // toast handled by mutation onError
+    }
+  }, [deleteDraftApplicationId, deleteDraftApplication]);
 
   const handleDebugSkeleton = React.useCallback(() => {
     setDebugShowSkeleton((prev) => !prev);
@@ -1057,6 +1081,7 @@ export default function ApplicationsPage() {
                     onReviewContractOffer={openReviewContractOffer}
                     onReviewInvoiceOffer={openReviewInvoiceOffer}
                     onCancelApplication={handleCancelApplication}
+                    onDeleteDraft={handleDeleteDraftClick}
                     onWithdrawInvoice={handleWithdrawInvoice}
                   />
                 ))}
@@ -1125,6 +1150,20 @@ export default function ApplicationsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={deleteDraftDialogOpen}
+        onOpenChange={(open) => {
+          setDeleteDraftDialogOpen(open);
+          if (!open) setDeleteDraftApplicationId(null);
+        }}
+        title="Delete draft application"
+        description="This will permanently delete the draft application and any draft data. Existing contracts and approved/submitted invoices will not be affected."
+        confirmText="Delete"
+        variant="destructive"
+        onConfirm={handleDeleteDraftConfirm}
+        isLoading={deleteDraftApplication.isPending}
+      />
 
       {reviewModalOpen && (
         <ReviewOfferModal

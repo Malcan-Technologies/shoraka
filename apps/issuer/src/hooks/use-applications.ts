@@ -152,6 +152,31 @@ export function useArchiveApplication() {
   });
 }
 
+export function useDeleteDraftApplication() {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.deleteDraftApplication(id);
+      if (!response.success) {
+        throw new Error((response as any).error?.message ?? "Failed to delete draft");
+      }
+      return { id };
+    },
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ["application", id] });
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to delete draft", {
+        description: error.message,
+      });
+    },
+  });
+}
+
 export function useCancelApplication() {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);

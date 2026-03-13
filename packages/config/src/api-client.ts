@@ -1264,6 +1264,10 @@ export class ApiClient {
     return this.post<Application>(`/v1/applications/${id}/cancel`, {});
   }
 
+  async deleteDraftApplication(id: string): Promise<ApiResponse<{ message: string }> | ApiError> {
+    return this.delete<{ message: string }>(`/v1/applications/${id}`);
+  }
+
   /** Request presigned download URL for S3 object. Used for document download from document column. */
   async getS3DownloadUrl(s3Key: string): Promise<
     ApiResponse<{ downloadUrl: string; expiresIn: number }> | ApiError
