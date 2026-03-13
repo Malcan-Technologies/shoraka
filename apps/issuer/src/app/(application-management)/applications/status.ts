@@ -144,29 +144,29 @@ export interface NormalizedApplication {
    #ca8a04 = Amendment Requested (manual brand color).
    ============================================================================= */
 
-/** Centralized status color map. Matches Admin: border-*-500/30 bg-*-500/10 text. */
+/** Centralized status color map. No border. */
 export const STATUS_COLOR_MAP: Record<
   string,
   { bg: string; text: string; border: string }
 > = {
-  draft: { bg: "bg-slate-500/10", text: "text-slate-600", border: "border-slate-500/30" },
-  submitted: { bg: "bg-blue-500/10", text: "text-blue-600", border: "border-blue-500/30" },
-  under_review: { bg: "bg-indigo-500/10", text: "text-indigo-600", border: "border-indigo-500/30" },
-  pending_amendment: { bg: "bg-[#FEFCE8]", text: "text-[#CA8A04]", border: "border-[#CA8A04]/30" },
-  amendment_requested: { bg: "bg-[#FEFCE8]", text: "text-[#CA8A04]", border: "border-[#CA8A04]/30" },
-  resubmitted: { bg: "bg-orange-500/10", text: "text-orange-600", border: "border-orange-500/30" },
-  sent: { bg: "bg-[#ECFDF2]", text: "text-[#15803D]", border: "border-[#15803D]/30" },
-  offer_sent: { bg: "bg-[#ECFDF2]", text: "text-[#15803D]", border: "border-[#15803D]/30" },
-  accepted: { bg: "bg-[#ECFDF2]", text: "text-[#15803D]", border: "border-[#15803D]/30" },
-  approved: { bg: "bg-[#ECFDF2]", text: "text-[#15803D]", border: "border-[#15803D]/30" },
-  completed: { bg: "bg-[#ECFDF2]", text: "text-[#15803D]", border: "border-[#15803D]/30" },
-  withdrawn: { bg: "bg-slate-500/10", text: "text-slate-600", border: "border-slate-500/30" },
-  withdrawn_offer_expired: { bg: "bg-amber-500/10", text: "text-amber-700", border: "border-amber-500/30" },
-  rejected: { bg: "bg-red-500/10", text: "text-red-600", border: "border-red-500/30" },
-  archived: { bg: "bg-slate-500/10", text: "text-slate-500", border: "border-slate-500/30" },
+  draft: { bg: "bg-slate-500/10", text: "text-slate-600", border: "border-transparent" },
+  submitted: { bg: "bg-blue-500/10", text: "text-blue-600", border: "border-transparent" },
+  under_review: { bg: "bg-indigo-500/10", text: "text-indigo-600", border: "border-transparent" },
+  pending_amendment: { bg: "bg-[#FEFCE8]", text: "text-[#CA8A04]", border: "border-transparent" },
+  amendment_requested: { bg: "bg-[#FEFCE8]", text: "text-[#CA8A04]", border: "border-transparent" },
+  resubmitted: { bg: "bg-orange-500/10", text: "text-orange-600", border: "border-transparent" },
+  sent: { bg: "bg-[#ECFDF2]", text: "text-[#15803D]", border: "border-transparent" },
+  offer_sent: { bg: "bg-[#ECFDF2]", text: "text-[#15803D]", border: "border-transparent" },
+  accepted: { bg: "bg-[#ECFDF2]", text: "text-[#15803D]", border: "border-transparent" },
+  approved: { bg: "bg-[#ECFDF2]", text: "text-[#15803D]", border: "border-transparent" },
+  completed: { bg: "bg-[#ECFDF2]", text: "text-[#15803D]", border: "border-transparent" },
+  withdrawn: { bg: "bg-slate-500/10", text: "text-slate-600", border: "border-transparent" },
+  withdrawn_offer_expired: { bg: "bg-amber-500/10", text: "text-amber-700", border: "border-transparent" },
+  rejected: { bg: "bg-red-500/10", text: "text-red-600", border: "border-transparent" },
+  archived: { bg: "bg-slate-500/10", text: "text-slate-500", border: "border-transparent" },
 };
 
-const BADGE_FALLBACK = "border-slate-500/30 bg-slate-500/10 text-slate-600";
+const BADGE_FALLBACK = "border-transparent bg-slate-500/10 text-slate-600";
 
 function statusColorClass(badgeKey: string): string {
   const c = STATUS_COLOR_MAP[badgeKey];
