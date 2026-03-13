@@ -320,19 +320,9 @@ function ApplicationCard({
         </CardHeader>
         <CardContent className="space-y-4">
           {useDraftCardLayout ? (
-            <div className="space-y-4">
-              <p className="text-sm leading-6 text-muted-foreground">
-                This application is still being set up.
-              </p>
-              <div className="space-y-1 pt-2">
-              <div className="text-sm text-muted-foreground">
-                Created:{" "}
-                <span className="text-foreground">
-                  {formatDate(application.applicationDate)}
-                </span>
-              </div>
-              </div>
-            </div>
+            <p className="text-sm leading-6 text-muted-foreground">
+              This application is still being set up.
+            </p>
           ) : (
           <div className="flex flex-wrap justify-between gap-6">
             <div className="space-y-1">
