@@ -108,6 +108,12 @@ export class ProductRepository {
         },
       } as any);
 
+      /** New products are their own base; set base_id = id for versioning grouping. */
+      await tx.product.update({
+        where: { id: created.id },
+        data: { base_id: created.id },
+      } as any);
+
       // ProductLog snapshot (inside same transaction) if user provided
       if (logContext?.userId) {
         const createdAny = created as any;
@@ -180,6 +186,30 @@ export class ProductRepository {
     const currentCategoryName = (currentFinancingStep?.config?.category as string) || "Other";
 
     return await prisma.$transaction(async (tx) => {
+      /** Ensure base_id exists before versioning; abort if initialization fails. */
+      let baseId = (current as { base_id?: string | null }).base_id ?? null;
+      if (!baseId) {
+        await tx.product.update({
+          where: { id },
+          data: { base_id: current.id },
+        } as any);
+        baseId = current.id;
+        if (!baseId) {
+          throw new Error("Failed to initialize product base_id. Product update aborted.");
+        }
+      }
+
+      /** Prevent multiple ACTIVE versions per base_id. */
+      const activeProduct = await tx.product.findFirst({
+        where: {
+          base_id: baseId,
+          status: "ACTIVE" as any,
+        },
+      });
+      if (activeProduct && activeProduct.id !== current.id) {
+        throw new Error("Another ACTIVE product version already exists.");
+      }
+
       await tx.product.update({
         where: { id },
         data: { status: "INACTIVE" as any },
@@ -224,6 +254,8 @@ export class ProductRepository {
           category_display_order: categoryDisplayOrder,
           product_display_order: productDisplayOrder,
           offer_expiry_days: offerExpiryPayload ?? undefined,
+          base_id: baseId,
+          status: "ACTIVE" as any,
         },
       } as any);
 

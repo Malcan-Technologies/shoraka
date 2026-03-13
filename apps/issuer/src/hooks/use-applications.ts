@@ -1,5 +1,6 @@
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { WithdrawReason } from "@cashsouk/types";
 import type { CreateApplicationInput, UpdateApplicationStepInput } from "@cashsouk/types";
 import { toast } from "sonner";
 
@@ -222,7 +223,7 @@ export function useWithdrawInvoice() {
       invoiceId: string;
       applicationId: string;
       organizationId?: string;
-      reason?: "USER_CANCELLED" | "OFFER_EXPIRED";
+      reason?: WithdrawReason;
     }) => {
       const response = await apiClient.withdrawInvoice(invoiceId, reason);
       if (!response.success) {

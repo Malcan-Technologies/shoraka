@@ -87,7 +87,7 @@
  *   Add "PENDING_DISBURSEMENT" in the right place in the array.
  */
 
-import { formatWithdrawLabel } from "@cashsouk/types";
+import { formatWithdrawLabel, WithdrawReason } from "@cashsouk/types";
 
 export type CardStatusResult = {
   badgeKey: string;
@@ -132,7 +132,7 @@ export interface NormalizedApplication {
   /** Issuer organization ID for query invalidation. */
   issuerOrganizationId?: string;
   /** Withdraw reason when status is withdrawn. From contract or invoice. */
-  withdrawReason?: "USER_CANCELLED" | "OFFER_EXPIRED";
+  withdrawReason?: WithdrawReason;
   /** Offer expiry (contract or invoice). ISO string. Used for expiry indicator and filter. */
   expiresAt?: string | null;
 }
@@ -217,10 +217,10 @@ const API_STATUS_TO_BADGE_KEY: Record<string, string> = {
 /** Single source of truth for status badge presentation. Use in application flow, invoice tables, etc. */
 export function getStatusPresentation(
   apiStatus: string,
-  withdrawReason?: "USER_CANCELLED" | "OFFER_EXPIRED"
+  withdrawReason?: WithdrawReason
 ): { color: string; label: string } {
   const key =
-    apiStatus?.toUpperCase() === "WITHDRAWN" && withdrawReason === "OFFER_EXPIRED"
+    apiStatus?.toUpperCase() === "WITHDRAWN" && withdrawReason === WithdrawReason.OFFER_EXPIRED
       ? "withdrawn_offer_expired"
       : API_STATUS_TO_BADGE_KEY[apiStatus?.toUpperCase() ?? ""] ?? apiStatus?.toLowerCase() ?? "draft";
   const s = STATUS[key];

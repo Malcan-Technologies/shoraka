@@ -72,6 +72,7 @@ import type {
   AdminSendNotificationPayload,
   AdminUpdateNotificationTypePayload,
   AdminSeedTypesResponse,
+  WithdrawReason,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
 
@@ -1517,7 +1518,7 @@ export class ApiClient {
 
   async withdrawInvoice(
     id: string,
-    reason?: "USER_CANCELLED" | "OFFER_EXPIRED"
+    reason?: WithdrawReason
   ): Promise<ApiResponse<Invoice> | ApiError> {
     return this.post<Invoice>(`/v1/invoices/${id}/withdraw`, reason ? { reason } : {});
   }

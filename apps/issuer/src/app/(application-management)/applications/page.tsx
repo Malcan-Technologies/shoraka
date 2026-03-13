@@ -17,6 +17,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { useHeader } from "@cashsouk/ui";
 import { formatCurrency, createApiClient } from "@cashsouk/config";
+import { WithdrawReason } from "@cashsouk/types";
 import { useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,8 +65,8 @@ const BADGE_BASE = "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs fo
 const BADGE_FALLBACK = "border-slate-500/30 bg-slate-500/10 text-slate-600";
 
 /** Resolves badge key for withdrawn: OFFER_EXPIRED uses amber, else slate. */
-function resolveBadgeKey(badgeKey: string, withdrawReason?: "USER_CANCELLED" | "OFFER_EXPIRED"): string {
-  if (badgeKey === "withdrawn" && withdrawReason === "OFFER_EXPIRED") return "withdrawn_offer_expired";
+function resolveBadgeKey(badgeKey: string, withdrawReason?: WithdrawReason): string {
+  if (badgeKey === "withdrawn" && withdrawReason === WithdrawReason.OFFER_EXPIRED) return "withdrawn_offer_expired";
   return badgeKey;
 }
 
@@ -111,7 +112,7 @@ function StatusBadge({
   withdrawReason,
 }: {
   badgeKey: string;
-  withdrawReason?: "USER_CANCELLED" | "OFFER_EXPIRED";
+  withdrawReason?: WithdrawReason;
 }) {
   const resolved = resolveBadgeKey(badgeKey, withdrawReason);
   const s = STATUS[resolved];

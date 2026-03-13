@@ -14,6 +14,7 @@
 
 import { useMemo } from "react";
 import { useOrganization } from "@cashsouk/config";
+import { WithdrawReason } from "@cashsouk/types";
 import { useOrganizationApplications } from "@/hooks/use-applications";
 import { getCardStatus, APPLICATION_STATUS_PRIORITY, type NormalizedApplication, type NormalizedInvoice } from "./status";
 
@@ -129,14 +130,14 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
   const issuerOrganizationId = (api as any).issuer_organization_id as string | undefined;
 
   /** Withdraw reason: from contract or first withdrawn invoice. */
-  let withdrawReason: "USER_CANCELLED" | "OFFER_EXPIRED" | undefined;
+  let withdrawReason: WithdrawReason | undefined;
   const contractWithdraw = (contract as ApiContract)?.withdraw_reason;
-  if (contractWithdraw === "USER_CANCELLED" || contractWithdraw === "OFFER_EXPIRED") {
+  if (contractWithdraw === WithdrawReason.USER_CANCELLED || contractWithdraw === WithdrawReason.OFFER_EXPIRED) {
     withdrawReason = contractWithdraw;
   } else {
     const withdrawnInv = invoices.find((i) => (i.status ?? "").toUpperCase() === "WITHDRAWN");
     const invReason = (withdrawnInv as ApiInvoice)?.withdraw_reason;
-    if (invReason === "USER_CANCELLED" || invReason === "OFFER_EXPIRED") withdrawReason = invReason;
+    if (invReason === WithdrawReason.USER_CANCELLED || invReason === WithdrawReason.OFFER_EXPIRED) withdrawReason = invReason;
   }
 
   /** Offer expiry: from contract or first invoice with offer. */
