@@ -631,9 +631,13 @@ export default function ApplicationsPage() {
     [withdrawInvoice]
   );
 
+  /** Defer dialog open to next tick so dropdown fully closes first; avoids flash/double-open. */
   const handleDeleteDraftClick = React.useCallback((applicationId: string) => {
-    setDeleteDraftApplicationId(applicationId);
-    setDeleteDraftDialogOpen(true);
+    const id = applicationId;
+    queueMicrotask(() => {
+      setDeleteDraftApplicationId(id);
+      setDeleteDraftDialogOpen(true);
+    });
   }, []);
 
   const handleDeleteDraftConfirm = React.useCallback(async () => {
@@ -1131,8 +1135,8 @@ export default function ApplicationsPage() {
           setDeleteDraftDialogOpen(open);
           if (!open) setDeleteDraftApplicationId(null);
         }}
-        title="Delete draft application"
-        description="This will permanently delete the draft application and any draft data. Existing contracts and approved/submitted invoices will not be affected."
+        title="Delete draft?"
+        description="Are you sure you want to delete this draft? This cannot be undone."
         confirmText="Delete"
         variant="destructive"
         onConfirm={handleDeleteDraftConfirm}
