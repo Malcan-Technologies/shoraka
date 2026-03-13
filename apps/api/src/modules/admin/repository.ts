@@ -2475,9 +2475,9 @@ export class AdminRepository {
             },
           },
         },
-        invoices: true,
+        invoices: { orderBy: { created_at: "asc" } },
         contract: {
-          include: { invoices: true },
+          include: { invoices: { orderBy: { created_at: "asc" } } },
         },
         application_reviews: true,
         application_review_items: true,

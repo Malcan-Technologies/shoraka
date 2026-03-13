@@ -30,7 +30,7 @@ export class ApplicationRepository {
       include: {
         issuer_organization: true,
         contract: true,
-        invoices: true,
+        invoices: { orderBy: { created_at: "asc" } },
       },
     });
   }
@@ -54,7 +54,7 @@ export class ApplicationRepository {
       orderBy: { created_at: "desc" },
       include: {
         contract: true,
-        invoices: true,
+        invoices: { orderBy: { created_at: "asc" } },
       },
     });
   }
