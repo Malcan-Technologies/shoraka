@@ -1,6 +1,6 @@
 import { cn } from "@cashsouk/ui";
-import { formatWithdrawLabel, WithdrawReason } from "@cashsouk/types";
-import { STATUS_COLOR_MAP } from "@/app/(application-management)/applications/status";
+import type { WithdrawReason } from "@cashsouk/types";
+import { getStatusPresentation } from "@/app/(application-management)/applications/status";
 
 const ALLOWED_STATUSES = [
   "DRAFT",
@@ -11,19 +11,10 @@ const ALLOWED_STATUSES = [
   "AMENDMENT_REQUESTED",
   "WITHDRAWN",
 ] as const;
-type Status = (typeof ALLOWED_STATUSES)[number];
 
-const BADGE_FALLBACK = "border-slate-500/30 bg-slate-500/10 text-slate-600";
-
-function getColorClass(status: Status, withdrawReason?: WithdrawReason): string {
-  const key =
-    status === "WITHDRAWN" && withdrawReason === "OFFER_EXPIRED"
-      ? "withdrawn_offer_expired"
-      : status.toLowerCase();
-  const c = STATUS_COLOR_MAP[key];
-  if (!c) return BADGE_FALLBACK;
-  return `${c.border} ${c.bg} ${c.text}`;
-}
+/** Matches application management StatusBadge base. */
+const BADGE_BASE =
+  "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold border";
 
 export function StatusBadge({
   status,
@@ -32,20 +23,14 @@ export function StatusBadge({
   status?: string;
   withdrawReason?: WithdrawReason;
 }) {
-  if (!ALLOWED_STATUSES.includes(status as Status)) {
+  if (!status || !ALLOWED_STATUSES.includes(status as (typeof ALLOWED_STATUSES)[number])) {
     return null;
   }
 
-  const safeStatus = status as Status;
-  const label = safeStatus === "WITHDRAWN" ? formatWithdrawLabel(withdrawReason) : safeStatus;
+  const { color, label } = getStatusPresentation(status, withdrawReason);
 
   return (
-    <span
-      className={cn(
-        "inline-flex items-center h-6 rounded-full border px-2.5 text-[11px] font-medium leading-none whitespace-nowrap",
-        getColorClass(safeStatus, withdrawReason)
-      )}
-    >
+    <span className={cn(BADGE_BASE, color)}>
       {label}
     </span>
   );

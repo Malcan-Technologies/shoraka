@@ -87,6 +87,8 @@
  *   Add "PENDING_DISBURSEMENT" in the right place in the array.
  */
 
+import { formatWithdrawLabel } from "@cashsouk/types";
+
 export type CardStatusResult = {
   badgeKey: string;
   displayLabel: string;
@@ -195,6 +197,39 @@ export const STATUS: Record<
 
 export function getSortOrder(status: string): number {
   return STATUS[status]?.sortOrder ?? 999;
+}
+
+/** API status (DRAFT, SUBMITTED, etc.) to badge key. Used by invoice/flow badges. */
+const API_STATUS_TO_BADGE_KEY: Record<string, string> = {
+  DRAFT: "draft",
+  SUBMITTED: "submitted",
+  UNDER_REVIEW: "under_review",
+  AMENDMENT_REQUESTED: "amendment_requested",
+  RESUBMITTED: "resubmitted",
+  OFFER_SENT: "offer_sent",
+  APPROVED: "approved",
+  COMPLETED: "completed",
+  WITHDRAWN: "withdrawn",
+  REJECTED: "rejected",
+  ARCHIVED: "archived",
+};
+
+/** Single source of truth for status badge presentation. Use in application flow, invoice tables, etc. */
+export function getStatusPresentation(
+  apiStatus: string,
+  withdrawReason?: "USER_CANCELLED" | "OFFER_EXPIRED"
+): { color: string; label: string } {
+  const key =
+    apiStatus?.toUpperCase() === "WITHDRAWN" && withdrawReason === "OFFER_EXPIRED"
+      ? "withdrawn_offer_expired"
+      : API_STATUS_TO_BADGE_KEY[apiStatus?.toUpperCase() ?? ""] ?? apiStatus?.toLowerCase() ?? "draft";
+  const s = STATUS[key];
+  const color = s?.color ?? BADGE_FALLBACK;
+  const label =
+    apiStatus?.toUpperCase() === "WITHDRAWN"
+      ? formatWithdrawLabel(withdrawReason)
+      : (s?.label ?? apiStatus ?? "");
+  return { color, label };
 }
 
 /* =============================================================================
