@@ -170,6 +170,8 @@ function ApplicationCard({
   onCancelApplication,
   onDeleteDraft,
   onWithdrawInvoice,
+  isCancelApplicationPending,
+  isWithdrawInvoicePending,
 }: {
   application: NormalizedApplication;
   onDocumentDownload: (s3Key: string) => Promise<void>;
@@ -178,6 +180,8 @@ function ApplicationCard({
   onCancelApplication?: (applicationId: string) => void;
   onDeleteDraft?: (applicationId: string) => void;
   onWithdrawInvoice?: (invoiceId: string, applicationId: string, organizationId?: string) => void;
+  isCancelApplicationPending?: boolean;
+  isWithdrawInvoicePending?: boolean;
 }) {
   const [expanded, setExpanded] = React.useState(false);
 
@@ -276,13 +280,14 @@ function ApplicationCard({
                   ) : (
                     <DropdownMenuItem
                       className="cursor-pointer"
+                      disabled={isCancelApplicationPending}
                       onClick={() => {
-                        if (onCancelApplication) {
+                        if (!isCancelApplicationPending && onCancelApplication) {
                           onCancelApplication(application.id);
                         }
                       }}
                     >
-                      Withdraw Application
+                      {isCancelApplicationPending ? "Withdrawing..." : "Withdraw Application"}
                     </DropdownMenuItem>
                   )}
                 </DropdownMenuContent>
@@ -523,19 +528,21 @@ function ApplicationCard({
                                 <DropdownMenuContent align="end" className="rounded-xl">
                                   <DropdownMenuItem
                                     className="cursor-pointer"
-                                    disabled={!canWithdrawInvoice}
+                                    disabled={!canWithdrawInvoice || isWithdrawInvoicePending}
                                     onClick={() => {
-                                      if (canWithdrawInvoice && onWithdrawInvoice) {
+                                      if (canWithdrawInvoice && !isWithdrawInvoicePending && onWithdrawInvoice) {
                                         onWithdrawInvoice(inv.id, application.id, application.issuerOrganizationId);
                                       }
                                     }}
                                     title={
                                       !canWithdrawInvoice
                                         ? "Cannot withdraw: invoice is already approved, rejected, or withdrawn"
-                                        : undefined
+                                        : isWithdrawInvoicePending
+                                          ? "Withdrawal in progress"
+                                          : undefined
                                     }
                                   >
-                                    Withdraw Invoice
+                                    {isWithdrawInvoicePending ? "Withdrawing..." : "Withdraw Invoice"}
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -1083,6 +1090,8 @@ export default function ApplicationsPage() {
                     onCancelApplication={handleCancelApplication}
                     onDeleteDraft={handleDeleteDraftClick}
                     onWithdrawInvoice={handleWithdrawInvoice}
+                    isCancelApplicationPending={cancelApplication.isPending}
+                    isWithdrawInvoicePending={withdrawInvoice.isPending}
                   />
                 ))}
               </div>
