@@ -260,11 +260,8 @@ export const FINANCING_TYPES = [
 
 /* =============================================================================
    SECTION D — INVOICE PRIORITY (many invoices → one status)
-   When an app has multiple invoices with different statuses, we pick one.
-   First status in this list that appears in the invoices wins.
-   Example: invoices [DRAFT, OFFER_SENT, APPROVED] → we pick OFFER_SENT (OFFER_SENT comes before
-   DRAFT and APPROVED in the list).
-   Edit this array to change which invoice status wins.
+   Used only for Action Required and Offer Received signals.
+   Terminal states (WITHDRAWN, COMPLETED, REJECTED, ARCHIVED) come from application.status only.
    ============================================================================= */
 
 export const INVOICE_PRIORITY = [
@@ -277,19 +274,18 @@ export const INVOICE_PRIORITY = [
   "WITHDRAWN",
 ] as const;
 
-function pickInvoiceStatus(invoiceStatuses: string[]): string | null {
-  if (invoiceStatuses.length === 0) return null;
-  for (const s of INVOICE_PRIORITY) {
-    if (invoiceStatuses.includes(s)) return s;
-  }
-  return invoiceStatuses[0];
+function hasAmendmentRequested(invoiceStatuses: string[]): boolean {
+  return invoiceStatuses.some((s) => String(s ?? "").toUpperCase() === "AMENDMENT_REQUESTED");
+}
+
+function hasOfferSent(invoiceStatuses: string[]): boolean {
+  return invoiceStatuses.some((s) => String(s ?? "").toUpperCase() === "OFFER_SENT");
 }
 
 /* =============================================================================
-   SECTION E — getCardStatus (app + contract + invoices → one badge)
-   We have three inputs: app status, contract status, and the one invoice status
-   from pickInvoiceStatus. We check them in order. First if-block that matches
-   wins. Edit the order of if-blocks to change which status wins.
+   SECTION E — getCardStatus (urgency-driven, application.status is source of truth)
+   Priority: 1) Terminal states (app only), 2) Action Required, 3) Offer Waiting, 4) Normal lifecycle.
+   Invoices/contract may trigger Action Required or Offer Received; never override terminal states.
    ============================================================================= */
 
 export function getCardStatus(input: {
@@ -299,51 +295,64 @@ export function getCardStatus(input: {
 }): CardStatusResult {
   const app = String(input.applicationStatus ?? "DRAFT").toUpperCase();
   const contract = input.contractStatus ? String(input.contractStatus).toUpperCase() : null;
-  const inv = pickInvoiceStatus(input.invoiceStatuses.map((s) => String(s ?? "DRAFT").toUpperCase()));
+  const invoiceStatuses = input.invoiceStatuses.map((s) => String(s ?? "DRAFT").toUpperCase());
+  const anyInvoiceAmendmentRequested = hasAmendmentRequested(invoiceStatuses);
+  const anyInvoiceOfferSent = hasOfferSent(invoiceStatuses);
+  const contractAmendmentRequested = contract === "AMENDMENT_REQUESTED";
+  const contractOfferSent = contract === "OFFER_SENT";
 
-  if (app === "REJECTED" || contract === "REJECTED") {
+  /** Terminal states: always from application.status. Invoices/contract must NOT override. */
+  if (app === "REJECTED") {
     return { badgeKey: "rejected", displayLabel: "Rejected", showReviewOffer: false, showMakeAmendments: false };
   }
   if (app === "COMPLETED") {
     return { badgeKey: "completed", displayLabel: "Completed", showReviewOffer: false, showMakeAmendments: false };
   }
-  if (app === "WITHDRAWN" || contract === "WITHDRAWN" || inv === "WITHDRAWN") {
+  if (app === "WITHDRAWN") {
     return { badgeKey: "withdrawn", displayLabel: "Withdrawn", showReviewOffer: false, showMakeAmendments: false };
   }
+  if (app === "ARCHIVED") {
+    return { badgeKey: "archived", displayLabel: "Archived", showReviewOffer: false, showMakeAmendments: false };
+  }
+
+  /** Action Required: app, contract, or any invoice has AMENDMENT_REQUESTED. Highest urgency. */
   if (app === "AMENDMENT_REQUESTED") {
     return { badgeKey: "pending_amendment", displayLabel: "Action Required", showReviewOffer: false, showMakeAmendments: true };
   }
-  if (contract === "AMENDMENT_REQUESTED" || inv === "AMENDMENT_REQUESTED") {
+  if (contractAmendmentRequested || anyInvoiceAmendmentRequested) {
     return { badgeKey: "pending_amendment", displayLabel: "Action Required", showReviewOffer: false, showMakeAmendments: false };
   }
-  if (contract === "OFFER_SENT" || inv === "OFFER_SENT") {
+
+  /** Offer Waiting: contract or any invoice has OFFER_SENT. */
+  if (contractOfferSent || anyInvoiceOfferSent) {
     return { badgeKey: "offer_sent", displayLabel: "Offer Received", showReviewOffer: true, showMakeAmendments: false };
   }
+
+  /** Normal lifecycle: application.status only. Invoices must NOT override. */
   if (app === "UNDER_REVIEW") return { badgeKey: "under_review", displayLabel: "Under Review", showReviewOffer: false, showMakeAmendments: false };
   if (app === "SUBMITTED") return { badgeKey: "submitted", displayLabel: "Submitted", showReviewOffer: false, showMakeAmendments: false };
   if (app === "RESUBMITTED") return { badgeKey: "resubmitted", displayLabel: "Resubmitted", showReviewOffer: false, showMakeAmendments: false };
   if (app === "DRAFT") return { badgeKey: "draft", displayLabel: "Draft", showReviewOffer: false, showMakeAmendments: false };
   if (app === "APPROVED") return { badgeKey: "accepted", displayLabel: "Approved", showReviewOffer: false, showMakeAmendments: false };
-  if (app === "ARCHIVED") return { badgeKey: "archived", displayLabel: "Archived", showReviewOffer: false, showMakeAmendments: false };
 
   return { badgeKey: "draft", displayLabel: "Draft", showReviewOffer: false, showMakeAmendments: false };
 }
 
-/** Application status priority for sorting. Lower = higher in list. */
+/** Urgency-based sort order. Lower = higher in list. Applications needing attention appear first. */
 export const APPLICATION_STATUS_PRIORITY: Record<string, number> = Object.freeze({
-  draft: 1,
-  submitted: 2,
+  pending_amendment: 1,
+  amendment_requested: 1,
+  offer_sent: 2,
+  sent: 2,
   under_review: 3,
-  pending_amendment: 4,
-  amendment_requested: 4,
+  submitted: 4,
   resubmitted: 5,
-  sent: 6,
-  offer_sent: 6,
+  draft: 6,
   completed: 7,
   withdrawn: 8,
   withdrawn_offer_expired: 8,
   rejected: 9,
   archived: 10,
+  approved: 11,
   accepted: 11,
-  approved: 12,
 });
