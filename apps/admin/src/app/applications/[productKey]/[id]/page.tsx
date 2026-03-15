@@ -739,25 +739,29 @@ export default function DynamicApplicationDetailPage() {
                     defaultTabId={effectiveTabDescriptors[0]?.id}
                   >
                     {effectiveTabDescriptors.map((descriptor) => {
+                      const applicationWithdrawn = app?.status === "WITHDRAWN";
                       const isContractExistingContract =
                         descriptor.reviewSection === "contract_details" && isExistingContract;
-                      const actionLocked = isContractExistingContract
-                        ? true
-                        : !isTabUnlocked(
-                            descriptor.reviewSection,
-                            sectionStatusMap,
-                            availableReviewSections,
-                            tabPrerequisitesFromApi
-                          );
+                      const actionLocked =
+                        applicationWithdrawn ||
+                        isContractExistingContract ||
+                        !isTabUnlocked(
+                          descriptor.reviewSection,
+                          sectionStatusMap,
+                          availableReviewSections,
+                          tabPrerequisitesFromApi
+                        );
                       const actionLockTooltip = actionLocked
-                        ? isContractExistingContract
-                          ? "Contract was approved in a prior application"
-                          : getTabUnlockTooltip(
-                              descriptor.reviewSection,
-                              sectionStatusMap,
-                              availableReviewSections,
-                              tabPrerequisitesFromApi
-                            )
+                        ? applicationWithdrawn
+                          ? "Application withdrawn"
+                          : isContractExistingContract
+                            ? "Contract was approved in a prior application"
+                            : getTabUnlockTooltip(
+                                descriptor.reviewSection,
+                                sectionStatusMap,
+                                availableReviewSections,
+                                tabPrerequisitesFromApi
+                              )
                         : undefined;
                       const sectionStatus = sectionStatusMap.get(descriptor.reviewSection);
                       return (

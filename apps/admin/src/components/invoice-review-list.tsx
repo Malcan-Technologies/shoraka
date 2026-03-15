@@ -275,14 +275,17 @@ export function InvoiceList({
             const details = inv.details as InvoiceDetails | undefined;
             const invoiceNo = details?.number ?? idx + 1;
             const scopeKey = buildInvoiceScopeKey(idx, invoiceNo);
-            const status = getItemStatus(inv, reviewItems, scopeKey);
+            const reviewItemStatus = getItemStatus(inv, reviewItems, scopeKey);
+            const isInvoiceWithdrawn = (inv.status?.toString().toUpperCase() ?? "") === "WITHDRAWN";
+            const status = isInvoiceWithdrawn ? "WITHDRAWN" : reviewItemStatus;
             const isRowReadOnly = readOnlyInvoiceIds?.has(inv.id) ?? false;
             const isTabLocked = !!isActionLocked || !isReviewable;
-            const isInvoiceFinalizedByIssuer = status === "APPROVED";
+            const isInvoiceFinalizedByIssuer = reviewItemStatus === "APPROVED";
             const isRowGreyedOut =
               isRowReadOnly ||
               isTabLocked ||
-              isInvoiceFinalizedByIssuer;
+              isInvoiceFinalizedByIssuer ||
+              isInvoiceWithdrawn;
             const isExpanded = Boolean(expandedById[inv.id]);
             const invoiceValue = toNumber(details?.value);
             const financingRatio = toNumber(details?.financing_ratio_percent);
@@ -298,7 +301,9 @@ export function InvoiceList({
                 <TableRow
                   className={
                     isRowGreyedOut
-                      ? "bg-muted/20 text-muted-foreground hover:bg-muted/30"
+                      ? isInvoiceWithdrawn
+                        ? "bg-muted/20 text-muted-foreground opacity-60 cursor-not-allowed hover:bg-muted/30"
+                        : "bg-muted/20 text-muted-foreground hover:bg-muted/30"
                       : "odd:bg-muted/30 hover:bg-muted/50"
                   }
                 >
