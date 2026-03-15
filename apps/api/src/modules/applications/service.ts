@@ -690,8 +690,9 @@ export class ApplicationService {
         where: { application_id: id },
       });
 
-      const updatedContract = contract
-        ? await tx.contract.findFirst({ where: { id: contract.id } })
+      const contractId = contract?.id ?? (application as { contract_id?: string }).contract_id;
+      const updatedContract = contractId
+        ? await tx.contract.findUnique({ where: { id: contractId } })
         : null;
 
       const newStatus = computeApplicationStatus(
@@ -712,8 +713,8 @@ export class ApplicationService {
       issuerOrganizationId: application.issuer_organization_id,
       scope: "application",
       status: "PENDING",
-      emittedAt: new Date().toISOString()
-    })
+      emittedAt: new Date().toISOString(),
+    });
 
     const updated = await this.repository.findById(id);
     if (!updated) {
