@@ -1005,7 +1005,8 @@ export class ApplicationService {
       }
 
       const now = new Date().toISOString();
-      const newStatus = action === "accept" ? "APPROVED" : "REJECTED";
+      /** Issuer rejecting offer = withdraw financing request. Admin reject = REJECTED. */
+      const newStatus = action === "accept" ? "APPROVED" : "WITHDRAWN";
       const offeredFacility = Number(offer.offered_facility) || 0;
       const requestedFacility = Number(offer.requested_facility) || 0;
 
@@ -1033,6 +1034,7 @@ export class ApplicationService {
           status: newStatus,
           offer_details: updatedOffer,
           contract_details: mergedDetails as Prisma.InputJsonValue,
+          ...(action === "reject" && { withdraw_reason: WithdrawReason.OFFER_REJECTED }),
         },
       });
 
@@ -1080,7 +1082,7 @@ export class ApplicationService {
         issuerOrganizationId: application.issuer_organization_id,
         scope: "section",
         scopeKey: "contract_details",
-        status: action === "accept" ? "APPROVED" : "REJECTED",
+        status: action === "accept" ? "APPROVED" : "WITHDRAWN",
         emittedAt: responseMeta.now,
       });
     }
@@ -1149,7 +1151,8 @@ export class ApplicationService {
       }
 
       const now = new Date().toISOString();
-      const newStatus = action === "accept" ? "APPROVED" : "REJECTED";
+      /** Issuer rejecting offer = withdraw financing request. Admin reject = REJECTED. */
+      const newStatus = action === "accept" ? "APPROVED" : "WITHDRAWN";
       const offeredAmount = Number(offer.offered_amount) || 0;
       const requestedAmount = Number(offer.requested_amount) || 0;
 
@@ -1164,6 +1167,7 @@ export class ApplicationService {
         data: {
           status: newStatus,
           offer_details: updatedOffer,
+          ...(action === "reject" && { withdraw_reason: WithdrawReason.OFFER_REJECTED }),
         },
       });
 
@@ -1228,7 +1232,7 @@ export class ApplicationService {
         tx.invoice.count({
           where: {
             application_id: applicationId,
-            status: { in: ["APPROVED", "REJECTED"] },
+            status: { in: ["APPROVED", "REJECTED", "WITHDRAWN"] },
           },
         }),
       ]);
@@ -1282,7 +1286,7 @@ export class ApplicationService {
         issuerOrganizationId: application.issuer_organization_id,
         scope: "item",
         scopeKey: scopeKey ?? undefined,
-        status: action === "accept" ? "APPROVED" : "REJECTED",
+        status: action === "accept" ? "APPROVED" : "WITHDRAWN",
         emittedAt: responseMeta.now,
       });
       if (responseMeta.sectionApproved) {

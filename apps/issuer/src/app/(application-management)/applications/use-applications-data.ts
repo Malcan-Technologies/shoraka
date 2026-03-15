@@ -147,12 +147,22 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
   /** Withdraw reason: from contract or first withdrawn invoice. */
   let withdrawReason: WithdrawReason | undefined;
   const contractWithdraw = (contract as ApiContract)?.withdraw_reason;
-  if (contractWithdraw === WithdrawReason.USER_CANCELLED || contractWithdraw === WithdrawReason.OFFER_EXPIRED) {
-    withdrawReason = contractWithdraw;
+  if (
+    contractWithdraw === WithdrawReason.USER_CANCELLED ||
+    contractWithdraw === WithdrawReason.OFFER_EXPIRED ||
+    contractWithdraw === WithdrawReason.OFFER_REJECTED
+  ) {
+    withdrawReason = contractWithdraw as WithdrawReason;
   } else {
     const withdrawnInv = invoices.find((i) => (i.status ?? "").toUpperCase() === "WITHDRAWN");
     const invReason = (withdrawnInv as ApiInvoice)?.withdraw_reason;
-    if (invReason === WithdrawReason.USER_CANCELLED || invReason === WithdrawReason.OFFER_EXPIRED) withdrawReason = invReason;
+    if (
+      invReason === WithdrawReason.USER_CANCELLED ||
+      invReason === WithdrawReason.OFFER_EXPIRED ||
+      invReason === WithdrawReason.OFFER_REJECTED
+    ) {
+      withdrawReason = invReason as WithdrawReason;
+    }
   }
 
   /** Offer expiry: from contract or first invoice with offer. */

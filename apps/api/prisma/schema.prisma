@@ -853,6 +853,7 @@ enum ReviewStepStatus {
   APPROVED
   REJECTED
   AMENDMENT_REQUESTED
+  WITHDRAWN
 }
 
 enum UserRole {
@@ -949,6 +950,7 @@ enum InvoiceStatus {
 enum WithdrawReason {
   USER_CANCELLED
   OFFER_EXPIRED
+  OFFER_REJECTED
 }
 
 enum ActivityLevel {

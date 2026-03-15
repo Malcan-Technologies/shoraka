@@ -123,6 +123,7 @@ export enum ApplicationStatus {
 export enum WithdrawReason {
   USER_CANCELLED = "USER_CANCELLED",
   OFFER_EXPIRED = "OFFER_EXPIRED",
+  OFFER_REJECTED = "OFFER_REJECTED",
 }
 
 export function formatWithdrawLabel(reason?: WithdrawReason): string {
@@ -131,6 +132,8 @@ export function formatWithdrawLabel(reason?: WithdrawReason): string {
       return "Withdrawn (Offer expired)";
     case WithdrawReason.USER_CANCELLED:
       return "Withdrawn (User cancelled)";
+    case WithdrawReason.OFFER_REJECTED:
+      return "Withdrawn (Offer rejected)";
     default:
       return "Withdrawn";
   }
@@ -141,7 +144,8 @@ export type ReviewStepStatus =
   | "OFFER_SENT"
   | "APPROVED"
   | "REJECTED"
-  | "AMENDMENT_REQUESTED";
+  | "AMENDMENT_REQUESTED"
+  | "WITHDRAWN";
 
 export interface Application {
   id: string;
