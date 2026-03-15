@@ -2,6 +2,7 @@ import { ContractRepository } from "./repository";
 import { ApplicationRepository } from "../applications/repository";
 import { OrganizationRepository } from "../organization/repository";
 import { AppError } from "../../lib/http/error-handler";
+import { publishOfferStateEvent } from "../../lib/offer-events";
 import { ApplicationReviewRemark, Contract, Prisma } from "@prisma/client";
 import { ContractStatus, WithdrawReason } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
@@ -258,10 +259,28 @@ export class ContractService {
 
     const finalReason = reason ?? WithdrawReason.USER_CANCELLED;
 
-    return this.repository.update(id, {
+    const updated = await this.repository.update(id, {
       status: ContractStatus.WITHDRAWN,
       withdraw_reason: finalReason,
     });
+
+    const applications = (contract as { applications?: { id: string; issuer_organization_id: string }[] }).applications ?? [];
+    const now = new Date().toISOString();
+    for (const app of applications) {
+      if (app.issuer_organization_id) {
+        publishOfferStateEvent({
+          eventType: "CONTRACT_WITHDRAWN",
+          applicationId: app.id,
+          issuerOrganizationId: app.issuer_organization_id,
+          scope: "section",
+          scopeKey: "contract_details",
+          status: "WITHDRAWN",
+          emittedAt: now,
+        });
+      }
+    }
+
+    return updated;
   }
 }
 

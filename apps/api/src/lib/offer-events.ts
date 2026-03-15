@@ -3,7 +3,8 @@ export type OfferEventStatus =
   | "APPROVED"
   | "REJECTED"
   | "AMENDMENT_REQUESTED"
-  | "PENDING";
+  | "PENDING"
+  | "WITHDRAWN";
 
 export interface OfferStateEvent {
   eventType: string;

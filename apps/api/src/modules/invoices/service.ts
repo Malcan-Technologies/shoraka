@@ -3,6 +3,7 @@ import { ApplicationRepository } from "../applications/repository";
 import { OrganizationRepository } from "../organization/repository";
 import { ContractRepository } from "../contracts/repository";
 import { AppError } from "../../lib/http/error-handler";
+import { publishOfferStateEvent } from "../../lib/offer-events";
 import { Invoice } from "@prisma/client";
 import { InvoiceStatus, WithdrawReason } from "@cashsouk/types";
 import {
@@ -327,10 +328,25 @@ async deleteInvoice(id: string, userId: string) {
 
     const finalReason = reason ?? WithdrawReason.USER_CANCELLED;
 
-    return this.repository.update(id, {
+    const updated = await this.repository.update(id, {
       status: InvoiceStatus.WITHDRAWN,
       withdraw_reason: finalReason,
     });
+
+    const app = (invoice as { application?: { issuer_organization_id?: string } }).application;
+    if (app?.issuer_organization_id) {
+      publishOfferStateEvent({
+        eventType: "INVOICE_WITHDRAWN",
+        applicationId: invoice.application_id,
+        issuerOrganizationId: app.issuer_organization_id,
+        scope: "item",
+        scopeKey: id,
+        status: "WITHDRAWN",
+        emittedAt: new Date().toISOString(),
+      });
+    }
+
+    return updated;
   }
 }
 

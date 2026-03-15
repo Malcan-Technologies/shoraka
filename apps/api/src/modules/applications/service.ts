@@ -707,19 +707,20 @@ export class ApplicationService {
       });
     });
 
+    const updated = await this.repository.findById(id);
+    if (!updated) {
+      throw new AppError(500, "INTERNAL_ERROR", "Failed to fetch updated application");
+    }
+
     publishOfferStateEvent({
       eventType: "APPLICATION_STATE_CHANGED",
       applicationId: id,
       issuerOrganizationId: application.issuer_organization_id,
       scope: "application",
-      status: "PENDING",
+      status: (updated.status as string) === "WITHDRAWN" ? "WITHDRAWN" : "PENDING",
       emittedAt: new Date().toISOString(),
     });
 
-    const updated = await this.repository.findById(id);
-    if (!updated) {
-      throw new AppError(500, "INTERNAL_ERROR", "Failed to fetch updated application");
-    }
     return updated;
   }
 
