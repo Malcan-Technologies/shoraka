@@ -657,10 +657,9 @@ export class ApplicationService {
     await prisma.$transaction(async (tx) => {
       for (const invoice of invoices) {
         if (
-          invoice.status === InvoiceStatus.DRAFT ||
-          invoice.status === InvoiceStatus.SUBMITTED ||
-          invoice.status === InvoiceStatus.OFFER_SENT ||
-          invoice.status === InvoiceStatus.AMENDMENT_REQUESTED
+          invoice.status !== InvoiceStatus.APPROVED &&
+          invoice.status !== InvoiceStatus.REJECTED &&
+          invoice.status !== InvoiceStatus.WITHDRAWN
         ) {
           await tx.invoice.update({
             where: { id: invoice.id },
@@ -706,6 +705,15 @@ export class ApplicationService {
         data: { status: newStatus },
       });
     });
+
+    publishOfferStateEvent({
+      eventType: "APPLICATION_STATE_CHANGED",
+      applicationId: id,
+      issuerOrganizationId: application.issuer_organization_id,
+      scope: "application",
+      status: "PENDING",
+      emittedAt: new Date().toISOString()
+    })
 
     const updated = await this.repository.findById(id);
     if (!updated) {
@@ -992,11 +1000,11 @@ export class ApplicationService {
       const mergedDetails =
         action === "accept"
           ? {
-              ...cd,
-              approved_facility: offeredFacility,
-              utilized_facility: utilizedFacility,
-              available_facility: offeredFacility - utilizedFacility,
-            }
+            ...cd,
+            approved_facility: offeredFacility,
+            utilized_facility: utilizedFacility,
+            available_facility: offeredFacility - utilizedFacility,
+          }
           : cd;
 
       await tx.contract.update({
