@@ -884,6 +884,24 @@ export class ApplicationService {
       }
 
       (updateData as any).submitted_at = new Date();
+
+      /** Ensure child entities are consistent: DRAFT invoices and contract become SUBMITTED. */
+      await prisma.invoice.updateMany({
+        where: { application_id: id, status: "DRAFT" as any },
+        data: { status: "SUBMITTED" as any },
+      });
+      if (application.contract_id) {
+        const contract = await prisma.contract.findUnique({
+          where: { id: application.contract_id },
+          select: { status: true },
+        });
+        if ((contract as { status?: string } | null)?.status === "DRAFT") {
+          await prisma.contract.update({
+            where: { id: application.contract_id },
+            data: { status: "SUBMITTED" as any },
+          });
+        }
+      }
     }
 
     return this.repository.update(id, updateData);
