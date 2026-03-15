@@ -1,7 +1,9 @@
 /**
  * Centralized application status computation.
- * When contract exists: contract status controls application status; invoices do NOT override.
- * When no contract: invoice lifecycle rules apply.
+ *
+ * In simple terms: Given contract + invoices, what should application.status be?
+ * - Contract exists → contract status wins (WITHDRAWN/REJECTED/APPROVED). Invoices don't override.
+ * - No contract → invoice statuses decide (all withdrawn → WITHDRAWN, all rejected → REJECTED, all final → COMPLETED).
  */
 
 import {

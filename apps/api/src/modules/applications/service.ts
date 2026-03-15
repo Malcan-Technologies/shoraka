@@ -1056,6 +1056,24 @@ export class ApplicationService {
         },
       });
 
+      /* --- BEGIN: Recompute and persist application status after contract offer response --- */
+      const updatedInvoices = await tx.invoice.findMany({
+        where: { application_id: applicationId },
+      });
+      const updatedContract = await tx.contract.findUnique({
+        where: { id: contractId },
+      });
+      const appStatus = computeApplicationStatus(
+        updatedContract as { status: ContractStatus } | null,
+        updatedInvoices.map((i) => ({ status: i.status as InvoiceStatus })),
+        application.status as ApplicationStatus
+      );
+      await tx.application.update({
+        where: { id: applicationId },
+        data: { status: appStatus },
+      });
+      /* --- END: Recompute and persist application status after contract offer response --- */
+
       return { offeredFacility, requestedFacility, now };
     });
 
@@ -1257,6 +1275,24 @@ export class ApplicationService {
         });
         sectionApproved = true;
       }
+
+      /* --- BEGIN: Recompute and persist application status after invoice offer response --- */
+      const updatedInvoices = await tx.invoice.findMany({
+        where: { application_id: applicationId },
+      });
+      const updatedContract = application.contract_id
+        ? await tx.contract.findUnique({ where: { id: application.contract_id } })
+        : null;
+      const appStatus = computeApplicationStatus(
+        updatedContract as { status: ContractStatus } | null,
+        updatedInvoices.map((i) => ({ status: i.status as InvoiceStatus })),
+        application.status as ApplicationStatus
+      );
+      await tx.application.update({
+        where: { id: applicationId },
+        data: { status: appStatus },
+      });
+      /* --- END: Recompute and persist application status after invoice offer response --- */
 
       return { now, offeredAmount, requestedAmount, sectionApproved };
     });
