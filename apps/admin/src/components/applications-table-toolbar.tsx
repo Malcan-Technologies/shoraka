@@ -21,6 +21,7 @@ const STATUS_OPTIONS = [
   { value: "RESUBMITTED", label: "Resubmitted" },
   { value: "APPROVED", label: "Approved" },
   { value: "REJECTED", label: "Rejected" },
+  { value: "WITHDRAWN", label: "Withdrawn" },
   { value: "ARCHIVED", label: "Archived" },
 ] as const;
 

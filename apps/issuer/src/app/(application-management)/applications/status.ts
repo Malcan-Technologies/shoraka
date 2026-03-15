@@ -162,7 +162,7 @@ export const STATUS_COLOR_MAP: Record<
   accepted: { bg: "bg-[#ECFDF2]", text: "text-[#15803D]", border: "border-transparent" },
   approved: { bg: "bg-[#ECFDF2]", text: "text-[#15803D]", border: "border-transparent" },
   completed: { bg: "bg-[#ECFDF2]", text: "text-[#15803D]", border: "border-transparent" },
-  withdrawn: { bg: "bg-slate-500/10", text: "text-slate-600", border: "border-transparent" },
+  withdrawn: { bg: "bg-slate-700/25", text: "text-slate-800 dark:text-slate-200", border: "border-transparent" },
   withdrawn_offer_expired: { bg: "bg-amber-500/10", text: "text-amber-700", border: "border-transparent" },
   rejected: { bg: "bg-red-500/10", text: "text-red-600", border: "border-transparent" },
   archived: { bg: "bg-slate-500/10", text: "text-slate-500", border: "border-transparent" },

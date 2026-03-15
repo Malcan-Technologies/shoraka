@@ -60,6 +60,12 @@ const STATUS_PRESENTATION: Record<string, ReviewStatusPresentation> = {
     iconClass: "text-muted-foreground",
     dotClass: "bg-muted-foreground",
   },
+  WITHDRAWN: {
+    label: "Withdrawn",
+    badgeClass: "border-slate-600/40 bg-slate-700/25 text-slate-800 dark:bg-slate-600/30 dark:text-slate-200",
+    iconClass: "text-slate-700 dark:text-slate-300",
+    dotClass: "bg-slate-600",
+  },
   OFFER_SENT: {
     label: "Offer Sent",
     badgeClass: "border-blue-500/30 bg-blue-500/10 text-foreground",

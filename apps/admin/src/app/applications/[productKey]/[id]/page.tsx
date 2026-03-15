@@ -648,38 +648,6 @@ export default function DynamicApplicationDetailPage() {
                                 : "Reject the application and notify the issuer"}
                         </TooltipContent>
                       </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span
-                            className={
-                              app.status === "APPROVED" || !allSectionsApproved
-                                ? "inline-flex cursor-not-allowed"
-                                : "inline-flex"
-                            }
-                          >
-                            <Button
-                              variant="outline"
-                              size="default"
-                              className="gap-2 border-green-500/30 bg-green-500/10 text-green-800 hover:bg-green-500/20 hover:text-green-900 dark:text-green-200 dark:hover:text-green-100"
-                              disabled={app.status === "APPROVED" || !allSectionsApproved}
-                              onClick={() => setConfirmAction({ type: "APPROVE", isOpen: true })}
-                            >
-                              <CheckCircleIcon className="h-4 w-4" />
-                              Approve
-                            </Button>
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="bottom"
-                          className="max-w-xs bg-muted text-muted-foreground"
-                        >
-                          {app.status === "APPROVED"
-                            ? "Application already approved"
-                            : !allSectionsApproved
-                              ? "Approve all sections first"
-                              : "Approve the application and move to the next stage"}
-                        </TooltipContent>
-                      </Tooltip>
                     </div>
                   </TooltipProvider>
                 ) : (
