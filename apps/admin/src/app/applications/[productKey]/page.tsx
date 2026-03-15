@@ -28,7 +28,7 @@ export default function DynamicApplicationsPage() {
   const productKey = params.productKey as string;
 
   // Fetch products to get the current product name
-  const { data: productsData } = useProducts({ page: 1, pageSize: 100 });
+  const { data: productsData } = useProducts({ page: 1, pageSize: 100, active: true });
   const currentProduct = productsData?.products.find(p => p.id === productKey);
   const currentProductName = currentProduct ? productName(currentProduct) : "Applications";
 

@@ -2144,11 +2144,28 @@ export class AdminRepository {
       where.status = status;
     }
 
+    /** Filter by product: use base_id so applications from all versions (active + inactive) are shown. */
     if (productId) {
-      where.financing_type = {
-        path: ["product_id"],
-        equals: productId,
-      };
+      const product = await prisma.product.findUnique({
+        where: { id: productId },
+        select: { base_id: true },
+      });
+      const baseId = product?.base_id ?? productId;
+      const productsWithBase = await prisma.product.findMany({
+        where: { OR: [{ base_id: baseId }, { id: baseId }] },
+        select: { id: true },
+      });
+      const productIds = productsWithBase.map((p) => p.id);
+      if (productIds.length > 0) {
+        where.AND = where.AND ?? [];
+        (where.AND as Prisma.ApplicationWhereInput[]).push({
+          OR: productIds.map((id) => ({
+            financing_type: { path: ["product_id"], equals: id },
+          })),
+        });
+      } else {
+        where.financing_type = { path: ["product_id"], equals: productId };
+      }
     }
 
     if (search) {

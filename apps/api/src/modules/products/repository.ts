@@ -144,9 +144,8 @@ export class ProductRepository {
 
   /**
    * Versioned product update: never modify existing product except to set status INACTIVE.
-   * 1. Set old product status to INACTIVE
-   * 2. Create new product with old data + updates, version = old.version + 1
-   * 3. Return new product (new id)
+   * When completeCreate is true: in-place update only (first save after create, e.g. merging image/template keys).
+   * Otherwise: 1) Set old product INACTIVE, 2) Create new version row, 3) Return new product.
    */
   async update(id: string, data: UpdateProductData, logContext?: LogContext): Promise<Product> {
     if (data.workflow === undefined && data.offer_expiry_days === undefined) {
@@ -166,8 +165,22 @@ export class ProductRepository {
       return current;
     }
 
-    const skipIncrement = data.completeCreate === true;
-    const newVersion = skipIncrement ? current.version : current.version + 1;
+    /** completeCreate: first update after create (merge image/template keys). In-place update only; no new version row. */
+    if (data.completeCreate === true) {
+      const workflowPayload = (data.workflow === undefined ? current.workflow : data.workflow) as Prisma.InputJsonValue;
+      const offerExpiryPayload =
+        data.offer_expiry_days !== undefined ? data.offer_expiry_days : (current as { offer_expiry_days?: number | null }).offer_expiry_days ?? null;
+      const updated = await prisma.product.update({
+        where: { id },
+        data: {
+          workflow: workflowPayload,
+          offer_expiry_days: offerExpiryPayload ?? undefined,
+        },
+      } as any);
+      return updated;
+    }
+
+    const newVersion = current.version + 1;
     const workflowPayload = (data.workflow === undefined ? current.workflow : data.workflow) as Prisma.InputJsonValue;
     const offerExpiryPayload =
       data.offer_expiry_days !== undefined ? data.offer_expiry_days : (current as { offer_expiry_days?: number | null }).offer_expiry_days ?? null;
@@ -372,14 +385,21 @@ export class ProductRepository {
     const searchTrim = search?.trim();
 
     if (!searchTrim) {
-      // If caller requested activeOnly (frontend new flow), return all products ordered by display orders
+      /** activeOnly: show only ACTIVE versions (one per base_id). Supports pagination. */
       if (params.activeOnly) {
-        const products = await prisma.$queryRaw<Product[]>`
-          SELECT * FROM products
-          WHERE status = 'ACTIVE'
-          ORDER BY COALESCE(category_display_order, 999999), COALESCE(product_display_order, 999999), created_at ASC
-        `;
-        return { products, total: products.length };
+        const [products, countResult] = await Promise.all([
+          prisma.$queryRaw<Product[]>`
+            SELECT * FROM products
+            WHERE status = 'ACTIVE'
+            ORDER BY COALESCE(category_display_order, 999999), COALESCE(product_display_order, 999999), created_at ASC
+            LIMIT ${pageSize} OFFSET ${skip}
+          `,
+          prisma.$queryRaw<[{ count: number }]>`
+            SELECT COUNT(*)::int as count FROM products WHERE status = 'ACTIVE'
+          `,
+        ]);
+        const total = countResult[0]?.count ?? 0;
+        return { products, total };
       }
 
       const whereAdmin = { status: { not: "DELETED" } } as any;
@@ -396,6 +416,31 @@ export class ProductRepository {
     }
 
     const pattern = `%${searchTrim}%`;
+    /** Search with optional activeOnly; when true, only ACTIVE versions. */
+    if (params.activeOnly) {
+      const [products, countResult] = await Promise.all([
+        prisma.$queryRaw<Product[]>`
+          SELECT * FROM products
+          WHERE (
+            (workflow::jsonb->0->'config'->>'name') ILIKE ${pattern}
+            OR (workflow::jsonb->0->'config'->'type'->>'name') ILIKE ${pattern}
+          )
+            AND status = 'ACTIVE'
+          ORDER BY updated_at DESC
+          LIMIT ${pageSize} OFFSET ${skip}
+        `,
+        prisma.$queryRaw<[{ count: number }]>`
+          SELECT COUNT(*)::int as count FROM products
+          WHERE (
+            (workflow::jsonb->0->'config'->>'name') ILIKE ${pattern}
+            OR (workflow::jsonb->0->'config'->'type'->>'name') ILIKE ${pattern}
+          )
+            AND status = 'ACTIVE'
+        `,
+      ]);
+      const total = countResult[0]?.count ?? 0;
+      return { products, total };
+    }
     const [products, countResult] = await Promise.all([
       prisma.$queryRaw<Product[]>`
         SELECT * FROM products

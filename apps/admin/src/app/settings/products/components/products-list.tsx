@@ -69,7 +69,7 @@ export function ProductsList() {
     setProductFormOpen(true);
   };
 
-  const params: UseProductsParams = { page, pageSize, search: search || undefined };
+  const params: UseProductsParams = { page, pageSize, search: search || undefined, active: true };
   const { data, isPending, isError, error } = useProducts(params);
 
   const products = data?.products ?? [];
