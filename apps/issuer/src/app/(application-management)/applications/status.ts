@@ -323,9 +323,14 @@ export function getCardStatus(input: {
     return { badgeKey: "pending_amendment", displayLabel: "Action Required", showReviewOffer: false, showMakeAmendments: false };
   }
 
-  /** Offer Waiting: contract or any invoice has OFFER_SENT. */
+  /** Offer Waiting: contract or any invoice has OFFER_SENT. Card-level Review Offer only for contract offers. */
   if (contractOfferSent || anyInvoiceOfferSent) {
-    return { badgeKey: "offer_sent", displayLabel: "Offer Received", showReviewOffer: true, showMakeAmendments: false };
+    return {
+      badgeKey: "offer_sent",
+      displayLabel: "Offer Received",
+      showReviewOffer: contractOfferSent,
+      showMakeAmendments: false,
+    };
   }
 
   /** Normal lifecycle: application.status only. Invoices must NOT override. */

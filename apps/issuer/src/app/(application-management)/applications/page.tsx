@@ -238,46 +238,24 @@ function ApplicationCard({
                   </Link>
                 </Button>
               )}
-              {cardStatus.showReviewOffer && (() => {
-                const contractHasOffer = hasContract && application.contractId && application.contractStatus === "OFFER_SENT";
-                const invoiceLink = !hasContract && application.invoices.find((inv) => inv.canReviewOffer);
-                if (contractHasOffer && onReviewContractOffer) {
-                  return (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="reviewOffer"
-                      className="rounded-xl"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onReviewContractOffer(application.id, application.contractId!);
-                      }}
-                    >
-                      Review Contract Financing Offer
-                    </Button>
-                  );
-                }
-                if (invoiceLink && onReviewInvoiceOffer) {
-                  return (
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="rounded-xl bg-teal-600 text-white hover:bg-teal-700 shadow-sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onReviewInvoiceOffer(application.id, invoiceLink);
-                      }}
-                    >
-                      Review Offer
-                    </Button>
-                  );
-                }
-                return (
-                  <Button size="sm" className="rounded-xl bg-teal-600 text-white hover:bg-teal-700 shadow-sm" disabled>
-                    Review Offer
+              {cardStatus.showReviewOffer &&
+                hasContract &&
+                application.contractId &&
+                application.contractStatus === "OFFER_SENT" &&
+                onReviewContractOffer && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="reviewOffer"
+                    className="rounded-xl"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onReviewContractOffer(application.id, application.contractId!);
+                    }}
+                  >
+                    Review Contract Financing Offer
                   </Button>
-                );
-              })()}
+                )}
               {/* Edit Application: only for drafts. Links to /edit. Non-drafts get Withdraw only. */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
