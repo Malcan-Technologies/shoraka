@@ -115,7 +115,7 @@ export function useDeleteProduct() {
   });
 }
 
-/** Rollback failed product creation: soft-delete product and delete orphan S3 files. */
+/** Rollback failed product creation: hard-delete product and delete orphan S3 files. */
 export function useRollbackProductCreate() {
   const queryClient = useQueryClient();
   const { getAccessToken } = useAuthToken();

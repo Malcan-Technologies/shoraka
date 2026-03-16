@@ -609,10 +609,6 @@ const hasChanges = !isEdit
 
               {/* Offer settings — below workflow steps, card layout to match workflow container */}
               <div className="rounded-xl border border-border bg-card p-4 shrink-0 min-w-0">
-                {/* <div className="space-y-1 mb-4">
-                  <h3 className="text-sm font-semibold text-foreground">Offer settings</h3>
-                  <div className="border-b border-border" />
-                </div> */}
                 <div className="grid gap-2 min-w-0">
                   <Label htmlFor="offer-expiry-days" className="text-sm font-medium">
                     Offer expiry (days)
