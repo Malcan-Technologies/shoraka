@@ -4242,6 +4242,11 @@ export class AdminService {
   private static readonly REVIEWABLE_STATUSES: ApplicationStatus[] = [
     ApplicationStatus.SUBMITTED,
     ApplicationStatus.UNDER_REVIEW,
+    ApplicationStatus.CONTRACT_PENDING,
+    ApplicationStatus.CONTRACT_SENT,
+    ApplicationStatus.CONTRACT_ACCEPTED,
+    ApplicationStatus.INVOICE_PENDING,
+    ApplicationStatus.INVOICES_SENT,
     ApplicationStatus.RESUBMITTED,
     ApplicationStatus.AMENDMENT_REQUESTED,
   ];
@@ -4261,9 +4266,51 @@ export class AdminService {
   /**
    * Transition application to UNDER_REVIEW on first review action (when SUBMITTED or RESUBMITTED)
    */
-  private async ensureUnderReview(repository: AdminRepository, applicationId: string, appStatus: ApplicationStatus) {
+  private allInvoicesOfferableOrResolved(invoiceStatuses: string[]): boolean {
+    if (invoiceStatuses.length === 0) return false;
+    return invoiceStatuses.every((status) =>
+      ["OFFER_SENT", "APPROVED", "WITHDRAWN", "REJECTED"].includes(status)
+    );
+  }
+
+  private resolveAdminStageStatus(input: {
+    contractId?: string | null;
+    contractStatus?: string | null;
+    invoiceStatuses: string[];
+  }): ApplicationStatus {
+    const { contractId, contractStatus, invoiceStatuses } = input;
+
+    if (contractId) {
+      if (contractStatus === "OFFER_SENT") return ApplicationStatus.CONTRACT_SENT;
+      if (contractStatus === "APPROVED") {
+        if (invoiceStatuses.length === 0) return ApplicationStatus.CONTRACT_ACCEPTED;
+        if (this.allInvoicesOfferableOrResolved(invoiceStatuses)) {
+          return ApplicationStatus.INVOICES_SENT;
+        }
+        return ApplicationStatus.INVOICE_PENDING;
+      }
+      return ApplicationStatus.CONTRACT_PENDING;
+    }
+
+    if (this.allInvoicesOfferableOrResolved(invoiceStatuses)) {
+      return ApplicationStatus.INVOICES_SENT;
+    }
+    return ApplicationStatus.INVOICE_PENDING;
+  }
+
+  private async ensureUnderReview(
+    repository: AdminRepository,
+    applicationId: string,
+    appStatus: ApplicationStatus,
+    application: { contract_id?: string | null; contract?: { status?: string } | null; invoices?: { status?: string }[] }
+  ) {
     if (appStatus === ApplicationStatus.SUBMITTED || appStatus === ApplicationStatus.RESUBMITTED) {
-      await repository.updateApplicationStatus(applicationId, ApplicationStatus.UNDER_REVIEW);
+      const targetStatus = this.resolveAdminStageStatus({
+        contractId: application.contract_id,
+        contractStatus: application.contract?.status ?? null,
+        invoiceStatuses: (application.invoices ?? []).map((invoice) => invoice.status ?? "DRAFT"),
+      });
+      await repository.updateApplicationStatus(applicationId, targetStatus);
     }
   }
 
@@ -4496,7 +4543,12 @@ export class AdminService {
     logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
-    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    await this.ensureUnderReview(
+      repository,
+      applicationId,
+      application.status as ApplicationStatus,
+      application
+    );
     this.ensureContractOfferActionAllowed(application);
 
     if (!application.contract_id) {
@@ -4616,6 +4668,10 @@ export class AdminService {
           remark: `Contract offer sent: ${offeredFacility}`,
         },
       });
+      await tx.application.update({
+        where: { id: applicationId },
+        data: { status: ApplicationStatus.CONTRACT_SENT },
+      });
 
       return {
         requestedFacility,
@@ -4656,7 +4712,12 @@ export class AdminService {
     logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
-    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    await this.ensureUnderReview(
+      repository,
+      applicationId,
+      application.status as ApplicationStatus,
+      application
+    );
 
     const invoice = (application.invoices as { id: string; details?: Record<string, unknown> }[] | undefined)?.find(
       (row) => row.id === invoiceId
@@ -4834,6 +4895,19 @@ export class AdminService {
           reviewer_user_id: reviewerUserId,
         },
       });
+      const invoiceStatuses = (
+        await tx.invoice.findMany({
+          where: { application_id: applicationId },
+          select: { status: true },
+        })
+      ).map((row) => row.status);
+      const nextApplicationStatus = this.allInvoicesOfferableOrResolved(invoiceStatuses)
+        ? ApplicationStatus.INVOICES_SENT
+        : ApplicationStatus.INVOICE_PENDING;
+      await tx.application.update({
+        where: { id: applicationId },
+        data: { status: nextApplicationStatus },
+      });
 
       const invoiceNumber =
         details.number != null && details.number !== ""
@@ -4919,7 +4993,12 @@ export class AdminService {
     logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
-    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    await this.ensureUnderReview(
+      repository,
+      applicationId,
+      application.status as ApplicationStatus,
+      application
+    );
     if (section === "contract_details" || section === "invoice_details") {
       throw new AppError(
         400,
@@ -4977,7 +5056,12 @@ export class AdminService {
     logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
-    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    await this.ensureUnderReview(
+      repository,
+      applicationId,
+      application.status as ApplicationStatus,
+      application
+    );
     if (section === "contract_details") {
       this.ensureContractOfferActionAllowed(application);
     }
@@ -5042,6 +5126,11 @@ export class AdminService {
       logContext
     );
     await repository.removeDraftAmendment(applicationId, "section", section);
+    if (section === "contract_details") {
+      await repository.updateApplicationStatus(applicationId, ApplicationStatus.CONTRACT_PENDING);
+    } else if (section === "invoice_details") {
+      await repository.updateApplicationStatus(applicationId, ApplicationStatus.INVOICE_PENDING);
+    }
 
     logger.info({ applicationId, section, reviewerUserId }, "Review section reset to pending");
     return repository.getApplicationById(applicationId);
@@ -5059,7 +5148,12 @@ export class AdminService {
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     this.validateReviewItemExists(application, itemType, itemId);
-    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    await this.ensureUnderReview(
+      repository,
+      applicationId,
+      application.status as ApplicationStatus,
+      application
+    );
     if (itemType === "invoice") {
       await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application);
     }
@@ -5125,6 +5219,9 @@ export class AdminService {
     );
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
     await this.clearItemRemarks(repository, applicationId, itemType, itemId);
+    if (itemType === "invoice") {
+      await repository.updateApplicationStatus(applicationId, ApplicationStatus.INVOICE_PENDING);
+    }
 
     logger.info({ applicationId, itemType, itemId, reviewerUserId }, "Review item reset to pending");
     return repository.getApplicationById(applicationId);
@@ -5142,7 +5239,12 @@ export class AdminService {
     logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
-    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    await this.ensureUnderReview(
+      repository,
+      applicationId,
+      application.status as ApplicationStatus,
+      application
+    );
     if (section === "contract_details") {
       this.ensureContractOfferActionAllowed(application);
     }
@@ -5205,7 +5307,12 @@ export class AdminService {
     logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
-    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    await this.ensureUnderReview(
+      repository,
+      applicationId,
+      application.status as ApplicationStatus,
+      application
+    );
     if (section === "contract_details") {
       this.ensureContractOfferActionAllowed(application);
     }
@@ -5291,7 +5398,12 @@ export class AdminService {
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     this.validateReviewItemExists(application, itemType, itemId);
-    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    await this.ensureUnderReview(
+      repository,
+      applicationId,
+      application.status as ApplicationStatus,
+      application
+    );
     if (itemType === "invoice") {
       throw new AppError(
         400,
@@ -5352,7 +5464,12 @@ export class AdminService {
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     this.validateReviewItemExists(application, itemType, itemId);
-    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    await this.ensureUnderReview(
+      repository,
+      applicationId,
+      application.status as ApplicationStatus,
+      application
+    );
     if (itemType === "invoice") {
       await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application);
     }
@@ -5422,7 +5539,12 @@ export class AdminService {
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     this.validateReviewItemExists(application, itemType, itemId);
-    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    await this.ensureUnderReview(
+      repository,
+      applicationId,
+      application.status as ApplicationStatus,
+      application
+    );
     if (itemType === "invoice") {
       await this.ensureInvoiceOfferItemActionAllowed(applicationId, itemId, application);
     }
@@ -5491,7 +5613,12 @@ export class AdminService {
     logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
-    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    await this.ensureUnderReview(
+      repository,
+      applicationId,
+      application.status as ApplicationStatus,
+      application
+    );
 
     if (scope === "section") {
       const validSections = REVIEW_SECTION_ORDER;
@@ -5717,6 +5844,7 @@ export class AdminService {
             where: { id: invoiceId, application_id: applicationId },
             data: { status: "SUBMITTED" },
           });
+          await repository.updateApplicationStatus(applicationId, ApplicationStatus.INVOICE_PENDING);
         }
       }
     }
@@ -5743,6 +5871,7 @@ export class AdminService {
             where: { id: application.contract_id },
             data: { status: "SUBMITTED" },
           });
+          await repository.updateApplicationStatus(applicationId, ApplicationStatus.CONTRACT_PENDING);
         }
       }
     }
@@ -5756,7 +5885,12 @@ export class AdminService {
    */
   async submitPendingAmendments(applicationId: string, reviewerUserId: string, logContext?: AdminLogContext) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
-    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    await this.ensureUnderReview(
+      repository,
+      applicationId,
+      application.status as ApplicationStatus,
+      application
+    );
 
     const pending = await repository.listPendingAmendments(applicationId);
     if (pending.length === 0) {

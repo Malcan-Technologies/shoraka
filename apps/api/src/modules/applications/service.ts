@@ -14,7 +14,7 @@ import {
   financialStatementsInputSchema,
 } from "./schemas";
 import { AppError } from "../../lib/http/error-handler";
-import { Application, Prisma } from "@prisma/client";
+import { Application, Prisma, ApplicationStatus as DbApplicationStatus } from "@prisma/client";
 import { requestPresignedUploadUrl, deleteDocumentFromS3 } from "./documents/service";
 import {
   getAmendmentAllowedSections,
@@ -672,7 +672,7 @@ export class ApplicationService {
 
       await tx.application.update({
         where: { id },
-        data: { status: newStatus },
+        data: { status: newStatus as unknown as DbApplicationStatus },
       });
     });
 
@@ -1033,14 +1033,18 @@ export class ApplicationService {
       const updatedContract = await tx.contract.findUnique({
         where: { id: contractId },
       });
+      const nextReviewStatusBase =
+        action === "accept"
+          ? ApplicationStatus.CONTRACT_ACCEPTED
+          : (application.status as ApplicationStatus);
       const appStatus = computeApplicationStatus(
         updatedContract as { status: ContractStatus } | null,
         updatedInvoices.map((i) => ({ status: i.status as InvoiceStatus })),
-        application.status as ApplicationStatus
+        nextReviewStatusBase
       );
       await tx.application.update({
         where: { id: applicationId },
-        data: { status: appStatus },
+        data: { status: appStatus as unknown as DbApplicationStatus },
       });
       /* --- END: Recompute and persist application status after contract offer response --- */
 
@@ -1250,14 +1254,28 @@ export class ApplicationService {
       const updatedContract = application.contract_id
         ? await tx.contract.findUnique({ where: { id: application.contract_id } })
         : null;
+      const invoiceStatuses = updatedInvoices.map((invoice) => invoice.status as InvoiceStatus);
+      const allInvoicesOfferedOrResolved =
+        invoiceStatuses.length > 0 &&
+        invoiceStatuses.every((status) =>
+          [
+            InvoiceStatus.OFFER_SENT,
+            InvoiceStatus.APPROVED,
+            InvoiceStatus.WITHDRAWN,
+            InvoiceStatus.REJECTED,
+          ].includes(status)
+        );
+      const nextReviewStatusBase = allInvoicesOfferedOrResolved
+        ? ApplicationStatus.INVOICES_SENT
+        : ApplicationStatus.INVOICE_PENDING;
       const appStatus = computeApplicationStatus(
         updatedContract as { status: ContractStatus } | null,
-        updatedInvoices.map((i) => ({ status: i.status as InvoiceStatus })),
-        application.status as ApplicationStatus
+        invoiceStatuses.map((status) => ({ status })),
+        nextReviewStatusBase
       );
       await tx.application.update({
         where: { id: applicationId },
-        data: { status: appStatus },
+        data: { status: appStatus as unknown as DbApplicationStatus },
       });
       /* --- END: Recompute and persist application status after invoice offer response --- */
 

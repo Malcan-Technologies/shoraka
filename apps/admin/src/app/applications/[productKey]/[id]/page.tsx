@@ -161,6 +161,11 @@ export default function DynamicApplicationDetailPage() {
   const REVIEWABLE_STATUSES = [
     "SUBMITTED",
     "UNDER_REVIEW",
+    "CONTRACT_PENDING",
+    "CONTRACT_SENT",
+    "CONTRACT_ACCEPTED",
+    "INVOICE_PENDING",
+    "INVOICES_SENT",
     "RESUBMITTED",
     "AMENDMENT_REQUESTED",
   ];

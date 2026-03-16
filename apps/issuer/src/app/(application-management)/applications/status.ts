@@ -206,6 +206,11 @@ const API_STATUS_TO_BADGE_KEY: Record<string, string> = {
   DRAFT: "draft",
   SUBMITTED: "submitted",
   UNDER_REVIEW: "under_review",
+  CONTRACT_PENDING: "under_review",
+  CONTRACT_SENT: "under_review",
+  CONTRACT_ACCEPTED: "under_review",
+  INVOICE_PENDING: "under_review",
+  INVOICES_SENT: "under_review",
   AMENDMENT_REQUESTED: "amendment_requested",
   RESUBMITTED: "resubmitted",
   OFFER_SENT: "offer_sent",
@@ -334,7 +339,21 @@ export function getCardStatus(input: {
   }
 
   /** Normal lifecycle: application.status only. Invoices must NOT override. */
-  if (app === "UNDER_REVIEW") return { badgeKey: "under_review", displayLabel: "Under Review", showReviewOffer: false, showMakeAmendments: false };
+  if (
+    app === "UNDER_REVIEW" ||
+    app === "CONTRACT_PENDING" ||
+    app === "CONTRACT_SENT" ||
+    app === "CONTRACT_ACCEPTED" ||
+    app === "INVOICE_PENDING" ||
+    app === "INVOICES_SENT"
+  ) {
+    return {
+      badgeKey: "under_review",
+      displayLabel: "Under Review",
+      showReviewOffer: false,
+      showMakeAmendments: false,
+    };
+  }
   if (app === "SUBMITTED") return { badgeKey: "submitted", displayLabel: "Submitted", showReviewOffer: false, showMakeAmendments: false };
   if (app === "RESUBMITTED") return { badgeKey: "resubmitted", displayLabel: "Resubmitted", showReviewOffer: false, showMakeAmendments: false };
   if (app === "DRAFT") return { badgeKey: "draft", displayLabel: "Draft", showReviewOffer: false, showMakeAmendments: false };

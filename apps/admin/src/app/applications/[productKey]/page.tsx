@@ -19,7 +19,14 @@ import type {
   GetAdminApplicationsParams,
 } from "@cashsouk/types";
 
-const DEFAULT_STATUS_FILTERS = ["SUBMITTED", "UNDER_REVIEW", "RESUBMITTED"];
+const DEFAULT_STATUS_FILTERS = [
+  "SUBMITTED",
+  "UNDER_REVIEW",
+  "RESUBMITTED",
+  "CONTRACT_PENDING",
+  "CONTRACT_ACCEPTED",
+  "INVOICE_PENDING",
+];
 
 export default function DynamicApplicationsPage() {
   const queryClient = useQueryClient();
