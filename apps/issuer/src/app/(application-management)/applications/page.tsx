@@ -16,7 +16,7 @@ import {
   ArrowDownTrayIcon,
 } from "@heroicons/react/24/outline";
 import { useHeader } from "@cashsouk/ui";
-import { formatCurrency, createApiClient } from "@cashsouk/config";
+import { formatCurrency, createApiClient, useOrganization } from "@cashsouk/config";
 import { WithdrawReason } from "@cashsouk/types";
 import { useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
@@ -753,8 +753,21 @@ export default function ApplicationsPage() {
 
   const isDev = process.env.NODE_ENV === "development";
 
+  const { activeOrganization } = useOrganization();
+  const displayName = React.useMemo(() => {
+    if (!activeOrganization) return "";
+    if (activeOrganization.firstName && activeOrganization.lastName) {
+      return `${activeOrganization.firstName} ${activeOrganization.lastName}`;
+    }
+    if (activeOrganization.type === "COMPANY" && activeOrganization.name) {
+      return activeOrganization.name;
+    }
+    return activeOrganization.type === "PERSONAL" ? "Personal Account" : "Company Account";
+  }, [activeOrganization]);
+
   return (
-    <div className="flex-1 space-y-6 p-4 md:p-8 pt-6">
+    <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
+      <div className=" p-2 md:p-4">
       {isDev && (
         <Card
           className="fixed bottom-5 right-5 z-[9999] w-[200px] shadow-lg border-2 border-amber-500/50"
@@ -793,22 +806,17 @@ export default function ApplicationsPage() {
         </Card>
       )}
 
-      <section className="flex items-start justify-between gap-4">
+      <section className="flex items-start justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">
-            Welcome back, there!
-          </h2>
-          <p className="text-[17px] leading-7 text-muted-foreground mt-1">
+          <h2 className="text-2xl font-bold mb-2">Welcome back, {displayName}!</h2>
+          <p className="text-[17px] leading-7 text-muted-foreground">
             Manage your loan applications from this dashboard.
           </p>
         </div>
-        <Button
-          asChild
-          className="gap-2 shrink-0 rounded-xl bg-primary text-primary-foreground shadow-sm hover:opacity-95"
-        >
+        <Button asChild className="gap-2">
           <Link href="/applications/new">
             <PlusIcon className="h-4 w-4" />
-            Apply for financing
+            Get Financed
           </Link>
         </Button>
       </section>
@@ -1151,6 +1159,7 @@ export default function ApplicationsPage() {
           onClose={() => setReviewModalOpen(false)}
         />
       )}
+      </div>
     </div>
   );
 }
