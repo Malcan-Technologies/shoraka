@@ -148,6 +148,7 @@ export function FinancingTypeConfig({
           value={current.name}
           onChange={(e) => update({ name: e.target.value })}
           placeholder="e.g. Account Receivable (AR) Financing"
+          maxLength={200}
           className="text-sm leading-6"
         />
       </div>
@@ -158,6 +159,7 @@ export function FinancingTypeConfig({
           value={current.category}
           onChange={(e) => update({ category: e.target.value })}
           placeholder="e.g. Invoice financing"
+          maxLength={200}
           className="text-sm leading-6"
         />
       </div>
@@ -168,6 +170,7 @@ export function FinancingTypeConfig({
           value={current.description}
           onChange={(e) => update({ description: e.target.value })}
           placeholder="Short description shown on the card"
+          maxLength={5000}
           className="text-sm leading-6"
         />
       </div>

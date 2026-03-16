@@ -34,6 +34,7 @@ export function BaseStepConfig({ config, onChange, stepTitle }: BaseStepConfigPr
           value={base.label}
           onChange={(e) => update({ label: e.target.value })}
           placeholder={stepTitle}
+          maxLength={200}
           className="text-sm leading-6 min-w-0"
         />
       </div>

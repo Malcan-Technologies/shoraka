@@ -97,6 +97,7 @@ export function DeclarationsConfig({ config, onChange }: { config: unknown; onCh
                   value={item.text}
                   onChange={(e) => updateAt(index, e.target.value)}
                   placeholder="e.g. I confirm that the information provided is accurate."
+                  maxLength={5000}
                   className="text-sm leading-6 min-h-[80px] resize-y min-w-0"
                 />
                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-0.5">

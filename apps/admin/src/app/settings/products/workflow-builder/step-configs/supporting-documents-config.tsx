@@ -374,6 +374,7 @@ function DocRow({
             value={item.name}
             onChange={(e) => onUpdate({ name: e.target.value })}
             placeholder="Document name"
+            maxLength={200}
             className="text-sm leading-6 h-8 min-w-0 flex-1"
           />
           <Button

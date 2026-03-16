@@ -119,6 +119,7 @@ export function InvoiceDetailsConfig({
           </Label>
           <Input
             type="text"
+            inputMode="numeric"
             value={current.min_financing_ratio_percent ?? ""}
             onChange={(e) => {
               const v = e.target.value;
@@ -126,6 +127,7 @@ export function InvoiceDetailsConfig({
               update({ min_financing_ratio_percent: num != null && !Number.isNaN(num) ? num : null });
             }}
             placeholder={String(DEFAULT_MIN_RATIO)}
+            maxLength={3}
           />
         </div>
         <div className="grid gap-2 min-w-0">
@@ -134,6 +136,7 @@ export function InvoiceDetailsConfig({
           </Label>
           <Input
             type="text"
+            inputMode="numeric"
             value={current.max_financing_ratio_percent ?? ""}
             onChange={(e) => {
               const v = e.target.value;
@@ -141,6 +144,7 @@ export function InvoiceDetailsConfig({
               update({ max_financing_ratio_percent: num != null && !Number.isNaN(num) ? num : null });
             }}
             placeholder={String(DEFAULT_MAX_RATIO)}
+            maxLength={3}
           />
         </div>
       </div>
