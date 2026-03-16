@@ -302,16 +302,18 @@ export function ProductsList() {
       />
 
       <Dialog open={!!productToDelete} onOpenChange={(open) => !open && setProductToDelete(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
+        <DialogContent className="rounded-2xl sm:max-w-md max-h-[90vh] flex flex-col overflow-hidden [&>*]:min-w-0">
+          <DialogHeader className="shrink-0">
             <DialogTitle>Delete product</DialogTitle>
           </DialogHeader>
-          {productToDelete && (
-            <p className="text-sm text-muted-foreground leading-6">
-              Delete &quot;{productName(productToDelete)}&quot;? This cannot be undone.
-            </p>
-          )}
-          <DialogFooter>
+          <div className="min-h-0 shrink overflow-y-auto overflow-x-hidden">
+            {productToDelete && (
+              <p className="text-sm text-muted-foreground leading-6 break-words">
+                Delete <strong>{productName(productToDelete)}</strong>? This cannot be undone.
+              </p>
+            )}
+          </div>
+          <DialogFooter className="shrink-0">
             <Button variant="outline" onClick={() => setProductToDelete(null)}>Cancel</Button>
             <Button variant="destructive" onClick={handleConfirmDelete} disabled={deleteProduct.isPending}>
               {deleteProduct.isPending ? "Deleting…" : "Delete"}
