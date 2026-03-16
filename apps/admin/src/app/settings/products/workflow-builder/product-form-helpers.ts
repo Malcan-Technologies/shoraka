@@ -142,11 +142,40 @@ export function workflowDeepEqual(a: unknown, b: unknown): boolean {
 }
 
 /**
+ * Validate mandatory workflow step set: Financing Structure, Contract Details, Invoice Details.
+ * If any exist, all three must exist and appear in order. Returns error message or null.
+ */
+function getMandatoryStepSetError(steps: unknown[]): string | null {
+  const stepKeys = steps.map((s) => getStepKeyFromStepId(getStepId(s)));
+  const fsIndex = stepKeys.findIndex((k) => k === "financing_structure");
+  const cdIndex = stepKeys.findIndex((k) => k === "contract_details");
+  const idIndex = stepKeys.findIndex((k) => k === "invoice_details");
+
+  const hasFs = fsIndex >= 0;
+  const hasCd = cdIndex >= 0;
+  const hasId = idIndex >= 0;
+
+  if (hasFs || hasCd || hasId) {
+    if (!hasFs || !hasCd || !hasId) {
+      return "Financing Structure, Contract Details, and Invoice Details must exist together and appear in the correct order.";
+    }
+    if (fsIndex >= cdIndex || cdIndex >= idIndex) {
+      return "Financing Structure, Contract Details, and Invoice Details must exist together and appear in the correct order.";
+    }
+  }
+  return null;
+}
+
+/**
  * Return list of error messages for steps that are missing required fields.
  * Used to show the amber alert and disable Save.
  */
 export function getRequiredStepErrors(steps: unknown[]): string[] {
   const errors: string[] = [];
+  const mandatoryError = getMandatoryStepSetError(steps);
+  if (mandatoryError) {
+    errors.push(`Workflow: ${mandatoryError}`);
+  }
   for (const step of steps) {
     const stepId = getStepId(step);
     const stepKey = getStepKeyFromStepId(stepId);

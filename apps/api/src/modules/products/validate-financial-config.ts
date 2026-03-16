@@ -13,6 +13,36 @@ function stepIdStartsWith(step: unknown, prefix: string): boolean {
   return getStepId(step).toLowerCase().startsWith(prefix);
 }
 
+/** Mandatory step set: Financing Structure, Contract Details, Invoice Details. Must exist together and in order. */
+function validateMandatoryWorkflowStepSet(workflow: unknown[]): void {
+  if (!Array.isArray(workflow) || workflow.length === 0) return;
+
+  const fsIndex = workflow.findIndex((s) => stepIdStartsWith(s, "financing_structure"));
+  const cdIndex = workflow.findIndex((s) => stepIdStartsWith(s, "contract_details"));
+  const idIndex = workflow.findIndex((s) => stepIdStartsWith(s, "invoice_details"));
+
+  const hasFs = fsIndex >= 0;
+  const hasCd = cdIndex >= 0;
+  const hasId = idIndex >= 0;
+
+  if (hasFs || hasCd || hasId) {
+    if (!hasFs || !hasCd || !hasId) {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        "Financing Structure, Contract Details, and Invoice Details must exist together and appear in the correct order."
+      );
+    }
+    if (fsIndex >= cdIndex || cdIndex >= idIndex) {
+      throw new AppError(
+        400,
+        "VALIDATION_ERROR",
+        "Financing Structure, Contract Details, and Invoice Details must exist together and appear in the correct order."
+      );
+    }
+  }
+}
+
 function getInvoiceDetailsConfig(workflow: unknown[]): Record<string, unknown> | null {
   const step = workflow.find((s) => stepIdStartsWith(s, "invoice_details"));
   if (!step) return null;
@@ -103,6 +133,7 @@ export function validateFinancialConfig(params: {
 }): void {
   validateOfferExpiry(params.offer_expiry_days);
   if (params.workflow && params.workflow.length > 0) {
+    validateMandatoryWorkflowStepSet(params.workflow);
     validateWorkflowFinancialConfig(params.workflow);
   }
 }
