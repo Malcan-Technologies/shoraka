@@ -114,30 +114,7 @@ export class ProductRepository {
         data: { base_id: created.id },
       } as any);
 
-      // ProductLog snapshot (inside same transaction) if user provided
-      if (logContext?.userId) {
-        const createdAny = created as any;
-        const metadata = {
-          workflow: JSON.parse(JSON.stringify(createdAny.workflow)),
-          category_display_order: createdAny.category_display_order ?? null,
-          product_display_order: createdAny.product_display_order ?? null,
-          version: createdAny.version,
-          product_created_at: createdAny.created_at.toISOString(),
-          product_updated_at: createdAny.updated_at.toISOString(),
-        };
-          await tx.productLog.create({
-            data: {
-              user_id: logContext.userId,
-              product_id: created.id,
-              event_type: "PRODUCT_CREATED",
-              ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
-              user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
-              device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
-              metadata: metadata as Prisma.InputJsonValue,
-            },
-          } as any);
-      }
-
+      /** Skip PRODUCT_CREATED log here. Image is merged in completeCreate update; log is written there with full workflow. */
       return created;
     });
   }
@@ -177,6 +154,32 @@ export class ProductRepository {
           offer_expiry_days: offerExpiryPayload ?? undefined,
         },
       } as any);
+      if (logContext?.userId) {
+        const updatedAny = updated as any;
+        const metadata = {
+          workflow: JSON.parse(JSON.stringify(updatedAny.workflow)),
+          category_display_order: updatedAny.category_display_order ?? null,
+          product_display_order: updatedAny.product_display_order ?? null,
+          offer_expiry_days: updatedAny.offer_expiry_days ?? null,
+          version: updatedAny.version,
+          base_id: updatedAny.base_id ?? null,
+          status: updatedAny.status ?? null,
+          product_created_at: updatedAny.created_at.toISOString(),
+          product_updated_at: updatedAny.updated_at.toISOString(),
+          replaced_product_id: null,
+        };
+        await prisma.productLog.create({
+          data: {
+            user_id: logContext.userId,
+            product_id: updated.id,
+            event_type: "PRODUCT_CREATED",
+            ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
+            user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
+            device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
+            metadata: metadata as Prisma.InputJsonValue,
+          },
+        } as any);
+      }
       return updated;
     }
 
@@ -278,8 +281,10 @@ export class ProductRepository {
           workflow: JSON.parse(JSON.stringify(createdAny.workflow)),
           category_display_order: createdAny.category_display_order ?? null,
           product_display_order: createdAny.product_display_order ?? null,
-          version: createdAny.version,
           offer_expiry_days: createdAny.offer_expiry_days ?? null,
+          version: createdAny.version,
+          base_id: createdAny.base_id ?? null,
+          status: createdAny.status ?? null,
           product_created_at: createdAny.created_at.toISOString(),
           product_updated_at: createdAny.updated_at.toISOString(),
           replaced_product_id: id,
@@ -314,9 +319,13 @@ export class ProductRepository {
           workflow: JSON.parse(JSON.stringify(currentAny.workflow)),
           category_display_order: currentAny.category_display_order ?? null,
           product_display_order: currentAny.product_display_order ?? null,
+          offer_expiry_days: currentAny.offer_expiry_days ?? null,
           version: currentAny.version,
+          base_id: currentAny.base_id ?? null,
+          status: currentAny.status ?? null,
           product_created_at: currentAny.created_at.toISOString(),
           product_updated_at: currentAny.updated_at.toISOString(),
+          replaced_product_id: null,
         };
         // create log before soft-delete so snapshot represents persisted state
         await tx.productLog.create({
