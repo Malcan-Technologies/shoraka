@@ -649,7 +649,7 @@ export default function ApplicationsPage() {
 
   /* --- FILTER: state. Status, Financing, Submitted date, Withdraw reason, Offer expiry, Search. --- */
   const [search, setSearch] = React.useState("");
-  const [statusFilter, setStatusFilter] = React.useState("all");
+  const [statusFilters, setStatusFilters] = React.useState<string[]>([]);
   const [financingFilter, setFinancingFilter] = React.useState("all");
   const [submittedFilter, setSubmittedFilter] = React.useState("all");
   const [offerExpiryFilter, setOfferExpiryFilter] = React.useState("all");
@@ -671,8 +671,8 @@ export default function ApplicationsPage() {
           a.invoices.some((inv) => inv.number.toLowerCase().includes(q))
       );
     }
-    if (statusFilter !== "all") {
-      list = list.filter((a) => a.status === statusFilter);
+    if (statusFilters.length > 0) {
+      list = list.filter((a) => statusFilters.includes(a.status));
     }
     if (financingFilter !== "all") {
       const match =
@@ -707,7 +707,7 @@ export default function ApplicationsPage() {
       });
     }
     return list;
-  }, [applications, search, statusFilter, financingFilter, submittedFilter, offerExpiryFilter]);
+  }, [applications, search, statusFilters, financingFilter, submittedFilter, offerExpiryFilter]);
 
   const paginatedApplications = filteredApplications.slice(
     (page - 1) * perPage,
@@ -715,15 +715,14 @@ export default function ApplicationsPage() {
   );
 
   const totalCount = applications.length;
-  const statusMoreFilterCount = [
-    statusFilter !== "all",
-    financingFilter !== "all",
-    offerExpiryFilter !== "all",
-  ].filter(Boolean).length;
+  const activeFilterCount =
+    (submittedFilter !== "all" ? 1 : 0) +
+    statusFilters.length +
+    (financingFilter !== "all" ? 1 : 0) +
+    (offerExpiryFilter !== "all" ? 1 : 0);
   const hasFilters =
     search !== "" ||
-    submittedFilter !== "all" ||
-    statusMoreFilterCount > 0;
+    activeFilterCount > 0;
   const totalPages = Math.ceil(filteredApplications.length / perPage) || 1;
   const startIndex = (page - 1) * perPage + 1;
   const endIndex = Math.min(
@@ -827,7 +826,7 @@ export default function ApplicationsPage() {
           </div>
         </CardHeader>
         <CardContent className="p-0 space-y-6">
-          {/* FILTER: Matches ActivityToolbar — search + 2 dropdowns (Submitted, Filter) + Clear + count. */}
+          {/* FILTER: Search + Status (multi) + Filters (Submitted, Financing, Offer expiring) + Clear + count. */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full">
             <div className="relative flex-1 w-full">
               <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -843,51 +842,65 @@ export default function ApplicationsPage() {
             </div>
 
             <div className="flex items-center gap-2 w-full sm:w-auto">
+              {/* Status: multi-select, first. */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="outline"
                     className="gap-2 h-11 rounded-xl focus-visible:ring-1 focus-visible:ring-offset-0"
                   >
-                    <FunnelIcon className="h-4 w-4" />
-                    Submitted
-                    {submittedFilter !== "all" && (
+                    Status
+                    {statusFilters.length > 0 && (
                       <Badge
                         variant="secondary"
-                        className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs shadow-none"
+                        className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs shadow-none bg-primary text-primary-foreground"
                       >
-                        1
+                        {statusFilters.length}
                       </Badge>
                     )}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56 p-1">
-                  <DropdownMenuLabel>Submitted</DropdownMenuLabel>
-                  {[
-                    { value: "all", label: "All time" },
-                    { value: "7d", label: "Last 7 days" },
-                    { value: "30d", label: "Last 30 days" },
-                    { value: "90d", label: "Last 90 days" },
-                  ].map((opt) => (
+                  <DropdownMenuLabel>Status</DropdownMenuLabel>
+                  <DropdownMenuItem
+                    className="pl-8 relative cursor-pointer"
+                    onClick={() => {
+                      setStatusFilters([]);
+                      setPage(1);
+                    }}
+                  >
+                    {statusFilters.length === 0 && (
+                      <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                        <span className="h-2 w-2 rounded-full bg-foreground" />
+                      </span>
+                    )}
+                    All Statuses
+                  </DropdownMenuItem>
+                  {FILTER_STATUSES.map((key) => (
                     <DropdownMenuItem
-                      key={`sub-${opt.value}`}
-                      className="pl-8 relative"
+                      key={`status-${key}`}
+                      className="pl-8 relative cursor-pointer"
                       onClick={() => {
-                        setSubmittedFilter(opt.value);
+                        setStatusFilters((prev) =>
+                          prev.includes(key)
+                            ? prev.filter((s) => s !== key)
+                            : [...prev, key]
+                        );
                         setPage(1);
                       }}
                     >
-                      {submittedFilter === opt.value && (
+                      {statusFilters.includes(key) && (
                         <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
                           <span className="h-2 w-2 rounded-full bg-foreground" />
                         </span>
                       )}
-                      {opt.label}
+                      {STATUS[key]?.label ?? key}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
 
+              {/* Filters: Submitted, Financing, Offer expiring. */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -895,44 +908,24 @@ export default function ApplicationsPage() {
                     className="gap-2 h-11 rounded-xl focus-visible:ring-1 focus-visible:ring-offset-0"
                   >
                     <FunnelIcon className="h-4 w-4" />
-                    Filter
-                    {statusMoreFilterCount > 0 && (
+                    Filters
+                    {(submittedFilter !== "all" || financingFilter !== "all" || offerExpiryFilter !== "all") && (
                       <Badge
-                        variant="default"
-                        className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs shadow-none"
+                        variant="secondary"
+                        className="ml-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs shadow-none bg-primary text-primary-foreground"
                       >
-                        {statusMoreFilterCount}
+                        {[
+                          submittedFilter !== "all",
+                          financingFilter !== "all",
+                          offerExpiryFilter !== "all",
+                        ].filter(Boolean).length}
                       </Badge>
                     )}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56 p-0">
                   <div className="p-1">
-                    <DropdownMenuLabel>Status</DropdownMenuLabel>
-                    {[
-                      { value: "all", label: "All" },
-                      ...FILTER_STATUSES.map((key) => ({ value: key, label: STATUS[key]?.label ?? key })),
-                    ].map((opt) => (
-                      <DropdownMenuItem
-                        key={`status-${opt.value}`}
-                        className="pl-8 relative"
-                        onClick={() => {
-                          setStatusFilter(opt.value);
-                          setPage(1);
-                        }}
-                      >
-                        {statusFilter === opt.value && (
-                          <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
-                            <span className="h-2 w-2 rounded-full bg-foreground" />
-                          </span>
-                        )}
-                        {opt.label}
-                      </DropdownMenuItem>
-                    ))}
-                  </div>
-                  <DropdownMenuSeparator />
-                  <div className="p-1">
-                    <DropdownMenuLabel>Financing</DropdownMenuLabel>
+                    <DropdownMenuLabel>Financing structure</DropdownMenuLabel>
                     {[
                       { value: "all", label: "All" },
                       ...FINANCING_TYPES.map(({ value, label }) => ({ value, label })),
@@ -956,12 +949,38 @@ export default function ApplicationsPage() {
                   </div>
                   <DropdownMenuSeparator />
                   <div className="p-1">
+                    <DropdownMenuLabel>Submitted in</DropdownMenuLabel>
+                    {[
+                      { value: "all", label: "All time" },
+                      { value: "7d", label: "Last 7 days" },
+                      { value: "30d", label: "Last 30 days" },
+                      { value: "90d", label: "Last 90 days" },
+                    ].map((opt) => (
+                      <DropdownMenuItem
+                        key={`sub-${opt.value}`}
+                        className="pl-8 relative"
+                        onClick={() => {
+                          setSubmittedFilter(opt.value);
+                          setPage(1);
+                        }}
+                      >
+                        {submittedFilter === opt.value && (
+                          <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
+                            <span className="h-2 w-2 rounded-full bg-foreground" />
+                          </span>
+                        )}
+                        {opt.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </div>
+                  <DropdownMenuSeparator />
+                  <div className="p-1">
                     <DropdownMenuLabel>Offer expiring</DropdownMenuLabel>
                     {[
                       { value: "all", label: "All" },
-                      { value: "3d", label: "Within 3 days" },
-                      { value: "7d", label: "Within 7 days" },
-                      { value: "14d", label: "Within 14 days" },
+                      { value: "3d", label: "3 days" },
+                      { value: "7d", label: "7 days" },
+                      { value: "14d", label: "14 days" },
                     ].map((opt) => (
                       <DropdownMenuItem
                         key={`expiry-${opt.value}`}
@@ -988,7 +1007,7 @@ export default function ApplicationsPage() {
                   variant="ghost"
                   onClick={() => {
                     setSearch("");
-                    setStatusFilter("all");
+                    setStatusFilters([]);
                     setFinancingFilter("all");
                     setSubmittedFilter("all");
                     setOfferExpiryFilter("all");
