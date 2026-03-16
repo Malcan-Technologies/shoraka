@@ -82,8 +82,8 @@ router.post("/", async (req: Request, res: Response, next: NextFunction) => {
       offer_expiry_days: validated.offer_expiry_days,
     });
     const userId = req.user?.user_id ?? null;
-    const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || null;
-    const deviceInfo = (req as any).deviceInfo ?? null;
+    const ip = getClientIp(req) ?? null;
+    const deviceInfo = getDeviceInfo(req) ?? null;
     const product = await productRepository.create(
       {
         workflow: validated.workflow,
