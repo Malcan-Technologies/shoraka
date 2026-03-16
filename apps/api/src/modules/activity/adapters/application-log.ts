@@ -157,7 +157,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
       case "APPROVED":
         return "Application approved";
       case "REJECTED":
-        return `Application rejected: ${metadata?.remark || "See reviewer remarks"}`;
+        return "Application rejected";
       default:
         return parts
           .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
@@ -170,8 +170,6 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
       "APPLICATION_CREATED",
       "APPLICATION_SUBMITTED",
       "APPLICATION_RESUBMITTED",
-      "APPLICATION_APPROVED",
-      "APPLICATION_REJECTED",
       "APPLICATION_WITHDRAWN",
       "APPLICATION_COMPLETED",
       "INVOICE_WITHDRAWN",
@@ -180,7 +178,6 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
       "CONTRACT_OFFER_REJECTED",
       "INVOICE_OFFER_REJECTED",
       "OFFER_EXPIRED",
-      "AMENDMENTS_SUBMITTED",
     ];
   }
 }

@@ -243,10 +243,15 @@ function getEventLabel(
     return actionLabel;
   }
 
-  return eventType
-    .split("_")
-    .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
-    .join(" ");
+  return formatEventTypeFallback(eventType);
+}
+
+/** Removes duplicate consecutive words and TAB prefix, then formats to sentence case. */
+function formatEventTypeFallback(eventType: string): string {
+  let parts = eventType.split("_");
+  parts = parts.filter((p, i) => p !== parts[i - 1]);
+  if (parts[0] === "TAB") parts = parts.slice(1);
+  return parts.map((w) => w.charAt(0) + w.slice(1).toLowerCase()).join(" ");
 }
 
 function getEventDotColor(eventType: string): string {

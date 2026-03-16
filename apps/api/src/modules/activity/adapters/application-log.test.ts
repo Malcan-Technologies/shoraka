@@ -14,7 +14,7 @@ describe("ApplicationLogAdapter", () => {
     expect(adapter.buildDescription("APPLICATION_APPLICATION_CREATED")).toBe("Created an application");
     expect(adapter.buildDescription("APPLICATION_APPLICATION_SUBMITTED")).toBe("Submitted the application");
     expect(adapter.buildDescription("APPLICATION_APPLICATION_REJECTED", { remark: "Invalid docs" })).toBe(
-      "Application rejected: Invalid docs"
+      "Application rejected"
     );
   });
 
