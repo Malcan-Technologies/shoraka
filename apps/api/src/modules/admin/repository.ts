@@ -2225,8 +2225,17 @@ export class AdminRepository {
       const financingType = app.financing_type as any;
       const productLabel = financingType?.product_name || "Financing Product";
 
-      // Financing Structure Label: Contract Financing if contract exists, otherwise Invoice Financing
-      const financingStructureLabel = app.contract_id ? "Contract Financing" : "Invoice Financing";
+      // Financing Structure Label: Contract Financing if New or Existing Contract; Invoice Financing if Invoice Only
+      const structure = app.financing_structure as { structure_type?: string } | null;
+      const structureType = structure?.structure_type;
+      let financingStructureLabel: string;
+      if (structureType === "invoice_only") {
+        financingStructureLabel = "Invoice financing";
+      } else if (structureType === "existing_contract" || structureType === "new_contract") {
+        financingStructureLabel = "Contract financing";
+      } else {
+        financingStructureLabel = app.contract_id ? "Contract financing" : "Invoice financing";
+      }
 
       return {
         id: app.id,
@@ -2262,6 +2271,8 @@ export class AdminRepository {
     const skip = (page - 1) * pageSize;
 
     const where: Prisma.ContractWhereInput = {};
+
+    where.contract_details = { not: Prisma.DbNull };
 
     if (statuses && statuses.length > 0) {
       where.status = { in: statuses };
