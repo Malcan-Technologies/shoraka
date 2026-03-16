@@ -65,7 +65,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import {
   ArrowLeftIcon,
   ArrowPathIcon,
-  CheckCircleIcon,
   PencilSquareIcon,
   XCircleIcon,
 } from "@heroicons/react/24/outline";
@@ -678,58 +677,105 @@ export default function DynamicApplicationDetailPage() {
                 <div className="min-w-0 space-y-6">
                   <Card className="rounded-2xl">
                     <CardContent className="pt-6">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="space-y-1">
-                          <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                            Organization
+                      {(() => {
+                        const structureType = (app.financing_structure as { structure_type?: string } | null)?.structure_type;
+                        const financingStructureLabel =
+                          structureType === "invoice_only"
+                            ? "Invoice only"
+                            : structureType === "new_contract"
+                              ? "New contract"
+                              : structureType === "existing_contract"
+                                ? "Existing contract"
+                                : "—";
+                        const customerDetails = (app.contract as { customer_details?: Record<string, unknown> } | null)?.customer_details ?? {};
+                        const companyDetails = (app as { company_details?: Record<string, unknown> }).company_details ?? {};
+                        const paymaster =
+                          String(
+                            customerDetails.customer_name ??
+                              customerDetails.name ??
+                              companyDetails.customer_name ??
+                              companyDetails.company_name ??
+                              ""
+                          ).trim() || "—";
+                        const productVersion = typeof (app as { product_version?: number }).product_version === "number"
+                          ? String((app as { product_version: number }).product_version)
+                          : "—";
+                        return (
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+                            <div className="flex flex-col gap-5 min-w-0">
+                              <div className="space-y-1">
+                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                                  Organization
+                                </div>
+                                <div className="text-sm font-medium">{app.issuer_organization.name}</div>
+                              </div>
+                              <div className="space-y-1">
+                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                                  Owner
+                                </div>
+                                <div className="text-sm font-medium">
+                                  {app.issuer_organization.owner.first_name}{" "}
+                                  {app.issuer_organization.owner.last_name}
+                                </div>
+                              </div>
+                              <div className="space-y-1">
+                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                                  Email
+                                </div>
+                                <div className="text-sm font-medium">
+                                  {app.issuer_organization.owner.email}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="space-y-5">
+                              <div className="space-y-1">
+                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                                  Paymaster
+                                </div>
+                                <div className="text-sm font-medium">{paymaster}</div>
+                              </div>
+                              <div className="space-y-1">
+                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                                  Financing Structure
+                                </div>
+                                <div className="text-sm font-medium">{financingStructureLabel}</div>
+                              </div>
+                              <div className="space-y-1">
+                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                                  Product Version
+                                </div>
+                                <div className="text-sm font-medium">{productVersion}</div>
+                              </div>
+                            </div>
+                            <div className="space-y-5">
+                              <div className="space-y-1">
+                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                                  Reference
+                                </div>
+                                <div className="text-sm font-medium">{app.id}</div>
+                              </div>
+                              <div className="space-y-1">
+                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                                  Submitted At
+                                </div>
+                                <div className="text-sm font-medium">
+                                  {app.submitted_at
+                                    ? format(new Date(app.submitted_at), "PPP p")
+                                    : "Not submitted"}
+                                </div>
+                              </div>
+                              <div className="space-y-1">
+                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                                  Last Updated
+                                </div>
+                                <div className="text-sm font-medium">
+                                  {format(new Date(app.updated_at), "PPP p")}
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-sm font-medium">{app.issuer_organization.name}</div>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                            Owner
-                          </div>
-                          <div className="text-sm font-medium">
-                            {app.issuer_organization.owner.first_name}{" "}
-                            {app.issuer_organization.owner.last_name}
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                            Email
-                          </div>
-                          <div className="text-sm font-medium">
-                            {app.issuer_organization.owner.email}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
-                        <div className="space-y-1">
-                          <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                            Reference
-                          </div>
-                          <div className="text-sm font-medium">{app.id}</div>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                            Submitted At
-                          </div>
-                          <div className="text-sm font-medium">
-                            {app.submitted_at
-                              ? format(new Date(app.submitted_at), "PPP p")
-                              : "Not submitted"}
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                            Last Updated
-                          </div>
-                          <div className="text-sm font-medium">
-                            {format(new Date(app.updated_at), "PPP p")}
-                          </div>
-                        </div>
-                      </div>
+                        );
+                      })()}
                     </CardContent>
                   </Card>
 
