@@ -163,10 +163,12 @@ export function getRequiredStepErrors(steps: unknown[]): string[] {
       const name = String(config.name ?? "").trim();
       const category = String(config.category ?? "").trim();
       const description = String(config.description ?? "").trim();
+      const img = config.image as { s3_key?: string } | undefined;
+      const hasImage = !!(img?.s3_key ?? (config.s3_key as string | undefined) ?? (config._pendingImage as boolean));
       if (!name) errors.push(`${stepLabel}: enter name`);
       if (!category) errors.push(`${stepLabel}: enter category`);
       if (!description) errors.push(`${stepLabel}: enter description`);
-      /** Image is optional. No validation required. */
+      if (!hasImage) errors.push(`${stepLabel}: add image`);
     }
 
     if (stepKey === INVOICE_DETAILS_STEP_KEY) {

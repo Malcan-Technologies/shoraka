@@ -131,7 +131,7 @@ export function FinancingTypeConfig({
   const handleRemove = () => {
     setPendingFile(null);
     onPendingImageChange?.(null);
-    update({ image: undefined });
+    update({ image: undefined, _pendingImage: false } as Record<string, unknown>);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
