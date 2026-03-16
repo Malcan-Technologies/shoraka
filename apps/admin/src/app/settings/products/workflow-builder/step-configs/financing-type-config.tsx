@@ -5,6 +5,8 @@ import { Label } from "../../../../../components/ui/label";
 import { Input } from "../../../../../components/ui/input";
 import { Skeleton } from "../../../../../components/ui/skeleton";
 import { Textarea } from "../../../../../components/ui/textarea";
+import { INPUT_CLASS, TEXTAREA_CLASS, FIELD_GAP, SECTION_GAP } from "../product-form-input-styles";
+import { cn } from "@/lib/utils";
 import { PhotoIcon } from "@heroicons/react/24/outline";
 import { useS3ViewUrl } from "../../../../../hooks/use-s3";
 import { toast } from "sonner";
@@ -140,8 +142,8 @@ export function FinancingTypeConfig({
   const previewLoading = (pendingFile && !previewDataUrl) || (!pendingFile && viewUrlLoading);
 
   return (
-    <div className="grid gap-3 pt-2 text-sm leading-6 sm:gap-4 min-w-0">
-      <div className="grid gap-2 min-w-0">
+    <div className={cn("grid pt-2 text-sm leading-6 min-w-0", SECTION_GAP)}>
+      <div className={cn("grid min-w-0", FIELD_GAP)}>
         <Label htmlFor="ft-name" className="text-sm font-medium">Name</Label>
         <Input
           id="ft-name"
@@ -149,10 +151,10 @@ export function FinancingTypeConfig({
           onChange={(e) => update({ name: e.target.value })}
           placeholder="e.g. Account Receivable (AR) Financing"
           maxLength={200}
-          className="text-sm leading-6"
+          className={INPUT_CLASS}
         />
       </div>
-      <div className="grid gap-2">
+      <div className={cn("grid min-w-0", FIELD_GAP)}>
         <Label htmlFor="ft-category" className="text-sm font-medium">Category</Label>
         <Input
           id="ft-category"
@@ -160,10 +162,10 @@ export function FinancingTypeConfig({
           onChange={(e) => update({ category: e.target.value })}
           placeholder="e.g. Invoice financing"
           maxLength={200}
-          className="text-sm leading-6"
+          className={INPUT_CLASS}
         />
       </div>
-      <div className="grid gap-2">
+      <div className={cn("grid min-w-0", FIELD_GAP)}>
         <Label htmlFor="ft-description" className="text-sm font-medium">Description</Label>
         <Textarea
           id="ft-description"
@@ -171,10 +173,10 @@ export function FinancingTypeConfig({
           onChange={(e) => update({ description: e.target.value })}
           placeholder="Short description shown on the card"
           maxLength={5000}
-          className="text-sm leading-6"
+          className={TEXTAREA_CLASS}
         />
       </div>
-      <div className="space-y-2 min-w-0">
+      <div className={cn("grid min-w-0", FIELD_GAP)}>
         <Label htmlFor="ft-image" className="text-sm font-medium">Image</Label>
         <div className="rounded-lg border border-border bg-background px-3 py-2.5 transition-colors duration-200 min-w-0 w-full">
           <Input

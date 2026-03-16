@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { cn } from "@/lib/utils";
 import { Label } from "../../../../../components/ui/label";
 import { Input } from "../../../../../components/ui/input";
+import { INPUT_CLASS, FIELD_GAP, SECTION_GAP, SELECT_TRIGGER_CLASS } from "../product-form-input-styles";
 import { Button } from "../../../../../components/ui/button";
 import { Skeleton } from "../../../../../components/ui/skeleton";
 import {
@@ -211,7 +213,7 @@ export function SupportingDocumentsConfig({
   const [addCategoryValue, setAddCategoryValue] = React.useState("");
 
   return (
-    <div className="grid gap-3 pt-2 text-sm leading-6 min-w-0 sm:gap-4">
+    <div className={cn("grid pt-2 text-sm leading-6 min-w-0", SECTION_GAP)}>
       {availableToAdd.length > 0 && (
         <Select
           key={enabledCategories.join(",")}
@@ -223,7 +225,7 @@ export function SupportingDocumentsConfig({
             }
           }}
         >
-          <SelectTrigger className="w-full max-w-[200px] h-9">
+          <SelectTrigger className={cn("w-full max-w-[200px]", SELECT_TRIGGER_CLASS)}>
             <SelectValue placeholder="Add category" />
           </SelectTrigger>
           <SelectContent>
@@ -238,7 +240,7 @@ export function SupportingDocumentsConfig({
       {enabledCategories.length === 0 ? (
         <p className="text-sm text-muted-foreground leading-6">Add a category to get started.</p>
       ) : (
-        <div className="grid gap-3 sm:gap-4 min-w-0">
+        <div className={cn("grid min-w-0", SECTION_GAP)}>
           {enabledCategories.map((key) => (
             <CategorySection
               key={key}
@@ -293,7 +295,7 @@ function CategorySection({
   isUploadingTemplate: boolean;
 }) {
   return (
-    <div className="grid gap-3 rounded-lg bg-muted/5 p-3 text-sm leading-6 min-w-0 sm:p-4">
+    <div className={cn("grid rounded-lg bg-muted/5 p-3 text-sm leading-6 min-w-0 sm:p-4", SECTION_GAP)}>
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <Label className="text-sm font-medium shrink-0">{label}</Label>
         <div className="flex flex-wrap items-center gap-2">
@@ -315,7 +317,7 @@ function CategorySection({
       {items.length === 0 ? (
         <p className="text-sm text-muted-foreground leading-6">No documents in this category yet.</p>
       ) : (
-        <ul className="flex flex-col gap-3">
+        <ul className={cn("flex flex-col", SECTION_GAP)}>
           {items.map((item, index) => (
             <DocRow
               key={index}
@@ -375,7 +377,7 @@ function DocRow({
             onChange={(e) => onUpdate({ name: e.target.value })}
             placeholder="Document name"
             maxLength={200}
-            className="text-sm leading-6 h-8 min-w-0 flex-1"
+            className={cn(INPUT_CLASS, "h-8 min-w-0 flex-1")}
           />
           <Button
             type="button"

@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { cn } from "@/lib/utils";
 import { Label } from "../../../../../components/ui/label";
 import { Input } from "../../../../../components/ui/input";
+import { INPUT_CLASS, FIELD_GAP } from "../product-form-input-styles";
 
 export function ContractDetailsConfig({
   config,
@@ -39,8 +41,8 @@ export function ContractDetailsConfig({
   );
 
   return (
-    <div className="grid gap-2 pt-2 min-w-0 text-sm leading-6">
-      <div className="grid gap-2">
+    <div className={cn("grid pt-2 min-w-0 text-sm leading-6", FIELD_GAP)}>
+      <div className={cn("grid", FIELD_GAP)}>
         <Label className="text-sm font-medium">
           Minimum contract duration (months)
         </Label>
@@ -73,7 +75,7 @@ export function ContractDetailsConfig({
             update(normalized);
           }}
           placeholder="e.g. 6"
-          className="text-sm leading-6 min-w-0"
+          className={cn(INPUT_CLASS, "min-w-0")}
         />
         {monthsNumber != null && (
           <p className="text-xs text-muted-foreground">

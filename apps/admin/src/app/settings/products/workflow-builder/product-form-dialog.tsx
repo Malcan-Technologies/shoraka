@@ -55,9 +55,11 @@ import {
   SUPPORTING_DOCS_STEP_KEY,
   normalizeWorkflow,
 } from "./product-form-helpers";
+import { inputClass, SELECT_TRIGGER_CLASS } from "./product-form-input-styles";
 import { AlertTriangle } from "lucide-react";
 import { WorkflowStepCard } from "./workflow-step-card";
 import { StepConfigEditor } from "./step-configs/step-config-editor";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export interface ProductFormDialogProps {
@@ -523,7 +525,7 @@ const hasChanges = !isEdit
                         if (step) handleAddStep(step);
                       }}
                     >
-                      <SelectTrigger className="w-full sm:w-[200px] h-9 shrink-0">
+                      <SelectTrigger className={cn("w-full sm:w-[200px] shrink-0", SELECT_TRIGGER_CLASS)}>
                         <SelectValue placeholder="Add step" />
                       </SelectTrigger>
                       <SelectContent>
@@ -619,7 +621,7 @@ const hasChanges = !isEdit
                     value={offerExpiryDays}
                     onChange={(e) => setOfferExpiryDays(e.target.value)}
                     placeholder="7"
-                    className={offerExpiryError ? "border-destructive focus-visible:ring-destructive" : "focus-visible:ring-primary"}
+                    className={inputClass(!!offerExpiryError)}
                   />
                   <p className="text-xs text-muted-foreground">
                     This defines how long an issuer has to accept the offer after it is generated.
