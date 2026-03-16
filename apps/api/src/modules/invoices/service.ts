@@ -4,8 +4,11 @@ import { OrganizationRepository } from "../organization/repository";
 import { ContractRepository } from "../contracts/repository";
 import { AppError } from "../../lib/http/error-handler";
 import { publishOfferStateEvent } from "../../lib/offer-events";
+import { logApplicationActivity } from "../applications/logs/service";
+import { ActivityPortal } from "../applications/logs/types";
 import { Invoice } from "@prisma/client";
-import { InvoiceStatus, WithdrawReason } from "@cashsouk/types";
+import { ApplicationStatus, ContractStatus, InvoiceStatus, WithdrawReason } from "@cashsouk/types";
+import { computeApplicationStatus } from "../applications/lifecycle";
 import {
   generateApplicationDocumentKey,
   parseApplicationDocumentKey,
@@ -344,6 +347,43 @@ async deleteInvoice(id: string, userId: string) {
         status: "WITHDRAWN",
         emittedAt: new Date().toISOString(),
       });
+    }
+
+    if (invoice.application_id) {
+      await logApplicationActivity({
+        userId,
+        applicationId: invoice.application_id,
+        eventType: "INVOICE_WITHDRAWN",
+        portal: ActivityPortal.ISSUER,
+        entityId: id,
+        metadata: { withdraw_reason: finalReason },
+      });
+
+      const allInvoices = await this.repository.findByApplicationId(invoice.application_id);
+      const app = await this.applicationRepository.findById(invoice.application_id);
+      const contract = app?.contract_id
+        ? await this.contractRepository.findById(app.contract_id)
+        : null;
+      const currentStatus = (app?.status as ApplicationStatus) ?? ApplicationStatus.DRAFT;
+      const newStatus = computeApplicationStatus(
+        contract ? { status: contract.status as ContractStatus } : null,
+        allInvoices.map((i) => ({ status: i.status as InvoiceStatus })),
+        currentStatus
+      );
+      if (newStatus === ApplicationStatus.WITHDRAWN && currentStatus !== ApplicationStatus.WITHDRAWN) {
+        const { prisma } = await import("../../lib/prisma");
+        await prisma.application.update({
+          where: { id: invoice.application_id },
+          data: { status: ApplicationStatus.WITHDRAWN },
+        });
+        await logApplicationActivity({
+          userId,
+          applicationId: invoice.application_id,
+          eventType: "APPLICATION_WITHDRAWN",
+          portal: ActivityPortal.ISSUER,
+          metadata: { withdraw_reason: finalReason },
+        });
+      }
     }
 
     return updated;

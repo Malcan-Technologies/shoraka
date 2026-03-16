@@ -721,6 +721,16 @@ export class ApplicationService {
       emittedAt: new Date().toISOString(),
     });
 
+    if ((updated.status as string) === "WITHDRAWN") {
+      await logApplicationActivity({
+        userId,
+        applicationId: id,
+        eventType: "APPLICATION_WITHDRAWN",
+        portal: ActivityPortal.ISSUER,
+        metadata: { withdraw_reason: WithdrawReason.USER_CANCELLED },
+      });
+    }
+
     return updated;
   }
 
@@ -1074,7 +1084,7 @@ export class ApplicationService {
       });
       /* --- END: Recompute and persist application status after contract offer response --- */
 
-      return { offeredFacility, requestedFacility, now };
+      return { offeredFacility, requestedFacility, now, appStatus };
     });
 
     const eventType =
@@ -1102,6 +1112,15 @@ export class ApplicationService {
         scopeKey: "contract_details",
         status: action === "accept" ? "APPROVED" : "WITHDRAWN",
         emittedAt: responseMeta.now,
+      });
+    }
+
+    if (responseMeta.appStatus === ApplicationStatus.COMPLETED) {
+      await logApplicationActivity({
+        userId,
+        applicationId,
+        eventType: "APPLICATION_COMPLETED",
+        portal: ActivityPortal.ISSUER,
       });
     }
 
@@ -1294,7 +1313,7 @@ export class ApplicationService {
       });
       /* --- END: Recompute and persist application status after invoice offer response --- */
 
-      return { now, offeredAmount, requestedAmount, sectionApproved };
+      return { now, offeredAmount, requestedAmount, sectionApproved, appStatus };
     });
 
     const eventType =
@@ -1336,6 +1355,15 @@ export class ApplicationService {
           emittedAt: responseMeta.now,
         });
       }
+    }
+
+    if (responseMeta.appStatus === ApplicationStatus.COMPLETED) {
+      await logApplicationActivity({
+        userId,
+        applicationId,
+        eventType: "APPLICATION_COMPLETED",
+        portal: ActivityPortal.ISSUER,
+      });
     }
 
     const updated = await this.repository.findById(applicationId);

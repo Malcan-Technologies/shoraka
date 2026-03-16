@@ -13,7 +13,7 @@ import { requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { z } from "zod";
 import { logApplicationActivity } from "./logs/service";
-import { ActivityLevel, ActivityTarget, ActivityAction, ActivityPortal } from "./logs/types";
+import { ActivityPortal } from "./logs/types";
 import { UserRole } from "@prisma/client";
 import { subscribeOfferStateEvents } from "../../lib/offer-events";
 
@@ -42,9 +42,7 @@ async function createApplication(req: Request, res: Response, next: NextFunction
       await logApplicationActivity({
         userId: callerUserId,
         applicationId: application.id,
-        level: ActivityLevel.APPLICATION,
-        target: ActivityTarget.APPLICATION,
-        action: ActivityAction.CREATED,
+        eventType: "APPLICATION_CREATED",
         reviewCycle: 1,
         ipAddress: req.ip ?? undefined,
         userAgent:
@@ -254,16 +252,14 @@ async function updateApplicationStatus(req: Request, res: Response, next: NextFu
         await logApplicationActivity({
           userId: callerUserId,
           applicationId: result.id,
-          level: ActivityLevel.APPLICATION,
-          target: ActivityTarget.APPLICATION,
-          action: status === "RESUBMITTED" ? ActivityAction.RESUBMITTED : ActivityAction.SUBMITTED,
+          eventType: status === "RESUBMITTED" ? "APPLICATION_RESUBMITTED" : "APPLICATION_SUBMITTED",
           reviewCycle: (result as any)?.review_cycle ?? undefined,
           ipAddress: req.ip ?? undefined,
           userAgent:
             (Array.isArray(req.headers["user-agent"])
               ? req.headers["user-agent"][0]
               : req.headers["user-agent"]) ?? undefined,
-          portal: ActivityPortal.ISSUER
+          portal: ActivityPortal.ISSUER,
         });
       }
 
@@ -272,16 +268,14 @@ async function updateApplicationStatus(req: Request, res: Response, next: NextFu
         await logApplicationActivity({
           userId: callerUserId,
           applicationId: result.id,
-          level: ActivityLevel.APPLICATION,
-          target: ActivityTarget.APPLICATION,
-          action: status === "APPROVED" ? ActivityAction.APPROVED : ActivityAction.REJECTED,
+          eventType: status === "APPROVED" ? "APPLICATION_APPROVED" : "APPLICATION_REJECTED",
           reviewCycle: (result as any)?.review_cycle ?? undefined,
           ipAddress: req.ip ?? undefined,
           userAgent:
             (Array.isArray(req.headers["user-agent"])
               ? req.headers["user-agent"][0]
               : req.headers["user-agent"]) ?? undefined,
-          portal: ActivityPortal.ADMIN
+          portal: ActivityPortal.ADMIN,
         });
       }
     } catch {

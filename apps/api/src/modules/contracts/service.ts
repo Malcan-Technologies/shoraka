@@ -3,6 +3,8 @@ import { ApplicationRepository } from "../applications/repository";
 import { OrganizationRepository } from "../organization/repository";
 import { AppError } from "../../lib/http/error-handler";
 import { publishOfferStateEvent } from "../../lib/offer-events";
+import { logApplicationActivity } from "../applications/logs/service";
+import { ActivityPortal } from "../applications/logs/types";
 import { ApplicationReviewRemark, Contract, Prisma } from "@prisma/client";
 import { ContractStatus, WithdrawReason } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
@@ -278,6 +280,17 @@ export class ContractService {
           emittedAt: now,
         });
       }
+      await prisma.application.update({
+        where: { id: app.id },
+        data: { status: "WITHDRAWN" },
+      });
+      await logApplicationActivity({
+        userId,
+        applicationId: app.id,
+        eventType: "APPLICATION_WITHDRAWN",
+        portal: ActivityPortal.ISSUER,
+        metadata: { withdraw_reason: finalReason },
+      });
     }
 
     return updated;

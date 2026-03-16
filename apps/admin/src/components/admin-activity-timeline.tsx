@@ -128,8 +128,11 @@ interface AdminActivityTimelineProps {
 
 function getEventIcon(eventType: string) {
   switch (eventType) {
+    case "APPLICATION_CREATED":
     case "ISSUER_CREATED":
       return <PlayIcon className="h-3.5 w-3.5 text-blue-600" />;
+    case "APPLICATION_SUBMITTED":
+    case "APPLICATION_RESUBMITTED":
     case "ISSUER_SUBMITTED":
       return <ArrowPathIcon className="h-3.5 w-3.5 text-blue-500" />;
     case "APPROVED":
@@ -160,7 +163,18 @@ function getEventIcon(eventType: string) {
       return <DocumentTextIcon className="h-3.5 w-3.5 text-blue-500" />;
     case "CONTRACT_OFFER_SENT":
     case "INVOICE_OFFER_SENT":
+    case "CONTRACT_OFFER_ACCEPTED":
+    case "INVOICE_OFFER_ACCEPTED":
       return <PaperAirplaneIcon className="h-3.5 w-3.5 text-blue-500" />;
+    case "CONTRACT_OFFER_REJECTED":
+    case "INVOICE_OFFER_REJECTED":
+    case "APPLICATION_WITHDRAWN":
+    case "INVOICE_WITHDRAWN":
+      return <XCircleIcon className="h-3.5 w-3.5 text-muted-foreground" />;
+    case "OFFER_EXPIRED":
+      return <ClockIcon className="h-3.5 w-3.5 text-amber-600" />;
+    case "APPLICATION_COMPLETED":
+      return <CheckCircleIcon className="h-3.5 w-3.5 text-emerald-600" />;
     default:
       return <ClockIcon className="h-3.5 w-3.5 text-muted-foreground" />;
   }
@@ -183,6 +197,17 @@ function getEventLabel(
   entityId?: string | null
 ): string {
   const baseLabels: Record<string, string> = {
+    APPLICATION_CREATED: "Application Created",
+    APPLICATION_SUBMITTED: "Application Submitted",
+    APPLICATION_RESUBMITTED: "Application Resubmitted",
+    APPLICATION_WITHDRAWN: "Application Withdrawn",
+    INVOICE_WITHDRAWN: "Invoice Withdrawn",
+    CONTRACT_OFFER_ACCEPTED: "Contract Offer Accepted",
+    INVOICE_OFFER_ACCEPTED: "Invoice Offer Accepted",
+    CONTRACT_OFFER_REJECTED: "Contract Offer Rejected",
+    INVOICE_OFFER_REJECTED: "Invoice Offer Rejected",
+    OFFER_EXPIRED: "Offer Expired",
+    APPLICATION_COMPLETED: "Application Completed",
     ISSUER_CREATED: "Issuer Created",
     ISSUER_SUBMITTED: "Issuer Submitted",
     APPROVED: "Approved",
@@ -250,6 +275,15 @@ function getEventDotColor(eventType: string): string {
       return "bg-emerald-500";
     case "APPLICATION_REJECTED":
       return "bg-destructive";
+    case "APPLICATION_WITHDRAWN":
+    case "INVOICE_WITHDRAWN":
+    case "CONTRACT_OFFER_REJECTED":
+    case "INVOICE_OFFER_REJECTED":
+      return "bg-muted-foreground";
+    case "OFFER_EXPIRED":
+      return "bg-amber-500";
+    case "APPLICATION_COMPLETED":
+      return "bg-emerald-500";
     case "AMENDMENTS_SUBMITTED":
       return "bg-amber-500";
     case "SOPHISTICATED_STATUS_UPDATED":

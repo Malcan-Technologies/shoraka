@@ -122,7 +122,7 @@ async function withdrawInvoice(req: Request, res: Response, next: NextFunction) 
     const { id } = invoiceIdParamSchema.parse(req.params);
     const body = withdrawInvoiceSchema.parse(req.body);
     const userId = getUserId(req);
-    const reason = body.reason === "OFFER_EXPIRED" ? WithdrawReason.OFFER_EXPIRED : body.reason === "USER_CANCELLED" ? WithdrawReason.USER_CANCELLED : undefined;
+    const reason = body.reason === "USER_CANCELLED" ? WithdrawReason.USER_CANCELLED : undefined;
     const invoice = await invoiceService.withdrawInvoice(id, userId, reason);
 
     res.json({ success: true, data: invoice, correlationId: res.locals.correlationId || "unknown" });

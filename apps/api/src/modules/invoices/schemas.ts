@@ -33,5 +33,5 @@ export const requestInvoiceUploadUrlSchema = z.object({
 });
 
 export const withdrawInvoiceSchema = z.object({
-  reason: z.enum(["USER_CANCELLED", "OFFER_EXPIRED"]).optional(),
+  reason: z.enum(["USER_CANCELLED"]).optional(),
 });
