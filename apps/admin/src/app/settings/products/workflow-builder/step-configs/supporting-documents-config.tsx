@@ -98,6 +98,9 @@ function getConfig(config: unknown): Record<CategoryKey, SupportingDocItemShape[
 const TEMPLATE_ACCEPT = "application/pdf";
 const MAX_TEMPLATE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
 
+/** Optional template feature: disabled. Set to true to re-enable. Logic preserved below. */
+const OPTIONAL_TEMPLATE_ENABLED = false;
+
 export function SupportingDocumentsConfig({
   config,
   onChange,
@@ -390,81 +393,83 @@ function DocRow({
             <TrashIcon className="h-4 w-4" />
           </Button>
         </div>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground leading-6 min-w-0">
-          <Input
-            ref={fileInputRef}
-            type="file"
-            accept={templateAccept}
-            onChange={onTemplateSelect}
-            disabled={isUploadingTemplate}
-            className="sr-only"
-            tabIndex={hasTemplate || showPending ? -1 : undefined}
-          />
-          <span className="shrink-0">Optional template:</span>
-          {hasTemplate ? (
-            <>
-              <span className="truncate min-w-0 max-w-[180px] sm:max-w-[200px]" title={item.template!.file_name}>
-                {item.template!.file_name}
-                {item.template!.file_size != null && (
-                  <span className="ml-1">({formatFileSize(item.template!.file_size)})</span>
-                )}
-              </span>
-              <span className="w-full sm:w-auto flex items-center gap-x-2 gap-y-1 shrink-0">
-                {viewUrlLoading ? (
-                  <Skeleton className="h-4 w-10 shrink-0" />
-                ) : viewUrl ? (
-                  <a
-                    href={viewUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
+        {OPTIONAL_TEMPLATE_ENABLED && (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground leading-6 min-w-0">
+            <Input
+              ref={fileInputRef}
+              type="file"
+              accept={templateAccept}
+              onChange={onTemplateSelect}
+              disabled={isUploadingTemplate}
+              className="sr-only"
+              tabIndex={hasTemplate || showPending ? -1 : undefined}
+            />
+            <span className="shrink-0">Optional template:</span>
+            {hasTemplate ? (
+              <>
+                <span className="truncate min-w-0 max-w-[180px] sm:max-w-[200px]" title={item.template!.file_name}>
+                  {item.template!.file_name}
+                  {item.template!.file_size != null && (
+                    <span className="ml-1">({formatFileSize(item.template!.file_size)})</span>
+                  )}
+                </span>
+                <span className="w-full sm:w-auto flex items-center gap-x-2 gap-y-1 shrink-0">
+                  {viewUrlLoading ? (
+                    <Skeleton className="h-4 w-10 shrink-0" />
+                  ) : viewUrl ? (
+                    <a
+                      href={viewUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 hover:underline focus:outline-none"
+                    >
+                      View
+                    </a>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploadingTemplate}
                     className="shrink-0 hover:underline focus:outline-none"
                   >
-                    View
-                  </a>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploadingTemplate}
-                  className="shrink-0 hover:underline focus:outline-none"
-                >
-                  Change
-                </button>
-                <button type="button" onClick={onTemplateRemove} className="shrink-0 hover:text-destructive hover:underline focus:outline-none">
-                  Remove
-                </button>
-              </span>
-            </>
-          ) : showPending ? (
-            <>
-              <span className="truncate min-w-0 max-w-[180px] sm:max-w-[200px]" title={pendingFile.name}>
-                {pendingFile.name} ({formatFileSize(pendingFile.size)})
-              </span>
-              <span className="w-full sm:w-auto flex items-center gap-x-2 gap-y-1 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploadingTemplate}
-                  className="shrink-0 hover:underline focus:outline-none"
-                >
-                  Change
-                </button>
-                <button type="button" onClick={onTemplateRemove} className="shrink-0 hover:text-destructive hover:underline focus:outline-none">
-                  Remove
-                </button>
-              </span>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploadingTemplate}
-              className="shrink-0 hover:text-foreground hover:underline focus:outline-none"
-            >
-              {isUploadingTemplate ? "Uploading…" : "Upload"}
-            </button>
-          )}
-        </div>
+                    Change
+                  </button>
+                  <button type="button" onClick={onTemplateRemove} className="shrink-0 hover:text-destructive hover:underline focus:outline-none">
+                    Remove
+                  </button>
+                </span>
+              </>
+            ) : showPending ? (
+              <>
+                <span className="truncate min-w-0 max-w-[180px] sm:max-w-[200px]" title={pendingFile.name}>
+                  {pendingFile.name} ({formatFileSize(pendingFile.size)})
+                </span>
+                <span className="w-full sm:w-auto flex items-center gap-x-2 gap-y-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploadingTemplate}
+                    className="shrink-0 hover:underline focus:outline-none"
+                  >
+                    Change
+                  </button>
+                  <button type="button" onClick={onTemplateRemove} className="shrink-0 hover:text-destructive hover:underline focus:outline-none">
+                    Remove
+                  </button>
+                </span>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploadingTemplate}
+                className="shrink-0 hover:text-foreground hover:underline focus:outline-none"
+              >
+                {isUploadingTemplate ? "Uploading…" : "Upload"}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </li>
   );
