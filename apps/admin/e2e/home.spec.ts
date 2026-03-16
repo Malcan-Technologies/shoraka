@@ -5,7 +5,7 @@ test.describe("Admin Dashboard Home", () => {
     await page.goto("http://localhost:3002");
 
     await expect(page.getByRole("heading", { name: /CashSouk Admin Dashboard/i })).toBeVisible();
-    
+
     await expect(page.getByText(/Manage loans, users, and platform operations/i)).toBeVisible();
   });
 });

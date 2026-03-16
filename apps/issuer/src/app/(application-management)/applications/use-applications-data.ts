@@ -57,14 +57,18 @@ interface ApiApplication {
   invoices?: ApiInvoice[];
 }
 
-function prepareInvoice(api: ApiInvoice, contractStatus: string | null): NormalizedInvoice {
+function prepareInvoice(api: ApiInvoice, contractStatus: string | null, structureType: string | undefined): NormalizedInvoice {
   const details = (api.details ?? {}) as Record<string, unknown>;
   const doc = details.document as { s3_key?: string; file_name?: string } | undefined;
   const documentS3Key = doc?.s3_key ? String(doc.s3_key) : null;
   const documentName = String(doc?.file_name ?? details.document_name ?? details.document ?? "—");
 
   const offerStatus = api.status === "OFFER_SENT" && api.offer_details ? "Offer received" : null;
-  const canReviewOffer = offerStatus === "Offer received" && (contractStatus === "APPROVED" || !contractStatus);
+  const canReviewOffer = offerStatus === "Offer received" && (
+    structureType === "invoice_only" ||
+    contractStatus === "APPROVED" ||
+    !contractStatus
+  );
 
   const offeredAmount = resolveOfferedAmount(api.offer_details);
   const profitRateVal = resolveOfferedProfitRate(api.offer_details);
@@ -190,7 +194,7 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
     facilityApplied,
     approvedFacility,
     updatedAt: updated.toISOString(),
-    invoices: invoices.map((inv) => prepareInvoice(inv, contractStatus)),
+    invoices: invoices.map((inv) => prepareInvoice(inv, contractStatus, structureType)),
     contractStatus,
     issuerOrganizationId,
     withdrawReason,

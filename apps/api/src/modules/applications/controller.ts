@@ -14,8 +14,6 @@ import { AppError } from "../../lib/http/error-handler";
 import { z } from "zod";
 import { logApplicationActivity } from "./logs/service";
 import { ActivityPortal } from "./logs/types";
-import { UserRole } from "@prisma/client";
-import { subscribeOfferStateEvents } from "../../lib/offer-events";
 
 /**
  * Get authenticated user ID from request
@@ -309,86 +307,6 @@ async function getApplicationLogsHandler(req: Request, res: Response, next: Next
   }
 }
 
-async function streamOfferEventsByApplication(req: Request, res: Response, next: NextFunction) {
-  try {
-    const { id } = applicationIdParamSchema.parse(req.params);
-    const userId = getUserId(req);
-    const isAdmin = req.user?.roles.includes(UserRole.ADMIN) ?? false;
-    await applicationService.ensureOfferEventAccessForApplication(id, userId, isAdmin);
-
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache, no-transform");
-    res.setHeader("Connection", "keep-alive");
-    res.setHeader("X-Accel-Buffering", "no");
-    res.flushHeaders?.();
-
-    const writeEvent = (payload: unknown) => {
-      res.write(`data: ${JSON.stringify(payload)}\n\n`);
-    };
-
-    writeEvent({ type: "offer-stream-connected", applicationId: id, connectedAt: new Date().toISOString() });
-
-    const unsubscribe = subscribeOfferStateEvents((event) => {
-      if (event.applicationId !== id) return;
-      writeEvent(event);
-    });
-
-    const keepAlive = setInterval(() => {
-      res.write(": keepalive\n\n");
-    }, 25000);
-
-    req.on("close", () => {
-      clearInterval(keepAlive);
-      unsubscribe();
-      res.end();
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
-async function streamOfferEventsByOrganization(req: Request, res: Response, next: NextFunction) {
-  try {
-    const organizationId = z.string().cuid().parse(req.query.organizationId);
-    const userId = getUserId(req);
-    const isAdmin = req.user?.roles.includes(UserRole.ADMIN) ?? false;
-    await applicationService.ensureOfferEventAccessForOrganization(organizationId, userId, isAdmin);
-
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache, no-transform");
-    res.setHeader("Connection", "keep-alive");
-    res.setHeader("X-Accel-Buffering", "no");
-    res.flushHeaders?.();
-
-    const writeEvent = (payload: unknown) => {
-      res.write(`data: ${JSON.stringify(payload)}\n\n`);
-    };
-
-    writeEvent({
-      type: "offer-stream-connected",
-      organizationId,
-      connectedAt: new Date().toISOString(),
-    });
-
-    const unsubscribe = subscribeOfferStateEvents((event) => {
-      if (event.issuerOrganizationId !== organizationId) return;
-      writeEvent(event);
-    });
-
-    const keepAlive = setInterval(() => {
-      res.write(": keepalive\n\n");
-    }, 25000);
-
-    req.on("close", () => {
-      clearInterval(keepAlive);
-      unsubscribe();
-      res.end();
-    });
-  } catch (error) {
-    next(error);
-  }
-}
-
 /**
  * Create router for application routes
  */
@@ -403,8 +321,6 @@ export function createApplicationRouter(): Router {
     requireAuth,
     requestUploadUrl
   );
-  router.get("/offers/stream", requireAuth, streamOfferEventsByOrganization);
-  router.get("/:id/offers/stream", requireAuth, streamOfferEventsByApplication);
   router.post(
     "/:id/offers/contracts/accept",
     requireAuth,

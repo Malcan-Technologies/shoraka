@@ -2,7 +2,6 @@ import { ContractRepository } from "./repository";
 import { ApplicationRepository } from "../applications/repository";
 import { OrganizationRepository } from "../organization/repository";
 import { AppError } from "../../lib/http/error-handler";
-import { publishOfferStateEvent } from "../../lib/offer-events";
 import { logApplicationActivity } from "../applications/logs/service";
 import { ActivityPortal } from "../applications/logs/types";
 import { ApplicationReviewRemark, Contract, Prisma } from "@prisma/client";
@@ -266,20 +265,8 @@ export class ContractService {
       withdraw_reason: finalReason,
     });
 
-    const applications = (contract as { applications?: { id: string; issuer_organization_id: string }[] }).applications ?? [];
-    const now = new Date().toISOString();
+    const applications = (contract as { applications?: { id: string }[] }).applications ?? [];
     for (const app of applications) {
-      if (app.issuer_organization_id) {
-        publishOfferStateEvent({
-          eventType: "CONTRACT_WITHDRAWN",
-          applicationId: app.id,
-          issuerOrganizationId: app.issuer_organization_id,
-          scope: "section",
-          scopeKey: "contract_details",
-          status: "WITHDRAWN",
-          emittedAt: now,
-        });
-      }
       await prisma.application.update({
         where: { id: app.id },
         data: { status: "WITHDRAWN" },

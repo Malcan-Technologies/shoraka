@@ -9,6 +9,39 @@ Admin sends offers for Contract and Invoice. The issuer receives them, can accep
 
 Both return full `contract` and `invoice` records including `status` and `offer_details`.
 
+## Refresh Strategy (No SSE)
+
+Issuer and admin review flows no longer use SSE stream endpoints. Freshness is now driven by:
+
+- React Query invalidation after mutations
+- `refetchOnWindowFocus: true`
+- 15s polling (`refetchInterval`), disabled when tab is in background
+
+Import and call the policy
+```typescript
+import { getReviewRefreshPolicy } from "@cashsouk/config";
+```
+
+Add to hook:
+```typescript
+const refreshPolicy = getReviewRefreshPolicy();
+```
+
+Spread it into `useQuery`
+Example:
+```typescript
+import { getReviewRefreshPolicy } from "@cashsouk/config";
+export function useContractDetail(id: string) {
+  const refreshPolicy = getReviewRefreshPolicy();
+  return useQuery({
+    queryKey: ["contract", id],
+    queryFn: () => fetchContract(id),
+    enabled: !!id,
+    ...refreshPolicy,
+  });
+}
+```
+
 ## Offer State
 
 An offer is considered "sent" when:
