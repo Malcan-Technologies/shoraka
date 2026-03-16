@@ -49,6 +49,14 @@ export const getProductsListQuerySchema = z.object({
 
 export type GetProductsListQuery = z.infer<typeof getProductsListQuerySchema>;
 
+/** When offer_expiry_days is provided, must be integer > 0. */
+const offerExpiryDaysSchema = z
+  .number()
+  .int("Offer expiry must be an integer")
+  .refine((v) => v > 0, { message: "Offer expiry must be greater than 0" })
+  .optional()
+  .nullable();
+
 // Body for POST /v1/products (create). Version defaults to 1; not accepted from client.
 export const createProductBodySchema = z.object({
   workflow: z
@@ -62,7 +70,7 @@ export const createProductBodySchema = z.object({
         return false;
       }
     }, { message: "workflow[0].config.category is required and must be a non-empty string" }),
-  offer_expiry_days: z.number().int().positive().optional().nullable(),
+  offer_expiry_days: offerExpiryDaysSchema,
 });
 
 export type CreateProductBody = z.infer<typeof createProductBodySchema>;
@@ -82,7 +90,7 @@ export const updateProductBodySchema = z.object({
       }
     }, { message: "workflow[0].config.category is required and must be a non-empty string" }),
   completeCreate: z.boolean().optional(),
-  offer_expiry_days: z.number().int().positive().optional().nullable(),
+  offer_expiry_days: offerExpiryDaysSchema,
 });
 
 export type UpdateProductBody = z.infer<typeof updateProductBodySchema>;

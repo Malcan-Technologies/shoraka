@@ -47,6 +47,18 @@ export function buildPayloadFromSteps(steps: unknown[]): Step[] {
     if (stepKey === INVOICE_DETAILS_STEP_KEY) {
       const minRaw = config.min_invoice_value;
       const maxRaw = config.max_invoice_value;
+      const minRatioRaw = config.min_financing_ratio_percent;
+      const maxRatioRaw = config.max_financing_ratio_percent;
+
+      const parseRatio = (v: unknown): number | null => {
+        if (v == null || v === "") return null;
+        if (typeof v === "number" && !Number.isNaN(v)) return v;
+        if (typeof v === "string") {
+          const n = parseInt(v, 10);
+          return !Number.isNaN(n) ? n : null;
+        }
+        return null;
+      };
 
       config = {
         ...config,
@@ -63,6 +75,10 @@ export function buildPayloadFromSteps(steps: unknown[]): Step[] {
             : typeof maxRaw === "string" && maxRaw.trim() !== ""
               ? parseMoney(maxRaw)
               : null,
+
+        /** Default 60–80 when blank. */
+        min_financing_ratio_percent: parseRatio(minRatioRaw) ?? 60,
+        max_financing_ratio_percent: parseRatio(maxRatioRaw) ?? 80,
       };
     }
 
@@ -147,19 +163,17 @@ export function getRequiredStepErrors(steps: unknown[]): string[] {
       const name = String(config.name ?? "").trim();
       const category = String(config.category ?? "").trim();
       const description = String(config.description ?? "").trim();
-      const image = config.image as { s3_key?: string } | undefined;
-      const legacyS3Key = String(config.s3_key ?? "").trim();
-      const hasPendingImage = config._pendingImage === true;
-      const hasImage = Boolean((image?.s3_key ?? "").trim()) || Boolean(legacyS3Key) || hasPendingImage;
       if (!name) errors.push(`${stepLabel}: enter name`);
       if (!category) errors.push(`${stepLabel}: enter category`);
       if (!description) errors.push(`${stepLabel}: enter description`);
-      if (!hasImage) errors.push(`${stepLabel}: add an image`);
+      /** Image is optional. No validation required. */
     }
 
     if (stepKey === INVOICE_DETAILS_STEP_KEY) {
       const minRaw = config.min_invoice_value;
       const maxRaw = config.max_invoice_value;
+      const minRatioRaw = config.min_financing_ratio_percent;
+      const maxRatioRaw = config.max_financing_ratio_percent;
 
       let minValue: number | null = null;
       let maxValue: number | null = null;
@@ -190,6 +204,29 @@ export function getRequiredStepErrors(steps: unknown[]): string[] {
         minValue > maxValue
       ) {
         errors.push(`${stepLabel}: minimum cannot exceed maximum`);
+      }
+
+      /** Financing ratio validation: min/max must be numbers, min <= max, min >= 0, max <= 100. */
+      const parseRatio = (v: unknown): number | null => {
+        if (v == null || v === "") return null;
+        if (typeof v === "number" && !Number.isNaN(v)) return v;
+        if (typeof v === "string") {
+          const n = parseInt(v, 10);
+          return !Number.isNaN(n) ? n : null;
+        }
+        return null;
+      };
+      const minRatio = parseRatio(minRatioRaw);
+      const maxRatio = parseRatio(maxRatioRaw);
+
+      if (minRatio != null && minRatio < 0) {
+        errors.push(`${stepLabel}: minimum financing ratio cannot be negative`);
+      }
+      if (maxRatio != null && maxRatio > 100) {
+        errors.push(`${stepLabel}: maximum financing ratio cannot exceed 100`);
+      }
+      if (minRatio != null && maxRatio != null && minRatio > maxRatio) {
+        errors.push(`${stepLabel}: minimum financing ratio cannot be greater than maximum financing ratio`);
       }
     }
 

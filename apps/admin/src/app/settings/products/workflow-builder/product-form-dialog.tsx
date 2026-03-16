@@ -347,13 +347,13 @@ const isEqual = workflowDeepEqual(
   normalizedInitial
 );
 
-/** Offer expiry validation: must be number > 0. Returns error message or null. */
+/** Offer expiry validation: when provided, must be number > 0. Blank is allowed (optional). */
 const offerExpiryError = (() => {
   const v = offerExpiryDays.trim();
-  if (v === "") return "Offer expiry is required";
+  if (v === "") return null;
   const num = Number(v);
-  if (Number.isNaN(num)) return "Offer expiry is required";
-  if (num <= 0) return "Offer expiry cannot be 0";
+  if (Number.isNaN(num)) return "Offer expiry must be a number greater than 0";
+  if (num <= 0) return "Offer expiry must be a number greater than 0";
   return null;
 })();
 
@@ -579,8 +579,7 @@ const hasChanges = !isEdit
                   </Label>
                   <Input
                     id="offer-expiry-days"
-                    type="number"
-                    min={1}
+                    type="text"
                     value={offerExpiryDays}
                     onChange={(e) => setOfferExpiryDays(e.target.value)}
                     placeholder="7"

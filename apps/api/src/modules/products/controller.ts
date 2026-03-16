@@ -9,6 +9,7 @@ import {
   createProductBodySchema,
   updateProductBodySchema,
 } from "./schemas";
+import { validateFinancialConfig } from "./validate-financial-config";
 import { getClientIp, getDeviceInfo } from "../../lib/http/request-utils";
 import {
   getProductS3KeysFromWorkflow,
@@ -74,6 +75,10 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
 router.post("/", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const validated = createProductBodySchema.parse(req.body);
+    validateFinancialConfig({
+      workflow: validated.workflow,
+      offer_expiry_days: validated.offer_expiry_days,
+    });
     const userId = req.user?.user_id ?? null;
     const ip = req.headers["x-forwarded-for"] || req.socket.remoteAddress || null;
     const deviceInfo = (req as any).deviceInfo ?? null;
@@ -147,6 +152,10 @@ router.patch("/:id", async (req: Request, res: Response, next: NextFunction) => 
     if (!current) {
       throw new AppError(404, "NOT_FOUND", "Product not found");
     }
+    validateFinancialConfig({
+      workflow: validated.workflow ?? (current.workflow as unknown[]),
+      offer_expiry_days: validated.offer_expiry_days,
+    });
     const oldWorkflow = (current.workflow as unknown[]) ?? [];
     const keysToDelete =
       validated.workflow !== undefined

@@ -111,16 +111,14 @@ export function InvoiceDetailsConfig({
         </p>
       </div>
 
-      {/* MIN / MAX FINANCING RATIO */}
+      {/* MIN / MAX FINANCING RATIO — text inputs to avoid stepper bugs */}
       <div className="grid grid-cols-2 gap-4">
         <div className="grid gap-2 min-w-0">
           <Label className="text-sm font-medium">
             Min financing ratio (%)
           </Label>
           <Input
-            type="number"
-            min={1}
-            max={100}
+            type="text"
             value={current.min_financing_ratio_percent ?? ""}
             onChange={(e) => {
               const v = e.target.value;
@@ -135,9 +133,7 @@ export function InvoiceDetailsConfig({
             Max financing ratio (%)
           </Label>
           <Input
-            type="number"
-            min={1}
-            max={100}
+            type="text"
             value={current.max_financing_ratio_percent ?? ""}
             onChange={(e) => {
               const v = e.target.value;

@@ -60,6 +60,26 @@ SECTION: ADMIN PRODUCTS
 - verify POST /v1/products/:id/upload-image-url returns presigned URL
 - verify POST /v1/products/:id/upload-template-url returns presigned URL with categoryKey and templateIndex
 
+[ ] Product image is optional
+- verify product can be created without image
+- verify no validation error when image removed
+- verify Financing Type step does not require image
+
+[ ] Offer expiry validation (API)
+- Case: offer_expiry_days = -1 → 400 VALIDATION_ERROR "Offer expiry must be greater than 0"
+- Case: offer_expiry_days = 0 → 400 validation error
+- Case: offer_expiry_days = "--123" or invalid → 400 validation error
+- Case: offer_expiry_days = null or omitted → accepted (optional)
+
+[ ] Financing ratio validation (API)
+- Case: min_financing_ratio_percent = 90, max_financing_ratio_percent = 80 → 400 VALIDATION_ERROR "Invalid financing ratio configuration"
+- Case: min_ratio > max_ratio → validation error
+- Case: min_ratio < 0 or max_ratio > 100 → validation error
+
+[ ] Financing ratio defaults (frontend)
+- Case: min_ratio blank, max_ratio blank → system applies default 60–80 before sending to backend
+- verify buildPayloadFromSteps sets min_financing_ratio_percent: 60, max_financing_ratio_percent: 80 when blank
+
 
 SECTION: PRODUCT VERSION HANDLING
 
