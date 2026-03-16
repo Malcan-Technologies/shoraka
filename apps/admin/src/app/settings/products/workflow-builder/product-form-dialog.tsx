@@ -502,7 +502,10 @@ const hasChanges = !isEdit
             {error instanceof Error ? error.message : "Failed to load product."}
           </p>
         ) : (
-          <fieldset disabled={isSaving} className="flex-1 min-h-0 overflow-y-auto border-0 p-0 m-0 min-w-0">
+          <div
+            aria-disabled={isSaving}
+            className={`flex-1 min-h-0 overflow-y-auto min-w-0 ${isSaving ? "pointer-events-none opacity-70" : ""}`}
+          >
             <div className="flex flex-col gap-3 sm:gap-4 pr-1">
               <div className="grid gap-2 shrink-0 min-w-0">
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
@@ -669,7 +672,7 @@ const hasChanges = !isEdit
                 })()}
               </div>
             </div>
-          </fieldset>
+          </div>
         )}
 
         {!isEdit || product ? (
