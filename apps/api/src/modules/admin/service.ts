@@ -4462,6 +4462,21 @@ export class AdminService {
     return { repository, application };
   }
 
+  /**
+   * Load application for comment actions. Comments are allowed in any state (not just reviewable).
+   */
+  private async loadApplicationForComment(applicationId: string): Promise<{
+    repository: AdminRepository;
+    application: NonNullable<Awaited<ReturnType<AdminRepository["getApplicationById"]>>>;
+  }> {
+    const repository = new AdminRepository();
+    const application = await repository.getApplicationById(applicationId);
+    if (!application) {
+      throw new AppError(404, "NOT_FOUND", "Application not found");
+    }
+    return { repository, application };
+  }
+
   private resolveInvoiceScopeKeyById(
     application: { invoices?: { id: string; details?: { number?: string | number } }[] },
     invoiceId: string
@@ -5179,8 +5194,7 @@ export class AdminService {
     comment: string,
     reviewerUserId: string
   ) {
-    const { repository, application } = await this.prepareForReviewAction(applicationId);
-    await this.ensureUnderReview(repository, applicationId, application.status as ApplicationStatus);
+    const { repository } = await this.loadApplicationForComment(applicationId);
 
     const commentId = `${Date.now()}-${reviewerUserId}`;
     await repository.createReviewRemark(
