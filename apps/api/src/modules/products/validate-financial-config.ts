@@ -13,7 +13,7 @@ function stepIdStartsWith(step: unknown, prefix: string): boolean {
   return getStepId(step).toLowerCase().startsWith(prefix);
 }
 
-/** Mandatory step set: Financing Structure, Contract Details, Invoice Details. Must exist together and in order. */
+/** Mandatory step set: Financing Structure, Contract Details, Invoice Details. All three must be selected and in order. */
 function validateMandatoryWorkflowStepSet(workflow: unknown[]): void {
   if (!Array.isArray(workflow) || workflow.length === 0) return;
 
@@ -25,21 +25,19 @@ function validateMandatoryWorkflowStepSet(workflow: unknown[]): void {
   const hasCd = cdIndex >= 0;
   const hasId = idIndex >= 0;
 
-  if (hasFs || hasCd || hasId) {
-    if (!hasFs || !hasCd || !hasId) {
-      throw new AppError(
-        400,
-        "VALIDATION_ERROR",
-        "Financing Structure, Contract Details, and Invoice Details must exist together and appear in the correct order."
-      );
-    }
-    if (fsIndex >= cdIndex || cdIndex >= idIndex) {
-      throw new AppError(
-        400,
-        "VALIDATION_ERROR",
-        "Financing Structure, Contract Details, and Invoice Details must exist together and appear in the correct order."
-      );
-    }
+  if (!hasFs || !hasCd || !hasId) {
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      "Financing Structure, Contract Details, and Invoice Details must all be selected and appear in the correct order."
+    );
+  }
+  if (fsIndex >= cdIndex || cdIndex >= idIndex) {
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      "Financing Structure, Contract Details, and Invoice Details must all be selected and appear in the correct order."
+    );
   }
 }
 

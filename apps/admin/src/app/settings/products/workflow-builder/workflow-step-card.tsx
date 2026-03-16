@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "@/lib/utils";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Bars3Icon, ChevronDownIcon, ChevronUpIcon, EllipsisVerticalIcon, LockClosedIcon, TrashIcon } from "@heroicons/react/24/outline";
@@ -31,6 +32,8 @@ export interface WorkflowStepCardProps {
   isJustAdded?: boolean;
   /** Show "Edited" when the step has unsaved changes (edit mode only). */
   isEdited?: boolean;
+  /** Show amber outline when step has validation errors. */
+  hasError?: boolean;
   children?: React.ReactNode;
 }
 
@@ -44,6 +47,7 @@ export function WorkflowStepCard({
   isLocked = false,
   isJustAdded = false,
   isEdited = false,
+  hasError = false,
   children,
 }: WorkflowStepCardProps) {
   const {
@@ -67,7 +71,12 @@ export function WorkflowStepCard({
     <Card
       ref={setNodeRef}
       style={style}
-      className={`overflow-visible shrink-0 transition-colors duration-500 ${isJustAdded ? "bg-muted/50" : ""} ${isDragging ? "opacity-60 shadow-xl z-50 scale-[1.02]" : ""}`}
+      className={cn(
+        "overflow-visible shrink-0 transition-colors duration-500",
+        isJustAdded && "bg-muted/50",
+        isDragging && "opacity-60 shadow-xl z-50 scale-[1.02]",
+        hasError && "border border-amber-500/70 dark:border-amber-500/50"
+      )}
     >
       <Collapsible open={isExpanded} onOpenChange={onOpenChange}>
         <CardContent className="p-0">

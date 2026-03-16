@@ -50,12 +50,13 @@ import {
   buildPayloadFromSteps,
   workflowDeepEqual,
   getRequiredStepErrors,
+  getStepIdsWithErrors,
   FIRST_STEP_KEY,
   LAST_STEP_KEY,
   SUPPORTING_DOCS_STEP_KEY,
   normalizeWorkflow,
 } from "./product-form-helpers";
-import { inputClass, SELECT_TRIGGER_CLASS } from "./product-form-input-styles";
+import { INPUT_CLASS, SELECT_TRIGGER_CLASS, FIELD_GAP } from "./product-form-input-styles";
 import { AlertTriangle } from "lucide-react";
 import { WorkflowStepCard } from "./workflow-step-card";
 import { StepConfigEditor } from "./step-configs/step-config-editor";
@@ -440,6 +441,9 @@ const hasChanges = !isEdit
     return edited;
   }, [isEdit, steps, pendingImageFile, pendingSupportingDocTemplates]);
 
+  /** Step IDs with validation errors (for card outline highlight). */
+  const stepIdsWithErrors = useMemo(() => getStepIdsWithErrors(steps), [steps]);
+
   /** Store pending template file; upload happens only on Save. */
   const handlePendingSupportingDocTemplate = useCallback(
     (categoryKey: string, index: number, file: File | null) => {
@@ -578,6 +582,7 @@ const hasChanges = !isEdit
                                   isLocked={stepKey === FIRST_STEP_KEY || stepKey === LAST_STEP_KEY}
                                   isJustAdded={stepId === justAddedStepId}
                                   isEdited={editedStepIds.has(stepId)}
+                                  hasError={stepIdsWithErrors.has(stepId)}
                                   onDelete={
                                     stepKey !== FIRST_STEP_KEY && stepKey !== LAST_STEP_KEY
                                       ? () => handleDeleteStep(stepId)
@@ -610,8 +615,13 @@ const hasChanges = !isEdit
               </div>
 
               {/* Offer settings — below workflow steps, card layout to match workflow container */}
-              <div className="rounded-xl border border-border bg-card p-4 shrink-0 min-w-0">
-                <div className="grid gap-2 min-w-0">
+              <div
+                className={cn(
+                  "rounded-xl border bg-card p-4 shrink-0 min-w-0",
+                  offerExpiryError ? "border-amber-500/70 dark:border-amber-500/50" : "border-border"
+                )}
+              >
+                <div className={cn("grid min-w-0", FIELD_GAP)}>
                   <Label htmlFor="offer-expiry-days" className="text-sm font-medium">
                     Offer expiry (days)
                   </Label>
@@ -621,7 +631,7 @@ const hasChanges = !isEdit
                     value={offerExpiryDays}
                     onChange={(e) => setOfferExpiryDays(e.target.value)}
                     placeholder="7"
-                    className={inputClass(!!offerExpiryError)}
+                    className={INPUT_CLASS}
                   />
                   <p className="text-xs text-muted-foreground">
                     This defines how long an issuer has to accept the offer after it is generated.
