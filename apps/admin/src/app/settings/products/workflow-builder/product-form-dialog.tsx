@@ -34,7 +34,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../../../components/ui/select";
-import { useProduct, useCreateProduct, useUpdateProduct, useProductImageUploadUrl, useProductTemplateUploadUrl } from "../hooks/use-products";
+import {
+  useProduct,
+  useCreateProduct,
+  useUpdateProduct,
+  useRollbackProductCreate,
+  useProductImageUploadUrl,
+  useProductTemplateUploadUrl,
+} from "../hooks/use-products";
 import { uploadFileToS3 } from "../../../../hooks/use-site-documents";
 import { stepDisplayName, getDefaultWorkflowSteps, getRequiredFirstAndLastSteps, type WorkflowStepShape } from "../product-utils";
 import { getStepKeyFromStepId, STEP_KEY_DISPLAY, STEPS_WITHOUT_CONFIG } from "./workflow-registry";
@@ -66,6 +73,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
   const { data: product, isPending: loading, isError, error } = useProduct(productId);
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
+  const rollbackProductCreate = useRollbackProductCreate();
   const requestImageUrl = useProductImageUploadUrl();
   const requestTemplateUrl = useProductTemplateUploadUrl();
   const [steps, setSteps] = useState<unknown[]>([]);
@@ -174,7 +182,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
     const oldIndex = steps.findIndex((s) => getStepId(s) === active.id);
     const newIndex = steps.findIndex((s) => getStepId(s) === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
-    let next = arrayMove(steps, oldIndex, newIndex);
+    const next = arrayMove(steps, oldIndex, newIndex);
     setSteps(enforceFirstAndLast(next));
   };
 
@@ -206,10 +214,14 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
     );
   };
 
-  /** Upload pending image to S3 and write s3Key into the financing type step. Mutates nextSteps. */
-  const uploadImageAndMerge = async (productId: string, nextSteps: Record<string, unknown>[]) => {
+  /** Upload pending image to S3 and write s3Key into the financing type step. Mutates nextSteps. Returns s3Key if uploaded. */
+  const uploadImageAndMerge = async (
+    productId: string,
+    nextSteps: Record<string, unknown>[],
+    onS3KeyUploaded: (key: string) => void
+  ): Promise<string | null> => {
     const imageFile = pendingImageFile ?? pendingImageFileRef.current;
-    if (!imageFile) return;
+    if (!imageFile) return null;
     const { uploadUrl, s3Key } = await requestImageUrl.mutateAsync({
       productId,
       fileName: imageFile.name,
@@ -217,6 +229,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       fileSize: imageFile.size,
     });
     await uploadFileToS3(uploadUrl, imageFile);
+    onS3KeyUploaded(s3Key);
     const firstIdx = nextSteps.findIndex((s) => getStepKeyFromStepId(getStepId(s)) === FIRST_STEP_KEY);
     if (firstIdx >= 0) {
       const step = nextSteps[firstIdx] as Record<string, unknown>;
@@ -228,10 +241,16 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
     }
     setPendingImageFile(null);
     pendingImageFileRef.current = null;
+    return s3Key;
   };
 
-  /** Upload all pending template files to S3 and merge s3Keys into the supporting documents step. Mutates nextSteps. */
-  const uploadTemplatesAndMerge = async (productId: string, nextSteps: Record<string, unknown>[]) => {
+  /** Upload all pending template files to S3 and merge s3Keys into the supporting documents step. Mutates nextSteps. Returns uploaded s3Keys. */
+  const uploadTemplatesAndMerge = async (
+    productId: string,
+    nextSteps: Record<string, unknown>[],
+    onS3KeyUploaded: (key: string) => void
+  ): Promise<string[]> => {
+    const keys: string[] = [];
     for (const [slotKey, file] of Object.entries(pendingSupportingDocTemplates)) {
       const parts = slotKey.split("_");
       const categoryKey = parts.slice(0, -1).join("_");
@@ -246,6 +265,8 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
         fileSize: file.size,
       });
       await uploadFileToS3(uploadUrl, file);
+      onS3KeyUploaded(s3Key);
+      keys.push(s3Key);
       const supportIdx = nextSteps.findIndex((s) => getStepKeyFromStepId(getStepId(s)) === SUPPORTING_DOCS_STEP_KEY);
       if (supportIdx >= 0) {
         const step = nextSteps[supportIdx] as Record<string, unknown>;
@@ -264,15 +285,19 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       }
     }
     setPendingSupportingDocTemplates({});
+    return keys;
   };
 
   const handleSave = async () => {
+    if (saveInProgress) return;
     if (steps.length === 0) {
       toast.error("Add at least one step.");
       return;
     }
     setSaveInProgress(true);
     setSaveTriggered(true);
+    let createdProductId: string | null = null;
+    const uploadedS3Keys: string[] = [];
     try {
       let productId: string;
       if (isEdit && product) {
@@ -290,6 +315,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
           offer_expiry_days: offerExpiryNum,
         });
         productId = created.id;
+        createdProductId = productId;
       }
 
       const nextSteps = steps.map((s) => ({
@@ -297,8 +323,9 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
         config: { ...((s as { config?: Record<string, unknown> }).config ?? {}) },
       }));
 
-      await uploadImageAndMerge(productId, nextSteps);
-      await uploadTemplatesAndMerge(productId, nextSteps);
+      const onS3KeyUploaded = (key: string) => uploadedS3Keys.push(key);
+      await uploadImageAndMerge(productId, nextSteps, onS3KeyUploaded);
+      await uploadTemplatesAndMerge(productId, nextSteps, onS3KeyUploaded);
 
       const payload = buildPayloadFromSteps(nextSteps);
       const offerExpiryNum =
@@ -322,8 +349,18 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
         toast.success("Product created");
       }
       onOpenChange(false);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Save failed");
+    } catch {
+      if (createdProductId) {
+        try {
+          await rollbackProductCreate.mutateAsync({
+            id: createdProductId,
+            s3Keys: uploadedS3Keys,
+          });
+        } catch {
+          /* best-effort rollback; user already sees error */
+        }
+      }
+      toast.error("Something went wrong. Please try again.");
     } finally {
       setSaveInProgress(false);
     }
@@ -465,7 +502,7 @@ const hasChanges = !isEdit
             {error instanceof Error ? error.message : "Failed to load product."}
           </p>
         ) : (
-          <div className="flex-1 min-h-0 overflow-y-auto">
+          <fieldset disabled={isSaving} className="flex-1 min-h-0 overflow-y-auto border-0 p-0 m-0 min-w-0">
             <div className="flex flex-col gap-3 sm:gap-4 pr-1">
               <div className="grid gap-2 shrink-0 min-w-0">
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
@@ -632,7 +669,7 @@ const hasChanges = !isEdit
                 })()}
               </div>
             </div>
-          </div>
+          </fieldset>
         )}
 
         {!isEdit || product ? (
@@ -651,7 +688,7 @@ const hasChanges = !isEdit
                   (isEdit && !hasChanges)
                 }
               >
-                {isSaving ? "Saving…" : isEdit ? "Save" : "Create"}
+                {isSaving ? (isEdit ? "Saving…" : "Creating…") : isEdit ? "Save" : "Create"}
               </Button>
             </DialogFooter>
           </div>

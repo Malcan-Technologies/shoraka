@@ -1233,6 +1233,11 @@ export class ApiClient {
     return this.delete<unknown>(`/v1/products/${id}`);
   }
 
+  /** Rollback failed product creation: soft-delete product and delete orphan S3 files. Only allowed within 5 minutes of creation. */
+  async rollbackProductCreate(id: string, s3Keys: string[]): Promise<ApiResponse<unknown> | ApiError> {
+    return this.post<unknown>(`/v1/products/${id}/rollback-create`, { s3Keys });
+  }
+
   /** Request presigned URL for product image (admin). PNG only, 5MB max. */
   async requestProductImageUploadUrl(
     productId: string,

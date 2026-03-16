@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from "express";
+import { z } from "zod";
 import { AppError } from "../../lib/http/error-handler";
 import { deleteS3Object } from "../../lib/s3/client";
 import { logger } from "../../lib/logger";
@@ -9,7 +10,7 @@ import {
   createProductBodySchema,
   updateProductBodySchema,
 } from "./schemas";
-import { validateFinancialConfig } from "./validate-financial-config";
+import { validateFinancialConfig, applyFinancialDefaults } from "./validate-financial-config";
 import { getClientIp, getDeviceInfo } from "../../lib/http/request-utils";
 import {
   getProductS3KeysFromWorkflow,
@@ -75,6 +76,7 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
 router.post("/", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const validated = createProductBodySchema.parse(req.body);
+    applyFinancialDefaults(validated.workflow);
     validateFinancialConfig({
       workflow: validated.workflow,
       offer_expiry_days: validated.offer_expiry_days,
@@ -152,8 +154,10 @@ router.patch("/:id", async (req: Request, res: Response, next: NextFunction) => 
     if (!current) {
       throw new AppError(404, "NOT_FOUND", "Product not found");
     }
+    const workflowToUse = validated.workflow ?? (current.workflow as unknown[]);
+    if (validated.workflow) applyFinancialDefaults(validated.workflow);
     validateFinancialConfig({
-      workflow: validated.workflow ?? (current.workflow as unknown[]),
+      workflow: workflowToUse,
       offer_expiry_days: validated.offer_expiry_days,
     });
     const oldWorkflow = (current.workflow as unknown[]) ?? [];
@@ -201,6 +205,44 @@ router.patch("/:id", async (req: Request, res: Response, next: NextFunction) => 
         ? new AppError(400, "VALIDATION_ERROR", error.message)
         : error
     );
+  }
+});
+
+/**
+ * POST /v1/products/:id/rollback-create
+ * Rollback a failed product creation: hard-delete the product, product_logs, and orphan S3 files.
+ * Only allowed for products created within the last 5 minutes.
+ */
+const rollbackCreateSchema = z.object({
+  s3Keys: z.array(z.string().min(1)).default([]),
+});
+
+router.post("/:id/rollback-create", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const { s3Keys } = rollbackCreateSchema.parse(req.body ?? {});
+    const product = await productRepository.findById(id);
+    if (!product) {
+      throw new AppError(404, "NOT_FOUND", "Product not found");
+    }
+    const createdAgo = Date.now() - product.created_at.getTime();
+    if (createdAgo > 5 * 60 * 1000) {
+      throw new AppError(400, "ROLLBACK_EXPIRED", "Rollback only allowed within 5 minutes of creation");
+    }
+    await productRepository.hardDeleteForFailedCreate(id);
+    for (const key of s3Keys) {
+      if (key.startsWith("products/")) {
+        try {
+          await deleteS3Object(key);
+        } catch (err) {
+          logger.warn({ err, key }, "Failed to delete orphan S3 object during rollback");
+        }
+      }
+    }
+    res.status(204).send();
+  } catch (error) {
+    if (error instanceof AppError) next(error);
+    else next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
   }
 });
 

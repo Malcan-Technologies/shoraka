@@ -374,10 +374,16 @@ export class ProductRepository {
     } as any);
   }
 
-  // ⚠ HARD DELETE — DO NOT USE (kept for rollback / maintenance only)
-  // async hardDeleteProduct(id: string) {
-  //   return prisma.product.delete({ where: { id } });
-  // }
+  /**
+   * Hard delete for failed creation rollback only. Removes product_logs and product.
+   * Do NOT use for admin-initiated delete (use delete() for soft delete).
+   */
+  async hardDeleteForFailedCreate(id: string): Promise<void> {
+    await prisma.$transaction(async (tx) => {
+      await tx.productLog.deleteMany({ where: { product_id: id } });
+      await tx.product.delete({ where: { id } });
+    });
+  }
 
   async findAll(params: ListProductsParams): Promise<{ products: Product[]; total: number }> {
     const { page, pageSize, search } = params;

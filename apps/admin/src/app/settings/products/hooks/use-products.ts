@@ -115,6 +115,23 @@ export function useDeleteProduct() {
   });
 }
 
+/** Rollback failed product creation: soft-delete product and delete orphan S3 files. */
+export function useRollbackProductCreate() {
+  const queryClient = useQueryClient();
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async ({ id, s3Keys }: { id: string; s3Keys: string[] }) => {
+      const response = await apiClient.rollbackProductCreate(id, s3Keys);
+      unwrapResponse(response);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "products"] });
+    },
+  });
+}
+
 /** Request presigned upload URL for product image. Same pattern as site-documents: then upload to S3 and call confirmProductImage. */
 export function useProductImageUploadUrl() {
   const { getAccessToken } = useAuthToken();
