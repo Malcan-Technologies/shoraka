@@ -208,8 +208,8 @@ export function ProductsList() {
             ) : (
               products.map((p) => (
                 <TableRow key={p.id}>
-                  <TableCell >
-                    <p className="text-sm font-medium truncate" title={productName(p)}>
+                  <TableCell className="max-w-[280px] overflow-hidden">
+                    <p className="text-sm font-medium truncate block" title={productName(p)}>
                       {productName(p)}
                     </p>
                   </TableCell>
