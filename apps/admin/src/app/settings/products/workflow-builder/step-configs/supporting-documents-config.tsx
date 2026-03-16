@@ -153,8 +153,10 @@ export function SupportingDocumentsConfig({
   const addCategory = (key: CategoryKey) => {
     if (enabledCategories.includes(key)) return;
     const nextEnabled = ensureOthersLast([...enabledCategories, key]);
+    const nextLists = { ...lists, [key]: [{ name: "" }] };
+    setLists(nextLists);
     setEnabledCategories(nextEnabled);
-    persist(lists, nextEnabled);
+    persist(nextLists, nextEnabled);
   };
 
   const removeCategory = (key: CategoryKey) => {
