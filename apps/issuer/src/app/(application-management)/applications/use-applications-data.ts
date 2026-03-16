@@ -15,6 +15,7 @@
 import { useMemo } from "react";
 import {
   useOrganization,
+  formatCurrency,
   resolveOfferedAmount,
   resolveOfferedProfitRate,
   resolveRequestedInvoiceAmount,
@@ -69,7 +70,7 @@ function prepareInvoice(api: ApiInvoice, contractStatus: string | null): Normali
   const profitRateVal = resolveOfferedProfitRate(api.offer_details);
   const financingOffered =
     offeredAmount > 0
-      ? `RM ${offeredAmount.toLocaleString("en-MY", { minimumFractionDigits: 2 })}`
+      ? formatCurrency(offeredAmount)
       : offeredAmount === 0
         ? "RM 0.00"
         : "—";
@@ -131,10 +132,10 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
   let approvedFacility = "—";
   const approvedVal = resolveApprovedFacility(contractStatus ?? "", contractDetails);
   if (approvedVal > 0) {
-    approvedFacility = `RM ${approvedVal.toLocaleString("en-MY", { minimumFractionDigits: 2 })}`;
+    approvedFacility = formatCurrency(approvedVal);
   } else if (contractStatus === "APPROVED") {
     const ras = (api as any).review_and_submit as Record<string, unknown> | undefined;
-    if (ras?.approved_facility != null) approvedFacility = String(ras.approved_facility);
+    if (ras?.approved_facility != null) approvedFacility = formatCurrency(Number(ras.approved_facility));
   }
 
   const created = api.created_at ? new Date(api.created_at) : new Date();
