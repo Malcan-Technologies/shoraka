@@ -1345,6 +1345,13 @@ export class ApplicationService {
       return { now, offeredAmount, requestedAmount, sectionApproved, appStatus };
     });
 
+    const invWithDetails = (application as { invoices?: { id: string; details?: { number?: string | number } }[] })
+      .invoices?.find((i) => i.id === invoiceId);
+    const invoiceNumber =
+      invWithDetails?.details?.number != null && String(invWithDetails.details.number).trim() !== ""
+        ? String(invWithDetails.details.number).trim()
+        : undefined;
+
     const eventType =
       action === "accept" ? "INVOICE_OFFER_ACCEPTED" : "INVOICE_OFFER_REJECTED";
     await logApplicationActivity({
@@ -1358,6 +1365,7 @@ export class ApplicationService {
       eventType,
       metadata: {
         invoice_id: invoiceId,
+        invoice_number: invoiceNumber,
         offered_amount: responseMeta.offeredAmount,
         requested_amount: responseMeta.requestedAmount,
         responded_at: responseMeta.now,

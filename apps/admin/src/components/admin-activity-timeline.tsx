@@ -222,6 +222,18 @@ function getEventLabel(
       ? `Invoice ${invoiceNumber} Offer Sent`
       : "Invoice Offer Sent";
   }
+  if (eventType === "INVOICE_OFFER_ACCEPTED") {
+    const invoiceNumber = metadata?.invoice_number;
+    return invoiceNumber != null && invoiceNumber !== ""
+      ? `Invoice ${invoiceNumber} Offer Accepted`
+      : "Invoice Offer Accepted";
+  }
+  if (eventType === "INVOICE_OFFER_REJECTED") {
+    const invoiceNumber = metadata?.invoice_number;
+    return invoiceNumber != null && invoiceNumber !== ""
+      ? `Invoice ${invoiceNumber} Offer Rejected`
+      : "Invoice Offer Rejected";
+  }
   if (baseLabels[eventType]) return baseLabels[eventType];
 
   const actionLabel = ACTION_LABELS[eventType];
