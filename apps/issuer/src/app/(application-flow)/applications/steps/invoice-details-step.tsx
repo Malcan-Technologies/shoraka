@@ -55,7 +55,7 @@ import { DateInput } from "@/app/(application-flow)/applications/components/date
 import { Trash2 } from "lucide-react";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
-import { XMarkIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
+import { XMarkIcon, CloudArrowUpIcon, InformationCircleIcon } from "@heroicons/react/24/outline";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@cashsouk/ui";
@@ -73,6 +73,7 @@ import { MoneyInput } from "@/app/(application-flow)/applications/components/mon
 import { InvoiceDetailsSkeleton } from "@/app/(application-flow)/applications/components/invoice-details-skeleton";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import { generateInvoiceData } from "../utils/dev-data-generator";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 
@@ -1067,7 +1068,7 @@ export default function InvoiceDetailsStep({
                           </TableHead>
 
                           <TableHead className="w-[150px] whitespace-nowrap text-xs font-semibold">
-                            Invoice value (RM)
+                            Invoice value
                           </TableHead>
 
                           <TableHead className="w-[130px] whitespace-nowrap text-xs font-semibold">
@@ -1075,7 +1076,33 @@ export default function InvoiceDetailsStep({
                           </TableHead>
 
                           <TableHead className="w-[200px] whitespace-nowrap text-xs font-semibold">
-                            Maximum financing amount (RM)
+                            <div className="inline-flex items-center gap-1">
+                              Maximum financing amount
+                              {productConfig &&
+                                (typeof productConfig.min_invoice_value === "number" ||
+                                  typeof productConfig.max_invoice_value === "number") && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="cursor-help text-muted-foreground hover:text-foreground">
+                                        <InformationCircleIcon className="h-3.5 w-3.5" />
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className="max-w-[240px]">
+                                      Per-invoice financing limits:{" "}
+                                      {typeof productConfig.min_invoice_value === "number"
+                                        ? `min RM ${formatMoney(productConfig.min_invoice_value)}`
+                                        : ""}
+                                      {typeof productConfig.min_invoice_value === "number" &&
+                                      typeof productConfig.max_invoice_value === "number"
+                                        ? ", "
+                                        : ""}
+                                      {typeof productConfig.max_invoice_value === "number"
+                                        ? `max RM ${formatMoney(productConfig.max_invoice_value)}`
+                                        : ""}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
+                            </div>
                           </TableHead>
 
                           <TableHead className="w-[160px] whitespace-nowrap text-xs font-semibold">
@@ -1149,7 +1176,8 @@ export default function InvoiceDetailsStep({
                                 <MoneyInput
                                   value={inv.value}
                                   onValueChange={(v) => updateInvoiceField(inv.id, "value", v)}
-                                  placeholder="Enter value"
+                                  placeholder="0.00"
+                                  prefix="RM"
                                   disabled={!isEditable}
                                   inputClassName={cn(
                                     withFieldError(
@@ -1208,7 +1236,7 @@ export default function InvoiceDetailsStep({
                               </TableCell>
 
                               <TableCell className="p-2 text-xs tabular-nums whitespace-nowrap">
-                                {formatMoney(financingAmount)}
+                                RM {formatMoney(financingAmount)}
                               </TableCell>
 
                               <TableCell className="p-2">
@@ -1287,8 +1315,8 @@ export default function InvoiceDetailsStep({
                         {/* TOTAL */}
                         <TableRow className="bg-muted/10">
                           <TableCell colSpan={5} />
-                          <TableCell className="p-2 font-semibold text-xs">
-                            {formatMoney(totalFinancingAmount)}
+                          <TableCell className="p-2 font-semibold text-xs tabular-nums">
+                            RM {formatMoney(totalFinancingAmount)}
                             <div className="text-xs text-muted-foreground font-normal">Total</div>
                           </TableCell>
                           <TableCell colSpan={2} />
