@@ -129,11 +129,9 @@ interface AdminActivityTimelineProps {
 function getEventIcon(eventType: string) {
   switch (eventType) {
     case "APPLICATION_CREATED":
-    case "ISSUER_CREATED":
       return <PlayIcon className="h-3.5 w-3.5 text-blue-600" />;
     case "APPLICATION_SUBMITTED":
     case "APPLICATION_RESUBMITTED":
-    case "ISSUER_SUBMITTED":
       return <ArrowPathIcon className="h-3.5 w-3.5 text-blue-500" />;
     case "APPROVED":
     case "SECTION_REVIEWED_APPROVED":
@@ -208,8 +206,6 @@ function getEventLabel(
     INVOICE_OFFER_REJECTED: "Invoice Offer Rejected",
     OFFER_EXPIRED: "Offer Expired",
     APPLICATION_COMPLETED: "Application Completed",
-    ISSUER_CREATED: "Issuer Created",
-    ISSUER_SUBMITTED: "Issuer Submitted",
     APPROVED: "Approved",
     REJECTED: "Rejected",
     FORM_FILLED: "Form Submitted",
@@ -256,8 +252,6 @@ function formatEventTypeFallback(eventType: string): string {
 
 function getEventDotColor(eventType: string): string {
   switch (eventType) {
-    case "ISSUER_CREATED":
-    case "ISSUER_SUBMITTED":
     case "FORM_FILLED":
       return "bg-blue-500";
     case "APPROVED":
