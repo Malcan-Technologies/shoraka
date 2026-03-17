@@ -485,27 +485,30 @@ export default function InvoiceDetailsStep({
     );
   };
 
-  const applicationFinancingAmount = invoices.reduce((acc, inv) => {
-
+  const totalFinancingAmount = invoices.reduce((acc, inv) => {
     const value = parseMoney(inv.value);
-
     const ratio = (inv.financing_ratio_percent || 60) / 100;
     return acc + value * ratio;
   }, 0);
 
-  const totalFinancingAmount = applicationFinancingAmount;
-
   const cd = application?.contract?.contract_details;
   const approvedFacility =
-    (typeof cd?.approved_facility === "number" ? cd.approved_facility : 0) ||
-    (typeof cd?.financing === "number" ? cd.financing : 0);
+    typeof cd?.approved_facility === "number" && cd.approved_facility > 0
+      ? cd.approved_facility
+      : 0;
   const utilizedFacility =
     typeof cd?.utilized_facility === "number" ? cd.utilized_facility : 0;
-  const contractValue = typeof cd?.value === "number" ? cd.value : 0;
-  const contractFinancing = typeof cd?.financing === "number" ? cd.financing : 0;
+  const contractFinancing =
+    typeof cd?.financing === "number"
+      ? cd.financing
+      : parseMoney(String(cd?.financing ?? ""));
 
-  const submittedFinancingAmount = invoices
-    .filter((inv) => inv.status === "SUBMITTED")
+  /** For existing_contract: utilised counts only APPROVED invoices under this contract (from backend). */
+  const availableFacility = approvedFacility - utilizedFacility;
+
+  /** For existing_contract: sum of financing for invoices not yet approved (DRAFT, SUBMITTED). Used for facility validation and live available display. */
+  const nonApprovedFinancingAmount = invoices
+    .filter((inv) => inv.status !== "APPROVED")
     .reduce((sum, inv) => {
       const value = parseMoney(inv.value);
       const ratio = (inv.financing_ratio_percent || 60) / 100;
@@ -513,18 +516,19 @@ export default function InvoiceDetailsStep({
     }, 0);
 
   const structureType = application?.financing_structure?.structure_type;
+  const hasApprovedFacility = approvedFacility > 0;
+
   let facilityLimit = 0;
   if (structureType === "new_contract") {
-    facilityLimit = approvedFacility > 0 ? approvedFacility : parseMoney(contractValue || contractFinancing);
+    facilityLimit = hasApprovedFacility ? approvedFacility : contractFinancing;
   }
   if (structureType === "existing_contract") {
-    facilityLimit = parseMoney(approvedFacility);
+    facilityLimit = availableFacility;
   }
 
-  const liveAvailableFacility =
-    approvedFacility > 0
-      ? approvedFacility - utilizedFacility - submittedFinancingAmount
-      : facilityLimit - totalFinancingAmount;
+  const liveAvailableFacility = hasApprovedFacility
+    ? availableFacility - nonApprovedFinancingAmount
+    : facilityLimit - totalFinancingAmount;
 
   const hasPendingFiles = Object.keys(selectedFiles).length > 0;
   const hasPartialRows = invoices.some((inv) => isRowPartial(inv));
@@ -581,8 +585,11 @@ export default function InvoiceDetailsStep({
       if (invalidRatioInvoice) {
         validationError = "Financing ratio must be between 60% and 80%.";
       }
-      if (!validationError && totalFinancingAmount > facilityLimit) {
-        validationError = `Total financing amount (RM ${formatMoney(totalFinancingAmount)}) exceeds facility limit (RM ${formatMoney(facilityLimit)}).`;
+      if (!validationError) {
+        const amountToCheck = isExistingContract ? nonApprovedFinancingAmount : totalFinancingAmount;
+        if (amountToCheck > facilityLimit) {
+          validationError = `Total financing amount (RM ${formatMoney(amountToCheck)}) exceeds facility limit (RM ${formatMoney(facilityLimit)}).`;
+        }
       }
     }
   }
@@ -932,9 +939,7 @@ export default function InvoiceDetailsStep({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applicationId, application?.financing_structure?.structure_type, application?.contract_id]);
 
-  // const isNewContract =
-  //   application?.financing_structure?.structure_type === "new_contract"; // Not used
-  const hasFacilityData = approvedFacility > 0;
+  const hasFacilityData = hasApprovedFacility;
 
   if (isLoadingApplication || devTools?.showSkeletonDebug) {
     return (
@@ -988,7 +993,7 @@ export default function InvoiceDetailsStep({
                 <div className={formLabelClassName}>Approved facility</div>
                 <div className={valueClassName}>
                   {!hasFacilityData
-                    ? "—"
+                    ? "N/A"
                     : `RM ${formatMoney(approvedFacility)}`}
                 </div>
 
@@ -996,7 +1001,7 @@ export default function InvoiceDetailsStep({
                 <div className={formLabelClassName}>Utilised facility</div>
                 <div className={valueClassName}>
                   {!hasFacilityData
-                    ? "—"
+                    ? "N/A"
                     : `RM ${formatMoney(utilizedFacility)}`}
                 </div>
 
@@ -1012,10 +1017,10 @@ export default function InvoiceDetailsStep({
                   )}
                 >
                   {!hasFacilityData
-                    ? "—"
+                    ? "N/A"
                     : liveAvailableFacility != null
                       ? `RM ${formatMoney(liveAvailableFacility)}`
-                      : "—"}
+                      : "N/A"}
                 </div>
               </div>
             </div>
