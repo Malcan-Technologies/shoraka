@@ -744,21 +744,23 @@ export function ReviewAndSubmitStep({
             {supportingLoading || devTools?.showSkeletonDebug ? (
               <ReviewSupportingDocsSkeleton />
             ) : (
-              <div className="space-y-3 px-3">
+              <div className={sectionGridClassName}>
                 {categories.flatMap((cat: any) => cat.documents).map((doc: any, i: number) => (
-                  <div key={i} className="flex justify-between items-center py-2">
-                    <span className={labelClassName}>{doc.title}</span>
-                    {doc.file ? (
-                      <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] h-6">
-                        <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
-                          <CheckIconSolid className="h-2.5 w-2.5 text-background" />
+                  <React.Fragment key={i}>
+                    <div className={labelClassName}>{doc.title}</div>
+                    <div className={valueClassName}>
+                      {doc.file ? (
+                        <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] h-6">
+                          <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
+                            <CheckIconSolid className="h-2.5 w-2.5 text-background" />
+                          </div>
+                          <span className="text-[14px] font-medium truncate">{doc.file.file_name}</span>
                         </div>
-                        <span className="text-[14px] font-medium truncate max-w-[140px]">{doc.file.file_name}</span>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground italic">Not provided</span>
-                    )}
-                  </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">Not provided</span>
+                      )}
+                    </div>
+                  </React.Fragment>
                 ))}
               </div>
             )}
