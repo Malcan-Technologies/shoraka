@@ -154,7 +154,7 @@ type LocalInvoice = {
   maturity_date: string;
   financing_ratio_percent?: number;
   status?: string;
-  document?: { file_name: string; file_size: number; s3_key?: string } | null;
+  document?: { file_name: string; file_size?: number; s3_key?: string; uploaded_at?: string } | null;
 };
 
 interface InvoiceDetailsStepProps {
@@ -341,6 +341,7 @@ export default function InvoiceDetailsStep({
       file_name: file.name,
       file_size: file.size,
       s3_key: existingS3Key,
+      uploaded_at: new Date().toISOString(),
     });
     toast.success("File added");
   };
@@ -739,6 +740,7 @@ export default function InvoiceDetailsStep({
           file_name: file.name,
           file_size: file.size,
           s3_key: s3Key,
+          uploaded_at: new Date().toISOString(),
         },
       };
 
@@ -764,6 +766,7 @@ export default function InvoiceDetailsStep({
                 file_name: file.name,
                 file_size: file.size,
                 s3_key: s3Key,
+                uploaded_at: new Date().toISOString(),
               },
             }
             : row
@@ -858,6 +861,7 @@ export default function InvoiceDetailsStep({
                 file_name: d.document.file_name,
                 file_size: d.document.file_size,
                 s3_key: d.document.s3_key,
+                uploaded_at: d.document.uploaded_at,
               }
               : null,
           };

@@ -168,7 +168,11 @@ export function SupportingDocumentsStep({
   const [initialUploadedFiles, setInitialUploadedFiles] = React.useState<Record<string, { name: string; size?: number; uploadedAt?: string; s3_key?: string }>>({});
 
 
-  const buildDataToSave = (files: Record<string, { s3_key?: string; name?: string }>, uploadResults: Map<string, { s3_key: string; file_name: string }> = new Map()) => {
+  /** Canonical file structure: file_name, file_size, s3_key, uploaded_at (ISO string). */
+  const buildDataToSave = (
+    files: Record<string, { s3_key?: string; name?: string; size?: number; uploadedAt?: string }>,
+    uploadResults: Map<string, { s3_key: string; file_name: string; file_size: number; uploaded_at: string }> = new Map()
+  ) => {
     return {
       categories: categories.map((category: any, categoryIndex: number) => ({
         name: category.name,
@@ -178,10 +182,12 @@ export function SupportingDocumentsStep({
           const existingFile = files[key];
           const s3_key = uploadResult?.s3_key || existingFile?.s3_key;
           const fileName = uploadResult?.file_name || existingFile?.name;
+          const fileSize = uploadResult?.file_size ?? existingFile?.size ?? 0;
+          const uploadedAt = uploadResult?.uploaded_at ?? existingFile?.uploadedAt ?? new Date().toISOString();
           if (s3_key && fileName) {
             return {
               title: document.title,
-              file: { file_name: fileName, s3_key: s3_key },
+              file: { file_name: fileName, file_size: fileSize, s3_key, uploaded_at: uploadedAt },
             };
           }
           return { title: document.title };
@@ -235,11 +241,12 @@ export function SupportingDocumentsStep({
           const key = `${categoryIndex}-${documentIndex}`;
 
           if (savedDocument.file?.s3_key && savedDocument.file?.file_name) {
+            const f = savedDocument.file;
             loadedFiles[key] = {
-              name: savedDocument.file.file_name,
-              size: 0,
-              uploadedAt: new Date().toISOString().split("T")[0],
-              s3_key: savedDocument.file.s3_key,
+              name: f.file_name,
+              size: f.file_size ?? 0,
+              uploadedAt: f.uploaded_at ?? new Date().toISOString(),
+              s3_key: f.s3_key,
             };
           }
         }
@@ -357,6 +364,8 @@ export function SupportingDocumentsStep({
         uploadResults.set(key, {
           s3_key: s3Key,
           file_name: typedFile.name,
+          file_size: typedFile.size,
+          uploaded_at: new Date().toISOString(),
         });
 
         const cuidMatch = s3Key.match(/v\d+-(\d{4}-\d{2}-\d{2})-([^.]+)\./);
@@ -379,17 +388,18 @@ export function SupportingDocumentsStep({
 
     const updatedFiles: Record<string, { name: string; size?: number; uploadedAt?: string; s3_key?: string }> = { ...uploadedFiles };
     uploadResults.forEach((result, key) => {
-      const originalFile = selectedFiles[key];
       if (updatedFiles[key]) {
         updatedFiles[key] = {
           ...updatedFiles[key],
           s3_key: result.s3_key,
+          size: result.file_size,
+          uploadedAt: result.uploaded_at,
         };
       } else {
         updatedFiles[key] = {
           name: result.file_name,
-          size: originalFile?.size || 0,
-          uploadedAt: new Date().toISOString().split("T")[0],
+          size: result.file_size,
+          uploadedAt: result.uploaded_at,
           s3_key: result.s3_key,
         };
       }

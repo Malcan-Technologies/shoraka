@@ -1,9 +1,11 @@
 import { z } from "zod";
 
+/** Canonical file structure for all application flow uploads. */
 export const documentSchema = z.object({
   s3_key: z.string(),
   file_name: z.string(),
-  file_size: z.number(),
+  file_size: z.number().optional(),
+  uploaded_at: z.string().optional(),
 });
 
 export const contractDetailsSchema = z.object({

@@ -285,7 +285,8 @@ function YesNoRadioGroup({
 interface FileMetadata {
   s3_key: string;
   file_name: string;
-  file_size: number;
+  file_size?: number;
+  uploaded_at?: string;
 }
 
 interface FileUploadAreaProps {
@@ -749,6 +750,7 @@ export function ContractDetailsStep({
           s3_key: s3Key,
           file_name: pendingFiles.contract.name,
           file_size: pendingFiles.contract.size,
+          uploaded_at: new Date().toISOString(),
         };
         setLastS3Keys((prev) => ({ ...prev, contract: s3Key }));
       } finally {
@@ -797,6 +799,7 @@ export function ContractDetailsStep({
           s3_key: s3Key,
           file_name: pendingFiles.consent.name,
           file_size: pendingFiles.consent.size,
+          uploaded_at: new Date().toISOString(),
         };
         setLastS3Keys((prev) => ({ ...prev, consent: s3Key }));
       } finally {
