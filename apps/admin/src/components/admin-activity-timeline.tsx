@@ -565,7 +565,7 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
                               metadata?.rejection_reason && (
                                 <div className="mt-3 rounded-xl border bg-muted/20 p-4 text-[11px] space-y-2">
                                   <p className="text-[11px] font-bold">Reason</p>
-                                  <p className="text-[11px] font-medium text-foreground leading-relaxed">
+                                  <p className="text-[11px] font-normal text-foreground leading-relaxed">
                                     {String(metadata.rejection_reason)}
                                   </p>
                                 </div>

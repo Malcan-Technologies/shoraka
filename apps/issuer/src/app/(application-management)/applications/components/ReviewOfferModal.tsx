@@ -3,13 +3,13 @@
 /**
  * Modal for reviewing contract or invoice offers. Issuer can download offer letter,
  * accept, or reject. No digital signing in this phase.
+ * Rejection reason section is shown only when user chooses to reject.
  */
 
 import * as React from "react";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
@@ -26,7 +26,7 @@ import {
 } from "@/hooks/use-applications";
 import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
-import { ArrowDownTrayIcon } from "@heroicons/react/24/outline";
+import { ArrowDownTrayIcon, CheckCircleIcon } from "@heroicons/react/24/solid";
 import { toast } from "sonner";
 import type { NormalizedInvoice } from "../status";
 
@@ -75,9 +75,16 @@ export function ReviewOfferModal({
 
   const [downloading, setDownloading] = React.useState(false);
   const [rejectionReason, setRejectionReason] = React.useState("");
+  const [isRejectMode, setIsRejectMode] = React.useState(false);
 
-  const title =
-    type === "contract" ? "Contract Financing Offer" : "Invoice Financing Offer";
+  const contractDetails = (contractRecord as { contract_details?: Record<string, unknown> } | null)
+    ?.contract_details;
+  const contractName =
+    type === "contract"
+      ? (contractDetails?.title ?? contractDetails?.contract_title
+          ? String(contractDetails.title ?? contractDetails.contract_title)
+          : "—")
+      : invoice?.number ?? "Invoice financing";
 
   const handleDownload = async () => {
     if (type === "invoice" && !invoice?.id) {
@@ -164,14 +171,6 @@ export function ReviewOfferModal({
       : od?.offered_amount != null
         ? formatCurrency(Number(od.offered_amount))
         : "—";
-  const requestedValue =
-    type === "contract"
-      ? od?.requested_facility != null
-        ? formatCurrency(Number(od.requested_facility))
-        : "—"
-      : od?.requested_amount != null
-        ? formatCurrency(Number(od.requested_amount))
-        : "—";
   const expiresAt = od?.expires_at
     ? format(new Date(String(od.expires_at)), "d MMM yyyy")
     : "—";
@@ -187,80 +186,131 @@ export function ReviewOfferModal({
 
   return (
     <Dialog open={true} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[560px]">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-3 py-2">
-          {isLoading ? (
-            <p className="text-sm text-muted-foreground">Loading offer...</p>
-          ) : (
-            <>
-              <p className="text-sm text-muted-foreground">
-                Requested: {requestedValue}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Offered: {offeredValue}
-              </p>
-              {type === "invoice" && od?.offered_profit_rate_percent != null && (
-                <p className="text-sm text-muted-foreground">
-                  Profit rate: {Number(od.offered_profit_rate_percent)}%
+      <DialogContent className="sm:max-w-[440px] gap-3 p-4">
+        <DialogTitle className="sr-only">
+          Financing offer approved — Review and respond
+        </DialogTitle>
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground py-6">Loading offer...</p>
+        ) : (
+          <>
+            <div className="flex flex-col items-center text-center">
+              <div className="rounded-full bg-slate-700 p-2 mb-2">
+                <CheckCircleIcon className="h-6 w-6 text-white" />
+              </div>
+              <div className="space-y-0.5">
+                <p className="text-base font-semibold">
+                  Congratulations! Your financing request
                 </p>
-              )}
-              <p className="text-sm text-muted-foreground">
-                Expires: {expiresAt}
-              </p>
-              <div className="space-y-2 pt-2">
+                <p className="text-xl font-bold text-red-700">
+                  {offeredValue}
+                </p>
+                <p className="text-base font-semibold">
+                  has been approved
+                </p>
+              </div>
+            </div>
+
+            <dl className="grid grid-cols-[1fr_auto] gap-x-6 gap-y-1.5 text-sm py-2 border-t">
+              <dt className="text-muted-foreground">
+                {type === "contract" ? "Contract name:" : "Invoice:"}
+              </dt>
+              <dd className="font-medium text-foreground text-right tabular-nums">
+                {contractName}
+              </dd>
+              <dt className="text-muted-foreground">Approved facility:</dt>
+              <dd className="font-medium text-foreground text-right tabular-nums">
+                {offeredValue}
+              </dd>
+              <dt className="text-muted-foreground">
+                {type === "contract" ? "Contract end date:" : "Expires:"}
+              </dt>
+              <dd className="font-medium text-foreground text-right tabular-nums">
+                {expiresAt}
+              </dd>
+            </dl>
+
+            <div className="flex justify-center">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownload}
+                disabled={!canDownload || downloading}
+                className="shrink-0 h-8"
+              >
+                <ArrowDownTrayIcon className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                Download offer letter
+              </Button>
+            </div>
+
+            {!isRejectMode ? (
+              <div className="flex gap-2 justify-center pt-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsRejectMode(true)}
+                  disabled={isPending}
+                  className="h-8 bg-red-50 text-red-700 hover:bg-red-100 hover:text-red-800 border-red-200"
+                >
+                  Reject offer
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleAccept}
+                  disabled={isPending}
+                  className="h-8 bg-teal-600 hover:bg-teal-700 text-white shrink-0"
+                >
+                  Accept and sign offer
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-2 pt-2 border-t">
                 <Label htmlFor="rejection-reason" className="text-sm text-muted-foreground">
-                  Please provide a reason for rejecting this offer.
+                  Please provide a reason for rejecting this offer?
                 </Label>
                 <Textarea
                   id="rejection-reason"
                   placeholder="Enter reason"
                   value={rejectionReason}
                   onChange={(e) => setRejectionReason(e.target.value)}
-                  rows={3}
-                  className="resize-none"
+                  rows={2}
+                  className="resize-none text-sm"
+                  maxLength={200}
                 />
+                <p className="text-xs text-muted-foreground text-right">
+                  {rejectionReason.length}/200 characters
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsRejectMode(false)}
+                  disabled={isPending}
+                  className="h-7 text-muted-foreground -ml-2"
+                >
+                  Back to accept or reject
+                </Button>
               </div>
-            </>
-          )}
-        </div>
+            )}
 
-        <DialogFooter className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDownload}
-            disabled={!canDownload || isLoading || downloading}
-            className="w-full sm:w-auto shrink-0"
-          >
-            <ArrowDownTrayIcon className="h-4 w-4 mr-2 shrink-0" />
-            <span className="truncate">Download offer letter</span>
-          </Button>
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-1 sm:justify-end">
-            <Button variant="outline" size="sm" onClick={onClose} disabled={isPending}>
-              Close
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleReject}
-              disabled={isLoading || isPending}
-            >
-              Reject Offer
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleAccept}
-              disabled={isLoading || isPending}
-              className="bg-teal-600 hover:bg-teal-700 text-white shrink-0"
-            >
-              Accept Offer
-            </Button>
-          </div>
-        </DialogFooter>
+            <DialogFooter className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between pt-2 border-t">
+              <p className="text-xs text-muted-foreground">
+                Please respond to this offer by {expiresAt}.
+              </p>
+              {isRejectMode && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleReject}
+                  disabled={isPending}
+                  className="h-8 shrink-0"
+                >
+                  <CheckCircleIcon className="h-3.5 w-3.5 mr-1.5" />
+                  Confirm rejection
+                </Button>
+              )}
+            </DialogFooter>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
