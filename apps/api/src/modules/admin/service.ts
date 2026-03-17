@@ -55,12 +55,7 @@ import { AMLFetcherService } from "../regtank/aml-fetcher";
 import type { PortalType } from "../regtank/types";
 import { extractCorporateEntities } from "../regtank/helpers/extract-corporate-entities";
 import { logApplicationActivity } from "../applications/logs/service";
-import {
-  ActivityAction,
-  ActivityLevel,
-  ActivityPortal,
-  ActivityTarget,
-} from "../applications/logs/types";
+import { ActivityPortal } from "../applications/logs/types";
 
 export interface AdminLogContext {
   ipAddress?: string | null;
@@ -4147,9 +4142,6 @@ export class AdminService {
       await logApplicationActivity({
         userId,
         applicationId: id,
-        level: ActivityLevel.APPLICATION,
-        target: ActivityTarget.APPLICATION,
-        action: ActivityAction.RESET,
         portal: ActivityPortal.ADMIN,
         eventType: "APPLICATION_RESET_TO_UNDER_REVIEW",
         metadata: { previous_status: currentStatus },
@@ -4161,9 +4153,6 @@ export class AdminService {
       await logApplicationActivity({
         userId,
         applicationId: id,
-        level: ActivityLevel.APPLICATION,
-        target: ActivityTarget.APPLICATION,
-        action: ActivityAction.APPROVED,
         portal: ActivityPortal.ADMIN,
         eventType: "APPLICATION_APPROVED",
         ipAddress: logContext?.ipAddress ?? undefined,
@@ -4174,9 +4163,6 @@ export class AdminService {
       await logApplicationActivity({
         userId,
         applicationId: id,
-        level: ActivityLevel.APPLICATION,
-        target: ActivityTarget.APPLICATION,
-        action: ActivityAction.REJECTED,
         portal: ActivityPortal.ADMIN,
         eventType: "APPLICATION_REJECTED",
         ipAddress: logContext?.ipAddress ?? undefined,
@@ -4444,26 +4430,6 @@ export class AdminService {
     }
   }
 
-  private sectionToTarget(section: string): ActivityTarget {
-    const map: Record<string, ActivityTarget> = {
-      financial: ActivityTarget.FINANCIAL,
-      company_details: ActivityTarget.APPLICATION,
-      business_details: ActivityTarget.APPLICATION,
-      supporting_documents: ActivityTarget.SUPPORTING_DOCUMENT,
-      contract_details: ActivityTarget.CONTRACT,
-      invoice_details: ActivityTarget.INVOICE,
-    };
-    return map[section] ?? ActivityTarget.APPLICATION;
-  }
-
-  private statusToAction(newStatus: string): ActivityAction {
-    if (newStatus === "APPROVED") return ActivityAction.APPROVED;
-    if (newStatus === "REJECTED") return ActivityAction.REJECTED;
-    if (newStatus === "AMENDMENT_REQUESTED") return ActivityAction.REQUESTED_AMENDMENT;
-    if (newStatus === "PENDING") return ActivityAction.RESET;
-    return ActivityAction.APPROVED;
-  }
-
   private async logReviewActivity(
     applicationId: string,
     scope: "section" | "item",
@@ -4475,20 +4441,16 @@ export class AdminService {
     logContext?: AdminLogContext
   ): Promise<void> {
     if (!reviewerUserId) return;
-    const action = this.statusToAction(newStatus);
     const isSection = scope === "section";
-    const target = isSection ? this.sectionToTarget(scopeKey) : getSectionForScopeKey(scopeKey) === "invoice_details" ? ActivityTarget.INVOICE : ActivityTarget.SUPPORTING_DOCUMENT;
+    const eventType = isSection ? `SECTION_REVIEWED_${newStatus}` : `ITEM_REVIEWED_${newStatus}`;
 
     await logApplicationActivity({
       userId: reviewerUserId,
       applicationId,
-      level: isSection ? ActivityLevel.TAB : ActivityLevel.ITEM,
-      target,
-      action,
+      eventType,
       remark: remark ?? undefined,
       entityId: isSection ? undefined : scopeKey,
       portal: ActivityPortal.ADMIN,
-      eventType: isSection ? `SECTION_REVIEWED_${newStatus}` : `ITEM_REVIEWED_${newStatus}`,
       metadata: { old_status: oldStatus, new_status: newStatus, scope, scope_key: scopeKey },
       ipAddress: logContext?.ipAddress ?? undefined,
       userAgent: logContext?.userAgent ?? undefined,
@@ -4688,9 +4650,6 @@ export class AdminService {
     await logApplicationActivity({
       userId: reviewerUserId,
       applicationId,
-      level: ActivityLevel.TAB,
-      target: ActivityTarget.CONTRACT,
-      action: ActivityAction.APPROVED,
       portal: ActivityPortal.ADMIN,
       eventType: "CONTRACT_OFFER_SENT",
       metadata: {
@@ -4929,9 +4888,6 @@ export class AdminService {
     await logApplicationActivity({
       userId: reviewerUserId,
       applicationId,
-      level: ActivityLevel.ITEM,
-      target: ActivityTarget.INVOICE,
-      action: ActivityAction.APPROVED,
       entityId: scopeKey,
       portal: ActivityPortal.ADMIN,
       eventType: "INVOICE_OFFER_SENT",
@@ -5111,9 +5067,6 @@ export class AdminService {
       await logApplicationActivity({
         userId: reviewerUserId,
         applicationId,
-        level: ActivityLevel.TAB,
-        target: ActivityTarget.CONTRACT,
-        action: ActivityAction.RESET,
         portal: ActivityPortal.ADMIN,
         eventType: "CONTRACT_OFFER_RETRACTED",
         ipAddress: logContext?.ipAddress ?? undefined,
@@ -5202,9 +5155,6 @@ export class AdminService {
       await logApplicationActivity({
         userId: reviewerUserId,
         applicationId,
-        level: ActivityLevel.ITEM,
-        target: ActivityTarget.INVOICE,
-        action: ActivityAction.RESET,
         entityId: itemId,
         portal: ActivityPortal.ADMIN,
         eventType: "INVOICE_OFFER_RETRACTED",
@@ -5943,9 +5893,6 @@ export class AdminService {
     await logApplicationActivity({
       userId: reviewerUserId,
       applicationId,
-      level: ActivityLevel.APPLICATION,
-      target: ActivityTarget.APPLICATION,
-      action: ActivityAction.REQUESTED_AMENDMENT,
       portal: ActivityPortal.ADMIN,
       eventType: "AMENDMENTS_SUBMITTED",
       remark: `${pending.length} amendment(s) sent to issuer`,

@@ -26,7 +26,7 @@ import {
 } from "./amendments/service";
 import { prisma } from "../../lib/prisma";
 import { logApplicationActivity } from "./logs/service";
-import { ActivityLevel, ActivityTarget, ActivityAction, ActivityPortal } from "./logs/types";
+import { ActivityPortal } from "./logs/types";
 import {
   generateContractOfferLetterStream,
   generateInvoiceOfferLetterStream,
@@ -1123,9 +1123,6 @@ export class ApplicationService {
     await logApplicationActivity({
       userId,
       applicationId,
-      level: ActivityLevel.TAB,
-      target: ActivityTarget.CONTRACT,
-      action: action === "accept" ? ActivityAction.APPROVED : ActivityAction.REJECTED,
       portal: ActivityPortal.ISSUER,
       eventType,
       metadata: {
@@ -1368,9 +1365,6 @@ export class ApplicationService {
     await logApplicationActivity({
       userId,
       applicationId,
-      level: ActivityLevel.ITEM,
-      target: ActivityTarget.INVOICE,
-      action: action === "accept" ? ActivityAction.APPROVED : ActivityAction.REJECTED,
       entityId: scopeKey ?? undefined,
       portal: ActivityPortal.ISSUER,
       eventType,

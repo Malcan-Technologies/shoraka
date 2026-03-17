@@ -10,6 +10,7 @@ import {
   ActivityFilters,
   buildDateFilter,
 } from "./base";
+import { ApplicationLogEventType } from "../../applications/logs/types";
 
 export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
   public readonly name = "ApplicationLogAdapter";
@@ -141,10 +142,18 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
     return unified as UnifiedActivity;
   }
 
-  buildDescription(eventType: string, metadata?: Record<string, unknown>): string {
-    if (eventType === "AMENDMENTS_SUBMITTED") {
-      return "Amendment request sent to issuer";
-    }
+  buildDescription(eventType: string, _metadata?: Record<string, unknown>): string {
+    const labels: Record<string, string> = {
+      [ApplicationLogEventType.APPLICATION_CREATED]: "Created an application",
+      [ApplicationLogEventType.APPLICATION_SUBMITTED]: "Submitted the application",
+      [ApplicationLogEventType.APPLICATION_RESUBMITTED]: "Resubmitted the application",
+      [ApplicationLogEventType.APPLICATION_APPROVED]: "Application approved",
+      [ApplicationLogEventType.APPLICATION_REJECTED]: "Application rejected",
+      [ApplicationLogEventType.APPLICATION_WITHDRAWN]: "Application withdrawn",
+      [ApplicationLogEventType.APPLICATION_COMPLETED]: "Application completed",
+      [ApplicationLogEventType.AMENDMENTS_SUBMITTED]: "Amendment request sent to issuer",
+    };
+    if (labels[eventType]) return labels[eventType];
     const parts = eventType.split("_");
     const action = parts[parts.length - 1];
     switch (action) {
@@ -160,25 +169,13 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
         return "Application rejected";
       default:
         return parts
+          .filter((p, i, arr) => p !== arr[i - 1])
           .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
           .join(" ");
     }
   }
 
   getEventTypes(): string[] {
-    return [
-      "APPLICATION_CREATED",
-      "APPLICATION_SUBMITTED",
-      "APPLICATION_RESUBMITTED",
-      "APPLICATION_WITHDRAWN",
-      "APPLICATION_COMPLETED",
-      "INVOICE_WITHDRAWN",
-      "CONTRACT_WITHDRAWN",
-      "CONTRACT_OFFER_ACCEPTED",
-      "INVOICE_OFFER_ACCEPTED",
-      "CONTRACT_OFFER_REJECTED",
-      "INVOICE_OFFER_REJECTED",
-      "OFFER_EXPIRED",
-    ];
+    return Object.values(ApplicationLogEventType);
   }
 }
