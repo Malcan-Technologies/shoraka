@@ -290,18 +290,25 @@ function ApplicationCard({
                 application.contractId &&
                 application.contractStatus === "OFFER_SENT" &&
                 onReviewContractOffer && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="reviewOffer"
-                    className="rounded-xl"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onReviewContractOffer(application.id, application.contractId!);
-                    }}
-                  >
-                    Review Contract Financing Offer
-                  </Button>
+                  <div className="flex flex-col items-center gap-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="reviewOffer"
+                      className="rounded-xl"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onReviewContractOffer(application.id, application.contractId!);
+                      }}
+                    >
+                      Review Contract Financing Offer
+                    </Button>
+                    {application.expiresAt && (
+                      <span className="text-xs text-muted-foreground">
+                        Offer valid until: {format(new Date(application.expiresAt), "d MMM yyyy")}
+                      </span>
+                    )}
+                  </div>
                 )}
               {/* Edit Application: only for drafts. Links to /edit. Non-drafts get Withdraw only. */}
               <DropdownMenu>
@@ -516,6 +523,11 @@ function ApplicationCard({
                                         Review Offer
                                       </Button>
                                     )
+                                  )}
+                                  {showReviewOffer && inv.offer_details?.expires_at && (
+                                    <span className="text-[10px] text-muted-foreground">
+                                      Offer valid until: {format(new Date(String(inv.offer_details.expires_at)), "d MMM yyyy")}
+                                    </span>
                                   )}
                                   {showMakeAmendments && (
                                     <Button

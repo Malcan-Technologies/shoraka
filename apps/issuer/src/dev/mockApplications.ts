@@ -111,6 +111,13 @@ export function generateMockApplications(count: number): NormalizedApplication[]
     const appId = cuidLike();
     const contractId = scenario.hasContract ? "ctr-" + cuidLike().slice(0, 12) : null;
 
+    const invoiceExpiresAt =
+      scenario.hasExpiry &&
+      new Date(now);
+    if (invoiceExpiresAt) {
+      invoiceExpiresAt.setDate(invoiceExpiresAt.getDate() + (i % 3 === 0 ? 2 : i % 3 === 1 ? 7 : 15));
+    }
+
     const invoices: NormalizedInvoice[] = [];
     for (let j = 0; j < scenario.invoiceCount; j++) {
       const invStatus = scenario.invoiceStatuses[j] ?? "DRAFT";
@@ -123,6 +130,10 @@ export function generateMockApplications(count: number): NormalizedApplication[]
       const matDate = scenario.maturityDateNull && j === 0 ? null : `2026-0${6 + (j % 3)}-${Math.min(15 + j, 28)}`;
       const invValue = 30000 + Math.floor(Math.random() * 120000);
       const invApplied = Math.floor(invValue * 0.8);
+      const invOfferDetails =
+        scenario.hasExpiry && invStatus === "OFFER_SENT" && invoiceExpiresAt
+          ? { expires_at: invoiceExpiresAt.toISOString() }
+          : null;
 
       invoices.push(
         makeInvoice({
@@ -138,6 +149,7 @@ export function generateMockApplications(count: number): NormalizedApplication[]
           canReviewOffer: !!canReview,
           financingOffered: hasOffer ? `RM ${(invApplied * 1.1).toLocaleString("en-MY", { minimumFractionDigits: 2 })}` : "—",
           profitRate: hasOffer ? `${7 + (j % 3)}%` : "—",
+          offer_details: invOfferDetails,
         })
       );
     }
