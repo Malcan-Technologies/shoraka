@@ -554,13 +554,13 @@ export default function EditApplicationPage() {
 
   // Centralized safe navigation that enforces version guard precedence
   const safeNavigate = React.useCallback(
-    async (path: string, opts: { leavingPage: boolean } = { leavingPage: false }) => {
+    async (path: string, opts: { leavingPage?: boolean; forceSkipGuard?: boolean } = {}) => {
       const mismatch = await checkNow();
       if (mismatch) return;
 
-      if (!hasUnsavedChanges) {
-        // No unsaved changes -> navigate immediately
-        if (opts.leavingPage) {
+      const { leavingPage = false, forceSkipGuard = false } = opts;
+      if (forceSkipGuard || !hasUnsavedChanges) {
+        if (leavingPage) {
           router.replace(path);
         } else {
           router.push(path);
@@ -569,7 +569,7 @@ export default function EditApplicationPage() {
       }
 
       // Has unsaved changes -> store pending and ask guard to open modal
-      pendingNavRef.current = { path, leavingPage: opts.leavingPage };
+      pendingNavRef.current = { path, leavingPage };
       requestNavigation(path);
     },
     [checkNow, hasUnsavedChanges, pendingNavRef, requestNavigation, router]
@@ -964,7 +964,7 @@ export default function EditApplicationPage() {
             allowedMaxStep: Math.max(wizardState.allowedMaxStep, nextStep),
           });
         }
-        await safeNavigate(`/applications/edit/${applicationId}?step=${nextStep}`, { leavingPage: false });
+        await safeNavigate(`/applications/edit/${applicationId}?step=${nextStep}`, { leavingPage: false, forceSkipGuard: true });
         return;
       }
 
@@ -1068,7 +1068,7 @@ export default function EditApplicationPage() {
       if (dataToSave === null) {
         toast.success("Step completed");
         setHasUnsavedChanges(false);
-        await safeNavigate(`/applications/edit/${applicationId}?step=${stepFromUrl + 1}`, { leavingPage: false });
+        await safeNavigate(`/applications/edit/${applicationId}?step=${stepFromUrl + 1}`, { leavingPage: false, forceSkipGuard: true });
         return;
       }
 
@@ -1084,7 +1084,7 @@ export default function EditApplicationPage() {
         const hasBeenSavedBefore = (dataToSave as Record<string, unknown>)?.hasBeenSavedBefore as boolean | undefined;
         if (hasBeenSavedBefore) {
           setHasUnsavedChanges(false);
-          await safeNavigate(`/applications/edit/${applicationId}?step=${nextStep}`, { leavingPage: false });
+          await safeNavigate(`/applications/edit/${applicationId}?step=${nextStep}`, { leavingPage: false, forceSkipGuard: true });
           return;
         }
         // First-time save: fall through to standard save flow
@@ -1147,10 +1147,9 @@ export default function EditApplicationPage() {
       }
 
       // Navigate to next step IMMEDIATELY (deterministic, no loops)
-      // Do NOT invalidate queries - this causes skeleton reload flicker
-      // The next page will load fresh data on mount
+      // forceSkipGuard: closure has stale hasUnsavedChanges; we just saved so skip confirmation modal
       const navigationStep = structureChanged ? stepFromUrl + 1 : nextStep;
-      await safeNavigate(`/applications/edit/${applicationId}?step=${navigationStep}`, { leavingPage: false });
+      await safeNavigate(`/applications/edit/${applicationId}?step=${navigationStep}`, { leavingPage: false, forceSkipGuard: true });
     } catch (err) {
       if (err instanceof Error && err.message.startsWith("VALIDATION_")) {
         return;
