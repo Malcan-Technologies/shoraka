@@ -147,7 +147,7 @@ const inputClassName = cn(formInputClassName, formInputDisabledClassName);
 const inputClassNameEditable = formInputClassName;
 const labelClassName = formLabelClassName;
 const labelClassNameEditable = formLabelClassName;
-const sectionHeaderClassName = "text-base sm:text-lg md:text-xl font-semibold";
+const sectionHeaderClassName = "text-base font-semibold text-foreground";
 
 export function CompanyDetailsStep({
   applicationId,
@@ -583,7 +583,7 @@ export function CompanyDetailsStep({
         {/* Company Info Section */}
         <div className="space-y-3">
           <div>
-          <h3 className={sectionHeaderClassName}>Company info</h3>
+          <h3 className={sectionHeaderClassName}>Company Info</h3>
             <div className="border-b border-border mt-2 mb-4" />
           </div>
 
@@ -733,7 +733,7 @@ export function CompanyDetailsStep({
         {/* Banking Details Section */}
         <div className="space-y-3">
           <div>
-            <h3 className={sectionHeaderClassName}>Banking details</h3>
+            <h3 className={sectionHeaderClassName}>Banking Details</h3>
             <div className="border-b border-border mt-2 mb-4" />
           </div>
 

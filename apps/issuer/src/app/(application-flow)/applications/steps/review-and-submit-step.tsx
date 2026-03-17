@@ -9,8 +9,13 @@ import { useProducts } from "@/hooks/use-products";
 import { ProductImagePreview } from "@/app/(application-flow)/applications/components/product-image-preview";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { CheckCircleIcon } from "@heroicons/react/24/outline";
-import { formLabelClassName } from "@/app/(application-flow)/applications/components/form-control";
-import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
+import {
+  formLabelClassName,
+  fieldTooltipContentClassName,
+  fieldTooltipTriggerClassName,
+} from "@/app/(application-flow)/applications/components/form-control";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { InformationCircleIcon } from "@heroicons/react/24/outline";
 import { cn } from "@/lib/utils";
 import { useInvoicesByApplication } from "@/hooks/use-invoices";
 import { getStepKeyFromStepId, type ApplicationStepKey } from "@cashsouk/types";
@@ -26,6 +31,7 @@ import { useDevTools } from "@/app/(application-flow)/applications/components/de
 import { formatMoney } from "../components/money";
 import { FINANCIAL_FIELD_LABELS } from "@cashsouk/types";
 import { FinancialStatementsSkeleton } from "../components/financial-statements-skeleton";
+import { FileDisplayBadge } from "../components/file-display-badge";
 
 const INVOICE_TABLE_COLUMNS = {
   invoice: "w-[140px]",
@@ -144,6 +150,21 @@ export function ReviewAndSubmitStep({
 
     return step?.config || null;
   }, [selectedProduct]);
+
+  const invoiceProductConfig = React.useMemo(() => {
+    if (!selectedProduct?.workflow || !application?.financing_type?.product_id) return null;
+    const step = selectedProduct.workflow.find(
+      (s: any) => getStepKeyFromStepId(s.id) === "invoice_details"
+    );
+    const config = step?.config || {};
+    const hasMin = typeof config.min_invoice_value === "number";
+    const hasMax = typeof config.max_invoice_value === "number";
+    if (!hasMin && !hasMax) return null;
+    return {
+      min_invoice_value: config.min_invoice_value ?? null,
+      max_invoice_value: config.max_invoice_value ?? null,
+    };
+  }, [selectedProduct, application]);
 
   // Get the product image S3 key from config
   const productImageS3Key = financingTypeConfig?.image?.s3_key || "";
@@ -331,7 +352,7 @@ export function ReviewAndSubmitStep({
         {showFinancingDetails && (
           <section className={sectionSpacingClassName}>
             <div>
-              <h3 className={sectionHeaderClassName}>Financing details</h3>
+              <h3 className={sectionHeaderClassName}>Financing Details</h3>
               <div className="border-b border-border mt-2 mb-4" />
             </div>
 
@@ -356,49 +377,53 @@ export function ReviewAndSubmitStep({
           </section>
         )}
 
-        {/* Contract */}
-        {showContractSection && !isInvoiceOnly && (
+        {/* Contract (when !invoice_only) or Customer (when invoice_only) */}
+        {showContractSection && (
           <section className={sectionSpacingClassName}>
             <div>
-              <h3 className={sectionHeaderClassName}>Contract</h3>
+              <h3 className={sectionHeaderClassName}>{isInvoiceOnly ? "Customer" : "Contract"}</h3>
               <div className="border-b border-border mt-2 mb-4" />
             </div>
             {contractLoading || devTools?.showSkeletonDebug ? (
               <ReviewContractSkeleton />
             ) : (
               <div className={sectionGridClassName}>
-                <div className={labelClassName}>Contract title</div>
-                <div className={valueClassName}>{contractDetails.title || "—"}</div>
+                {!isInvoiceOnly && (
+                  <>
+                    <div className={labelClassName}>Contract Title</div>
+                    <div className={valueClassName}>{contractDetails.title || "—"}</div>
 
-                <div className={labelClassName}>Contract status</div>
-                <div className={cn(valueClassName, "text-primary font-semibold")}>New submission (Pending approval)</div>
+                    <div className={labelClassName}>Contract Status</div>
+                    <div className={cn(valueClassName, "text-primary font-semibold")}>New submission (Pending approval)</div>
+                  </>
+                )}
 
-                <div className={labelClassName}>Customer</div>
+                <div className={labelClassName}>Customer Name</div>
                 <div className={valueClassName}>{customerDetails.name || "—"}</div>
 
-                <div className={labelClassName}>Contract value</div>
+                <div className={labelClassName}>Contract Value</div>
                 <div className={valueClassName}>
-                  {isValidNumber(contractValue) ? renderMoney(contractValue) : "—"}
+                  {isValidNumber(contractValue) ? renderMoney(contractValue) : "N/A"}
                 </div>
 
-                <div className={labelClassName}>Contract financing</div>
+                <div className={labelClassName}>Contract Financing</div>
                 <div className={valueClassName}>
                   {contractDetails?.financing === null || contractDetails?.financing === undefined
                     ? "N/A"
                     : renderMoney(contractDetails?.financing)}
                 </div>
 
-                <div className={labelClassName}>Approved facility</div>
+                <div className={labelClassName}>Approved Facility</div>
                 <div className={valueClassName}>
                   {isValidNumber(approvedFacility) && approvedFacility > 0 ? renderMoney(approvedFacility) : "N/A"}
                 </div>
 
-                <div className={labelClassName}>Utilised facility</div>
+                <div className={labelClassName}>Utilised Facility</div>
                 <div className={valueClassName}>
                   {structureType === "existing_contract" && isValidNumber(totalFinancingAmount) ? renderMoney(totalFinancingAmount) : "N/A"}
                 </div>
 
-                <div className={labelClassName}>Available facility</div>
+                <div className={labelClassName}>Available Facility</div>
                 <div className={valueClassName}>
                   {structureType === "existing_contract" && isValidNumber(calculatedAvailableFacility) ? renderMoney(calculatedAvailableFacility) : "N/A"}
                 </div>
@@ -440,16 +465,42 @@ export function ReviewAndSubmitStep({
                                 Status
                               </TableHead>
                               <TableHead className={`${INVOICE_TABLE_COLUMNS.maturity} text-xs font-semibold`}>
-                                Maturity date
+                                Maturity Date
                               </TableHead>
                               <TableHead className={`${INVOICE_TABLE_COLUMNS.value} text-xs font-semibold`}>
-                                Invoice value
+                                Invoice Value
                               </TableHead>
                               <TableHead className={`${INVOICE_TABLE_COLUMNS.ratio} text-xs font-semibold`}>
-                                Financing ratio
+                                Financing Ratio
                               </TableHead>
                               <TableHead className={`${INVOICE_TABLE_COLUMNS.amount} text-xs font-semibold`}>
-                                Maximum financing amount
+                                <div className="inline-flex items-center gap-1">
+                                  Maximum Financing Amount
+                                  {invoiceProductConfig &&
+                                    (typeof invoiceProductConfig.min_invoice_value === "number" ||
+                                      typeof invoiceProductConfig.max_invoice_value === "number") && (
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span className={fieldTooltipTriggerClassName}>
+                                            <InformationCircleIcon className="h-4 w-4" />
+                                          </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top" className={fieldTooltipContentClassName}>
+                                          Per-invoice financing limits:{" "}
+                                          {typeof invoiceProductConfig.min_invoice_value === "number"
+                                            ? `min RM ${formatMoney(invoiceProductConfig.min_invoice_value)}`
+                                            : ""}
+                                          {typeof invoiceProductConfig.min_invoice_value === "number" &&
+                                          typeof invoiceProductConfig.max_invoice_value === "number"
+                                            ? ", "
+                                            : ""}
+                                          {typeof invoiceProductConfig.max_invoice_value === "number"
+                                            ? `max RM ${formatMoney(invoiceProductConfig.max_invoice_value)}`
+                                            : ""}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    )}
+                                </div>
                               </TableHead>
                               <TableHead className={`${INVOICE_TABLE_COLUMNS.document} text-xs font-semibold`}>
                                 Documents
@@ -501,14 +552,7 @@ export function ReviewAndSubmitStep({
                                   {/* Document */}
                                   <TableCell className="p-2">
                                     {d.document?.file_name ? (
-                                      <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] h-6">
-                                        <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
-                                          <CheckIconSolid className="h-2.5 w-2.5 text-background" />
-                                        </div>
-                                        <span className="text-xs font-medium truncate max-w-[120px]">
-                                          {d.document.file_name}
-                                        </span>
-                                      </div>
+                                      <FileDisplayBadge fileName={d.document.file_name} truncate={false} />
                                     ) : (
                                       <span className="text-muted-foreground text-xs">—</span>
                                     )}
@@ -554,22 +598,22 @@ export function ReviewAndSubmitStep({
                 <ReviewCompanySkeleton />
               ) : (
                 <div className={sectionGridClassName}>
-                  <div className={labelClassName}>Company name</div>
+                  <div className={labelClassName}>Company Name</div>
                   <div className={valueClassName}>{basicInfo?.businessName || "—"}</div>
 
-                  <div className={labelClassName}>Type of entity</div>
+                  <div className={labelClassName}>Type of Entity</div>
                   <div className={valueClassName}>{basicInfo?.entityType || "—"}</div>
 
-                  <div className={labelClassName}>SSM no</div>
+                  <div className={labelClassName}>SSM No</div>
                   <div className={valueClassName}>{basicInfo?.ssmRegisterNumber || "—"}</div>
 
                   <div className={labelClassName}>Industry</div>
                   <div className={valueClassName}>{basicInfo?.industry || "—"}</div>
 
-                  <div className={labelClassName}>Nature of business</div>
+                  <div className={labelClassName}>Nature of Business</div>
                   <div className={valueClassName}>Private</div>
 
-                  <div className={labelClassName}>Number of employees</div>
+                  <div className={labelClassName}>Number of Employees</div>
                   <div className={valueClassName}>{basicInfo?.numberOfEmployees || "—"}</div>
                 </div>
               )}
@@ -637,10 +681,10 @@ export function ReviewAndSubmitStep({
                 <ReviewBusinessSkeleton />
               ) : (
                 <div className={sectionGridClassName}>
-                  <div className={labelClassName}>Bank name</div>
+                  <div className={labelClassName}>Bank Name</div>
                   <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank")?.fieldValue || "—"}</div>
 
-                  <div className={labelClassName}>Bank account number</div>
+                  <div className={labelClassName}>Bank Account Number</div>
                   <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank account number")?.fieldValue || "—"}</div>
                 </div>
               )}
@@ -656,10 +700,10 @@ export function ReviewAndSubmitStep({
                 <ReviewBusinessSkeleton />
               ) : (
                 <div className={sectionGridClassName}>
-                  <div className={labelClassName}>Business address</div>
+                  <div className={labelClassName}>Business Address</div>
                   <div className={valueClassName}>{formatAddress(businessAddress)}</div>
 
-                  <div className={labelClassName}>Registered address</div>
+                  <div className={labelClassName}>Registered Address</div>
                   <div className={valueClassName}>{formatAddress(registeredAddress)}</div>
                 </div>
               )}
@@ -675,16 +719,16 @@ export function ReviewAndSubmitStep({
                 <ReviewBusinessSkeleton />
               ) : (
                 <div className={sectionGridClassName}>
-                  <div className={labelClassName}>Applicant name</div>
+                  <div className={labelClassName}>Applicant Name</div>
                   <div className={valueClassName}>{contactPerson.name || "—"}</div>
 
-                  <div className={labelClassName}>Applicant position</div>
+                  <div className={labelClassName}>Applicant Position</div>
                   <div className={valueClassName}>{contactPerson.position || "—"}</div>
 
-                  <div className={labelClassName}>Applicant IC no</div>
+                  <div className={labelClassName}>Applicant IC No</div>
                   <div className={valueClassName}>{contactPerson.ic || "—"}</div>
 
-                  <div className={labelClassName}>Applicant contact</div>
+                  <div className={labelClassName}>Applicant Contact</div>
                   <div className={valueClassName}>{contactPerson.contact || "—"}</div>
                 </div>
               )}
@@ -750,12 +794,7 @@ export function ReviewAndSubmitStep({
                     <div className={labelClassName}>{doc.title}</div>
                     <div className={valueClassName}>
                       {doc.file ? (
-                        <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] h-6">
-                          <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
-                            <CheckIconSolid className="h-2.5 w-2.5 text-background" />
-                          </div>
-                          <span className="text-[14px] font-medium truncate">{doc.file.file_name}</span>
-                        </div>
+                        <FileDisplayBadge fileName={doc.file.file_name} truncate={false} />
                       ) : (
                         <span className="text-xs text-muted-foreground italic">Not provided</span>
                       )}

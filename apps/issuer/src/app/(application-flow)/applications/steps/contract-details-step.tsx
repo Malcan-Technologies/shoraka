@@ -350,11 +350,11 @@ function FileUploadArea({
               )}
             />
           </div>
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1" title={fileName}>
             <div className="text-sm font-medium truncate">{fileName}</div>
             <div className="text-xs text-muted-foreground">
               {(fileSize / 1024 / 1024).toFixed(2)} MB
-              {isPending && " (uploading)"}
+              {isPending && " (Uploading…)"}
             </div>
           </div>
         </div>
@@ -1072,12 +1072,12 @@ export function ContractDetailsStep({
         {!isInvoiceOnly && (
         <section className="space-y-3">
           <div>
-            <h3 className={sectionHeaderClassName}>Contract details</h3>
+            <h3 className={sectionHeaderClassName}>Contract Details</h3>
             <div className="border-b border-border mt-2 mb-4" />
           </div>
 
           <div className={sectionGridClassName}>
-            <Label className={labelClassName}>Contract title</Label>
+            <Label className={labelClassName}>Contract Title</Label>
             <Input
               value={formData.contract.title}
               onChange={(e) => handleInputChange("contract", "title", e.target.value)}
@@ -1086,7 +1086,7 @@ export function ContractDetailsStep({
               className={cn(inputClassName, stepIsFlagged ? "border-destructive focus-visible:border-2 focus-visible:border-destructive" : "")}
             />
 
-            <Label className={labelClassName}>Contract description</Label>
+            <Label className={labelClassName}>Contract Description</Label>
             <Textarea
               value={formData.contract.description}
               onChange={(e) =>
@@ -1097,7 +1097,7 @@ export function ContractDetailsStep({
               className={cn(formTextareaClassName, "min-h-[100px]", !stepIsEditable && formInputDisabledClassName)}
             />
 
-            <Label className={labelClassName}>Contract number</Label>
+            <Label className={labelClassName}>Contract Number</Label>
             <Input
               value={formData.contract.number}
               onChange={(e) => handleInputChange("contract", "number", e.target.value)}
@@ -1106,7 +1106,7 @@ export function ContractDetailsStep({
               className={inputClassName}
             />
 
-            <Label className={labelClassName}>Contract value</Label>
+            <Label className={labelClassName}>Contract Value</Label>
             <div className="h-11 flex items-center">
               <MoneyInput
                 value={formData.contract.value}
@@ -1118,7 +1118,7 @@ export function ContractDetailsStep({
               />
             </div>
 
-            <Label className={labelClassName}>Contract financing</Label>
+            <Label className={labelClassName}>Contract Financing</Label>
             <div className="space-y-1">
               <div className="h-11 flex items-center">
                 <MoneyInput
@@ -1137,7 +1137,7 @@ export function ContractDetailsStep({
               )}
             </div>
 
-            <Label className={labelClassName}>Contract start date</Label>
+            <Label className={labelClassName}>Contract Start Date</Label>
             <div className="space-y-1">
               <DateInput
                 value={formData.contract.start_date || ""}
@@ -1161,7 +1161,7 @@ export function ContractDetailsStep({
 
 
             <div className={cn("flex items-center", fieldTooltipLabelGap)}>
-              <Label className={labelClassName}>Contract end date</Label>
+              <Label className={labelClassName}>Contract End Date</Label>
               {formData.contract.start_date && productMinMonths && (
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -1214,7 +1214,7 @@ export function ContractDetailsStep({
                 )}
             </div>
 
-            <Label className={cn(labelClassName, "self-start")}>Upload contract</Label>
+            <Label className={cn(labelClassName, "self-start")}>Upload Contract</Label>
             <div className="self-start">
             <FileUploadArea
                 onFileSelect={(file) => handleFileUpload("contract", file)}
@@ -1237,13 +1237,13 @@ export function ContractDetailsStep({
           <div>
             <h3 className={sectionHeaderClassName}>
               {/* {isInvoiceOnly ? "Customer Details (Required for Invoice Financing)" : "Customer details"} */}
-              Customer details
+              Customer Details
             </h3>
             <div className="border-b border-border mt-2 mb-4" />
           </div>
 
           <div className={sectionGridClassName}>
-            <Label className={labelClassName}>Customer name</Label>
+            <Label className={labelClassName}>Customer Name</Label>
             <Input
               value={formData.customer.name}
               onChange={(e) => handleInputChange("customer", "name", e.target.value)}
@@ -1252,7 +1252,7 @@ export function ContractDetailsStep({
               className={inputClassName}
             />
 
-            <Label className={labelClassName}>Customer entity type</Label>
+            <Label className={labelClassName}>Customer Entity Type</Label>
             <Select
               value={formData.customer.entity_type}
               onValueChange={(value) => handleInputChange("customer", "entity_type", value)}
@@ -1270,7 +1270,7 @@ export function ContractDetailsStep({
               </SelectContent>
             </Select>
 
-            <Label className={labelClassName}>Customer SSM number</Label>
+            <Label className={labelClassName}>Customer SSM Number</Label>
             <div className="space-y-1 min-h-[48px]">
               <Input
                 value={formData.customer.ssm_number}
@@ -1296,7 +1296,7 @@ export function ContractDetailsStep({
               )}
             </div>
 
-            <Label className={labelClassName}>Customer country</Label>
+            <Label className={labelClassName}>Customer Country</Label>
             <Select
               value={formData.customer.country}
               onValueChange={(value) => handleInputChange("customer", "country", value)}
@@ -1318,7 +1318,7 @@ export function ContractDetailsStep({
             </Select>
 
             <div className={cn("flex items-center", fieldTooltipLabelGap)}>
-              <Label className={labelClassName}>Is the customer related to you?</Label>
+              <Label className={labelClassName}>Is the Customer Related to You?</Label>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className={fieldTooltipTriggerClassName}>

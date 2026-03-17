@@ -237,7 +237,8 @@ export interface ContractDetails {
   document?: {
     s3_key: string;
     file_name: string;
-    file_size: number;
+    file_size?: number;
+    uploaded_at?: string;
   };
 }
 
@@ -250,7 +251,8 @@ export interface CustomerDetails {
   document?: {
     s3_key: string;
     file_name: string;
-    file_size: number;
+    file_size?: number;
+    uploaded_at?: string;
   };
 }
 

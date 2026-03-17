@@ -7,12 +7,12 @@
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { XMarkIcon, ChevronDownIcon, CloudArrowUpIcon, ArrowDownTrayIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
-import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useApplication } from "@/hooks/use-applications";
 import { useAuthToken } from "@cashsouk/config";
 import { SupportingDocumentsSkeleton } from "@/app/(application-flow)/applications/components/supporting-documents-skeleton";
+import { FileDisplayBadge } from "@/app/(application-flow)/applications/components/file-display-badge";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -608,7 +608,7 @@ export function SupportingDocumentsStep({
                             !isEditable && "pointer-events-none opacity-60 cursor-not-allowed"
                           )}
                         >
-                          <div className="flex justify-end items-start flex-wrap gap-3">
+                          <div className="flex justify-end items-start flex-wrap gap-3 w-full">
                             {/* Download template */}
                               {templateS3Key && (
                                 <button
@@ -636,9 +636,6 @@ export function SupportingDocumentsStep({
                                 </button>
                               )}
 
-                            {/* Separator */}
-                            <div className="w-px h-4 bg-border/60" />
-
                             {/* Upload slot: item-level amendment message beside document (CashSouk styling) */}
                             <div className="flex items-center gap-2 min-w-0">
                               {isItemFlagged && itemRemark ? (
@@ -647,36 +644,50 @@ export function SupportingDocumentsStep({
                                   {itemRemark.split("\n")[0]}
                                 </span>
                               ) : null}
-                              <div className="w-[160px] min-w-0 shrink-0">
+                              <div className="min-w-[160px] shrink-0">
                                 {isUploaded && file && !fileIsUploading ? (
-                                  <div
-                                    className={cn(
-                                      "inline-flex items-center gap-2 rounded-sm border px-2 py-[2px] w-full h-6 min-h-6",
-                                      isItemFlagged ? "border-destructive" : "border-border"
-                                    )}
-                                  >
-                                    {isItemFlagged ? (
+                                  isItemFlagged ? (
+                                    <div
+                                      className={cn(
+                                        "inline-flex items-center gap-2 rounded-sm border px-2 py-[2px] h-6 min-h-6",
+                                        "border-destructive"
+                                      )}
+                                    >
                                       <ExclamationTriangleIcon className="h-3.5 w-3.5 text-destructive shrink-0" />
-                                    ) : (
-                                      <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
-                                        <CheckIconSolid className="h-2.5 w-2.5 text-background" />
-                                      </div>
-                                    )}
-                                    <span className="text-[14px] font-medium truncate flex-1">
-                                      {file.name}
-                                    </span>
-                                    {isEditable && (
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          handleRemoveFile(categoryIndex, documentIndex)
-                                        }
-                                        className="text-muted-foreground hover:text-foreground shrink-0"
-                                      >
-                                        <XMarkIcon className="h-3.5 w-3.5" />
-                                      </button>
-                                    )}
-                                  </div>
+                                      <span title={file.name} className="text-[14px] font-medium truncate min-w-0">
+                                        {file.name}
+                                      </span>
+                                      {isEditable && (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleRemoveFile(categoryIndex, documentIndex)
+                                          }
+                                          className="text-muted-foreground hover:text-foreground shrink-0"
+                                        >
+                                          <XMarkIcon className="h-3.5 w-3.5" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <FileDisplayBadge
+                                      fileName={file.name}
+                                      truncate
+                                      trailing={
+                                        isEditable ? (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleRemoveFile(categoryIndex, documentIndex)
+                                            }
+                                            className="text-muted-foreground hover:text-foreground shrink-0"
+                                          >
+                                            <XMarkIcon className="h-3.5 w-3.5" />
+                                          </button>
+                                        ) : undefined
+                                      }
+                                    />
+                                  )
                                 ) : !isEditable ? (
                                   <span className="text-[14px] text-muted-foreground">—</span>
                                 ) : (

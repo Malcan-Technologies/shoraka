@@ -54,7 +54,6 @@ import { Trash2 } from "lucide-react";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
 import { XMarkIcon, CloudArrowUpIcon, InformationCircleIcon } from "@heroicons/react/24/outline";
-import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@cashsouk/ui";
 import { useQueryClient } from "@tanstack/react-query";
@@ -74,6 +73,7 @@ import { InvoiceDetailsSkeleton } from "@/app/(application-flow)/applications/co
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import { generateInvoiceData } from "../utils/dev-data-generator";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { FileDisplayBadge } from "../components/file-display-badge";
 
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
 
@@ -968,7 +968,7 @@ export default function InvoiceDetailsStep({
           <div className="space-y-3">
             <div>
               <h3 className="text-base font-semibold text-foreground">
-                Contract
+                {isInvoiceOnly ? "Customer" : "Contract"}
               </h3>
               <div className="border-b border-border mt-2 mb-4" />
             </div>
@@ -976,20 +976,24 @@ export default function InvoiceDetailsStep({
             <div className="space-y-3 mt-4 px-3">
               <div className="grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-y-3">
 
+                {!isInvoiceOnly && (
+                  <>
                 {/* ================= Contract Title ================= */}
-                <div className={formLabelClassName}>Contract title</div>
+                <div className={formLabelClassName}>Contract Title</div>
                 <div className={valueClassName}>
                   {application?.contract?.contract_details?.title ?? "—"}
                 </div>
+                  </>
+                )}
 
                 {/* ================= Customer ================= */}
-                <div className={formLabelClassName}>Customer</div>
+                <div className={formLabelClassName}>Customer Name</div>
                 <div className={valueClassName}>
                   {application?.contract?.customer_details?.name ?? "—"}
                 </div>
 
                 {/* ================= Contract Value ================= */}
-                <div className={formLabelClassName}>Contract value</div>
+                <div className={formLabelClassName}>Contract Value</div>
                 <div className={valueClassName}>
                   {application?.contract?.contract_details?.value != null
                     ? `RM ${formatMoney(application.contract.contract_details.value)}`
@@ -997,7 +1001,7 @@ export default function InvoiceDetailsStep({
                 </div>
 
                 {/* ================= Contract Financing ================= */}
-                <div className={formLabelClassName}>Contract financing</div>
+                <div className={formLabelClassName}>Contract Financing</div>
                 <div className={valueClassName}>
                   {application?.contract?.contract_details?.financing != null
                     ? `RM ${formatMoney(application.contract.contract_details.financing)}`
@@ -1005,7 +1009,7 @@ export default function InvoiceDetailsStep({
                 </div>
 
                 {/* ================= Approved Facility ================= */}
-                <div className={formLabelClassName}>Approved facility</div>
+                <div className={formLabelClassName}>Approved Facility</div>
                 <div className={valueClassName}>
                   {!hasFacilityData
                     ? "N/A"
@@ -1013,7 +1017,7 @@ export default function InvoiceDetailsStep({
                 </div>
 
                 {/* ================= Utilised Facility ================= */}
-                <div className={formLabelClassName}>Utilised facility</div>
+                <div className={formLabelClassName}>Utilised Facility</div>
                 <div className={valueClassName}>
                   {!hasFacilityData
                     ? "N/A"
@@ -1021,7 +1025,7 @@ export default function InvoiceDetailsStep({
                 </div>
 
                 {/* ================= Available Facility ================= */}
-                <div className={formLabelClassName}>Available facility</div>
+                <div className={formLabelClassName}>Available Facility</div>
                 <div
                   className={cn(
                     "text-sm md:text-base leading-6 font-medium",
@@ -1048,7 +1052,7 @@ export default function InvoiceDetailsStep({
             <div className="flex items-start justify-between">
               <div>
                 <h3 className="text-base font-semibold text-foreground">
-                  Invoice details
+                  Invoices
                 </h3>
                 <p className="text-sm text-muted-foreground mt-1">
                   Add invoices below. Rows are local until you Save and Continue.
@@ -1084,20 +1088,20 @@ export default function InvoiceDetailsStep({
                           </TableHead>
 
                           <TableHead className="w-[150px] whitespace-nowrap text-xs font-semibold">
-                            Maturity date
+                            Maturity Date
                           </TableHead>
 
                           <TableHead className="w-[150px] whitespace-nowrap text-xs font-semibold">
-                            Invoice value
+                            Invoice Value
                           </TableHead>
 
                           <TableHead className="w-[130px] whitespace-nowrap text-xs font-semibold">
-                            Financing ratio
+                            Financing Ratio
                           </TableHead>
 
                           <TableHead className="w-[200px] whitespace-nowrap text-xs font-semibold">
                             <div className="inline-flex items-center gap-1">
-                              Maximum financing amount
+                              Maximum Financing Amount
                               {productConfig &&
                                 (typeof productConfig.min_invoice_value === "number" ||
                                   typeof productConfig.max_invoice_value === "number") && (
@@ -1259,38 +1263,37 @@ export default function InvoiceDetailsStep({
                                 RM {formatMoney(financingAmount)}
                               </TableCell>
 
-                              <TableCell className="p-2">
+                              <TableCell className="p-2 min-w-0 overflow-hidden">
                                 {inv.document ? (
-                                  <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] w-full h-8 bg-background">
-                                    <div className="w-3 h-3 rounded-sm bg-foreground flex items-center justify-center shrink-0">
-                                      <CheckIconSolid className="h-2 w-2 text-background" />
-                                    </div>
-                                    <span className="text-xs font-medium truncate flex-1 text-foreground">
-                                      {inv.document.file_name}
-                                    </span>
-                                    {isEditable && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        if (inv.document?.s3_key) {
-                                          setLastS3Keys((prev) => ({
-                                            ...prev,
-                                            [inv.id]: inv.document!.s3_key!,
-                                          }));
-                                        }
-                                        updateInvoiceField(inv.id, "document", null);
-                                        setSelectedFiles((prev) => {
-                                          const copy = { ...prev };
-                                          delete copy[inv.id];
-                                          return copy;
-                                        });
-                                      }}
-                                      className="shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
-                                    >
-                                      <XMarkIcon className="h-3 w-3" />
-                                    </button>
-                                    )}
-                                  </div>
+                                  <FileDisplayBadge
+                                    fileName={inv.document.file_name}
+                                    size="sm"
+                                    className="bg-background"
+                                    trailing={
+                                      isEditable ? (
+                                        <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (inv.document?.s3_key) {
+                                            setLastS3Keys((prev) => ({
+                                              ...prev,
+                                              [inv.id]: inv.document!.s3_key!,
+                                            }));
+                                          }
+                                          updateInvoiceField(inv.id, "document", null);
+                                          setSelectedFiles((prev) => {
+                                            const copy = { ...prev };
+                                            delete copy[inv.id];
+                                            return copy;
+                                          });
+                                        }}
+                                        className="shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
+                                      >
+                                        <XMarkIcon className="h-3 w-3" />
+                                      </button>
+                                      ) : undefined
+                                    }
+                                  />
                                 ) : isEditable ? (
                                   <label className="inline-flex items-center gap-1 text-xs font-medium text-primary cursor-pointer hover:opacity-80 h-8">
                                     <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
