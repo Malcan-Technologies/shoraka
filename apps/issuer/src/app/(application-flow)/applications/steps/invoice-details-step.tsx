@@ -23,12 +23,10 @@
  *      contract start and end dates.
  *    - Skipped for invoice-only flows (no contract).
  *
- * 5. Minimum invoice value
- *    - Each product defines a minimum invoice value.
- *    - Invoice value must meet or exceed this amount.
+ * 5. Min/max financing amount (product config)
+ *    - Per-invoice: each invoice's financing amount (value × ratio) must be within min/max.
  *
- * 6. Financing ratio
- *    - Only part of each invoice can be financed.
+ * 6. Financing ratio (all structures including invoice_only)
  *    - Financing ratio must be between 60% and 80%.
  *
  * 9. Facility limit
@@ -578,18 +576,21 @@ export default function InvoiceDetailsStep({
       }
     }
 
-    if (!isInvoiceOnly && !validationError) {
+    /** Financing ratio 60–80% applies to all structures including invoice_only. */
+    if (!validationError) {
       const invalidRatioInvoice = invoices.find(
         (inv) => !isRowEmpty(inv) && (inv.financing_ratio_percent! < 60 || inv.financing_ratio_percent! > 80)
       );
       if (invalidRatioInvoice) {
         validationError = "Financing ratio must be between 60% and 80%.";
       }
-      if (!validationError) {
-        const amountToCheck = isExistingContract ? nonApprovedFinancingAmount : totalFinancingAmount;
-        if (amountToCheck > facilityLimit) {
-          validationError = `Total financing amount (RM ${formatMoney(amountToCheck)}) exceeds facility limit (RM ${formatMoney(facilityLimit)}).`;
-        }
+    }
+
+    /** Facility limit only for new_contract and existing_contract (invoice_only has no facility). */
+    if (!isInvoiceOnly && !validationError) {
+      const amountToCheck = isExistingContract ? nonApprovedFinancingAmount : totalFinancingAmount;
+      if (amountToCheck > facilityLimit) {
+        validationError = `Total financing amount (RM ${formatMoney(amountToCheck)}) exceeds facility limit (RM ${formatMoney(facilityLimit)}).`;
       }
     }
   }
