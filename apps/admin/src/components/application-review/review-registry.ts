@@ -50,7 +50,8 @@ const REVIEW_TAB_ORDER = [
 /**
  * Prerequisites for each tab.
  * - Contract unlocks when Financial + Company + Business + Documents are approved.
- * - Invoice unlocks when Contract is approved.
+ * - Invoice unlocks when all Contract prerequisites AND Contract section are approved.
+ *   (For invoice_only applications, server omits contract_details from prerequisites.)
  */
 const TAB_PREREQUISITES: Record<string, string[]> = {
   financial: [],
@@ -58,7 +59,7 @@ const TAB_PREREQUISITES: Record<string, string[]> = {
   business_details: [],
   supporting_documents: [],
   contract_details: ["financial", "company_details", "business_details", "supporting_documents"],
-  invoice_details: ["contract_details"],
+  invoice_details: ["financial", "company_details", "business_details", "supporting_documents", "contract_details"],
 };
 
 /** Human-readable label for a review section or step key. */

@@ -209,7 +209,13 @@ export class AdminService {
       business_details: [],
       supporting_documents: [],
       contract_details: ["financial", "company_details", "business_details", "supporting_documents"],
-      invoice_details: ["contract_details"],
+      invoice_details: [
+        "financial",
+        "company_details",
+        "business_details",
+        "supporting_documents",
+        "contract_details",
+      ],
     };
 
     const applyStructureOverrides = (sections: Set<ReviewSection>) => {
@@ -4234,13 +4240,33 @@ export class AdminService {
     return relevantPrereqs.every((prereq) => sectionStatusMap.get(prereq) === "APPROVED");
   }
 
+  private isInvoiceTabUnlocked(
+    application: { application_reviews?: { section: string; status: string }[] },
+    sectionPolicy: { visibleSections: Set<ReviewSection>; prerequisitesBySection: Partial<Record<ReviewSection, ReviewSection[]>> }
+  ): boolean {
+    const prereqs = sectionPolicy.prerequisitesBySection.invoice_details;
+    if (!prereqs?.length) return true;
+    const relevantPrereqs = prereqs.filter((p) => sectionPolicy.visibleSections.has(p));
+    if (!relevantPrereqs.length) return true;
+    const reviews = (application.application_reviews ?? []) as { section: string; status: string }[];
+    const sectionStatusMap = new Map(reviews.map((r) => [r.section, r.status]));
+    return relevantPrereqs.every((prereq) => sectionStatusMap.get(prereq) === "APPROVED");
+  }
+
   private resolveAdminStageStatus(input: {
     contractId?: string | null;
     contractStatus?: string | null;
     invoiceStatuses: string[];
     isContractTabUnlocked?: boolean;
+    isInvoiceTabUnlocked?: boolean;
   }): ApplicationStatus {
-    const { contractId, contractStatus, invoiceStatuses, isContractTabUnlocked } = input;
+    const {
+      contractId,
+      contractStatus,
+      invoiceStatuses,
+      isContractTabUnlocked,
+      isInvoiceTabUnlocked,
+    } = input;
 
     if (contractId) {
       if (contractStatus === "OFFER_SENT") return ApplicationStatus.CONTRACT_SENT;
@@ -4249,6 +4275,7 @@ export class AdminService {
         if (this.allInvoicesOfferableOrResolved(invoiceStatuses)) {
           return ApplicationStatus.INVOICES_SENT;
         }
+        if (!isInvoiceTabUnlocked) return ApplicationStatus.CONTRACT_ACCEPTED;
         return ApplicationStatus.INVOICE_PENDING;
       }
       if (isContractTabUnlocked) return ApplicationStatus.CONTRACT_PENDING;
@@ -4258,6 +4285,7 @@ export class AdminService {
     if (this.allInvoicesOfferableOrResolved(invoiceStatuses)) {
       return ApplicationStatus.INVOICES_SENT;
     }
+    if (!isInvoiceTabUnlocked) return ApplicationStatus.UNDER_REVIEW;
     return ApplicationStatus.INVOICE_PENDING;
   }
 
@@ -4280,11 +4308,13 @@ export class AdminService {
         application.contract_id != null
           ? this.isContractTabUnlocked(application, sectionPolicy)
           : false;
+      const isInvoiceTabUnlocked = this.isInvoiceTabUnlocked(application, sectionPolicy);
       const targetStatus = this.resolveAdminStageStatus({
         contractId: application.contract_id,
         contractStatus: application.contract?.status ?? null,
         invoiceStatuses: (application.invoices ?? []).map((inv) => (inv as { status?: string }).status ?? "DRAFT"),
         isContractTabUnlocked,
+        isInvoiceTabUnlocked,
       });
       await repository.updateApplicationStatus(applicationId, targetStatus);
     }
