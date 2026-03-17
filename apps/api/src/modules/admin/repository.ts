@@ -24,7 +24,10 @@ import type {
   GetAdminApplicationsQuery,
   GetAdminContractsQuery,
 } from "./schemas";
-
+import {
+  resolveRequestedFacility,
+  resolveOfferedFacility,
+} from "../../lib/contract-facility";
 
 export class AdminRepository {
   /**
@@ -2141,11 +2144,28 @@ export class AdminRepository {
       where.status = status;
     }
 
+    /** Filter by product: use base_id so applications from all versions (active + inactive) are shown. */
     if (productId) {
-      where.financing_type = {
-        path: ["product_id"],
-        equals: productId,
-      };
+      const product = await prisma.product.findUnique({
+        where: { id: productId },
+        select: { base_id: true },
+      });
+      const baseId = product?.base_id ?? productId;
+      const productsWithBase = await prisma.product.findMany({
+        where: { OR: [{ base_id: baseId }, { id: baseId }] },
+        select: { id: true },
+      });
+      const productIds = productsWithBase.map((p) => p.id);
+      if (productIds.length > 0) {
+        where.AND = where.AND ?? [];
+        (where.AND as Prisma.ApplicationWhereInput[]).push({
+          OR: productIds.map((id) => ({
+            financing_type: { path: ["product_id"], equals: id },
+          })),
+        });
+      } else {
+        where.financing_type = { path: ["product_id"], equals: productId };
+      }
     }
 
     if (search) {
@@ -2205,8 +2225,17 @@ export class AdminRepository {
       const financingType = app.financing_type as any;
       const productLabel = financingType?.product_name || "Financing Product";
 
-      // Financing Structure Label: Contract Financing if contract exists, otherwise Invoice Financing
-      const financingStructureLabel = app.contract_id ? "Contract Financing" : "Invoice Financing";
+      // Financing Structure Label: Contract Financing if New or Existing Contract; Invoice Financing if Invoice Only
+      const structure = app.financing_structure as { structure_type?: string } | null;
+      const structureType = structure?.structure_type;
+      let financingStructureLabel: string;
+      if (structureType === "invoice_only") {
+        financingStructureLabel = "Invoice financing";
+      } else if (structureType === "existing_contract" || structureType === "new_contract") {
+        financingStructureLabel = "Contract financing";
+      } else {
+        financingStructureLabel = app.contract_id ? "Contract financing" : "Invoice financing";
+      }
 
       return {
         id: app.id,
@@ -2242,6 +2271,8 @@ export class AdminRepository {
     const skip = (page - 1) * pageSize;
 
     const where: Prisma.ContractWhereInput = {};
+
+    where.contract_details = { not: Prisma.DbNull };
 
     if (statuses && statuses.length > 0) {
       where.status = { in: statuses };
@@ -2374,8 +2405,11 @@ export class AdminRepository {
       typeof offerDetails.responded_by_user_id === "string" && offerDetails.responded_by_user_id.trim().length > 0
         ? (offerDetails.responded_by_user_id as string)
         : null;
-    const requestedFacility = Number(offerDetails.requested_facility ?? contractDetails.financing ?? 0);
-    const offeredFacility = Number(offerDetails.offered_facility ?? 0);
+    const requestedFacility =
+      typeof offerDetails.requested_facility === "number" && Number.isFinite(offerDetails.requested_facility)
+        ? offerDetails.requested_facility
+        : resolveRequestedFacility(contractDetails);
+    const offeredFacility = resolveOfferedFacility(offerDetails);
     const approvedFacility = Number(contractDetails.approved_facility ?? 0);
 
     const applications = contract.applications.map((application) => {
@@ -2469,9 +2503,9 @@ export class AdminRepository {
             },
           },
         },
-        invoices: true,
+        invoices: { orderBy: { created_at: "asc" } },
         contract: {
-          include: { invoices: true },
+          include: { invoices: { orderBy: { created_at: "asc" } } },
         },
         application_reviews: true,
         application_review_items: true,

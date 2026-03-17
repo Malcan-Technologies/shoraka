@@ -49,9 +49,10 @@ const whyRaisingFundsSchema = z.object({
   risks_delay_repayment: z.string().max(200).optional().default(""),
   backup_plan: z.string().max(200).optional().default(""),
   raising_on_other_p2p: yesNoBooleanSchema,
-  platform_name: z.string().optional().default(""),
-  amount_raised: z.union([z.string(), z.number()]).optional().default(0),
-  same_invoice_used: yesNoBooleanSchema,
+  platform_name: z.string().max(200).nullable().optional(),
+  amount_raised: z.union([z.string(), z.number()]).nullable().optional(),
+  same_invoice_used: z.boolean().nullable().optional(),
+  accounting_software: z.string().max(200).optional().default(""),
 });
 
 export const businessDetailsDataSchema = z.object({

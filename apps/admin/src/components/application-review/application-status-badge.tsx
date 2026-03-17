@@ -28,6 +28,7 @@ const STATUS_CONFIG: Record<string, {
   REJECTED: { icon: XCircleIcon },
   DRAFT: { icon: ClockIcon },
   ARCHIVED: { icon: ArchiveBoxIcon },
+  WITHDRAWN: { icon: ArchiveBoxIcon },
 };
 
 export function ApplicationStatusBadge({ status, size = "md", label }: ApplicationStatusBadgeProps) {

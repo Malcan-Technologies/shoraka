@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { cn } from "@/lib/utils";
 import { Input } from "../../../../../components/ui/input";
 import { Label } from "../../../../../components/ui/label";
+import { INPUT_CLASS, FIELD_GAP, SECTION_GAP } from "../product-form-input-styles";
 import { formatMoney } from "../../components/money";
 import { MoneyInput } from "../../components/money-input";
 
@@ -72,9 +74,9 @@ export function InvoiceDetailsConfig({
   );
 
   return (
-    <div className="grid gap-6 pt-2 text-sm leading-6 min-w-0">
+    <div className={cn("grid pt-2 text-sm leading-6 min-w-0", SECTION_GAP)}>
       {/* MIN */}
-      <div className="grid gap-2 min-w-0">
+      <div className={cn("grid min-w-0", FIELD_GAP)}>
         <Label className="text-sm font-medium">
           Minimum financing amount (RM)
         </Label>
@@ -86,6 +88,7 @@ export function InvoiceDetailsConfig({
           placeholder="Leave blank for no minimum"
           maxIntDigits={12}
           allowEmpty
+          inputClassName={INPUT_CLASS}
         />
         <p className="text-xs text-muted-foreground">
           Leave blank for no minimum limit.
@@ -93,7 +96,7 @@ export function InvoiceDetailsConfig({
       </div>
 
       {/* MAX */}
-      <div className="grid gap-2 min-w-0">
+      <div className={cn("grid min-w-0", FIELD_GAP)}>
         <Label className="text-sm font-medium">
           Maximum financing amount (RM)
         </Label>
@@ -105,22 +108,22 @@ export function InvoiceDetailsConfig({
           placeholder="Leave blank for no maximum"
           maxIntDigits={12}
           allowEmpty
+          inputClassName={INPUT_CLASS}
         />
         <p className="text-xs text-muted-foreground">
           Leave blank for no maximum limit.
         </p>
       </div>
 
-      {/* MIN / MAX FINANCING RATIO */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="grid gap-2 min-w-0">
+      {/* MIN / MAX FINANCING RATIO — text inputs to avoid stepper bugs */}
+      <div className={cn("grid grid-cols-2", SECTION_GAP)}>
+        <div className={cn("grid min-w-0", FIELD_GAP)}>
           <Label className="text-sm font-medium">
             Min financing ratio (%)
           </Label>
           <Input
-            type="number"
-            min={1}
-            max={100}
+            type="text"
+            inputMode="numeric"
             value={current.min_financing_ratio_percent ?? ""}
             onChange={(e) => {
               const v = e.target.value;
@@ -128,16 +131,17 @@ export function InvoiceDetailsConfig({
               update({ min_financing_ratio_percent: num != null && !Number.isNaN(num) ? num : null });
             }}
             placeholder={String(DEFAULT_MIN_RATIO)}
+            maxLength={3}
+            className={INPUT_CLASS}
           />
         </div>
-        <div className="grid gap-2 min-w-0">
+        <div className={cn("grid min-w-0", FIELD_GAP)}>
           <Label className="text-sm font-medium">
             Max financing ratio (%)
           </Label>
           <Input
-            type="number"
-            min={1}
-            max={100}
+            type="text"
+            inputMode="numeric"
             value={current.max_financing_ratio_percent ?? ""}
             onChange={(e) => {
               const v = e.target.value;
@@ -145,6 +149,8 @@ export function InvoiceDetailsConfig({
               update({ max_financing_ratio_percent: num != null && !Number.isNaN(num) ? num : null });
             }}
             placeholder={String(DEFAULT_MAX_RATIO)}
+            maxLength={3}
+            className={INPUT_CLASS}
           />
         </div>
       </div>

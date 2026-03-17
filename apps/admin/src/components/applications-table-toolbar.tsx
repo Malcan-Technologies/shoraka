@@ -17,10 +17,16 @@ const STATUS_OPTIONS = [
   { value: "DRAFT", label: "Draft" },
   { value: "SUBMITTED", label: "Submitted" },
   { value: "UNDER_REVIEW", label: "Under Review" },
+  { value: "CONTRACT_PENDING", label: "Contract Pending" },
+  { value: "CONTRACT_SENT", label: "Contract Sent" },
+  { value: "CONTRACT_ACCEPTED", label: "Contract Accepted" },
+  { value: "INVOICE_PENDING", label: "Invoice Pending" },
+  { value: "INVOICES_SENT", label: "Invoices Sent" },
   { value: "AMENDMENT_REQUESTED", label: "Amendment Requested" },
   { value: "RESUBMITTED", label: "Resubmitted" },
   { value: "APPROVED", label: "Approved" },
   { value: "REJECTED", label: "Rejected" },
+  { value: "WITHDRAWN", label: "Withdrawn" },
   { value: "ARCHIVED", label: "Archived" },
 ] as const;
 

@@ -21,8 +21,9 @@ import {
 } from "@/app/(application-flow)/applications/components/form-control";
 import { MoneyInput } from "@/app/(application-flow)/applications/components/money-input";
 import { parseMoney, formatMoney } from "@/app/(application-flow)/applications/components/money";
-import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
+import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import { BusinessDetailsSkeleton } from "@/app/(application-flow)/applications/components/business-details-skeleton";
+import { generateBusinessDetailsData } from "@/app/(application-flow)/applications/utils/dev-data-generator";
 
 /**
  * BUSINESS DETAILS STEP
@@ -80,9 +81,9 @@ interface BusinessDetailsSnake {
     risks_delay_repayment?: string;
     backup_plan?: string;
     raising_on_other_p2p?: boolean;
-    platform_name?: string;
-    amount_raised?: number;
-    same_invoice_used?: boolean;
+    platform_name?: string | null;
+    amount_raised?: number | null;
+    same_invoice_used?: boolean | null;
     accounting_software?: string;
   };
   declaration_confirmed?: boolean;
@@ -119,11 +120,15 @@ function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
     declaration_confirmed: p.declarationConfirmed,
   };
 
-  /* If raisingOnOtherP2P === "yes", include the dependent fields. Otherwise omit them (don't save). */
+  /* Always include P2P-dependent fields. When "no", set to null to preserve structure. */
   if (p.whyRaisingFunds.raisingOnOtherP2P === "yes") {
     basePayload.why_raising_funds!.platform_name = p.whyRaisingFunds.platformName ?? "";
     basePayload.why_raising_funds!.amount_raised = parseMoney(p.whyRaisingFunds.amountRaised ?? "");
     basePayload.why_raising_funds!.same_invoice_used = yesNoToBoolean(p.whyRaisingFunds.sameInvoiceUsed);
+  } else {
+    basePayload.why_raising_funds!.platform_name = null;
+    basePayload.why_raising_funds!.amount_raised = null;
+    basePayload.why_raising_funds!.same_invoice_used = null;
   }
 
   return basePayload;
@@ -153,6 +158,11 @@ function fromSnakeSaved(saved: BusinessDetailsSnake | Record<string, unknown> | 
     },
     declarationConfirmed: raw?.declaration_confirmed ?? raw?.declarationConfirmed ?? false,
   };
+}
+
+/** Mock data for dev Auto Fill. Re-exports from dev-data-generator. */
+export function generateMockData(): Record<string, unknown> {
+  return generateBusinessDetailsData();
 }
 
 const defaultAbout: AboutYourBusiness = {
@@ -201,7 +211,7 @@ const textareaClassName = cn(formTextareaClassName, "min-h-[100px]");
  * Includes px-3 for consistent indentation with other steps
  */
 const rowGridClassName =
-  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 w-full max-w-[1200px] items-start px-3";
+  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 w-full max-w-[1200px] items-center px-3";
 
 /**
  * Section wrapper
@@ -371,9 +381,7 @@ export function BusinessDetailsStep({
   readOnly = false,
 }: BusinessDetailsStepProps) {
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
-
-  // DEBUG: Toggle skeleton mode
-  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
+  const devTools = useDevTools();
 
   const [aboutYourBusiness, setAboutYourBusiness] = React.useState<AboutYourBusiness>(defaultAbout);
   const [whyRaisingFunds, setWhyRaisingFunds] = React.useState<WhyRaisingFunds>(defaultWhy);
@@ -457,6 +465,24 @@ export function BusinessDetailsStep({
     }
   }, [whyRaisingFunds.raisingOnOtherP2P]);
 
+  /** Apply dev-tools Auto Fill when requested (single step or Fill Entire Application). */
+  React.useEffect(() => {
+    const data =
+      devTools?.autoFillData?.stepKey === "business_details"
+        ? (devTools.autoFillData.data as Record<string, unknown>)
+        : (devTools?.autoFillDataMap?.["business_details"] as Record<string, unknown> | undefined);
+    if (!data || Object.keys(data).length === 0) return;
+    const initial = fromSnakeSaved(data);
+    setAboutYourBusiness(initial.aboutYourBusiness);
+    setWhyRaisingFunds(initial.whyRaisingFunds);
+    setDeclarationConfirmed(initial.declarationConfirmed);
+    initialPayloadRef.current = JSON.stringify(toSnakePayload(initial));
+    if (devTools) {
+      if (devTools.autoFillData?.stepKey === "business_details") devTools.clearAutoFill();
+      else devTools.clearAutoFillForStep("business_details");
+    }
+  }, [devTools]);
+
   const payload: BusinessDetailsPayload = React.useMemo(
     () => ({
       aboutYourBusiness,
@@ -480,24 +506,17 @@ export function BusinessDetailsStep({
      * What: Provide canonical validation flag to parent.
      * Why: Parent `EditApplicationPage` expects `isValid` to determine
      *       whether the "Save and Continue" button is enabled.
-     * Data: include `isValid` (boolean), `isDeclarationConfirmed`, and `hasPendingChanges`.
+     * Data: snakePayload includes declaration_confirmed; isValid for step validity.
      */
     onDataChangeRef.current({
       ...snakePayload,
       hasPendingChanges,
-      isDeclarationConfirmed: declarationConfirmed,
-      // Parent reads `isValid` to set step validity. Ensure we send full validation result.
       isValid: validateBusinessDetails(),
     });
   }, [snakePayload, hasPendingChanges, declarationConfirmed, isInitialized, validateBusinessDetails]);
 
-  if (isLoadingApp || !isInitialized || debugSkeletonMode) {
-    return (
-      <>
-        <BusinessDetailsSkeleton />
-        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
-      </>
-    );
+  if (isLoadingApp || !isInitialized || devTools?.showSkeletonDebug) {
+    return <BusinessDetailsSkeleton />;
   }
 
   return (
@@ -779,7 +798,6 @@ export function BusinessDetailsStep({
         </div>
       </section>
       </div>
-      <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>
   );
 

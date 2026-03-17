@@ -26,6 +26,7 @@ interface ItemActionDropdownProps {
   onReject: (itemId: string) => void;
   onRequestAmendment: (itemId: string) => void;
   onResetToPending?: (itemId: string) => void;
+  showApprove?: boolean;
 }
 
 export function ItemActionDropdown({
@@ -38,6 +39,7 @@ export function ItemActionDropdown({
   onReject,
   onRequestAmendment,
   onResetToPending,
+  showApprove = true,
 }: ItemActionDropdownProps) {
   const button = (
     <Button
@@ -72,13 +74,15 @@ export function ItemActionDropdown({
         {button}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="rounded-xl">
-        <DropdownMenuItem
-          className="rounded-lg"
-          onClick={() => onApprove(itemId)}
-        >
-          <CheckCircleIcon className="h-4 w-4 mr-2" />
-          Approve
-        </DropdownMenuItem>
+        {showApprove && (
+          <DropdownMenuItem
+            className="rounded-lg"
+            onClick={() => onApprove(itemId)}
+          >
+            <CheckCircleIcon className="h-4 w-4 mr-2" />
+            Approve
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem
           className="rounded-lg"
           onClick={() => onReject(itemId)}

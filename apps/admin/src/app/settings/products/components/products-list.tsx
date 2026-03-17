@@ -69,7 +69,7 @@ export function ProductsList() {
     setProductFormOpen(true);
   };
 
-  const params: UseProductsParams = { page, pageSize, search: search || undefined };
+  const params: UseProductsParams = { page, pageSize, search: search || undefined, active: true };
   const { data, isPending, isError, error } = useProducts(params);
 
   const products = data?.products ?? [];
@@ -208,8 +208,8 @@ export function ProductsList() {
             ) : (
               products.map((p) => (
                 <TableRow key={p.id}>
-                  <TableCell >
-                    <p className="text-sm font-medium truncate" title={productName(p)}>
+                  <TableCell className="max-w-[280px] overflow-hidden">
+                    <p className="text-sm font-medium truncate block" title={productName(p)}>
                       {productName(p)}
                     </p>
                   </TableCell>
@@ -302,16 +302,18 @@ export function ProductsList() {
       />
 
       <Dialog open={!!productToDelete} onOpenChange={(open) => !open && setProductToDelete(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
+        <DialogContent className="rounded-2xl sm:max-w-md max-h-[90vh] flex flex-col overflow-hidden [&>*]:min-w-0">
+          <DialogHeader className="shrink-0">
             <DialogTitle>Delete product</DialogTitle>
           </DialogHeader>
-          {productToDelete && (
-            <p className="text-sm text-muted-foreground leading-6">
-              Delete &quot;{productName(productToDelete)}&quot;? This cannot be undone.
-            </p>
-          )}
-          <DialogFooter>
+          <div className="min-h-0 shrink overflow-y-auto overflow-x-hidden">
+            {productToDelete && (
+              <p className="text-sm text-muted-foreground leading-6 break-words">
+                Delete <strong>{productName(productToDelete)}</strong>? This cannot be undone.
+              </p>
+            )}
+          </div>
+          <DialogFooter className="shrink-0">
             <Button variant="outline" onClick={() => setProductToDelete(null)}>Cancel</Button>
             <Button variant="destructive" onClick={handleConfirmDelete} disabled={deleteProduct.isPending}>
               {deleteProduct.isPending ? "Deleting…" : "Delete"}

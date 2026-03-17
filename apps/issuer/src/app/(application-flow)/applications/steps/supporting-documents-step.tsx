@@ -7,13 +7,13 @@
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { XMarkIcon, ChevronDownIcon, CloudArrowUpIcon, ArrowDownTrayIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
-import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useApplication } from "@/hooks/use-applications";
 import { useAuthToken } from "@cashsouk/config";
 import { SupportingDocumentsSkeleton } from "@/app/(application-flow)/applications/components/supporting-documents-skeleton";
-import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
+import { FileDisplayBadge } from "@/app/(application-flow)/applications/components/file-display-badge";
+import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -36,9 +36,7 @@ export function SupportingDocumentsStep({
   flaggedSections?: Set<string>;
   flaggedItems?: Map<string, Set<string>>;
 }) {
-  // DEBUG: Toggle skeleton mode
-  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
-  
+  const devTools = useDevTools();
   const { getAccessToken } = useAuthToken();
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
 
@@ -170,7 +168,11 @@ export function SupportingDocumentsStep({
   const [initialUploadedFiles, setInitialUploadedFiles] = React.useState<Record<string, { name: string; size?: number; uploadedAt?: string; s3_key?: string }>>({});
 
 
-  const buildDataToSave = (files: Record<string, { s3_key?: string; name?: string }>, uploadResults: Map<string, { s3_key: string; file_name: string }> = new Map()) => {
+  /** Canonical file structure: file_name, file_size, s3_key, uploaded_at (ISO string). */
+  const buildDataToSave = (
+    files: Record<string, { s3_key?: string; name?: string; size?: number; uploadedAt?: string }>,
+    uploadResults: Map<string, { s3_key: string; file_name: string; file_size: number; uploaded_at: string }> = new Map()
+  ) => {
     return {
       categories: categories.map((category: any, categoryIndex: number) => ({
         name: category.name,
@@ -180,10 +182,12 @@ export function SupportingDocumentsStep({
           const existingFile = files[key];
           const s3_key = uploadResult?.s3_key || existingFile?.s3_key;
           const fileName = uploadResult?.file_name || existingFile?.name;
+          const fileSize = uploadResult?.file_size ?? existingFile?.size ?? 0;
+          const uploadedAt = uploadResult?.uploaded_at ?? existingFile?.uploadedAt ?? new Date().toISOString();
           if (s3_key && fileName) {
             return {
               title: document.title,
-              file: { file_name: fileName, s3_key: s3_key },
+              file: { file_name: fileName, file_size: fileSize, s3_key, uploaded_at: uploadedAt },
             };
           }
           return { title: document.title };
@@ -207,7 +211,11 @@ export function SupportingDocumentsStep({
 
     let data = application.supporting_documents;
     if (typeof data === "string") {
-      data = JSON.parse(data);
+      try {
+        data = JSON.parse(data);
+      } catch {
+        return;
+      }
     }
     if (data?.supporting_documents) {
       data = data.supporting_documents;
@@ -233,11 +241,12 @@ export function SupportingDocumentsStep({
           const key = `${categoryIndex}-${documentIndex}`;
 
           if (savedDocument.file?.s3_key && savedDocument.file?.file_name) {
+            const f = savedDocument.file;
             loadedFiles[key] = {
-              name: savedDocument.file.file_name,
-              size: 0,
-              uploadedAt: new Date().toISOString().split("T")[0],
-              s3_key: savedDocument.file.s3_key,
+              name: f.file_name,
+              size: f.file_size ?? 0,
+              uploadedAt: f.uploaded_at ?? new Date().toISOString(),
+              s3_key: f.s3_key,
             };
           }
         }
@@ -355,6 +364,8 @@ export function SupportingDocumentsStep({
         uploadResults.set(key, {
           s3_key: s3Key,
           file_name: typedFile.name,
+          file_size: typedFile.size,
+          uploaded_at: new Date().toISOString(),
         });
 
         const cuidMatch = s3Key.match(/v\d+-(\d{4}-\d{2}-\d{2})-([^.]+)\./);
@@ -377,17 +388,18 @@ export function SupportingDocumentsStep({
 
     const updatedFiles: Record<string, { name: string; size?: number; uploadedAt?: string; s3_key?: string }> = { ...uploadedFiles };
     uploadResults.forEach((result, key) => {
-      const originalFile = selectedFiles[key];
       if (updatedFiles[key]) {
         updatedFiles[key] = {
           ...updatedFiles[key],
           s3_key: result.s3_key,
+          size: result.file_size,
+          uploadedAt: result.uploaded_at,
         };
       } else {
         updatedFiles[key] = {
           name: result.file_name,
-          size: originalFile?.size || 0,
-          uploadedAt: new Date().toISOString().split("T")[0],
+          size: result.file_size,
+          uploadedAt: result.uploaded_at,
           s3_key: result.s3_key,
         };
       }
@@ -502,11 +514,8 @@ export function SupportingDocumentsStep({
   return (
     <>
     <div className="space-y-10 px-3">
-      {isLoadingApp || !stepConfig || debugSkeletonMode ? (
-        <>
-          <SupportingDocumentsSkeleton />
-          <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
-        </>
+      {isLoadingApp || !stepConfig || devTools?.showSkeletonDebug ? (
+        <SupportingDocumentsSkeleton />
       ) : (
         <>
           {categories.map((category: any, categoryIndex: number) => {
@@ -592,82 +601,83 @@ export function SupportingDocumentsStep({
                           {document.title}
                         </div>
 
-                        {/* Action column: template, uploaded file. Lock when !isEditable. */}
+                        {/* Action column: template, amendment, upload — all aligned far right */}
                         <div
                           className={cn(
-                            "flex justify-end",
+                            "flex flex-col items-end gap-2",
                             !isEditable && "pointer-events-none opacity-60 cursor-not-allowed"
                           )}
                         >
-                          <div className="flex justify-end items-start flex-wrap gap-3">
-                            {/* Download template */}
-                              {templateS3Key && (
-                                <button
-                                  type="button"
-                                  disabled={!isEditable}
-                                  className="inline-flex items-center gap-1.5 text-[14px] text-muted-foreground hover:text-foreground whitespace-nowrap h-6 disabled:opacity-50 disabled:cursor-not-allowed"
-                                  onClick={async () => {
-                                    const token = await getAccessToken();
-                                    const resp = await fetch(`${API_URL}/v1/s3/download-url`, {
-                                      method: "POST",
-                                      headers: {
-                                        Authorization: `Bearer ${token}`,
-                                        "Content-Type": "application/json",
-                                      },
-                                      body: JSON.stringify({ s3Key: templateS3Key }),
-                                    });
-                                    const j = await resp.json();
-                                    if (j?.success && j.data?.downloadUrl) {
-                                      window.open(j.data.downloadUrl, "_blank");
-                                    }
-                                  }}
-                                >
-                                  <ArrowDownTrayIcon className="h-4 w-4" />
-                                  <span>Download template</span>
-                                </button>
-                              )}
-
-                            {/* Separator */}
-                            <div className="w-px h-4 bg-border/60" />
-
-                            {/* Upload slot: item-level amendment message beside document (CashSouk styling) */}
-                            <div className="flex items-center gap-2 min-w-0">
-                              {isItemFlagged && itemRemark ? (
-                                <span className="inline-flex items-center gap-1.5 text-xs text-red-600 shrink-0 max-w-[180px]" title={itemRemark}>
-                                  <ExclamationTriangleIcon className="h-3.5 w-3.5 shrink-0" />
-                                  {itemRemark.split("\n")[0]}
-                                </span>
-                              ) : null}
-                              <div className="w-[160px] min-w-0 shrink-0">
+                          {templateS3Key && (
+                            <button
+                              type="button"
+                              disabled={!isEditable}
+                              className="inline-flex items-center gap-1.5 text-[14px] text-muted-foreground hover:text-foreground whitespace-nowrap h-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                              onClick={async () => {
+                                const token = await getAccessToken();
+                                const resp = await fetch(`${API_URL}/v1/s3/download-url`, {
+                                  method: "POST",
+                                  headers: {
+                                    Authorization: `Bearer ${token}`,
+                                    "Content-Type": "application/json",
+                                  },
+                                  body: JSON.stringify({ s3Key: templateS3Key }),
+                                });
+                                const j = await resp.json();
+                                if (j?.success && j.data?.downloadUrl) {
+                                  window.open(j.data.downloadUrl, "_blank");
+                                }
+                              }}
+                            >
+                              <ArrowDownTrayIcon className="h-4 w-4" />
+                              <span>Download template</span>
+                            </button>
+                          )}
+                          <div className="flex flex-row items-center gap-3 justify-end">
+                            {isItemFlagged && itemRemark ? (
+                              <div className="inline-flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 max-w-[240px]">
+                                <ExclamationTriangleIcon className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                                <p className="text-sm text-foreground leading-snug">{itemRemark.split("\n")[0]}</p>
+                              </div>
+                            ) : null}
+                            <div className="shrink-0">
                                 {isUploaded && file && !fileIsUploading ? (
-                                  <div
-                                    className={cn(
-                                      "inline-flex items-center gap-2 rounded-sm border px-2 py-[2px] w-full h-6 min-h-6",
-                                      isItemFlagged ? "border-destructive" : "border-border"
-                                    )}
-                                  >
-                                    {isItemFlagged ? (
-                                      <ExclamationTriangleIcon className="h-3.5 w-3.5 text-destructive shrink-0" />
-                                    ) : (
-                                      <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
-                                        <CheckIconSolid className="h-2.5 w-2.5 text-background" />
-                                      </div>
-                                    )}
-                                    <span className="text-[14px] font-medium truncate flex-1">
-                                      {file.name}
-                                    </span>
-                                    {isEditable && (
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          handleRemoveFile(categoryIndex, documentIndex)
-                                        }
-                                        className="text-muted-foreground hover:text-foreground shrink-0"
-                                      >
-                                        <XMarkIcon className="h-3.5 w-3.5" />
-                                      </button>
-                                    )}
-                                  </div>
+                                  isItemFlagged ? (
+                                    <div className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 min-h-9">
+                                      <span title={file.name} className="text-sm font-medium truncate min-w-0">
+                                        {file.name}
+                                      </span>
+                                      {isEditable && (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleRemoveFile(categoryIndex, documentIndex)
+                                          }
+                                          className="text-muted-foreground hover:text-foreground shrink-0"
+                                        >
+                                          <XMarkIcon className="h-3.5 w-3.5" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <FileDisplayBadge
+                                      fileName={file.name}
+                                      truncate
+                                      trailing={
+                                        isEditable ? (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleRemoveFile(categoryIndex, documentIndex)
+                                            }
+                                            className="text-muted-foreground hover:text-foreground shrink-0"
+                                          >
+                                            <XMarkIcon className="h-3.5 w-3.5" />
+                                          </button>
+                                        ) : undefined
+                                      }
+                                    />
+                                  )
                                 ) : !isEditable ? (
                                   <span className="text-[14px] text-muted-foreground">—</span>
                                 ) : (
@@ -691,7 +701,6 @@ export function SupportingDocumentsStep({
                                     />
                                   </label>
                                 )}
-                              </div>
                             </div>
                           </div>
                         </div>
@@ -707,7 +716,6 @@ export function SupportingDocumentsStep({
         </>
       )}
     </div>
-    <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>
   );
 

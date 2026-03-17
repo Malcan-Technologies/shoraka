@@ -6,7 +6,7 @@ import type { GetProductsResponse } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-export type UseProductsParams = { page: number; pageSize: number; search?: string };
+export type UseProductsParams = { page: number; pageSize: number; search?: string; active?: boolean };
 
 /** If API returned an error, redirect on auth errors and throw. Otherwise return response.data. */
 function unwrapResponse<T>(response: { success: true; data: T } | { success: false; error: { code: string; message: string } }): T {
@@ -107,6 +107,23 @@ export function useDeleteProduct() {
   return useMutation({
     mutationFn: async (id: string) => {
       const response = await apiClient.deleteProduct(id);
+      unwrapResponse(response);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "products"] });
+    },
+  });
+}
+
+/** Rollback failed product creation: hard-delete product and delete orphan S3 files. */
+export function useRollbackProductCreate() {
+  const queryClient = useQueryClient();
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async ({ id, s3Keys }: { id: string; s3Keys: string[] }) => {
+      const response = await apiClient.rollbackProductCreate(id, s3Keys);
       unwrapResponse(response);
     },
     onSuccess: () => {

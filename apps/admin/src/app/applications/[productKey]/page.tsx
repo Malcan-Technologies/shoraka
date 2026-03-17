@@ -19,7 +19,14 @@ import type {
   GetAdminApplicationsParams,
 } from "@cashsouk/types";
 
-const DEFAULT_STATUS_FILTERS = ["SUBMITTED", "UNDER_REVIEW", "RESUBMITTED"];
+const DEFAULT_STATUS_FILTERS = [
+  "SUBMITTED",
+  "UNDER_REVIEW",
+  "RESUBMITTED",
+  "CONTRACT_PENDING",
+  "CONTRACT_ACCEPTED",
+  "INVOICE_PENDING",
+];
 
 export default function DynamicApplicationsPage() {
   const queryClient = useQueryClient();
@@ -28,7 +35,7 @@ export default function DynamicApplicationsPage() {
   const productKey = params.productKey as string;
 
   // Fetch products to get the current product name
-  const { data: productsData } = useProducts({ page: 1, pageSize: 100 });
+  const { data: productsData } = useProducts({ page: 1, pageSize: 100, active: true });
   const currentProduct = productsData?.products.find(p => p.id === productKey);
   const currentProductName = currentProduct ? productName(currentProduct) : "Applications";
 

@@ -40,9 +40,9 @@ model User {
   product_logs                  ProductLog[]
   regtank_onboarding            RegTankOnboarding[]
   security_logs                 SecurityLog[]
-  notification_preferences        UserNotificationPreference[]
-  sessions                        UserSession[]
-  authored_review_remarks  ApplicationReviewRemark[]
+  notification_preferences      UserNotificationPreference[]
+  sessions                      UserSession[]
+  authored_review_remarks       ApplicationReviewRemark[]
 
   @@index([cognito_sub])
   @@map("users")
@@ -314,46 +314,46 @@ model IssuerOrganization {
 }
 
 model Application {
-  id                         String                    @id @default(cuid())
-  issuer_organization_id     String
-  product_version            Int
-  review_cycle               Int                       @default(1)
-  amendment_acknowledged_workflow_ids String[] @default([])
-  status                     ApplicationStatus         @default(DRAFT)
-  last_completed_step        Int                       @default(0)
-  financing_type             Json?
-  supporting_documents       Json?
-  declarations               Json?
-  created_at                 DateTime                  @default(now())
-  updated_at                 DateTime                  @updatedAt
-  review_and_submit          Json?
-  financing_structure        Json?
-  company_details            Json?
-  business_details           Json?
-  financial_statements       Json?
-  contract_id                String?
-  submitted_at               DateTime?
-  application_revisions      ApplicationRevision[]
-  application_review_events       ApplicationReviewEvent[]
-  application_review_items        ApplicationReviewItem[]
-  application_review_remarks      ApplicationReviewRemark[]
-  application_reviews             ApplicationReview[]
-  contract                        Contract?                 @relation(fields: [contract_id], references: [id])
-  issuer_organization        IssuerOrganization        @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
-  invoices                   Invoice[]
+  id                                  String                    @id @default(cuid())
+  issuer_organization_id              String
+  product_version                     Int
+  review_cycle                        Int                       @default(1)
+  amendment_acknowledged_workflow_ids String[]                  @default([])
+  status                              ApplicationStatus         @default(DRAFT)
+  last_completed_step                 Int                       @default(0)
+  financing_type                      Json?
+  supporting_documents                Json?
+  declarations                        Json?
+  created_at                          DateTime                  @default(now())
+  updated_at                          DateTime                  @updatedAt
+  review_and_submit                   Json?
+  financing_structure                 Json?
+  company_details                     Json?
+  business_details                    Json?
+  financial_statements                Json?
+  contract_id                         String?
+  submitted_at                        DateTime?
+  application_revisions               ApplicationRevision[]
+  application_review_events           ApplicationReviewEvent[]
+  application_review_items            ApplicationReviewItem[]
+  application_review_remarks          ApplicationReviewRemark[]
+  application_reviews                 ApplicationReview[]
+  contract                            Contract?                 @relation(fields: [contract_id], references: [id])
+  issuer_organization                 IssuerOrganization        @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
+  invoices                            Invoice[]
 
   @@map("applications")
 }
 
 model ApplicationRevision {
-  id              String   @id @default(cuid())
-  application_id  String
-  review_cycle    Int
-  snapshot        Json
-  submitted_at    DateTime
-  created_at      DateTime @default(now())
+  id             String   @id @default(cuid())
+  application_id String
+  review_cycle   Int
+  snapshot       Json
+  submitted_at   DateTime
+  created_at     DateTime @default(now())
 
-  application     Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  application Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
 
   @@unique([application_id, review_cycle])
   @@index([application_id])
@@ -407,6 +407,7 @@ model ApplicationReviewRemark {
   updated_at     DateTime    @updatedAt
   application    Application @relation(fields: [application_id], references: [id], onDelete: Cascade, map: "application_review_notes_application_id_fkey")
   author         User        @relation(fields: [author_user_id], references: [user_id], onDelete: Restrict)
+
   @@unique([application_id, scope, scope_key], map: "application_review_remarks_application_id_scope_scope_key_key")
   @@index([application_id, scope_key], map: "application_review_notes_application_id_scope_key_idx")
   @@index([application_id, submitted_at])
@@ -440,6 +441,7 @@ model Contract {
   customer_details       Json?
   issuer_organization_id String
   status                 ContractStatus     @default(DRAFT)
+  withdraw_reason        WithdrawReason?
   applications           Application[]
   issuer_organization    IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
   invoices               Invoice[]
@@ -448,16 +450,17 @@ model Contract {
 }
 
 model Invoice {
-  id             String        @id @default(cuid())
-  contract_id    String?
-  application_id String
-  details        Json
-  offer_details  Json?
-  created_at     DateTime      @default(now())
-  updated_at     DateTime      @updatedAt
-  status         InvoiceStatus @default(DRAFT)
-  application    Application   @relation(fields: [application_id], references: [id], onDelete: Cascade)
-  contract       Contract?     @relation(fields: [contract_id], references: [id])
+  id              String          @id @default(cuid())
+  contract_id     String?
+  application_id  String
+  details         Json
+  offer_details   Json?
+  created_at      DateTime        @default(now())
+  updated_at      DateTime        @updatedAt
+  status          InvoiceStatus   @default(DRAFT)
+  withdraw_reason WithdrawReason?
+  application     Application     @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  contract        Contract?       @relation(fields: [contract_id], references: [id])
 
   @@index([contract_id])
   @@index([application_id])
@@ -648,7 +651,7 @@ model ProductLog {
 }
 
 model ApplicationLog {
-  id             String   @id @default(cuid())
+  id             String  @id @default(cuid())
   user_id        String
   application_id String?
   event_type     String
@@ -658,16 +661,16 @@ model ApplicationLog {
   metadata       Json?
   review_cycle   Int?
 
-  level          ActivityLevel?
-  target         ActivityTarget?
-  action         ActivityAction?
+  level  ActivityLevel?
+  target ActivityTarget?
+  action ActivityAction?
 
-  entity_id      String?
+  entity_id String?
 
-  remark         String?
-  portal         String?    // ISSUER | ADMIN
+  remark String?
+  portal String? // ISSUER | ADMIN
 
-  created_at     DateTime @default(now())
+  created_at DateTime @default(now())
 
   @@index([user_id])
   @@index([event_type])
@@ -682,17 +685,18 @@ model ApplicationLog {
 }
 
 model Product {
-  id         String   @id @default(cuid())
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-  workflow   Json
+  id                     String   @id @default(cuid())
+  base_id                String?
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+  workflow               Json
   category_display_order Int?
-  product_display_order Int?
-  offer_expiry_days Int?
+  product_display_order  Int?
+  offer_expiry_days      Int?
 
   status     ProductStatus @default(ACTIVE)
   deleted_at DateTime?
-  version    Int      @default(1)
+  version    Int           @default(1)
 
   @@map("products")
 }
@@ -850,6 +854,7 @@ enum ReviewStepStatus {
   APPROVED
   REJECTED
   AMENDMENT_REQUESTED
+  WITHDRAWN
 }
 
 enum UserRole {
@@ -913,12 +918,19 @@ enum SiteDocumentType {
 enum ApplicationStatus {
   DRAFT
   SUBMITTED
-  APPROVED
-  REJECTED
-  ARCHIVED
   UNDER_REVIEW
+  CONTRACT_PENDING
+  CONTRACT_SENT
+  CONTRACT_ACCEPTED
+  INVOICE_PENDING
+  INVOICES_SENT
   AMENDMENT_REQUESTED
   RESUBMITTED
+  APPROVED
+  COMPLETED
+  WITHDRAWN
+  REJECTED
+  ARCHIVED
 }
 
 enum ContractStatus {
@@ -928,6 +940,7 @@ enum ContractStatus {
   APPROVED
   REJECTED
   AMENDMENT_REQUESTED
+  WITHDRAWN
 }
 
 enum InvoiceStatus {
@@ -937,6 +950,13 @@ enum InvoiceStatus {
   APPROVED
   REJECTED
   AMENDMENT_REQUESTED
+  WITHDRAWN
+}
+
+enum WithdrawReason {
+  USER_CANCELLED
+  OFFER_EXPIRED
+  OFFER_REJECTED
 }
 
 enum ActivityLevel {

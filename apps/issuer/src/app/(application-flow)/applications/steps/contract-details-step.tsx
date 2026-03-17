@@ -29,7 +29,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CloudUpload, X, CheckCircle2, Info } from "lucide-react";
+import { CloudUpload, X, CheckCircle2 } from "lucide-react";
+import { InformationCircleIcon } from "@heroicons/react/24/outline";
 import { useApplication } from "@/hooks/use-applications";
 import { useContract, useCreateContract, useUpdateContract } from "@/hooks/use-contracts";
 import { ContractDetailsSkeleton } from "@/app/(application-flow)/applications/components/contract-details-skeleton";
@@ -43,13 +44,42 @@ import {
   formLabelClassName,
   formSelectTriggerClassName,
   formTextareaClassName,
+  fieldTooltipContentClassName,
+  fieldTooltipTriggerClassName,
+  fieldTooltipLabelGap,
 } from "@/app/(application-flow)/applications/components/form-control";
 import { formatMoney, parseMoney } from "../components/money";
 import { MoneyInput } from "@/app/(application-flow)/applications/components/money-input";
 import { format, parse, isValid, parseISO } from "date-fns";
-import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
+import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+/** Mock data for dev Auto Fill. financing <= value; dates d/M/yyyy; SSM 12 digits. */
+export function generateMockData(): Record<string, unknown> {
+  const value = 5000000.5;
+  const financing = 1000000.25;
+  return {
+    contract: {
+      title: "Mining Rig Repair 12654",
+      description: "Repair and maintenance for 12 mining rigs",
+      number: "20212345678",
+      value: formatMoney(value),
+      start_date: "01/01/2025",
+      end_date: "31/12/2025",
+      financing: formatMoney(Math.min(financing, value)),
+      document: null,
+    },
+    customer: {
+      name: "Petronas Chemical Bhd",
+      entity_type: "Private Limited Company (Sdn Bhd)",
+      ssm_number: "202201234567",
+      country: "MY",
+      is_related_party: "no",
+      document: null,
+    },
+  };
+}
 
 type YesNo = "yes" | "no";
 
@@ -70,9 +100,6 @@ const COUNTRIES = [
   { code: "SG", name: "Singapore", flag: "🇸🇬" },
 ];
 
-
-  const tooltipClassName =
-  "max-w-[240px] whitespace-normal break-words text-xs leading-snug";
 
 /* ================================================================
    VALIDATION HELPERS
@@ -258,7 +285,8 @@ function YesNoRadioGroup({
 interface FileMetadata {
   s3_key: string;
   file_name: string;
-  file_size: number;
+  file_size?: number;
+  uploaded_at?: string;
 }
 
 interface FileUploadAreaProps {
@@ -305,6 +333,7 @@ function FileUploadArea({
     const fileName = pendingFile?.name || uploadedFile?.file_name || "";
     const fileSize = pendingFile?.size || uploadedFile?.file_size || 0;
     const isPending = !!pendingFile;
+    const statusText = isPending ? " (Uploading…)" : "";
 
     return (
       <div className="border border-border rounded-xl px-4 py-3 flex items-center justify-between gap-3 bg-card/50">
@@ -322,11 +351,11 @@ function FileUploadArea({
               )}
             />
           </div>
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1" title={fileName}>
             <div className="text-sm font-medium truncate">{fileName}</div>
             <div className="text-xs text-muted-foreground">
               {(fileSize / 1024 / 1024).toFixed(2)} MB
-              {isPending && " (uploading)"}
+              {statusText}
             </div>
           </div>
         </div>
@@ -402,6 +431,8 @@ interface ContractDetailsStepProps {
   flaggedItems?: Map<string, Set<string>>;
   remarks?: { scope?: string; scope_key?: string; remark?: string }[];
   readOnly?: boolean;
+  /** When true, show only Customer Details; hide Contract Details. Save customer_details only. */
+  isInvoiceOnly?: boolean;
 }
 
 export function ContractDetailsStep({
@@ -413,12 +444,13 @@ export function ContractDetailsStep({
   flaggedItems,
   remarks: _remarks,
   readOnly = false,
+  isInvoiceOnly = false,
 }: ContractDetailsStepProps) {
   const { getAccessToken } = useAuthToken();
   const { data: application } = useApplication(applicationId);
+  const devTools = useDevTools();
 
   // DEBUG: Toggle skeleton mode
-  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
 
   const contractId = ((application as unknown) as { contract?: { id?: string } })?.contract?.id;
   const { data: contract, isLoading: isLoadingContract } = useContract(contractId || "");
@@ -480,6 +512,25 @@ export function ContractDetailsStep({
     setFinancingError(null);
   }, [formData.contract.financing]);
 
+  /** Apply dev-tools Auto Fill when requested (single step or Fill Entire Application). */
+  React.useEffect(() => {
+    const data =
+      devTools?.autoFillData?.stepKey === "contract_details"
+        ? (devTools.autoFillData.data as { contract?: Record<string, unknown>; customer?: Record<string, unknown> })
+        : devTools?.autoFillDataMap?.["contract_details"] as
+            | { contract?: Record<string, unknown>; customer?: Record<string, unknown> }
+            | undefined;
+    if (!data || (!data.contract && !data.customer)) return;
+    setFormData((prev) => ({
+      contract: data.contract ? { ...prev.contract, ...data.contract } : prev.contract,
+      customer: data.customer ? { ...prev.customer, ...data.customer } : prev.customer,
+    }));
+    if (devTools) {
+      if (devTools.autoFillData?.stepKey === "contract_details") devTools.clearAutoFill();
+      else devTools.clearAutoFillForStep("contract_details");
+    }
+  }, [devTools]);
+
   /* ================================================================
      INITIALIZATION (run only once per applicationId)
      ================================================================ */
@@ -495,12 +546,9 @@ export function ContractDetailsStep({
     // Note: contract can be undefined/null if it doesn't exist yet - we'll create it on save
     // So we don't wait for contract loading here
 
-    const contractDetails = contract
-      ? ((contract as unknown) as { contract_details?: Record<string, unknown> })?.contract_details as Record<string, unknown>
-      : {};
-    const customerDetails = contract
-      ? ((contract as unknown) as { customer_details?: Record<string, unknown> })?.customer_details as Record<string, unknown>
-      : {};
+    const rawContract = (contract as unknown) as { contract_details?: Record<string, unknown> | null; customer_details?: Record<string, unknown> | null } | null;
+    const contractDetails = (rawContract?.contract_details ?? {}) as Record<string, unknown>;
+    const customerDetails = (rawContract?.customer_details ?? {}) as Record<string, unknown>;
 
     const relatedPartyValue: YesNo | "" =
       customerDetails.is_related_party === undefined ||
@@ -599,63 +647,46 @@ export function ContractDetailsStep({
 
   const saveFunction = React.useCallback(async () => {
     setHasSubmitted(true);
-    if (productMinMonths == null) {
-      toast.error("System configuration error. Please contact administrator.");
-      throw new Error("VALIDATION_PRODUCT_CONFIG_MISSING_MIN_CONTRACT_MONTHS");
-    }
-
-    // Collect validation errors so we can show all inline errors at once.
     const validationErrors: string[] = [];
-    // Clear previous financing error before validating
     setFinancingError(null);
 
-    // Required fields
-    if (!formData.contract.start_date)
-      validationErrors.push("VALIDATION_CONTRACT_START_DATE_REQUIRED");
-
-    if (!formData.contract.end_date)
-      validationErrors.push("VALIDATION_CONTRACT_END_DATE_REQUIRED");
-
-    // Date format
-    if (formData.contract.start_date && !isValidCalendarDate(formData.contract.start_date))
-      validationErrors.push("VALIDATION_CONTRACT_INVALID_START_DATE");
-
-    if (formData.contract.end_date && !isValidCalendarDate(formData.contract.end_date))
-      validationErrors.push("VALIDATION_CONTRACT_INVALID_END_DATE");
-
-    // Logical order
-    if (!isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date))
-      validationErrors.push("VALIDATION_CONTRACT_DATE_ORDER");
-
-    // Duration rule (product-level)
-    if (
-      isEndDateTooSoon(
-        formData.contract.start_date,
-        formData.contract.end_date,
-        productMinMonths
-      )
-    ) {
-      validationErrors.push("VALIDATION_CONTRACT_DURATION_TOO_SHORT");
+    if (!isInvoiceOnly) {
+      if (productMinMonths == null) {
+        toast.error("System configuration error. Please contact administrator.");
+        throw new Error("VALIDATION_PRODUCT_CONFIG_MISSING_MIN_CONTRACT_MONTHS");
+      }
+      if (!formData.contract.start_date)
+        validationErrors.push("VALIDATION_CONTRACT_START_DATE_REQUIRED");
+      if (!formData.contract.end_date)
+        validationErrors.push("VALIDATION_CONTRACT_END_DATE_REQUIRED");
+      if (formData.contract.start_date && !isValidCalendarDate(formData.contract.start_date))
+        validationErrors.push("VALIDATION_CONTRACT_INVALID_START_DATE");
+      if (formData.contract.end_date && !isValidCalendarDate(formData.contract.end_date))
+        validationErrors.push("VALIDATION_CONTRACT_INVALID_END_DATE");
+      if (!isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date))
+        validationErrors.push("VALIDATION_CONTRACT_DATE_ORDER");
+      if (
+        isEndDateTooSoon(
+          formData.contract.start_date,
+          formData.contract.end_date,
+          productMinMonths
+        )
+      ) {
+        validationErrors.push("VALIDATION_CONTRACT_DURATION_TOO_SHORT");
+      }
+      const contractValueNum = parseMoney(formData.contract.value);
+      const financingAmountNum = parseMoney(formData.contract.financing);
+      if (financingAmountNum <= 0) {
+        setFinancingError("Financing amount must be greater than 0");
+        validationErrors.push("VALIDATION_CONTRACT_FINANCING_REQUIRED");
+      } else if (financingAmountNum > contractValueNum) {
+        setFinancingError(`Financing cannot exceed ${formatMoney(contractValueNum)}`);
+        validationErrors.push("VALIDATION_CONTRACT_FINANCING_EXCEEDS_VALUE");
+      }
     }
-
 
     if (!/^\d{12}$/.test(formData.customer.ssm_number)) validationErrors.push("VALIDATION_CONTRACT_SSM_FORMAT");
 
-
-    /* Validate financing amount only on Save (not during typing).
-       Follow CashSouk pattern: validation happens at save boundary. */
-    const contractValueNum = parseMoney(formData.contract.value);
-    const financingAmountNum = parseMoney(formData.contract.financing);
-
-    if (financingAmountNum <= 0) {
-      setFinancingError("Financing amount must be greater than 0");
-      validationErrors.push("VALIDATION_CONTRACT_FINANCING_REQUIRED");
-    } else if (financingAmountNum > contractValueNum) {
-      setFinancingError(`Financing cannot exceed ${formatMoney(contractValueNum)}`);
-      validationErrors.push("VALIDATION_CONTRACT_FINANCING_EXCEEDS_VALUE");
-    }
-
-    // If any validation errors, show a single toast and abort save so UI shows all inline errors.
     if (validationErrors.length > 0) {
       toast.error("Please fix the highlighted fields");
       throw new Error("VALIDATION_CONTRACT_FAILED");
@@ -679,8 +710,8 @@ export function ContractDetailsStep({
     const apiClient = createApiClient(API_URL, () => Promise.resolve(token));
     const updatedFormData = { ...formData };
 
-    // Upload contract file if pending
-    if (pendingFiles.contract) {
+    /** Upload contract file only when not invoice_only. */
+    if (!isInvoiceOnly && pendingFiles.contract) {
       try {
         setIsUploading((prev) => ({ ...prev, contract: true }));
 
@@ -720,6 +751,7 @@ export function ContractDetailsStep({
           s3_key: s3Key,
           file_name: pendingFiles.contract.name,
           file_size: pendingFiles.contract.size,
+          uploaded_at: new Date().toISOString(),
         };
         setLastS3Keys((prev) => ({ ...prev, contract: s3Key }));
       } finally {
@@ -768,6 +800,7 @@ export function ContractDetailsStep({
           s3_key: s3Key,
           file_name: pendingFiles.consent.name,
           file_size: pendingFiles.consent.size,
+          uploaded_at: new Date().toISOString(),
         };
         setLastS3Keys((prev) => ({ ...prev, consent: s3Key }));
       } finally {
@@ -775,13 +808,45 @@ export function ContractDetailsStep({
       }
     }
 
-    // Convert values to numbers
+    const updatedCustomerDetails = {
+      ...updatedFormData.customer,
+      is_related_party: updatedFormData.customer.is_related_party === "yes",
+      document: updatedFormData.customer.document || undefined,
+    };
+
+    if (isInvoiceOnly) {
+      const existingContractDetails = (contract as unknown as { contract_details?: Record<string, unknown> })?.contract_details;
+      const updatePayload: { customer_details: typeof updatedCustomerDetails; contract_details?: null } = {
+        customer_details: updatedCustomerDetails,
+      };
+      if (existingContractDetails != null && Object.keys(existingContractDetails).length > 0) {
+        updatePayload.contract_details = null;
+      }
+      await updateContractMutation.mutateAsync({
+        id: effectiveContractId,
+        data: updatePayload,
+      });
+      setPendingFiles({});
+      return { contract_details: undefined, customer_details: updatedCustomerDetails };
+    }
+
     const valueNum = parseMoney(updatedFormData.contract.value);
     const contractFinancingNum = parseMoney(updatedFormData.contract.financing);
+    const structureType = (application as { financing_structure?: { structure_type?: string } })?.financing_structure?.structure_type;
     const existingCd = (contract as unknown as { contract_details?: Record<string, unknown> })?.contract_details;
-    const approvedFacilityNum = typeof existingCd?.approved_facility === "number" ? existingCd.approved_facility : 0;
-    const utilizedFacilityNum = typeof existingCd?.utilized_facility === "number" ? existingCd.utilized_facility : 0;
-    const availableFacilityNum = typeof existingCd?.available_facility === "number" ? existingCd.available_facility : 0;
+    /** New contract: approved, utilized, available = null. Existing contract: use stored values from backend. */
+    const approvedFacilityValue =
+      structureType === "existing_contract" && typeof existingCd?.approved_facility === "number"
+        ? existingCd.approved_facility
+        : null;
+    const utilizedFacilityValue =
+      structureType === "existing_contract" && typeof existingCd?.utilized_facility === "number"
+        ? existingCd.utilized_facility
+        : null;
+    const availableFacilityValue =
+      structureType === "existing_contract" && typeof existingCd?.available_facility === "number"
+        ? existingCd.available_facility
+        : null;
 
     const updatedContractDetails = {
       ...updatedFormData.contract,
@@ -795,20 +860,12 @@ export function ContractDetailsStep({
         const pd = parseFlexibleDate(updatedFormData.contract.end_date);
         return pd ? format(pd, "yyyy-MM-dd") : updatedFormData.contract.end_date;
       })(),
-      approved_facility: approvedFacilityNum,
-      utilized_facility: utilizedFacilityNum,
-      available_facility: availableFacilityNum,
+      approved_facility: approvedFacilityValue,
+      utilized_facility: utilizedFacilityValue,
+      available_facility: availableFacilityValue,
       document: updatedFormData.contract.document || undefined,
     };
 
-
-    const updatedCustomerDetails = {
-      ...updatedFormData.customer,
-      is_related_party: updatedFormData.customer.is_related_party === "yes",
-      document: updatedFormData.customer.document || undefined,
-    };
-
-    // Save to DB
     await updateContractMutation.mutateAsync({
       id: effectiveContractId,
       data: {
@@ -817,10 +874,7 @@ export function ContractDetailsStep({
       },
     });
 
-    // Clear pending files
     setPendingFiles({});
-
-    // Return persisted data
     return {
       contract_details: updatedContractDetails,
       customer_details: updatedCustomerDetails,
@@ -834,6 +888,9 @@ export function ContractDetailsStep({
     getAccessToken,
     createContractMutation,
     updateContractMutation,
+    isInvoiceOnly,
+    contract,
+    application,
   ]);
 
   /* ================================================================
@@ -920,25 +977,28 @@ export function ContractDetailsStep({
     const hasFormChanges = hasFormChanged();
     const hasContractDocument = !!formData.contract.document || !!pendingFiles.contract;
     const hasConsentDocument = !!formData.customer.document || !!pendingFiles.consent;
-
-    // Check if dates are present and valid (parents store free-text dates)
     const hasValidStartDate = !!formData.contract.start_date && isValidCalendarDate(formData.contract.start_date);
     const hasValidEndDate = !!formData.contract.end_date && isValidCalendarDate(formData.contract.end_date);
 
-    const isValid =
-      !!formData.contract.title &&
-      !!formData.contract.description &&
-      !!formData.contract.number &&
-      !!formData.contract.value &&
-      !!formData.contract.financing &&
-      hasValidStartDate &&
-      hasValidEndDate &&
-      hasContractDocument &&
-      !!formData.customer.name &&
-      !!formData.customer.entity_type &&
-      !!formData.customer.ssm_number &&
-      !!formData.customer.country &&
-      hasConsentDocument;
+    const isValid = isInvoiceOnly
+      ? !!formData.customer.name &&
+        !!formData.customer.entity_type &&
+        !!formData.customer.ssm_number &&
+        !!formData.customer.country &&
+        hasConsentDocument
+      : !!formData.contract.title &&
+        !!formData.contract.description &&
+        !!formData.contract.number &&
+        !!formData.contract.value &&
+        !!formData.contract.financing &&
+        hasValidStartDate &&
+        hasValidEndDate &&
+        hasContractDocument &&
+        !!formData.customer.name &&
+        !!formData.customer.entity_type &&
+        !!formData.customer.ssm_number &&
+        !!formData.customer.country &&
+        hasConsentDocument;
 
     /** Send a stable payload to parent.
      *
@@ -954,9 +1014,8 @@ export function ContractDetailsStep({
       saveFunction: saveFunctionRef.current || undefined,
       _saveFunctionRef: saveFunctionRef, // internal fallback for debugging/tests
     });
-    // Intentionally omit dependencies that would retrigger this effect too often.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formData, pendingFiles]);
+  }, [formData, pendingFiles, isInvoiceOnly]);
   // Determine whether the step is editable (amendment mode + flagged, or explicit readOnly override)
   const stepIsEditable = React.useMemo(() => {
     if (readOnly) return false;
@@ -1008,13 +1067,8 @@ export function ContractDetailsStep({
      RENDER
      ================================================================ */
 
-  if (!isInitializedRef.current || debugSkeletonMode) {
-    return (
-      <>
-        <ContractDetailsSkeleton />
-        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
-      </>
-    );
+  if (!isInitializedRef.current || devTools?.showSkeletonDebug) {
+    return <ContractDetailsSkeleton />;
   }
 
   const stepIsFlagged = isAmendmentMode && (flaggedSections?.has("contract_details") || (flaggedItems?.get("contract_details")?.size ?? 0) > 0);
@@ -1022,29 +1076,30 @@ export function ContractDetailsStep({
   const labelClassName = cn(formLabelClassName, "font-normal");
   const inputClassName = cn(formInputClassName, !stepIsEditable && formInputDisabledClassName);
   const sectionHeaderClassName = "text-base font-semibold text-foreground";
-  const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3";
+  const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center";
 
   return (
     <>
       <div className="space-y-10 px-3">
-        {/* Contract Details Section */}
+        {/* Contract Details Section — hidden when invoice_only */}
+        {!isInvoiceOnly && (
         <section className="space-y-3">
           <div>
-            <h3 className={sectionHeaderClassName}>Contract details</h3>
+            <h3 className={sectionHeaderClassName}>Contract Details</h3>
             <div className="border-b border-border mt-2 mb-4" />
           </div>
 
           <div className={sectionGridClassName}>
-            <Label className={labelClassName}>Contract title</Label>
+            <Label className={labelClassName}>Contract Title</Label>
             <Input
               value={formData.contract.title}
               onChange={(e) => handleInputChange("contract", "title", e.target.value)}
               disabled={!stepIsEditable}
               placeholder="eg. Mining Rig Repair 12654"
-              className={cn(inputClassName, stepIsFlagged ? "border-destructive focus-visible:border-destructive" : "")}
+              className={cn(inputClassName, stepIsFlagged ? "border-destructive focus-visible:border-2 focus-visible:border-destructive" : "")}
             />
 
-            <Label className={labelClassName}>Contract description</Label>
+            <Label className={labelClassName}>Contract Description</Label>
             <Textarea
               value={formData.contract.description}
               onChange={(e) =>
@@ -1055,7 +1110,7 @@ export function ContractDetailsStep({
               className={cn(formTextareaClassName, "min-h-[100px]", !stepIsEditable && formInputDisabledClassName)}
             />
 
-            <Label className={labelClassName}>Contract number</Label>
+            <Label className={labelClassName}>Contract Number</Label>
             <Input
               value={formData.contract.number}
               onChange={(e) => handleInputChange("contract", "number", e.target.value)}
@@ -1064,7 +1119,7 @@ export function ContractDetailsStep({
               className={inputClassName}
             />
 
-            <Label className={labelClassName}>Contract value</Label>
+            <Label className={labelClassName}>Contract Value</Label>
             <div className="h-11 flex items-center">
               <MoneyInput
                 value={formData.contract.value}
@@ -1076,7 +1131,7 @@ export function ContractDetailsStep({
               />
             </div>
 
-            <Label className={labelClassName}>Contract financing</Label>
+            <Label className={labelClassName}>Contract Financing</Label>
             <div className="space-y-1">
               <div className="h-11 flex items-center">
                 <MoneyInput
@@ -1085,7 +1140,7 @@ export function ContractDetailsStep({
                 disabled={!stepIsEditable}
                   placeholder={`eg. ${formatMoney(1000000)}`}
                   prefix="RM"
-                  inputClassName={`${inputClassName} ${financingError ? "border-destructive focus-visible:border-destructive" : ""}`}
+                  inputClassName={`${inputClassName} ${financingError ? "border-destructive focus-visible:border-2 focus-visible:border-destructive" : ""}`}
                 />
               </div>
               {financingError && (
@@ -1095,7 +1150,7 @@ export function ContractDetailsStep({
               )}
             </div>
 
-            <Label className={labelClassName}>Contract start date</Label>
+            <Label className={labelClassName}>Contract Start Date</Label>
             <div className="space-y-1">
               <DateInput
                 value={formData.contract.start_date || ""}
@@ -1118,21 +1173,18 @@ export function ContractDetailsStep({
 
 
 
-            <div className="flex items-center gap-1">
-              <Label className={labelClassName}>Contract end date</Label>
-              {formData.contract.start_date && (
+            <div className={cn("flex items-center", fieldTooltipLabelGap)}>
+              <Label className={labelClassName}>Contract End Date</Label>
+              {formData.contract.start_date && productMinMonths && (
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Info className="h-4 w-4 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
+                    <span className={fieldTooltipTriggerClassName}>
+                      <InformationCircleIcon className="h-4 w-4" />
+                    </span>
                   </TooltipTrigger>
-                  {productMinMonths && (
-                    <TooltipContent
-                      side="right"
-                      className={tooltipClassName}
-                    >
-                      {`The contract must run for at least ${productMinMonths} months from the later of today or the contract start date`}
-                    </TooltipContent>
-                  )}
+                  <TooltipContent side="top" className={fieldTooltipContentClassName}>
+                    {`The contract must run for at least ${productMinMonths} months from the later of today or the contract start date`}
+                  </TooltipContent>
                 </Tooltip>
               )}
             </div>
@@ -1175,7 +1227,8 @@ export function ContractDetailsStep({
                 )}
             </div>
 
-            <Label className={labelClassName}>Upload contract</Label>
+            <Label className={cn(labelClassName, "self-start")}>Upload Contract</Label>
+            <div className="self-start">
             <FileUploadArea
                 onFileSelect={(file) => handleFileUpload("contract", file)}
                 isUploading={isUploading.contract}
@@ -1187,18 +1240,23 @@ export function ContractDetailsStep({
                 } : undefined}
                 disabled={!stepIsEditable}
               />
+            </div>
           </div>
         </section>
+        )}
 
         {/* Customer Details Section */}
         <section className="space-y-3">
           <div>
-            <h3 className={sectionHeaderClassName}>Customer details</h3>
+            <h3 className={sectionHeaderClassName}>
+              {/* {isInvoiceOnly ? "Customer Details (Required for Invoice Financing)" : "Customer details"} */}
+              Customer Details
+            </h3>
             <div className="border-b border-border mt-2 mb-4" />
           </div>
 
           <div className={sectionGridClassName}>
-            <Label className={labelClassName}>Customer name</Label>
+            <Label className={labelClassName}>Customer Name</Label>
             <Input
               value={formData.customer.name}
               onChange={(e) => handleInputChange("customer", "name", e.target.value)}
@@ -1207,7 +1265,7 @@ export function ContractDetailsStep({
               className={inputClassName}
             />
 
-            <Label className={labelClassName}>Customer entity type</Label>
+            <Label className={labelClassName}>Customer Entity Type</Label>
             <Select
               value={formData.customer.entity_type}
               onValueChange={(value) => handleInputChange("customer", "entity_type", value)}
@@ -1225,7 +1283,7 @@ export function ContractDetailsStep({
               </SelectContent>
             </Select>
 
-            <Label className={labelClassName}>Customer SSM number</Label>
+            <Label className={labelClassName}>Customer SSM Number</Label>
             <div className="space-y-1 min-h-[48px]">
               <Input
                 value={formData.customer.ssm_number}
@@ -1241,9 +1299,10 @@ export function ContractDetailsStep({
 
                   handleInputChange("customer", "ssm_number", raw);
                 }}
-                placeholder="eg. 202123456789"
+                placeholder="e.g. 202123456789"
                 className={inputClassName}
               />
+              <p className="text-xs text-muted-foreground">12 digits</p>
               {hasSubmitted && !/^\d{12}$/.test(formData.customer.ssm_number) && (
                 <p className="text-xs text-destructive">
                   SSM number must be 12 digits
@@ -1251,7 +1310,7 @@ export function ContractDetailsStep({
               )}
             </div>
 
-            <Label className={labelClassName}>Customer country</Label>
+            <Label className={labelClassName}>Customer Country</Label>
             <Select
               value={formData.customer.country}
               onValueChange={(value) => handleInputChange("customer", "country", value)}
@@ -1272,16 +1331,15 @@ export function ContractDetailsStep({
               </SelectContent>
             </Select>
 
-            <div className="flex items-center gap-1">
-              <Label className={labelClassName}>Is the customer related to you?</Label>
+            <div className={cn("flex items-center", fieldTooltipLabelGap)}>
+              <Label className={labelClassName}>Is the Customer Related to You?</Label>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Info className="h-4 w-4 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
+                  <span className={fieldTooltipTriggerClassName}>
+                    <InformationCircleIcon className="h-4 w-4" />
+                  </span>
                 </TooltipTrigger>
-                <TooltipContent
-                  side="right"
-                  className={tooltipClassName}
-                >
+                <TooltipContent side="top" className={fieldTooltipContentClassName}>
                   Related director/shareholder or having subsidiary/sister company or parent company relationship
                 </TooltipContent>
               </Tooltip>
@@ -1294,7 +1352,8 @@ export function ContractDetailsStep({
               />
             </div>
 
-            <Label className={labelClassName}>Upload customer consent</Label>
+            <Label className={cn(labelClassName, "self-start")}>Upload Customer Consent</Label>
+            <div className="self-start">
             <FileUploadArea
               onFileSelect={(file) => handleFileUpload("consent", file)}
               isUploading={isUploading.consent}
@@ -1306,11 +1365,10 @@ export function ContractDetailsStep({
               } : undefined}
               disabled={!stepIsEditable}
             />
+            </div>
           </div>
         </section>
       </div>
-      <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>
   );
-
 }

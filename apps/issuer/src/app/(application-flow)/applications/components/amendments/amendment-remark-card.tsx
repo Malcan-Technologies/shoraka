@@ -2,6 +2,7 @@
 
 /**
  * Guide: docs/guides/application-flow/amendment-flow.md — Amendment remark card displayed per step when flagged
+ * Uses CashSouk brand tokens (primary) for cohesive error/action-required state.
  */
 
 import * as React from "react";
@@ -32,11 +33,11 @@ export function AmendmentRemarkCard({ remarks, showDefaultIntro = true }: Amendm
   if (lines.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-red-200 bg-red-50 p-4 flex gap-3">
-      <ExclamationTriangleIcon className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+    <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 flex gap-3">
+      <ExclamationTriangleIcon className="h-5 w-5 text-primary shrink-0 mt-0.5" />
       <div>
-        <h4 className="font-semibold text-red-600">Amendment required</h4>
-        <ul className="mt-2 pl-4 list-disc text-sm text-red-600">
+        <h4 className="font-semibold text-primary">Amendment required</h4>
+        <ul className="mt-2 pl-4 list-disc text-sm text-foreground">
           {lines.map((line, idx) => (
             <li key={idx}>{line}</li>
           ))}

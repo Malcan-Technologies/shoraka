@@ -1,5 +1,10 @@
-import { createApiClient, useAuthToken } from "@cashsouk/config";
+import {
+  createApiClient,
+  getReviewRefreshPolicy,
+  useAuthToken,
+} from "@cashsouk/config";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { WithdrawReason } from "@cashsouk/types";
 import type { CreateApplicationInput, UpdateApplicationStepInput } from "@cashsouk/types";
 import { toast } from "sonner";
 
@@ -8,6 +13,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 export function useApplication(id: string) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
+  const refreshPolicy = getReviewRefreshPolicy();
 
   return useQuery({
     queryKey: ["application", id],
@@ -20,6 +26,7 @@ export function useApplication(id: string) {
       return response.data;
     },
     enabled: !!id,
+    ...refreshPolicy,
   });
 }
 
@@ -152,9 +159,141 @@ export function useArchiveApplication() {
   });
 }
 
+export function useDeleteDraftApplication() {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.deleteDraftApplication(id);
+      if (!response.success) {
+        throw new Error((response as any).error?.message ?? "Failed to delete draft");
+      }
+      return { id };
+    },
+    onSuccess: (_, id) => {
+      queryClient.invalidateQueries({ queryKey: ["application", id] });
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to delete draft", {
+        description: error.message,
+      });
+    },
+  });
+}
+
+export function useCancelApplication() {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiClient.cancelApplication(id);
+      if (!response.success) {
+        throw new Error((response as any).error?.message ?? "Failed to cancel");
+      }
+      return (response as any).data;
+    },
+    onSuccess: (data, id) => {
+      queryClient.invalidateQueries({ queryKey: ["application", id] });
+      const organizationId = (data as any)?.issuer_organization_id as string | undefined;
+      if (organizationId) {
+        queryClient.invalidateQueries({ queryKey: ["applications", organizationId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["applications"] });
+      }
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to withdraw application", {
+        description: error.message,
+      });
+    },
+  });
+}
+
+export function useWithdrawInvoice() {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      invoiceId,
+      applicationId,
+      organizationId,
+      reason,
+    }: {
+      invoiceId: string;
+      applicationId: string;
+      organizationId?: string;
+      reason?: WithdrawReason;
+    }) => {
+      const response = await apiClient.withdrawInvoice(invoiceId, reason);
+      if (!response.success) {
+        throw new Error((response as any).error?.message ?? "Failed to withdraw invoice");
+      }
+      return { data: (response as any).data, applicationId, organizationId };
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["application", variables.applicationId] });
+      if (variables.organizationId) {
+        queryClient.invalidateQueries({ queryKey: ["applications", variables.organizationId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["applications"] });
+      }
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to withdraw invoice", {
+        description: error.message,
+      });
+    },
+  });
+}
+
+export function useWithdrawContract() {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      contractId,
+      applicationId,
+      organizationId,
+    }: {
+      contractId: string;
+      applicationId: string;
+      organizationId?: string;
+    }) => {
+      const response = await apiClient.withdrawContract(contractId);
+      if (!response.success) {
+        throw new Error((response as any).error?.message ?? "Failed to withdraw contract");
+      }
+      return { data: (response as any).data, applicationId, organizationId };
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["application", variables.applicationId] });
+      if (variables.organizationId) {
+        queryClient.invalidateQueries({ queryKey: ["applications", variables.organizationId] });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ["applications"] });
+      }
+    },
+    onError: (error: Error) => {
+      toast.error("Failed to withdraw contract", {
+        description: error.message,
+      });
+    },
+  });
+}
+
 export function useOrganizationApplications(organizationId?: string) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
+  const refreshPolicy = getReviewRefreshPolicy();
 
   return useQuery({
     queryKey: ["applications", organizationId],
@@ -167,6 +306,7 @@ export function useOrganizationApplications(organizationId?: string) {
       return response.data as any[];
     },
     enabled: !!organizationId,
+    ...refreshPolicy,
   });
 }
 
@@ -186,14 +326,14 @@ export function useAcceptContractOffer() {
       if (!res.success) throw new Error(getOfferError(res));
       return res.data;
     },
-    onSuccess: (data, applicationId) => {
+    onSuccess: async (data, applicationId) => {
       queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
       const organizationId = (data as any)?.issuer_organization_id as string | undefined;
       if (organizationId) {
         queryClient.invalidateQueries({ queryKey: ["applications", organizationId] });
-      } else {
-        queryClient.invalidateQueries({ queryKey: ["applications"] });
       }
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+      await queryClient.refetchQueries({ queryKey: ["applications"] });
     },
     onError: (error: Error) => {
       toast.error("Failed to accept offer", { description: error.message });
@@ -207,19 +347,28 @@ export function useRejectContractOffer() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (applicationId: string) => {
-      const res = await apiClient.rejectContractOffer(applicationId);
+    mutationFn: async ({
+      applicationId,
+      reason,
+    }: {
+      applicationId: string;
+      reason?: string;
+    }) => {
+      const res = await apiClient.rejectContractOffer(applicationId, {
+        ...(reason != null && reason.trim() !== "" ? { reason: reason.trim() } : {}),
+      });
       if (!res.success) throw new Error(getOfferError(res));
       return res.data;
     },
-    onSuccess: (data, applicationId) => {
+    onSuccess: async (data, variables) => {
+      const applicationId = variables.applicationId;
       queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
       const organizationId = (data as any)?.issuer_organization_id as string | undefined;
       if (organizationId) {
         queryClient.invalidateQueries({ queryKey: ["applications", organizationId] });
-      } else {
-        queryClient.invalidateQueries({ queryKey: ["applications"] });
       }
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+      await queryClient.refetchQueries({ queryKey: ["applications"] });
     },
     onError: (error: Error) => {
       toast.error("Failed to reject offer", { description: error.message });
@@ -238,14 +387,14 @@ export function useAcceptInvoiceOffer() {
       if (!res.success) throw new Error(getOfferError(res));
       return res.data;
     },
-    onSuccess: (data, { applicationId }) => {
+    onSuccess: async (data, { applicationId }) => {
       queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
       const organizationId = (data as any)?.issuer_organization_id as string | undefined;
       if (organizationId) {
         queryClient.invalidateQueries({ queryKey: ["applications", organizationId] });
-      } else {
-        queryClient.invalidateQueries({ queryKey: ["applications"] });
       }
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+      await queryClient.refetchQueries({ queryKey: ["applications"] });
     },
     onError: (error: Error) => {
       toast.error("Failed to accept offer", { description: error.message });
@@ -259,19 +408,30 @@ export function useRejectInvoiceOffer() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ applicationId, invoiceId }: { applicationId: string; invoiceId: string }) => {
-      const res = await apiClient.rejectInvoiceOffer(applicationId, invoiceId);
+    mutationFn: async ({
+      applicationId,
+      invoiceId,
+      reason,
+    }: {
+      applicationId: string;
+      invoiceId: string;
+      reason?: string;
+    }) => {
+      const res = await apiClient.rejectInvoiceOffer(applicationId, invoiceId, {
+        ...(reason != null && reason.trim() !== "" ? { reason: reason.trim() } : {}),
+      });
       if (!res.success) throw new Error(getOfferError(res));
       return res.data;
     },
-    onSuccess: (data, { applicationId }) => {
+    onSuccess: async (data, variables) => {
+      const applicationId = variables.applicationId;
       queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
       const organizationId = (data as any)?.issuer_organization_id as string | undefined;
       if (organizationId) {
         queryClient.invalidateQueries({ queryKey: ["applications", organizationId] });
-      } else {
-        queryClient.invalidateQueries({ queryKey: ["applications"] });
       }
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+      await queryClient.refetchQueries({ queryKey: ["applications"] });
     },
     onError: (error: Error) => {
       toast.error("Failed to reject offer", { description: error.message });

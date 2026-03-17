@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import {
+  ArchiveBoxIcon,
   CheckCircleIcon,
   ClockIcon,
   ExclamationTriangleIcon,
@@ -25,6 +26,7 @@ const STATUS_CONFIG: Record<
   AMENDMENT_REQUESTED: { Icon: ExclamationTriangleIcon },
   PENDING: { Icon: ClockIcon },
   OFFER_SENT: { Icon: PaperAirplaneIcon },
+  WITHDRAWN: { Icon: ArchiveBoxIcon },
 };
 
 export function ReviewStepStatusBadge({ status, size = "md" }: ReviewStepStatusBadgeProps) {

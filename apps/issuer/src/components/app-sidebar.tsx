@@ -161,13 +161,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     className="opacity-50 cursor-not-allowed"
                   >
                     <DocumentTextIcon className="h-4 w-4" />
-                    <span>Applications</span>
+                    <span>Application</span>
                   </SidebarMenuButton>
                 ) : (
-                  <SidebarMenuButton asChild isActive={pathname === "/applications" || pathname.startsWith("/applications/")} tooltip="Applications">
+                  <SidebarMenuButton asChild isActive={pathname === "/applications" || pathname.startsWith("/applications/")} tooltip="Application">
                     <Link href="/applications">
                       <DocumentTextIcon className="h-4 w-4" />
-                      <span>Applications</span>
+                      <span>Application</span>
                     </Link>
                   </SidebarMenuButton>
                 )}

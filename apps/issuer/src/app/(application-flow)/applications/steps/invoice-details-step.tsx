@@ -23,12 +23,10 @@
  *      contract start and end dates.
  *    - Skipped for invoice-only flows (no contract).
  *
- * 5. Minimum invoice value
- *    - Each product defines a minimum invoice value.
- *    - Invoice value must meet or exceed this amount.
+ * 5. Min/max financing amount (product config)
+ *    - Per-invoice: each invoice's financing amount (value × ratio) must be within min/max.
  *
- * 6. Financing ratio
- *    - Only part of each invoice can be financed.
+ * 6. Financing ratio (all structures including invoice_only)
  *    - Financing ratio must be between 60% and 80%.
  *
  * 9. Facility limit
@@ -55,8 +53,7 @@ import { DateInput } from "@/app/(application-flow)/applications/components/date
 import { Trash2 } from "lucide-react";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
-import { XMarkIcon, CloudArrowUpIcon } from "@heroicons/react/24/outline";
-import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
+import { XMarkIcon, CloudArrowUpIcon, InformationCircleIcon } from "@heroicons/react/24/outline";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@cashsouk/ui";
 import { useQueryClient } from "@tanstack/react-query";
@@ -65,14 +62,25 @@ import {
   formInputDisabledClassName,
   formLabelClassName,
   withFieldError,
+  fieldTooltipContentClassName,
+  fieldTooltipTriggerClassName,
 } from "@/app/(application-flow)/applications/components/form-control";
 import { StatusBadge } from "../components/invoice-status-badge";
 import { InvoiceErrorCard } from "../components/amendments";
 import { formatMoney, parseMoney } from "../components/money";
 import { MoneyInput } from "@/app/(application-flow)/applications/components/money-input";
 import { InvoiceDetailsSkeleton } from "@/app/(application-flow)/applications/components/invoice-details-skeleton";
-import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
+import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
+import { generateInvoiceData } from "../utils/dev-data-generator";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { FileDisplayBadge } from "../components/file-display-badge";
+
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
+
+/** Mock data for dev Auto Fill Step. Random 1–5 invoices. */
+export function generateMockData(): Record<string, unknown> {
+  return generateInvoiceData();
+}
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -146,7 +154,7 @@ type LocalInvoice = {
   maturity_date: string;
   financing_ratio_percent?: number;
   status?: string;
-  document?: { file_name: string; file_size: number; s3_key?: string } | null;
+  document?: { file_name: string; file_size?: number; s3_key?: string; uploaded_at?: string } | null;
 };
 
 interface InvoiceDetailsStepProps {
@@ -168,8 +176,7 @@ export default function InvoiceDetailsStep({
   flaggedItems: _flaggedItems,
   remarks = [],
 }: InvoiceDetailsStepProps) {
-  // DEBUG: Toggle skeleton mode
-  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
+  const devTools = useDevTools();
 
   const [invoices, setInvoices] = React.useState<LocalInvoice[]>([]);
   const [selectedFiles, setSelectedFiles] = React.useState<Record<string, File>>({});
@@ -180,38 +187,56 @@ export default function InvoiceDetailsStep({
   const [isLoadingApplication, setIsLoadingApplication] = React.useState(true);
   const [isLoadingInvoices, setIsLoadingInvoices] = React.useState(true);
   const [isInitialized, setIsInitialized] = React.useState(false);
-
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
   const { data: productsData } = useProducts({ page: 1, pageSize: 100 });
 
-  /** Map invoice index -> remark. Simple: scope_key "invoice_details:N:..." -> index N */
-  const flaggedInvoiceRemarks = React.useMemo(() => {
-    const map = new Map<number, string>();
+  /** Parse remark text: split by /n for bullets, else by newline. Returns trimmed non-empty lines. */
+  const parseRemarkBullets = React.useCallback((text: string): string[] => {
+    if (!text?.trim()) return [];
+    const raw = text.trim();
+    const delimiter = raw.includes("/n") ? "/n" : "\n";
+    return raw.split(delimiter).map((s) => s.trim()).filter(Boolean);
+  }, []);
+
+  /** Map invoice index -> list of remark texts. Scope keys: invoice_details:N:... or invoice:N:... */
+  const invoiceRemarksByIndex = React.useMemo(() => {
+    const map = new Map<number, string[]>();
     for (const r of remarks) {
       const rem = r as { scope?: string; scope_key?: string; remark?: string };
-      if (rem.scope !== "item" || !rem.scope_key?.startsWith("invoice_details:")) continue;
-      const parts = rem.scope_key.split(":");
+      if (rem.scope !== "item") continue;
+      const sk = rem.scope_key || "";
+      if (!sk.startsWith("invoice_details:") && !sk.startsWith("invoice:")) continue;
+      const parts = sk.split(":");
       if (parts.length >= 2) {
         const idx = parseInt(parts[1], 10);
-        if (!Number.isNaN(idx) && (rem.remark || "").trim()) map.set(idx, (rem.remark || "").trim());
+        if (!Number.isNaN(idx) && idx >= 0 && (rem.remark || "").trim()) {
+          const bullets = parseRemarkBullets(rem.remark || "");
+          if (bullets.length > 0) {
+            const existing = map.get(idx) ?? [];
+            map.set(idx, [...existing, ...bullets]);
+          }
+        }
       }
     }
     return map;
-  }, [remarks]);
+  }, [remarks, parseRemarkBullets]);
 
-  /** Item-level invoice errors for InvoiceErrorCard above table */
-  const invoiceErrorLines = React.useMemo(() => {
-    const lines: string[] = [];
-    flaggedInvoiceRemarks.forEach((remark, idx) => {
+  /** Indices of invoices that have amendment remarks (for row highlighting). */
+  const invoicesWithRemarks = React.useMemo(
+    () => new Set(invoiceRemarksByIndex.keys()),
+    [invoiceRemarksByIndex]
+  );
+
+  /** Grouped invoice amendment data for card: { invoiceLabel, bullets }[]. */
+  const invoiceAmendmentGroups = React.useMemo(() => {
+    const sorted = Array.from(invoiceRemarksByIndex.entries()).sort((a, b) => a[0] - b[0]);
+    return sorted.map(([idx, bullets]) => {
       const inv = invoices[idx];
-      const prefix = inv?.number ? `Invoice #${inv.number}: ` : `Invoice #${idx + 1}: `;
-      for (const line of (remark || "").split("\n").filter(Boolean)) {
-        lines.push(prefix + line.trim());
-      }
+      const label = inv?.number ? `Invoice ${inv.number}` : `Invoice #${idx + 1}`;
+      return { invoiceLabel: label, bullets };
     });
-    return lines;
-  }, [flaggedInvoiceRemarks, invoices]);
+  }, [invoiceRemarksByIndex, invoices]);
 
   React.useEffect(() => {
     let mounted = true;
@@ -241,6 +266,23 @@ export default function InvoiceDetailsStep({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applicationId]);
+
+  /** Apply dev-tools Fill Entire Application (autoFillDataMap) or Auto Fill Step (autoFillData). */
+  React.useEffect(() => {
+    const data =
+      devTools?.autoFillData?.stepKey === "invoice_details"
+        ? (devTools.autoFillData.data as { invoices?: LocalInvoice[] })
+        : (devTools?.autoFillDataMap?.["invoice_details"] as { invoices?: LocalInvoice[] } | undefined);
+    if (!data?.invoices?.length) return;
+    setInvoices(
+      data.invoices.map((inv) => ({
+        ...inv,
+        document: inv.document ?? null,
+      }))
+    );
+    if (devTools?.autoFillData?.stepKey === "invoice_details") devTools.clearAutoFill();
+    else devTools?.clearAutoFillForStep("invoice_details");
+  }, [devTools]);
 
   const addInvoice = () => {
     setInvoices((s) => [
@@ -299,6 +341,7 @@ export default function InvoiceDetailsStep({
       file_name: file.name,
       file_size: file.size,
       s3_key: existingS3Key,
+      uploaded_at: new Date().toISOString(),
     });
     toast.success("File added");
   };
@@ -443,27 +486,29 @@ export default function InvoiceDetailsStep({
     );
   };
 
-  const applicationFinancingAmount = invoices.reduce((acc, inv) => {
-
+  const totalFinancingAmount = invoices.reduce((acc, inv) => {
     const value = parseMoney(inv.value);
-
     const ratio = (inv.financing_ratio_percent || 60) / 100;
     return acc + value * ratio;
   }, 0);
 
-  const totalFinancingAmount = applicationFinancingAmount;
-
   const cd = application?.contract?.contract_details;
   const approvedFacility =
-    (typeof cd?.approved_facility === "number" ? cd.approved_facility : 0) ||
-    (typeof cd?.financing === "number" ? cd.financing : 0);
-  const utilizedFacility =
-    typeof cd?.utilized_facility === "number" ? cd.utilized_facility : 0;
-  const contractValue = typeof cd?.value === "number" ? cd.value : 0;
-  const contractFinancing = typeof cd?.financing === "number" ? cd.financing : 0;
+    typeof cd?.approved_facility === "number" && cd.approved_facility > 0
+      ? cd.approved_facility
+      : 0;
+  const contractFinancing =
+    typeof cd?.financing === "number"
+      ? cd.financing
+      : parseMoney(String(cd?.financing ?? ""));
 
-  const submittedFinancingAmount = invoices
-    .filter((inv) => inv.status === "SUBMITTED")
+  /** For existing_contract: use stored available_facility from backend (approved - utilized, utilized = approved invoices only). */
+  const storedAvailableFacility =
+    typeof cd?.available_facility === "number" ? cd.available_facility : null;
+
+  /** For existing_contract: sum of financing for invoices not yet approved (DRAFT, SUBMITTED). Used for facility validation. */
+  const nonApprovedFinancingAmount = invoices
+    .filter((inv) => inv.status !== "APPROVED")
     .reduce((sum, inv) => {
       const value = parseMoney(inv.value);
       const ratio = (inv.financing_ratio_percent || 60) / 100;
@@ -471,18 +516,15 @@ export default function InvoiceDetailsStep({
     }, 0);
 
   const structureType = application?.financing_structure?.structure_type;
+  const hasApprovedFacility = approvedFacility > 0;
+
   let facilityLimit = 0;
   if (structureType === "new_contract") {
-    facilityLimit = approvedFacility > 0 ? approvedFacility : parseMoney(contractValue || contractFinancing);
+    facilityLimit = hasApprovedFacility ? approvedFacility : contractFinancing;
   }
-  if (structureType === "existing_contract") {
-    facilityLimit = parseMoney(approvedFacility);
+  if (structureType === "existing_contract" && storedAvailableFacility != null) {
+    facilityLimit = storedAvailableFacility;
   }
-
-  const liveAvailableFacility =
-    approvedFacility > 0
-      ? approvedFacility - utilizedFacility - submittedFinancingAmount
-      : facilityLimit - totalFinancingAmount;
 
   const hasPendingFiles = Object.keys(selectedFiles).length > 0;
   const hasPartialRows = invoices.some((inv) => isRowPartial(inv));
@@ -532,15 +574,21 @@ export default function InvoiceDetailsStep({
       }
     }
 
-    if (!isInvoiceOnly && !validationError) {
+    /** Financing ratio 60–80% applies to all structures including invoice_only. */
+    if (!validationError) {
       const invalidRatioInvoice = invoices.find(
         (inv) => !isRowEmpty(inv) && (inv.financing_ratio_percent! < 60 || inv.financing_ratio_percent! > 80)
       );
       if (invalidRatioInvoice) {
         validationError = "Financing ratio must be between 60% and 80%.";
       }
-      if (!validationError && totalFinancingAmount > facilityLimit) {
-        validationError = `Total financing amount (RM ${formatMoney(totalFinancingAmount)}) exceeds facility limit (RM ${formatMoney(facilityLimit)}).`;
+    }
+
+    /** Facility limit only for new_contract and existing_contract (invoice_only has no facility). */
+    if (!isInvoiceOnly && !validationError) {
+      const amountToCheck = isExistingContract ? nonApprovedFinancingAmount : totalFinancingAmount;
+      if (amountToCheck > facilityLimit) {
+        validationError = `Total financing amount (RM ${formatMoney(amountToCheck)}) exceeds facility limit (RM ${formatMoney(facilityLimit)}).`;
       }
     }
   }
@@ -687,6 +735,7 @@ export default function InvoiceDetailsStep({
           file_name: file.name,
           file_size: file.size,
           s3_key: s3Key,
+          uploaded_at: new Date().toISOString(),
         },
       };
 
@@ -712,6 +761,7 @@ export default function InvoiceDetailsStep({
                 file_name: file.name,
                 file_size: file.size,
                 s3_key: s3Key,
+                uploaded_at: new Date().toISOString(),
               },
             }
             : row
@@ -806,6 +856,7 @@ export default function InvoiceDetailsStep({
                 file_name: d.document.file_name,
                 file_size: d.document.file_size,
                 s3_key: d.document.s3_key,
+                uploaded_at: d.document.uploaded_at,
               }
               : null,
           };
@@ -890,11 +941,7 @@ export default function InvoiceDetailsStep({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applicationId, application?.financing_structure?.structure_type, application?.contract_id]);
 
-  // const isNewContract =
-  //   application?.financing_structure?.structure_type === "new_contract"; // Not used
-  const hasFacilityData = approvedFacility > 0;
-
-  if (isLoadingApplication || debugSkeletonMode) {
+  if (isLoadingApplication || devTools?.showSkeletonDebug) {
     return (
       <>
         <InvoiceDetailsSkeleton
@@ -902,10 +949,6 @@ export default function InvoiceDetailsStep({
           showInvoiceTable={true}
         />
 
-        <DebugSkeletonToggle
-          isSkeletonMode={debugSkeletonMode}
-          onToggle={setDebugSkeletonMode}
-        />
       </>
     );
   }
@@ -918,7 +961,7 @@ export default function InvoiceDetailsStep({
           <div className="space-y-3">
             <div>
               <h3 className="text-base font-semibold text-foreground">
-                Contract
+                {isInvoiceOnly ? "Customer" : "Contract"}
               </h3>
               <div className="border-b border-border mt-2 mb-4" />
             </div>
@@ -926,58 +969,67 @@ export default function InvoiceDetailsStep({
             <div className="space-y-3 mt-4 px-3">
               <div className="grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-y-3">
 
+                {!isInvoiceOnly && (
+                  <>
                 {/* ================= Contract Title ================= */}
-                <div className={formLabelClassName}>Contract title</div>
+                <div className={formLabelClassName}>Contract Title</div>
                 <div className={valueClassName}>
                   {application?.contract?.contract_details?.title ?? "—"}
                 </div>
+                  </>
+                )}
 
                 {/* ================= Customer ================= */}
-                <div className={formLabelClassName}>Customer</div>
+                <div className={formLabelClassName}>Customer Name</div>
                 <div className={valueClassName}>
                   {application?.contract?.customer_details?.name ?? "—"}
                 </div>
 
                 {/* ================= Contract Value ================= */}
-                <div className={formLabelClassName}>Contract value</div>
+                <div className={formLabelClassName}>Contract Value</div>
                 <div className={valueClassName}>
                   {application?.contract?.contract_details?.value != null
                     ? `RM ${formatMoney(application.contract.contract_details.value)}`
                     : "—"}
                 </div>
 
-                {/* ================= Approved Facility ================= */}
-                <div className={formLabelClassName}>Approved facility</div>
+                {/* ================= Contract Financing ================= */}
+                <div className={formLabelClassName}>Contract Financing</div>
                 <div className={valueClassName}>
-                  {!hasFacilityData
-                    ? "—"
-                    : `RM ${formatMoney(approvedFacility)}`}
+                  {application?.contract?.contract_details?.financing != null
+                    ? `RM ${formatMoney(application.contract.contract_details.financing)}`
+                    : "N/A"}
+                </div>
+
+                {/* ================= Approved Facility ================= */}
+                <div className={formLabelClassName}>Approved Facility</div>
+                <div className={valueClassName}>
+                  {typeof cd?.approved_facility === "number"
+                    ? `RM ${formatMoney(cd.approved_facility)}`
+                    : "N/A"}
                 </div>
 
                 {/* ================= Utilised Facility ================= */}
-                <div className={formLabelClassName}>Utilised facility</div>
+                <div className={formLabelClassName}>Utilised Facility</div>
                 <div className={valueClassName}>
-                  {!hasFacilityData
-                    ? "—"
-                    : `RM ${formatMoney(utilizedFacility)}`}
+                  {typeof cd?.utilized_facility === "number"
+                    ? `RM ${formatMoney(cd.utilized_facility)}`
+                    : "N/A"}
                 </div>
 
                 {/* ================= Available Facility ================= */}
-                <div className={formLabelClassName}>Available facility</div>
+                <div className={formLabelClassName}>Available Facility</div>
                 <div
                   className={cn(
                     "text-sm md:text-base leading-6 font-medium",
-                    hasFacilityData &&
-                    liveAvailableFacility != null &&
-                    liveAvailableFacility < 0 &&
+                    typeof cd?.available_facility === "number" &&
+                    cd.available_facility < 0 &&
                     "text-destructive"
                   )}
                 >
-                  {!hasFacilityData
-                    ? "—"
-                    : liveAvailableFacility != null
-                      ? `RM ${formatMoney(liveAvailableFacility)}`
-                      : "—"}
+                  {typeof cd?.available_facility === "number"
+                    ? `RM ${formatMoney(cd.available_facility)}`
+                    : "N/A"}
                 </div>
               </div>
             </div>
@@ -985,12 +1037,12 @@ export default function InvoiceDetailsStep({
         )}
 
         {/* ================= Invoice Details ================= */}
-        {isLoadingApplication || debugSkeletonMode ? null : (
+        {isLoadingApplication || devTools?.showSkeletonDebug ? null : (
           <div className="space-y-3">
             <div className="flex items-start justify-between">
               <div>
                 <h3 className="text-base font-semibold text-foreground">
-                  Invoice details
+                  Invoices
                 </h3>
                 <p className="text-sm text-muted-foreground mt-1">
                   Add invoices below. Rows are local until you Save and Continue.
@@ -1004,9 +1056,9 @@ export default function InvoiceDetailsStep({
 
             <div className="border-b border-border mt-2 mb-4" />
 
-            {/* Item-level invoice errors above table (no space inside table for long errors) */}
-            {invoiceErrorLines.length > 0 && (
-              <InvoiceErrorCard errors={invoiceErrorLines} />
+            {/* Item-level invoice amendment remarks above table */}
+            {invoiceAmendmentGroups.length > 0 && (
+              <InvoiceErrorCard groups={invoiceAmendmentGroups} />
             )}
 
             {/* ================= Table ================= */}
@@ -1026,19 +1078,45 @@ export default function InvoiceDetailsStep({
                           </TableHead>
 
                           <TableHead className="w-[150px] whitespace-nowrap text-xs font-semibold">
-                            Maturity date
+                            Maturity Date
                           </TableHead>
 
                           <TableHead className="w-[150px] whitespace-nowrap text-xs font-semibold">
-                            Invoice value (RM)
+                            Invoice Value
                           </TableHead>
 
                           <TableHead className="w-[130px] whitespace-nowrap text-xs font-semibold">
-                            Financing ratio
+                            Financing Ratio
                           </TableHead>
 
                           <TableHead className="w-[200px] whitespace-nowrap text-xs font-semibold">
-                            Maximum financing amount (RM)
+                            <div className="inline-flex items-center gap-1">
+                              Maximum Financing Amount
+                              {productConfig &&
+                                (typeof productConfig.min_invoice_value === "number" ||
+                                  typeof productConfig.max_invoice_value === "number") && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className={fieldTooltipTriggerClassName}>
+                                        <InformationCircleIcon className="h-4 w-4" />
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top" className={fieldTooltipContentClassName}>
+                                      Per-invoice financing limits:{" "}
+                                      {typeof productConfig.min_invoice_value === "number"
+                                        ? `min RM ${formatMoney(productConfig.min_invoice_value)}`
+                                        : ""}
+                                      {typeof productConfig.min_invoice_value === "number" &&
+                                      typeof productConfig.max_invoice_value === "number"
+                                        ? ", "
+                                        : ""}
+                                      {typeof productConfig.max_invoice_value === "number"
+                                        ? `max RM ${formatMoney(productConfig.max_invoice_value)}`
+                                        : ""}
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
+                            </div>
                           </TableHead>
 
                           <TableHead className="w-[160px] whitespace-nowrap text-xs font-semibold">
@@ -1065,8 +1143,7 @@ export default function InvoiceDetailsStep({
                               inv.status === "AMENDMENT_REQUESTED" ||
                               !inv.status) &&
                             !readOnly;
-                          const invRemark = flaggedInvoiceRemarks.get(invIndex);
-                          const isInvFlagged = Boolean(invRemark);
+                          const isInvFlagged = invoicesWithRemarks.has(invIndex);
 
                           return (
                             <TableRow
@@ -1074,7 +1151,7 @@ export default function InvoiceDetailsStep({
                               className={cn(
                                 "hover:bg-muted/40 transition-colors",
                                 (isLocked || readOnly) && "bg-muted/30",
-                                isInvFlagged && "border-l-4 border-l-destructive bg-destructive/5"
+                                isInvFlagged && "border-l-4 border-l-destructive bg-red-50"
                               )}
                             >
                               <TableCell className="p-2">
@@ -1113,7 +1190,8 @@ export default function InvoiceDetailsStep({
                                 <MoneyInput
                                   value={inv.value}
                                   onValueChange={(v) => updateInvoiceField(inv.id, "value", v)}
-                                  placeholder="Enter value"
+                                  placeholder="0.00"
+                                  prefix="RM"
                                   disabled={!isEditable}
                                   inputClassName={cn(
                                     withFieldError(
@@ -1172,41 +1250,40 @@ export default function InvoiceDetailsStep({
                               </TableCell>
 
                               <TableCell className="p-2 text-xs tabular-nums whitespace-nowrap">
-                                {formatMoney(financingAmount)}
+                                RM {formatMoney(financingAmount)}
                               </TableCell>
 
-                              <TableCell className="p-2">
+                              <TableCell className="p-2 min-w-0 overflow-hidden">
                                 {inv.document ? (
-                                  <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] w-full h-8 bg-background">
-                                    <div className="w-3 h-3 rounded-sm bg-foreground flex items-center justify-center shrink-0">
-                                      <CheckIconSolid className="h-2 w-2 text-background" />
-                                    </div>
-                                    <span className="text-xs font-medium truncate flex-1 text-foreground">
-                                      {inv.document.file_name}
-                                    </span>
-                                    {isEditable && (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        if (inv.document?.s3_key) {
-                                          setLastS3Keys((prev) => ({
-                                            ...prev,
-                                            [inv.id]: inv.document!.s3_key!,
-                                          }));
-                                        }
-                                        updateInvoiceField(inv.id, "document", null);
-                                        setSelectedFiles((prev) => {
-                                          const copy = { ...prev };
-                                          delete copy[inv.id];
-                                          return copy;
-                                        });
-                                      }}
-                                      className="shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
-                                    >
-                                      <XMarkIcon className="h-3 w-3" />
-                                    </button>
-                                    )}
-                                  </div>
+                                  <FileDisplayBadge
+                                    fileName={inv.document.file_name}
+                                    size="sm"
+                                    className="bg-background"
+                                    trailing={
+                                      isEditable ? (
+                                        <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (inv.document?.s3_key) {
+                                            setLastS3Keys((prev) => ({
+                                              ...prev,
+                                              [inv.id]: inv.document!.s3_key!,
+                                            }));
+                                          }
+                                          updateInvoiceField(inv.id, "document", null);
+                                          setSelectedFiles((prev) => {
+                                            const copy = { ...prev };
+                                            delete copy[inv.id];
+                                            return copy;
+                                          });
+                                        }}
+                                        className="shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
+                                      >
+                                        <XMarkIcon className="h-3 w-3" />
+                                      </button>
+                                      ) : undefined
+                                    }
+                                  />
                                 ) : isEditable ? (
                                   <label className="inline-flex items-center gap-1 text-xs font-medium text-primary cursor-pointer hover:opacity-80 h-8">
                                     <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
@@ -1251,8 +1328,8 @@ export default function InvoiceDetailsStep({
                         {/* TOTAL */}
                         <TableRow className="bg-muted/10">
                           <TableCell colSpan={5} />
-                          <TableCell className="p-2 font-semibold text-xs">
-                            {formatMoney(totalFinancingAmount)}
+                          <TableCell className="p-2 font-semibold text-xs tabular-nums">
+                            RM {formatMoney(totalFinancingAmount)}
                             <div className="text-xs text-muted-foreground font-normal">Total</div>
                           </TableCell>
                           <TableCell colSpan={2} />
@@ -1274,7 +1351,6 @@ export default function InvoiceDetailsStep({
           </div>
         )}
       </div>
-      <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>
   );
 }

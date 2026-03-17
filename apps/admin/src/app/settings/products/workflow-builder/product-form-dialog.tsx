@@ -34,7 +34,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../../../components/ui/select";
-import { useProduct, useCreateProduct, useUpdateProduct, useProductImageUploadUrl, useProductTemplateUploadUrl } from "../hooks/use-products";
+import {
+  useProduct,
+  useCreateProduct,
+  useUpdateProduct,
+  useRollbackProductCreate,
+  useProductImageUploadUrl,
+  useProductTemplateUploadUrl,
+} from "../hooks/use-products";
 import { uploadFileToS3 } from "../../../../hooks/use-site-documents";
 import { stepDisplayName, getDefaultWorkflowSteps, getRequiredFirstAndLastSteps, type WorkflowStepShape } from "../product-utils";
 import { getStepKeyFromStepId, STEP_KEY_DISPLAY, STEPS_WITHOUT_CONFIG } from "./workflow-registry";
@@ -43,14 +50,17 @@ import {
   buildPayloadFromSteps,
   workflowDeepEqual,
   getRequiredStepErrors,
+  getStepIdsWithErrors,
   FIRST_STEP_KEY,
   LAST_STEP_KEY,
   SUPPORTING_DOCS_STEP_KEY,
   normalizeWorkflow,
 } from "./product-form-helpers";
+import { INPUT_CLASS, SELECT_TRIGGER_CLASS, FIELD_GAP } from "./product-form-input-styles";
 import { AlertTriangle } from "lucide-react";
 import { WorkflowStepCard } from "./workflow-step-card";
 import { StepConfigEditor } from "./step-configs/step-config-editor";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export interface ProductFormDialogProps {
@@ -66,6 +76,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
   const { data: product, isPending: loading, isError, error } = useProduct(productId);
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
+  const rollbackProductCreate = useRollbackProductCreate();
   const requestImageUrl = useProductImageUploadUrl();
   const requestTemplateUrl = useProductTemplateUploadUrl();
   const [steps, setSteps] = useState<unknown[]>([]);
@@ -174,7 +185,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
     const oldIndex = steps.findIndex((s) => getStepId(s) === active.id);
     const newIndex = steps.findIndex((s) => getStepId(s) === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
-    let next = arrayMove(steps, oldIndex, newIndex);
+    const next = arrayMove(steps, oldIndex, newIndex);
     setSteps(enforceFirstAndLast(next));
   };
 
@@ -206,10 +217,14 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
     );
   };
 
-  /** Upload pending image to S3 and write s3Key into the financing type step. Mutates nextSteps. */
-  const uploadImageAndMerge = async (productId: string, nextSteps: Record<string, unknown>[]) => {
+  /** Upload pending image to S3 and write s3Key into the financing type step. Mutates nextSteps. Returns s3Key if uploaded. */
+  const uploadImageAndMerge = async (
+    productId: string,
+    nextSteps: Record<string, unknown>[],
+    onS3KeyUploaded: (key: string) => void
+  ): Promise<string | null> => {
     const imageFile = pendingImageFile ?? pendingImageFileRef.current;
-    if (!imageFile) return;
+    if (!imageFile) return null;
     const { uploadUrl, s3Key } = await requestImageUrl.mutateAsync({
       productId,
       fileName: imageFile.name,
@@ -217,6 +232,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       fileSize: imageFile.size,
     });
     await uploadFileToS3(uploadUrl, imageFile);
+    onS3KeyUploaded(s3Key);
     const firstIdx = nextSteps.findIndex((s) => getStepKeyFromStepId(getStepId(s)) === FIRST_STEP_KEY);
     if (firstIdx >= 0) {
       const step = nextSteps[firstIdx] as Record<string, unknown>;
@@ -228,10 +244,16 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
     }
     setPendingImageFile(null);
     pendingImageFileRef.current = null;
+    return s3Key;
   };
 
-  /** Upload all pending template files to S3 and merge s3Keys into the supporting documents step. Mutates nextSteps. */
-  const uploadTemplatesAndMerge = async (productId: string, nextSteps: Record<string, unknown>[]) => {
+  /** Upload all pending template files to S3 and merge s3Keys into the supporting documents step. Mutates nextSteps. Returns uploaded s3Keys. */
+  const uploadTemplatesAndMerge = async (
+    productId: string,
+    nextSteps: Record<string, unknown>[],
+    onS3KeyUploaded: (key: string) => void
+  ): Promise<string[]> => {
+    const keys: string[] = [];
     for (const [slotKey, file] of Object.entries(pendingSupportingDocTemplates)) {
       const parts = slotKey.split("_");
       const categoryKey = parts.slice(0, -1).join("_");
@@ -246,6 +268,8 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
         fileSize: file.size,
       });
       await uploadFileToS3(uploadUrl, file);
+      onS3KeyUploaded(s3Key);
+      keys.push(s3Key);
       const supportIdx = nextSteps.findIndex((s) => getStepKeyFromStepId(getStepId(s)) === SUPPORTING_DOCS_STEP_KEY);
       if (supportIdx >= 0) {
         const step = nextSteps[supportIdx] as Record<string, unknown>;
@@ -264,15 +288,19 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       }
     }
     setPendingSupportingDocTemplates({});
+    return keys;
   };
 
   const handleSave = async () => {
+    if (saveInProgress) return;
     if (steps.length === 0) {
       toast.error("Add at least one step.");
       return;
     }
     setSaveInProgress(true);
     setSaveTriggered(true);
+    let createdProductId: string | null = null;
+    const uploadedS3Keys: string[] = [];
     try {
       let productId: string;
       if (isEdit && product) {
@@ -290,6 +318,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
           offer_expiry_days: offerExpiryNum,
         });
         productId = created.id;
+        createdProductId = productId;
       }
 
       const nextSteps = steps.map((s) => ({
@@ -297,8 +326,9 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
         config: { ...((s as { config?: Record<string, unknown> }).config ?? {}) },
       }));
 
-      await uploadImageAndMerge(productId, nextSteps);
-      await uploadTemplatesAndMerge(productId, nextSteps);
+      const onS3KeyUploaded = (key: string) => uploadedS3Keys.push(key);
+      await uploadImageAndMerge(productId, nextSteps, onS3KeyUploaded);
+      await uploadTemplatesAndMerge(productId, nextSteps, onS3KeyUploaded);
 
       const payload = buildPayloadFromSteps(nextSteps);
       const offerExpiryNum =
@@ -322,8 +352,18 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
         toast.success("Product created");
       }
       onOpenChange(false);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Save failed");
+    } catch {
+      if (createdProductId) {
+        try {
+          await rollbackProductCreate.mutateAsync({
+            id: createdProductId,
+            s3Keys: uploadedS3Keys,
+          });
+        } catch {
+          /* best-effort rollback; user already sees error */
+        }
+      }
+      toast.error("Something went wrong. Please try again.");
     } finally {
       setSaveInProgress(false);
     }
@@ -347,13 +387,13 @@ const isEqual = workflowDeepEqual(
   normalizedInitial
 );
 
-/** Offer expiry validation: must be number > 0. Returns error message or null. */
+/** Offer expiry validation: when provided, must be number > 0. Blank is allowed (optional). */
 const offerExpiryError = (() => {
   const v = offerExpiryDays.trim();
-  if (v === "") return "Offer expiry is required";
+  if (v === "") return null;
   const num = Number(v);
-  if (Number.isNaN(num)) return "Offer expiry is required";
-  if (num <= 0) return "Offer expiry cannot be 0";
+  if (Number.isNaN(num)) return "Offer expiry must be a number greater than 0";
+  if (num <= 0) return "Offer expiry must be a number greater than 0";
   return null;
 })();
 
@@ -400,6 +440,9 @@ const hasChanges = !isEdit
     }
     return edited;
   }, [isEdit, steps, pendingImageFile, pendingSupportingDocTemplates]);
+
+  /** Step IDs with validation errors (for card outline highlight). */
+  const stepIdsWithErrors = useMemo(() => getStepIdsWithErrors(steps), [steps]);
 
   /** Store pending template file; upload happens only on Save. */
   const handlePendingSupportingDocTemplate = useCallback(
@@ -465,7 +508,10 @@ const hasChanges = !isEdit
             {error instanceof Error ? error.message : "Failed to load product."}
           </p>
         ) : (
-          <div className="flex-1 min-h-0 overflow-y-auto">
+          <div
+            aria-disabled={isSaving}
+            className={`flex-1 min-h-0 overflow-y-auto min-w-0 ${isSaving ? "pointer-events-none opacity-70" : ""}`}
+          >
             <div className="flex flex-col gap-3 sm:gap-4 pr-1">
               <div className="grid gap-2 shrink-0 min-w-0">
                 <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
@@ -483,7 +529,7 @@ const hasChanges = !isEdit
                         if (step) handleAddStep(step);
                       }}
                     >
-                      <SelectTrigger className="w-full sm:w-[200px] h-9 shrink-0">
+                      <SelectTrigger className={cn("w-full sm:w-[200px] shrink-0", SELECT_TRIGGER_CLASS)}>
                         <SelectValue placeholder="Add step" />
                       </SelectTrigger>
                       <SelectContent>
@@ -536,6 +582,7 @@ const hasChanges = !isEdit
                                   isLocked={stepKey === FIRST_STEP_KEY || stepKey === LAST_STEP_KEY}
                                   isJustAdded={stepId === justAddedStepId}
                                   isEdited={editedStepIds.has(stepId)}
+                                  hasError={stepIdsWithErrors.has(stepId)}
                                   onDelete={
                                     stepKey !== FIRST_STEP_KEY && stepKey !== LAST_STEP_KEY
                                       ? () => handleDeleteStep(stepId)
@@ -568,23 +615,23 @@ const hasChanges = !isEdit
               </div>
 
               {/* Offer settings — below workflow steps, card layout to match workflow container */}
-              <div className="rounded-xl border border-border bg-card p-4 shrink-0 min-w-0">
-                {/* <div className="space-y-1 mb-4">
-                  <h3 className="text-sm font-semibold text-foreground">Offer settings</h3>
-                  <div className="border-b border-border" />
-                </div> */}
-                <div className="grid gap-2 min-w-0">
+              <div
+                className={cn(
+                  "rounded-xl border bg-card p-4 shrink-0 min-w-0",
+                  offerExpiryError ? "border-amber-500/70 dark:border-amber-500/50" : "border-border"
+                )}
+              >
+                <div className={cn("grid min-w-0", FIELD_GAP)}>
                   <Label htmlFor="offer-expiry-days" className="text-sm font-medium">
                     Offer expiry (days)
                   </Label>
                   <Input
                     id="offer-expiry-days"
-                    type="number"
-                    min={1}
+                    type="text"
                     value={offerExpiryDays}
                     onChange={(e) => setOfferExpiryDays(e.target.value)}
                     placeholder="7"
-                    className={offerExpiryError ? "border-destructive focus-visible:ring-destructive" : "focus-visible:ring-primary"}
+                    className={INPUT_CLASS}
                   />
                   <p className="text-xs text-muted-foreground">
                     This defines how long an issuer has to accept the offer after it is generated.
@@ -652,7 +699,7 @@ const hasChanges = !isEdit
                   (isEdit && !hasChanges)
                 }
               >
-                {isSaving ? "Saving…" : isEdit ? "Save" : "Create"}
+                {isSaving ? (isEdit ? "Saving…" : "Creating…") : isEdit ? "Save" : "Create"}
               </Button>
             </DialogFooter>
           </div>

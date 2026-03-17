@@ -26,8 +26,9 @@ import { formatMoney } from "./money";
  * - className?: string — wrapper div className
  * - inputClassName?: string — Input component className
  * - prefix?: string — optional prefix (e.g. "RM"); shown inside input on left
- * - maxIntDigits?: number — max digits before decimal (default 12)
+ * - maxIntDigits?: number — max digits before decimal (default 15)
  * - allowEmpty?: boolean — allow empty string (default true)
+ * - allowNegative?: boolean — allow negative numbers (default false)
  */
 interface MoneyInputProps {
   value: string;
@@ -39,6 +40,7 @@ interface MoneyInputProps {
   prefix?: string;
   maxIntDigits?: number;
   allowEmpty?: boolean;
+  allowNegative?: boolean;
 }
 
 export function MoneyInput({
@@ -49,24 +51,26 @@ export function MoneyInput({
   className,
   inputClassName,
   prefix = "",
-  maxIntDigits = 12,
+  maxIntDigits = 15,
   allowEmpty = true,
+  allowNegative = false,
 }: MoneyInputProps) {
   /**
    * Validation helper
    *
    * What: Validates raw input and returns acceptance decision.
    * Why: Strict parsing avoids invalid money formats.
+   * Regex: ^-?\d{0,N}(\.\d{0,2})?$ — max N digits before decimal (default 15), max 2 decimal places.
    */
   const isValidMoneyInput = (raw: string): boolean => {
-    // empty is valid if allowed
     if (raw === "") return allowEmpty;
 
-    // digits + optional decimal (max 2 dp)
-    if (!/^\d+(\.\d{0,2})?$/.test(raw)) return false;
+    const regex = allowNegative
+      ? new RegExp(`^-?\\d{0,${maxIntDigits}}(\\.\\d{0,2})?$`)
+      : new RegExp(`^\\d{0,${maxIntDigits}}(\\.\\d{0,2})?$`);
+    if (!regex.test(raw)) return false;
 
-    // enforce max integer digits
-    const [intPart] = raw.split(".");
+    const [intPart] = raw.replace(/^-/, "").split(".");
     if (intPart.length > maxIntDigits) return false;
 
     return true;
@@ -77,14 +81,28 @@ export function MoneyInput({
    *
    * What: Handle user typing; validate but do NOT auto-format.
    * Why: Format only on blur to keep typing smooth; avoid replacing cursor position mid-type.
+   * Reject when integer part exceeds maxIntDigits; do NOT auto-insert decimal or move cursor.
    */
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
-
-    // remove existing commas (user may paste formatted value)
     const unformatted = raw.replace(/,/g, "");
 
-    // validate and update
+    if (unformatted === "" && allowEmpty) {
+      onValueChange(unformatted);
+      return;
+    }
+
+    const [intPart] = unformatted.split(".");
+    const intOnly = (intPart ?? "").replace(/^-/, "");
+    if (intOnly.length > maxIntDigits) {
+      const input = e.target as HTMLInputElement;
+      const pos = Math.min(value.length, input.selectionStart ?? value.length);
+      requestAnimationFrame(() => {
+        input.setSelectionRange(pos, pos);
+      });
+      return;
+    }
+
     if (isValidMoneyInput(unformatted)) {
       onValueChange(unformatted);
     }

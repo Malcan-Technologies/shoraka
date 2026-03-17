@@ -116,7 +116,7 @@ const navAudit = [
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const { data: pendingCountData } = usePendingApprovalCount();
-  const { data: productsData } = useProducts({ page: 1, pageSize: 100 });
+  const { data: productsData } = useProducts({ page: 1, pageSize: 100, active: true });
 
   // Build badges dynamically
   const badges: Record<string, number> = {

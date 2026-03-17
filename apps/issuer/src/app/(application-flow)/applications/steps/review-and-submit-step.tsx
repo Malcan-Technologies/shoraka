@@ -9,8 +9,13 @@ import { useProducts } from "@/hooks/use-products";
 import { ProductImagePreview } from "@/app/(application-flow)/applications/components/product-image-preview";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { CheckCircleIcon } from "@heroicons/react/24/outline";
-import { formLabelClassName } from "@/app/(application-flow)/applications/components/form-control";
-import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
+import {
+  formLabelClassName,
+  fieldTooltipContentClassName,
+  fieldTooltipTriggerClassName,
+} from "@/app/(application-flow)/applications/components/form-control";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { InformationCircleIcon } from "@heroicons/react/24/outline";
 import { cn } from "@/lib/utils";
 import { useInvoicesByApplication } from "@/hooks/use-invoices";
 import { getStepKeyFromStepId, type ApplicationStepKey } from "@cashsouk/types";
@@ -22,20 +27,12 @@ import { ReviewCompanySkeleton } from "../components/review-company-skeleton";
 import { ReviewBusinessSkeleton } from "../components/review-business-skeleton";
 import { ReviewSupportingDocsSkeleton } from "../components/review-supporting-docs-skeleton";
 import { ReviewFinancingSkeleton } from "../components/review-financing-skeleton";
-import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
+import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
+import { format } from "date-fns";
 import { formatMoney } from "../components/money";
-
-const INVOICE_TABLE_COLUMNS = {
-  invoice: "w-[140px]",
-  status: "w-[100px]",
-  maturity: "w-[150px]",
-  value: "w-[150px]",
-  ratio: "w-[130px]",
-  amount: "w-[200px]",
-  document: "w-[160px]",
-  action: "w-[50px]",
-};
-
+import { FINANCIAL_FIELD_LABELS } from "@cashsouk/types";
+import { FinancialStatementsSkeleton } from "../components/financial-statements-skeleton";
+import { FileDisplayBadge } from "../components/file-display-badge";
 
 const isValidNumber = (v: any): v is number =>
   typeof v === "number" && !Number.isNaN(v);
@@ -70,9 +67,9 @@ interface ReviewAndSubmitStepProps {
 // Centralized layout/class tokens (aligned with Branding.mdc)
 const pageWrapperClassName = "mx-auto max-w-7xl px-6 "; //py-10 md:py-12
 const labelClassName = formLabelClassName; // canonical label class from shared form control
-const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
+const valueClassName = "text-[17px] leading-7 text-foreground font-medium break-words min-w-0";
 const sectionHeaderClassName = "text-base font-semibold text-foreground";
-const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 px-3";
+const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 px-3 items-start min-w-0";
 const sectionSpacingClassName = "space-y-6";
 export function ReviewAndSubmitStep({
   applicationId,
@@ -80,7 +77,7 @@ export function ReviewAndSubmitStep({
   readOnly: _readOnly = false,
 }: ReviewAndSubmitStepProps) {
   // DEBUG: Toggle skeleton mode
-  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
+  const devTools = useDevTools();
 
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   const organizationId = (application as any)?.issuer_organization_id || (application as any)?.company_details?.issuer_organization_id;
@@ -116,6 +113,7 @@ export function ReviewAndSubmitStep({
   const showContractSection = workflowStepKeys.has("contract_details");
   const showInvoiceSection = workflowStepKeys.has("invoice_details");
   const showCompanySection = workflowStepKeys.has("company_details");
+  const showFinancialStatementsSection = workflowStepKeys.has("financial_statements");
   const showSupportingDocsSection = workflowStepKeys.has("supporting_documents");
 
   // Conditionally fetch data only if sections are needed
@@ -141,6 +139,21 @@ export function ReviewAndSubmitStep({
 
     return step?.config || null;
   }, [selectedProduct]);
+
+  const invoiceProductConfig = React.useMemo(() => {
+    if (!selectedProduct?.workflow || !application?.financing_type?.product_id) return null;
+    const step = selectedProduct.workflow.find(
+      (s: any) => getStepKeyFromStepId(s.id) === "invoice_details"
+    );
+    const config = step?.config || {};
+    const hasMin = typeof config.min_invoice_value === "number";
+    const hasMax = typeof config.max_invoice_value === "number";
+    if (!hasMin && !hasMax) return null;
+    return {
+      min_invoice_value: config.min_invoice_value ?? null,
+      max_invoice_value: config.max_invoice_value ?? null,
+    };
+  }, [selectedProduct, application]);
 
   // Get the product image S3 key from config
   const productImageS3Key = financingTypeConfig?.image?.s3_key || "";
@@ -230,26 +243,14 @@ export function ReviewAndSubmitStep({
 
   const contractDetails = (contract?.contract_details as any) || {};
 
-  const approvedFacility = Number(contractDetails.approved_facility || 0);
   const contractValue = Number(contractDetails.value || 0);
 
-  // Base facility depends on structure
-  const baseFacility =
-    structureType === "new_contract"
-      ? contractValue
-      : approvedFacility;
-
-  // Sum financing from invoices
   const totalFinancingAmount = invoices.reduce((sum: number, invoice: any) => {
     const d = invoice.details || {};
     const value = Number(d.value || 0);
     const ratio = (d.financing_ratio_percent ?? 60) / 100;
     return sum + value * ratio;
   }, 0);
-
-  // Always calculated, never stored
-  const calculatedAvailableFacility =
-    baseFacility - totalFinancingAmount;
 
   // Determine which data is actually loading based on what sections are shown
   // Note: removed unused isLoading variable to satisfy build checks.
@@ -265,6 +266,7 @@ export function ReviewAndSubmitStep({
   const invoiceLoading = showInvoiceSection && isLoadingInvoices;
   const financingLoading = showFinancingDetails && isLoadingProducts;
   const companyLoading = showCompanySection && (isLoadingInfo || isLoadingEntities);
+  const financialStatementsLoading = showFinancialStatementsSection && isLoadingApp;
   const supportingLoading = showSupportingDocsSection && isLoadingApp;
 
 
@@ -298,7 +300,7 @@ export function ReviewAndSubmitStep({
     if (!dateStr) return "—";
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return dateStr;
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    return format(date, "d/M/yyyy");
   };
 
   const formatAddress = (addr: any) => {
@@ -327,12 +329,12 @@ export function ReviewAndSubmitStep({
         {showFinancingDetails && (
           <section className={sectionSpacingClassName}>
             <div>
-              <h3 className={sectionHeaderClassName}>Financing details</h3>
+              <h3 className={sectionHeaderClassName}>Financing Details</h3>
               <div className="border-b border-border mt-2 mb-4" />
             </div>
 
             {financingTypeConfig ? (
-              financingLoading || debugSkeletonMode ? (
+              financingLoading || devTools?.showSkeletonDebug ? (
                 <ReviewFinancingSkeleton />
               ) : (
                 <SelectionCard
@@ -352,52 +354,66 @@ export function ReviewAndSubmitStep({
           </section>
         )}
 
-        {/* Contract */}
+        {/* Contract Details — hidden for invoice_only */}
         {showContractSection && !isInvoiceOnly && (
           <section className={sectionSpacingClassName}>
             <div>
-              <h3 className={sectionHeaderClassName}>Contract</h3>
+              <h3 className={sectionHeaderClassName}>{isInvoiceOnly ? "Customer Details" : "Contract Details"}</h3>
               <div className="border-b border-border mt-2 mb-4" />
             </div>
-            {contractLoading || debugSkeletonMode ? (
+            {contractLoading || devTools?.showSkeletonDebug ? (
               <ReviewContractSkeleton />
             ) : (
               <div className={sectionGridClassName}>
-                <div className={labelClassName}>Contract title</div>
-                <div className={valueClassName}>{contractDetails.title || "—"}</div>
+                {!isInvoiceOnly && (
+                  <>
+                    <div className={labelClassName}>Contract Title</div>
+                    <div className={valueClassName}>{contractDetails.title || "—"}</div>
 
-                <div className={labelClassName}>Contract status</div>
-                <div className={cn(valueClassName, "text-primary font-semibold")}>New submission (Pending approval)</div>
+                    <div className={labelClassName}>Contract Status</div>
+                    <div className={cn(valueClassName, "text-primary font-semibold")}>New submission (Pending approval)</div>
+                  </>
+                )}
 
-                <div className={labelClassName}>Customer</div>
+                <div className={labelClassName}>Customer Name</div>
                 <div className={valueClassName}>{customerDetails.name || "—"}</div>
 
-                <div className={labelClassName}>Contract value</div>
-                <div className={valueClassName}>
-                  {isValidNumber(contractValue) ? renderMoney(contractValue) : "—"}
-                </div>
+                {!isInvoiceOnly && (
+                  <>
+                    <div className={labelClassName}>Contract Value</div>
+                    <div className={valueClassName}>
+                      {isValidNumber(contractValue) ? renderMoney(contractValue) : "N/A"}
+                    </div>
 
-                <div className={labelClassName}>Contract financing</div>
-                <div className={valueClassName}>
-                  {contractDetails?.financing === null || contractDetails?.financing === undefined
-                    ? "—"
-                    : renderMoney(contractDetails?.financing)}
-                </div>
+                    <div className={labelClassName}>Contract Financing</div>
+                    <div className={valueClassName}>
+                      {contractDetails?.financing === null || contractDetails?.financing === undefined
+                        ? "N/A"
+                        : renderMoney(contractDetails?.financing)}
+                    </div>
 
-                <div className={labelClassName}>Approved facility</div>
-                <div className={valueClassName}>
-                  {isValidNumber(approvedFacility) && approvedFacility > 0 ? renderMoney(approvedFacility) : "—"}
-                </div>
+                    <div className={labelClassName}>Approved Facility</div>
+                    <div className={valueClassName}>
+                      {typeof contractDetails.approved_facility === "number"
+                        ? renderMoney(contractDetails.approved_facility)
+                        : "N/A"}
+                    </div>
 
-                <div className={labelClassName}>Utilised facility</div>
-                <div className={valueClassName}>
-                  {structureType === "existing_contract" && isValidNumber(totalFinancingAmount) ? renderMoney(totalFinancingAmount) : "—"}
-                </div>
+                    <div className={labelClassName}>Utilised Facility</div>
+                    <div className={valueClassName}>
+                      {typeof contractDetails.utilized_facility === "number"
+                        ? renderMoney(contractDetails.utilized_facility)
+                        : "N/A"}
+                    </div>
 
-                <div className={labelClassName}>Available facility</div>
-                <div className={valueClassName}>
-                  {structureType === "existing_contract" && isValidNumber(calculatedAvailableFacility) ? renderMoney(calculatedAvailableFacility) : "—"}
-                </div>
+                    <div className={labelClassName}>Available Facility</div>
+                    <div className={valueClassName}>
+                      {typeof contractDetails.available_facility === "number"
+                        ? renderMoney(contractDetails.available_facility)
+                        : "N/A"}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </section>
@@ -408,16 +424,15 @@ export function ReviewAndSubmitStep({
           <section className={sectionSpacingClassName}>
             <div>
               <h3 className={sectionHeaderClassName}>Invoices</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                You may include multiple invoices in a single financing request, provided all invoices relate to the same underlying contract with the buyer
+              </p>
               <div className="border-b border-border mt-2 mb-4" />
             </div>
-            {invoiceLoading || debugSkeletonMode ? (
+            {invoiceLoading || devTools?.showSkeletonDebug ? (
               <ReviewInvoiceSkeleton />
             ) : (
-              <>
-                <p className="text-sm text-muted-foreground">
-                  You may include multiple invoices in a single financing request, provided all invoices relate to the same underlying contract with the buyer
-                </p>
-
+              <div className="mt-4 px-3 max-w-[1200px] mx-auto">
                 <div className="border rounded-xl bg-card overflow-hidden">
                   {invoices.length === 0 ? (
                     <div className="p-4 text-sm text-muted-foreground italic">
@@ -425,33 +440,59 @@ export function ReviewAndSubmitStep({
                     </div>
                   ) : (
                     <>
-                      {/* Table */}
-                      <div className="overflow-x-auto [&_tbody_tr]:hover:bg-transparent">
-                        <Table className="table-fixed w-full">
+                      {/* Table — same structure as invoice-details; document column can overflow → horizontal scroll */}
+                      <div className="overflow-x-auto">
+                        <Table className="min-w-[1080px] w-max">
                           <TableHeader className="bg-muted/20">
                             <TableRow>
-                              <TableHead className={`${INVOICE_TABLE_COLUMNS.invoice} text-xs font-semibold`}>
+                              <TableHead className="w-[140px] whitespace-nowrap text-xs font-semibold">
                                 Invoice
                               </TableHead>
-                              <TableHead className={`${INVOICE_TABLE_COLUMNS.status} text-xs font-semibold`}>
+                              <TableHead className="w-[100px] whitespace-nowrap text-xs font-semibold">
                                 Status
                               </TableHead>
-                              <TableHead className={`${INVOICE_TABLE_COLUMNS.maturity} text-xs font-semibold`}>
-                                Maturity date
+                              <TableHead className="w-[150px] whitespace-nowrap text-xs font-semibold">
+                                Maturity Date
                               </TableHead>
-                              <TableHead className={`${INVOICE_TABLE_COLUMNS.value} text-xs font-semibold`}>
-                                Invoice value (RM)
+                              <TableHead className="w-[150px] whitespace-nowrap text-xs font-semibold">
+                                Invoice Value
                               </TableHead>
-                              <TableHead className={`${INVOICE_TABLE_COLUMNS.ratio} text-xs font-semibold`}>
-                                Financing ratio
+                              <TableHead className="w-[130px] whitespace-nowrap text-xs font-semibold">
+                                Financing Ratio
                               </TableHead>
-                              <TableHead className={`${INVOICE_TABLE_COLUMNS.amount} text-xs font-semibold`}>
-                                Maximum financing amount (RM)
+                              <TableHead className="w-[200px] whitespace-nowrap text-xs font-semibold">
+                                <div className="inline-flex items-center gap-1">
+                                  Maximum Financing Amount
+                                  {invoiceProductConfig &&
+                                    (typeof invoiceProductConfig.min_invoice_value === "number" ||
+                                      typeof invoiceProductConfig.max_invoice_value === "number") && (
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span className={fieldTooltipTriggerClassName}>
+                                            <InformationCircleIcon className="h-4 w-4" />
+                                          </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top" className={fieldTooltipContentClassName}>
+                                          Per-invoice financing limits:{" "}
+                                          {typeof invoiceProductConfig.min_invoice_value === "number"
+                                            ? `min RM ${formatMoney(invoiceProductConfig.min_invoice_value)}`
+                                            : ""}
+                                          {typeof invoiceProductConfig.min_invoice_value === "number" &&
+                                          typeof invoiceProductConfig.max_invoice_value === "number"
+                                            ? ", "
+                                            : ""}
+                                          {typeof invoiceProductConfig.max_invoice_value === "number"
+                                            ? `max RM ${formatMoney(invoiceProductConfig.max_invoice_value)}`
+                                            : ""}
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    )}
+                                </div>
                               </TableHead>
-                              <TableHead className={`${INVOICE_TABLE_COLUMNS.document} text-xs font-semibold`}>
+                              <TableHead className="min-w-[160px] whitespace-nowrap text-xs font-semibold">
                                 Documents
                               </TableHead>
-                              <TableHead className={INVOICE_TABLE_COLUMNS.action} />
+                              <TableHead className="w-[50px]" />
                             </TableRow>
                           </TableHeader>
 
@@ -472,7 +513,7 @@ export function ReviewAndSubmitStep({
 
                                   {/* Status */}
                                   <TableCell className="p-2">
-                                    <StatusBadge status={invoice.status} />
+                                    <StatusBadge status={invoice.status} withdrawReason={invoice.withdraw_reason} />
                                   </TableCell>
 
                                   {/* Maturity */}
@@ -495,17 +536,15 @@ export function ReviewAndSubmitStep({
                                     {isValidNumber(financingAmount) ? renderMoney(financingAmount) : "—"}
                                   </TableCell>
 
-                                  {/* Document */}
-                                  <TableCell className="p-2">
+                                  {/* Document — wrap when long filenames */}
+                                  <TableCell className="p-2 min-w-[160px] break-words">
                                     {d.document?.file_name ? (
-                                      <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] h-6">
-                                        <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
-                                          <CheckIconSolid className="h-2.5 w-2.5 text-background" />
-                                        </div>
-                                        <span className="text-xs font-medium truncate max-w-[120px]">
-                                          {d.document.file_name}
-                                        </span>
-                                      </div>
+                                      <FileDisplayBadge
+                                        fileName={d.document.file_name}
+                                        size="sm"
+                                        className="bg-background"
+                                        truncate={false}
+                                      />
                                     ) : (
                                       <span className="text-muted-foreground text-xs">—</span>
                                     )}
@@ -534,7 +573,7 @@ export function ReviewAndSubmitStep({
                     </>
                   )}
                 </div>
-              </>
+              </div>
             )}
           </section>
         )}
@@ -547,26 +586,26 @@ export function ReviewAndSubmitStep({
                 <h3 className={sectionHeaderClassName}>Company Info</h3>
                 <div className="border-b border-border mt-2 mb-4" />
               </div>
-              {companyLoading || debugSkeletonMode ? (
+              {companyLoading || devTools?.showSkeletonDebug ? (
                 <ReviewCompanySkeleton />
               ) : (
                 <div className={sectionGridClassName}>
-                  <div className={labelClassName}>Company name</div>
+                  <div className={labelClassName}>Company Name</div>
                   <div className={valueClassName}>{basicInfo?.businessName || "—"}</div>
 
-                  <div className={labelClassName}>Type of entity</div>
+                  <div className={labelClassName}>Type of Entity</div>
                   <div className={valueClassName}>{basicInfo?.entityType || "—"}</div>
 
-                  <div className={labelClassName}>SSM no</div>
+                  <div className={labelClassName}>SSM No</div>
                   <div className={valueClassName}>{basicInfo?.ssmRegisterNumber || "—"}</div>
 
                   <div className={labelClassName}>Industry</div>
                   <div className={valueClassName}>{basicInfo?.industry || "—"}</div>
 
-                  <div className={labelClassName}>Nature of business</div>
+                  <div className={labelClassName}>Nature of Business</div>
                   <div className={valueClassName}>Private</div>
 
-                  <div className={labelClassName}>Number of employees</div>
+                  <div className={labelClassName}>Number of Employees</div>
                   <div className={valueClassName}>{basicInfo?.numberOfEmployees || "—"}</div>
                 </div>
               )}
@@ -578,7 +617,7 @@ export function ReviewAndSubmitStep({
                 <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
                 <div className="border-b border-border mt-2 mb-4" />
               </div>
-              {companyLoading || debugSkeletonMode ? (
+              {companyLoading || devTools?.showSkeletonDebug ? (
                 <ReviewBusinessSkeleton />
               ) : combinedList.length === 0 ? (
                 <div className="text-sm text-muted-foreground px-3">
@@ -590,16 +629,16 @@ export function ReviewAndSubmitStep({
     <React.Fragment key={item.key}>
       <div className={labelClassName}>{item.roleLabel}</div>
 
-      <div className="max-w-[480px] w-full">
+      <div className="max-w-[480px] w-full min-w-0">
         <div className="grid grid-cols-[160px_auto_160px_auto_160px] items-center gap-x-3">
 
-          <div className={valueClassName}>
+          <div className={cn(valueClassName, "break-words")}>
             {item.name}
           </div>
 
           <div className="w-px h-4 bg-border" />
 
-          <div className="text-[17px] leading-7 text-muted-foreground">
+          <div className="text-[17px] leading-7 text-muted-foreground break-words min-w-0">
             {item.ownership}
           </div>
 
@@ -630,14 +669,14 @@ export function ReviewAndSubmitStep({
                 <h3 className={sectionHeaderClassName}>Banking Details</h3>
                 <div className="border-b border-border mt-2 mb-4" />
               </div>
-              {companyLoading || debugSkeletonMode ? (
+              {companyLoading || devTools?.showSkeletonDebug ? (
                 <ReviewBusinessSkeleton />
               ) : (
                 <div className={sectionGridClassName}>
-                  <div className={labelClassName}>Bank name</div>
+                  <div className={labelClassName}>Bank Name</div>
                   <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank")?.fieldValue || "—"}</div>
 
-                  <div className={labelClassName}>Bank account number</div>
+                  <div className={labelClassName}>Bank Account Number</div>
                   <div className={valueClassName}>{(bankAccountDetails as any)?.content?.find((f: any) => f.fieldName === "Bank account number")?.fieldValue || "—"}</div>
                 </div>
               )}
@@ -649,14 +688,14 @@ export function ReviewAndSubmitStep({
                 <h3 className={sectionHeaderClassName}>Address</h3>
                 <div className="border-b border-border mt-2 mb-4" />
               </div>
-              {companyLoading || debugSkeletonMode ? (
+              {companyLoading || devTools?.showSkeletonDebug ? (
                 <ReviewBusinessSkeleton />
               ) : (
                 <div className={sectionGridClassName}>
-                  <div className={labelClassName}>Business address</div>
+                  <div className={labelClassName}>Business Address</div>
                   <div className={valueClassName}>{formatAddress(businessAddress)}</div>
 
-                  <div className={labelClassName}>Registered address</div>
+                  <div className={labelClassName}>Registered Address</div>
                   <div className={valueClassName}>{formatAddress(registeredAddress)}</div>
                 </div>
               )}
@@ -668,20 +707,20 @@ export function ReviewAndSubmitStep({
                 <h3 className={sectionHeaderClassName}>Contact Person</h3>
                 <div className="border-b border-border mt-2 mb-4" />
               </div>
-              {companyLoading || debugSkeletonMode ? (
+              {companyLoading || devTools?.showSkeletonDebug ? (
                 <ReviewBusinessSkeleton />
               ) : (
                 <div className={sectionGridClassName}>
-                  <div className={labelClassName}>Applicant name</div>
+                  <div className={labelClassName}>Applicant Name</div>
                   <div className={valueClassName}>{contactPerson.name || "—"}</div>
 
-                  <div className={labelClassName}>Applicant position</div>
+                  <div className={labelClassName}>Applicant Position</div>
                   <div className={valueClassName}>{contactPerson.position || "—"}</div>
 
-                  <div className={labelClassName}>Applicant IC no</div>
+                  <div className={labelClassName}>Applicant IC No</div>
                   <div className={valueClassName}>{contactPerson.ic || "—"}</div>
 
-                  <div className={labelClassName}>Applicant contact</div>
+                  <div className={labelClassName}>Applicant Contact</div>
                   <div className={valueClassName}>{contactPerson.contact || "—"}</div>
                 </div>
               )}
@@ -689,38 +728,94 @@ export function ReviewAndSubmitStep({
           </>
         )}
 
-        {/* Legal docs */}
-        {showSupportingDocsSection && (
+        {/* Financial Statements */}
+        {showFinancialStatementsSection && (
           <section className={sectionSpacingClassName}>
             <div>
-              <h3 className={sectionHeaderClassName}>Legal Docs</h3>
+              <h3 className={sectionHeaderClassName}>Financial Statements</h3>
               <div className="border-b border-border mt-2 mb-4" />
             </div>
-            {supportingLoading || debugSkeletonMode ? (
-              <ReviewSupportingDocsSkeleton />
-            ) : (
-              <div className="space-y-3 px-3">
-                {categories.flatMap((cat: any) => cat.documents).map((doc: any, i: number) => (
-                  <div key={i} className="flex justify-between items-center py-2">
-                    <span className={labelClassName}>{doc.title}</span>
-                    {doc.file ? (
-                      <div className="inline-flex items-center gap-2 border border-border rounded-sm px-2 py-[2px] h-6">
-                        <div className="w-3.5 h-3.5 rounded-sm bg-foreground flex items-center justify-center shrink-0">
-                          <CheckIconSolid className="h-2.5 w-2.5 text-background" />
-                        </div>
-                        <span className="text-[14px] font-medium truncate max-w-[140px]">{doc.file.file_name}</span>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-muted-foreground italic">Not provided</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+            {financialStatementsLoading || devTools?.showSkeletonDebug ? (
+              <FinancialStatementsSkeleton />
+            ) : (() => {
+              const raw = (application as any)?.financial_statements;
+              const data = raw && typeof raw === "object" && "input" in raw ? raw.input : raw;
+              const flat = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
+              const keys = Object.keys(FINANCIAL_FIELD_LABELS);
+              if (keys.length === 0) {
+                return <div className="text-sm text-muted-foreground italic px-3">No financial data</div>;
+              }
+              return (
+                <div className={sectionGridClassName}>
+                  {keys.map((key) => {
+                    const label = FINANCIAL_FIELD_LABELS[key];
+                    const val = flat[key];
+                    const isDate = key === "pldd" || key === "bsdd";
+                    const display = val == null || val === ""
+
+                      ? "N/A"
+                      : isDate
+                        ? String(val)
+                        : renderMoney(Number(String(val).replace(/,/g, "")));
+                    return (
+                      <React.Fragment key={key}>
+                        <div className={labelClassName}>{label}</div>
+                        <div className={valueClassName}>{display}</div>
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </section>
         )}
+
+        {/* Supporting Documents — grouped by category (Legal Docs, Financial, etc.) */}
+        {showSupportingDocsSection && (
+          <>
+            {supportingLoading || devTools?.showSkeletonDebug ? (
+              <section className={sectionSpacingClassName}>
+                <div>
+                  <h3 className={sectionHeaderClassName}>Supporting Documents</h3>
+                  <div className="border-b border-border mt-2 mb-4" />
+                </div>
+                <ReviewSupportingDocsSkeleton />
+              </section>
+            ) : categories.length === 0 ? (
+              <section className={sectionSpacingClassName}>
+                <div>
+                  <h3 className={sectionHeaderClassName}>Supporting Documents</h3>
+                  <div className="border-b border-border mt-2 mb-4" />
+                </div>
+                <div className="text-sm text-muted-foreground italic px-3">No documents</div>
+              </section>
+            ) : (
+              categories.map((cat: any, catIdx: number) => (
+                <section key={catIdx} className={sectionSpacingClassName}>
+                  <div>
+                    <h3 className={sectionHeaderClassName}>{cat.name || "Documents"}</h3>
+                    <div className="border-b border-border mt-2 mb-4" />
+                  </div>
+                  <div className={sectionGridClassName}>
+                    {(cat.documents || []).map((doc: any, docIdx: number) => (
+                      <React.Fragment key={docIdx}>
+                        <div className={labelClassName}>{doc.title}</div>
+                        <div className={valueClassName}>
+                          {doc.file ? (
+                            <FileDisplayBadge fileName={doc.file.file_name} truncate={false} />
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">Not provided</span>
+                          )}
+                        </div>
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </section>
+              ))
+            )}
+          </>
+        )}
       </div>
-      <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>
   );
 }

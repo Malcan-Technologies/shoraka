@@ -108,35 +108,22 @@ export class ProductRepository {
         },
       } as any);
 
-      // ProductLog snapshot (inside same transaction) if user provided
-      if (logContext?.userId) {
-        const createdAny = created as any;
-        const metadata = {
-          workflow: JSON.parse(JSON.stringify(createdAny.workflow)),
-          category_display_order: createdAny.category_display_order ?? null,
-          product_display_order: createdAny.product_display_order ?? null,
-          version: createdAny.version,
-          product_created_at: createdAny.created_at.toISOString(),
-          product_updated_at: createdAny.updated_at.toISOString(),
-        };
-          await tx.productLog.create({
-            data: {
-              user_id: logContext.userId,
-              product_id: created.id,
-              event_type: "PRODUCT_CREATED",
-              ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
-              user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
-              device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
-              metadata: metadata as Prisma.InputJsonValue,
-            },
-          } as any);
-      }
+      /** New products are their own base; set base_id = id for versioning grouping. */
+      await tx.product.update({
+        where: { id: created.id },
+        data: { base_id: created.id },
+      } as any);
 
+      /** Skip PRODUCT_CREATED log here. Image is merged in completeCreate update; log is written there with full workflow. */
       return created;
     });
   }
 
-  /** Update product. When completeCreate is true, workflow is replaced without incrementing (create flow). When workflow is unchanged and offer_expiry_days unchanged, return current product without writing or incrementing. Otherwise version is incremented (edit flow with changes). */
+  /**
+   * Versioned product update: never modify existing product except to set status INACTIVE.
+   * When completeCreate is true: in-place update only (first save after create, e.g. merging image/template keys).
+   * Otherwise: 1) Set old product INACTIVE, 2) Create new version row, 3) Return new product.
+   */
   async update(id: string, data: UpdateProductData, logContext?: LogContext): Promise<Product> {
     if (data.workflow === undefined && data.offer_expiry_days === undefined) {
       return prisma.product.findUniqueOrThrow({ where: { id } });
@@ -154,45 +141,55 @@ export class ProductRepository {
     if (workflowUnchanged && offerExpiryUnchanged) {
       return current;
     }
-    const skipIncrement = data.completeCreate === true;
-    const workflowPayload = data.workflow as Prisma.InputJsonValue | undefined;
-    const offerExpiryPayload = data.offer_expiry_days !== undefined ? data.offer_expiry_days : undefined;
 
-    // When only offer_expiry_days changes, skip category logic
-    if (data.workflow === undefined) {
+    /** completeCreate: first update after create (merge image/template keys). In-place update only; no new version row. */
+    if (data.completeCreate === true) {
+      const workflowPayload = (data.workflow === undefined ? current.workflow : data.workflow) as Prisma.InputJsonValue;
+      const offerExpiryPayload =
+        data.offer_expiry_days !== undefined ? data.offer_expiry_days : (current as { offer_expiry_days?: number | null }).offer_expiry_days ?? null;
       const updated = await prisma.product.update({
         where: { id },
         data: {
-          offer_expiry_days: offerExpiryPayload ?? null,
-          ...(skipIncrement ? {} : { version: { increment: 1 } }),
+          workflow: workflowPayload,
+          offer_expiry_days: offerExpiryPayload ?? undefined,
         },
       } as any);
       if (logContext?.userId) {
+        const updatedAny = updated as any;
+        const metadata = {
+          workflow: JSON.parse(JSON.stringify(updatedAny.workflow)),
+          category_display_order: updatedAny.category_display_order ?? null,
+          product_display_order: updatedAny.product_display_order ?? null,
+          offer_expiry_days: updatedAny.offer_expiry_days ?? null,
+          version: updatedAny.version,
+          base_id: updatedAny.base_id ?? null,
+          status: updatedAny.status ?? null,
+          product_created_at: updatedAny.created_at.toISOString(),
+          product_updated_at: updatedAny.updated_at.toISOString(),
+          replaced_product_id: null,
+        };
         await prisma.productLog.create({
           data: {
             user_id: logContext.userId,
             product_id: updated.id,
-            event_type: "PRODUCT_UPDATED",
+            event_type: "PRODUCT_CREATED",
             ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
             user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
             device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
-            metadata: {
-              workflow: JSON.parse(JSON.stringify((updated as any).workflow)),
-              category_display_order: (updated as any).category_display_order ?? null,
-              product_display_order: (updated as any).product_display_order ?? null,
-              offer_expiry_days: (updated as any).offer_expiry_days ?? null,
-              version: (updated as any).version,
-              product_created_at: (updated as any).created_at.toISOString(),
-              product_updated_at: (updated as any).updated_at.toISOString(),
-            } as Prisma.InputJsonValue,
+            metadata: metadata as Prisma.InputJsonValue,
           },
-        });
+        } as any);
       }
       return updated;
     }
 
-    // Determine if category changed; extract category from new workflow
-    const newWorkflow = data.workflow as unknown[];
+    const newVersion = current.version + 1;
+    const workflowPayload = (data.workflow === undefined ? current.workflow : data.workflow) as Prisma.InputJsonValue;
+    const offerExpiryPayload =
+      data.offer_expiry_days !== undefined ? data.offer_expiry_days : (current as { offer_expiry_days?: number | null }).offer_expiry_days ?? null;
+
+    const currentAny = current as any;
+    const newWorkflow = (data.workflow ?? current.workflow) as unknown[];
     const newFinancingStep = (newWorkflow || []).find((step: any) =>
       String(step?.name).toLowerCase().includes("financing type")
     ) as any | undefined;
@@ -204,19 +201,48 @@ export class ProductRepository {
     ) as any | undefined;
     const currentCategoryName = (currentFinancingStep?.config?.category as string) || "Other";
 
-    // If category changed, assign new display orders accordingly
-    if (newCategoryName !== currentCategoryName) {
-      return await prisma.$transaction(async (tx) => {
-        // Compute new product_display_order for target category (JSONB filter)
+    return await prisma.$transaction(async (tx) => {
+      /** Ensure base_id exists before versioning; abort if initialization fails. */
+      let baseId = (current as { base_id?: string | null }).base_id ?? null;
+      if (!baseId) {
+        await tx.product.update({
+          where: { id },
+          data: { base_id: current.id },
+        } as any);
+        baseId = current.id;
+        if (!baseId) {
+          throw new Error("Failed to initialize product base_id. Product update aborted.");
+        }
+      }
+
+      /** Prevent multiple ACTIVE versions per base_id. */
+      const activeProduct = await tx.product.findFirst({
+        where: {
+          base_id: baseId,
+          status: "ACTIVE" as any,
+        },
+      });
+      if (activeProduct && activeProduct.id !== current.id) {
+        throw new Error("Another ACTIVE product version already exists.");
+      }
+
+      await tx.product.update({
+        where: { id },
+        data: { status: "INACTIVE" as any },
+      } as any);
+
+      let categoryDisplayOrder: number;
+      let productDisplayOrder: number;
+
+      if (newCategoryName !== currentCategoryName) {
         const prodMaxRows = await tx.$queryRaw<Array<{ max: number | null }>>`
           SELECT MAX(product_display_order) as max
           FROM products
           WHERE (workflow::jsonb->0->'config'->>'category') = ${newCategoryName}
             AND status = 'ACTIVE'
         `;
-        const nextProductOrder = (prodMaxRows[0]?.max ?? 0) + 1;
+        productDisplayOrder = (prodMaxRows[0]?.max ?? 0) + 1;
 
-        // Determine target category_display_order (reuse MIN if exists, else max+1)
         const catMinRows = await tx.$queryRaw<Array<{ min: number | null }>>`
           SELECT MIN(category_display_order) as min
           FROM products
@@ -224,7 +250,6 @@ export class ProductRepository {
             AND category_display_order IS NOT NULL
             AND status = 'ACTIVE'
         `;
-        let categoryDisplayOrder: number;
         if (catMinRows[0]?.min != null) {
           categoryDisplayOrder = catMinRows[0].min;
         } else {
@@ -233,78 +258,52 @@ export class ProductRepository {
           `;
           categoryDisplayOrder = (catMaxRows[0]?.max ?? 0) + 1;
         }
+      } else {
+        categoryDisplayOrder = currentAny.category_display_order ?? 0;
+        productDisplayOrder = currentAny.product_display_order ?? 0;
+      }
 
-        const updated = await tx.product.update({
-          where: { id },
+      const created = await tx.product.create({
+        data: {
+          version: newVersion,
+          workflow: workflowPayload,
+          category_display_order: categoryDisplayOrder,
+          product_display_order: productDisplayOrder,
+          offer_expiry_days: offerExpiryPayload ?? undefined,
+          base_id: baseId,
+          status: "ACTIVE" as any,
+        },
+      } as any);
+
+      if (logContext?.userId) {
+        const createdAny = created as any;
+        const metadata = {
+          workflow: JSON.parse(JSON.stringify(createdAny.workflow)),
+          category_display_order: createdAny.category_display_order ?? null,
+          product_display_order: createdAny.product_display_order ?? null,
+          offer_expiry_days: createdAny.offer_expiry_days ?? null,
+          version: createdAny.version,
+          base_id: createdAny.base_id ?? null,
+          status: createdAny.status ?? null,
+          product_created_at: createdAny.created_at.toISOString(),
+          product_updated_at: createdAny.updated_at.toISOString(),
+          replaced_product_id: id,
+        };
+        await tx.productLog.create({
           data: {
-            workflow: workflowPayload,
-            ...(offerExpiryPayload !== undefined ? { offer_expiry_days: offerExpiryPayload } : {}),
-            ...(skipIncrement ? {} : { version: { increment: 1 } }),
-            category_display_order: categoryDisplayOrder,
-            product_display_order: nextProductOrder,
+            user_id: logContext.userId,
+            product_id: created.id,
+            event_type: "PRODUCT_UPDATED",
+            ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
+            user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
+            device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
+            metadata: metadata as Prisma.InputJsonValue,
           },
         } as any);
+      }
 
-        if (logContext?.userId) {
-          const updatedAny = updated as any;
-          const metadata = {
-            workflow: JSON.parse(JSON.stringify(updatedAny.workflow)),
-            category_display_order: updatedAny.category_display_order ?? null,
-            product_display_order: updatedAny.product_display_order ?? null,
-            version: updatedAny.version,
-            product_created_at: updatedAny.created_at.toISOString(),
-            product_updated_at: updatedAny.updated_at.toISOString(),
-          };
-          await tx.productLog.create({
-            data: {
-              user_id: logContext.userId,
-              product_id: updated.id,
-              event_type: "PRODUCT_UPDATED",
-              ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
-              user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
-              device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
-              metadata: metadata as Prisma.InputJsonValue,
-            },
-          } as any);
-        }
-
-        return updated;
-      });
-    }
-
-    // Category unchanged: simple update (increment version if needed)
-    const updated = await prisma.product.update({
-      where: { id },
-      data: {
-        workflow: workflowPayload,
-        ...(offerExpiryPayload !== undefined ? { offer_expiry_days: offerExpiryPayload } : {}),
-        ...(skipIncrement ? {} : { version: { increment: 1 } }),
-      },
-    } as any);
-
-    // Log update outside of transaction if no context; prefer context-based tx logging when caller provides it
-    if (logContext?.userId) {
-      await prisma.productLog.create({
-        data: {
-          user_id: logContext.userId,
-          product_id: updated.id,
-          event_type: "PRODUCT_UPDATED",
-          ip_address: logContext.ipAddress ? String(logContext.ipAddress) : undefined,
-          user_agent: logContext.userAgent ? String(logContext.userAgent) : undefined,
-          device_info: logContext.deviceInfo ? String(logContext.deviceInfo) : undefined,
-          metadata: {
-            workflow: JSON.parse(JSON.stringify((updated as any).workflow)),
-            category_display_order: (updated as any).category_display_order ?? null,
-            product_display_order: (updated as any).product_display_order ?? null,
-            version: (updated as any).version,
-            product_created_at: (updated as any).created_at.toISOString(),
-            product_updated_at: (updated as any).updated_at.toISOString(),
-          } as Prisma.InputJsonValue,
-        },
-      });
-    }
-
-    return updated;
+      return created;
+    });
   }
 
   async delete(id: string, logContext?: LogContext): Promise<Product> {
@@ -320,9 +319,13 @@ export class ProductRepository {
           workflow: JSON.parse(JSON.stringify(currentAny.workflow)),
           category_display_order: currentAny.category_display_order ?? null,
           product_display_order: currentAny.product_display_order ?? null,
+          offer_expiry_days: currentAny.offer_expiry_days ?? null,
           version: currentAny.version,
+          base_id: currentAny.base_id ?? null,
+          status: currentAny.status ?? null,
           product_created_at: currentAny.created_at.toISOString(),
           product_updated_at: currentAny.updated_at.toISOString(),
+          replaced_product_id: null,
         };
         // create log before soft-delete so snapshot represents persisted state
         await tx.productLog.create({
@@ -380,10 +383,16 @@ export class ProductRepository {
     } as any);
   }
 
-  // ⚠ HARD DELETE — DO NOT USE (kept for rollback / maintenance only)
-  // async hardDeleteProduct(id: string) {
-  //   return prisma.product.delete({ where: { id } });
-  // }
+  /**
+   * Hard delete for failed creation rollback only. Removes product_logs and product.
+   * Do NOT use for admin-initiated delete (use delete() for soft delete).
+   */
+  async hardDeleteForFailedCreate(id: string): Promise<void> {
+    await prisma.$transaction(async (tx) => {
+      await tx.productLog.deleteMany({ where: { product_id: id } });
+      await tx.product.delete({ where: { id } });
+    });
+  }
 
   async findAll(params: ListProductsParams): Promise<{ products: Product[]; total: number }> {
     const { page, pageSize, search } = params;
@@ -391,14 +400,21 @@ export class ProductRepository {
     const searchTrim = search?.trim();
 
     if (!searchTrim) {
-      // If caller requested activeOnly (frontend new flow), return all products ordered by display orders
+      /** activeOnly: show only ACTIVE versions (one per base_id). Supports pagination. */
       if (params.activeOnly) {
-        const products = await prisma.$queryRaw<Product[]>`
-          SELECT * FROM products
-          WHERE status = 'ACTIVE'
-          ORDER BY COALESCE(category_display_order, 999999), COALESCE(product_display_order, 999999), created_at ASC
-        `;
-        return { products, total: products.length };
+        const [products, countResult] = await Promise.all([
+          prisma.$queryRaw<Product[]>`
+            SELECT * FROM products
+            WHERE status = 'ACTIVE'
+            ORDER BY COALESCE(category_display_order, 999999), COALESCE(product_display_order, 999999), created_at ASC
+            LIMIT ${pageSize} OFFSET ${skip}
+          `,
+          prisma.$queryRaw<[{ count: number }]>`
+            SELECT COUNT(*)::int as count FROM products WHERE status = 'ACTIVE'
+          `,
+        ]);
+        const total = countResult[0]?.count ?? 0;
+        return { products, total };
       }
 
       const whereAdmin = { status: { not: "DELETED" } } as any;
@@ -415,6 +431,31 @@ export class ProductRepository {
     }
 
     const pattern = `%${searchTrim}%`;
+    /** Search with optional activeOnly; when true, only ACTIVE versions. */
+    if (params.activeOnly) {
+      const [products, countResult] = await Promise.all([
+        prisma.$queryRaw<Product[]>`
+          SELECT * FROM products
+          WHERE (
+            (workflow::jsonb->0->'config'->>'name') ILIKE ${pattern}
+            OR (workflow::jsonb->0->'config'->'type'->>'name') ILIKE ${pattern}
+          )
+            AND status = 'ACTIVE'
+          ORDER BY updated_at DESC
+          LIMIT ${pageSize} OFFSET ${skip}
+        `,
+        prisma.$queryRaw<[{ count: number }]>`
+          SELECT COUNT(*)::int as count FROM products
+          WHERE (
+            (workflow::jsonb->0->'config'->>'name') ILIKE ${pattern}
+            OR (workflow::jsonb->0->'config'->'type'->>'name') ILIKE ${pattern}
+          )
+            AND status = 'ACTIVE'
+        `,
+      ]);
+      const total = countResult[0]?.count ?? 0;
+      return { products, total };
+    }
     const [products, countResult] = await Promise.all([
       prisma.$queryRaw<Product[]>`
         SELECT * FROM products

@@ -2,7 +2,10 @@ import { ContractRepository } from "./repository";
 import { ApplicationRepository } from "../applications/repository";
 import { OrganizationRepository } from "../organization/repository";
 import { AppError } from "../../lib/http/error-handler";
+import { logApplicationActivity } from "../applications/logs/service";
+import { ActivityPortal } from "../applications/logs/types";
 import { ApplicationReviewRemark, Contract, Prisma } from "@prisma/client";
+import { ContractStatus, WithdrawReason } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import {
   generateContractDocumentKey,
@@ -12,6 +15,7 @@ import {
   validateDocument,
   deleteS3Object,
 } from "../../lib/s3/client";
+import { logger } from "../../lib/logger";
 
 export class ContractService {
   private repository: ContractRepository;
@@ -112,15 +116,20 @@ export class ContractService {
 
   async updateContract(id: string, data: Prisma.ContractUpdateInput, userId: string): Promise<Contract> {
     const contract = await this.verifyContractAccess(id, userId);
-    
-    // NOTE: Do not auto-initialize available_facility when contract value changes.
-    // The frontend is responsible for setting available_facility when appropriate.
 
-    // Enforce amendment boundaries: if application is in AMENDMENT_REQUESTED, contract edits
-    // are only allowed if there is an active REQUEST_AMENDMENT remark for contract_details.
+    /** invoice_only: allow customer_details only; reject contract_details updates. */
+    /** Enforce amendment boundaries: if application is in AMENDMENT_REQUESTED, contract edits
+     * are only allowed if there is an active REQUEST_AMENDMENT remark for contract_details. */
     const applicationId = (contract as any)?.applications?.[0]?.id;
     if (applicationId) {
       const application = await this.applicationRepository.findById(applicationId);
+      const structure = application?.financing_structure as { structure_type?: string } | null;
+      if (structure?.structure_type === "invoice_only") {
+        const isClearingContractDetails = data.contract_details === Prisma.JsonNull || data.contract_details === null;
+        if (!isClearingContractDetails && data.contract_details != null) {
+          throw new AppError(400, "VALIDATION_ERROR", "Contract financing fields are not allowed for invoice-only structure.");
+        }
+      }
       if (application && (application as any).status === "AMENDMENT_REQUESTED") {
         const remarks = await prisma.applicationReviewRemark.findMany({
           where: { application_id: applicationId, action_type: "REQUEST_AMENDMENT" } as any,
@@ -140,10 +149,37 @@ export class ContractService {
       }
     }
 
-    return this.repository.update(id, {
-      ...data,
-      updated_at: new Date(),
-    });
+    const extractS3Key = (obj: unknown): string | null => {
+      const d = (obj as Record<string, unknown>)?.document as Record<string, unknown> | undefined;
+      const k = d?.s3_key;
+      return typeof k === "string" && k ? k : null;
+    };
+
+    const prevContractKey = extractS3Key(contract.contract_details);
+    const prevCustomerKey = extractS3Key(contract.customer_details);
+    const nextContractKey = data.contract_details != null ? extractS3Key(data.contract_details) : null;
+    const nextCustomerKey = data.customer_details != null ? extractS3Key(data.customer_details) : null;
+
+    const keysToCleanup: string[] = [];
+    if (nextContractKey && nextContractKey !== prevContractKey) keysToCleanup.push(nextContractKey);
+    if (nextCustomerKey && nextCustomerKey !== prevCustomerKey) keysToCleanup.push(nextCustomerKey);
+
+    try {
+      return await this.repository.update(id, {
+        ...data,
+        updated_at: new Date(),
+      });
+    } catch (err) {
+      for (const key of keysToCleanup) {
+        try {
+          await deleteS3Object(key);
+          logger.info({ contractId: id, s3Key: key }, "Deleted orphan contract document after update failure");
+        } catch (delErr) {
+          logger.warn({ contractId: id, s3Key: key, err: delErr }, "Cleanup: failed to delete orphan contract document");
+        }
+      }
+      throw err;
+    }
   }
 
   async unlinkContract(applicationId: string, userId: string): Promise<void> {
@@ -237,6 +273,62 @@ export class ContractService {
     } catch (error) {
       throw new AppError(500, "DELETE_FAILED", "Failed to delete document from S3");
     }
+  }
+
+  async withdrawContract(id: string, userId: string, reason?: WithdrawReason): Promise<Contract> {
+    const contract = await this.verifyContractAccess(id, userId);
+
+    if (contract.status === ContractStatus.APPROVED) {
+      throw new AppError(400, "BAD_REQUEST", "This contract has already been approved and can no longer be withdrawn.");
+    }
+
+    if (contract.status === ContractStatus.WITHDRAWN) {
+      throw new AppError(400, "BAD_REQUEST", "This contract was already withdrawn.");
+    }
+
+    const finalReason = reason ?? WithdrawReason.USER_CANCELLED;
+
+    const updated = await this.repository.update(id, {
+      status: ContractStatus.WITHDRAWN,
+      withdraw_reason: finalReason,
+    });
+
+    const applications = (contract as { applications?: { id: string }[] }).applications ?? [];
+    for (const app of applications) {
+      await prisma.application.update({
+        where: { id: app.id },
+        data: { status: "WITHDRAWN" },
+      });
+      await prisma.applicationReview.upsert({
+        where: {
+          application_id_section: {
+            application_id: app.id,
+            section: "contract_details",
+          },
+        },
+        create: {
+          application_id: app.id,
+          section: "contract_details",
+          status: "WITHDRAWN",
+          reviewer_user_id: userId,
+          reviewed_at: new Date(),
+        },
+        update: {
+          status: "WITHDRAWN",
+          reviewer_user_id: userId,
+          reviewed_at: new Date(),
+        },
+      });
+      await logApplicationActivity({
+        userId,
+        applicationId: app.id,
+        eventType: "APPLICATION_WITHDRAWN",
+        portal: ActivityPortal.ISSUER,
+        metadata: { withdraw_reason: finalReason },
+      });
+    }
+
+    return updated;
   }
 }
 

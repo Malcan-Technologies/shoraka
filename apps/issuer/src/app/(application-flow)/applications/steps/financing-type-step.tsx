@@ -6,7 +6,7 @@ import { ProductList } from "../components/product-list";
 import { SelectionCard } from "../components/selection-card";
 import { ProductImagePreview } from "../components/product-image-preview";
 import { FinancingTypeSkeleton } from "@/app/(application-flow)/applications/components/financing-type-skeleton";
-import { DebugSkeletonToggle } from "@/app/(application-flow)/applications/components/debug-skeleton-toggle";
+import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 
 /**
  * FINANCING TYPE STEP
@@ -33,9 +33,8 @@ export function FinancingTypeStep({
   onDataChange,
   readOnly = false,
 }: FinancingTypeStepProps) {
-  // DEBUG: Toggle skeleton mode
-  const [debugSkeletonMode, setDebugSkeletonMode] = React.useState(false);
-  
+  const devTools = useDevTools();
+
   // Load all products
   // If initialProductId is present (edit flow), fetch only that product.
   const { data: productsData, isLoading: isLoadingProducts } = initialProductId
@@ -68,10 +67,8 @@ export function FinancingTypeStep({
 
       // Tell parent this step already has valid data
       if (onDataChange) {
-        const savedProduct = products.products?.find((p: any) => p.id === initialProductId) ?? singleProductQuery?.data;
         onDataChange({
           product_id: initialProductId,
-          product_version: savedProduct?.version,
           hasPendingChanges: false,
         });
       }
@@ -81,37 +78,25 @@ export function FinancingTypeStep({
 
   /**
    * When user selects a different product
-   * 
+   *
    * Updates local state and notifies parent component.
    * Parent will save this when user clicks "Save and Continue".
-   * 
-   * Also include the current product version so the parent can snapshot it
-   * atomically when saving (server-side atomicity is ensured by service).
+   * product_version is set server-side from product.version when saving.
    */
   const handleProductSelect = (productId: string) => {
     setSelectedProductId(productId);
 
-    // Find the selected product to include its version
-    const selectedProduct = (products.products || []).find((p: any) => p.id === productId) ?? singleProductQuery?.data;
-
-    // Pass data to parent for saving
     if (onDataChange) {
       onDataChange({
         product_id: productId,
-        product_version: selectedProduct?.version,
-        hasPendingChanges: productId !== initialProductId
+        hasPendingChanges: productId !== initialProductId,
       });
     }
   };
 
   // Show loading state
-  if (isLoading || debugSkeletonMode) {
-    return (
-      <>
-        <FinancingTypeSkeleton />
-        <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
-      </>
-    );
+  if (isLoading || devTools?.showSkeletonDebug) {
+    return <FinancingTypeSkeleton />;
   }
   // Show empty state
   const productList = products.products || [];
@@ -161,7 +146,6 @@ export function FinancingTypeStep({
         />
       )}
     </div>
-    <DebugSkeletonToggle isSkeletonMode={debugSkeletonMode} onToggle={setDebugSkeletonMode} />
     </>
   );
 }

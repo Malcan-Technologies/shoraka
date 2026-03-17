@@ -75,6 +75,7 @@ import type {
   AdminSendNotificationPayload,
   AdminUpdateNotificationTypePayload,
   AdminSeedTypesResponse,
+  WithdrawReason,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
 
@@ -384,13 +385,6 @@ export class ApiClient {
     status: string
   ): Promise<ApiResponse<any> | ApiError> {
     return this.patch<any>(`/v1/admin/applications/${id}/status`, { status });
-  }
-
-  async reopenAdminApplicationForCorrection(
-    id: string,
-    reason: string
-  ): Promise<ApiResponse<any> | ApiError> {
-    return this.post<any>(`/v1/admin/applications/${id}/reopen-for-correction`, { reason });
   }
 
   async approveReviewSection(
@@ -1232,6 +1226,11 @@ export class ApiClient {
     return this.delete<unknown>(`/v1/products/${id}`);
   }
 
+  /** Rollback failed product creation: soft-delete product and delete orphan S3 files. Only allowed within 5 minutes of creation. */
+  async rollbackProductCreate(id: string, s3Keys: string[]): Promise<ApiResponse<unknown> | ApiError> {
+    return this.post<unknown>(`/v1/products/${id}/rollback-create`, { s3Keys });
+  }
+
   /** Request presigned URL for product image (admin). PNG only, 5MB max. */
   async requestProductImageUploadUrl(
     productId: string,
@@ -1282,6 +1281,14 @@ export class ApiClient {
     return this.post<Application>(`/v1/applications/${id}/archive`, {});
   }
 
+  async cancelApplication(id: string): Promise<ApiResponse<Application> | ApiError> {
+    return this.post<Application>(`/v1/applications/${id}/cancel`, {});
+  }
+
+  async deleteDraftApplication(id: string): Promise<ApiResponse<{ message: string }> | ApiError> {
+    return this.delete<{ message: string }>(`/v1/applications/${id}`);
+  }
+
   /** Request presigned download URL for S3 object. Used for document download from document column. */
   async getS3DownloadUrl(s3Key: string): Promise<
     ApiResponse<{ downloadUrl: string; expiresIn: number }> | ApiError
@@ -1296,8 +1303,11 @@ export class ApiClient {
     return this.post<Application>(`/v1/applications/${applicationId}/offers/contracts/accept`, {});
   }
 
-  async rejectContractOffer(applicationId: string): Promise<ApiResponse<Application> | ApiError> {
-    return this.post<Application>(`/v1/applications/${applicationId}/offers/contracts/reject`, {});
+  async rejectContractOffer(
+    applicationId: string,
+    body?: { reason?: string }
+  ): Promise<ApiResponse<Application> | ApiError> {
+    return this.post<Application>(`/v1/applications/${applicationId}/offers/contracts/reject`, body ?? {});
   }
 
   async acceptInvoiceOffer(
@@ -1312,12 +1322,60 @@ export class ApiClient {
 
   async rejectInvoiceOffer(
     applicationId: string,
-    invoiceId: string
+    invoiceId: string,
+    body?: { reason?: string }
   ): Promise<ApiResponse<Application> | ApiError> {
     return this.post<Application>(
       `/v1/applications/${applicationId}/offers/invoices/${invoiceId}/reject`,
-      {}
+      body ?? {}
     );
+  }
+
+  async getContractOfferLetterBlob(applicationId: string): Promise<Blob> {
+    const url = `${this.baseUrl}/v1/applications/${applicationId}/offers/contracts/letter`;
+    const authToken = await this.getAuthToken();
+    const headers: HeadersInit = {};
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+    const response = await fetch(url, { method: "GET", credentials: "include", headers });
+    if (!response.ok) {
+      const msg = await this.parseErrorResponse(response);
+      throw new Error(msg);
+    }
+    return response.blob();
+  }
+
+  async getInvoiceOfferLetterBlob(applicationId: string, invoiceId: string): Promise<Blob> {
+    const id = typeof invoiceId === "string" ? invoiceId.trim() : "";
+    if (!id) {
+      throw new Error("Invoice ID is required for invoice offer letter download");
+    }
+    const url = `${this.baseUrl}/v1/applications/${applicationId}/offers/invoices/${id}/letter`;
+    const authToken = await this.getAuthToken();
+    const headers: HeadersInit = {};
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+    const response = await fetch(url, { method: "GET", credentials: "include", headers });
+    if (!response.ok) {
+      const msg = await this.parseErrorResponse(response);
+      throw new Error(msg);
+    }
+    return response.blob();
+  }
+
+  private async parseErrorResponse(response: Response): Promise<string> {
+    const text = await response.text();
+    if (!text) return response.statusText;
+    try {
+      const body = JSON.parse(text) as Record<string, unknown>;
+      const err = body?.error;
+      if (err && typeof err === "object" && typeof (err as { message?: string }).message === "string") {
+        return (err as { message: string }).message;
+      }
+      if (typeof body?.message === "string") return body.message;
+      if (typeof err === "string") return err;
+    } catch {
+      // not JSON
+    }
+    return text.trim() || response.statusText;
   }
 
   // Notifications
@@ -1446,17 +1504,20 @@ export class ApiClient {
   async updateContract(
     id: string,
     data: {
-      contract_details?: ContractDetails;
+      contract_details?: ContractDetails | null;
       customer_details?: CustomerDetails;
       status?: string;
     }
   ): Promise<ApiResponse<Contract> | ApiError> {
-    console.log('dataaaaaaa', data)
     return this.patch<Contract>(`/v1/contracts/${id}`, data);
   }
 
   async unlinkContract(id: string): Promise<ApiResponse<void> | ApiError> {
     return this.post<void>(`/v1/contracts/${id}/unlink`, {});
+  }
+
+  async withdrawContract(id: string): Promise<ApiResponse<Contract> | ApiError> {
+    return this.post<Contract>(`/v1/contracts/${id}/withdraw`, {});
   }
 
   async getApprovedContracts(organizationId: string): Promise<ApiResponse<Contract[]> | ApiError> {
@@ -1524,6 +1585,13 @@ export class ApiClient {
 
   async deleteInvoice(id: string): Promise<ApiResponse<{ message: string }> | ApiError> {
     return this.delete<{ message: string }>(`/v1/invoices/${id}`);
+  }
+
+  async withdrawInvoice(
+    id: string,
+    reason?: WithdrawReason
+  ): Promise<ApiResponse<Invoice> | ApiError> {
+    return this.post<Invoice>(`/v1/invoices/${id}/withdraw`, reason ? { reason } : {});
   }
 
   async getInvoicesByApplication(applicationId: string): Promise<ApiResponse<Invoice[]> | ApiError> {

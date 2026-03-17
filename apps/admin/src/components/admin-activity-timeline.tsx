@@ -75,6 +75,7 @@ type ActivityMetadata = {
   offered_ratio_percent?: number | null;
   offered_profit_rate_percent?: number | null;
   expires_at?: string | null;
+  rejection_reason?: string;
 };
 
 function formatItemLabelFromScopeKey(scopeKey: string): string {
@@ -128,39 +129,43 @@ interface AdminActivityTimelineProps {
 
 function getEventIcon(eventType: string) {
   switch (eventType) {
-    case "ISSUER_CREATED":
+    case "APPLICATION_CREATED":
       return <PlayIcon className="h-3.5 w-3.5 text-blue-600" />;
-    case "ISSUER_SUBMITTED":
+    case "APPLICATION_SUBMITTED":
+    case "APPLICATION_RESUBMITTED":
       return <ArrowPathIcon className="h-3.5 w-3.5 text-blue-500" />;
-    case "APPROVED":
     case "SECTION_REVIEWED_APPROVED":
     case "ITEM_REVIEWED_APPROVED":
+    case "APPLICATION_APPROVED":
+    case "APPLICATION_COMPLETED":
       return <CheckCircleIcon className="h-3.5 w-3.5 text-emerald-600" />;
-    case "REJECTED":
     case "SECTION_REVIEWED_REJECTED":
     case "ITEM_REVIEWED_REJECTED":
+    case "APPLICATION_REJECTED":
       return <XCircleIcon className="h-3.5 w-3.5 text-destructive" />;
     case "SECTION_REVIEWED_AMENDMENT_REQUESTED":
     case "ITEM_REVIEWED_AMENDMENT_REQUESTED":
+    case "AMENDMENTS_SUBMITTED":
       return <DocumentTextIcon className="h-3.5 w-3.5 text-amber-600" />;
     case "SECTION_REVIEWED_PENDING":
     case "ITEM_REVIEWED_PENDING":
-      return <ArrowPathIcon className="h-3.5 w-3.5 text-muted-foreground" />;
     case "APPLICATION_RESET_TO_UNDER_REVIEW":
-      return <ArrowPathIcon className="h-3.5 w-3.5 text-blue-500" />;
-    case "APPLICATION_APPROVED":
-      return <CheckCircleIcon className="h-3.5 w-3.5 text-emerald-600" />;
-    case "APPLICATION_REJECTED":
-      return <XCircleIcon className="h-3.5 w-3.5 text-destructive" />;
-    case "AMENDMENTS_SUBMITTED":
-      return <DocumentTextIcon className="h-3.5 w-3.5 text-amber-600" />;
-    case "SOPHISTICATED_STATUS_UPDATED":
-      return <StarIcon className="h-3.5 w-3.5 text-violet-600" />;
-    case "FORM_FILLED":
-      return <DocumentTextIcon className="h-3.5 w-3.5 text-blue-500" />;
+      return <ArrowPathIcon className="h-3.5 w-3.5 text-muted-foreground" />;
     case "CONTRACT_OFFER_SENT":
     case "INVOICE_OFFER_SENT":
+    case "CONTRACT_OFFER_ACCEPTED":
+    case "INVOICE_OFFER_ACCEPTED":
       return <PaperAirplaneIcon className="h-3.5 w-3.5 text-blue-500" />;
+    case "CONTRACT_OFFER_REJECTED":
+    case "INVOICE_OFFER_REJECTED":
+    case "CONTRACT_OFFER_RETRACTED":
+    case "INVOICE_OFFER_RETRACTED":
+    case "CONTRACT_WITHDRAWN":
+    case "APPLICATION_WITHDRAWN":
+    case "INVOICE_WITHDRAWN":
+      return <XCircleIcon className="h-3.5 w-3.5 text-muted-foreground" />;
+    case "OFFER_EXPIRED":
+      return <ClockIcon className="h-3.5 w-3.5 text-amber-600" />;
     default:
       return <ClockIcon className="h-3.5 w-3.5 text-muted-foreground" />;
   }
@@ -183,16 +188,25 @@ function getEventLabel(
   entityId?: string | null
 ): string {
   const baseLabels: Record<string, string> = {
-    ISSUER_CREATED: "Issuer Created",
-    ISSUER_SUBMITTED: "Issuer Submitted",
-    APPROVED: "Approved",
-    REJECTED: "Rejected",
-    FORM_FILLED: "Form Submitted",
-    CONTRACT_OFFER_SENT: "Contract Offer Sent",
-    SOPHISTICATED_STATUS_UPDATED: "Sophisticated Status Updated",
-    APPLICATION_RESET_TO_UNDER_REVIEW: "Application Reset to Under Review",
+    APPLICATION_CREATED: "Application Created",
+    APPLICATION_SUBMITTED: "Application Submitted",
+    APPLICATION_RESUBMITTED: "Application Resubmitted",
     APPLICATION_APPROVED: "Application Approved",
     APPLICATION_REJECTED: "Application Rejected",
+    APPLICATION_WITHDRAWN: "Application Withdrawn",
+    APPLICATION_COMPLETED: "Application Completed",
+    APPLICATION_RESET_TO_UNDER_REVIEW: "Application Reset to Under Review",
+    CONTRACT_OFFER_SENT: "Contract Offer Sent",
+    CONTRACT_OFFER_ACCEPTED: "Contract Offer Accepted",
+    CONTRACT_OFFER_REJECTED: "Contract Offer Withdrawn",
+    CONTRACT_OFFER_RETRACTED: "Contract Offer Retracted",
+    CONTRACT_WITHDRAWN: "Contract Offer Withdrawn",
+    INVOICE_OFFER_SENT: "Invoice Offer Sent",
+    INVOICE_OFFER_ACCEPTED: "Invoice Offer Accepted",
+    INVOICE_OFFER_REJECTED: "Invoice Offer Rejected",
+    INVOICE_OFFER_RETRACTED: "Invoice Offer Retracted",
+    INVOICE_WITHDRAWN: "Invoice Withdrawn",
+    OFFER_EXPIRED: "Offer Expired",
     AMENDMENTS_SUBMITTED: "Amendment Request Sent",
   };
   if (eventType === "INVOICE_OFFER_SENT") {
@@ -200,6 +214,24 @@ function getEventLabel(
     return invoiceNumber != null && invoiceNumber !== ""
       ? `Invoice ${invoiceNumber} Offer Sent`
       : "Invoice Offer Sent";
+  }
+  if (eventType === "INVOICE_OFFER_ACCEPTED") {
+    const invoiceNumber = metadata?.invoice_number;
+    return invoiceNumber != null && invoiceNumber !== ""
+      ? `Invoice ${invoiceNumber} Offer Accepted`
+      : "Invoice Offer Accepted";
+  }
+  if (eventType === "INVOICE_OFFER_REJECTED") {
+    const invoiceNumber = metadata?.invoice_number;
+    return invoiceNumber != null && invoiceNumber !== ""
+      ? `Invoice ${invoiceNumber} Offer Rejected`
+      : "Invoice Offer Rejected";
+  }
+  if (eventType === "INVOICE_WITHDRAWN") {
+    const invoiceNumber = metadata?.invoice_number;
+    return invoiceNumber != null && invoiceNumber !== ""
+      ? `Invoice ${invoiceNumber} Withdrawn`
+      : "Invoice Withdrawn";
   }
   if (baseLabels[eventType]) return baseLabels[eventType];
 
@@ -218,44 +250,42 @@ function getEventLabel(
     return actionLabel;
   }
 
-  return eventType
-    .split("_")
-    .map((w) => w.charAt(0) + w.slice(1).toLowerCase())
-    .join(" ");
+  return eventType.replace(/_/g, " ").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function getEventDotColor(eventType: string): string {
   switch (eventType) {
-    case "ISSUER_CREATED":
-    case "ISSUER_SUBMITTED":
-    case "FORM_FILLED":
-      return "bg-blue-500";
-    case "APPROVED":
     case "SECTION_REVIEWED_APPROVED":
     case "ITEM_REVIEWED_APPROVED":
+    case "APPLICATION_APPROVED":
+    case "APPLICATION_COMPLETED":
       return "bg-emerald-500";
-    case "REJECTED":
     case "SECTION_REVIEWED_REJECTED":
     case "ITEM_REVIEWED_REJECTED":
+    case "APPLICATION_REJECTED":
       return "bg-destructive";
     case "SECTION_REVIEWED_AMENDMENT_REQUESTED":
     case "ITEM_REVIEWED_AMENDMENT_REQUESTED":
+    case "AMENDMENTS_SUBMITTED":
       return "bg-amber-500";
     case "SECTION_REVIEWED_PENDING":
     case "ITEM_REVIEWED_PENDING":
-      return "bg-muted-foreground";
     case "APPLICATION_RESET_TO_UNDER_REVIEW":
-      return "bg-blue-500";
-    case "APPLICATION_APPROVED":
-      return "bg-emerald-500";
-    case "APPLICATION_REJECTED":
-      return "bg-destructive";
-    case "AMENDMENTS_SUBMITTED":
+      return "bg-muted-foreground";
+    case "APPLICATION_WITHDRAWN":
+    case "INVOICE_WITHDRAWN":
+    case "CONTRACT_OFFER_REJECTED":
+    case "INVOICE_OFFER_REJECTED":
+    case "CONTRACT_OFFER_RETRACTED":
+    case "INVOICE_OFFER_RETRACTED":
+    case "CONTRACT_WITHDRAWN":
+      return "bg-muted-foreground";
+    case "OFFER_EXPIRED":
       return "bg-amber-500";
-    case "SOPHISTICATED_STATUS_UPDATED":
-      return "bg-violet-500";
     case "CONTRACT_OFFER_SENT":
     case "INVOICE_OFFER_SENT":
+    case "CONTRACT_OFFER_ACCEPTED":
+    case "INVOICE_OFFER_ACCEPTED":
       return "bg-blue-500";
     default:
       return "bg-muted-foreground";
@@ -449,7 +479,10 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
                                 })}
                               </p>
 
-                              {(remark || (eventType === "CONTRACT_OFFER_SENT" || eventType === "INVOICE_OFFER_SENT") && metadata) && (
+                              {(remark ||
+                                ((eventType === "CONTRACT_OFFER_SENT" || eventType === "INVOICE_OFFER_SENT") && metadata) ||
+                                ((eventType === "CONTRACT_WITHDRAWN" || eventType === "INVOICE_OFFER_REJECTED") &&
+                                  metadata?.rejection_reason)) && (
                                 <button
                                   onClick={() => toggle(log.id)}
                                   className="text-xs text-foreground/80 hover:underline"
@@ -502,6 +535,17 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
                                 )}
                               </div>
                             )}
+
+                            {expanded[log.id] &&
+                              (eventType === "CONTRACT_WITHDRAWN" || eventType === "INVOICE_OFFER_REJECTED") &&
+                              metadata?.rejection_reason && (
+                                <div className="mt-3 rounded-xl border bg-muted/20 p-4 text-[11px] space-y-2">
+                                  <p className="text-[11px] font-bold">Reason</p>
+                                  <p className="text-[11px] font-normal text-foreground leading-relaxed">
+                                    {String(metadata.rejection_reason)}
+                                  </p>
+                                </div>
+                              )}
 
                           {expanded[log.id] && remark && (
                             <div className="mt-3 rounded-xl border p-4 text-[11px] space-y-3">

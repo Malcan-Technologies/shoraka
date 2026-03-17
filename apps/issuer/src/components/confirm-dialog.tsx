@@ -36,12 +36,16 @@ export function ConfirmDialog({
   isLoading = false,
 }: ConfirmDialogProps) {
   const [isConfirming, setIsConfirming] = React.useState(false);
+  const isSubmittingRef = React.useRef(false);
 
   const handleConfirm = async () => {
+    if (isSubmittingRef.current || isLoading) return;
+    isSubmittingRef.current = true;
     setIsConfirming(true);
     try {
       await onConfirm();
     } finally {
+      isSubmittingRef.current = false;
       setIsConfirming(false);
     }
   };

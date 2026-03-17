@@ -10,10 +10,7 @@ import { Skeleton } from "@cashsouk/ui";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { useApplicationDetail } from "@/hooks/use-application-detail";
-import {
-  useReopenApplicationForCorrection,
-  useUpdateApplicationStatus,
-} from "@/hooks/use-update-application-status";
+import { useUpdateApplicationStatus } from "@/hooks/use-update-application-status";
 import {
   useApproveReviewSection,
   useRejectReviewSection,
@@ -65,7 +62,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import {
   ArrowLeftIcon,
   ArrowPathIcon,
-  CheckCircleIcon,
   PencilSquareIcon,
   XCircleIcon,
 } from "@heroicons/react/24/outline";
@@ -96,7 +92,6 @@ export default function DynamicApplicationDetailPage() {
 
   const { data: app, isLoading, error } = useApplicationDetail(applicationId);
   const updateStatus = useUpdateApplicationStatus();
-  const reopenForCorrection = useReopenApplicationForCorrection();
 
   // Fetch products to get the current product name
   const { data: productsData } = useProducts({ page: 1, pageSize: 100 });
@@ -145,7 +140,6 @@ export default function DynamicApplicationDetailPage() {
   const sendContractOffer = useSendContractOffer();
   const sendInvoiceOffer = useSendInvoiceOffer();
   const [amendmentModalOpen, setAmendmentModalOpen] = React.useState(false);
-  const [reopenDialogOpen, setReopenDialogOpen] = React.useState(false);
 
   const [noteDialog, setNoteDialog] = React.useState<
     | { open: boolean; action: "reject" | "amend"; section: ReviewSectionId }
@@ -162,6 +156,11 @@ export default function DynamicApplicationDetailPage() {
   const REVIEWABLE_STATUSES = [
     "SUBMITTED",
     "UNDER_REVIEW",
+    "CONTRACT_PENDING",
+    "CONTRACT_SENT",
+    "CONTRACT_ACCEPTED",
+    "INVOICE_PENDING",
+    "INVOICES_SENT",
     "RESUBMITTED",
     "AMENDMENT_REQUESTED",
   ];
@@ -207,11 +206,16 @@ export default function DynamicApplicationDetailPage() {
       ?.visible_review_sections;
     if (!Array.isArray(fromApi)) return null;
     const normalized = fromApi.filter((s): s is string => typeof s === "string");
-    return normalized.length > 0 ? new Set(normalized) : null;
+    const set = new Set(normalized);
+    if (set.has("financial_statements") && !set.has("financial")) set.add("financial");
+    return normalized.length > 0 ? set : null;
   }, [app]);
   const effectiveTabDescriptors = React.useMemo(() => {
     if (!visibleReviewSectionsFromApi) return tabDescriptors;
-    return tabDescriptors.filter((d) => visibleReviewSectionsFromApi.has(d.reviewSection));
+    return tabDescriptors.filter((d) =>
+      visibleReviewSectionsFromApi.has(d.reviewSection) ||
+      (d.reviewSection === "financial" && visibleReviewSectionsFromApi.has("financial_statements"))
+    );
   }, [tabDescriptors, visibleReviewSectionsFromApi]);
 
   const isExistingContract = React.useMemo(
@@ -648,38 +652,6 @@ export default function DynamicApplicationDetailPage() {
                                 : "Reject the application and notify the issuer"}
                         </TooltipContent>
                       </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span
-                            className={
-                              app.status === "APPROVED" || !allSectionsApproved
-                                ? "inline-flex cursor-not-allowed"
-                                : "inline-flex"
-                            }
-                          >
-                            <Button
-                              variant="outline"
-                              size="default"
-                              className="gap-2 border-green-500/30 bg-green-500/10 text-green-800 hover:bg-green-500/20 hover:text-green-900 dark:text-green-200 dark:hover:text-green-100"
-                              disabled={app.status === "APPROVED" || !allSectionsApproved}
-                              onClick={() => setConfirmAction({ type: "APPROVE", isOpen: true })}
-                            >
-                              <CheckCircleIcon className="h-4 w-4" />
-                              Approve
-                            </Button>
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent
-                          side="bottom"
-                          className="max-w-xs bg-muted text-muted-foreground"
-                        >
-                          {app.status === "APPROVED"
-                            ? "Application already approved"
-                            : !allSectionsApproved
-                              ? "Approve all sections first"
-                              : "Approve the application and move to the next stage"}
-                        </TooltipContent>
-                      </Tooltip>
                     </div>
                   </TooltipProvider>
                 ) : (
@@ -691,17 +663,6 @@ export default function DynamicApplicationDetailPage() {
                       </span>{" "}
                       applications.
                     </div>
-                    {(app.status === "APPROVED" || app.status === "REJECTED") && (
-                      <Button
-                        variant="outline"
-                        size="default"
-                        className="gap-2"
-                        onClick={() => setReopenDialogOpen(true)}
-                      >
-                        <ArrowPathIcon className="h-4 w-4" />
-                        Reopen for Correction
-                      </Button>
-                    )}
                   </div>
                 )}
               </div>
@@ -710,58 +671,105 @@ export default function DynamicApplicationDetailPage() {
                 <div className="min-w-0 space-y-6">
                   <Card className="rounded-2xl">
                     <CardContent className="pt-6">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="space-y-1">
-                          <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                            Organization
+                      {(() => {
+                        const structureType = (app.financing_structure as { structure_type?: string } | null)?.structure_type;
+                        const financingStructureLabel =
+                          structureType === "invoice_only"
+                            ? "Invoice only"
+                            : structureType === "new_contract"
+                              ? "New contract"
+                              : structureType === "existing_contract"
+                                ? "Existing contract"
+                                : "—";
+                        const customerDetails = (app.contract as { customer_details?: Record<string, unknown> } | null)?.customer_details ?? {};
+                        const companyDetails = (app as { company_details?: Record<string, unknown> }).company_details ?? {};
+                        const paymaster =
+                          String(
+                            customerDetails.customer_name ??
+                              customerDetails.name ??
+                              companyDetails.customer_name ??
+                              companyDetails.company_name ??
+                              ""
+                          ).trim() || "—";
+                        const productVersion = typeof (app as { product_version?: number }).product_version === "number"
+                          ? String((app as { product_version: number }).product_version)
+                          : "—";
+                        return (
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+                            <div className="flex flex-col gap-5 min-w-0">
+                              <div className="space-y-1">
+                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                                  Organization
+                                </div>
+                                <div className="text-sm font-medium">{app.issuer_organization.name}</div>
+                              </div>
+                              <div className="space-y-1">
+                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                                  Owner
+                                </div>
+                                <div className="text-sm font-medium">
+                                  {app.issuer_organization.owner.first_name}{" "}
+                                  {app.issuer_organization.owner.last_name}
+                                </div>
+                              </div>
+                              <div className="space-y-1">
+                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                                  Email
+                                </div>
+                                <div className="text-sm font-medium">
+                                  {app.issuer_organization.owner.email}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="space-y-5">
+                              <div className="space-y-1">
+                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                                  Paymaster
+                                </div>
+                                <div className="text-sm font-medium">{paymaster}</div>
+                              </div>
+                              <div className="space-y-1">
+                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                                  Financing Structure
+                                </div>
+                                <div className="text-sm font-medium">{financingStructureLabel}</div>
+                              </div>
+                              <div className="space-y-1">
+                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                                  Product Version
+                                </div>
+                                <div className="text-sm font-medium">{productVersion}</div>
+                              </div>
+                            </div>
+                            <div className="space-y-5">
+                              <div className="space-y-1">
+                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                                  Reference
+                                </div>
+                                <div className="text-sm font-medium">{app.id}</div>
+                              </div>
+                              <div className="space-y-1">
+                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                                  Submitted At
+                                </div>
+                                <div className="text-sm font-medium">
+                                  {app.submitted_at
+                                    ? format(new Date(app.submitted_at), "PPP p")
+                                    : "Not submitted"}
+                                </div>
+                              </div>
+                              <div className="space-y-1">
+                                <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                                  Last Updated
+                                </div>
+                                <div className="text-sm font-medium">
+                                  {format(new Date(app.updated_at), "PPP p")}
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-sm font-medium">{app.issuer_organization.name}</div>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                            Owner
-                          </div>
-                          <div className="text-sm font-medium">
-                            {app.issuer_organization.owner.first_name}{" "}
-                            {app.issuer_organization.owner.last_name}
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                            Email
-                          </div>
-                          <div className="text-sm font-medium">
-                            {app.issuer_organization.owner.email}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
-                        <div className="space-y-1">
-                          <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                            Reference
-                          </div>
-                          <div className="text-sm font-medium">{app.id}</div>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                            Submitted At
-                          </div>
-                          <div className="text-sm font-medium">
-                            {app.submitted_at
-                              ? format(new Date(app.submitted_at), "PPP p")
-                              : "Not submitted"}
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="text-xs text-muted-foreground uppercase tracking-wider">
-                            Last Updated
-                          </div>
-                          <div className="text-sm font-medium">
-                            {format(new Date(app.updated_at), "PPP p")}
-                          </div>
-                        </div>
-                      </div>
+                        );
+                      })()}
                     </CardContent>
                   </Card>
 
@@ -771,25 +779,29 @@ export default function DynamicApplicationDetailPage() {
                     defaultTabId={effectiveTabDescriptors[0]?.id}
                   >
                     {effectiveTabDescriptors.map((descriptor) => {
+                      const applicationWithdrawn = app?.status === "WITHDRAWN";
                       const isContractExistingContract =
                         descriptor.reviewSection === "contract_details" && isExistingContract;
-                      const actionLocked = isContractExistingContract
-                        ? true
-                        : !isTabUnlocked(
-                            descriptor.reviewSection,
-                            sectionStatusMap,
-                            availableReviewSections,
-                            tabPrerequisitesFromApi
-                          );
+                      const actionLocked =
+                        applicationWithdrawn ||
+                        isContractExistingContract ||
+                        !isTabUnlocked(
+                          descriptor.reviewSection,
+                          sectionStatusMap,
+                          availableReviewSections,
+                          tabPrerequisitesFromApi
+                        );
                       const actionLockTooltip = actionLocked
-                        ? isContractExistingContract
-                          ? "Contract was approved in a prior application"
-                          : getTabUnlockTooltip(
-                              descriptor.reviewSection,
-                              sectionStatusMap,
-                              availableReviewSections,
-                              tabPrerequisitesFromApi
-                            )
+                        ? applicationWithdrawn
+                          ? "Application withdrawn"
+                          : isContractExistingContract
+                            ? "Contract was approved in a prior application"
+                            : getTabUnlockTooltip(
+                                descriptor.reviewSection,
+                                sectionStatusMap,
+                                availableReviewSections,
+                                tabPrerequisitesFromApi
+                              )
                         : undefined;
                       const sectionStatus = sectionStatusMap.get(descriptor.reviewSection);
                       return (
@@ -804,6 +816,7 @@ export default function DynamicApplicationDetailPage() {
                             isActionLocked={actionLocked}
                             actionLockTooltip={actionLockTooltip}
                             sectionStatus={sectionStatus}
+                            sectionStatusMap={sectionStatusMap}
                             onResetSectionToPending={async (section) => {
                               try {
                                 await resetSectionToPending.mutateAsync({ applicationId, section });
@@ -980,22 +993,6 @@ export default function DynamicApplicationDetailPage() {
         optional={noteDialog?.action === "approve"}
         onConfirm={handleNoteDialogConfirm}
         isPending={noteDialogPending}
-      />
-
-      <ApplicationReviewRemarkDialog
-        open={reopenDialogOpen}
-        onOpenChange={setReopenDialogOpen}
-        title="Reopen Application for Correction"
-        description="Provide a reason for reopening this application. This reason is recorded in the activity log."
-        remarkLabel="Correction reason (required)"
-        remarkPlaceholder="Explain why this approved/rejected application needs to be reopened."
-        submitLabel="Reopen Application"
-        variant="default"
-        onConfirm={async (reason) => {
-          await reopenForCorrection.mutateAsync({ id: applicationId, reason });
-          toast.success("Application reopened for correction");
-        }}
-        isPending={reopenForCorrection.isPending}
       />
 
       <AmendmentReviewModal

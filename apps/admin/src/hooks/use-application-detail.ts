@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { createApiClient, getReviewRefreshPolicy, useAuthToken } from "@cashsouk/config";
 import { applicationsKeys } from "@/applications/query-keys";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -7,6 +7,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 export function useApplicationDetail(id: string) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
+  const refreshPolicy = getReviewRefreshPolicy();
 
   return useQuery({
     queryKey: applicationsKeys.detail(id),
@@ -18,7 +19,7 @@ export function useApplicationDetail(id: string) {
       return response.data;
     },
     enabled: !!id,
-    staleTime: 0,
+    ...refreshPolicy,
     refetchOnMount: true,
   });
 }

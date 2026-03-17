@@ -36,17 +36,23 @@ export function buildPayloadFromSteps(steps: unknown[]): Step[] {
   return steps.map((s) => {
     const step = s as Step;
     let config = { ...(step.config ?? {}) };
-    //  keep exmaple of how to use this
-    // const stepKey = getStepKeyFromStepId(step.id ?? "");
-    // if (stepKey === INVOICE_DETAILS_STEP_KEY && (config.max_financing_rate_percent == null)) {
-    //   config = { ...config, max_financing_rate_percent: 80 };
-    // }
-
     const stepKey = getStepKeyFromStepId(step.id ?? "");
 
     if (stepKey === INVOICE_DETAILS_STEP_KEY) {
       const minRaw = config.min_invoice_value;
       const maxRaw = config.max_invoice_value;
+      const minRatioRaw = config.min_financing_ratio_percent;
+      const maxRatioRaw = config.max_financing_ratio_percent;
+
+      const parseRatio = (v: unknown): number | null => {
+        if (v == null || v === "") return null;
+        if (typeof v === "number" && !Number.isNaN(v)) return v;
+        if (typeof v === "string") {
+          const n = parseInt(v, 10);
+          return !Number.isNaN(n) ? n : null;
+        }
+        return null;
+      };
 
       config = {
         ...config,
@@ -63,6 +69,10 @@ export function buildPayloadFromSteps(steps: unknown[]): Step[] {
             : typeof maxRaw === "string" && maxRaw.trim() !== ""
               ? parseMoney(maxRaw)
               : null,
+
+        /** Default 60–80 when blank. */
+        min_financing_ratio_percent: parseRatio(minRatioRaw) ?? 60,
+        max_financing_ratio_percent: parseRatio(maxRatioRaw) ?? 80,
       };
     }
 
@@ -132,11 +142,60 @@ export function workflowDeepEqual(a: unknown, b: unknown): boolean {
 }
 
 /**
+ * Validate mandatory workflow step set: Financing Structure, Contract Details, Invoice Details.
+ * All three must be selected and appear in order. Returns error message or null.
+ */
+function getMandatoryStepSetError(steps: unknown[]): string | null {
+  const stepKeys = steps.map((s) => getStepKeyFromStepId(getStepId(s)));
+  const fsIndex = stepKeys.findIndex((k) => k === "financing_structure");
+  const cdIndex = stepKeys.findIndex((k) => k === "contract_details");
+  const idIndex = stepKeys.findIndex((k) => k === "invoice_details");
+
+  const hasFs = fsIndex >= 0;
+  const hasCd = cdIndex >= 0;
+  const hasId = idIndex >= 0;
+
+  if (!hasFs || !hasCd || !hasId) {
+    return "Financing Structure, Contract Details, and Invoice Details must all be selected and appear in the correct order.";
+  }
+  if (fsIndex >= cdIndex || cdIndex >= idIndex) {
+    return "Financing Structure, Contract Details, and Invoice Details must all be selected and appear in the correct order.";
+  }
+  return null;
+}
+
+/**
  * Return list of error messages for steps that are missing required fields.
  * Used to show the amber alert and disable Save.
  */
 export function getRequiredStepErrors(steps: unknown[]): string[] {
+  const { errors } = runStepValidation(steps);
+  return errors;
+}
+
+/**
+ * Return set of step IDs that have validation errors. Used to highlight cards.
+ */
+export function getStepIdsWithErrors(steps: unknown[]): Set<string> {
+  const { stepIdsWithErrors } = runStepValidation(steps);
+  return stepIdsWithErrors;
+}
+
+/** Single validation pass producing both error messages and step IDs with errors. */
+function runStepValidation(steps: unknown[]): { errors: string[]; stepIdsWithErrors: Set<string> } {
   const errors: string[] = [];
+  const stepIdsWithErrors = new Set<string>();
+
+  const mandatoryError = getMandatoryStepSetError(steps);
+  if (mandatoryError) {
+    errors.push(`Workflow: ${mandatoryError}`);
+    const stepKeys = ["financing_structure", "contract_details", "invoice_details"];
+    for (const s of steps) {
+      const key = getStepKeyFromStepId(getStepId(s));
+      if (key && (stepKeys as readonly string[]).includes(key)) stepIdsWithErrors.add(getStepId(s));
+    }
+  }
+
   for (const step of steps) {
     const stepId = getStepId(step);
     const stepKey = getStepKeyFromStepId(stepId);
@@ -147,19 +206,31 @@ export function getRequiredStepErrors(steps: unknown[]): string[] {
       const name = String(config.name ?? "").trim();
       const category = String(config.category ?? "").trim();
       const description = String(config.description ?? "").trim();
-      const image = config.image as { s3_key?: string } | undefined;
-      const legacyS3Key = String(config.s3_key ?? "").trim();
-      const hasPendingImage = config._pendingImage === true;
-      const hasImage = Boolean((image?.s3_key ?? "").trim()) || Boolean(legacyS3Key) || hasPendingImage;
-      if (!name) errors.push(`${stepLabel}: enter name`);
-      if (!category) errors.push(`${stepLabel}: enter category`);
-      if (!description) errors.push(`${stepLabel}: enter description`);
-      if (!hasImage) errors.push(`${stepLabel}: add an image`);
+      const img = config.image as { s3_key?: string } | undefined;
+      const hasImage = !!(img?.s3_key ?? (config.s3_key as string | undefined) ?? (config._pendingImage as boolean));
+      if (!name) {
+        errors.push(`${stepLabel}: enter name`);
+        stepIdsWithErrors.add(stepId);
+      }
+      if (!category) {
+        errors.push(`${stepLabel}: enter category`);
+        stepIdsWithErrors.add(stepId);
+      }
+      if (!description) {
+        errors.push(`${stepLabel}: enter description`);
+        stepIdsWithErrors.add(stepId);
+      }
+      if (!hasImage) {
+        errors.push(`${stepLabel}: add image`);
+        stepIdsWithErrors.add(stepId);
+      }
     }
 
     if (stepKey === INVOICE_DETAILS_STEP_KEY) {
       const minRaw = config.min_invoice_value;
       const maxRaw = config.max_invoice_value;
+      const minRatioRaw = config.min_financing_ratio_percent;
+      const maxRatioRaw = config.max_financing_ratio_percent;
 
       let minValue: number | null = null;
       let maxValue: number | null = null;
@@ -178,10 +249,12 @@ export function getRequiredStepErrors(steps: unknown[]): string[] {
 
       if (minValue != null && minValue < 0) {
         errors.push(`${stepLabel}: minimum financing amount cannot be negative`);
+        stepIdsWithErrors.add(stepId);
       }
 
       if (maxValue != null && maxValue < 0) {
         errors.push(`${stepLabel}: maximum financing amount cannot be negative`);
+        stepIdsWithErrors.add(stepId);
       }
 
       if (
@@ -190,6 +263,33 @@ export function getRequiredStepErrors(steps: unknown[]): string[] {
         minValue > maxValue
       ) {
         errors.push(`${stepLabel}: minimum cannot exceed maximum`);
+        stepIdsWithErrors.add(stepId);
+      }
+
+      /** Financing ratio validation: min/max must be numbers, min <= max, min >= 0, max <= 100. */
+      const parseRatio = (v: unknown): number | null => {
+        if (v == null || v === "") return null;
+        if (typeof v === "number" && !Number.isNaN(v)) return v;
+        if (typeof v === "string") {
+          const n = parseInt(v, 10);
+          return !Number.isNaN(n) ? n : null;
+        }
+        return null;
+      };
+      const minRatio = parseRatio(minRatioRaw);
+      const maxRatio = parseRatio(maxRatioRaw);
+
+      if (minRatio != null && minRatio < 0) {
+        errors.push(`${stepLabel}: minimum financing ratio cannot be negative`);
+        stepIdsWithErrors.add(stepId);
+      }
+      if (maxRatio != null && maxRatio > 100) {
+        errors.push(`${stepLabel}: maximum financing ratio cannot exceed 100`);
+        stepIdsWithErrors.add(stepId);
+      }
+      if (minRatio != null && maxRatio != null && minRatio > maxRatio) {
+        errors.push(`${stepLabel}: minimum financing ratio cannot be greater than maximum financing ratio`);
+        stepIdsWithErrors.add(stepId);
       }
     }
 
@@ -204,10 +304,12 @@ export function getRequiredStepErrors(steps: unknown[]): string[] {
 
       if (value == null || value < 1) {
         errors.push(`${stepLabel}: minimum contract months must be at least 1`);
+        stepIdsWithErrors.add(stepId);
       }
 
       if (value != null && value > 120) {
         errors.push(`${stepLabel}: minimum contract months cannot exceed 120`);
+        stepIdsWithErrors.add(stepId);
       }
     }
 
@@ -217,6 +319,7 @@ export function getRequiredStepErrors(steps: unknown[]): string[] {
         : (Object.keys(config) as string[]).filter((k) => SUPPORTING_DOC_CATEGORY_KEYS.includes(k as (typeof SUPPORTING_DOC_CATEGORY_KEYS)[number]));
       if (enabledCategories.length === 0) {
         errors.push(`${stepLabel}: add at least one category`);
+        stepIdsWithErrors.add(stepId);
       } else {
         const hasEmptyCategory = enabledCategories.some((key) => {
           const list = config[key] as Array<{ name?: string }> | undefined;
@@ -224,6 +327,7 @@ export function getRequiredStepErrors(steps: unknown[]): string[] {
         });
         if (hasEmptyCategory) {
           errors.push(`${stepLabel}: every category must have at least one document`);
+          stepIdsWithErrors.add(stepId);
         }
       }
       let docsMissingName = 0;
@@ -237,6 +341,7 @@ export function getRequiredStepErrors(steps: unknown[]): string[] {
       }
       if (docsMissingName > 0) {
         errors.push(`${stepLabel}: every document must have a name`);
+        stepIdsWithErrors.add(stepId);
       }
     }
 
@@ -244,6 +349,7 @@ export function getRequiredStepErrors(steps: unknown[]): string[] {
       const raw = config.declarations;
       if (!Array.isArray(raw) || raw.length === 0) {
         errors.push(`${stepLabel}: add at least one declaration`);
+        stepIdsWithErrors.add(stepId);
       } else {
         const empty = raw.some((item: unknown) => {
           const text =
@@ -254,9 +360,12 @@ export function getRequiredStepErrors(steps: unknown[]): string[] {
                 : "";
           return !text;
         });
-        if (empty) errors.push(`${stepLabel}: every declaration must have text`);
+        if (empty) {
+          errors.push(`${stepLabel}: every declaration must have text`);
+          stepIdsWithErrors.add(stepId);
+        }
       }
     }
   }
-  return errors;
+  return { errors, stepIdsWithErrors };
 }

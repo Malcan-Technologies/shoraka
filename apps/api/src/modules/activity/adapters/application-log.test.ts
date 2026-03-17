@@ -11,10 +11,10 @@ describe("ApplicationLogAdapter", () => {
   const adapter = new ApplicationLogAdapter();
 
   it("builds human readable descriptions", () => {
-    expect(adapter.buildDescription("APPLICATION_APPLICATION_CREATED")).toBe("Created an application");
-    expect(adapter.buildDescription("APPLICATION_APPLICATION_SUBMITTED")).toBe("Submitted the application");
-    expect(adapter.buildDescription("APPLICATION_APPLICATION_REJECTED", { remark: "Invalid docs" })).toBe(
-      "Application rejected: Invalid docs"
+    expect(adapter.buildDescription("APPLICATION_CREATED")).toBe("Created an application");
+    expect(adapter.buildDescription("APPLICATION_SUBMITTED")).toBe("Submitted the application");
+    expect(adapter.buildDescription("APPLICATION_REJECTED", { remark: "Invalid docs" })).toBe(
+      "Application rejected"
     );
   });
 
@@ -23,7 +23,7 @@ describe("ApplicationLogAdapter", () => {
     const record: any = {
       id: "log1",
       user_id: "user123",
-      event_type: "APPLICATION_APPLICATION_CREATED",
+      event_type: "APPLICATION_CREATED",
       metadata: {},
       ip_address: "1.2.3.4",
       user_agent: "agent",

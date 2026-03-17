@@ -31,3 +31,7 @@ export const requestInvoiceUploadUrlSchema = z.object({
   fileSize: z.number(),
   existingS3Key: z.string().optional(),
 });
+
+export const withdrawInvoiceSchema = z.object({
+  reason: z.enum(["USER_CANCELLED"]).optional(),
+});

@@ -13,7 +13,7 @@ import { requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { z } from "zod";
 import { logApplicationActivity } from "./logs/service";
-import { ActivityLevel, ActivityTarget, ActivityAction, ActivityPortal } from "./logs/types";
+import { ActivityPortal } from "./logs/types";
 
 /**
  * Get authenticated user ID from request
@@ -40,9 +40,7 @@ async function createApplication(req: Request, res: Response, next: NextFunction
       await logApplicationActivity({
         userId: callerUserId,
         applicationId: application.id,
-        level: ActivityLevel.APPLICATION,
-        target: ActivityTarget.APPLICATION,
-        action: ActivityAction.CREATED,
+        eventType: "APPLICATION_CREATED",
         reviewCycle: 1,
         ipAddress: req.ip ?? undefined,
         userAgent:
@@ -115,6 +113,47 @@ async function archiveApplication(req: Request, res: Response, next: NextFunctio
     const { id } = applicationIdParamSchema.parse(req.params);
     const userId = getUserId(req);
     const application = await applicationService.archiveApplication(id, userId);
+
+    res.json({
+      success: true,
+      data: application,
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Delete a draft application (issuer-only). Only draft applications. Safe deletion of draft data only.
+ * DELETE /v1/applications/:id
+ */
+async function deleteDraftApplication(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = applicationIdParamSchema.parse(req.params);
+    const userId = getUserId(req);
+
+    await applicationService.deleteDraftApplication(id, userId);
+
+    res.json({
+      success: true,
+      data: { message: "Draft application deleted" },
+      correlationId: res.locals.correlationId || "unknown",
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Cancel an application (issuer-only). Withdraws active invoices and contract.
+ * POST /v1/applications/:id/cancel
+ */
+async function cancelApplication(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { id } = applicationIdParamSchema.parse(req.params);
+    const userId = getUserId(req);
+    const application = await applicationService.cancelApplication(id, userId);
 
     res.json({
       success: true,
@@ -211,16 +250,14 @@ async function updateApplicationStatus(req: Request, res: Response, next: NextFu
         await logApplicationActivity({
           userId: callerUserId,
           applicationId: result.id,
-          level: ActivityLevel.APPLICATION,
-          target: ActivityTarget.APPLICATION,
-          action: status === "RESUBMITTED" ? ActivityAction.RESUBMITTED : ActivityAction.SUBMITTED,
+          eventType: status === "RESUBMITTED" ? "APPLICATION_RESUBMITTED" : "APPLICATION_SUBMITTED",
           reviewCycle: (result as any)?.review_cycle ?? undefined,
           ipAddress: req.ip ?? undefined,
           userAgent:
             (Array.isArray(req.headers["user-agent"])
               ? req.headers["user-agent"][0]
               : req.headers["user-agent"]) ?? undefined,
-          portal: ActivityPortal.ISSUER
+          portal: ActivityPortal.ISSUER,
         });
       }
 
@@ -229,16 +266,14 @@ async function updateApplicationStatus(req: Request, res: Response, next: NextFu
         await logApplicationActivity({
           userId: callerUserId,
           applicationId: result.id,
-          level: ActivityLevel.APPLICATION,
-          target: ActivityTarget.APPLICATION,
-          action: status === "APPROVED" ? ActivityAction.APPROVED : ActivityAction.REJECTED,
+          eventType: status === "APPROVED" ? "APPLICATION_APPROVED" : "APPLICATION_REJECTED",
           reviewCycle: (result as any)?.review_cycle ?? undefined,
           ipAddress: req.ip ?? undefined,
           userAgent:
             (Array.isArray(req.headers["user-agent"])
               ? req.headers["user-agent"][0]
               : req.headers["user-agent"]) ?? undefined,
-          portal: ActivityPortal.ADMIN
+          portal: ActivityPortal.ADMIN,
         });
       }
     } catch {
@@ -306,8 +341,9 @@ export function createApplicationRouter(): Router {
     async (req, res, next) => {
       try {
         const { id } = applicationIdParamSchema.parse(req.params);
+        const { reason } = z.object({ reason: z.string().max(2000).optional() }).parse(req.body ?? {});
         const userId = getUserId(req);
-        const data = await applicationService.respondToContractOffer(id, "reject", userId);
+        const data = await applicationService.respondToContractOffer(id, "reject", userId, reason);
         res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
       } catch (e) {
         next(e);
@@ -336,9 +372,43 @@ export function createApplicationRouter(): Router {
       try {
         const { id } = applicationIdParamSchema.parse(req.params);
         const invoiceId = z.string().cuid().parse(req.params.invoiceId);
+        const { reason } = z.object({ reason: z.string().max(2000).optional() }).parse(req.body ?? {});
         const userId = getUserId(req);
-        const data = await applicationService.respondToInvoiceOffer(id, invoiceId, "reject", userId);
+        const data = await applicationService.respondToInvoiceOffer(id, invoiceId, "reject", userId, reason);
         res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
+      } catch (e) {
+        next(e);
+      }
+    }
+  );
+  router.get(
+    "/:id/offers/contracts/letter",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const { id } = applicationIdParamSchema.parse(req.params);
+        const userId = getUserId(req);
+        const { stream, filename } = await applicationService.getContractOfferLetter(id, userId);
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+        stream.pipe(res);
+      } catch (e) {
+        next(e);
+      }
+    }
+  );
+  router.get(
+    "/:id/offers/invoices/:invoiceId/letter",
+    requireAuth,
+    async (req, res, next) => {
+      try {
+        const { id } = applicationIdParamSchema.parse(req.params);
+        const invoiceId = z.string().cuid().parse(req.params.invoiceId);
+        const userId = getUserId(req);
+        const { stream, filename } = await applicationService.getInvoiceOfferLetter(id, invoiceId, userId);
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+        stream.pipe(res);
       } catch (e) {
         next(e);
       }
@@ -380,6 +450,8 @@ router.get("/", requireAuth, async function listApplications(req, res, next) {
   }
 });
   router.post("/:id/archive", requireAuth, archiveApplication);
+  router.post("/:id/cancel", requireAuth, cancelApplication);
+  router.delete("/:id", requireAuth, deleteDraftApplication);
 
   // Parameterized route comes last
   

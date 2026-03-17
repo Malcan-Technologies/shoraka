@@ -5,6 +5,7 @@ import { ReactNode, useState } from "react";
 import { AuthProvider, OrganizationProvider } from "@cashsouk/config";
 import "../lib/amplify-config"; // Initialize Amplify
 import { HeaderProvider } from "@cashsouk/ui";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -25,7 +26,9 @@ export function Providers({ children }: { children: ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <OrganizationProvider portalType="issuer" apiUrl={API_URL}>
-          <HeaderProvider>{children}</HeaderProvider>
+          <HeaderProvider>
+            <TooltipProvider>{children}</TooltipProvider>
+          </HeaderProvider>
         </OrganizationProvider>
       </AuthProvider>
     </QueryClientProvider>

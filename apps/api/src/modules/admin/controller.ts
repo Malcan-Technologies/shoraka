@@ -28,7 +28,6 @@ import {
   getAdminApplicationsQuerySchema,
   getAdminContractsQuerySchema,
   updateApplicationStatusSchema,
-  reopenApplicationForCorrectionSchema,
   reviewSectionSchema,
   reviewSectionApproveSchema,
   reviewSectionRejectSchema,
@@ -2014,61 +2013,6 @@ router.patch(
         id,
         validated.status,
         req.user.user_id,
-        { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
-      );
-
-      res.json({
-        success: true,
-        data: result,
-        correlationId: res.locals.correlationId,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-/**
- * @swagger
- * /v1/admin/applications/{id}/reopen-for-correction:
- *   post:
- *     summary: Reopen approved/rejected application for correction (admin only)
- *     tags: [Admin]
- *     security:
- *       - BearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [reason]
- *             properties:
- *               reason:
- *                 type: string
- *     responses:
- *       200:
- *         description: Application reopened to under review
- */
-router.post(
-  "/applications/:id/reopen-for-correction",
-  requireRole(UserRole.ADMIN),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
-      const { id } = req.params;
-      const validated = reopenApplicationForCorrectionSchema.parse(req.body);
-      const logCtx = extractRequestMetadata(req);
-      const result = await adminService.reopenApplicationForCorrection(
-        id,
-        req.user.user_id,
-        validated.reason,
         { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
       );
 

@@ -308,10 +308,6 @@ export const updateApplicationStatusSchema = z.object({
   ]),
 });
 
-export const reopenApplicationForCorrectionSchema = z.object({
-  reason: z.string().trim().min(1, "Reason is required"),
-});
-
 export type GetAdminApplicationsQuery = z.infer<typeof getAdminApplicationsQuerySchema>;
 export type GetAdminContractsQuery = z.infer<typeof getAdminContractsQuerySchema>;
 

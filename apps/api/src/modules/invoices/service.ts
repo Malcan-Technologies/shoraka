@@ -3,7 +3,11 @@ import { ApplicationRepository } from "../applications/repository";
 import { OrganizationRepository } from "../organization/repository";
 import { ContractRepository } from "../contracts/repository";
 import { AppError } from "../../lib/http/error-handler";
+import { logApplicationActivity } from "../applications/logs/service";
+import { ActivityPortal } from "../applications/logs/types";
 import { Invoice } from "@prisma/client";
+import { ApplicationStatus, ContractStatus, InvoiceStatus, WithdrawReason } from "@cashsouk/types";
+import { computeApplicationStatus } from "../applications/lifecycle";
 import {
   generateApplicationDocumentKey,
   parseApplicationDocumentKey,
@@ -120,11 +124,25 @@ export class InvoiceService {
   async createInvoice(applicationId: string, contractId: string | undefined, details: any, userId: string): Promise<Invoice> {
     await this.verifyApplicationAccess(applicationId, userId);
 
-    return this.repository.create({
-      application_id: applicationId,
-      contract_id: contractId,
-      details,
-    });
+    const s3Key = details?.document?.s3_key;
+
+    try {
+      return await this.repository.create({
+        application_id: applicationId,
+        contract_id: contractId,
+        details,
+      });
+    } catch (err) {
+      if (s3Key) {
+        try {
+          await deleteS3Object(s3Key);
+          logger.info({ applicationId, s3Key }, "Deleted orphan invoice document after create failure");
+        } catch (delErr) {
+          logger.warn({ applicationId, s3Key, err: delErr }, "Cleanup: failed to delete orphan invoice document");
+        }
+      }
+      throw err;
+    }
   }
 
   async getInvoice(id: string, userId: string): Promise<Invoice> {
@@ -134,7 +152,7 @@ export class InvoiceService {
   async updateInvoice(id: string, payload: any, userId: string): Promise<Invoice> {
   const invoice = await this.verifyInvoiceAccess(id, userId);
 
-  if (invoice.status === "APPROVED") {
+  if (invoice.status === InvoiceStatus.APPROVED) {
     throw new AppError(400, "BAD_REQUEST", "Cannot update an approved invoice");
   }
 
@@ -190,29 +208,39 @@ export class InvoiceService {
     updatePayload.contract_id = contractId;
   }
 
-  const updatedInvoice = await this.repository.update(id, updatePayload);
+  const isNewDocumentUpload = nextS3Key && nextS3Key !== prevS3Key;
 
-  // 🔥 delete previous version AFTER successful update
-  if (
-    prevS3Key &&
-    nextS3Key &&
-    prevS3Key !== nextS3Key
-  ) {
-    try {
-      await deleteS3Object(prevS3Key);
-      logger.info(
-        { invoiceId: id, prevS3Key, nextS3Key },
-        "Old invoice document deleted after version replacement"
-      );
-    } catch (err) {
-      logger.error(
-        { invoiceId: id, prevS3Key, err },
-        "Failed to delete old invoice document from S3"
-      );
+  try {
+    const updatedInvoice = await this.repository.update(id, updatePayload);
+
+    // 🔥 delete previous version AFTER successful update
+    if (prevS3Key && nextS3Key && prevS3Key !== nextS3Key) {
+      try {
+        await deleteS3Object(prevS3Key);
+        logger.info(
+          { invoiceId: id, prevS3Key, nextS3Key },
+          "Old invoice document deleted after version replacement"
+        );
+      } catch (err) {
+        logger.error(
+          { invoiceId: id, prevS3Key, err },
+          "Failed to delete old invoice document from S3"
+        );
+      }
     }
-  }
 
-  return updatedInvoice;
+    return updatedInvoice;
+  } catch (err) {
+    if (isNewDocumentUpload && nextS3Key) {
+      try {
+        await deleteS3Object(nextS3Key);
+        logger.info({ invoiceId: id, s3Key: nextS3Key }, "Deleted orphan invoice document after update failure");
+      } catch (delErr) {
+        logger.warn({ invoiceId: id, s3Key: nextS3Key, err: delErr }, "Cleanup: failed to delete orphan invoice document");
+      }
+    }
+    throw err;
+  }
 }
 
 
@@ -311,6 +339,66 @@ async deleteInvoice(id: string, userId: string) {
     } catch (error) {
       throw new AppError(500, "DELETE_FAILED", "Failed to delete document from S3");
     }
+  }
+
+  async withdrawInvoice(id: string, userId: string, reason?: WithdrawReason): Promise<Invoice> {
+    const invoice = await this.verifyInvoiceAccess(id, userId);
+
+    if (invoice.status === InvoiceStatus.APPROVED) {
+      throw new AppError(400, "BAD_REQUEST", "This invoice has already been approved and can no longer be withdrawn.");
+    }
+
+    if (invoice.status === InvoiceStatus.WITHDRAWN) {
+      throw new AppError(400, "BAD_REQUEST", "This invoice was already withdrawn.");
+    }
+
+    const finalReason = reason ?? WithdrawReason.USER_CANCELLED;
+
+    const updated = await this.repository.update(id, {
+      status: InvoiceStatus.WITHDRAWN,
+      withdraw_reason: finalReason,
+    });
+
+    if (invoice.application_id) {
+      const details = invoice.details as Record<string, unknown> | null;
+      const invoiceNumber = details?.number != null ? String(details.number) : undefined;
+      await logApplicationActivity({
+        userId,
+        applicationId: invoice.application_id,
+        eventType: "INVOICE_WITHDRAWN",
+        portal: ActivityPortal.ISSUER,
+        entityId: id,
+        metadata: { withdraw_reason: finalReason, invoice_number: invoiceNumber },
+      });
+
+      const allInvoices = await this.repository.findByApplicationId(invoice.application_id);
+      const app = await this.applicationRepository.findById(invoice.application_id);
+      const contract = app?.contract_id
+        ? await this.contractRepository.findById(app.contract_id)
+        : null;
+      const currentStatus = (app?.status as ApplicationStatus) ?? ApplicationStatus.DRAFT;
+      const newStatus = computeApplicationStatus(
+        contract ? { status: contract.status as ContractStatus } : null,
+        allInvoices.map((i) => ({ status: i.status as InvoiceStatus })),
+        currentStatus
+      );
+      if (newStatus === ApplicationStatus.WITHDRAWN && currentStatus !== ApplicationStatus.WITHDRAWN) {
+        const { prisma } = await import("../../lib/prisma");
+        await prisma.application.update({
+          where: { id: invoice.application_id },
+          data: { status: ApplicationStatus.WITHDRAWN },
+        });
+        await logApplicationActivity({
+          userId,
+          applicationId: invoice.application_id,
+          eventType: "APPLICATION_WITHDRAWN",
+          portal: ActivityPortal.ISSUER,
+          metadata: { withdraw_reason: finalReason },
+        });
+      }
+    }
+
+    return updated;
   }
 }
 

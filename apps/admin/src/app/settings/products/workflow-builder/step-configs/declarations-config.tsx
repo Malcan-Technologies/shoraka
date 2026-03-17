@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { cn } from "@/lib/utils";
 import { Textarea } from "../../../../../components/ui/textarea";
 import { Button } from "../../../../../components/ui/button";
+import { TEXTAREA_CLASS, FIELD_GAP, SECTION_GAP } from "../product-form-input-styles";
 import { ChevronUpIcon, ChevronDownIcon, TrashIcon, PlusIcon } from "@heroicons/react/24/outline";
 
 const CONFIG_KEY = "declarations";
@@ -75,7 +77,7 @@ export function DeclarationsConfig({ config, onChange }: { config: unknown; onCh
   };
 
   return (
-    <div className="grid gap-3 pt-2 min-w-0 text-sm leading-6">
+    <div className={cn("grid pt-2 min-w-0 text-sm leading-6", SECTION_GAP)}>
       <div className="flex justify-end">
         <Button type="button" variant="outline" size="sm" onClick={add} className="gap-1.5">
           <PlusIcon className="h-4 w-4 shrink-0" />
@@ -85,19 +87,20 @@ export function DeclarationsConfig({ config, onChange }: { config: unknown; onCh
       {declarations.length === 0 ? (
         <p className="text-sm text-muted-foreground leading-6">No declarations yet. Add one to get started.</p>
       ) : (
-        <ul className="grid gap-3">
+        <ul className={cn("grid", SECTION_GAP)}>
           {declarations.map((item, index) => (
-            <li key={index} className="flex gap-2 py-2.5 px-0 min-w-0 sm:gap-3">
+            <li key={index} className={cn("flex py-2.5 px-0 min-w-0", FIELD_GAP, "sm:gap-3")}>
               <span className="flex h-8 w-6 shrink-0 items-center justify-center text-sm font-medium text-muted-foreground tabular-nums">
                 {index + 1}
               </span>
-              <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <div className={cn("flex min-w-0 flex-1 flex-col", FIELD_GAP)}>
                 <Textarea
                   id={`declaration-${index}`}
                   value={item.text}
                   onChange={(e) => updateAt(index, e.target.value)}
                   placeholder="e.g. I confirm that the information provided is accurate."
-                  className="text-sm leading-6 min-h-[80px] resize-y min-w-0"
+                  maxLength={5000}
+                  className={cn(TEXTAREA_CLASS, "min-w-0")}
                 />
                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-0.5">
                   <Button

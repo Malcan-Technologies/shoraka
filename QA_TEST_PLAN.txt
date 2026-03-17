@@ -1,0 +1,685 @@
+SECTION: ADMIN PRODUCTS
+
+[ ] Admin can create products
+- verify record inserted in products table
+- verify version starts at 1
+- verify base_id set to product id
+- verify product_logs record PRODUCT_CREATED
+- verify workflow steps saved as JSON
+- verify category_display_order and product_display_order computed from workflow
+- verify offer_expiry_days stored when provided
+
+[ ] Admin can edit products
+- verify PATCH creates new product row (versioned entity)
+- verify old product status set to INACTIVE
+- verify new product version = old version + 1
+- verify product_logs record PRODUCT_UPDATED
+- verify replaced S3 keys deleted from S3 after update
+- verify completeCreate flag allows in-place update without version bump (first save after create)
+
+[ ] Admin can delete products
+- verify product status set to DELETED
+- verify deleted_at timestamp set
+- verify product_logs record PRODUCT_DELETED
+- verify S3 objects NOT deleted (soft delete only; S3 cleanup commented out)
+
+[ ] Products are listed in admin page
+- verify GET /v1/products returns paginated list
+- verify activeOnly filter shows only ACTIVE versions
+- verify order: category_display_order, product_display_order, created_at when activeOnly
+- verify order: updated_at desc when not activeOnly
+- verify DELETED products excluded from list
+
+[ ] Product pagination works
+- verify page and pageSize query params
+- verify totalCount and totalPages in response
+- verify skip/take applied correctly
+
+[ ] Product search works
+- verify search by product name (workflow::jsonb->0->config->>name)
+- verify search by type name (workflow::jsonb->0->config->type->>name)
+- verify ILIKE pattern matching
+- verify search with activeOnly filter
+
+[ ] Product logs are recorded
+- verify product_logs table has PRODUCT_CREATED, PRODUCT_UPDATED, PRODUCT_DELETED
+- verify metadata includes workflow snapshot, version, timestamps
+- verify user_id, ip_address, user_agent, device_info stored when available
+
+[ ] Product workflow configuration saved
+- verify workflow JSON structure: array of steps with id, name, config
+- verify financing type step has category, name, description, image
+- verify supporting documents step has categories (financial_docs, legal_docs, compliance_docs, others)
+- verify declarations step has at least one declaration with text
+- verify first step always Financing Type, last step always Review And Submit
+
+[ ] Product S3 documents stored correctly
+- verify product image path: products/{productId}/v{version}-{date}-{cuid}.{ext}
+- verify product template path: products/{productId}/v{version}-{date}-{cuid}.pdf
+- verify upload only after Save and Continue (admin product form)
+- verify POST /v1/products/:id/upload-image-url returns presigned URL
+- verify POST /v1/products/:id/upload-template-url returns presigned URL with categoryKey and templateIndex
+
+[ ] Product image is optional
+- verify product can be created without image
+- verify no validation error when image removed
+- verify Financing Type step does not require image
+
+[ ] Offer expiry validation (API)
+- Case: offer_expiry_days = -1 → 400 VALIDATION_ERROR "Offer expiry must be greater than 0"
+- Case: offer_expiry_days = 0 → 400 validation error
+- Case: offer_expiry_days = "--123" or invalid → 400 validation error
+- Case: offer_expiry_days = null or omitted → accepted (optional)
+
+[ ] Financing ratio validation (API)
+- Case: min_financing_ratio_percent = 90, max_financing_ratio_percent = 80 → 400 VALIDATION_ERROR "Invalid financing ratio configuration"
+- Case: min_ratio > max_ratio → validation error
+- Case: min_ratio < 0 or max_ratio > 100 → validation error
+
+[ ] Financing ratio defaults (frontend)
+- Case: min_ratio blank, max_ratio blank → system applies default 60–80 before sending to backend
+- verify buildPayloadFromSteps sets min_financing_ratio_percent: 60, max_financing_ratio_percent: 80 when blank
+
+
+SECTION: PRODUCT VERSION HANDLING
+
+[ ] Product version increases when edited
+- verify PATCH without completeCreate creates new row with version = current + 1
+- verify workflowDeepEqual prevents version bump when nothing changed
+- verify offer_expiry_days change triggers version bump
+
+[ ] New application uses latest product version
+- verify createApplication fetches product and uses product.version
+- verify application.product_version stored matches product.version at create time
+- verify financing_type JSON includes product_id
+
+[ ] Existing application detects version mismatch
+- verify issuer new application page revalidates product before create
+- verify VersionMismatchModal shown when product version changed since page load
+- verify block reasons: PRODUCT_DELETED, PRODUCT_INACTIVE, PRODUCT_VERSION_CHANGED
+
+[ ] Version mismatch warning shown
+- verify VersionMismatchModal displays correct block reason
+- verify Refresh products button refetches and allows retry
+- verify user cannot create application with stale product
+
+[ ] Outdated product cannot create new application
+- verify DELETED product blocks creation
+- verify INACTIVE product blocks creation
+- verify version mismatch blocks creation until refresh
+
+
+SECTION: ISSUER APPLICATIONS
+
+[ ] Application created after first step (product selection)
+- verify applications table record created
+- verify status = DRAFT
+- verify product_id in financing_type JSON
+- verify product_version stored from product at create time
+- verify last_completed_step = 1
+- verify issuer_organization_id stored
+- verify redirect to /applications/edit/{id}?step=2
+
+[ ] Application saves data on every step
+- verify PATCH /v1/applications/:id/step updates correct field (financing_type, company_details, business_details, etc.)
+- verify stepId maps to column: financing_type_1 -> financing_type, company_details_1 -> company_details
+- verify last_completed_step advances to max(current, stepNumber)
+- verify financing_structure links existing contract when structure_type = existing_contract
+- verify financing_structure disconnects contract when structure_type = invoice_only or new_contract
+
+[ ] Application resumes from last completed step
+- verify wizardState initialized from application.last_completed_step
+- verify allowedMaxStep = lastCompletedStep + 1
+- verify user can access steps 1 through allowedMaxStep
+- verify user cannot skip to step beyond allowedMaxStep
+
+[ ] Reload returns to correct step
+- verify step derived from URL ?step=N
+- verify redirect to ?step=allowedMaxStep when stepFromUrl > allowedMaxStep
+- verify redirect to ?step=1 when stepFromUrl < 1
+- verify no redirect when stepFromUrl within allowed range
+
+[ ] User cannot skip steps
+- verify Save and Continue required to advance
+- verify forceRewindToStep can rewind (admin/correction flow)
+- verify amendment mode does not update last_completed_step
+
+[ ] Application step fields validated
+- verify company_details: contact_person.ic digits/dashes only, contact phone chars only
+- verify business_details: businessDetailsDataSchema validation
+- verify financial_statements: non-negative fields, bsdd date not in future
+- verify supporting_documents structure matches product config
+- verify declarations structure validated
+
+[ ] Contract details step saves separately
+- verify contract_details and invoice_details use dedicated APIs (contracts, invoices)
+- verify PATCH step with contract_details stepId only updates last_completed_step
+- verify ContractDetailsStep and InvoiceDetailsStep manage own persistence
+
+
+SECTION: APPLICATION STATE LOGIC
+
+[ ] User refresh page
+- verify application data refetched
+- verify wizardState reinitialized from application.last_completed_step
+- verify redirect applied if URL step invalid
+
+[ ] User edits step in URL
+- verify ?step=99 redirects to allowedMaxStep
+- verify ?step=0 or negative redirects to step 1
+- verify ?step=2 when allowedMaxStep=2 shows step 2
+
+[ ] User presses browser back button
+- verify navigation guard when hasUnsavedChanges
+- verify UnsavedChangesModal shown
+- verify confirmLeave or cancelLeave handled
+
+[ ] User leaves page with unsaved changes
+- verify useNavigationGuard blocks navigation
+- verify UnsavedChangesModal variant exit
+- verify onConfirm clears hasUnsavedChanges and navigates
+
+[ ] Application locked when not DRAFT or AMENDMENT_REQUESTED
+- verify isEditBlocked when status not in [DRAFT, AMENDMENT_REQUESTED]
+- verify redirect to /applications when blocked
+- verify edit page does not render form when blocked
+
+
+SECTION: ADMIN REVIEW FLOW
+
+[ ] Admin can view submitted applications
+- verify GET /v1/admin/applications returns list
+- verify filter by status, statuses, productId, search
+- verify applications include financingStructureLabel (Contract Financing vs Invoice Financing)
+- verify pagination works
+
+[ ] Admin can view application detail
+- verify GET /v1/admin/applications/:id returns full application
+- verify includes contract, invoices, issuer_organization
+- verify review sections: financial, business_details, supporting_documents, contract_details, invoice_details, company_details
+
+[ ] Admin can request amendment
+- verify POST .../reviews/sections/:section/request-amendment
+- verify ApplicationReviewRemark created with action_type REQUEST_AMENDMENT
+- verify section status set to AMENDMENT_REQUESTED
+- verify application status set to AMENDMENT_REQUESTED via submitPendingAmendments
+- verify addPendingAmendment creates draft; submitPendingAmendments sets submitted_at
+
+[ ] Admin can approve application
+- verify POST .../reviews/sections/:section/approve
+- verify ApplicationReview/ApplicationReviewItem status set to APPROVED
+- verify PATCH .../status with APPROVED updates application
+- verify review metadata (reviewer_user_id, reviewed_at) stored
+
+[ ] Admin can reject application
+- verify POST .../reviews/sections/:section/reject
+- verify remark required for reject
+- verify ApplicationReview status set to REJECTED
+- verify application status can transition to REJECTED
+
+[ ] Admin can approve/reject individual items (invoices, documents)
+- verify POST .../reviews/items/approve with itemType, itemId
+- verify POST .../reviews/items/reject
+- verify POST .../reviews/items/request-amendment
+- verify ApplicationReviewItem status updated
+
+[ ] Admin can send contract offer
+- verify POST .../offers/contracts/send
+- verify offeredFacility, expiresAt stored
+- verify contract status set to OFFER_SENT
+- verify ApplicationReview section contract_details status OFFER_SENT
+
+[ ] Admin can send invoice offer
+- verify POST .../offers/invoices/:invoiceId/send
+- verify offeredAmount, offeredRatioPercent, offeredProfitRatePercent, expiresAt
+- verify invoice status set to OFFER_SENT
+- verify ApplicationReviewItem status OFFER_SENT
+
+[ ] Admin can reset section/item to PENDING
+- verify POST .../reviews/sections/:section/reset-to-pending
+- verify POST .../reviews/items/reset-to-pending
+
+
+SECTION: AMENDMENT FLOW
+
+[ ] Admin requests amendment
+- verify addPendingAmendment creates ApplicationReviewRemark with submitted_at=null
+- verify submitPendingAmendments sets submitted_at and application status AMENDMENT_REQUESTED
+- verify ApplicationReview/ApplicationReviewItem status AMENDMENT_REQUESTED for flagged sections/items
+
+[ ] Issuer edits application in amendment mode
+- verify getAmendmentContext returns application, review_cycle, remarks
+- verify getAmendmentAllowedSections returns only sections/items with REQUEST_AMENDMENT
+- verify updateStep rejects edits to non-flagged sections (AMENDMENT_LOCKED)
+- verify supporting_documents amendment requires allowedSections.has(supporting_documents)
+
+[ ] Issuer acknowledges workflow before resubmit
+- verify POST .../acknowledge-workflow with workflowId
+- verify amendment_acknowledged_workflow_ids appended
+- verify resubmit fails with MISSING_ACKNOWLEDGEMENTS if not all amendments acknowledged
+
+[ ] Issuer resubmits application
+- verify POST .../resubmit
+- verify status must be AMENDMENT_REQUESTED
+- verify REQUEST_AMENDMENT remarks deleted
+- verify AMENDMENT_REQUESTED review records deleted
+- verify ApplicationRevision created with new review_cycle
+- verify review_cycle incremented
+- verify status set to RESUBMITTED
+- verify amendment_acknowledged_workflow_ids cleared
+- verify APPLICATION_RESUBMITTED logged
+
+
+SECTION: CONTRACTS
+
+[ ] Contract created under application
+- verify ContractRepository.create when financing_structure selects new_contract
+- verify contract linked via application.contract_id
+- verify issuer_organization_id matches application
+
+[ ] Contract linked to application
+- verify application.contract_id set when contract created
+- verify contract.applications relation (one-to-many from contract side; application has optional contract_id)
+
+[ ] Contract financing amount stored
+- verify contract_details JSON stores facility, dates, etc.
+- verify offer_details stores offered facility when admin sends offer
+- verify customer_details stored for consent document
+
+[ ] Contract status updates correctly
+- verify DRAFT -> SUBMITTED on application submit
+- verify SUBMITTED -> OFFER_SENT when admin sends offer
+- verify OFFER_SENT -> APPROVED/REJECTED when issuer accepts/rejects
+- verify AMENDMENT_REQUESTED when admin requests amendment
+- verify WITHDRAWN when issuer cancels
+
+[ ] Contract document upload
+- verify POST /v1/contracts/:id/upload-url returns presigned URL
+- verify S3 path: contracts/{contractId}/v{version}-{date}-{cuid}.pdf
+- verify replacing file increments version, deletes old S3 object
+- verify deleteDocument removes S3 object
+
+[ ] Existing contract can be linked
+- verify financing_structure.structure_type = existing_contract
+- verify existing_contract_id validated: same org, status APPROVED
+- verify contract connected to application
+- verify invoice_only clears contract_id on draft invoices
+
+
+SECTION: INVOICES
+
+[ ] Invoices linked to contract
+- verify invoice.contract_id optional (null for invoice-only applications)
+- verify invoice.contract_id set when under contract financing
+
+[ ] Invoices linked to application
+- verify invoice.application_id required
+- verify InvoiceRepository.findByApplicationId
+- verify InvoiceRepository.findByContractId filters by contract_id
+
+[ ] Invoice financing amount validated
+- verify invoice details: number, value, maturity_date, financing_ratio_percent
+- verify financing_ratio_percent default 60, min 60, max 80 (schema)
+- verify product config min_financing_ratio_percent, max_financing_ratio_percent used in admin offer UI
+- verify min_invoice_value, max_invoice_value from product invoice_details config
+
+[ ] Invoice maturity rules enforced
+- verify maturity date must be today or future (frontend validation)
+- verify maturity date within contract start/end when contract exists
+- verify invalid date format rejected
+- verify past maturity date rejected
+
+[ ] Invoice document upload
+- verify POST /v1/invoices/:id/upload-url returns presigned URL
+- verify S3 path: applications/{applicationId}/v{version}-{date}-{cuid}.pdf (invoice docs use application path)
+- verify replacing file deletes old S3 object
+- verify deleteInvoice removes S3 object
+- verify invoice details.document stores s3_key, file_name
+
+[ ] Invoice status updates
+- verify DRAFT -> SUBMITTED on application submit
+- verify SUBMITTED -> OFFER_SENT when admin sends offer
+- verify OFFER_SENT -> APPROVED/REJECTED when issuer accepts/rejects
+- verify approved invoice cannot be updated
+
+
+SECTION: FILE HANDLING (AWS S3)
+
+[ ] Product documents uploaded only after Save and Continue
+- verify product form: uploadImageAndMerge, uploadTemplatesAndMerge run inside handleSave
+- verify presigned URL requested, file uploaded to S3, then workflow updated with s3_key
+- verify no upload on step expand or form change without Save
+
+[ ] Application supporting documents uploaded only after Save and Continue
+- verify SupportingDocumentsStep: user selects file, requests presigned URL, uploads, then Save and Continue sends s3_key in payload
+- verify PATCH .../step with supporting_documents data includes document references
+- verify POST /v1/applications/:id/upload-document-url returns presigned URL
+
+[ ] S3 path products/<product_id>/...
+- verify format: products/{productId}/v{version}-{date}-{cuid}.{ext}
+- verify parseProductS3Key extracts productId, version, date, cuid, extension
+- verify generateProductS3Key with existingKey reuses date and cuid, bumps version
+
+[ ] S3 path applications/<application_id>/...
+- verify format: applications/{applicationId}/v{version}-{date}-{cuid}.{ext}
+- verify parseApplicationDocumentKey
+- verify generateApplicationDocumentKeyWithVersion for replacements
+
+[ ] S3 path contracts/<contract_id>/...
+- verify format: contracts/{contractId}/v{version}-{date}-{cuid}.{ext}
+
+[ ] S3 path invoices stored under application
+- verify invoice document key uses applications/{applicationId}/... (from invoice service)
+
+[ ] File naming version_date_cuid.ext
+- verify pattern v{version}-{date}-{cuid}.{ext} with date YYYY-MM-DD
+- verify cuid from generateCuidForKey (timestamp + random)
+
+[ ] Replacing file updates S3 key
+- verify existingS3Key param to upload URL endpoints
+- verify new key increments version, reuses cuid and parent id
+- verify old S3 object deleted after successful update (contracts, invoices, applications)
+- verify product update: getReplacedProductS3Keys, deleteS3Object for replaced keys
+
+[ ] Deleting record deletes file from S3
+- verify application deleteDocument calls deleteDocumentFromS3
+- verify invoice delete: deleteS3Object before or after repository.delete
+- verify contract deleteDocument
+- verify product delete: S3 cleanup NOT performed (soft delete; keys preserved for manual cleanup)
+
+[ ] File validation
+- verify application documents: PDF only, max 5MB
+- verify contract/invoice documents: PDF only, max 5MB (validateDocument)
+- verify product image: PNG, max 5MB (from product upload schema)
+- verify product template: PDF (from product upload schema)
+
+
+SECTION: ORGANIZATION DATA
+
+[ ] Issuer organization data
+- verify issuer_organization from application
+- verify corporate_onboarding_data JSON on IssuerOrganization
+- verify corporate_entities JSON
+
+[ ] Directors data populated
+- verify corporate_onboarding_data or corporate_entities structure
+- verify director_aml_status, director_kyc_status JSON fields
+- verify refresh-corporate-entities fetches from RegTank
+
+[ ] Shareholders populated
+- verify corporate structure includes shareholders
+- verify share_percentage in corporate_individual_kyc
+
+[ ] KYC status mapping correct
+- verify onboarding_status: PENDING, COMPLETED, IN_PROGRESS, PENDING_APPROVAL, PENDING_AML, PENDING_SSM_REVIEW, PENDING_FINAL_APPROVAL, REJECTED
+- verify kyc_approved, aml_approved, ssm_checked flags
+- verify admin refresh-corporate-status, refresh-aml-status endpoints
+
+
+SECTION: APPLICATION COMPLETION
+
+[ ] Application status becomes SUBMITTED
+- verify PATCH .../status with SUBMITTED
+- verify status must be DRAFT
+- verify submitted_at set to new Date()
+- verify ApplicationRevision created with snapshot
+- verify draft invoices set to SUBMITTED
+- verify draft contract set to SUBMITTED
+- verify APPLICATION_SUBMITTED logged
+
+[ ] Application locked from editing
+- verify status SUBMITTED blocks PATCH .../step
+- verify verifyApplicationEditable throws for non-DRAFT, non-AMENDMENT_REQUESTED
+- verify issuer edit page redirects when not editable
+
+[ ] Admin review triggered
+- verify application appears in admin list with SUBMITTED status
+- verify REVIEWABLE_STATUSES includes SUBMITTED, UNDER_REVIEW, RESUBMITTED, etc.
+- verify first review action can transition to UNDER_REVIEW
+
+[ ] Withdraw logic
+- verify POST .../cancel (issuer)
+- verify withdraws contract and invoices (USER_CANCELLED)
+- verify application status WITHDRAWN via computeApplicationStatus
+- verify withdraw_reason on contract and invoice
+
+[ ] Archive logic
+- verify POST .../archive
+- verify status set to ARCHIVED
+- verify archived application returns 403 EDIT_NOT_ALLOWED from getApplication
+- verify issuer cannot access archived application in edit flow
+
+[ ] Delete draft application
+- verify DELETE .../ only for DRAFT
+- verify deletes DRAFT invoices
+- verify deletes DRAFT contract if created in this draft
+- verify never deletes APPROVED contract or non-DRAFT invoices
+- verify application record deleted
+
+
+SECTION: SECURITY / EDGE CASES
+
+[ ] Invalid step number
+- verify stepNumber < 1 or > step count handled
+- verify redirect to valid step
+- verify API rejects invalid stepId (getFieldNameForStepId returns null; only last_completed_step updated)
+
+[ ] Invalid product id
+- verify createApplication throws PRODUCT_NOT_FOUND for non-existent product
+- verify getProduct returns 404 for invalid id
+
+[ ] Deleted product
+- verify product status DELETED
+- verify new application creation blocked (VersionMismatchModal PRODUCT_DELETED)
+- verify product list excludes DELETED when activeOnly
+
+[ ] Expired product version
+- verify application stores product_version at create
+- verify version mismatch detected when product edited after application created
+- verify issuer must refresh to get latest product
+
+[ ] Unauthorized API calls
+- verify requireAuth on application routes
+- verify verifyApplicationAccess checks org membership
+- verify verifyInvoiceAccess, verifyContractAccess
+- verify requireRole(UserRole.ADMIN) on admin routes
+- verify 403 FORBIDDEN when user not in organization
+
+[ ] Amendment boundary enforcement
+- verify AMENDMENT_LOCKED when editing non-flagged section
+- verify AMENDMENT_BOUNDARY on contract edit when no contract amendment remark
+- verify invoice_only structure rejects contract_details updates
+
+
+SECTION: DATABASE VALIDATION
+
+[ ] applications table
+- verify id, issuer_organization_id, product_version, review_cycle, amendment_acknowledged_workflow_ids
+- verify status, last_completed_step
+- verify financing_type, financing_structure, company_details, business_details, financial_statements
+- verify supporting_documents, declarations, review_and_submit
+- verify contract_id FK to contracts
+- verify submitted_at
+- verify created_at, updated_at
+
+[ ] products table
+- verify id, base_id, version, status, deleted_at
+- verify workflow JSON, category_display_order, product_display_order, offer_expiry_days
+- verify created_at, updated_at
+
+[ ] product_logs table
+- verify user_id, product_id, event_type, ip_address, user_agent, device_info, metadata
+- verify created_at
+
+[ ] contracts table
+- verify id, issuer_organization_id, status, withdraw_reason
+- verify contract_details, offer_details, customer_details JSON
+- verify created_at, updated_at
+
+[ ] invoices table
+- verify id, application_id, contract_id (nullable)
+- verify details JSON, offer_details JSON, status, withdraw_reason
+- verify created_at, updated_at
+
+[ ] application_revisions table
+- verify application_id, review_cycle, snapshot, submitted_at
+- verify unique (application_id, review_cycle)
+
+[ ] application_reviews table
+- verify application_id, section, status, reviewer_user_id, reviewed_at
+- verify unique (application_id, section)
+- verify ReviewSection enum: financial, business_details, supporting_documents, contract_details, invoice_details, company_details
+
+[ ] application_review_items table
+- verify application_id, item_type, item_id, status
+- verify unique (application_id, item_type, item_id)
+
+[ ] application_review_remarks table
+- verify application_id, scope, scope_key, action_type, remark, author_user_id, submitted_at
+- verify unique (application_id, scope, scope_key)
+
+[ ] application_review_events table
+- verify application_id, event_type, scope, scope_key, old_status, new_status, reviewer_user_id, remark
+
+[ ] application_logs table
+- verify user_id, application_id, event_type, review_cycle, level, target, action, entity_id, remark, portal
+
+[ ] issuer_organizations table
+- verify corporate_onboarding_data, corporate_entities, director_aml_status, director_kyc_status
+
+[ ] notifications table
+- verify user_id, notification_type_id, title, message, read_at, link_path, metadata
+
+
+SECTION: BUG DETECTION
+
+[ ] Incorrect validation
+- verify financial_statements bsdd date parse handles both yyyy-MM-dd and d/M/yyyy
+- verify financing_ratio_percent 60-80 enforced in invoice schema
+- verify product invoice_details config min/max values used in admin UI
+
+[ ] Version mismatch issues
+- verify product update race: two admins editing same product
+- verify application create race: product edited between fetch and create
+- verify base_id initialization on legacy products (update sets base_id if null)
+
+[ ] Race conditions
+- verify product create: transaction for category_display_order, product_display_order max+1
+- verify product update: prevent multiple ACTIVE versions per base_id
+- verify resubmit: transaction for remark delete, revision create, status update
+
+[ ] Incorrect S3 path usage
+- verify invoice document key uses applications/ not invoices/ (from invoice service requestUploadUrl)
+- verify product key uses products/{productId}/ not products/{type}/
+- verify parseApplicationDocumentKey used for invoice key versioning (invoice lives under application)
+
+[ ] Amendment acknowledgement mapping
+- verify acknowledged workflow IDs map to step keys (strip _\d+ suffix)
+- verify financial step key exempt from acknowledgement check
+- verify missing acknowledgements block resubmit with clear error
+
+[ ] Contract invoice_only structure
+- verify contract_details update rejected when structure_type invoice_only
+- verify clearing contract_details (null) allowed
+- verify draft invoices contract_id cleared when switching to invoice_only
+
+
+CHANGELOG
+
+## v0.1.4-alpha
+
+Started: 2025-03-17
+Released: -
+
+Features discovered in the codebase:
+
+* Admin Product Management
+  - Create, read, update, delete products
+  - Workflow builder with drag-and-drop steps
+  - Product list with pagination, search, activeOnly filter
+  - Product logs (PRODUCT_CREATED, PRODUCT_UPDATED, PRODUCT_DELETED)
+  - Soft delete (status DELETED, deleted_at)
+  - completeCreate for first save after create (merge image/template keys without version bump)
+
+* Product Versioning
+  - base_id groups versions
+  - New row per edit (old INACTIVE, new ACTIVE)
+  - workflowDeepEqual prevents no-op version bump
+  - Replaced S3 keys deleted on update
+  - category_display_order, product_display_order from workflow config
+
+* Issuer Application Workflow
+  - Step keys: financing_type, financing_structure, contract_details, invoice_details, company_details, business_details, financial_statements, supporting_documents, declarations, review_and_submit
+  - Create application with product_id in financing_type, product_version
+  - PATCH step updates JSON columns, last_completed_step
+  - Amendment mode: only flagged sections editable
+  - forceRewindToStep for admin correction
+
+* Admin Review Flow
+  - Section review: approve, reject, request-amendment, reset-to-pending
+  - Item review: approve, reject, request-amendment for invoices and documents
+  - Pending amendments: add, update, remove, submit
+  - Send contract offer, send invoice offer
+  - Application status: UNDER_REVIEW, APPROVED, REJECTED
+* Amendment Flow
+  - addPendingAmendment (draft), submitPendingAmendments (sent)
+  - getAmendmentAllowedSections from REQUEST_AMENDMENT remarks
+  - acknowledgeWorkflow before resubmit
+  - resubmitApplication: clear remarks, create revision, increment review_cycle, RESUBMITTED
+
+* Contract Financing
+  - Create contract, link to application
+  - contract_details, customer_details, offer_details
+  - Document upload presigned URL
+  - Status: DRAFT, SUBMITTED, OFFER_SENT, APPROVED, REJECTED, AMENDMENT_REQUESTED, WITHDRAWN
+  - existing_contract link from financing_structure
+  - invoice_only structure blocks contract_details updates
+
+* Invoice Financing
+  - Create invoice under application, optional contract_id
+  - details: number, value, maturity_date, financing_ratio_percent, document
+  - Document upload, S3 path under applications/
+  - Status transitions aligned with contract
+  - min/max financing ratio from product config
+  - Maturity date validation: not past, within contract window
+
+* AWS S3 Document Storage
+  - Presigned upload URLs for products, applications, contracts, invoices
+  - Key formats: products/{id}/v{n}-{date}-{cuid}.ext, applications/{id}/..., contracts/{id}/..., invoices use applications path
+  - Version bump on replace, old object deleted
+  - Product soft delete: S3 NOT deleted
+  - Max 5MB, PDF for docs, PNG for product image
+
+* Application Step Resume Logic
+  - last_completed_step source of truth
+  - allowedMaxStep = lastCompletedStep + 1
+  - URL ?step=N validated and redirected
+  - wizardState synced from application on load
+
+* Application Version Checking
+  - New application: revalidate product before create
+  - VersionMismatchModal: PRODUCT_DELETED, PRODUCT_INACTIVE, PRODUCT_VERSION_CHANGED
+  - useProductVersionGuard on edit page
+
+* Organization Integration
+  - issuer_organization, corporate_onboarding_data
+  - RegTank refresh-corporate-entities, refresh-aml-status, refresh-corporate-status
+  - director_aml_status, director_kyc_status, business_aml_status
+
+* Application Lifecycle
+  - computeApplicationStatus from contract and invoice statuses
+  - SUBMITTED sets submitted_at, creates ApplicationRevision
+  - Cancel (withdraw), Archive, Delete draft
+
+Database tables:
+
+users, loans, investments, access_logs, user_sessions, admins, admin_invitations
+security_logs, onboarding_logs, investor_organizations, issuer_organizations
+applications, application_revisions, application_reviews, application_review_items
+application_review_remarks, application_review_events, application_logs
+contracts, invoices, organization_members
+investor_organization_invitation, issuer_organization_invitation
+regtank_onboarding, aml_identity_mapping, site_documents, document_logs
+product_logs, products, notification_types, notifications
+user_notification_preferences, notification_groups, notification_logs
+corporate_individual_kyc, session
