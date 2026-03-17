@@ -28,22 +28,11 @@ import { ReviewBusinessSkeleton } from "../components/review-business-skeleton";
 import { ReviewSupportingDocsSkeleton } from "../components/review-supporting-docs-skeleton";
 import { ReviewFinancingSkeleton } from "../components/review-financing-skeleton";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
+import { format } from "date-fns";
 import { formatMoney } from "../components/money";
 import { FINANCIAL_FIELD_LABELS } from "@cashsouk/types";
 import { FinancialStatementsSkeleton } from "../components/financial-statements-skeleton";
 import { FileDisplayBadge } from "../components/file-display-badge";
-
-const INVOICE_TABLE_COLUMNS = {
-  invoice: "w-[140px]",
-  status: "w-[100px]",
-  maturity: "w-[150px]",
-  value: "w-[150px]",
-  ratio: "w-[130px]",
-  amount: "w-[200px]",
-  document: "w-[160px]",
-  action: "w-[50px]",
-};
-
 
 const isValidNumber = (v: any): v is number =>
   typeof v === "number" && !Number.isNaN(v);
@@ -323,7 +312,7 @@ export function ReviewAndSubmitStep({
     if (!dateStr) return "—";
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return dateStr;
-    return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    return format(date, "d/M/yyyy");
   };
 
   const formatAddress = (addr: any) => {
@@ -377,11 +366,11 @@ export function ReviewAndSubmitStep({
           </section>
         )}
 
-        {/* Contract (when !invoice_only) or Customer (when invoice_only) */}
+        {/* Contract Details (when !invoice_only) or Customer Details (when invoice_only) */}
         {showContractSection && (
           <section className={sectionSpacingClassName}>
             <div>
-              <h3 className={sectionHeaderClassName}>{isInvoiceOnly ? "Customer" : "Contract"}</h3>
+              <h3 className={sectionHeaderClassName}>{isInvoiceOnly ? "Customer Details" : "Contract Details"}</h3>
               <div className="border-b border-border mt-2 mb-4" />
             </div>
             {contractLoading || devTools?.showSkeletonDebug ? (
@@ -401,32 +390,36 @@ export function ReviewAndSubmitStep({
                 <div className={labelClassName}>Customer Name</div>
                 <div className={valueClassName}>{customerDetails.name || "—"}</div>
 
-                <div className={labelClassName}>Contract Value</div>
-                <div className={valueClassName}>
-                  {isValidNumber(contractValue) ? renderMoney(contractValue) : "N/A"}
-                </div>
+                {!isInvoiceOnly && (
+                  <>
+                    <div className={labelClassName}>Contract Value</div>
+                    <div className={valueClassName}>
+                      {isValidNumber(contractValue) ? renderMoney(contractValue) : "N/A"}
+                    </div>
 
-                <div className={labelClassName}>Contract Financing</div>
-                <div className={valueClassName}>
-                  {contractDetails?.financing === null || contractDetails?.financing === undefined
-                    ? "N/A"
-                    : renderMoney(contractDetails?.financing)}
-                </div>
+                    <div className={labelClassName}>Contract Financing</div>
+                    <div className={valueClassName}>
+                      {contractDetails?.financing === null || contractDetails?.financing === undefined
+                        ? "N/A"
+                        : renderMoney(contractDetails?.financing)}
+                    </div>
 
-                <div className={labelClassName}>Approved Facility</div>
-                <div className={valueClassName}>
-                  {isValidNumber(approvedFacility) && approvedFacility > 0 ? renderMoney(approvedFacility) : "N/A"}
-                </div>
+                    <div className={labelClassName}>Approved Facility</div>
+                    <div className={valueClassName}>
+                      {isValidNumber(approvedFacility) && approvedFacility > 0 ? renderMoney(approvedFacility) : "N/A"}
+                    </div>
 
-                <div className={labelClassName}>Utilised Facility</div>
-                <div className={valueClassName}>
-                  {structureType === "existing_contract" && isValidNumber(totalFinancingAmount) ? renderMoney(totalFinancingAmount) : "N/A"}
-                </div>
+                    <div className={labelClassName}>Utilised Facility</div>
+                    <div className={valueClassName}>
+                      {structureType === "existing_contract" && isValidNumber(totalFinancingAmount) ? renderMoney(totalFinancingAmount) : "N/A"}
+                    </div>
 
-                <div className={labelClassName}>Available Facility</div>
-                <div className={valueClassName}>
-                  {structureType === "existing_contract" && isValidNumber(calculatedAvailableFacility) ? renderMoney(calculatedAvailableFacility) : "N/A"}
-                </div>
+                    <div className={labelClassName}>Available Facility</div>
+                    <div className={valueClassName}>
+                      {structureType === "existing_contract" && isValidNumber(calculatedAvailableFacility) ? renderMoney(calculatedAvailableFacility) : "N/A"}
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </section>
@@ -445,7 +438,7 @@ export function ReviewAndSubmitStep({
             {invoiceLoading || devTools?.showSkeletonDebug ? (
               <ReviewInvoiceSkeleton />
             ) : (
-              <>
+              <div className="mt-4 px-3 max-w-[1200px] mx-auto">
                 <div className="border rounded-xl bg-card overflow-hidden">
                   {invoices.length === 0 ? (
                     <div className="p-4 text-sm text-muted-foreground italic">
@@ -453,27 +446,27 @@ export function ReviewAndSubmitStep({
                     </div>
                   ) : (
                     <>
-                      {/* Table */}
-                      <div className="overflow-x-auto [&_tbody_tr]:hover:bg-transparent">
-                        <Table className="table-fixed w-full">
+                      {/* Table — same structure as invoice-details; document column can overflow → horizontal scroll */}
+                      <div className="overflow-x-auto">
+                        <Table className="min-w-[1080px] w-max">
                           <TableHeader className="bg-muted/20">
                             <TableRow>
-                              <TableHead className={`${INVOICE_TABLE_COLUMNS.invoice} text-xs font-semibold`}>
+                              <TableHead className="w-[140px] whitespace-nowrap text-xs font-semibold">
                                 Invoice
                               </TableHead>
-                              <TableHead className={`${INVOICE_TABLE_COLUMNS.status} text-xs font-semibold`}>
+                              <TableHead className="w-[100px] whitespace-nowrap text-xs font-semibold">
                                 Status
                               </TableHead>
-                              <TableHead className={`${INVOICE_TABLE_COLUMNS.maturity} text-xs font-semibold`}>
+                              <TableHead className="w-[150px] whitespace-nowrap text-xs font-semibold">
                                 Maturity Date
                               </TableHead>
-                              <TableHead className={`${INVOICE_TABLE_COLUMNS.value} text-xs font-semibold`}>
+                              <TableHead className="w-[150px] whitespace-nowrap text-xs font-semibold">
                                 Invoice Value
                               </TableHead>
-                              <TableHead className={`${INVOICE_TABLE_COLUMNS.ratio} text-xs font-semibold`}>
+                              <TableHead className="w-[130px] whitespace-nowrap text-xs font-semibold">
                                 Financing Ratio
                               </TableHead>
-                              <TableHead className={`${INVOICE_TABLE_COLUMNS.amount} text-xs font-semibold`}>
+                              <TableHead className="w-[200px] whitespace-nowrap text-xs font-semibold">
                                 <div className="inline-flex items-center gap-1">
                                   Maximum Financing Amount
                                   {invoiceProductConfig &&
@@ -502,10 +495,10 @@ export function ReviewAndSubmitStep({
                                     )}
                                 </div>
                               </TableHead>
-                              <TableHead className={`${INVOICE_TABLE_COLUMNS.document} text-xs font-semibold`}>
+                              <TableHead className="min-w-[160px] whitespace-nowrap text-xs font-semibold">
                                 Documents
                               </TableHead>
-                              <TableHead className={INVOICE_TABLE_COLUMNS.action} />
+                              <TableHead className="w-[50px]" />
                             </TableRow>
                           </TableHeader>
 
@@ -549,10 +542,15 @@ export function ReviewAndSubmitStep({
                                     {isValidNumber(financingAmount) ? renderMoney(financingAmount) : "—"}
                                   </TableCell>
 
-                                  {/* Document */}
-                                  <TableCell className="p-2">
+                                  {/* Document — can overflow; horizontal scroll when long filenames */}
+                                  <TableCell className="p-2 min-w-[160px] whitespace-nowrap">
                                     {d.document?.file_name ? (
-                                      <FileDisplayBadge fileName={d.document.file_name} truncate={false} />
+                                      <FileDisplayBadge
+                                        fileName={d.document.file_name}
+                                        size="sm"
+                                        className="bg-background"
+                                        truncate={false}
+                                      />
                                     ) : (
                                       <span className="text-muted-foreground text-xs">—</span>
                                     )}
@@ -581,7 +579,7 @@ export function ReviewAndSubmitStep({
                     </>
                   )}
                 </div>
-              </>
+              </div>
             )}
           </section>
         )}
