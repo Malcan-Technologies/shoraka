@@ -157,7 +157,6 @@ export const STATUS_COLOR_MAP: Record<
   pending_amendment: { bg: "bg-[#FEFCE8]", text: "text-[#CA8A04]", border: "border-transparent" },
   amendment_requested: { bg: "bg-[#FEFCE8]", text: "text-[#CA8A04]", border: "border-transparent" },
   resubmitted: { bg: "bg-orange-500/10", text: "text-orange-600", border: "border-transparent" },
-  sent: { bg: "bg-[#ECFDF2]", text: "text-[#15803D]", border: "border-transparent" },
   offer_sent: { bg: "bg-[#ECFDF2]", text: "text-[#15803D]", border: "border-transparent" },
   accepted: { bg: "bg-[#ECFDF2]", text: "text-[#15803D]", border: "border-transparent" },
   approved: { bg: "bg-[#ECFDF2]", text: "text-[#15803D]", border: "border-transparent" },
@@ -182,7 +181,7 @@ export const STATUS: Record<
 > = {
   rejected: { label: "Rejected", color: statusColorClass("rejected"), sortOrder: 1 },
   pending_amendment: { label: "Action Required", color: statusColorClass("pending_amendment"), sortOrder: 2 },
-  sent: { label: "Offer Received", color: statusColorClass("sent"), sortOrder: 3 },
+  offer_sent: { label: "Offer Received", color: statusColorClass("offer_sent"), sortOrder: 3 },
   under_review: { label: "Under Review", color: statusColorClass("under_review"), sortOrder: 4 },
   submitted: { label: "Submitted", color: statusColorClass("submitted"), sortOrder: 5 },
   resubmitted: { label: "Resubmitted", color: statusColorClass("resubmitted"), sortOrder: 6 },
@@ -194,7 +193,6 @@ export const STATUS: Record<
   withdrawn_offer_expired: { label: "Withdrawn", color: statusColorClass("withdrawn_offer_expired"), sortOrder: 10 },
   archived: { label: "Archived", color: statusColorClass("archived"), sortOrder: 11 },
   amendment_requested: { label: "Action Required", color: statusColorClass("amendment_requested"), sortOrder: 2 },
-  offer_sent: { label: "Offer Received", color: statusColorClass("offer_sent"), sortOrder: 3 },
 };
 
 export function getSortOrder(status: string): number {
@@ -365,9 +363,7 @@ export function getCardStatus(input: {
 /** Urgency-based sort order. Lower = higher in list. Applications needing attention appear first. */
 export const APPLICATION_STATUS_PRIORITY: Record<string, number> = Object.freeze({
   pending_amendment: 1,
-  amendment_requested: 1,
   offer_sent: 2,
-  sent: 2,
   under_review: 3,
   submitted: 4,
   resubmitted: 5,
@@ -377,6 +373,5 @@ export const APPLICATION_STATUS_PRIORITY: Record<string, number> = Object.freeze
   withdrawn_offer_expired: 8,
   rejected: 9,
   archived: 10,
-  approved: 11,
   accepted: 11,
 });
