@@ -2,6 +2,8 @@
 
 This guide explains how application logs work: what is stored in the database, how the API returns logs, and how the admin timeline displays them.
 
+Related guides: docs/guides/application/logging-guide.md (full scenarios, DB storage, kid-level), docs/guides/application/logging-scenarios.md (UI button to event mapping). You can read those files if you need more detail.
+
 ---
 
 ## Overview
@@ -22,9 +24,7 @@ Important fields:
 - **event_type** — Short code describing the event, e.g. `APPLICATION_CREATED`, `APPLICATION_SUBMITTED`, `SECTION_REVIEWED_APPROVED`, `ITEM_REVIEWED_AMENDMENT_REQUESTED`, `APPLICATION_RESUBMITTED`.
 - **remark** — Human-readable note. Stored at the top level. The UI uses this for the "View details" content. Do not put the main remark text in metadata.
 - **metadata** — JSON for extra data (e.g. scope_key, actorName, offered_facility, invoice_number). The API enriches metadata with actor names from the users table.
-- **level** — Optional enum: APPLICATION, TAB, ITEM.
-- **target** — Optional enum: APPLICATION, FINANCIAL, CONTRACT, INVOICE, SUPPORTING_DOCUMENT.
-- **action** — Optional enum: CREATED, SUBMITTED, RESUBMITTED, APPROVED, REJECTED, REQUESTED_AMENDMENT, RESET.
+- **level**, **target**, **action** — Deprecated. Kept for DB column writes only. Use `event_type` for all logic and display.
 - **entity_id** — Optional ID for a related entity (e.g. invoice id).
 - **portal** — Where the action came from, e.g. ISSUER or ADMIN.
 - **review_cycle** — Optional integer for the review round.
@@ -35,9 +35,9 @@ Important fields:
 
 ## What Is Stored vs Calculated
 
-**Stored:** All fields above are persisted. The `event_type` can be built from `level_target_action` or set explicitly when creating the log.
+**Stored:** All fields above are persisted. Use `event_type` when creating logs. The `ApplicationLogEventType` enum in `apps/api/src/modules/applications/logs/types.ts` is the source of truth. Do not use `level`, `target`, or `action` to derive event meaning; they are deprecated and kept only for legacy DB writes.
 
-**Calculated at read time:** The API resolves `user_id` to a display name and adds it to `metadata.actorName`. The frontend derives labels, icons, and colors from `event_type`; these are not stored.
+**Calculated at read time:** The API resolves `user_id` to a display name and adds it to `metadata.actorName`. The frontend derives labels, icons, and colors from `event_type` only; these are not stored.
 
 ---
 

@@ -28,6 +28,16 @@ Feature guides for the issuer application wizard:
 - **[Amendment Flow](./guides/application-flow/amendment-flow.md)** - Amendment flow debugging (remarks, resubmit, stepper, tab locking)
 - **[Financial Statements Step](./guides/application-flow/financial-statements-step.md)** - Application step architecture and data flow
 
+### 📋 Application Lifecycle & Logging
+
+Plain-text guides for application status rules and log events:
+
+- **[Status Reference](./guides/application/status-reference.md)** - What each status means
+- **[Admin Stage Simple](./guides/application/admin-stage-simple.md)** - Admin stage status in kid form
+- **[Lifecycle Possibilities](./guides/application/lifecycle-possibilities.md)** - All status combinations (contract, invoices, result)
+- **[Logging Scenarios](./guides/application/logging-scenarios.md)** - UI button to event type mapping
+- **[Logging Guide](./guides/application/logging-guide.md)** - Full scenarios, DB storage, kid-level explanation
+
 ### 🛠️ Admin
 
 Admin portal and activity timeline:
