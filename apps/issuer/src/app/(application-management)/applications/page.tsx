@@ -176,52 +176,6 @@ function InvoiceDocumentCell({
   );
 }
 
-/** Invoice table document cell: filename badge + download button when s3_key exists. */
-function InvoiceDocumentCell({
-  documentName,
-  documentS3Key,
-  onDownload,
-}: {
-  documentName: string;
-  documentS3Key: string | null;
-  onDownload: (s3Key: string) => Promise<void>;
-}) {
-  const [loading, setLoading] = React.useState(false);
-  const hasDocument = documentName && documentName !== "—";
-  if (!hasDocument) {
-    return <span className="text-xs text-muted-foreground">—</span>;
-  }
-  return (
-    <FileDisplayBadge
-      fileName={documentName}
-      size="xs"
-      truncate
-      className="min-w-0 bg-background"
-      trailing={
-        documentS3Key ? (
-          <button
-            type="button"
-            onClick={async (e) => {
-              e.preventDefault();
-              setLoading(true);
-              try {
-                await onDownload(documentS3Key);
-              } finally {
-                setLoading(false);
-              }
-            }}
-            disabled={loading}
-            className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50"
-            aria-label={`Download ${documentName}`}
-          >
-            <ArrowDownTrayIcon className="h-3 w-3" />
-          </button>
-        ) : undefined
-      }
-    />
-  );
-}
-
 function ApplicationCard({
   application,
   onDocumentDownload,
