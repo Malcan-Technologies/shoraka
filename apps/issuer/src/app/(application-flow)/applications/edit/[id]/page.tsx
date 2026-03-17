@@ -701,8 +701,14 @@ export default function EditApplicationPage() {
   /** Remarks for the current step. Section-level ones show on the top card; item-level ones show beside each file or item. */
   const currentStepRemarks = React.useMemo(() => {
     if (!currentStepKey || !amendmentContext?.remarks) return [];
-    return (amendmentContext.remarks as { scope?: string; scope_key?: string; remark?: string }[])
-      .filter((r) => r.scope === "section" && r.scope_key === currentStepKey)
+    const remarks = amendmentContext.remarks as { scope?: string; scope_key?: string; remark?: string }[];
+    return remarks
+      .filter((r) => {
+        if (r.scope !== "section" || !r.scope_key) return false;
+        const matchesKey = r.scope_key === currentStepKey;
+        const financialMatch = r.scope_key === "financial" && currentStepKey === "financial_statements";
+        return matchesKey || financialMatch;
+      })
       .map((r) => r.remark || "");
   }, [currentStepKey, amendmentContext?.remarks]);
 
