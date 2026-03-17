@@ -56,6 +56,7 @@ import { useCancelApplication, useWithdrawInvoice, useDeleteDraftApplication } f
 import { generateMockApplications } from "@/dev/mockApplications";
 import { Separator } from "@/components/ui/separator";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { FileDisplayBadge } from "@/app/(application-flow)/applications/components/file-display-badge";
 import type { NormalizedApplication, NormalizedInvoice } from "./status";
 
 const SKELETON_COUNT = 8;
@@ -173,6 +174,52 @@ function DocumentDownloadLink({
         <ArrowDownTrayIcon className="h-4 w-4" />
       </button>
     </span>
+  );
+}
+
+/** Invoice table document cell: filename badge + download button when s3_key exists. */
+function InvoiceDocumentCell({
+  documentName,
+  documentS3Key,
+  onDownload,
+}: {
+  documentName: string;
+  documentS3Key: string | null;
+  onDownload: (s3Key: string) => Promise<void>;
+}) {
+  const [loading, setLoading] = React.useState(false);
+  const hasDocument = documentName && documentName !== "—";
+  if (!hasDocument) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+  return (
+    <FileDisplayBadge
+      fileName={documentName}
+      size="xs"
+      truncate
+      className="min-w-0 bg-background"
+      trailing={
+        documentS3Key ? (
+          <button
+            type="button"
+            onClick={async (e) => {
+              e.preventDefault();
+              setLoading(true);
+              try {
+                await onDownload(documentS3Key);
+              } finally {
+                setLoading(false);
+              }
+            }}
+            disabled={loading}
+            className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50"
+            aria-label={`Download ${documentName}`}
+          >
+            <ArrowDownTrayIcon className="h-3 w-3" />
+          </button>
+        ) : undefined
+      }
+    />
   );
 }
 
@@ -303,50 +350,34 @@ function ApplicationCard({
             </p>
           ) : (
           <div className="flex flex-wrap justify-between gap-6">
-            <div className="space-y-1">
+            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
               {hasContract && application.contractTitle && (
-                <div className="text-sm text-muted-foreground">
-                  Contract title:{" "}
-                  <span className="text-foreground">
-                    {application.contractTitle}
-                  </span>
-                </div>
+                <>
+                  <span className="text-muted-foreground">Contract title:</span>
+                  <span className="text-foreground">{application.contractTitle}</span>
+                </>
               )}
-              <div className="text-sm text-muted-foreground">
-                Customer:{" "}
-                <span className="text-foreground">{application.customer}</span>
-              </div>
-              <div className="text-sm text-muted-foreground">
-                Submitted:{" "}
-                <span className="text-foreground">
-                  {formatDate(application.submittedAt)}
-                </span>
-              </div>
+              <span className="text-muted-foreground">Customer:</span>
+              <span className="text-foreground">{application.customer}</span>
+              <span className="text-muted-foreground">Submitted:</span>
+              <span className="text-foreground">{formatDate(application.submittedAt)}</span>
             </div>
             {hasContract && (
-              <div className="space-y-1 text-right text-sm">
-                <div className="text-muted-foreground">
-                  Contract value:{" "}
-                  <span className="text-foreground">
-                    {application.contractValue != null
-                      ? formatCurrency(application.contractValue)
-                      : "—"}
-                  </span>
-                </div>
-                <div className="text-muted-foreground">
-                  Facility applied:{" "}
-                  <span className="text-foreground">
-                    {application.facilityApplied != null
-                      ? formatCurrency(application.facilityApplied)
-                      : "—"}
-                  </span>
-                </div>
-                <div className="text-muted-foreground">
-                  Approved facility:{" "}
-                  <span className="text-foreground">
-                    {application.approvedFacility}
-                  </span>
-                </div>
+              <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+                <span className="text-muted-foreground">Contract value:</span>
+                <span className="text-foreground">
+                  {application.contractValue != null
+                    ? formatCurrency(application.contractValue)
+                    : "—"}
+                </span>
+                <span className="text-muted-foreground">Contract financing:</span>
+                <span className="text-foreground">
+                  {application.facilityApplied != null
+                    ? formatCurrency(application.facilityApplied)
+                    : "—"}
+                </span>
+                <span className="text-muted-foreground">Approved facility:</span>
+                <span className="text-foreground">{application.approvedFacility}</span>
               </div>
             )}
           </div>
@@ -366,37 +397,38 @@ function ApplicationCard({
           {!useDraftCardLayout && expanded && (
             <div className="mt-4 relative">
               <h3 className="text-sm font-semibold text-foreground mb-3">
-                Invoice table
+                Invoices
               </h3>
-              <div className="overflow-hidden rounded-xl border">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/30 hover:bg-muted/30 border-b border-border">
-                    <TableHead className="text-sm font-semibold py-3 px-4">
-                      Invoice number
+              <div className="border rounded-xl bg-card overflow-hidden">
+                <div className="overflow-x-auto">
+              <Table className="table-fixed w-full">
+                <TableHeader className="bg-muted/20">
+                  <TableRow className="border-b border-border">
+                    <TableHead className="w-[120px] whitespace-nowrap text-xs font-semibold p-2 text-center">
+                      Invoice Number
                     </TableHead>
-                    <TableHead className="text-sm font-semibold py-3 px-4">
-                      Maturity date
+                    <TableHead className="w-[100px] whitespace-nowrap text-xs font-semibold p-2 text-center">
+                      Maturity Date
                     </TableHead>
-                    <TableHead className="text-sm font-semibold text-right py-3 px-4 tabular-nums">
-                      Invoice value
+                    <TableHead className="w-[110px] whitespace-nowrap text-xs font-semibold p-2 text-center tabular-nums">
+                      Invoice Value
                     </TableHead>
-                    <TableHead className="text-sm font-semibold text-right py-3 px-4 tabular-nums">
-                      Applied financing
+                    <TableHead className="w-[110px] whitespace-nowrap text-xs font-semibold p-2 text-center tabular-nums">
+                      Applied Financing
                     </TableHead>
-                    <TableHead className="text-sm font-semibold py-3 px-4">
-                      Document
+                    <TableHead className="w-[160px] whitespace-nowrap text-xs font-semibold p-2 text-center">
+                      Documents
                     </TableHead>
-                    <TableHead className="text-sm font-semibold text-right py-3 px-4 tabular-nums">
-                      Financing offered
+                    <TableHead className="w-[110px] whitespace-nowrap text-xs font-semibold p-2 text-center tabular-nums">
+                      Financing Offered
                     </TableHead>
-                    <TableHead className="text-sm font-semibold text-right py-3 px-4 tabular-nums">
-                      Profit rate
+                    <TableHead className="w-[90px] whitespace-nowrap text-xs font-semibold p-2 text-center tabular-nums">
+                      Profit Rate
                     </TableHead>
-                    <TableHead className="text-sm font-semibold py-3 px-4">
+                    <TableHead className="w-[100px] whitespace-nowrap text-xs font-semibold p-2 text-center">
                       Status
                     </TableHead>
-                    <TableHead className="text-sm font-semibold text-right py-3 px-4 w-[200px]">
+                    <TableHead className="w-[200px] whitespace-nowrap text-xs font-semibold p-2 text-center">
                       Action
                     </TableHead>
                   </TableRow>
@@ -406,7 +438,7 @@ function ApplicationCard({
                     <TableRow>
                       <TableCell
                         colSpan={9}
-                        className="text-center py-8 text-sm text-muted-foreground"
+                        className="text-center py-8 text-xs text-muted-foreground"
                       >
                         No invoices available
                       </TableCell>
@@ -422,42 +454,42 @@ function ApplicationCard({
                       return (
                         <TableRow
                           key={inv.id}
-                          className="odd:bg-muted/40 hover:bg-muted border-b border-border last:border-b-0"
+                          className="hover:bg-muted/40 transition-colors border-b border-border last:border-b-0"
                         >
-                          <TableCell className="text-[15px] py-3 px-4 align-middle">
+                          <TableCell className="p-2 text-xs align-middle text-center">
                             {inv.number}
                           </TableCell>
-                          <TableCell className="text-[15px] py-3 px-4 align-middle">
+                          <TableCell className="p-2 text-xs align-middle text-center">
                             {formatDate(inv.maturityDate)}
                           </TableCell>
-                          <TableCell className="text-right text-[15px] py-3 px-4 align-middle tabular-nums">
+                          <TableCell className="p-2 text-xs align-middle text-center tabular-nums whitespace-nowrap">
                             {inv.value ? formatCurrency(inv.value) : "—"}
                           </TableCell>
-                          <TableCell className="text-right text-[15px] py-3 px-4 align-middle tabular-nums">
+                          <TableCell className="p-2 text-xs align-middle text-center tabular-nums whitespace-nowrap">
                             {inv.appliedFinancing != null
                               ? formatCurrency(inv.appliedFinancing)
                               : "—"}
                           </TableCell>
-                          <TableCell className="text-[15px] py-3 px-4 align-middle">
-                            <DocumentDownloadLink
+                          <TableCell className="p-2 min-w-0 max-w-[160px] overflow-hidden align-middle text-center">
+                            <InvoiceDocumentCell
                               documentName={inv.document}
                               documentS3Key={inv.documentS3Key}
                               onDownload={onDocumentDownload}
                             />
                           </TableCell>
-                          <TableCell className="text-right text-[15px] py-3 px-4 align-middle tabular-nums">
+                          <TableCell className="p-2 text-xs align-middle text-center tabular-nums whitespace-nowrap">
                             {inv.financingOffered}
                           </TableCell>
-                          <TableCell className="text-right text-[15px] py-3 px-4 align-middle tabular-nums">
+                          <TableCell className="p-2 text-xs align-middle text-center tabular-nums whitespace-nowrap">
                             {inv.profitRate}
                           </TableCell>
-                          <TableCell className="py-3 px-4 align-middle">
+                          <TableCell className="p-2 align-middle text-center">
                             <StatusBadge
                               badgeKey={inv.status.toLowerCase()}
                             />
                           </TableCell>
-                          <TableCell className="py-3 px-4 align-top">
-                            <div className="flex items-start justify-end gap-2">
+                          <TableCell className="p-2 align-top text-center">
+                            <div className="flex items-start justify-center gap-2">
                               {(showReviewOffer || showMakeAmendments) && (
                                 <div className="flex flex-col items-center gap-1 min-w-[140px]">
                                   {showReviewOffer && (
@@ -538,6 +570,7 @@ function ApplicationCard({
                   )}
                 </TableBody>
               </Table>
+                </div>
               </div>
             </div>
           )}

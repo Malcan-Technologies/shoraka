@@ -20,6 +20,7 @@ import {
   resolveOfferedProfitRate,
   resolveRequestedInvoiceAmount,
   resolveApprovedFacility,
+  resolveRequestedFacility,
 } from "@cashsouk/config";
 import { WithdrawReason } from "@cashsouk/types";
 import { useOrganizationApplications } from "@/hooks/use-applications";
@@ -127,13 +128,12 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
   const contractTitle = (contractDetails.title ? String(contractDetails.title) : contractDetails.contract_title ? String(contractDetails.contract_title) : null) as string | null;
 
   let contractValue: number | null = null;
-  let facilityApplied: number | null = null;
+  const facilityAppliedVal = resolveRequestedFacility(contractDetails);
+  const facilityApplied = facilityAppliedVal > 0 ? facilityAppliedVal : null;
   if (contractDetails.contract_value != null) contractValue = Number(contractDetails.contract_value);
   else if (contractDetails.value != null) contractValue = Number(contractDetails.value);
-  if (contractDetails.facility_applied != null) facilityApplied = Number(contractDetails.facility_applied);
-  else if (contractDetails.financing_amount != null) facilityApplied = Number(contractDetails.financing_amount);
 
-  let approvedFacility = "—";
+  let approvedFacility = "N/A";
   const approvedVal = resolveApprovedFacility(contractStatus ?? "", contractDetails);
   if (approvedVal > 0) {
     approvedFacility = formatCurrency(approvedVal);
