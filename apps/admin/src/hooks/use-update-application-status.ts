@@ -26,23 +26,3 @@ export function useUpdateApplicationStatus() {
   });
 }
 
-export function useReopenApplicationForCorrection() {
-  const { getAccessToken } = useAuthToken();
-  const queryClient = useQueryClient();
-  const apiClient = createApiClient(API_URL, getAccessToken);
-
-  return useMutation({
-    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      const response = await apiClient.reopenAdminApplicationForCorrection(id, reason);
-      if (!response.success) {
-        throw new Error(response.error.message);
-      }
-      return response.data;
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: applicationsKeys.all });
-      queryClient.invalidateQueries({ queryKey: applicationsKeys.detail(variables.id) });
-      queryClient.invalidateQueries({ queryKey: applicationLogsKeys.list(variables.id) });
-    },
-  });
-}

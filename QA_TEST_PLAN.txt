@@ -621,8 +621,6 @@ Features discovered in the codebase:
   - Pending amendments: add, update, remove, submit
   - Send contract offer, send invoice offer
   - Application status: UNDER_REVIEW, APPROVED, REJECTED
-  - reopen-for-correction
-
 * Amendment Flow
   - addPendingAmendment (draft), submitPendingAmendments (sent)
   - getAmendmentAllowedSections from REQUEST_AMENDMENT remarks

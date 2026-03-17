@@ -4187,58 +4187,6 @@ export class AdminService {
     return updatedApplication;
   }
 
-  async reopenApplicationForCorrection(
-    id: string,
-    userId: string,
-    reason: string,
-    logContext?: AdminLogContext
-  ) {
-    const repository = new AdminRepository();
-    const application = await repository.getApplicationById(id);
-    if (!application) {
-      throw new AppError(404, "NOT_FOUND", "Application not found");
-    }
-
-    const currentStatus = application.status as ApplicationStatus;
-    if (currentStatus !== ApplicationStatus.APPROVED && currentStatus !== ApplicationStatus.REJECTED) {
-      throw new AppError(
-        400,
-        "INVALID_STATE",
-        "Only approved or rejected applications can be reopened for correction"
-      );
-    }
-
-    const updatedApplication = await repository.updateApplicationStatus(
-      id,
-      ApplicationStatus.UNDER_REVIEW
-    );
-
-    await logApplicationActivity({
-      userId,
-      applicationId: id,
-      level: ActivityLevel.APPLICATION,
-      target: ActivityTarget.APPLICATION,
-      action: ActivityAction.RESET,
-      remark: reason,
-      portal: ActivityPortal.ADMIN,
-      eventType: "APPLICATION_REOPENED_FOR_CORRECTION",
-      metadata: {
-        previous_status: currentStatus,
-        reason,
-      },
-      ipAddress: logContext?.ipAddress ?? undefined,
-      userAgent: logContext?.userAgent ?? undefined,
-      deviceInfo: logContext?.deviceInfo ?? undefined,
-    });
-
-    logger.info(
-      { applicationId: id, previousStatus: currentStatus, newStatus: ApplicationStatus.UNDER_REVIEW, reason },
-      "Application reopened for correction by admin"
-    );
-
-    return updatedApplication;
-  }
-
   private static readonly REVIEWABLE_STATUSES: ApplicationStatus[] = [
     ApplicationStatus.SUBMITTED,
     ApplicationStatus.UNDER_REVIEW,

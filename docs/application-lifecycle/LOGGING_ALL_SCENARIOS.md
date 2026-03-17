@@ -31,7 +31,6 @@ Which button/action logs which event. Who did it. (previous) = existed at 106039
 | Reset to under review | APPLICATION_RESET_TO_UNDER_REVIEW | (previous) | |
 | Approve application | APPLICATION_APPROVED | (previous) | |
 | Reject application | APPLICATION_REJECTED | (previous) | |
-| Reopen for correction | APPLICATION_REOPENED_FOR_CORRECTION | (previous) | |
 | Send amendment request to issuer | AMENDMENTS_SUBMITTED | (previous) | |
 | Approve section | SECTION_REVIEWED_APPROVED | (previous) | |
 | Reject section | SECTION_REVIEWED_REJECTED | (previous) | |

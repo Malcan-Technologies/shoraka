@@ -387,13 +387,6 @@ export class ApiClient {
     return this.patch<any>(`/v1/admin/applications/${id}/status`, { status });
   }
 
-  async reopenAdminApplicationForCorrection(
-    id: string,
-    reason: string
-  ): Promise<ApiResponse<any> | ApiError> {
-    return this.post<any>(`/v1/admin/applications/${id}/reopen-for-correction`, { reason });
-  }
-
   async approveReviewSection(
     applicationId: string,
     section: string,

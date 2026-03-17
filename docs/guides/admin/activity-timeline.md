@@ -105,7 +105,6 @@ All event types that can appear in `application_logs`. Add new mappings in `admi
 | `APPLICATION_APPROVED` | applications/controller, admin/service | ADMIN | Admin approves the application |
 | `APPLICATION_REJECTED` | applications/controller, admin/service | ADMIN | Admin rejects the application |
 | `APPLICATION_RESET_TO_UNDER_REVIEW` | admin/service | ADMIN | Admin resets status to under review |
-| `APPLICATION_REOPENED_FOR_CORRECTION` | admin/service | ADMIN | Admin reopens for correction |
 | `APPLICATION_WITHDRAWN` | applications/service, contracts/service, invoices/service | ISSUER | Application withdrawn (user or cascading) |
 | `APPLICATION_COMPLETED` | applications/service | ISSUER | All contracts and invoices accepted |
 
