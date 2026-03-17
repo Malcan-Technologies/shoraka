@@ -299,6 +299,26 @@ export class ContractService {
         where: { id: app.id },
         data: { status: "WITHDRAWN" },
       });
+      await prisma.applicationReview.upsert({
+        where: {
+          application_id_section: {
+            application_id: app.id,
+            section: "contract_details",
+          },
+        },
+        create: {
+          application_id: app.id,
+          section: "contract_details",
+          status: "WITHDRAWN",
+          reviewer_user_id: userId,
+          reviewed_at: new Date(),
+        },
+        update: {
+          status: "WITHDRAWN",
+          reviewer_user_id: userId,
+          reviewed_at: new Date(),
+        },
+      });
       await logApplicationActivity({
         userId,
         applicationId: app.id,

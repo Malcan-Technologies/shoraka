@@ -114,7 +114,7 @@ All event types that can appear in `application_logs`. Add new mappings in `admi
 |------------|--------|--------|-------------|
 | `CONTRACT_OFFER_SENT` | admin/service | ADMIN | Admin sends contract offer |
 | `CONTRACT_OFFER_ACCEPTED` | applications/service | ISSUER | Issuer accepts contract offer |
-| `CONTRACT_OFFER_REJECTED` | applications/service | ISSUER | Issuer rejects contract offer |
+| `CONTRACT_WITHDRAWN` | applications/service, lib/jobs/offer-expiry | ISSUER, ADMIN | Issuer rejects offer or cron withdraws expired contract |
 | `CONTRACT_OFFER_RETRACTED` | admin/service | ADMIN | Admin retracts contract offer |
 
 ### Invoice offers
@@ -146,8 +146,10 @@ All event types that can appear in `application_logs`. Add new mappings in `admi
 |------------|--------|--------|-------------|
 | `AMENDMENTS_SUBMITTED` | admin/service | ADMIN | Admin sends amendment request(s) to issuer |
 
-### Planned
+### Offer expiry (cron)
 
-| Event Type | Notes |
-|------------|-------|
-| `OFFER_EXPIRED` | Planned; cron not yet implemented. Timeline has icon/label. |
+| Event Type | Source | Portal | Description |
+|------------|--------|--------|-------------|
+| `CONTRACT_WITHDRAWN` | lib/jobs/offer-expiry | ADMIN | Contract offer expired; cron withdrew |
+| `APPLICATION_WITHDRAWN` | lib/jobs/offer-expiry | ADMIN | Contract/invoice offer expired; cron withdrew with `triggered_by: offer_expiry_cron` |
+| `INVOICE_WITHDRAWN` | lib/jobs/offer-expiry | ADMIN | Invoice offer expired; cron withdrew |

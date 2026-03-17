@@ -360,13 +360,15 @@ async deleteInvoice(id: string, userId: string) {
     });
 
     if (invoice.application_id) {
+      const details = invoice.details as Record<string, unknown> | null;
+      const invoiceNumber = details?.number != null ? String(details.number) : undefined;
       await logApplicationActivity({
         userId,
         applicationId: invoice.application_id,
         eventType: "INVOICE_WITHDRAWN",
         portal: ActivityPortal.ISSUER,
         entityId: id,
-        metadata: { withdraw_reason: finalReason },
+        metadata: { withdraw_reason: finalReason, invoice_number: invoiceNumber },
       });
 
       const allInvoices = await this.repository.findByApplicationId(invoice.application_id);

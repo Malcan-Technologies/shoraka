@@ -81,6 +81,24 @@ async function main() {
 
   logger.info(`✅ Admin record created/updated: ${adminRecord.role_description} for ${adminUser.email}`);
 
+  // System user for cron jobs (offer expiry, etc.). Displays as "System" in activity logs.
+  const systemUser = await prisma.user.upsert({
+    where: { user_id: "SYS" },
+    create: {
+      user_id: "SYS",
+      email: "system@internal.cashsouk",
+      cognito_sub: "system-internal-no-login",
+      cognito_username: "system-internal",
+      roles: [],
+      first_name: "System",
+      last_name: "",
+      investor_account: [],
+      issuer_account: [],
+    },
+    update: { first_name: "System", last_name: "" },
+  });
+  logger.info(`✅ System user: ${systemUser.user_id}`);
+
   // Create access logs for admin user
   const now = new Date();
   const accessLogs = [];

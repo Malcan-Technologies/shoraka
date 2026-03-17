@@ -173,6 +173,7 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
       "APPLICATION_WITHDRAWN",
       "APPLICATION_COMPLETED",
       "INVOICE_WITHDRAWN",
+      "CONTRACT_WITHDRAWN",
       "CONTRACT_OFFER_ACCEPTED",
       "INVOICE_OFFER_ACCEPTED",
       "CONTRACT_OFFER_REJECTED",

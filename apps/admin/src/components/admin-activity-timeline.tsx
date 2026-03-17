@@ -166,6 +166,7 @@ function getEventIcon(eventType: string) {
       return <PaperAirplaneIcon className="h-3.5 w-3.5 text-blue-500" />;
     case "CONTRACT_OFFER_REJECTED":
     case "INVOICE_OFFER_REJECTED":
+    case "CONTRACT_WITHDRAWN":
     case "APPLICATION_WITHDRAWN":
     case "INVOICE_WITHDRAWN":
       return <XCircleIcon className="h-3.5 w-3.5 text-muted-foreground" />;
@@ -199,10 +200,11 @@ function getEventLabel(
     APPLICATION_SUBMITTED: "Application Submitted",
     APPLICATION_RESUBMITTED: "Application Resubmitted",
     APPLICATION_WITHDRAWN: "Application Withdrawn",
+    CONTRACT_WITHDRAWN: "Contract Offer Withdrawn",
     INVOICE_WITHDRAWN: "Invoice Withdrawn",
     CONTRACT_OFFER_ACCEPTED: "Contract Offer Accepted",
     INVOICE_OFFER_ACCEPTED: "Invoice Offer Accepted",
-    CONTRACT_OFFER_REJECTED: "Contract Offer Rejected",
+    CONTRACT_OFFER_REJECTED: "Contract Offer Withdrawn",
     INVOICE_OFFER_REJECTED: "Invoice Offer Rejected",
     OFFER_EXPIRED: "Offer Expired",
     APPLICATION_COMPLETED: "Application Completed",
@@ -233,6 +235,12 @@ function getEventLabel(
     return invoiceNumber != null && invoiceNumber !== ""
       ? `Invoice ${invoiceNumber} Offer Rejected`
       : "Invoice Offer Rejected";
+  }
+  if (eventType === "INVOICE_WITHDRAWN") {
+    const invoiceNumber = metadata?.invoice_number;
+    return invoiceNumber != null && invoiceNumber !== ""
+      ? `Invoice ${invoiceNumber} Withdrawn`
+      : "Invoice Withdrawn";
   }
   if (baseLabels[eventType]) return baseLabels[eventType];
 

@@ -1115,7 +1115,7 @@ export class ApplicationService {
     });
 
     const eventType =
-      action === "accept" ? "CONTRACT_OFFER_ACCEPTED" : "CONTRACT_OFFER_REJECTED";
+      action === "accept" ? "CONTRACT_OFFER_ACCEPTED" : "CONTRACT_WITHDRAWN";
     await logApplicationActivity({
       userId,
       applicationId,
