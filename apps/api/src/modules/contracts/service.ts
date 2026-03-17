@@ -15,6 +15,7 @@ import {
   validateDocument,
   deleteS3Object,
 } from "../../lib/s3/client";
+import { logger } from "../../lib/logger";
 
 export class ContractService {
   private repository: ContractRepository;
@@ -148,10 +149,37 @@ export class ContractService {
       }
     }
 
-    return this.repository.update(id, {
-      ...data,
-      updated_at: new Date(),
-    });
+    const extractS3Key = (obj: unknown): string | null => {
+      const d = (obj as Record<string, unknown>)?.document as Record<string, unknown> | undefined;
+      const k = d?.s3_key;
+      return typeof k === "string" && k ? k : null;
+    };
+
+    const prevContractKey = extractS3Key(contract.contract_details);
+    const prevCustomerKey = extractS3Key(contract.customer_details);
+    const nextContractKey = data.contract_details != null ? extractS3Key(data.contract_details) : null;
+    const nextCustomerKey = data.customer_details != null ? extractS3Key(data.customer_details) : null;
+
+    const keysToCleanup: string[] = [];
+    if (nextContractKey && nextContractKey !== prevContractKey) keysToCleanup.push(nextContractKey);
+    if (nextCustomerKey && nextCustomerKey !== prevCustomerKey) keysToCleanup.push(nextCustomerKey);
+
+    try {
+      return await this.repository.update(id, {
+        ...data,
+        updated_at: new Date(),
+      });
+    } catch (err) {
+      for (const key of keysToCleanup) {
+        try {
+          await deleteS3Object(key);
+          logger.info({ contractId: id, s3Key: key }, "Deleted orphan contract document after update failure");
+        } catch (delErr) {
+          logger.warn({ contractId: id, s3Key: key, err: delErr }, "Cleanup: failed to delete orphan contract document");
+        }
+      }
+      throw err;
+    }
   }
 
   async unlinkContract(applicationId: string, userId: string): Promise<void> {

@@ -124,11 +124,25 @@ export class InvoiceService {
   async createInvoice(applicationId: string, contractId: string | undefined, details: any, userId: string): Promise<Invoice> {
     await this.verifyApplicationAccess(applicationId, userId);
 
-    return this.repository.create({
-      application_id: applicationId,
-      contract_id: contractId,
-      details,
-    });
+    const s3Key = details?.document?.s3_key;
+
+    try {
+      return await this.repository.create({
+        application_id: applicationId,
+        contract_id: contractId,
+        details,
+      });
+    } catch (err) {
+      if (s3Key) {
+        try {
+          await deleteS3Object(s3Key);
+          logger.info({ applicationId, s3Key }, "Deleted orphan invoice document after create failure");
+        } catch (delErr) {
+          logger.warn({ applicationId, s3Key, err: delErr }, "Cleanup: failed to delete orphan invoice document");
+        }
+      }
+      throw err;
+    }
   }
 
   async getInvoice(id: string, userId: string): Promise<Invoice> {
@@ -194,29 +208,39 @@ export class InvoiceService {
     updatePayload.contract_id = contractId;
   }
 
-  const updatedInvoice = await this.repository.update(id, updatePayload);
+  const isNewDocumentUpload = nextS3Key && nextS3Key !== prevS3Key;
 
-  // 🔥 delete previous version AFTER successful update
-  if (
-    prevS3Key &&
-    nextS3Key &&
-    prevS3Key !== nextS3Key
-  ) {
-    try {
-      await deleteS3Object(prevS3Key);
-      logger.info(
-        { invoiceId: id, prevS3Key, nextS3Key },
-        "Old invoice document deleted after version replacement"
-      );
-    } catch (err) {
-      logger.error(
-        { invoiceId: id, prevS3Key, err },
-        "Failed to delete old invoice document from S3"
-      );
+  try {
+    const updatedInvoice = await this.repository.update(id, updatePayload);
+
+    // 🔥 delete previous version AFTER successful update
+    if (prevS3Key && nextS3Key && prevS3Key !== nextS3Key) {
+      try {
+        await deleteS3Object(prevS3Key);
+        logger.info(
+          { invoiceId: id, prevS3Key, nextS3Key },
+          "Old invoice document deleted after version replacement"
+        );
+      } catch (err) {
+        logger.error(
+          { invoiceId: id, prevS3Key, err },
+          "Failed to delete old invoice document from S3"
+        );
+      }
     }
-  }
 
-  return updatedInvoice;
+    return updatedInvoice;
+  } catch (err) {
+    if (isNewDocumentUpload && nextS3Key) {
+      try {
+        await deleteS3Object(nextS3Key);
+        logger.info({ invoiceId: id, s3Key: nextS3Key }, "Deleted orphan invoice document after update failure");
+      } catch (delErr) {
+        logger.warn({ invoiceId: id, s3Key: nextS3Key, err: delErr }, "Cleanup: failed to delete orphan invoice document");
+      }
+    }
+    throw err;
+  }
 }
 
 

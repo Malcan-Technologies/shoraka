@@ -16,6 +16,8 @@ import {
 import { AppError } from "../../lib/http/error-handler";
 import { Application, Prisma, ApplicationStatus as DbApplicationStatus } from "@prisma/client";
 import { requestPresignedUploadUrl, deleteDocumentFromS3 } from "./documents/service";
+import { deleteS3Object } from "../../lib/s3/client";
+import { logger } from "../../lib/logger";
 import {
   getAmendmentAllowedSections,
   loadAmendmentRemarks,
@@ -46,6 +48,46 @@ export class ApplicationService {
     this.productRepository = new ProductRepository();
     this.organizationRepository = new OrganizationRepository();
     this.contractRepository = new ContractRepository();
+  }
+
+  /**
+   * Extract S3 keys from supporting_documents step data.
+   * Handles both { categories: [...] } and { supporting_documents: { categories: [...] } }.
+   */
+  private extractS3KeysFromSupportingDocuments(data: unknown): Set<string> {
+    const keys = new Set<string>();
+    if (!data || typeof data !== "object") return keys;
+    let raw = data as Record<string, unknown>;
+    if (raw.supporting_documents && typeof raw.supporting_documents === "object") {
+      raw = raw.supporting_documents as Record<string, unknown>;
+    }
+    const categories = raw.categories;
+    if (!Array.isArray(categories)) return keys;
+    for (const cat of categories) {
+      const docs = (cat as Record<string, unknown>)?.documents;
+      if (!Array.isArray(docs)) continue;
+      for (const doc of docs) {
+        const file = (doc as Record<string, unknown>)?.file as Record<string, unknown> | undefined;
+        const key = file?.s3_key;
+        if (typeof key === "string" && key) keys.add(key);
+      }
+    }
+    return keys;
+  }
+
+  /**
+   * Delete S3 objects on step save failure to prevent orphan files.
+   * Logs but does not rethrow.
+   */
+  private async deleteOrphanS3Keys(keys: string[]): Promise<void> {
+    for (const key of keys) {
+      try {
+        await deleteS3Object(key);
+        logger.info({ s3Key: key }, "Deleted orphan S3 file after step save failure");
+      } catch (err) {
+        logger.warn({ s3Key: key, err }, "Cleanup: failed to delete orphan S3 file");
+      }
+    }
   }
 
   /**
@@ -512,6 +554,19 @@ export class ApplicationService {
         updateData.last_completed_step = input.forceRewindToStep;
       } else {
         updateData.last_completed_step = Math.max(application.last_completed_step, input.stepNumber);
+      }
+    }
+
+    if (fieldName === "supporting_documents") {
+      const existingKeys = this.extractS3KeysFromSupportingDocuments(application.supporting_documents);
+      const incomingKeys = this.extractS3KeysFromSupportingDocuments(input.data);
+      const newKeys = [...incomingKeys].filter((k) => !existingKeys.has(k));
+
+      try {
+        return await this.repository.update(id, updateData);
+      } catch (err) {
+        await this.deleteOrphanS3Keys(newKeys);
+        throw err;
       }
     }
 
