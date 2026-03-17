@@ -73,14 +73,11 @@ function prepareInvoice(api: ApiInvoice, contractStatus: string | null, structur
 
   const offeredAmount = resolveOfferedAmount(api.offer_details);
   const profitRateVal = resolveOfferedProfitRate(api.offer_details);
+  const hasOffer = api.status === "OFFER_SENT" || api.status === "APPROVED";
   const financingOffered =
-    offeredAmount > 0
-      ? formatCurrency(offeredAmount)
-      : offeredAmount === 0
-        ? "RM 0.00"
-        : "—";
+    hasOffer && offeredAmount > 0 ? formatCurrency(offeredAmount) : "—";
   const profitRate =
-    profitRateVal != null ? `${profitRateVal}%` : offeredAmount === 0 ? "0%" : "—";
+    hasOffer && profitRateVal != null && profitRateVal > 0 ? `${profitRateVal}%` : "—";
 
   const invoiceValue =
     typeof details.value === "number" ? details.value : typeof details.invoice_value === "number" ? details.invoice_value : null;

@@ -253,7 +253,7 @@ function ApplicationCard({
 
   const useDraftCardLayout = isDraft && isGenericDraft;
 
-  const displayId = "#" + application.id.slice(-8);
+  const displayId = "#" + application.id.slice(-8).toUpperCase();
   const showFinancingLabel = !isGenericDraft;
 
   return (
@@ -599,6 +599,18 @@ export default function ApplicationsPage() {
   const [deleteDraftDialogOpen, setDeleteDraftDialogOpen] = React.useState(false);
   const [deleteDraftApplicationId, setDeleteDraftApplicationId] = React.useState<string | null>(null);
 
+  const [withdrawApplicationDialogOpen, setWithdrawApplicationDialogOpen] = React.useState(false);
+  const [withdrawApplicationId, setWithdrawApplicationId] = React.useState<string | null>(null);
+  const withdrawDialogScheduledRef = React.useRef(false);
+
+  const [withdrawInvoiceDialogOpen, setWithdrawInvoiceDialogOpen] = React.useState(false);
+  const [withdrawInvoicePayload, setWithdrawInvoicePayload] = React.useState<{
+    invoiceId: string;
+    applicationId: string;
+    organizationId?: string;
+  } | null>(null);
+  const withdrawInvoiceDialogScheduledRef = React.useRef(false);
+
   /* --- Review offer modal: opens when user clicks Review Offer. --- */
   const [reviewModalOpen, setReviewModalOpen] = React.useState(false);
   const [offerType, setOfferType] = React.useState<"contract" | "invoice">("contract");
@@ -633,6 +645,30 @@ export default function ApplicationsPage() {
     [cancelApplication]
   );
 
+  const handleWithdrawApplicationClick = React.useCallback((applicationId: string) => {
+    if (withdrawDialogScheduledRef.current) return;
+    withdrawDialogScheduledRef.current = true;
+    setTimeout(() => {
+      setWithdrawApplicationId(applicationId);
+      setWithdrawApplicationDialogOpen(true);
+      withdrawDialogScheduledRef.current = false;
+    }, 150);
+  }, []);
+
+  const handleWithdrawApplicationConfirm = React.useCallback(async () => {
+    const id = withdrawApplicationId;
+    if (!id || cancelApplication.isPending) return;
+    setWithdrawApplicationId(null);
+    try {
+      await cancelApplication.mutateAsync(id);
+      toast.success("Application withdrawn");
+      setWithdrawApplicationDialogOpen(false);
+    } catch {
+      setWithdrawApplicationId(id);
+      // toast handled by mutation onError
+    }
+  }, [withdrawApplicationId, cancelApplication]);
+
   const handleWithdrawInvoice = React.useCallback(
     async (invoiceId: string, applicationId: string, organizationId?: string) => {
       try {
@@ -643,6 +679,33 @@ export default function ApplicationsPage() {
     },
     [withdrawInvoice]
   );
+
+  const handleWithdrawInvoiceClick = React.useCallback(
+    (invoiceId: string, applicationId: string, organizationId?: string) => {
+      if (withdrawInvoiceDialogScheduledRef.current) return;
+      withdrawInvoiceDialogScheduledRef.current = true;
+      setTimeout(() => {
+        setWithdrawInvoicePayload({ invoiceId, applicationId, organizationId });
+        setWithdrawInvoiceDialogOpen(true);
+        withdrawInvoiceDialogScheduledRef.current = false;
+      }, 150);
+    },
+    []
+  );
+
+  const handleWithdrawInvoiceConfirm = React.useCallback(async () => {
+    const payload = withdrawInvoicePayload;
+    if (!payload || withdrawInvoice.isPending) return;
+    setWithdrawInvoicePayload(null);
+    try {
+      await withdrawInvoice.mutateAsync(payload);
+      toast.success("Invoice withdrawn");
+      setWithdrawInvoiceDialogOpen(false);
+    } catch {
+      setWithdrawInvoicePayload(payload);
+      // toast handled by mutation onError
+    }
+  }, [withdrawInvoicePayload, withdrawInvoice]);
 
   /** Defer dialog open to next tick so dropdown fully closes first; avoids flash/double-open. */
   const handleDeleteDraftClick = React.useCallback((applicationId: string) => {
@@ -1096,9 +1159,9 @@ export default function ApplicationsPage() {
                     onDocumentDownload={handleDocumentDownload}
                     onReviewContractOffer={openReviewContractOffer}
                     onReviewInvoiceOffer={openReviewInvoiceOffer}
-                    onCancelApplication={handleCancelApplication}
+                    onCancelApplication={handleWithdrawApplicationClick}
                     onDeleteDraft={handleDeleteDraftClick}
-                    onWithdrawInvoice={handleWithdrawInvoice}
+                    onWithdrawInvoice={handleWithdrawInvoiceClick}
                     isCancelApplicationPending={cancelApplication.isPending}
                     isWithdrawInvoicePending={withdrawInvoice.isPending}
                   />
@@ -1181,6 +1244,40 @@ export default function ApplicationsPage() {
         variant="destructive"
         onConfirm={handleDeleteDraftConfirm}
         isLoading={deleteDraftApplication.isPending}
+      />
+
+      <ConfirmDialog
+        open={withdrawApplicationDialogOpen}
+        onOpenChange={(open) => {
+          setWithdrawApplicationDialogOpen(open);
+          if (!open) {
+            setWithdrawApplicationId(null);
+            withdrawDialogScheduledRef.current = false;
+          }
+        }}
+        title="Withdraw application?"
+        description="Are you sure you want to withdraw this application? This action cannot be undone."
+        confirmText="Withdraw"
+        variant="destructive"
+        onConfirm={handleWithdrawApplicationConfirm}
+        isLoading={cancelApplication.isPending}
+      />
+
+      <ConfirmDialog
+        open={withdrawInvoiceDialogOpen}
+        onOpenChange={(open) => {
+          setWithdrawInvoiceDialogOpen(open);
+          if (!open) {
+            setWithdrawInvoicePayload(null);
+            withdrawInvoiceDialogScheduledRef.current = false;
+          }
+        }}
+        title="Withdraw invoice?"
+        description="Are you sure you want to withdraw this invoice? This action cannot be undone."
+        confirmText="Withdraw"
+        variant="destructive"
+        onConfirm={handleWithdrawInvoiceConfirm}
+        isLoading={withdrawInvoice.isPending}
       />
 
       {reviewModalOpen && selectedApplicationId && (
