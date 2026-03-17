@@ -258,7 +258,10 @@ export default function EditApplicationPage() {
     const s = new Set<string>();
     for (const r of amendmentContext.remarks || []) {
       const rem = r as { scope?: string; scope_key?: string };
-      if (rem.scope === "section" && rem.scope_key) s.add(rem.scope_key);
+      if (rem.scope === "section" && rem.scope_key) {
+        const key = rem.scope_key === "financial" ? "financial_statements" : rem.scope_key;
+        s.add(key);
+      }
     }
     return s;
   }, [amendmentContext]);
@@ -271,8 +274,9 @@ export default function EditApplicationPage() {
       const rem = r as { scope?: string; scope_key?: string };
       if (rem.scope === "item" && rem.scope_key) {
         const tab = rem.scope_key.split(":")[0];
-        if (!m.has(tab)) m.set(tab, new Set());
-        m.get(tab)!.add(rem.scope_key);
+        const tabKey = tab === "financial" ? "financial_statements" : tab;
+        if (!m.has(tabKey)) m.set(tabKey, new Set());
+        m.get(tabKey)!.add(rem.scope_key);
       }
     }
     return m;
@@ -575,7 +579,7 @@ export default function EditApplicationPage() {
      RESUME LOGIC
      ================================================================ */
 
-  /** When URL has no step param: amendment mode → first unacknowledged step or review_and_submit; normal flow → max allowed step. */
+  /** When URL has no step param: amendment mode → first amended step in workflow order; normal flow → max allowed step. */
   React.useEffect(() => {
     if (isSubmittingRef.current) return;
     if (!application || isLoadingApp || wizardState === null) return;
@@ -586,17 +590,15 @@ export default function EditApplicationPage() {
 
       let targetStep: number;
       if (isAmendmentMode) {
-        const amendmentStepsToCheck = amendmentFlaggedStepKeys.filter(
-          (k) => !k.startsWith("financial") && k !== "review_and_submit"
-        );
-        const firstUnack = effectiveWorkflow.findIndex(
+        if (!amendmentContext || effectiveWorkflow.length === 0) return;
+        const firstFlaggedIndex = effectiveWorkflow.findIndex(
           (s: Record<string, unknown>) => {
             const key = getStepKeyFromStepId((s.id as string) || "") || "";
-            return amendmentStepsToCheck.includes(key) && !acknowledgedWorkflowIds.includes(key);
+            return amendmentFlaggedStepKeys.includes(key);
           }
         );
-        if (firstUnack >= 0) {
-          targetStep = firstUnack + 1;
+        if (firstFlaggedIndex >= 0) {
+          targetStep = firstFlaggedIndex + 1;
         } else {
           const reviewIndex = effectiveWorkflow.findIndex(
             (s: Record<string, unknown>) =>
@@ -617,8 +619,8 @@ export default function EditApplicationPage() {
     isLoadingApp,
     wizardState,
     devPreviewAmendment,
+    amendmentContext,
     amendmentFlaggedStepKeys,
-    acknowledgedWorkflowIds,
     effectiveWorkflow,
   ]);
 
