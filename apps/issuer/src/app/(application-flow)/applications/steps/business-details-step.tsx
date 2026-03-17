@@ -81,9 +81,9 @@ interface BusinessDetailsSnake {
     risks_delay_repayment?: string;
     backup_plan?: string;
     raising_on_other_p2p?: boolean;
-    platform_name?: string;
-    amount_raised?: number;
-    same_invoice_used?: boolean;
+    platform_name?: string | null;
+    amount_raised?: number | null;
+    same_invoice_used?: boolean | null;
     accounting_software?: string;
   };
   declaration_confirmed?: boolean;
@@ -120,11 +120,15 @@ function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
     declaration_confirmed: p.declarationConfirmed,
   };
 
-  /* If raisingOnOtherP2P === "yes", include the dependent fields. Otherwise omit them (don't save). */
+  /* Always include P2P-dependent fields. When "no", set to null to preserve structure. */
   if (p.whyRaisingFunds.raisingOnOtherP2P === "yes") {
     basePayload.why_raising_funds!.platform_name = p.whyRaisingFunds.platformName ?? "";
     basePayload.why_raising_funds!.amount_raised = parseMoney(p.whyRaisingFunds.amountRaised ?? "");
     basePayload.why_raising_funds!.same_invoice_used = yesNoToBoolean(p.whyRaisingFunds.sameInvoiceUsed);
+  } else {
+    basePayload.why_raising_funds!.platform_name = null;
+    basePayload.why_raising_funds!.amount_raised = null;
+    basePayload.why_raising_funds!.same_invoice_used = null;
   }
 
   return basePayload;
@@ -502,13 +506,11 @@ export function BusinessDetailsStep({
      * What: Provide canonical validation flag to parent.
      * Why: Parent `EditApplicationPage` expects `isValid` to determine
      *       whether the "Save and Continue" button is enabled.
-     * Data: include `isValid` (boolean), `isDeclarationConfirmed`, and `hasPendingChanges`.
+     * Data: snakePayload includes declaration_confirmed; isValid for step validity.
      */
     onDataChangeRef.current({
       ...snakePayload,
       hasPendingChanges,
-      isDeclarationConfirmed: declarationConfirmed,
-      // Parent reads `isValid` to set step validity. Ensure we send full validation result.
       isValid: validateBusinessDetails(),
     });
   }, [snakePayload, hasPendingChanges, declarationConfirmed, isInitialized, validateBusinessDetails]);

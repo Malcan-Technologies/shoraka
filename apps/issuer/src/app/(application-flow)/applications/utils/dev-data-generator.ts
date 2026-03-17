@@ -167,7 +167,7 @@ export function generateContractDetailsData(): Record<string, unknown> {
   };
 }
 
-/** Business details step. Snake_case to match stored format. */
+/** Business details step. Snake_case to match stored format. P2P fields null when raising_on_other_p2p is false. */
 export function generateBusinessDetailsData(): Record<string, unknown> {
   return {
     about_your_business: {
@@ -182,6 +182,9 @@ export function generateBusinessDetailsData(): Record<string, unknown> {
       risks_delay_repayment: "Supply chain delays may affect delivery. We maintain 3-month buffer stock and have backup suppliers.",
       backup_plan: "We have a revolving credit facility with our bank. In case of delay, we can draw down to bridge the gap.",
       raising_on_other_p2p: false,
+      platform_name: null,
+      amount_raised: null,
+      same_invoice_used: null,
       accounting_software: "Xero",
     },
     declaration_confirmed: true,

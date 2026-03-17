@@ -392,15 +392,16 @@ export class ApplicationService {
       this.validateCompanyDetailsData(input.data as Record<string, unknown>);
     }
 
+    let dataToStore: Prisma.InputJsonValue = input.data as Prisma.InputJsonValue;
+
     if (fieldName === "business_details") {
       const result = businessDetailsDataSchema.safeParse(input.data);
       if (!result.success) {
         const message = result.error.errors.map((e) => e.message).join("; ");
         throw new AppError(400, "VALIDATION_ERROR", message);
       }
+      dataToStore = result.data as Prisma.InputJsonValue;
     }
-
-    let dataToStore: Prisma.InputJsonValue = input.data as Prisma.InputJsonValue;
 
     if (fieldName === "financial_statements") {
       const result = financialStatementsInputSchema.safeParse(input.data);

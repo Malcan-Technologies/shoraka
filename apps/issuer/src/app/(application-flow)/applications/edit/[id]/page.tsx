@@ -1022,6 +1022,7 @@ export default function EditApplicationPage() {
       // Remove frontend-only properties AFTER saveFunction completes
       if (dataToSave) {
         delete (dataToSave as Record<string, unknown>).isValid;
+        delete (dataToSave as Record<string, unknown>).isDeclarationConfirmed;
         delete (dataToSave as Record<string, unknown>).hasPendingChanges;
         delete (dataToSave as Record<string, unknown>).validationError;
         delete (dataToSave as Record<string, unknown>).autofillContract;
