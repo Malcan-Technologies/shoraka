@@ -4221,12 +4221,26 @@ export class AdminService {
     );
   }
 
+  private isContractTabUnlocked(
+    application: { application_reviews?: { section: string; status: string }[] },
+    sectionPolicy: { visibleSections: Set<ReviewSection>; prerequisitesBySection: Partial<Record<ReviewSection, ReviewSection[]>> }
+  ): boolean {
+    const prereqs = sectionPolicy.prerequisitesBySection.contract_details;
+    if (!prereqs?.length) return true;
+    const relevantPrereqs = prereqs.filter((p) => sectionPolicy.visibleSections.has(p));
+    if (!relevantPrereqs.length) return true;
+    const reviews = (application.application_reviews ?? []) as { section: string; status: string }[];
+    const sectionStatusMap = new Map(reviews.map((r) => [r.section, r.status]));
+    return relevantPrereqs.every((prereq) => sectionStatusMap.get(prereq) === "APPROVED");
+  }
+
   private resolveAdminStageStatus(input: {
     contractId?: string | null;
     contractStatus?: string | null;
     invoiceStatuses: string[];
+    isContractTabUnlocked?: boolean;
   }): ApplicationStatus {
-    const { contractId, contractStatus, invoiceStatuses } = input;
+    const { contractId, contractStatus, invoiceStatuses, isContractTabUnlocked } = input;
 
     if (contractId) {
       if (contractStatus === "OFFER_SENT") return ApplicationStatus.CONTRACT_SENT;
@@ -4237,7 +4251,8 @@ export class AdminService {
         }
         return ApplicationStatus.INVOICE_PENDING;
       }
-      return ApplicationStatus.CONTRACT_PENDING;
+      if (isContractTabUnlocked) return ApplicationStatus.CONTRACT_PENDING;
+      return ApplicationStatus.UNDER_REVIEW;
     }
 
     if (this.allInvoicesOfferableOrResolved(invoiceStatuses)) {
@@ -4250,13 +4265,26 @@ export class AdminService {
     repository: AdminRepository,
     applicationId: string,
     appStatus: ApplicationStatus,
-    application: { contract_id?: string | null; contract?: { status?: string } | null; invoices?: { status?: string }[] }
+    application: {
+      contract_id?: string | null;
+      contract?: { status?: string } | null;
+      invoices?: { status?: string }[];
+      application_reviews?: { section: string; status: string }[];
+      financing_type?: unknown;
+      financing_structure?: unknown;
+    }
   ) {
     if (appStatus === ApplicationStatus.SUBMITTED || appStatus === ApplicationStatus.RESUBMITTED) {
+      const sectionPolicy = await this.getReviewSectionPolicy(application);
+      const isContractTabUnlocked =
+        application.contract_id != null
+          ? this.isContractTabUnlocked(application, sectionPolicy)
+          : false;
       const targetStatus = this.resolveAdminStageStatus({
         contractId: application.contract_id,
         contractStatus: application.contract?.status ?? null,
-        invoiceStatuses: (application.invoices ?? []).map((invoice) => invoice.status ?? "DRAFT"),
+        invoiceStatuses: (application.invoices ?? []).map((inv) => (inv as { status?: string }).status ?? "DRAFT"),
+        isContractTabUnlocked,
       });
       await repository.updateApplicationStatus(applicationId, targetStatus);
     }
