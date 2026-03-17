@@ -23,6 +23,7 @@ import { MoneyInput } from "@/app/(application-flow)/applications/components/mon
 import { parseMoney, formatMoney } from "@/app/(application-flow)/applications/components/money";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import { BusinessDetailsSkeleton } from "@/app/(application-flow)/applications/components/business-details-skeleton";
+import { generateBusinessDetailsData } from "@/app/(application-flow)/applications/utils/dev-data-generator";
 
 /**
  * BUSINESS DETAILS STEP
@@ -153,6 +154,11 @@ function fromSnakeSaved(saved: BusinessDetailsSnake | Record<string, unknown> | 
     },
     declarationConfirmed: raw?.declaration_confirmed ?? raw?.declarationConfirmed ?? false,
   };
+}
+
+/** Mock data for dev Auto Fill. Re-exports from dev-data-generator. */
+export function generateMockData(): Record<string, unknown> {
+  return generateBusinessDetailsData();
 }
 
 const defaultAbout: AboutYourBusiness = {
@@ -454,6 +460,24 @@ export function BusinessDetailsStep({
       }));
     }
   }, [whyRaisingFunds.raisingOnOtherP2P]);
+
+  /** Apply dev-tools Auto Fill when requested (single step or Fill Entire Application). */
+  React.useEffect(() => {
+    const data =
+      devTools?.autoFillData?.stepKey === "business_details"
+        ? (devTools.autoFillData.data as Record<string, unknown>)
+        : (devTools?.autoFillDataMap?.["business_details"] as Record<string, unknown> | undefined);
+    if (!data || Object.keys(data).length === 0) return;
+    const initial = fromSnakeSaved(data);
+    setAboutYourBusiness(initial.aboutYourBusiness);
+    setWhyRaisingFunds(initial.whyRaisingFunds);
+    setDeclarationConfirmed(initial.declarationConfirmed);
+    initialPayloadRef.current = JSON.stringify(toSnakePayload(initial));
+    if (devTools) {
+      if (devTools.autoFillData?.stepKey === "business_details") devTools.clearAutoFill();
+      else devTools.clearAutoFillForStep("business_details");
+    }
+  }, [devTools]);
 
   const payload: BusinessDetailsPayload = React.useMemo(
     () => ({
