@@ -47,7 +47,7 @@ import {
   type ApplicationStepKey,
 } from "@cashsouk/types";
 import { ProgressIndicator } from "../../components/progress-indicator";
-import { AmendmentRemarkCard } from "../../components/amendments";
+import { AmendmentRemarkCard, ReadOnlyStepBanner } from "../../components/amendments";
 import { useHeader } from "@cashsouk/ui";
 import { FinancingTypeStep } from "../../steps/financing-type-step";
 import { FinancingStructureStep } from "../../steps/financing-structure-step";
@@ -1244,10 +1244,8 @@ export default function EditApplicationPage() {
 
         {/* Step Content - Shows step's own skeleton when loading */}
         <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 pt-4 sm:pt-6 relative">
-          {isAmendmentModeEffective && !isStepFlagged ? (
-            <p className="text-sm text-muted-foreground mb-4 py-2 px-3 rounded-lg bg-muted/50">
-              Read-only — no amendment requested for this step
-            </p>
+          {isAmendmentModeEffective && !isStepFlagged && currentStepKey !== "review_and_submit" ? (
+            <ReadOnlyStepBanner />
           ) : null}
           {isStepFlagged ? (
             <div className="mb-6">
