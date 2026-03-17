@@ -770,32 +770,50 @@ export function ReviewAndSubmitStep({
           </section>
         )}
 
-        {/* Legal docs */}
+        {/* Supporting Documents — grouped by category (Legal Docs, Financial, etc.) */}
         {showSupportingDocsSection && (
-          <section className={sectionSpacingClassName}>
-            <div>
-              <h3 className={sectionHeaderClassName}>Legal Docs</h3>
-              <div className="border-b border-border mt-2 mb-4" />
-            </div>
+          <>
             {supportingLoading || devTools?.showSkeletonDebug ? (
-              <ReviewSupportingDocsSkeleton />
+              <section className={sectionSpacingClassName}>
+                <div>
+                  <h3 className={sectionHeaderClassName}>Supporting Documents</h3>
+                  <div className="border-b border-border mt-2 mb-4" />
+                </div>
+                <ReviewSupportingDocsSkeleton />
+              </section>
+            ) : categories.length === 0 ? (
+              <section className={sectionSpacingClassName}>
+                <div>
+                  <h3 className={sectionHeaderClassName}>Supporting Documents</h3>
+                  <div className="border-b border-border mt-2 mb-4" />
+                </div>
+                <div className="text-sm text-muted-foreground italic px-3">No documents</div>
+              </section>
             ) : (
-              <div className={sectionGridClassName}>
-                {categories.flatMap((cat: any) => cat.documents).map((doc: any, i: number) => (
-                  <React.Fragment key={i}>
-                    <div className={labelClassName}>{doc.title}</div>
-                    <div className={valueClassName}>
-                      {doc.file ? (
-                        <FileDisplayBadge fileName={doc.file.file_name} truncate={false} />
-                      ) : (
-                        <span className="text-xs text-muted-foreground italic">Not provided</span>
-                      )}
-                    </div>
-                  </React.Fragment>
-                ))}
-              </div>
+              categories.map((cat: any, catIdx: number) => (
+                <section key={catIdx} className={sectionSpacingClassName}>
+                  <div>
+                    <h3 className={sectionHeaderClassName}>{cat.name || "Documents"}</h3>
+                    <div className="border-b border-border mt-2 mb-4" />
+                  </div>
+                  <div className={sectionGridClassName}>
+                    {(cat.documents || []).map((doc: any, docIdx: number) => (
+                      <React.Fragment key={docIdx}>
+                        <div className={labelClassName}>{doc.title}</div>
+                        <div className={valueClassName}>
+                          {doc.file ? (
+                            <FileDisplayBadge fileName={doc.file.file_name} truncate={false} />
+                          ) : (
+                            <span className="text-xs text-muted-foreground italic">Not provided</span>
+                          )}
+                        </div>
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </section>
+              ))
             )}
-          </section>
+          </>
         )}
       </div>
     </>
