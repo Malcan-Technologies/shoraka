@@ -579,7 +579,7 @@ export default function EditApplicationPage() {
      RESUME LOGIC
      ================================================================ */
 
-  /** When URL has no step param: amendment mode → first amended step in workflow order; normal flow → max allowed step. */
+  /** When URL has no step param: amendment mode → first amended step that is not yet acknowledged; normal flow → max allowed step. */
   React.useEffect(() => {
     if (isSubmittingRef.current) return;
     if (!application || isLoadingApp || wizardState === null) return;
@@ -591,14 +591,17 @@ export default function EditApplicationPage() {
       let targetStep: number;
       if (isAmendmentMode) {
         if (!amendmentContext || effectiveWorkflow.length === 0) return;
-        const firstFlaggedIndex = effectiveWorkflow.findIndex(
+        const amendmentStepsToCheck = amendmentFlaggedStepKeys.filter(
+          (k) => k !== "review_and_submit"
+        );
+        const firstUnack = effectiveWorkflow.findIndex(
           (s: Record<string, unknown>) => {
             const key = getStepKeyFromStepId((s.id as string) || "") || "";
-            return amendmentFlaggedStepKeys.includes(key);
+            return amendmentStepsToCheck.includes(key) && !acknowledgedWorkflowIds.includes(key);
           }
         );
-        if (firstFlaggedIndex >= 0) {
-          targetStep = firstFlaggedIndex + 1;
+        if (firstUnack >= 0) {
+          targetStep = firstUnack + 1;
         } else {
           const reviewIndex = effectiveWorkflow.findIndex(
             (s: Record<string, unknown>) =>
@@ -621,6 +624,7 @@ export default function EditApplicationPage() {
     devPreviewAmendment,
     amendmentContext,
     amendmentFlaggedStepKeys,
+    acknowledgedWorkflowIds,
     effectiveWorkflow,
   ]);
 
