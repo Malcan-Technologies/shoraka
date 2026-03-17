@@ -341,8 +341,9 @@ export function createApplicationRouter(): Router {
     async (req, res, next) => {
       try {
         const { id } = applicationIdParamSchema.parse(req.params);
+        const { reason } = z.object({ reason: z.string().max(2000).optional() }).parse(req.body ?? {});
         const userId = getUserId(req);
-        const data = await applicationService.respondToContractOffer(id, "reject", userId);
+        const data = await applicationService.respondToContractOffer(id, "reject", userId, reason);
         res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
       } catch (e) {
         next(e);
@@ -371,8 +372,9 @@ export function createApplicationRouter(): Router {
       try {
         const { id } = applicationIdParamSchema.parse(req.params);
         const invoiceId = z.string().cuid().parse(req.params.invoiceId);
+        const { reason } = z.object({ reason: z.string().max(2000).optional() }).parse(req.body ?? {});
         const userId = getUserId(req);
-        const data = await applicationService.respondToInvoiceOffer(id, invoiceId, "reject", userId);
+        const data = await applicationService.respondToInvoiceOffer(id, invoiceId, "reject", userId, reason);
         res.json({ success: true, data, correlationId: res.locals.correlationId || "unknown" });
       } catch (e) {
         next(e);

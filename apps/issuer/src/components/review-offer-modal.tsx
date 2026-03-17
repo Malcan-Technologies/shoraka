@@ -10,6 +10,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
   useAcceptContractOffer,
   useRejectContractOffer,
@@ -54,6 +56,7 @@ export function ReviewOfferModal({ open, onOpenChange, context }: ReviewOfferMod
   const rejectContract = useRejectContractOffer();
   const acceptInvoice = useAcceptInvoiceOffer();
   const rejectInvoice = useRejectInvoiceOffer();
+  const [rejectionReason, setRejectionReason] = React.useState("");
 
   const isPending =
     acceptContract.isPending ||
@@ -83,11 +86,15 @@ export function ReviewOfferModal({ open, onOpenChange, context }: ReviewOfferMod
     if (!context) return;
     try {
       if (context.type === "contract") {
-        await rejectContract.mutateAsync(context.applicationId);
+        await rejectContract.mutateAsync({
+          applicationId: context.applicationId,
+          reason: rejectionReason || undefined,
+        });
       } else {
         await rejectInvoice.mutateAsync({
           applicationId: context.applicationId,
           invoiceId: context.invoiceId,
+          reason: rejectionReason || undefined,
         });
       }
       toast.success("Offer rejected");
@@ -165,6 +172,19 @@ export function ReviewOfferModal({ open, onOpenChange, context }: ReviewOfferMod
               </dd>
             </dl>
           )}
+          <div className="space-y-2">
+            <Label htmlFor="rejection-reason" className="text-sm text-muted-foreground">
+              Please provide a reason for rejecting this offer.
+            </Label>
+            <Textarea
+              id="rejection-reason"
+              placeholder="e.g. Enter reason"
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              rows={3}
+              className="resize-none"
+            />
+          </div>
         </div>
 
         <DialogFooter>

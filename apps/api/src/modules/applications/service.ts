@@ -988,7 +988,8 @@ export class ApplicationService {
   async respondToContractOffer(
     applicationId: string,
     action: "accept" | "reject",
-    userId: string
+    userId: string,
+    rejectionReason?: string
   ): Promise<Application> {
     await this.verifyApplicationAccess(applicationId, userId);
 
@@ -1047,6 +1048,9 @@ export class ApplicationService {
         ...offer,
         responded_at: now,
         responded_by_user_id: userId,
+        ...(action === "reject" && rejectionReason != null && rejectionReason.trim() !== ""
+          ? { rejection_reason: rejectionReason.trim() }
+          : {}),
       };
 
       const cd = (contract.contract_details as Record<string, unknown>) || {};
@@ -1128,6 +1132,9 @@ export class ApplicationService {
         offered_facility: responseMeta.offeredFacility,
         requested_facility: responseMeta.requestedFacility,
         responded_at: responseMeta.now,
+        ...(action === "reject" && rejectionReason != null && rejectionReason.trim() !== ""
+          ? { rejection_reason: rejectionReason.trim() }
+          : {}),
       },
     });
     if (responseMeta.appStatus === ApplicationStatus.COMPLETED) {
@@ -1151,7 +1158,8 @@ export class ApplicationService {
     applicationId: string,
     invoiceId: string,
     action: "accept" | "reject",
-    userId: string
+    userId: string,
+    rejectionReason?: string
   ): Promise<Application> {
     await this.verifyApplicationAccess(applicationId, userId);
 
@@ -1212,6 +1220,9 @@ export class ApplicationService {
         ...offer,
         responded_at: now,
         responded_by_user_id: userId,
+        ...(action === "reject" && rejectionReason != null && rejectionReason.trim() !== ""
+          ? { rejection_reason: rejectionReason.trim() }
+          : {}),
       };
 
       await tx.invoice.update({
@@ -1369,6 +1380,9 @@ export class ApplicationService {
         offered_amount: responseMeta.offeredAmount,
         requested_amount: responseMeta.requestedAmount,
         responded_at: responseMeta.now,
+        ...(action === "reject" && rejectionReason != null && rejectionReason.trim() !== ""
+          ? { rejection_reason: rejectionReason.trim() }
+          : {}),
       },
     });
     if (responseMeta.appStatus === ApplicationStatus.COMPLETED) {

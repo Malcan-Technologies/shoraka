@@ -75,6 +75,7 @@ type ActivityMetadata = {
   offered_ratio_percent?: number | null;
   offered_profit_rate_percent?: number | null;
   expires_at?: string | null;
+  rejection_reason?: string;
 };
 
 function formatItemLabelFromScopeKey(scopeKey: string): string {
@@ -502,7 +503,10 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
                                 })}
                               </p>
 
-                              {(remark || (eventType === "CONTRACT_OFFER_SENT" || eventType === "INVOICE_OFFER_SENT") && metadata) && (
+                              {(remark ||
+                                ((eventType === "CONTRACT_OFFER_SENT" || eventType === "INVOICE_OFFER_SENT") && metadata) ||
+                                ((eventType === "CONTRACT_WITHDRAWN" || eventType === "INVOICE_OFFER_REJECTED") &&
+                                  metadata?.rejection_reason)) && (
                                 <button
                                   onClick={() => toggle(log.id)}
                                   className="text-xs text-foreground/80 hover:underline"
@@ -555,6 +559,17 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
                                 )}
                               </div>
                             )}
+
+                            {expanded[log.id] &&
+                              (eventType === "CONTRACT_WITHDRAWN" || eventType === "INVOICE_OFFER_REJECTED") &&
+                              metadata?.rejection_reason && (
+                                <div className="mt-3 rounded-xl border bg-muted/20 p-4 text-[11px] space-y-2">
+                                  <p className="text-[11px] font-bold">Reason</p>
+                                  <p className="text-[11px] font-medium text-foreground leading-relaxed">
+                                    {String(metadata.rejection_reason)}
+                                  </p>
+                                </div>
+                              )}
 
                           {expanded[log.id] && remark && (
                             <div className="mt-3 rounded-xl border p-4 text-[11px] space-y-3">

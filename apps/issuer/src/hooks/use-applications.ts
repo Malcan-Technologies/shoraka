@@ -347,12 +347,21 @@ export function useRejectContractOffer() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (applicationId: string) => {
-      const res = await apiClient.rejectContractOffer(applicationId);
+    mutationFn: async ({
+      applicationId,
+      reason,
+    }: {
+      applicationId: string;
+      reason?: string;
+    }) => {
+      const res = await apiClient.rejectContractOffer(applicationId, {
+        ...(reason != null && reason.trim() !== "" ? { reason: reason.trim() } : {}),
+      });
       if (!res.success) throw new Error(getOfferError(res));
       return res.data;
     },
-    onSuccess: async (data, applicationId) => {
+    onSuccess: async (data, variables) => {
+      const applicationId = variables.applicationId;
       queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
       const organizationId = (data as any)?.issuer_organization_id as string | undefined;
       if (organizationId) {
@@ -399,12 +408,23 @@ export function useRejectInvoiceOffer() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ applicationId, invoiceId }: { applicationId: string; invoiceId: string }) => {
-      const res = await apiClient.rejectInvoiceOffer(applicationId, invoiceId);
+    mutationFn: async ({
+      applicationId,
+      invoiceId,
+      reason,
+    }: {
+      applicationId: string;
+      invoiceId: string;
+      reason?: string;
+    }) => {
+      const res = await apiClient.rejectInvoiceOffer(applicationId, invoiceId, {
+        ...(reason != null && reason.trim() !== "" ? { reason: reason.trim() } : {}),
+      });
       if (!res.success) throw new Error(getOfferError(res));
       return res.data;
     },
-    onSuccess: async (data, { applicationId }) => {
+    onSuccess: async (data, variables) => {
+      const applicationId = variables.applicationId;
       queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
       const organizationId = (data as any)?.issuer_organization_id as string | undefined;
       if (organizationId) {

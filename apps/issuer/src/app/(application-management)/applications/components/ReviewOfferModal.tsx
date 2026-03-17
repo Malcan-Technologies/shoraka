@@ -14,6 +14,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { useContract } from "@/hooks/use-contracts";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import {
@@ -72,6 +74,7 @@ export function ReviewOfferModal({
   const isLoading = type === "contract" && isLoadingContract;
 
   const [downloading, setDownloading] = React.useState(false);
+  const [rejectionReason, setRejectionReason] = React.useState("");
 
   const title =
     type === "contract" ? "Contract Financing Offer" : "Invoice Financing Offer";
@@ -110,7 +113,7 @@ export function ReviewOfferModal({
   const handleReject = async () => {
     if (type === "contract") {
       try {
-        await rejectContract.mutateAsync(applicationId);
+        await rejectContract.mutateAsync({ applicationId, reason: rejectionReason || undefined });
         toast.success("Offer rejected");
         onClose();
       } catch {
@@ -119,7 +122,11 @@ export function ReviewOfferModal({
     } else {
       if (!invoice?.id) return;
       try {
-        await rejectInvoice.mutateAsync({ applicationId, invoiceId: invoice.id });
+        await rejectInvoice.mutateAsync({
+          applicationId,
+          invoiceId: invoice.id,
+          reason: rejectionReason || undefined,
+        });
         toast.success("Offer rejected");
         onClose();
       } catch {
@@ -204,6 +211,19 @@ export function ReviewOfferModal({
               <p className="text-sm text-muted-foreground">
                 Expires: {expiresAt}
               </p>
+              <div className="space-y-2 pt-2">
+                <Label htmlFor="rejection-reason" className="text-sm text-muted-foreground">
+                  Please provide a reason for rejecting this offer.
+                </Label>
+                <Textarea
+                  id="rejection-reason"
+                  placeholder="Enter reason"
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  rows={3}
+                  className="resize-none"
+                />
+              </div>
             </>
           )}
         </div>

@@ -1303,8 +1303,11 @@ export class ApiClient {
     return this.post<Application>(`/v1/applications/${applicationId}/offers/contracts/accept`, {});
   }
 
-  async rejectContractOffer(applicationId: string): Promise<ApiResponse<Application> | ApiError> {
-    return this.post<Application>(`/v1/applications/${applicationId}/offers/contracts/reject`, {});
+  async rejectContractOffer(
+    applicationId: string,
+    body?: { reason?: string }
+  ): Promise<ApiResponse<Application> | ApiError> {
+    return this.post<Application>(`/v1/applications/${applicationId}/offers/contracts/reject`, body ?? {});
   }
 
   async acceptInvoiceOffer(
@@ -1319,11 +1322,12 @@ export class ApiClient {
 
   async rejectInvoiceOffer(
     applicationId: string,
-    invoiceId: string
+    invoiceId: string,
+    body?: { reason?: string }
   ): Promise<ApiResponse<Application> | ApiError> {
     return this.post<Application>(
       `/v1/applications/${applicationId}/offers/invoices/${invoiceId}/reject`,
-      {}
+      body ?? {}
     );
   }
 
