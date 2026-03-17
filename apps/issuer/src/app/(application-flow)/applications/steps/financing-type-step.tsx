@@ -67,10 +67,8 @@ export function FinancingTypeStep({
 
       // Tell parent this step already has valid data
       if (onDataChange) {
-        const savedProduct = products.products?.find((p: any) => p.id === initialProductId) ?? singleProductQuery?.data;
         onDataChange({
           product_id: initialProductId,
-          product_version: savedProduct?.version,
           hasPendingChanges: false,
         });
       }
@@ -80,25 +78,18 @@ export function FinancingTypeStep({
 
   /**
    * When user selects a different product
-   * 
+   *
    * Updates local state and notifies parent component.
    * Parent will save this when user clicks "Save and Continue".
-   * 
-   * Also include the current product version so the parent can snapshot it
-   * atomically when saving (server-side atomicity is ensured by service).
+   * product_version is set server-side from product.version when saving.
    */
   const handleProductSelect = (productId: string) => {
     setSelectedProductId(productId);
 
-    // Find the selected product to include its version
-    const selectedProduct = (products.products || []).find((p: any) => p.id === productId) ?? singleProductQuery?.data;
-
-    // Pass data to parent for saving
     if (onDataChange) {
       onDataChange({
         product_id: productId,
-        product_version: selectedProduct?.version,
-        hasPendingChanges: productId !== initialProductId
+        hasPendingChanges: productId !== initialProductId,
       });
     }
   };

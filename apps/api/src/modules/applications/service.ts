@@ -487,12 +487,19 @@ export class ApplicationService {
       } as Prisma.InputJsonValue;
     }
 
+    /** financing_type stores only product_id; product_version lives in application.product_version column. */
+    if (fieldName === "financing_type") {
+      const financingData = input.data as Record<string, unknown>;
+      const productId = financingData?.product_id as string | undefined;
+      dataToStore = productId ? { product_id: productId } : dataToStore;
+    }
+
     const updateData: Prisma.ApplicationUpdateInput = {
       [fieldName]: dataToStore,
       updated_at: new Date(),
     };
 
-    // If financing_type is being updated, snapshot the product version atomically
+    /** When financing_type is updated, snapshot product_version from product table. */
     if (fieldName === "financing_type") {
       const financingData = input.data as any;
       const newProductId = financingData?.product_id as string | undefined;
