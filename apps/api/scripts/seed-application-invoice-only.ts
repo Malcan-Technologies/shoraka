@@ -11,6 +11,12 @@ import { PrismaClient } from "@prisma/client";
 import {
   generateInvoiceDetailsList,
   buildInvoiceDetails,
+  buildCompanyDetails,
+  buildBusinessDetails,
+  buildFinancialStatements,
+  buildSupportingDocuments,
+  buildDeclarations,
+  buildReviewAndSubmit,
 } from "./seed-application-helpers";
 
 const prisma = new PrismaClient();
@@ -42,6 +48,12 @@ async function main() {
       last_completed_step: 9,
       financing_type: { product_id: product.id },
       financing_structure: { structure_type: "invoice_only", existing_contract_id: null },
+      company_details: buildCompanyDetails(issuerOrg.id),
+      business_details: buildBusinessDetails(),
+      financial_statements: buildFinancialStatements(),
+      supporting_documents: buildSupportingDocuments(),
+      declarations: buildDeclarations(),
+      review_and_submit: buildReviewAndSubmit(),
     },
   });
 
@@ -52,7 +64,7 @@ async function main() {
         application_id: application.id,
         contract_id: null,
         details: buildInvoiceDetails(input),
-        status: "DRAFT",
+        status: "SUBMITTED",
       },
     });
   }

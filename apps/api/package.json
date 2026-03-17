@@ -21,6 +21,7 @@
     "create-admin": "tsx scripts/create-admin.ts",
     "seed-application-new-contract": "tsx scripts/seed-application-new-contract.ts",
     "seed-application-invoice-only": "tsx scripts/seed-application-invoice-only.ts",
+    "seed-application-existing-contract": "tsx scripts/seed-application-existing-contract.ts",
     "clean": "rm -rf dist"
   },
   "prisma": {
