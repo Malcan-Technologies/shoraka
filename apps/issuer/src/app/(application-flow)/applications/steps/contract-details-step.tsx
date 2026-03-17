@@ -333,7 +333,7 @@ function FileUploadArea({
     const fileName = pendingFile?.name || uploadedFile?.file_name || "";
     const fileSize = pendingFile?.size || uploadedFile?.file_size || 0;
     const isPending = !!pendingFile;
-    const statusText = isPending ? (isUploading ? " (Uploading…)" : " (Pending…)") : "";
+    const statusText = isPending ? " (Uploading…)" : "";
 
     return (
       <div className="border border-border rounded-xl px-4 py-3 flex items-center justify-between gap-3 bg-card/50">
@@ -832,10 +832,21 @@ export function ContractDetailsStep({
 
     const valueNum = parseMoney(updatedFormData.contract.value);
     const contractFinancingNum = parseMoney(updatedFormData.contract.financing);
+    const structureType = (application as { financing_structure?: { structure_type?: string } })?.financing_structure?.structure_type;
     const existingCd = (contract as unknown as { contract_details?: Record<string, unknown> })?.contract_details;
-    const approvedFacilityNum = typeof existingCd?.approved_facility === "number" ? existingCd.approved_facility : 0;
-    const utilizedFacilityNum = typeof existingCd?.utilized_facility === "number" ? existingCd.utilized_facility : 0;
-    const availableFacilityNum = typeof existingCd?.available_facility === "number" ? existingCd.available_facility : 0;
+    /** New contract: approved, utilized, available = null. Existing contract: use stored values from backend. */
+    const approvedFacilityValue =
+      structureType === "existing_contract" && typeof existingCd?.approved_facility === "number"
+        ? existingCd.approved_facility
+        : null;
+    const utilizedFacilityValue =
+      structureType === "existing_contract" && typeof existingCd?.utilized_facility === "number"
+        ? existingCd.utilized_facility
+        : null;
+    const availableFacilityValue =
+      structureType === "existing_contract" && typeof existingCd?.available_facility === "number"
+        ? existingCd.available_facility
+        : null;
 
     const updatedContractDetails = {
       ...updatedFormData.contract,
@@ -849,9 +860,9 @@ export function ContractDetailsStep({
         const pd = parseFlexibleDate(updatedFormData.contract.end_date);
         return pd ? format(pd, "yyyy-MM-dd") : updatedFormData.contract.end_date;
       })(),
-      approved_facility: approvedFacilityNum,
-      utilized_facility: utilizedFacilityNum,
-      available_facility: availableFacilityNum,
+      approved_facility: approvedFacilityValue,
+      utilized_facility: utilizedFacilityValue,
+      available_facility: availableFacilityValue,
       document: updatedFormData.contract.document || undefined,
     };
 
@@ -879,6 +890,7 @@ export function ContractDetailsStep({
     updateContractMutation,
     isInvoiceOnly,
     contract,
+    application,
   ]);
 
   /* ================================================================

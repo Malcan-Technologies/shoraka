@@ -15,9 +15,9 @@ export const contractDetailsSchema = z.object({
   value: z.number(),
   start_date: z.string(),
   end_date: z.string(),
-  approved_facility: z.number(),
-  utilized_facility: z.number(),
-  available_facility: z.number(),
+  approved_facility: z.union([z.number(), z.null()]).optional(),
+  utilized_facility: z.union([z.number(), z.null()]).optional(),
+  available_facility: z.union([z.number(), z.null()]).optional(),
   // Financing amount requested by issuer (RM). Optional.
   financing: z.number(),
   document: documentSchema.nullable().optional(),

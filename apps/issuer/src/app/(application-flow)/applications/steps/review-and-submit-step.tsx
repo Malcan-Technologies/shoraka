@@ -243,26 +243,14 @@ export function ReviewAndSubmitStep({
 
   const contractDetails = (contract?.contract_details as any) || {};
 
-  const approvedFacility = Number(contractDetails.approved_facility || 0);
   const contractValue = Number(contractDetails.value || 0);
 
-  // Base facility depends on structure
-  const baseFacility =
-    structureType === "new_contract"
-      ? contractValue
-      : approvedFacility;
-
-  // Sum financing from invoices
   const totalFinancingAmount = invoices.reduce((sum: number, invoice: any) => {
     const d = invoice.details || {};
     const value = Number(d.value || 0);
     const ratio = (d.financing_ratio_percent ?? 60) / 100;
     return sum + value * ratio;
   }, 0);
-
-  // Always calculated, never stored
-  const calculatedAvailableFacility =
-    baseFacility - totalFinancingAmount;
 
   // Determine which data is actually loading based on what sections are shown
   // Note: removed unused isLoading variable to satisfy build checks.
@@ -366,8 +354,8 @@ export function ReviewAndSubmitStep({
           </section>
         )}
 
-        {/* Contract Details (when !invoice_only) or Customer Details (when invoice_only) */}
-        {showContractSection && (
+        {/* Contract Details — hidden for invoice_only */}
+        {showContractSection && !isInvoiceOnly && (
           <section className={sectionSpacingClassName}>
             <div>
               <h3 className={sectionHeaderClassName}>{isInvoiceOnly ? "Customer Details" : "Contract Details"}</h3>
@@ -406,17 +394,23 @@ export function ReviewAndSubmitStep({
 
                     <div className={labelClassName}>Approved Facility</div>
                     <div className={valueClassName}>
-                      {isValidNumber(approvedFacility) && approvedFacility > 0 ? renderMoney(approvedFacility) : "N/A"}
+                      {typeof contractDetails.approved_facility === "number"
+                        ? renderMoney(contractDetails.approved_facility)
+                        : "N/A"}
                     </div>
 
                     <div className={labelClassName}>Utilised Facility</div>
                     <div className={valueClassName}>
-                      {structureType === "existing_contract" && isValidNumber(totalFinancingAmount) ? renderMoney(totalFinancingAmount) : "N/A"}
+                      {typeof contractDetails.utilized_facility === "number"
+                        ? renderMoney(contractDetails.utilized_facility)
+                        : "N/A"}
                     </div>
 
                     <div className={labelClassName}>Available Facility</div>
                     <div className={valueClassName}>
-                      {structureType === "existing_contract" && isValidNumber(calculatedAvailableFacility) ? renderMoney(calculatedAvailableFacility) : "N/A"}
+                      {typeof contractDetails.available_facility === "number"
+                        ? renderMoney(contractDetails.available_facility)
+                        : "N/A"}
                     </div>
                   </>
                 )}

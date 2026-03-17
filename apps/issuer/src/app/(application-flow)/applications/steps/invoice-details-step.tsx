@@ -497,17 +497,16 @@ export default function InvoiceDetailsStep({
     typeof cd?.approved_facility === "number" && cd.approved_facility > 0
       ? cd.approved_facility
       : 0;
-  const utilizedFacility =
-    typeof cd?.utilized_facility === "number" ? cd.utilized_facility : 0;
   const contractFinancing =
     typeof cd?.financing === "number"
       ? cd.financing
       : parseMoney(String(cd?.financing ?? ""));
 
-  /** For existing_contract: utilised counts only APPROVED invoices under this contract (from backend). */
-  const availableFacility = approvedFacility - utilizedFacility;
+  /** For existing_contract: use stored available_facility from backend (approved - utilized, utilized = approved invoices only). */
+  const storedAvailableFacility =
+    typeof cd?.available_facility === "number" ? cd.available_facility : null;
 
-  /** For existing_contract: sum of financing for invoices not yet approved (DRAFT, SUBMITTED). Used for facility validation and live available display. */
+  /** For existing_contract: sum of financing for invoices not yet approved (DRAFT, SUBMITTED). Used for facility validation. */
   const nonApprovedFinancingAmount = invoices
     .filter((inv) => inv.status !== "APPROVED")
     .reduce((sum, inv) => {
@@ -523,13 +522,9 @@ export default function InvoiceDetailsStep({
   if (structureType === "new_contract") {
     facilityLimit = hasApprovedFacility ? approvedFacility : contractFinancing;
   }
-  if (structureType === "existing_contract") {
-    facilityLimit = availableFacility;
+  if (structureType === "existing_contract" && storedAvailableFacility != null) {
+    facilityLimit = storedAvailableFacility;
   }
-
-  const liveAvailableFacility = hasApprovedFacility
-    ? availableFacility - nonApprovedFinancingAmount
-    : facilityLimit - totalFinancingAmount;
 
   const hasPendingFiles = Object.keys(selectedFiles).length > 0;
   const hasPartialRows = invoices.some((inv) => isRowPartial(inv));
@@ -946,8 +941,6 @@ export default function InvoiceDetailsStep({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [applicationId, application?.financing_structure?.structure_type, application?.contract_id]);
 
-  const hasFacilityData = hasApprovedFacility;
-
   if (isLoadingApplication || devTools?.showSkeletonDebug) {
     return (
       <>
@@ -1011,17 +1004,17 @@ export default function InvoiceDetailsStep({
                 {/* ================= Approved Facility ================= */}
                 <div className={formLabelClassName}>Approved Facility</div>
                 <div className={valueClassName}>
-                  {!hasFacilityData
-                    ? "N/A"
-                    : `RM ${formatMoney(approvedFacility)}`}
+                  {typeof cd?.approved_facility === "number"
+                    ? `RM ${formatMoney(cd.approved_facility)}`
+                    : "N/A"}
                 </div>
 
                 {/* ================= Utilised Facility ================= */}
                 <div className={formLabelClassName}>Utilised Facility</div>
                 <div className={valueClassName}>
-                  {!hasFacilityData
-                    ? "N/A"
-                    : `RM ${formatMoney(utilizedFacility)}`}
+                  {typeof cd?.utilized_facility === "number"
+                    ? `RM ${formatMoney(cd.utilized_facility)}`
+                    : "N/A"}
                 </div>
 
                 {/* ================= Available Facility ================= */}
@@ -1029,17 +1022,14 @@ export default function InvoiceDetailsStep({
                 <div
                   className={cn(
                     "text-sm md:text-base leading-6 font-medium",
-                    hasFacilityData &&
-                    liveAvailableFacility != null &&
-                    liveAvailableFacility < 0 &&
+                    typeof cd?.available_facility === "number" &&
+                    cd.available_facility < 0 &&
                     "text-destructive"
                   )}
                 >
-                  {!hasFacilityData
-                    ? "N/A"
-                    : liveAvailableFacility != null
-                      ? `RM ${formatMoney(liveAvailableFacility)}`
-                      : "N/A"}
+                  {typeof cd?.available_facility === "number"
+                    ? `RM ${formatMoney(cd.available_facility)}`
+                    : "N/A"}
                 </div>
               </div>
             </div>
