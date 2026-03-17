@@ -122,7 +122,7 @@ export const transferOwnershipSchema = z.object({
 // Postal code: digits only
 const postalCodeRegex = /^\d*$/;
 
-// Address schema for structured addresses
+// Address schema for structured addresses (all fields optional for partial reads)
 export const addressSchema = z.object({
   line1: z.string().optional().nullable(),
   line2: z.string().optional().nullable(),
@@ -138,17 +138,47 @@ export const addressSchema = z.object({
   country: z.string().optional().nullable(),
 });
 
+/** Validates that address has required fields: line1, city, postalCode, state, country. */
+function isValidAddress(addr: z.infer<typeof addressSchema> | null | undefined): boolean {
+  if (!addr || typeof addr !== "object") return false;
+  const line1 = (addr.line1 ?? "").toString().trim();
+  const city = (addr.city ?? "").toString().trim();
+  const postalCode = (addr.postalCode ?? "").toString().trim();
+  const state = (addr.state ?? "").toString().trim();
+  const country = (addr.country ?? "").toString().trim();
+  return !!(line1 && city && postalCode && state && country);
+}
+
 // Corporate info update schema
-export const updateCorporateInfoSchema = z.object({
-  tinNumber: z.string().optional().nullable(),
-  industry: z.string().optional().nullable(),
-  entityType: z.string().optional().nullable(),
-  businessName: z.string().optional().nullable(),
-  numberOfEmployees: z.number().int().positive().optional().nullable(),
-  ssmRegisterNumber: z.string().optional().nullable(),
-  businessAddress: addressSchema.optional().nullable(),
-  registeredAddress: addressSchema.optional().nullable(),
-});
+export const updateCorporateInfoSchema = z
+  .object({
+    tinNumber: z.string().optional().nullable(),
+    industry: z.string().optional().nullable(),
+    entityType: z.string().optional().nullable(),
+    businessName: z.string().optional().nullable(),
+    numberOfEmployees: z.number().int().positive().optional().nullable(),
+    ssmRegisterNumber: z.string().optional().nullable(),
+    businessAddress: addressSchema.optional().nullable(),
+    registeredAddress: addressSchema.optional().nullable(),
+  })
+  .refine(
+    (val) => {
+      if (val.businessAddress !== undefined && val.businessAddress !== null) {
+        return isValidAddress(val.businessAddress);
+      }
+      return true;
+    },
+    { message: "Business address must include line 1, city, postal code, state, and country", path: ["businessAddress"] }
+  )
+  .refine(
+    (val) => {
+      if (val.registeredAddress !== undefined && val.registeredAddress !== null) {
+        return isValidAddress(val.registeredAddress);
+      }
+      return true;
+    },
+    { message: "Registered address must include line 1, city, postal code, state, and country", path: ["registeredAddress"] }
+  );
 
 export type CreateOrganizationInput = z.infer<typeof createOrganizationSchema>;
 export type CompleteOnboardingInput = z.infer<typeof completeOnboardingSchema>;

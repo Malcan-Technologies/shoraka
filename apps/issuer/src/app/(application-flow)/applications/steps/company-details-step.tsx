@@ -143,6 +143,17 @@ function restrictIcNumber(value: string): string {
   return value.replace(/\D/g, "");
 }
 
+/** Business and registered addresses require line1, city, postalCode, state, country. */
+function isValidAddress(addr: Record<string, unknown> | null): boolean {
+  if (!addr) return false;
+  const line1 = (addr.line1 as string)?.trim();
+  const city = (addr.city as string)?.trim();
+  const postalCode = (addr.postalCode as string)?.trim();
+  const state = (addr.state as string)?.trim();
+  const country = (addr.country as string)?.trim();
+  return !!(line1 && city && postalCode && state && country);
+}
+
 const inputClassName = cn(formInputClassName, formInputDisabledClassName);
 const inputClassNameEditable = formInputClassName;
 const labelClassName = formLabelClassName;
@@ -289,6 +300,16 @@ export function CompanyDetailsStep({
     if (!formState.contactPersonContact?.trim()) {
       errors.push("Applicant contact is required");
       fieldErrors.contactPersonContact = "Required";
+    }
+
+    // Address validation
+    if (!isValidAddress(formState.businessAddress)) {
+      errors.push("Business address is required (line 1, city, postal code, state, country)");
+      fieldErrors.businessAddress = "Complete all required fields";
+    }
+    if (!isValidAddress(formState.registeredAddress)) {
+      errors.push("Registered address is required (line 1, city, postal code, state, country)");
+      fieldErrors.registeredAddress = "Complete all required fields";
     }
 
     // Company info validation
@@ -439,6 +460,8 @@ export function CompanyDetailsStep({
 
   const isValid = React.useMemo(() => {
     return !!(
+      isValidAddress(formState.businessAddress) &&
+      isValidAddress(formState.registeredAddress) &&
       formState.contactPersonName?.trim() &&
       formState.contactPersonPosition?.trim() &&
       formState.contactPersonIc?.trim() &&
@@ -673,18 +696,28 @@ export function CompanyDetailsStep({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center">
             <div className={labelClassName}>Business address</div>
-            <Input
-              value={formatAddress(formState.businessAddress)}
-              disabled
-              className={inputClassName}
-            />
+            <div className="flex flex-col gap-1">
+              <Input
+                value={formatAddress(formState.businessAddress)}
+                disabled
+                className={withFieldError(inputClassName, Boolean(fieldErrors.businessAddress))}
+              />
+              {fieldErrors.businessAddress && (
+                <p className="text-xs text-destructive">{fieldErrors.businessAddress}</p>
+              )}
+            </div>
 
             <div className={labelClassName}>Registered address</div>
-            <Input
-              value={formatAddress(formState.registeredAddress)}
-              disabled
-              className={inputClassName}
-            />
+            <div className="flex flex-col gap-1">
+              <Input
+                value={formatAddress(formState.registeredAddress)}
+                disabled
+                className={withFieldError(inputClassName, Boolean(fieldErrors.registeredAddress))}
+              />
+              {fieldErrors.registeredAddress && (
+                <p className="text-xs text-destructive">{fieldErrors.registeredAddress}</p>
+              )}
+            </div>
           </div>
         </div>
 
@@ -988,9 +1021,15 @@ function EditAddressDialog({
     }
   }, [registeredAddressSameAsBusiness, businessAddress]);
 
+  const businessAddressValid = isValidAddress(businessAddress as Record<string, unknown>);
+  const registeredAddressValid = registeredAddressSameAsBusiness
+    ? businessAddressValid
+    : isValidAddress(registeredAddress as Record<string, unknown>);
+
   const handleSave = () => {
     const finalRegisteredAddress = registeredAddressSameAsBusiness ? businessAddress : registeredAddress;
     if (!canEdit) return;
+    if (!businessAddressValid || !registeredAddressValid) return;
     onSave(businessAddress, finalRegisteredAddress);
   };
 
@@ -1191,7 +1230,10 @@ function EditAddressDialog({
           <Button variant="outline" onClick={handleCancel}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={!canEdit}>
+          <Button
+            onClick={handleSave}
+            disabled={!canEdit || !businessAddressValid || !registeredAddressValid}
+          >
             Save Changes
           </Button>
         </DialogFooter>
