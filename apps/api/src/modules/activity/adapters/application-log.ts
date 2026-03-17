@@ -151,28 +151,29 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
       [ApplicationLogEventType.APPLICATION_REJECTED]: "Application rejected",
       [ApplicationLogEventType.APPLICATION_WITHDRAWN]: "Application withdrawn",
       [ApplicationLogEventType.APPLICATION_COMPLETED]: "Application completed",
+      [ApplicationLogEventType.APPLICATION_RESET_TO_UNDER_REVIEW]: "Application reset to under review",
+      [ApplicationLogEventType.SECTION_REVIEWED_APPROVED]: "Section approved",
+      [ApplicationLogEventType.SECTION_REVIEWED_REJECTED]: "Section rejected",
+      [ApplicationLogEventType.SECTION_REVIEWED_AMENDMENT_REQUESTED]: "Section amendment requested",
+      [ApplicationLogEventType.SECTION_REVIEWED_PENDING]: "Section reset to pending",
+      [ApplicationLogEventType.ITEM_REVIEWED_APPROVED]: "Item approved",
+      [ApplicationLogEventType.ITEM_REVIEWED_REJECTED]: "Item rejected",
+      [ApplicationLogEventType.ITEM_REVIEWED_AMENDMENT_REQUESTED]: "Item amendment requested",
+      [ApplicationLogEventType.ITEM_REVIEWED_PENDING]: "Item reset to pending",
+      [ApplicationLogEventType.CONTRACT_OFFER_SENT]: "Contract offer sent",
+      [ApplicationLogEventType.CONTRACT_OFFER_ACCEPTED]: "Contract offer accepted",
+      [ApplicationLogEventType.CONTRACT_OFFER_REJECTED]: "Contract offer withdrawn",
+      [ApplicationLogEventType.CONTRACT_OFFER_RETRACTED]: "Contract offer retracted",
+      [ApplicationLogEventType.CONTRACT_WITHDRAWN]: "Contract offer withdrawn",
+      [ApplicationLogEventType.INVOICE_OFFER_SENT]: "Invoice offer sent",
+      [ApplicationLogEventType.INVOICE_OFFER_ACCEPTED]: "Invoice offer accepted",
+      [ApplicationLogEventType.INVOICE_OFFER_REJECTED]: "Invoice offer rejected",
+      [ApplicationLogEventType.INVOICE_OFFER_RETRACTED]: "Invoice offer retracted",
+      [ApplicationLogEventType.INVOICE_WITHDRAWN]: "Invoice withdrawn",
+      [ApplicationLogEventType.OFFER_EXPIRED]: "Offer expired",
       [ApplicationLogEventType.AMENDMENTS_SUBMITTED]: "Amendment request sent to issuer",
     };
-    if (labels[eventType]) return labels[eventType];
-    const parts = eventType.split("_");
-    const action = parts[parts.length - 1];
-    switch (action) {
-      case "CREATED":
-        return "Created an application";
-      case "SUBMITTED":
-        return "Submitted the application";
-      case "RESUBMITTED":
-        return "Resubmitted the application";
-      case "APPROVED":
-        return "Application approved";
-      case "REJECTED":
-        return "Application rejected";
-      default:
-        return parts
-          .filter((p, i, arr) => p !== arr[i - 1])
-          .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-          .join(" ");
-    }
+    return labels[eventType] ?? "Activity";
   }
 
   getEventTypes(): string[] {
