@@ -6,6 +6,8 @@
     ".": "./src/index.ts",
     "./info-tooltip": "./src/info-tooltip.tsx",
     "./copyable-field": "./src/copyable-field.tsx",
+    "./money-input": "./src/components/money-input.tsx",
+    "./money": "./src/lib/money.ts",
     "./button": "./src/components/button.tsx",
     "./card": "./src/components/card.tsx"
   },

@@ -19,16 +19,7 @@ import {
   useRejectInvoiceOffer,
 } from "@/hooks/use-applications";
 import { toast } from "sonner";
-
-function formatMoney(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) return "—";
-  return new Intl.NumberFormat("en-MY", {
-    style: "currency",
-    currency: "MYR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
+import { formatMoneyDisplay } from "@cashsouk/ui";
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return "—";
@@ -124,11 +115,11 @@ export function ReviewOfferModal({ open, onOpenChange, context }: ReviewOfferMod
             <dl className="grid grid-cols-[1fr_1fr] gap-x-4 gap-y-2 text-sm">
               <dt className="text-muted-foreground">Requested facility</dt>
               <dd className="font-medium text-foreground">
-                {formatMoney(details.requested_facility as number)}
+                {formatMoneyDisplay(details.requested_facility as number)}
               </dd>
               <dt className="text-muted-foreground">Offered facility</dt>
               <dd className="font-medium text-foreground">
-                {formatMoney(details.offered_facility as number)}
+                {formatMoneyDisplay(details.offered_facility as number)}
               </dd>
               <dt className="text-muted-foreground">Expires</dt>
               <dd className="font-medium text-foreground">
@@ -140,11 +131,11 @@ export function ReviewOfferModal({ open, onOpenChange, context }: ReviewOfferMod
             <dl className="grid grid-cols-[1fr_1fr] gap-x-4 gap-y-2 text-sm">
               <dt className="text-muted-foreground">Requested amount</dt>
               <dd className="font-medium text-foreground">
-                {formatMoney(details.requested_amount as number)}
+                {formatMoneyDisplay(details.requested_amount as number)}
               </dd>
               <dt className="text-muted-foreground">Offered amount</dt>
               <dd className="font-medium text-foreground">
-                {formatMoney(details.offered_amount as number)}
+                {formatMoneyDisplay(details.offered_amount as number)}
               </dd>
               {(details.offered_ratio_percent != null || details.offered_profit_rate_percent != null) && (
                 <>

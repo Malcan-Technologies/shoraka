@@ -30,8 +30,8 @@ import {
   fieldTooltipTriggerInputClassName,
   fieldTooltipLabelGap,
 } from "@/app/(application-flow)/applications/components/form-control";
-import { MoneyInput } from "@/app/(application-flow)/applications/components/money-input";
-import { parseMoney, formatMoney } from "@/app/(application-flow)/applications/components/money";
+import { MoneyInput } from "@cashsouk/ui";
+import { parseMoney, formatMoney } from "@cashsouk/ui";
 import { FinancialStatementsSkeleton } from "@/app/(application-flow)/applications/components/financial-statements-skeleton";
 import { FINANCIAL_FIELD_LABELS } from "@cashsouk/types";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";

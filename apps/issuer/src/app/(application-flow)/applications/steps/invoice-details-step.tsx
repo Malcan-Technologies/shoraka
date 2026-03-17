@@ -67,8 +67,8 @@ import {
 } from "@/app/(application-flow)/applications/components/form-control";
 import { StatusBadge } from "../components/invoice-status-badge";
 import { InvoiceErrorCard } from "../components/amendments";
-import { formatMoney, parseMoney } from "../components/money";
-import { MoneyInput } from "@/app/(application-flow)/applications/components/money-input";
+import { formatMoney, parseMoney } from "@cashsouk/ui";
+import { MoneyInput } from "@cashsouk/ui";
 import { InvoiceDetailsSkeleton } from "@/app/(application-flow)/applications/components/invoice-details-skeleton";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import { generateInvoiceData } from "../utils/dev-data-generator";
