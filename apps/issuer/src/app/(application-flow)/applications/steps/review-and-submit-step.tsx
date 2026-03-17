@@ -29,7 +29,7 @@ import { ReviewSupportingDocsSkeleton } from "../components/review-supporting-do
 import { ReviewFinancingSkeleton } from "../components/review-financing-skeleton";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import { format } from "date-fns";
-import { formatMoney } from "../components/money";
+import { formatMoney } from "@cashsouk/ui";
 import { FINANCIAL_FIELD_LABELS } from "@cashsouk/types";
 import { FinancialStatementsSkeleton } from "../components/financial-statements-skeleton";
 import { FileDisplayBadge } from "../components/file-display-badge";

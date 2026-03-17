@@ -20,7 +20,7 @@ import {
   formLabelClassName,
 } from "@/app/(application-flow)/applications/components/form-control";
 import { MoneyInput } from "@cashsouk/ui";
-import { parseMoney, formatMoney } from "@/app/(application-flow)/applications/components/money";
+import { parseMoney, formatMoney } from "@cashsouk/ui";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import { BusinessDetailsSkeleton } from "@/app/(application-flow)/applications/components/business-details-skeleton";
 import { generateBusinessDetailsData } from "@/app/(application-flow)/applications/utils/dev-data-generator";

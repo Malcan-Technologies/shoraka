@@ -1,7 +1,7 @@
 // DEV TEST DATA GENERATOR
 // Safe to delete. Used only for development testing.
 
-import { formatMoney } from "../components/money";
+import { formatMoney } from "@cashsouk/ui";
 import { format, subDays, addDays } from "date-fns";
 
 function randomInt(min: number, max: number): number {

@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { MoneyInput } from "@cashsouk/ui";
-import { formatMoney, parseMoney } from "@/app/settings/products/components/money";
+import { formatMoney, parseMoney } from "@cashsouk/ui";
 import { DocumentTextIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import { formatCurrency, resolveRequestedFacility, resolveOfferedFacility } from "@cashsouk/config";
 import { ReviewSectionCard } from "../review-section-card";

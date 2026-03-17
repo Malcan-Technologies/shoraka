@@ -5,7 +5,7 @@
  */
 
 import { getStepKeyFromStepId, STEP_KEY_DISPLAY } from "@cashsouk/types";
-import { parseMoney } from "../components/money";
+import { parseMoney } from "@cashsouk/ui";
 
 // Step keys we use in validation and payload
 export const FIRST_STEP_KEY = "financing_type";

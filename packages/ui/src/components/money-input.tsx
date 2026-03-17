@@ -3,17 +3,7 @@
 import * as React from "react";
 import { Input } from "./input";
 import { cn } from "../lib/utils";
-
-function formatMoney(value: number | string): string {
-  if (value === "" || value === null || value === undefined) return "";
-  const num =
-    typeof value === "string" ? Number(value.replace(/,/g, "")) : value;
-  if (Number.isNaN(num)) return "";
-  return num.toLocaleString("en-MY", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
+import { formatMoney } from "../lib/money";
 
 interface MoneyInputProps {
   value: string;

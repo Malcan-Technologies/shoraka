@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { Input } from "../../../../../components/ui/input";
 import { Label } from "../../../../../components/ui/label";
 import { INPUT_CLASS, FIELD_GAP, SECTION_GAP } from "../product-form-input-styles";
-import { formatMoney } from "../../components/money";
+import { formatMoney } from "@cashsouk/ui";
 import { MoneyInput } from "@cashsouk/ui";
 
 export interface InvoiceDetailsConfigShape {

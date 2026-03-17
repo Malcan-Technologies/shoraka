@@ -19,6 +19,7 @@ import { useOrganizationApplications } from "@/hooks/use-applications";
 import { useProducts } from "@/hooks/use-products";
 import { getOfferStatus, type OfferStatus } from "@/lib/offer-utils";
 import { ReviewOfferModal } from "@/components/review-offer-modal";
+import { formatMoneyDisplay } from "@cashsouk/ui";
 
 /* ============================================================
    Real data (applications for active organization)
@@ -103,31 +104,8 @@ function ReviewOfferButton({
   );
 }
 
-function formatMoney(value: any) {
-  if (value === null || value === undefined) return "NA";
-
-  let num: number;
-  if (typeof value === "number") {
-    num = value;
-  } else if (typeof value === "string") {
-    // remove non-numeric characters except dot and minus
-    const cleaned = value.replace(/[^\d.-]/g, "");
-    num = cleaned === "" ? NaN : Number(cleaned);
-  } else {
-    num = Number(value);
-  }
-
-  if (Number.isNaN(num)) return "NA";
-
-  const formatted = new Intl.NumberFormat("en-MY", {
-    style: "currency",
-    currency: "MYR",
-    currencyDisplay: "narrowSymbol",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(num);
-
-  return formatted.replace(/^RM/, "RM ");
+function formatMoney(value: unknown) {
+  return formatMoneyDisplay(value, "NA");
 }
 
 function formatDate(value: any) {
