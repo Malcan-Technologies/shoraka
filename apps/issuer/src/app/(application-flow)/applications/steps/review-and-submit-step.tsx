@@ -67,9 +67,9 @@ interface ReviewAndSubmitStepProps {
 // Centralized layout/class tokens (aligned with Branding.mdc)
 const pageWrapperClassName = "mx-auto max-w-7xl px-6 "; //py-10 md:py-12
 const labelClassName = formLabelClassName; // canonical label class from shared form control
-const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
+const valueClassName = "text-[17px] leading-7 text-foreground font-medium break-words min-w-0";
 const sectionHeaderClassName = "text-base font-semibold text-foreground";
-const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 px-3 items-center";
+const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 px-3 items-start min-w-0";
 const sectionSpacingClassName = "space-y-6";
 export function ReviewAndSubmitStep({
   applicationId,
@@ -542,8 +542,8 @@ export function ReviewAndSubmitStep({
                                     {isValidNumber(financingAmount) ? renderMoney(financingAmount) : "—"}
                                   </TableCell>
 
-                                  {/* Document — can overflow; horizontal scroll when long filenames */}
-                                  <TableCell className="p-2 min-w-[160px] whitespace-nowrap">
+                                  {/* Document — wrap when long filenames */}
+                                  <TableCell className="p-2 min-w-[160px] break-words">
                                     {d.document?.file_name ? (
                                       <FileDisplayBadge
                                         fileName={d.document.file_name}
@@ -635,16 +635,16 @@ export function ReviewAndSubmitStep({
     <React.Fragment key={item.key}>
       <div className={labelClassName}>{item.roleLabel}</div>
 
-      <div className="max-w-[480px] w-full">
+      <div className="max-w-[480px] w-full min-w-0">
         <div className="grid grid-cols-[160px_auto_160px_auto_160px] items-center gap-x-3">
 
-          <div className={valueClassName}>
+          <div className={cn(valueClassName, "break-words")}>
             {item.name}
           </div>
 
           <div className="w-px h-4 bg-border" />
 
-          <div className="text-[17px] leading-7 text-muted-foreground">
+          <div className="text-[17px] leading-7 text-muted-foreground break-words min-w-0">
             {item.ownership}
           </div>
 
