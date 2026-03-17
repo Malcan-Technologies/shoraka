@@ -996,6 +996,14 @@ export default function InvoiceDetailsStep({
                     : "—"}
                 </div>
 
+                {/* ================= Contract Financing ================= */}
+                <div className={formLabelClassName}>Contract financing</div>
+                <div className={valueClassName}>
+                  {application?.contract?.contract_details?.financing != null
+                    ? `RM ${formatMoney(application.contract.contract_details.financing)}`
+                    : "N/A"}
+                </div>
+
                 {/* ================= Approved Facility ================= */}
                 <div className={formLabelClassName}>Approved facility</div>
                 <div className={valueClassName}>

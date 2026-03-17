@@ -24,6 +24,8 @@ import { ReviewSupportingDocsSkeleton } from "../components/review-supporting-do
 import { ReviewFinancingSkeleton } from "../components/review-financing-skeleton";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import { formatMoney } from "../components/money";
+import { FINANCIAL_FIELD_LABELS } from "@cashsouk/types";
+import { FinancialStatementsSkeleton } from "../components/financial-statements-skeleton";
 
 const INVOICE_TABLE_COLUMNS = {
   invoice: "w-[140px]",
@@ -116,6 +118,7 @@ export function ReviewAndSubmitStep({
   const showContractSection = workflowStepKeys.has("contract_details");
   const showInvoiceSection = workflowStepKeys.has("invoice_details");
   const showCompanySection = workflowStepKeys.has("company_details");
+  const showFinancialStatementsSection = workflowStepKeys.has("financial_statements");
   const showSupportingDocsSection = workflowStepKeys.has("supporting_documents");
 
   // Conditionally fetch data only if sections are needed
@@ -265,6 +268,7 @@ export function ReviewAndSubmitStep({
   const invoiceLoading = showInvoiceSection && isLoadingInvoices;
   const financingLoading = showFinancingDetails && isLoadingProducts;
   const companyLoading = showCompanySection && (isLoadingInfo || isLoadingEntities);
+  const financialStatementsLoading = showFinancialStatementsSection && isLoadingApp;
   const supportingLoading = showSupportingDocsSection && isLoadingApp;
 
 
@@ -380,23 +384,23 @@ export function ReviewAndSubmitStep({
                 <div className={labelClassName}>Contract financing</div>
                 <div className={valueClassName}>
                   {contractDetails?.financing === null || contractDetails?.financing === undefined
-                    ? "—"
+                    ? "N/A"
                     : renderMoney(contractDetails?.financing)}
                 </div>
 
                 <div className={labelClassName}>Approved facility</div>
                 <div className={valueClassName}>
-                  {isValidNumber(approvedFacility) && approvedFacility > 0 ? renderMoney(approvedFacility) : "—"}
+                  {isValidNumber(approvedFacility) && approvedFacility > 0 ? renderMoney(approvedFacility) : "N/A"}
                 </div>
 
                 <div className={labelClassName}>Utilised facility</div>
                 <div className={valueClassName}>
-                  {structureType === "existing_contract" && isValidNumber(totalFinancingAmount) ? renderMoney(totalFinancingAmount) : "—"}
+                  {structureType === "existing_contract" && isValidNumber(totalFinancingAmount) ? renderMoney(totalFinancingAmount) : "N/A"}
                 </div>
 
                 <div className={labelClassName}>Available facility</div>
                 <div className={valueClassName}>
-                  {structureType === "existing_contract" && isValidNumber(calculatedAvailableFacility) ? renderMoney(calculatedAvailableFacility) : "—"}
+                  {structureType === "existing_contract" && isValidNumber(calculatedAvailableFacility) ? renderMoney(calculatedAvailableFacility) : "N/A"}
                 </div>
               </div>
             )}
@@ -408,16 +412,15 @@ export function ReviewAndSubmitStep({
           <section className={sectionSpacingClassName}>
             <div>
               <h3 className={sectionHeaderClassName}>Invoices</h3>
+              <p className="text-sm text-muted-foreground mt-1">
+                You may include multiple invoices in a single financing request, provided all invoices relate to the same underlying contract with the buyer
+              </p>
               <div className="border-b border-border mt-2 mb-4" />
             </div>
             {invoiceLoading || devTools?.showSkeletonDebug ? (
               <ReviewInvoiceSkeleton />
             ) : (
               <>
-                <p className="text-sm text-muted-foreground">
-                  You may include multiple invoices in a single financing request, provided all invoices relate to the same underlying contract with the buyer
-                </p>
-
                 <div className="border rounded-xl bg-card overflow-hidden">
                   {invoices.length === 0 ? (
                     <div className="p-4 text-sm text-muted-foreground italic">
@@ -440,13 +443,13 @@ export function ReviewAndSubmitStep({
                                 Maturity date
                               </TableHead>
                               <TableHead className={`${INVOICE_TABLE_COLUMNS.value} text-xs font-semibold`}>
-                                Invoice value (RM)
+                                Invoice value
                               </TableHead>
                               <TableHead className={`${INVOICE_TABLE_COLUMNS.ratio} text-xs font-semibold`}>
                                 Financing ratio
                               </TableHead>
                               <TableHead className={`${INVOICE_TABLE_COLUMNS.amount} text-xs font-semibold`}>
-                                Maximum financing amount (RM)
+                                Maximum financing amount
                               </TableHead>
                               <TableHead className={`${INVOICE_TABLE_COLUMNS.document} text-xs font-semibold`}>
                                 Documents
@@ -687,6 +690,48 @@ export function ReviewAndSubmitStep({
               )}
             </section>
           </>
+        )}
+
+        {/* Financial Statements */}
+        {showFinancialStatementsSection && (
+          <section className={sectionSpacingClassName}>
+            <div>
+              <h3 className={sectionHeaderClassName}>Financial Statements</h3>
+              <div className="border-b border-border mt-2 mb-4" />
+            </div>
+            {financialStatementsLoading || devTools?.showSkeletonDebug ? (
+              <FinancialStatementsSkeleton />
+            ) : (() => {
+              const raw = (application as any)?.financial_statements;
+              const data = raw && typeof raw === "object" && "input" in raw ? raw.input : raw;
+              const flat = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
+              const keys = Object.keys(FINANCIAL_FIELD_LABELS);
+              if (keys.length === 0) {
+                return <div className="text-sm text-muted-foreground italic px-3">No financial data</div>;
+              }
+              return (
+                <div className={sectionGridClassName}>
+                  {keys.map((key) => {
+                    const label = FINANCIAL_FIELD_LABELS[key];
+                    const val = flat[key];
+                    const isDate = key === "pldd" || key === "bsdd";
+                    const display = val == null || val === ""
+
+                      ? "N/A"
+                      : isDate
+                        ? String(val)
+                        : renderMoney(Number(String(val).replace(/,/g, "")));
+                    return (
+                      <React.Fragment key={key}>
+                        <div className={labelClassName}>{label}</div>
+                        <div className={valueClassName}>{display}</div>
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </section>
         )}
 
         {/* Legal docs */}

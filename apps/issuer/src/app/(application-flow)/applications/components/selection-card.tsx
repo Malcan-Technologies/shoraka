@@ -93,7 +93,7 @@ export function SelectionCard({
   disabled = false,
 }: SelectionCardProps) {
   // Derive wrapper classes depending on disabled state.
-  const wrapperClass = disabled ? "block w-full" : "block w-full cursor-pointer";
+  const wrapperClass = disabled ? "block w-full cursor-default" : "block w-full cursor-pointer";
   // Only show focus ring when interactive.
   const focusClass = disabled ? "" : cardFocusClassName;
 
