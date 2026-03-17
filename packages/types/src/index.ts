@@ -231,9 +231,9 @@ export interface ContractDetails {
   financing: number;
   start_date: string;
   end_date: string;
-  approved_facility: number;
-  utilized_facility: number;
-  available_facility: number;
+  approved_facility: number | null;
+  utilized_facility: number | null;
+  available_facility: number | null;
   document?: {
     s3_key: string;
     file_name: string;

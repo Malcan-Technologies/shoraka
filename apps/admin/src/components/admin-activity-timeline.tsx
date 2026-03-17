@@ -46,7 +46,6 @@ import {
   DocumentTextIcon,
   CheckCircleIcon,
   XCircleIcon,
-  StarIcon,
   PlayIcon,
   UserIcon,
   GlobeAltIcon,

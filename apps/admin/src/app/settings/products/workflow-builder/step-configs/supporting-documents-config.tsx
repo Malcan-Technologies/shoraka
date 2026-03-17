@@ -4,7 +4,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Label } from "../../../../../components/ui/label";
 import { Input } from "../../../../../components/ui/input";
-import { INPUT_CLASS, FIELD_GAP, SECTION_GAP, SELECT_TRIGGER_CLASS } from "../product-form-input-styles";
+import { INPUT_CLASS, SECTION_GAP, SELECT_TRIGGER_CLASS } from "../product-form-input-styles";
 import { Button } from "../../../../../components/ui/button";
 import { Skeleton } from "../../../../../components/ui/skeleton";
 import {

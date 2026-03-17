@@ -124,57 +124,10 @@ function StatusBadge({
   );
 }
 
-const DOCUMENT_NAME_MAX_LENGTH = 40;
-
 /** Single date display format used across the page. e.g. "10 Mar 2026" */
 function formatDate(date: string | Date | null | undefined): string {
   if (date == null) return "—";
   return format(new Date(date), "d MMM yyyy");
-}
-
-function truncateDocumentName(name: string): string {
-  if (name.length <= DOCUMENT_NAME_MAX_LENGTH) return name;
-  return `${name.slice(0, DOCUMENT_NAME_MAX_LENGTH)}…`;
-}
-
-function DocumentDownloadLink({
-  documentName,
-  documentS3Key,
-  onDownload,
-  disabled,
-}: {
-  documentName: string;
-  documentS3Key: string | null;
-  onDownload: (s3Key: string) => Promise<void>;
-  disabled?: boolean;
-}) {
-  const [loading, setLoading] = React.useState(false);
-  const displayName = truncateDocumentName(documentName);
-  if (!documentS3Key || disabled) {
-    return <span className="text-[15px] text-muted-foreground" title={documentName}>{displayName}</span>;
-  }
-  return (
-    <span className="inline-flex items-center gap-1.5 text-[15px]">
-      <span title={documentName}>{displayName}</span>
-      <button
-        type="button"
-        onClick={async (e) => {
-          e.preventDefault();
-          setLoading(true);
-          try {
-            await onDownload(documentS3Key);
-          } finally {
-            setLoading(false);
-          }
-        }}
-        disabled={loading}
-        className="inline-flex shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50"
-        aria-label={`Download ${documentName}`}
-      >
-        <ArrowDownTrayIcon className="h-4 w-4" />
-      </button>
-    </span>
-  );
 }
 
 /** Invoice table document cell: filename badge + download button when s3_key exists. */
@@ -528,11 +481,11 @@ function ApplicationCard({
                                       </Button>
                                     )
                                   )}
-                                  {showReviewOffer && inv.offer_details?.expires_at && (
+                                  {showReviewOffer && inv.offer_details?.expires_at != null ? (
                                     <span className="text-[10px] text-muted-foreground">
                                       Offer valid until: {format(new Date(String(inv.offer_details.expires_at)), "d MMM yyyy")}
                                     </span>
-                                  )}
+                                  ) : null}
                                   {showMakeAmendments && (
                                     <Button
                                       size="sm"
@@ -650,17 +603,6 @@ export default function ApplicationsPage() {
     setReviewModalOpen(true);
   }, []);
 
-  const handleCancelApplication = React.useCallback(
-    async (applicationId: string) => {
-      try {
-        await cancelApplication.mutateAsync(applicationId);
-      } catch {
-        // toast handled by mutation onError
-      }
-    },
-    [cancelApplication]
-  );
-
   const handleWithdrawApplicationClick = React.useCallback((applicationId: string) => {
     if (withdrawDialogScheduledRef.current) return;
     withdrawDialogScheduledRef.current = true;
@@ -684,17 +626,6 @@ export default function ApplicationsPage() {
       // toast handled by mutation onError
     }
   }, [withdrawApplicationId, cancelApplication]);
-
-  const handleWithdrawInvoice = React.useCallback(
-    async (invoiceId: string, applicationId: string, organizationId?: string) => {
-      try {
-        await withdrawInvoice.mutateAsync({ invoiceId, applicationId, organizationId });
-      } catch {
-        // toast handled by mutation onError
-      }
-    },
-    [withdrawInvoice]
-  );
 
   const handleWithdrawInvoiceClick = React.useCallback(
     (invoiceId: string, applicationId: string, organizationId?: string) => {

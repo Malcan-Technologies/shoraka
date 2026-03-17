@@ -59,7 +59,7 @@ export class ProductRepository {
     });
   }
 
-  async create(data: CreateProductData, logContext?: LogContext): Promise<Product> {
+  async create(data: CreateProductData, _logContext?: LogContext): Promise<Product> {
     // Determine category and ordering from workflow config (financing type step)
     const workflow = data.workflow as unknown[];
     const financingStep = (workflow || []).find((step: any) =>
