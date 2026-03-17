@@ -333,6 +333,7 @@ function FileUploadArea({
     const fileName = pendingFile?.name || uploadedFile?.file_name || "";
     const fileSize = pendingFile?.size || uploadedFile?.file_size || 0;
     const isPending = !!pendingFile;
+    const statusText = isPending ? (isUploading ? " (Uploading…)" : " (Pending…)") : "";
 
     return (
       <div className="border border-border rounded-xl px-4 py-3 flex items-center justify-between gap-3 bg-card/50">
@@ -354,7 +355,7 @@ function FileUploadArea({
             <div className="text-sm font-medium truncate">{fileName}</div>
             <div className="text-xs text-muted-foreground">
               {(fileSize / 1024 / 1024).toFixed(2)} MB
-              {isPending && " (Uploading…)"}
+              {statusText}
             </div>
           </div>
         </div>
@@ -1286,9 +1287,10 @@ export function ContractDetailsStep({
 
                   handleInputChange("customer", "ssm_number", raw);
                 }}
-                placeholder="eg. 202123456789"
+                placeholder="e.g. 202123456789"
                 className={inputClassName}
               />
+              <p className="text-xs text-muted-foreground">12 digits</p>
               {hasSubmitted && !/^\d{12}$/.test(formData.customer.ssm_number) && (
                 <p className="text-xs text-destructive">
                   SSM number must be 12 digits
@@ -1338,7 +1340,7 @@ export function ContractDetailsStep({
               />
             </div>
 
-            <Label className={cn(labelClassName, "self-start")}>Upload customer consent</Label>
+            <Label className={cn(labelClassName, "self-start")}>Upload Customer Consent</Label>
             <div className="self-start">
             <FileUploadArea
               onFileSelect={(file) => handleFileUpload("consent", file)}
