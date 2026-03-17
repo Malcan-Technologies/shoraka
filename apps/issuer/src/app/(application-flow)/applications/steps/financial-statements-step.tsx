@@ -208,7 +208,7 @@ const formOuterClassName = "w-full max-w-[1200px] flex flex-col gap-10 px-3";
    ================================================================ */
 
 const NEGATIVE_TOOLTIP_TEXT = "Negative values allowed for losses\nExample: -5000";
-const FINANCIAL_DATA_UNTIL_TOOLTIP = "The latest date your financial numbers are updated to (management accounts).";
+const FINANCIAL_DATA_UNTIL_TOOLTIP = "The latest date your financial numbers are updated to (management accounts)";
 
 function MoneyFieldRow({
   id,

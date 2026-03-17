@@ -63,6 +63,8 @@ import {
   formInputDisabledClassName,
   formLabelClassName,
   withFieldError,
+  fieldTooltipContentClassName,
+  fieldTooltipTriggerClassName,
 } from "@/app/(application-flow)/applications/components/form-control";
 import { StatusBadge } from "../components/invoice-status-badge";
 import { InvoiceErrorCard } from "../components/amendments";
@@ -1089,11 +1091,11 @@ export default function InvoiceDetailsStep({
                                   typeof productConfig.max_invoice_value === "number") && (
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <span className="cursor-help text-muted-foreground hover:text-foreground">
-                                        <InformationCircleIcon className="h-3.5 w-3.5" />
+                                      <span className={fieldTooltipTriggerClassName}>
+                                        <InformationCircleIcon className="h-4 w-4" />
                                       </span>
                                     </TooltipTrigger>
-                                    <TooltipContent side="top" className="max-w-[240px]">
+                                    <TooltipContent side="top" className={fieldTooltipContentClassName}>
                                       Per-invoice financing limits:{" "}
                                       {typeof productConfig.min_invoice_value === "number"
                                         ? `min RM ${formatMoney(productConfig.min_invoice_value)}`
