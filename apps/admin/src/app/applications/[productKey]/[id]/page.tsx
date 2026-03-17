@@ -206,11 +206,16 @@ export default function DynamicApplicationDetailPage() {
       ?.visible_review_sections;
     if (!Array.isArray(fromApi)) return null;
     const normalized = fromApi.filter((s): s is string => typeof s === "string");
-    return normalized.length > 0 ? new Set(normalized) : null;
+    const set = new Set(normalized);
+    if (set.has("financial_statements") && !set.has("financial")) set.add("financial");
+    return normalized.length > 0 ? set : null;
   }, [app]);
   const effectiveTabDescriptors = React.useMemo(() => {
     if (!visibleReviewSectionsFromApi) return tabDescriptors;
-    return tabDescriptors.filter((d) => visibleReviewSectionsFromApi.has(d.reviewSection));
+    return tabDescriptors.filter((d) =>
+      visibleReviewSectionsFromApi.has(d.reviewSection) ||
+      (d.reviewSection === "financial" && visibleReviewSectionsFromApi.has("financial_statements"))
+    );
   }, [tabDescriptors, visibleReviewSectionsFromApi]);
 
   const isExistingContract = React.useMemo(

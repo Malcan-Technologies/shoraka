@@ -259,9 +259,12 @@ export class AdminService {
       const stepId = typeof step.id === "string" ? step.id : "";
       if (!stepId) continue;
       const stepKey = getStepKeyFromStepId(stepId);
-      if (!stepKey || !AdminService.WORKFLOW_REVIEW_SECTION_KEYS.has(stepKey)) {
+      if (!stepKey) continue;
+      if (stepKey === "financial_statements") {
+        requiredSections.add("financial");
         continue;
       }
+      if (!AdminService.WORKFLOW_REVIEW_SECTION_KEYS.has(stepKey)) continue;
       requiredSections.add(stepKey as ReviewSection);
     }
 
