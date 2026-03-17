@@ -601,60 +601,50 @@ export function SupportingDocumentsStep({
                           {document.title}
                         </div>
 
-                        {/* Action column: template, uploaded file. Lock when !isEditable. */}
+                        {/* Action column: template, amendment, upload — all aligned far right */}
                         <div
                           className={cn(
-                            "flex justify-end",
+                            "flex flex-col items-end gap-2",
                             !isEditable && "pointer-events-none opacity-60 cursor-not-allowed"
                           )}
                         >
-                          <div className="flex justify-end items-start flex-wrap gap-3 w-full">
-                            {/* Download template */}
-                              {templateS3Key && (
-                                <button
-                                  type="button"
-                                  disabled={!isEditable}
-                                  className="inline-flex items-center gap-1.5 text-[14px] text-muted-foreground hover:text-foreground whitespace-nowrap h-6 disabled:opacity-50 disabled:cursor-not-allowed"
-                                  onClick={async () => {
-                                    const token = await getAccessToken();
-                                    const resp = await fetch(`${API_URL}/v1/s3/download-url`, {
-                                      method: "POST",
-                                      headers: {
-                                        Authorization: `Bearer ${token}`,
-                                        "Content-Type": "application/json",
-                                      },
-                                      body: JSON.stringify({ s3Key: templateS3Key }),
-                                    });
-                                    const j = await resp.json();
-                                    if (j?.success && j.data?.downloadUrl) {
-                                      window.open(j.data.downloadUrl, "_blank");
-                                    }
-                                  }}
-                                >
-                                  <ArrowDownTrayIcon className="h-4 w-4" />
-                                  <span>Download template</span>
-                                </button>
-                              )}
-
-                            {/* Upload slot: item-level amendment message beside document (CashSouk styling) */}
-                            <div className="flex items-center gap-2 min-w-0">
-                              {isItemFlagged && itemRemark ? (
-                                <span className="inline-flex items-center gap-1.5 text-xs text-destructive shrink-0 max-w-[180px]" title={itemRemark}>
-                                  <ExclamationTriangleIcon className="h-3.5 w-3.5 shrink-0" />
-                                  {itemRemark.split("\n")[0]}
-                                </span>
-                              ) : null}
-                              <div className="min-w-[160px] shrink-0">
+                          {templateS3Key && (
+                            <button
+                              type="button"
+                              disabled={!isEditable}
+                              className="inline-flex items-center gap-1.5 text-[14px] text-muted-foreground hover:text-foreground whitespace-nowrap h-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                              onClick={async () => {
+                                const token = await getAccessToken();
+                                const resp = await fetch(`${API_URL}/v1/s3/download-url`, {
+                                  method: "POST",
+                                  headers: {
+                                    Authorization: `Bearer ${token}`,
+                                    "Content-Type": "application/json",
+                                  },
+                                  body: JSON.stringify({ s3Key: templateS3Key }),
+                                });
+                                const j = await resp.json();
+                                if (j?.success && j.data?.downloadUrl) {
+                                  window.open(j.data.downloadUrl, "_blank");
+                                }
+                              }}
+                            >
+                              <ArrowDownTrayIcon className="h-4 w-4" />
+                              <span>Download template</span>
+                            </button>
+                          )}
+                          <div className="flex flex-row items-center gap-3 justify-end">
+                            {isItemFlagged && itemRemark ? (
+                              <div className="inline-flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 max-w-[240px]">
+                                <ExclamationTriangleIcon className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                                <p className="text-sm text-foreground leading-snug">{itemRemark.split("\n")[0]}</p>
+                              </div>
+                            ) : null}
+                            <div className="shrink-0">
                                 {isUploaded && file && !fileIsUploading ? (
                                   isItemFlagged ? (
-                                    <div
-                                      className={cn(
-                                        "inline-flex items-center gap-2 rounded-sm border px-2 py-[2px] h-6 min-h-6",
-                                        "border-destructive"
-                                      )}
-                                    >
-                                      <ExclamationTriangleIcon className="h-3.5 w-3.5 text-destructive shrink-0" />
-                                      <span title={file.name} className="text-[14px] font-medium truncate min-w-0">
+                                    <div className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 min-h-9">
+                                      <span title={file.name} className="text-sm font-medium truncate min-w-0">
                                         {file.name}
                                       </span>
                                       {isEditable && (
@@ -711,7 +701,6 @@ export function SupportingDocumentsStep({
                                     />
                                   </label>
                                 )}
-                              </div>
                             </div>
                           </div>
                         </div>
