@@ -1321,12 +1321,11 @@ export default function EditApplicationPage() {
                   : "Submit"
                 : updateStepMutation.isPending || isSaving
                   ? "Saving..."
+                  : isAmendmentModeEffective && !isStepFlagged
+                  ? "Continue"
                   : "Save and Continue"}
               <ArrowRightIcon className="h-4 w-4 ml-2" />
             </Button>
-            {isAmendmentModeEffective && !isStepFlagged && currentStepKey !== "review_and_submit" ? (
-              <p className="text-xs text-muted-foreground">Continuing without saving</p>
-            ) : null}
             </div>
           </div>
         </footer>
