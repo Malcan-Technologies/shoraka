@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { MoneyInput } from "@cashsouk/issuer/src/app/(application-flow)/applications/components/money-input";
+import { MoneyInput } from "@cashsouk/ui";
 import { formatMoney, parseMoney } from "@/app/settings/products/components/money";
 import { DocumentTextIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 import { formatCurrency, resolveRequestedFacility, resolveOfferedFacility } from "@cashsouk/config";

@@ -49,7 +49,7 @@ import {
   fieldTooltipLabelGap,
 } from "@/app/(application-flow)/applications/components/form-control";
 import { formatMoney, parseMoney } from "../components/money";
-import { MoneyInput } from "@/app/(application-flow)/applications/components/money-input";
+import { MoneyInput } from "@cashsouk/ui";
 import { format, parse, isValid, parseISO } from "date-fns";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 

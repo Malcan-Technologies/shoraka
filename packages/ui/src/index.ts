@@ -77,6 +77,7 @@ export { cn } from "./lib/utils";
 export { NotFound } from "./components/not-found";
 export { InfoTooltip } from "./info-tooltip";
 export { CopyableField } from "./copyable-field";
+export { MoneyInput } from "./components/money-input";
 export { Progress } from "./components/progress";
 export { Checkbox } from "./components/checkbox";
 export { Switch } from "./components/switch";

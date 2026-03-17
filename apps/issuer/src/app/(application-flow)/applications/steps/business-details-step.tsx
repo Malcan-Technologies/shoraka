@@ -19,7 +19,7 @@ import {
   formTextareaClassName,
   formLabelClassName,
 } from "@/app/(application-flow)/applications/components/form-control";
-import { MoneyInput } from "@/app/(application-flow)/applications/components/money-input";
+import { MoneyInput } from "@cashsouk/ui";
 import { parseMoney, formatMoney } from "@/app/(application-flow)/applications/components/money";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import { BusinessDetailsSkeleton } from "@/app/(application-flow)/applications/components/business-details-skeleton";
