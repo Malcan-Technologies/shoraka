@@ -465,13 +465,6 @@ export function AdminActivityTimeline({ applicationId, sectionLabelOverrides }: 
                               )}
                             </div>
 
-                            {/* IP address (may be undefined depending on the application logs payload) */}
-                            {log.ip_address && (
-                              <p className="text-[10px] text-muted-foreground/50 font-mono mt-0.5">
-                                {log.ip_address}
-                              </p>
-                            )}
-
                             {/* Timestamp */}
                             <div className="flex items-center gap-3 mt-1">
                               <p
