@@ -442,7 +442,7 @@ export function ReviewAndSubmitStep({
                     <>
                       {/* Table — same structure as invoice-details; document column can overflow → horizontal scroll */}
                       <div className="overflow-x-auto">
-                        <Table className="min-w-[1080px] w-max">
+                        <Table className="w-full min-w-[1080px]">
                           <TableHeader className="bg-muted/20">
                             <TableRow>
                               <TableHead className="w-[140px] whitespace-nowrap text-xs font-semibold">
