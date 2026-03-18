@@ -280,10 +280,10 @@ export function InvoiceList({
         <TableHeader className={applicationTableHeaderBgClass}>
           <TableRow className="hover:bg-transparent border-b border-border">
             <TableHead className="w-10 px-4 py-3" />
-            <TableHead className={applicationTableHeaderCenterClass}>Invoice No.</TableHead>
-            <TableHead className={applicationTableHeaderNumericClass}>Invoice value</TableHead>
-            <TableHead className={applicationTableHeaderNumericClass}>Financing ratio</TableHead>
-            <TableHead className={applicationTableHeaderNumericClass}>Financing amount</TableHead>
+            <TableHead className={applicationTableHeaderCenterClass}>Invoice Number</TableHead>
+            <TableHead className={applicationTableHeaderNumericClass}>Invoice Value</TableHead>
+            <TableHead className={applicationTableHeaderNumericClass}>Financing Ratio</TableHead>
+            <TableHead className={applicationTableHeaderNumericClass}>Financing Amount</TableHead>
             <TableHead className={applicationTableHeaderCenterClass}>Status</TableHead>
             <TableHead className={`${applicationTableHeaderCenterClass} w-[120px]`}>Action</TableHead>
           </TableRow>
