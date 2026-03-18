@@ -103,7 +103,7 @@ export function buildCompanyDetails(issuerOrganizationId: string): Record<string
     contact_person: {
       ic: `${randomInt(600101, 990131)}-${randomInt(10, 99)}-${randomInt(1000, 9999)}`,
       name: `Ahmad bin ${randomFrom(["Hassan", "Rahman", "Ibrahim", "Salleh"])}`,
-      contact: `0${randomInt(12, 19)}-${randomInt(1000000, 9999999)}`,
+      contact: `0${randomInt(12, 19)}${randomInt(1000000, 9999999)}`,
       position: randomFrom(["Director", "Finance Manager", "Managing Director"]),
     },
     issuer_organization_id: issuerOrganizationId,

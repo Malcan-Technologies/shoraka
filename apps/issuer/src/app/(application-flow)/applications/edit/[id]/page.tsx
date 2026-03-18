@@ -282,10 +282,14 @@ export default function EditApplicationPage() {
     return m;
   }, [amendmentContext]);
 
-  /** Step keys that have amendment remarks. Stepper uses this for red styling. Review & Submit is always flagged in amendment mode. */
+  /** Step keys that have amendment remarks. Stepper uses this for red styling. Review & Submit is always flagged in amendment mode.
+   * Admin uses "financial" for the Financial tab; issuer workflow uses "financial_statements". Map so the step shows the flag. */
   const amendmentFlaggedStepKeys = React.useMemo(() => {
     const s = new Set<string>();
-    for (const k of flaggedSections) s.add(k);
+    for (const k of flaggedSections) {
+      s.add(k);
+      if (k === "financial") s.add("financial_statements");
+    }
     for (const k of flaggedItems.keys()) s.add(k);
     if (application?.status === "AMENDMENT_REQUESTED" || devPreviewAmendment) {
       s.add("review_and_submit");
@@ -695,21 +699,29 @@ export default function EditApplicationPage() {
      RENDER STEP COMPONENT
      ================================================================ */
 
-  /** True when the current step has section-level remarks or any item-level remarks. Drives amendment UI. */
+  /** True when the current step has section-level remarks or any item-level remarks. Drives amendment UI.
+   * Admin uses "financial" for the Financial tab; issuer workflow uses "financial_statements". */
   const isStepFlagged = React.useMemo(() => {
     if (!isAmendmentModeEffective) return true;
     if (!currentStepKey) return false;
-    return flaggedSections.has(currentStepKey) || (flaggedItems.get(currentStepKey)?.size ?? 0) > 0;
+    const sectionMatch =
+      flaggedSections.has(currentStepKey) ||
+      (currentStepKey === "financial_statements" && flaggedSections.has("financial"));
+    return sectionMatch || (flaggedItems.get(currentStepKey)?.size ?? 0) > 0;
   }, [isAmendmentModeEffective, flaggedSections, flaggedItems, currentStepKey]);
 
-  /** Remarks for the current step. Section-level ones show on the top card; item-level ones show beside each file or item. */
+  /** Remarks for the current step. Section-level ones show on the top card; item-level ones show beside each file or item.
+   * Admin uses "financial" for the Financial tab; issuer workflow uses "financial_statements". */
   const currentStepRemarks = React.useMemo(() => {
     if (!currentStepKey || !amendmentContext?.remarks) return [];
     const remarks = amendmentContext.remarks as { scope?: string; scope_key?: string; remark?: string }[];
     return remarks
       .filter((r) => {
         if (r.scope !== "section" || !r.scope_key) return false;
-        return r.scope_key === currentStepKey;
+        return (
+          r.scope_key === currentStepKey ||
+          (currentStepKey === "financial_statements" && r.scope_key === "financial")
+        );
       })
       .map((r) => r.remark || "");
   }, [currentStepKey, amendmentContext?.remarks]);

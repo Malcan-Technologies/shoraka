@@ -36,6 +36,7 @@ export async function getAmendmentAllowedSections(
   for (const r of remarks) {
     if (r.scope === "section" && r.scope_key) {
       allowedSections.add(r.scope_key);
+      if (r.scope_key === "financial") allowedSections.add("financial_statements");
     } else if (r.scope === "item" && r.scope_key) {
       const stepKey = r.scope_key.split(":")[0];
       allowedSections.add(stepKey);
