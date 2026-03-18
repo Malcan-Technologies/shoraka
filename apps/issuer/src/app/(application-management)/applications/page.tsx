@@ -881,7 +881,7 @@ export default function ApplicationsPage() {
             </CardTitle>
             <Badge
               variant="secondary"
-              className="rounded-full bg-secondary text-secondary-foreground font-medium px-3 py-1"
+              className="rounded-full bg-muted text-muted-foreground font-medium px-3 py-1"
             >
               {filteredApplications.length}
             </Badge>
@@ -1084,7 +1084,7 @@ export default function ApplicationsPage() {
 
               <Badge
                 variant="secondary"
-                className="h-11 px-4 rounded-xl text-sm font-medium bg-secondary/20 text-secondary-foreground border-none whitespace-nowrap"
+                className="h-11 px-4 rounded-xl text-sm font-medium bg-muted text-muted-foreground border-none whitespace-nowrap"
               >
                 {hasFilters ? (
                   <>
