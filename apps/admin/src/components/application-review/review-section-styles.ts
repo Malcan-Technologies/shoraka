@@ -55,6 +55,15 @@ export function formatReviewValue(
 }
 
 /**
+ * Formats file size for display: B, KB, or MB depending on magnitude.
+ */
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+/**
  * Formats a date string for review display (dd MMM yyyy).
  */
 export function formatReviewDate(

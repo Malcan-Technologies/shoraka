@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
 import { ApplicationStatusBadge } from "@/components/application-review";
+import { formatFileSize } from "@/components/application-review/review-section-styles";
 import {
   Table,
   TableBody,
@@ -76,7 +77,7 @@ function formatValue(key: string, value: unknown): React.ReactNode {
 function renderFileLabel(doc?: FileDoc) {
   if (!doc?.file_name) return REVIEW_EMPTY_LABEL;
   if (!doc.file_size) return doc.file_name;
-  return `${doc.file_name} (${(doc.file_size / 1024 / 1024).toFixed(2)} MB)`;
+  return `${doc.file_name} (${formatFileSize(doc.file_size)})`;
 }
 
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {

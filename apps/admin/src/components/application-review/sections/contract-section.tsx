@@ -27,6 +27,7 @@ import {
   REVIEW_EMPTY_LABEL,
   formatReviewValue,
   formatReviewDate,
+  formatFileSize,
 } from "../review-section-styles";
 import type { ReviewSectionId } from "../section-types";
 
@@ -267,7 +268,7 @@ export function ContractSection({
                       {contractDoc?.file_name
                         ? `${contractDoc.file_name}${
                             contractDoc.file_size
-                              ? ` (${(contractDoc.file_size / 1024 / 1024).toFixed(2)} MB)`
+                              ? ` (${formatFileSize(contractDoc.file_size)})`
                               : ""
                           }`
                         : REVIEW_EMPTY_LABEL}
@@ -296,7 +297,7 @@ export function ContractSection({
                       {customerDoc?.file_name
                         ? `${customerDoc.file_name}${
                             customerDoc.file_size
-                              ? ` (${(customerDoc.file_size / 1024 / 1024).toFixed(2)} MB)`
+                              ? ` (${formatFileSize(customerDoc.file_size)})`
                               : ""
                           }`
                         : REVIEW_EMPTY_LABEL}

@@ -14,6 +14,7 @@ import {
   reviewEmptyStateClass,
   REVIEW_EMPTY_LABEL,
   formatReviewValue,
+  formatFileSize,
 } from "../review-section-styles";
 import type { ReviewSectionId } from "../section-types";
 
@@ -112,7 +113,7 @@ export function CustomerSection({
                       {customerDoc?.file_name
                         ? `${customerDoc.file_name}${
                             customerDoc.file_size
-                              ? ` (${(customerDoc.file_size / 1024 / 1024).toFixed(2)} MB)`
+                              ? ` (${formatFileSize(customerDoc.file_size)})`
                               : ""
                           }`
                         : REVIEW_EMPTY_LABEL}
