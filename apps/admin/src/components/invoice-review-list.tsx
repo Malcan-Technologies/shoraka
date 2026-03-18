@@ -469,16 +469,18 @@ export function InvoiceList({
                                       {documentName}
                                     </p>
                                     {details?.document?.s3_key ? (
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-8 rounded-xl gap-1 px-2 shrink-0 text-[15px]"
-                                        onClick={() => onViewDocument(details.document!.s3_key!)}
-                                        disabled={isViewDocumentPending}
-                                      >
-                                        <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
-                                        View
-                                      </Button>
+                                      <span className="pointer-events-auto shrink-0">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-8 rounded-xl gap-1 px-2 text-[15px]"
+                                          onClick={() => onViewDocument(details.document!.s3_key!)}
+                                          disabled={isViewDocumentPending}
+                                        >
+                                          <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
+                                          View
+                                        </Button>
+                                      </span>
                                     ) : null}
                                   </div>
                                 </div>
