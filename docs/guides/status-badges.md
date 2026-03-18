@@ -2,16 +2,20 @@
 
 Centralized status badge config for application, product, and admin pages. Single source of truth in `packages/config/src/status-badges.ts`.
 
-## Color Palette (Tailwind)
+**Dev-only showcase:** In development, visit `/dev/status-examples` (issuer app) to see all status badges.
 
-| Variant | Color | Statuses |
-|---------|-------|----------|
-| **success** | `emerald-500` | Approved, Completed, Offer Sent, Contract Accepted |
-| **in-progress** | `blue-500` | Submitted, Under Review, Contract Pending/Sent, Invoice Pending/Sent |
-| **action** | `amber-500` | Draft, Amendment Requested, Resubmitted |
-| **rejected** | `red-500` | Rejected |
-| **neutral** | `slate-500` | Pending, Archived, Withdrawn |
-| **expired** | `amber-500` | Withdrawn (Offer expired) |
+## Color Groups (by meaning)
+
+| Group | Meaning | Statuses | Bg | Text |
+|-------|---------|----------|-----|-----|
+| **action** | User must act | Draft, Amendment Requested | #FEFCE8 | #CA8A04 |
+| **submitted** | Waiting for admin | Submitted, Resubmitted | #EFF6FF | #2563EB |
+| **in-progress** | Admin processing | Under Review, Contract Pending/Sent, Invoice Pending/Sent | #EEF2FF | #4F46E5 |
+| **success** | Done | Approved, Completed, Offer Sent, Contract Accepted | #ECFDF2 | #15803D |
+| **rejected** | Negative outcome | Rejected, Withdrawn | #FEF2F2 | #DC2626 |
+| **neutral** | Inactive | Pending, Archived | #F1F5F9 | #64748B |
+
+Classes: `bg-status-{group}-bg text-status-{group}-text`. Add `packages/config/src` to Tailwind content.
 
 ## Labels
 
@@ -59,4 +63,4 @@ const { color, label } = getStatusPresentationByBadgeKey(badgeKey, withdrawReaso
 
 ## Badge Class Pattern
 
-All badges use: `border-transparent bg-{color}-500/10 text-{color}-600` (or `-700` for emerald/amber).
+Amendment: `bg-[#FEFCE8] text-[#CA8A04]`. Success: `bg-[#ECFDF2] text-[#15803D]`. Others: `bg-{color}-100 text-{color}-600/700`.

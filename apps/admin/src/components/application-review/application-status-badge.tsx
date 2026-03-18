@@ -7,6 +7,8 @@ import {
   ExclamationTriangleIcon,
   ArrowPathIcon,
   ArchiveBoxIcon,
+  DocumentTextIcon,
+  PaperAirplaneIcon,
 } from "@heroicons/react/24/outline";
 import React from "react";
 import { getReviewStatusPresentation } from "./status-presentation";
@@ -20,15 +22,22 @@ interface ApplicationStatusBadgeProps {
 const STATUS_CONFIG: Record<string, {
   icon: React.ComponentType<{ className?: string }>;
 }> = {
+  DRAFT: { icon: ClockIcon },
   SUBMITTED: { icon: ClipboardDocumentCheckIcon },
   UNDER_REVIEW: { icon: ClockIcon },
+  CONTRACT_PENDING: { icon: DocumentTextIcon },
+  CONTRACT_SENT: { icon: PaperAirplaneIcon },
+  CONTRACT_ACCEPTED: { icon: CheckCircleIcon },
+  INVOICE_PENDING: { icon: DocumentTextIcon },
+  INVOICES_SENT: { icon: PaperAirplaneIcon },
+  OFFER_SENT: { icon: PaperAirplaneIcon },
   AMENDMENT_REQUESTED: { icon: ExclamationTriangleIcon },
   RESUBMITTED: { icon: ArrowPathIcon },
   APPROVED: { icon: CheckCircleIcon },
+  COMPLETED: { icon: CheckCircleIcon },
   REJECTED: { icon: XCircleIcon },
-  DRAFT: { icon: ClockIcon },
-  ARCHIVED: { icon: ArchiveBoxIcon },
   WITHDRAWN: { icon: ArchiveBoxIcon },
+  ARCHIVED: { icon: ArchiveBoxIcon },
 };
 
 export function ApplicationStatusBadge({ status, size = "md", label }: ApplicationStatusBadgeProps) {

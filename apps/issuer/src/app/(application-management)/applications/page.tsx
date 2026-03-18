@@ -65,12 +65,6 @@ const MOCK_APPLICATION_COUNT = 10;
 const BADGE_BASE = "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold border";
 const BADGE_FALLBACK = "border-slate-500/30 bg-slate-500/10 text-slate-600";
 
-/** Resolves badge key for withdrawn: OFFER_EXPIRED uses amber, else slate. */
-function resolveBadgeKey(badgeKey: string, withdrawReason?: WithdrawReason): string {
-  if (badgeKey === "withdrawn" && withdrawReason === WithdrawReason.OFFER_EXPIRED) return "withdrawn_offer_expired";
-  return badgeKey;
-}
-
 /** Skeleton that matches ApplicationCard layout. */
 function ApplicationCardSkeleton() {
   return (
@@ -115,8 +109,7 @@ function StatusBadge({
   badgeKey: string;
   withdrawReason?: WithdrawReason;
 }) {
-  const resolved = resolveBadgeKey(badgeKey, withdrawReason);
-  const s = STATUS[resolved];
+  const s = STATUS[badgeKey];
   const label =
     badgeKey === "withdrawn" && withdrawReason
       ? formatWithdrawLabel(withdrawReason)

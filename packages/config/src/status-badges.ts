@@ -1,15 +1,11 @@
 /**
- * Centralized status badge config for application, product, and admin pages.
- * Single source of truth: label + Tailwind color classes.
- * Aligned with Cashsouk branding: red(s) + taupe + neutrals. Uses Tailwind palette.
- *
- * Semantic groups:
- * - success (emerald): approved, completed, offer_sent, contract_accepted
- * - in-progress (blue): submitted, under_review, contract_*, invoice_*
- * - action (amber): amendment_requested, resubmitted, draft
- * - rejected (red): rejected
- * - neutral (slate): pending, archived, withdrawn
- * - expired (amber): withdrawn_offer_expired
+ * Centralized status badge config. Colors grouped by meaning:
+ * - action: Draft, Amendment Requested — user must act
+ * - submitted: Submitted, Resubmitted — waiting for admin pickup
+ * - in-progress: Under Review, Contract/Invoice Pending/Sent — admin processing
+ * - success: Approved, Completed, Offer Sent, Contract Accepted — done
+ * - rejected: Rejected, Withdrawn — negative outcome
+ * - neutral: Pending, Archived — inactive
  */
 
 import { WithdrawReason, formatWithdrawLabel } from "@cashsouk/types";
@@ -20,7 +16,7 @@ export type StatusVariant =
   | "action"
   | "rejected"
   | "neutral"
-  | "expired";
+  | "withdrawn";
 
 /** Tailwind classes for badge, icon, dot. Same pattern everywhere. */
 export interface StatusPresentation {
@@ -31,141 +27,151 @@ export interface StatusPresentation {
   variant: StatusVariant;
 }
 
-/** API status (uppercase) → presentation. */
+/** Shared badge classes per group. Dot uses text color for consistency. */
+const GROUP = {
+  action: "border-transparent bg-status-action-bg text-status-action-text dark:bg-amber-950/40 dark:text-amber-300",
+  submitted: "border-transparent bg-status-submitted-bg text-status-submitted-text dark:bg-blue-950/40 dark:text-blue-300",
+  "in-progress": "border-transparent bg-status-in-progress-bg text-status-in-progress-text dark:bg-indigo-950/40 dark:text-indigo-300",
+  success: "border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300",
+  rejected: "border-transparent bg-status-rejected-bg text-status-rejected-text dark:bg-red-950/40 dark:text-red-300",
+  neutral: "border-transparent bg-status-neutral-bg text-status-neutral-text dark:bg-slate-800/50 dark:text-slate-300",
+};
+const DOT = {
+  action: "bg-status-action-text",
+  submitted: "bg-status-submitted-text",
+  "in-progress": "bg-status-in-progress-text",
+  success: "bg-status-success-text",
+  rejected: "bg-status-rejected-text",
+  neutral: "bg-status-neutral-text",
+};
+
 const STATUS_PRESENTATION: Record<string, Omit<StatusPresentation, "label"> & { label?: string }> = {
   DRAFT: {
     label: "Draft",
-    badgeClass: "border-transparent bg-amber-500/10 text-amber-700",
-    iconClass: "text-amber-600",
-    dotClass: "bg-amber-500",
+    badgeClass: GROUP.action,
+    iconClass: "text-amber-600 dark:text-amber-400",
+    dotClass: DOT.action,
     variant: "action",
   },
   SUBMITTED: {
     label: "Submitted",
-    badgeClass: "border-transparent bg-blue-500/10 text-blue-600",
-    iconClass: "text-blue-600",
-    dotClass: "bg-blue-500",
+    badgeClass: GROUP.submitted,
+    iconClass: "text-blue-600 dark:text-blue-400",
+    dotClass: DOT.submitted,
     variant: "in_progress",
   },
   UNDER_REVIEW: {
     label: "Under Review",
-    badgeClass: "border-transparent bg-blue-500/10 text-blue-600",
-    iconClass: "text-blue-600",
-    dotClass: "bg-blue-500",
+    badgeClass: GROUP["in-progress"],
+    iconClass: "text-indigo-600 dark:text-indigo-400",
+    dotClass: DOT["in-progress"],
     variant: "in_progress",
   },
   CONTRACT_PENDING: {
     label: "Contract Pending",
-    badgeClass: "border-transparent bg-blue-500/10 text-blue-600",
-    iconClass: "text-blue-600",
-    dotClass: "bg-blue-500",
+    badgeClass: GROUP["in-progress"],
+    iconClass: "text-indigo-600 dark:text-indigo-400",
+    dotClass: DOT["in-progress"],
     variant: "in_progress",
   },
   CONTRACT_SENT: {
     label: "Contract Sent",
-    badgeClass: "border-transparent bg-blue-500/10 text-blue-600",
-    iconClass: "text-blue-600",
-    dotClass: "bg-blue-500",
+    badgeClass: GROUP["in-progress"],
+    iconClass: "text-indigo-600 dark:text-indigo-400",
+    dotClass: DOT["in-progress"],
     variant: "in_progress",
   },
   CONTRACT_ACCEPTED: {
     label: "Contract Accepted",
-    badgeClass: "border-transparent bg-emerald-500/10 text-emerald-700",
-    iconClass: "text-emerald-600",
-    dotClass: "bg-emerald-500",
+    badgeClass: GROUP.success,
+    iconClass: "text-emerald-600 dark:text-emerald-400",
+    dotClass: DOT.success,
     variant: "success",
   },
   INVOICE_PENDING: {
     label: "Invoice Pending",
-    badgeClass: "border-transparent bg-blue-500/10 text-blue-600",
-    iconClass: "text-blue-600",
-    dotClass: "bg-blue-500",
+    badgeClass: GROUP["in-progress"],
+    iconClass: "text-indigo-600 dark:text-indigo-400",
+    dotClass: DOT["in-progress"],
     variant: "in_progress",
   },
   INVOICES_SENT: {
     label: "Invoices Sent",
-    badgeClass: "border-transparent bg-blue-500/10 text-blue-600",
-    iconClass: "text-blue-600",
-    dotClass: "bg-blue-500",
+    badgeClass: GROUP["in-progress"],
+    iconClass: "text-indigo-600 dark:text-indigo-400",
+    dotClass: DOT["in-progress"],
     variant: "in_progress",
   },
   OFFER_SENT: {
     label: "Offer Sent",
-    badgeClass: "border-transparent bg-emerald-500/10 text-emerald-700",
-    iconClass: "text-emerald-600",
-    dotClass: "bg-emerald-500",
+    badgeClass: GROUP.success,
+    iconClass: "text-emerald-600 dark:text-emerald-400",
+    dotClass: DOT.success,
     variant: "success",
   },
   AMENDMENT_REQUESTED: {
     label: "Amendment Requested",
-    badgeClass: "border-transparent bg-amber-500/10 text-amber-700",
-    iconClass: "text-amber-600",
-    dotClass: "bg-amber-500",
+    badgeClass: GROUP.action,
+    iconClass: "text-amber-600 dark:text-amber-400",
+    dotClass: DOT.action,
     variant: "action",
   },
   RESUBMITTED: {
     label: "Resubmitted",
-    badgeClass: "border-transparent bg-amber-500/10 text-amber-700",
-    iconClass: "text-amber-600",
-    dotClass: "bg-amber-500",
-    variant: "action",
+    badgeClass: GROUP.submitted,
+    iconClass: "text-blue-600 dark:text-blue-400",
+    dotClass: DOT.submitted,
+    variant: "in_progress",
   },
   APPROVED: {
     label: "Approved",
-    badgeClass: "border-transparent bg-emerald-500/10 text-emerald-700",
-    iconClass: "text-emerald-600",
-    dotClass: "bg-emerald-500",
+    badgeClass: GROUP.success,
+    iconClass: "text-emerald-600 dark:text-emerald-400",
+    dotClass: DOT.success,
     variant: "success",
   },
   COMPLETED: {
     label: "Completed",
-    badgeClass: "border-transparent bg-emerald-500/10 text-emerald-700",
-    iconClass: "text-emerald-600",
-    dotClass: "bg-emerald-500",
+    badgeClass: GROUP.success,
+    iconClass: "text-emerald-600 dark:text-emerald-400",
+    dotClass: DOT.success,
     variant: "success",
   },
   REJECTED: {
     label: "Rejected",
-    badgeClass: "border-transparent bg-red-500/10 text-red-600",
-    iconClass: "text-red-600",
-    dotClass: "bg-red-500",
+    badgeClass: GROUP.rejected,
+    iconClass: "text-red-600 dark:text-red-400",
+    dotClass: DOT.rejected,
     variant: "rejected",
   },
   WITHDRAWN: {
     label: "Withdrawn",
-    badgeClass: "border-transparent bg-slate-500/10 text-slate-600 dark:bg-slate-600/20 dark:text-slate-300",
-    iconClass: "text-slate-600 dark:text-slate-400",
-    dotClass: "bg-slate-500",
-    variant: "neutral",
+    badgeClass: GROUP.rejected,
+    iconClass: "text-red-600 dark:text-red-400",
+    dotClass: DOT.rejected,
+    variant: "withdrawn",
   },
   ARCHIVED: {
     label: "Archived",
-    badgeClass: "border-transparent bg-slate-500/10 text-slate-600",
-    iconClass: "text-slate-600",
-    dotClass: "bg-slate-500",
+    badgeClass: GROUP.neutral,
+    iconClass: "text-slate-600 dark:text-slate-400",
+    dotClass: DOT.neutral,
     variant: "neutral",
   },
   PENDING: {
     label: "Pending",
-    badgeClass: "border-transparent bg-slate-500/10 text-slate-600",
-    iconClass: "text-slate-600",
-    dotClass: "bg-slate-500",
+    badgeClass: GROUP.neutral,
+    iconClass: "text-slate-600 dark:text-slate-400",
+    dotClass: DOT.neutral,
     variant: "neutral",
-  },
-  withdrawn_offer_expired: {
-    label: "Withdrawn (Offer expired)",
-    badgeClass: "border-transparent bg-amber-500/10 text-amber-700",
-    iconClass: "text-amber-600",
-    dotClass: "bg-amber-500",
-    variant: "expired",
   },
 };
 
 const PENDING_FALLBACK: StatusPresentation = {
   label: "Pending",
-  badgeClass: "border-transparent bg-slate-500/10 text-slate-600",
-  iconClass: "text-slate-600",
-  dotClass: "bg-slate-500",
+  badgeClass: GROUP.neutral,
+  iconClass: "text-slate-600 dark:text-slate-400",
+  dotClass: DOT.neutral,
   variant: "neutral",
 };
 
@@ -199,6 +205,27 @@ const API_STATUS_TO_BADGE_KEY: Record<string, string> = {
 
 export { API_STATUS_TO_BADGE_KEY };
 
+/** All status keys for dev/showcase pages. */
+export const STATUS_EXAMPLE_KEYS = [
+  "DRAFT",
+  "SUBMITTED",
+  "UNDER_REVIEW",
+  "CONTRACT_PENDING",
+  "CONTRACT_SENT",
+  "CONTRACT_ACCEPTED",
+  "INVOICE_PENDING",
+  "INVOICES_SENT",
+  "OFFER_SENT",
+  "AMENDMENT_REQUESTED",
+  "RESUBMITTED",
+  "APPROVED",
+  "COMPLETED",
+  "REJECTED",
+  "WITHDRAWN",
+  "ARCHIVED",
+  "PENDING",
+] as const;
+
 /** Badge key (lowercase) → presentation. For issuer card badges. */
 const BADGE_KEY_PRESENTATION: Record<string, StatusPresentation> = {
   draft: { ...STATUS_PRESENTATION.DRAFT, label: "Draft" } as StatusPresentation,
@@ -212,7 +239,6 @@ const BADGE_KEY_PRESENTATION: Record<string, StatusPresentation> = {
   approved: { ...STATUS_PRESENTATION.APPROVED, label: "Approved" } as StatusPresentation,
   completed: { ...STATUS_PRESENTATION.COMPLETED, label: "Completed" } as StatusPresentation,
   withdrawn: { ...STATUS_PRESENTATION.WITHDRAWN, label: "Withdrawn" } as StatusPresentation,
-  withdrawn_offer_expired: { ...STATUS_PRESENTATION.withdrawn_offer_expired, label: "Withdrawn (Offer expired)" } as StatusPresentation,
   rejected: { ...STATUS_PRESENTATION.REJECTED, label: "Rejected" } as StatusPresentation,
   archived: { ...STATUS_PRESENTATION.ARCHIVED, label: "Archived" } as StatusPresentation,
 };
@@ -225,15 +251,9 @@ export function getStatusPresentationByBadgeKey(
   withdrawReason?: WithdrawReason
 ): { color: string; label: string } {
   const key = badgeKey?.toLowerCase() ?? "draft";
-  const withdrawnExpired =
-    key === "withdrawn" && withdrawReason === WithdrawReason.OFFER_EXPIRED;
-  const pres = withdrawnExpired
-    ? BADGE_KEY_PRESENTATION.withdrawn_offer_expired
-    : BADGE_KEY_PRESENTATION[key] ?? PENDING_FALLBACK;
-
+  const pres = BADGE_KEY_PRESENTATION[key] ?? PENDING_FALLBACK;
   const label =
     key === "withdrawn" ? formatWithdrawLabel(withdrawReason) : (pres.label ?? toLabel(badgeKey));
-
   return { color: pres.badgeClass, label };
 }
 
@@ -245,16 +265,12 @@ export function getStatusPresentation(
   withdrawReason?: WithdrawReason
 ): StatusPresentation {
   const badgeKey =
-    status?.toUpperCase() === "WITHDRAWN" && withdrawReason === WithdrawReason.OFFER_EXPIRED
-      ? "withdrawn_offer_expired"
-      : API_STATUS_TO_BADGE_KEY[status?.toUpperCase() ?? ""] ?? status?.toLowerCase() ?? "draft";
-
+    API_STATUS_TO_BADGE_KEY[status?.toUpperCase() ?? ""] ?? status?.toLowerCase() ?? "draft";
   const pres = BADGE_KEY_PRESENTATION[badgeKey] ?? PENDING_FALLBACK;
   const label =
     status?.toUpperCase() === "WITHDRAWN"
       ? formatWithdrawLabel(withdrawReason)
       : (pres.label ?? toLabel(status || "Pending"));
-
   return { ...pres, label } as StatusPresentation;
 }
 

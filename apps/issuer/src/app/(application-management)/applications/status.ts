@@ -170,7 +170,6 @@ export const STATUS: Record<
   approved: { label: "Approved", color: statusColorClass("approved"), sortOrder: 8 },
   completed: { label: "Completed", color: statusColorClass("completed"), sortOrder: 9 },
   withdrawn: { label: "Withdrawn", color: statusColorClass("withdrawn"), sortOrder: 10 },
-  withdrawn_offer_expired: { label: "Withdrawn (Offer expired)", color: statusColorClass("withdrawn_offer_expired"), sortOrder: 10 },
   archived: { label: "Archived", color: statusColorClass("archived"), sortOrder: 11 },
   amendment_requested: { label: "Action Required", color: statusColorClass("amendment_requested"), sortOrder: 2 },
 };
@@ -323,7 +322,6 @@ export const APPLICATION_STATUS_PRIORITY: Record<string, number> = Object.freeze
   draft: 6,
   completed: 7,
   withdrawn: 8,
-  withdrawn_offer_expired: 8,
   rejected: 9,
   archived: 10,
   accepted: 11,
