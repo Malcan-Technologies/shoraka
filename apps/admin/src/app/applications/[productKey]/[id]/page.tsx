@@ -211,17 +211,23 @@ export default function DynamicApplicationDetailPage() {
   }, [app]);
   const structureType = (app?.financing_structure as { structure_type?: string } | null | undefined)?.structure_type;
   const isInvoiceOnly = structureType === "invoice_only";
+  const invoiceCount = (app?.invoices as unknown[] | undefined)?.length ?? 0;
+  const isContractOnlyNoInvoices =
+    (structureType === "new_contract" || structureType === "existing_contract") && invoiceCount === 0;
   const effectiveTabDescriptors = React.useMemo(() => {
     let descriptors = visibleReviewSectionsFromApi
       ? tabDescriptors.filter((d) => visibleReviewSectionsFromApi.has(d.reviewSection))
       : tabDescriptors;
+    if (isContractOnlyNoInvoices) {
+      descriptors = descriptors.filter((d) => d.reviewSection !== "invoice_details");
+    }
     if (isInvoiceOnly) {
       descriptors = descriptors.map((d) =>
         d.reviewSection === "contract_details" ? { ...d, label: "Customer" } : d
       );
     }
     return descriptors;
-  }, [tabDescriptors, visibleReviewSectionsFromApi, isInvoiceOnly]);
+  }, [tabDescriptors, visibleReviewSectionsFromApi, isInvoiceOnly, isContractOnlyNoInvoices]);
 
   const isExistingContract = React.useMemo(
     () =>

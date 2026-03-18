@@ -4262,7 +4262,7 @@ export class AdminService {
     if (contractId && !isInvoiceOnly) {
       if (contractStatus === "OFFER_SENT") return ApplicationStatus.CONTRACT_SENT;
       if (contractStatus === "APPROVED") {
-        if (invoiceStatuses.length === 0) return ApplicationStatus.CONTRACT_ACCEPTED;
+        if (invoiceStatuses.length === 0) return ApplicationStatus.COMPLETED;
         if (this.allInvoicesOfferableOrResolved(invoiceStatuses)) {
           return ApplicationStatus.INVOICES_SENT;
         }

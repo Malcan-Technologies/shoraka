@@ -3,6 +3,7 @@
  *
  * In simple terms: Given contract + invoices, what should application.status be?
  * - Contract exists (and not invoice_only) → contract status wins (WITHDRAWN/REJECTED/APPROVED). Invoices don't override.
+ * - Contract APPROVED + 0 invoices → COMPLETED (contract-only flow; no invoice step).
  * - No contract OR invoice_only → invoice statuses decide (all withdrawn → WITHDRAWN, all rejected → REJECTED, all final → COMPLETED).
  *
  * Invoice_only apps have a contract for customer_details but no offer flow; use invoice-based lifecycle.
