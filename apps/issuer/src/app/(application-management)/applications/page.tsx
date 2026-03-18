@@ -17,7 +17,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { useHeader } from "@cashsouk/ui";
 import { formatCurrency, createApiClient, useOrganization } from "@cashsouk/config";
-import { WithdrawReason } from "@cashsouk/types";
+import { WithdrawReason, formatWithdrawLabel } from "@cashsouk/types";
 import { useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -117,9 +117,13 @@ function StatusBadge({
 }) {
   const resolved = resolveBadgeKey(badgeKey, withdrawReason);
   const s = STATUS[resolved];
+  const label =
+    badgeKey === "withdrawn" && withdrawReason
+      ? formatWithdrawLabel(withdrawReason)
+      : (s?.label ?? badgeKey);
   return (
     <span className={cn(BADGE_BASE, s?.color ?? BADGE_FALLBACK)}>
-      {s?.label ?? badgeKey}
+      {label}
     </span>
   );
 }

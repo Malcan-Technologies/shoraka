@@ -3,21 +3,13 @@
 import * as React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
+import { getReviewStatusPresentation } from "@/components/application-review/status-presentation";
 import type { ReviewTabDescriptor } from "@/components/application-review/review-registry";
 
 export type { ReviewTabDescriptor } from "@/components/application-review/review-registry";
 
 function StatusDot({ status }: { status: string }) {
-  const dotClass =
-    status === "APPROVED"
-      ? "bg-green-500"
-      : status === "OFFER_SENT"
-        ? "bg-blue-500"
-        : status === "AMENDMENT_REQUESTED"
-          ? "bg-yellow-500"
-          : status === "REJECTED"
-            ? "bg-destructive"
-            : "bg-muted-foreground";
+  const { dotClass } = getReviewStatusPresentation(status);
   return (
     <span
       className={cn("inline-block h-2 w-2 rounded-full shrink-0", dotClass)}
