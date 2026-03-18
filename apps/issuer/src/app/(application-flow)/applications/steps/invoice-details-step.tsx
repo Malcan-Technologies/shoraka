@@ -95,6 +95,8 @@ import { parseISO, parse, isValid, format } from "date-fns";
 interface InvoiceConfig {
   min_invoice_value?: number | null;
   max_invoice_value?: number | null;
+  min_financing_ratio_percent?: number | null;
+  max_financing_ratio_percent?: number | null;
 }
 
 /**
@@ -118,9 +120,22 @@ function getProductInvoiceConfig(application: any, products: any[] = []): Invoic
     const config = invoiceStep?.config || {};
     // debug removed
     if (config == null || Object.keys(config).length === 0) return null;
+    const minRatio = config.min_financing_ratio_percent;
+    const maxRatio = config.max_financing_ratio_percent;
+    const hasValidRatioConfig =
+      typeof minRatio === "number" &&
+      Number.isFinite(minRatio) &&
+      typeof maxRatio === "number" &&
+      Number.isFinite(maxRatio) &&
+      minRatio <= maxRatio &&
+      minRatio >= 1 &&
+      maxRatio <= 100;
+    if (!hasValidRatioConfig) return null;
     return {
       min_invoice_value: config.min_invoice_value ?? null,
       max_invoice_value: config.max_invoice_value ?? null,
+      min_financing_ratio_percent: minRatio,
+      max_financing_ratio_percent: maxRatio,
     };
   } catch {
     return null;
@@ -285,6 +300,7 @@ export default function InvoiceDetailsStep({
   }, [devTools]);
 
   const addInvoice = () => {
+    const defaultRatio = productConfig?.min_financing_ratio_percent ?? 60;
     setInvoices((s) => [
       ...s,
       {
@@ -293,7 +309,7 @@ export default function InvoiceDetailsStep({
         number: "",
         value: "",
         maturity_date: "",
-        financing_ratio_percent: 60,
+        financing_ratio_percent: defaultRatio,
         document: null,
         status: "DRAFT",
       },
@@ -547,7 +563,10 @@ export default function InvoiceDetailsStep({
   }
 
   if (shouldRunValidation) {
-    if (hasPartialRows) {
+    if (!productConfig && application?.financing_type?.product_id) {
+      validationError = "Product configuration is incomplete. Min and max financing ratio must be set in the product workflow.";
+    }
+    if (!validationError && hasPartialRows) {
       validationError = "Please complete all invoice details. Rows cannot have partial data.";
     }
 
@@ -574,13 +593,15 @@ export default function InvoiceDetailsStep({
       }
     }
 
-    /** Financing ratio 60–80% applies to all structures including invoice_only. */
-    if (!validationError) {
+    /** Financing ratio from product config applies to all structures including invoice_only. */
+    if (!validationError && productConfig) {
+      const minR = productConfig.min_financing_ratio_percent ?? 60;
+      const maxR = productConfig.max_financing_ratio_percent ?? 80;
       const invalidRatioInvoice = invoices.find(
-        (inv) => !isRowEmpty(inv) && (inv.financing_ratio_percent! < 60 || inv.financing_ratio_percent! > 80)
+        (inv) => !isRowEmpty(inv) && (inv.financing_ratio_percent! < minR || inv.financing_ratio_percent! > maxR)
       );
       if (invalidRatioInvoice) {
-        validationError = "Financing ratio must be between 60% and 80%.";
+        validationError = `Financing ratio must be between ${minR}% and ${maxR}%.`;
       }
     }
 
@@ -600,7 +621,11 @@ export default function InvoiceDetailsStep({
      * If there are validation errors, show toast and prevent save.
      */
     if (!productConfig) {
-      toast.error("Product configuration is missing. Please contact administrator.");
+      toast.error(
+        application?.financing_type?.product_id
+          ? "Product configuration is incomplete. Min and max financing ratio must be set in the product workflow."
+          : "Product configuration is missing. Please contact administrator."
+      );
       throw new Error("VALIDATION_PRODUCT_CONFIG");
     }
 
@@ -846,7 +871,12 @@ export default function InvoiceDetailsStep({
               }
               return d.maturity_date || "";
             })(),
-            financing_ratio_percent: d.financing_ratio_percent || 60,
+            financing_ratio_percent: (() => {
+              const raw = d.financing_ratio_percent;
+              if (raw == null || raw === "") return 60;
+              const n = typeof raw === "number" ? raw : Number(raw);
+              return Number.isFinite(n) ? Math.round(n) : 60;
+            })(),
             document: d.document
               ? {
                 file_name: d.document.file_name,
@@ -1117,9 +1147,17 @@ export default function InvoiceDetailsStep({
                       <TableBody>
                         {/* APPLICATION INVOICES */}
                         {invoices.map((inv, invIndex) => {
-                          const ratio = inv.financing_ratio_percent || 60;
+                          const minRatio = productConfig?.min_financing_ratio_percent ?? 60;
+                          const maxRatio = productConfig?.max_financing_ratio_percent ?? 80;
+                          const rawRatio = inv.financing_ratio_percent;
+                          const ratioNum = (() => {
+                            if (rawRatio == null || rawRatio === "") return minRatio;
+                            const n = typeof rawRatio === "number" ? rawRatio : Number(rawRatio);
+                            if (!Number.isFinite(n)) return minRatio;
+                            return Math.min(maxRatio, Math.max(minRatio, Math.round(n)));
+                          })();
                           const value = parseMoney(inv.value);
-                          const financingAmount = value * (ratio / 100);
+                          const financingAmount = value * (ratioNum / 100);
                           const isLocked =
                             inv.status === "SUBMITTED" ||
                             inv.status === "APPROVED" ||
@@ -1195,25 +1233,25 @@ export default function InvoiceDetailsStep({
                                   <div
                                     className="relative text-[10px] font-medium text-muted-foreground"
                                     style={{
-                                      left: `${((ratio - 60) / 20) * 100}%`,
+                                      left: `${((ratioNum - minRatio) / (maxRatio - minRatio)) * 100}%`,
                                       transform: "translateX(-50%)",
                                       width: "fit-content",
                                     }}
                                   >
                                     <div className="rounded-md border border-border bg-white px-2 py-0.5 text-[10px] font-medium text-black shadow-sm">
-                                      {ratio}%
+                                      {ratioNum}%
                                     </div>
                                   </div>
 
                                   <div className="max-w-[110px] mx-auto">
                                     <Slider
-                                      min={60}
-                                      max={80}
+                                      min={minRatio}
+                                      max={maxRatio}
                                       step={1}
-                                      value={[ratio]}
+                                      value={[ratioNum]}
                                       disabled={!isEditable}
                                       onValueChange={(value) =>
-                                        updateInvoiceField(inv.id, "financing_ratio_percent", value[0])
+                                        updateInvoiceField(inv.id, "financing_ratio_percent", Math.round(value[0]))
                                       }
                                       className={cn(
                                         "relative",
@@ -1230,8 +1268,8 @@ export default function InvoiceDetailsStep({
                                   </div>
 
                                   <div className="flex justify-between text-[10px] font-medium text-muted-foreground">
-                                    <span>60%</span>
-                                    <span>80%</span>
+                                    <span>{minRatio}%</span>
+                                    <span>{maxRatio}%</span>
                                   </div>
                                 </div>
                               </TableCell>

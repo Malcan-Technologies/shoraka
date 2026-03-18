@@ -512,13 +512,13 @@ export function AdminActivityTimeline({ applicationId, sectionLabelOverrides }: 
                                   <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5">
                                     {typeof metadata.offered_amount === "number" && (
                                       <>
-                                        <dt className="text-muted-foreground">Offered amount</dt>
+                                        <dt className="text-muted-foreground">Financing Amount</dt>
                                         <dd className="font-medium tabular-nums">{formatCurrency(metadata.offered_amount)}</dd>
                                       </>
                                     )}
                                     {metadata.offered_ratio_percent != null && (
                                       <>
-                                        <dt className="text-muted-foreground">Offered ratio</dt>
+                                        <dt className="text-muted-foreground">Financing Ratio</dt>
                                         <dd className="tabular-nums">{Number(metadata.offered_ratio_percent)}%</dd>
                                       </>
                                     )}

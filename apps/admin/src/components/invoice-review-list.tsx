@@ -537,10 +537,13 @@ export function InvoiceList({
                                     Financing Ratio
                                   </p>
                                   <span
-                                    className={`${applicationTableExpandableValueClass} font-medium`}
+                                    className={`${applicationTableExpandableValueClass} font-medium ${!isOfferSent && issuerFinancingAmount != null && offeredAmount != null && offeredAmount > issuerFinancingAmount ? "text-destructive" : ""}`}
                                   >
                                     {offeredRatio}%
                                   </span>
+                                  {!isOfferSent && issuerFinancingAmount != null && offeredAmount != null && offeredAmount > issuerFinancingAmount && (
+                                    <p className="text-xs text-destructive mt-1">Exceeds requested amount</p>
+                                  )}
                                   {!isOfferSent && (
                                     <div className="mt-2 w-full">
                                       <Slider
@@ -559,7 +562,13 @@ export function InvoiceList({
                                   <p className={applicationTableExpandableLabelClass}>
                                     Financing Amount
                                   </p>
-                                  <p className={applicationTableExpandableValueClass}>
+                                  <p
+                                    className={`${applicationTableExpandableValueClass} ${
+                                      issuerFinancingAmount != null && offeredAmount != null && offeredAmount > issuerFinancingAmount
+                                        ? "text-destructive font-semibold"
+                                        : ""
+                                    }`}
+                                  >
                                     {offeredAmount !== null
                                       ? formatCurrency(offeredAmount)
                                       : REVIEW_EMPTY_LABEL}
@@ -686,13 +695,13 @@ export function InvoiceList({
                   </span>
                 </div>
                 <div className="flex justify-between items-baseline">
-                  <span className="text-sm font-medium text-muted-foreground">Offered Amount</span>
+                  <span className="text-sm font-medium text-muted-foreground">Financing Amount</span>
                   <span className="text-[15px] font-medium tabular-nums">
                     {formatCurrency(invoiceOfferConfirm.offeredAmount)}
                   </span>
                 </div>
                 <div className="flex justify-between items-baseline">
-                  <span className="text-sm font-medium text-muted-foreground">Offered Ratio</span>
+                  <span className="text-sm font-medium text-muted-foreground">Financing Ratio</span>
                   <span className="text-[15px] font-medium tabular-nums">
                     {invoiceOfferConfirm.offeredRatioPercent}%
                   </span>

@@ -76,8 +76,8 @@ export function buildInvoiceOfferLetterPdf(
   doc.fontSize(12).text(`Invoice ID: ${invoiceId}`, { continued: false });
   doc.moveDown(0.5);
   doc.text(`Requested amount: ${formatAmount(offer.requested_amount)}`);
-  doc.text(`Offered amount: ${formatAmount(offer.offered_amount)}`);
-  doc.text(`Offered ratio: ${offer.offered_ratio_percent ?? "—"}%`);
+  doc.text(`Financing Amount: ${formatAmount(offer.offered_amount)}`);
+  doc.text(`Financing Ratio: ${offer.offered_ratio_percent ?? "—"}%`);
   doc.text(`Profit rate: ${offer.offered_profit_rate_percent ?? "—"}%`);
   doc.text(`Expires: ${formatDate(offer.expires_at)}`);
   doc.moveDown();
