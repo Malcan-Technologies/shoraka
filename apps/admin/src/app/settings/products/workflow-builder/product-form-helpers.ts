@@ -143,7 +143,8 @@ export function workflowDeepEqual(a: unknown, b: unknown): boolean {
 
 /**
  * Validate mandatory workflow step set: Financing Structure, Contract Details, Invoice Details.
- * All three must be selected and appear in order. Returns error message or null.
+ * Only applies when at least one of these steps is in the workflow.
+ * When applicable: all three must be selected and appear in order. Returns error message or null.
  */
 function getMandatoryStepSetError(steps: unknown[]): string | null {
   const stepKeys = steps.map((s) => getStepKeyFromStepId(getStepId(s)));
@@ -154,6 +155,11 @@ function getMandatoryStepSetError(steps: unknown[]): string | null {
   const hasFs = fsIndex >= 0;
   const hasCd = cdIndex >= 0;
   const hasId = idIndex >= 0;
+
+  /** Skip validation if none of these steps are in the workflow. */
+  if (!hasFs && !hasCd && !hasId) {
+    return null;
+  }
 
   if (!hasFs || !hasCd || !hasId) {
     return "Financing Structure, Contract Details, and Invoice Details must all be selected and appear in the correct order.";

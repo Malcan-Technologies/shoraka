@@ -1,6 +1,7 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { reviewCardTitleClass } from "./review-section-styles";
 import { SectionActionDropdown } from "./section-action-dropdown";
 import type { ReviewSectionId } from "./section-types";
 import type { ComponentType } from "react";
@@ -59,7 +60,7 @@ export function ReviewSectionCard({
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Icon className="h-5 w-5 text-primary" />
-            <CardTitle className="text-base font-semibold">{title}</CardTitle>
+            <CardTitle className={reviewCardTitleClass}>{title}</CardTitle>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {showActions ? (
@@ -80,7 +81,7 @@ export function ReviewSectionCard({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-6">{children}</CardContent>
+      <CardContent className="space-y-10">{children}</CardContent>
     </Card>
   );
 }

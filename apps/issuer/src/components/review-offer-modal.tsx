@@ -133,7 +133,7 @@ export function ReviewOfferModal({ open, onOpenChange, context }: ReviewOfferMod
               <dd className="font-medium text-foreground">
                 {formatMoneyDisplay(details.requested_amount as number)}
               </dd>
-              <dt className="text-muted-foreground">Offered amount</dt>
+              <dt className="text-muted-foreground">Financing Amount</dt>
               <dd className="font-medium text-foreground">
                 {formatMoneyDisplay(details.offered_amount as number)}
               </dd>
@@ -141,7 +141,7 @@ export function ReviewOfferModal({ open, onOpenChange, context }: ReviewOfferMod
                 <>
                   {details.offered_ratio_percent != null && (
                     <>
-                      <dt className="text-muted-foreground">Offered ratio</dt>
+                      <dt className="text-muted-foreground">Financing Ratio</dt>
                       <dd className="font-medium text-foreground">
                         {(details.offered_ratio_percent as number)}%
                       </dd>

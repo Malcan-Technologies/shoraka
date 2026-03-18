@@ -123,6 +123,12 @@
   --secondary: 210 20% 96%;
 }
 
+.theme-issuer {
+  --primary: 359.6 95.7% 27.6%;
+  --accent: 2.4 71.7% 47.1%;
+  --secondary: 30.6 25.4% 63.7%;
+}
+
 /* Subtle transitions - excluding transform to prevent popover/tooltip animation issues */
 * {
   @apply transition-[color,background,border,opacity] duration-200 ease-out;

@@ -124,6 +124,8 @@ function formatItemLabelFromScopeKey(scopeKey: string): string {
  */
 interface AdminActivityTimelineProps {
   applicationId: string | null;
+  /** Override section labels for display (e.g. contract_details → "Customer" for invoice_only). */
+  sectionLabelOverrides?: Record<string, string>;
 }
 
 function getEventIcon(eventType: string) {
@@ -184,7 +186,8 @@ const ACTION_LABELS: Record<string, string> = {
 function getEventLabel(
   eventType: string,
   metadata?: Record<string, unknown> | null,
-  entityId?: string | null
+  entityId?: string | null,
+  sectionLabelOverrides?: Record<string, string>
 ): string {
   const baseLabels: Record<string, string> = {
     APPLICATION_CREATED: "Application Created",
@@ -238,7 +241,9 @@ function getEventLabel(
   if (actionLabel) {
     if (eventType.startsWith("SECTION_REVIEWED_")) {
       const scopeKey = metadata?.scope_key;
-      const sectionLabel = scopeKey ? getReviewTabLabel(String(scopeKey)) : "";
+      const sectionLabel = scopeKey
+        ? (sectionLabelOverrides?.[String(scopeKey)] ?? getReviewTabLabel(String(scopeKey)))
+        : "";
       return sectionLabel ? `${sectionLabel} ${actionLabel}` : actionLabel;
     }
     if (eventType.startsWith("ITEM_REVIEWED_")) {
@@ -310,7 +315,7 @@ function TimelineSkeleton() {
   );
 }
 
-export function AdminActivityTimeline({ applicationId }: AdminActivityTimelineProps) {
+export function AdminActivityTimeline({ applicationId, sectionLabelOverrides }: AdminActivityTimelineProps) {
   /**
    * Local state / hooks
    *
@@ -429,7 +434,7 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
                             <div className="flex items-center gap-1.5">
                               {getEventIcon(eventType)}
                               <span className="text-sm font-medium leading-tight">
-                                {getEventLabel(eventType, metadata, entityId)}
+                                {getEventLabel(eventType, metadata, entityId, sectionLabelOverrides)}
                               </span>
                             </div>
 
@@ -459,13 +464,6 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
                                 </span>
                               )}
                             </div>
-
-                            {/* IP address (may be undefined depending on the application logs payload) */}
-                            {log.ip_address && (
-                              <p className="text-[10px] text-muted-foreground/50 font-mono mt-0.5">
-                                {log.ip_address}
-                              </p>
-                            )}
 
                             {/* Timestamp */}
                             <div className="flex items-center gap-3 mt-1">
@@ -514,13 +512,13 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
                                   <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5">
                                     {typeof metadata.offered_amount === "number" && (
                                       <>
-                                        <dt className="text-muted-foreground">Offered amount</dt>
+                                        <dt className="text-muted-foreground">Financing Amount</dt>
                                         <dd className="font-medium tabular-nums">{formatCurrency(metadata.offered_amount)}</dd>
                                       </>
                                     )}
                                     {metadata.offered_ratio_percent != null && (
                                       <>
-                                        <dt className="text-muted-foreground">Offered ratio</dt>
+                                        <dt className="text-muted-foreground">Financing Ratio</dt>
                                         <dd className="tabular-nums">{Number(metadata.offered_ratio_percent)}%</dd>
                                       </>
                                     )}

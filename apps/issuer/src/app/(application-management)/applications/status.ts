@@ -87,7 +87,11 @@
  *   Add "PENDING_DISBURSEMENT" in the right place in the array.
  */
 
-import { formatWithdrawLabel, WithdrawReason } from "@cashsouk/types";
+import { WithdrawReason } from "@cashsouk/types";
+import {
+  getStatusPresentationByBadgeKey,
+  getStatusColorAndLabel,
+} from "@cashsouk/config";
 
 export type CardStatusResult = {
   badgeKey: string;
@@ -141,38 +145,14 @@ export interface NormalizedApplication {
 
 /* =============================================================================
    SECTION A — BADGES (label, color, list order)
-   Muted, professional colors aligned with Cashsouk branding and Admin UI.
-   Each status has a distinct color. Withdrawn: slate (user) vs amber (expired).
-   #ca8a04 = Amendment Requested (manual brand color).
+   Color from @cashsouk/config status-badges. Labels and sortOrder local.
    ============================================================================= */
-
-/** Centralized status color map. No border. */
-export const STATUS_COLOR_MAP: Record<
-  string,
-  { bg: string; text: string; border: string }
-> = {
-  draft: { bg: "bg-slate-500/10", text: "text-slate-600", border: "border-transparent" },
-  submitted: { bg: "bg-blue-500/10", text: "text-blue-600", border: "border-transparent" },
-  under_review: { bg: "bg-indigo-500/10", text: "text-indigo-600", border: "border-transparent" },
-  pending_amendment: { bg: "bg-[#FEFCE8]", text: "text-[#CA8A04]", border: "border-transparent" },
-  amendment_requested: { bg: "bg-[#FEFCE8]", text: "text-[#CA8A04]", border: "border-transparent" },
-  resubmitted: { bg: "bg-orange-500/10", text: "text-orange-600", border: "border-transparent" },
-  offer_sent: { bg: "bg-[#ECFDF2]", text: "text-[#15803D]", border: "border-transparent" },
-  accepted: { bg: "bg-[#ECFDF2]", text: "text-[#15803D]", border: "border-transparent" },
-  approved: { bg: "bg-[#ECFDF2]", text: "text-[#15803D]", border: "border-transparent" },
-  completed: { bg: "bg-[#ECFDF2]", text: "text-[#15803D]", border: "border-transparent" },
-  withdrawn: { bg: "bg-slate-700/25", text: "text-slate-800 dark:text-slate-200", border: "border-transparent" },
-  withdrawn_offer_expired: { bg: "bg-amber-500/10", text: "text-amber-700", border: "border-transparent" },
-  rejected: { bg: "bg-red-500/10", text: "text-red-600", border: "border-transparent" },
-  archived: { bg: "bg-slate-500/10", text: "text-slate-500", border: "border-transparent" },
-};
 
 const BADGE_FALLBACK = "border-transparent bg-slate-500/10 text-slate-600";
 
-function statusColorClass(badgeKey: string): string {
-  const c = STATUS_COLOR_MAP[badgeKey];
-  if (!c) return BADGE_FALLBACK;
-  return `${c.border} ${c.bg} ${c.text}`;
+function statusColorClass(badgeKey: string, withdrawReason?: WithdrawReason): string {
+  const { color } = getStatusPresentationByBadgeKey(badgeKey, withdrawReason);
+  return color || BADGE_FALLBACK;
 }
 
 export const STATUS: Record<
@@ -180,7 +160,7 @@ export const STATUS: Record<
   { label: string; color: string; sortOrder: number }
 > = {
   rejected: { label: "Rejected", color: statusColorClass("rejected"), sortOrder: 1 },
-  pending_amendment: { label: "Action Required", color: statusColorClass("pending_amendment"), sortOrder: 2 },
+  amendment_requested: { label: "Action Required", color: statusColorClass("amendment_requested"), sortOrder: 2 },
   offer_sent: { label: "Offer Received", color: statusColorClass("offer_sent"), sortOrder: 3 },
   under_review: { label: "Under Review", color: statusColorClass("under_review"), sortOrder: 4 },
   submitted: { label: "Submitted", color: statusColorClass("submitted"), sortOrder: 5 },
@@ -190,51 +170,22 @@ export const STATUS: Record<
   approved: { label: "Approved", color: statusColorClass("approved"), sortOrder: 8 },
   completed: { label: "Completed", color: statusColorClass("completed"), sortOrder: 9 },
   withdrawn: { label: "Withdrawn", color: statusColorClass("withdrawn"), sortOrder: 10 },
-  withdrawn_offer_expired: { label: "Withdrawn", color: statusColorClass("withdrawn_offer_expired"), sortOrder: 10 },
   archived: { label: "Archived", color: statusColorClass("archived"), sortOrder: 11 },
-  amendment_requested: { label: "Action Required", color: statusColorClass("amendment_requested"), sortOrder: 2 },
 };
 
 export function getSortOrder(status: string): number {
   return STATUS[status]?.sortOrder ?? 999;
 }
 
-/** API status (DRAFT, SUBMITTED, etc.) to badge key. Used by invoice/flow badges. */
-const API_STATUS_TO_BADGE_KEY: Record<string, string> = {
-  DRAFT: "draft",
-  SUBMITTED: "submitted",
-  UNDER_REVIEW: "under_review",
-  CONTRACT_PENDING: "under_review",
-  CONTRACT_SENT: "under_review",
-  CONTRACT_ACCEPTED: "under_review",
-  INVOICE_PENDING: "under_review",
-  INVOICES_SENT: "under_review",
-  AMENDMENT_REQUESTED: "amendment_requested",
-  RESUBMITTED: "resubmitted",
-  OFFER_SENT: "offer_sent",
-  APPROVED: "approved",
-  COMPLETED: "completed",
-  WITHDRAWN: "withdrawn",
-  REJECTED: "rejected",
-  ARCHIVED: "archived",
-};
+/** Re-export for consumers that need badge key mapping. */
+export { API_STATUS_TO_BADGE_KEY } from "@cashsouk/config";
 
-/** Single source of truth for status badge presentation. Use in application flow, invoice tables, etc. */
+/** Status badge presentation. Delegates to @cashsouk/config. */
 export function getStatusPresentation(
   apiStatus: string,
   withdrawReason?: WithdrawReason
 ): { color: string; label: string } {
-  const key =
-    apiStatus?.toUpperCase() === "WITHDRAWN" && withdrawReason === WithdrawReason.OFFER_EXPIRED
-      ? "withdrawn_offer_expired"
-      : API_STATUS_TO_BADGE_KEY[apiStatus?.toUpperCase() ?? ""] ?? apiStatus?.toLowerCase() ?? "draft";
-  const s = STATUS[key];
-  const color = s?.color ?? BADGE_FALLBACK;
-  const label =
-    apiStatus?.toUpperCase() === "WITHDRAWN"
-      ? formatWithdrawLabel(withdrawReason)
-      : (s?.label ?? apiStatus ?? "");
-  return { color, label };
+  return getStatusColorAndLabel(apiStatus, withdrawReason);
 }
 
 /* =============================================================================
@@ -247,7 +198,7 @@ export const FILTER_STATUSES = [
   "draft",
   "submitted",
   "under_review",
-  "pending_amendment",
+  "amendment_requested",
   "offer_sent",
   "accepted",
   "completed",
@@ -320,10 +271,10 @@ export function getCardStatus(input: {
 
   /** Action Required: app, contract, or any invoice has AMENDMENT_REQUESTED. Highest urgency. */
   if (app === "AMENDMENT_REQUESTED") {
-    return { badgeKey: "pending_amendment", displayLabel: "Action Required", showReviewOffer: false, showMakeAmendments: true };
+    return { badgeKey: "amendment_requested", displayLabel: "Action Required", showReviewOffer: false, showMakeAmendments: true };
   }
   if (contractAmendmentRequested || anyInvoiceAmendmentRequested) {
-    return { badgeKey: "pending_amendment", displayLabel: "Action Required", showReviewOffer: false, showMakeAmendments: false };
+    return { badgeKey: "amendment_requested", displayLabel: "Action Required", showReviewOffer: false, showMakeAmendments: false };
   }
 
   /** Offer Waiting: contract or any invoice has OFFER_SENT. Card-level Review Offer only for contract offers. */
@@ -360,18 +311,20 @@ export function getCardStatus(input: {
   return { badgeKey: "draft", displayLabel: "Draft", showReviewOffer: false, showMakeAmendments: false };
 }
 
-/** Urgency-based sort order. Lower = higher in list. Applications needing attention appear first. */
+/**
+ * Urgency-based sort order. Lower = higher in list.
+ * UX order: 1) Needs action, 2) In progress, 3) Draft, 4) Success, 5) Closed.
+ */
 export const APPLICATION_STATUS_PRIORITY: Record<string, number> = Object.freeze({
-  pending_amendment: 1,
+  amendment_requested: 1,
   offer_sent: 2,
   under_review: 3,
   submitted: 4,
   resubmitted: 5,
   draft: 6,
-  completed: 7,
-  withdrawn: 8,
-  withdrawn_offer_expired: 8,
-  rejected: 9,
-  archived: 10,
-  accepted: 11,
+  accepted: 7,
+  completed: 8,
+  withdrawn: 9,
+  rejected: 10,
+  archived: 11,
 });

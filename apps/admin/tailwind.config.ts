@@ -7,6 +7,7 @@ const config: Config = {
   content: [
     "./src/**/*.{js,ts,jsx,tsx,mdx}",
     "../../packages/ui/src/**/*.{js,ts,jsx,tsx,mdx}",
+    "../../packages/config/src/**/*.{js,ts,jsx,tsx}",
   ],
     plugins: [require("tailwindcss-animate")],
     theme: {
@@ -20,6 +21,14 @@ const config: Config = {
     			brand: '0 10px 20px -10px rgba(138, 3, 4, 0.35)'
     		},
     		colors: {
+    			status: {
+    				action: { bg: "#FEFCE8", text: "#CA8A04" },
+    				submitted: { bg: "#EFF6FF", text: "#2563EB" },
+    				"in-progress": { bg: "#EEF2FF", text: "#4F46E5" },
+    				success: { bg: "#ECFDF2", text: "#15803D" },
+    				rejected: { bg: "#FEF2F2", text: "#DC2626" },
+    				neutral: { bg: "#F1F5F9", text: "#64748B" },
+    			},
     			background: 'hsl(var(--background))',
     			foreground: 'hsl(var(--foreground))',
     			card: {

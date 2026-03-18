@@ -16,9 +16,11 @@ export interface RecentActivityCardProps {
   }[];
   remarks: { scope_key: string; action_type: string; remark: string; created_at: string }[];
   applicationId?: string | null;
+  /** Override section labels for timeline display (e.g. contract_details → "Customer" for invoice_only). */
+  sectionLabelOverrides?: Record<string, string>;
 }
 
-export function RecentActivityCard({ events, remarks, applicationId }: RecentActivityCardProps) {
+export function RecentActivityCard({ events, remarks, applicationId, sectionLabelOverrides }: RecentActivityCardProps) {
   const recentActivity = React.useMemo(() => {
     const combined: {
       type: string;
@@ -51,7 +53,12 @@ export function RecentActivityCard({ events, remarks, applicationId }: RecentAct
   }, [events, remarks]);
 
   if (applicationId) {
-    return <AdminActivityTimeline applicationId={applicationId} />;
+    return (
+      <AdminActivityTimeline
+        applicationId={applicationId}
+        sectionLabelOverrides={sectionLabelOverrides}
+      />
+    );
   }
 
   return (

@@ -2,9 +2,8 @@
 
 import * as React from "react";
 import { cn } from "@/lib/utils";
-import { Label } from "../../../../../components/ui/label";
 import { Input } from "../../../../../components/ui/input";
-import { INPUT_CLASS, SECTION_GAP, SELECT_TRIGGER_CLASS } from "../product-form-input-styles";
+import { INPUT_CLASS, SECTION_GAP, SELECT_TRIGGER_CLASS, SECTION_HEADER_CLASS, SECTION_HEADER_DIVIDER_CLASS } from "../product-form-input-styles";
 import { Button } from "../../../../../components/ui/button";
 import { Skeleton } from "../../../../../components/ui/skeleton";
 import {
@@ -35,8 +34,8 @@ export interface SupportingDocItemShape {
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 function getCategoryList(config: unknown, key: CategoryKey): SupportingDocItemShape[] {
@@ -301,23 +300,26 @@ function CategorySection({
 }) {
   return (
     <div className={cn("grid rounded-lg bg-muted/5 p-3 text-sm leading-6 min-w-0 sm:p-4", SECTION_GAP)}>
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <Label className="text-sm font-medium shrink-0">{label}</Label>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={onAdd} className="gap-1.5">
-            <PlusIcon className="h-4 w-4 shrink-0" />
-            Add document
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground hover:text-destructive"
-            onClick={onRemoveCategory}
-          >
-            Remove category
-          </Button>
+      <div>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h3 className={SECTION_HEADER_CLASS}>{label}</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={onAdd} className="gap-1.5">
+              <PlusIcon className="h-4 w-4 shrink-0" />
+              Add document
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-destructive"
+              onClick={onRemoveCategory}
+            >
+              Remove category
+            </Button>
+          </div>
         </div>
+        <div className={SECTION_HEADER_DIVIDER_CLASS} />
       </div>
       {items.length === 0 ? (
         <p className="text-sm text-muted-foreground leading-6">No documents in this category yet.</p>

@@ -727,10 +727,14 @@ export class ApplicationService {
         ? await tx.contract.findUnique({ where: { id: contractId } })
         : null;
 
+      const isInvoiceOnly =
+        (application as { financing_structure?: { structure_type?: string } }).financing_structure
+          ?.structure_type === "invoice_only";
       const newStatus = computeApplicationStatus(
         updatedContract as { status: ContractStatus } | null,
         updatedInvoices.map((i) => ({ status: i.status as InvoiceStatus })),
-        status
+        status,
+        { isInvoiceOnly }
       );
 
       await tx.application.update({
@@ -1104,10 +1108,14 @@ export class ApplicationService {
         action === "accept"
           ? ApplicationStatus.CONTRACT_ACCEPTED
           : (application.status as ApplicationStatus);
+      const isInvoiceOnly =
+        (application as { financing_structure?: { structure_type?: string } }).financing_structure
+          ?.structure_type === "invoice_only";
       const appStatus = computeApplicationStatus(
         updatedContract as { status: ContractStatus } | null,
         updatedInvoices.map((i) => ({ status: i.status as InvoiceStatus })),
-        nextReviewStatusBase
+        nextReviewStatusBase,
+        { isInvoiceOnly }
       );
       await tx.application.update({
         where: { id: applicationId },
@@ -1339,10 +1347,14 @@ export class ApplicationService {
       const nextReviewStatusBase = allInvoicesOfferedOrResolved
         ? ApplicationStatus.INVOICES_SENT
         : ApplicationStatus.INVOICE_PENDING;
+      const isInvoiceOnly =
+        (application as { financing_structure?: { structure_type?: string } }).financing_structure
+          ?.structure_type === "invoice_only";
       const appStatus = computeApplicationStatus(
         updatedContract as { status: ContractStatus } | null,
         invoiceStatuses.map((status) => ({ status })),
-        nextReviewStatusBase
+        nextReviewStatusBase,
+        { isInvoiceOnly }
       );
       await tx.application.update({
         where: { id: applicationId },

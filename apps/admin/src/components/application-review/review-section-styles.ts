@@ -8,17 +8,28 @@ import { format } from "date-fns";
 
 export const REVIEW_EMPTY_LABEL = "Not provided";
 
-export const reviewSectionHeaderClass = "text-sm font-semibold";
-export const reviewLabelClass = "text-sm font-normal text-foreground";
+/**
+ * Section/subsection title: text-base font-semibold per BRANDING.
+ * Used for ReviewFieldBlock, ApplicationFinancialReviewContent subsections, SectionComments.
+ */
+export const reviewSectionHeaderClass = "text-base font-semibold text-foreground";
+
+/** Main card title (tab-level): icon + title in header. */
+export const reviewCardTitleClass = "text-base font-semibold text-foreground";
+
+/** Empty state text: consistent across all tabs. */
+export const reviewEmptyStateClass = "text-sm text-muted-foreground";
+export const reviewLabelClass = "text-sm font-medium text-foreground leading-6";
 export const reviewValueClass =
   "min-h-[36px] w-full rounded-lg border border-input bg-muted/50 px-3 py-2 text-sm text-muted-foreground flex items-center";
 export const reviewValueClassTextArea =
   "min-h-[60px] w-full rounded-lg border border-input bg-muted/50 px-3 py-2 text-sm text-muted-foreground flex items-start";
 
+/** Row grid: items-center so label vertically aligns with input center (h-11). Matches application flow gap-x-6 gap-y-4. */
 const ROW_GRID_BASE =
-  "grid grid-cols-1 sm:grid-cols-[220px_1fr] gap-x-8 gap-y-4 mt-3 w-full items-start";
+  "grid grid-cols-1 sm:grid-cols-[220px_1fr] gap-x-6 gap-y-4 mt-4 w-full items-center";
 
-/** Indented row grid for content under section headers.*/
+/** Indented row grid for content under section headers. */
 export const reviewRowGridClass = `pl-3 ${ROW_GRID_BASE}`;
 
 export interface FormatReviewValueOptions {
@@ -41,6 +52,15 @@ export function formatReviewValue(
   }
   if (typeof v === "string") return v.trim() || emptyLabel;
   return String(v);
+}
+
+/**
+ * Formats file size for display: B, KB, or MB depending on magnitude.
+ */
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 /**

@@ -12,12 +12,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  ChartBarIcon,
-  CheckCircleIcon,
-  DocumentMagnifyingGlassIcon,
-  SparklesIcon,
-  UserGroupIcon,
-} from "@heroicons/react/24/outline";
+  applicationTableHeaderClass,
+  applicationTableHeaderBgClass,
+  applicationTableRowClass,
+  applicationTableCellClass,
+  applicationTableCellMutedClass,
+  applicationTableWrapperClass,
+} from "@/components/application-review/application-table-styles";
+import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
+import { reviewEmptyStateClass } from "@/components/application-review/review-section-styles";
+import { CheckCircleIcon } from "@heroicons/react/24/outline";
 import { formatCurrency, formatNumber } from "@cashsouk/config";
 import { FINANCIAL_FIELD_LABELS, calculateFinancialMetrics } from "@cashsouk/types";
 
@@ -492,49 +496,44 @@ export function ApplicationFinancialReviewContent({ app }: ApplicationFinancialR
   }, [app.financial_statements]);
 
   return (
-    <div className="space-y-6">
-      {/* 1. Financial Data */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <h4 className="text-sm font-semibold flex items-center gap-2">
-            <ChartBarIcon className="h-4 w-4 text-muted-foreground" />
-            Financial Data
-          </h4>
+    <>
+      <ReviewFieldBlock title="Financial Data">
+        <div className="flex justify-end mb-3">
           <Button variant="outline" size="sm" className="rounded-lg h-8 text-xs" disabled>
             Get Updated Financial Data
           </Button>
         </div>
-        <div className="rounded-xl border-2 border-border bg-card overflow-hidden">
-          <Table className="table-fixed">
-            <TableHeader>
-              <TableRow className="hover:bg-transparent !border-b-2">
-                <TableHead className="font-semibold text-foreground w-[18%] min-w-[180px] pr-6 border-r-2 border-border">
+        <div className={applicationTableWrapperClass}>
+          <Table className="table-fixed text-sm">
+            <TableHeader className={applicationTableHeaderBgClass}>
+              <TableRow className="hover:bg-transparent border-b border-border">
+                <TableHead className="text-sm font-semibold text-foreground px-3 py-2 w-[22%] min-w-[140px] border-r border-border">
                   Financial Item
                 </TableHead>
-                <TableHead className="font-semibold text-foreground w-[20.5%] px-6 border-r border-border/50">
+                <TableHead className="text-sm font-semibold text-foreground px-3 py-2 w-[19.5%] border-r border-border">
                   2023
                 </TableHead>
-                <TableHead className="font-semibold text-foreground w-[20.5%] px-6 border-r border-border/50">
+                <TableHead className="text-sm font-semibold text-foreground px-3 py-2 w-[19.5%] border-r border-border">
                   2024
                 </TableHead>
-                <TableHead className="font-semibold text-foreground w-[20.5%] px-6 border-r border-border/50">
+                <TableHead className="text-sm font-semibold text-foreground px-3 py-2 w-[19.5%] border-r border-border">
                   2025
                 </TableHead>
-                <TableHead className="font-semibold text-foreground w-[20.5%] px-6">
-                  2026 Management Data (Unaudited)
+                <TableHead className="text-sm font-semibold text-foreground px-3 py-2 text-right tabular-nums w-[19.5%]">
+                  2026 (Unaudited)
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {FINANCIAL_ROW_DEFS.map((row) => (
-                <TableRow key={row.id}>
-                  <TableCell className="font-medium text-foreground pr-6 border-r-2 border-border">
+                <TableRow key={row.id} className="border-b border-border last:border-b-0 odd:bg-muted/40 hover:bg-muted">
+                  <TableCell className="text-sm px-3 py-2 border-r border-border font-medium">
                     {row.label}
                   </TableCell>
-                  <TableCell className="text-muted-foreground px-6 border-r border-border/50">—</TableCell>
-                  <TableCell className="text-muted-foreground px-6 border-r border-border/50">—</TableCell>
-                  <TableCell className="text-muted-foreground px-6 border-r border-border/50">—</TableCell>
-                  <TableCell className="tabular-nums px-6">
+                  <TableCell className="text-sm px-3 py-2 text-muted-foreground border-r border-border text-left">—</TableCell>
+                  <TableCell className="text-sm px-3 py-2 text-muted-foreground border-r border-border text-left">—</TableCell>
+                  <TableCell className="text-sm px-3 py-2 text-muted-foreground border-r border-border text-left">—</TableCell>
+                  <TableCell className="text-sm px-3 py-2 text-right tabular-nums">
                     {row.getValue(parsedFs, computed)}
                   </TableCell>
                 </TableRow>
@@ -546,50 +545,38 @@ export function ApplicationFinancialReviewContent({ app }: ApplicationFinancialR
           Extract button only appears if no data has been extracted previously. Automatically populate
           the table if data is available (from previous application).
         </p>
-        <Button variant="secondary" size="sm" className="rounded-lg mt-2" disabled>
+        <Button variant="secondary" size="sm" className="rounded-lg mt-2 h-8 text-xs" disabled>
           Extract Audited Financial Data
         </Button>
-      </div>
+      </ReviewFieldBlock>
 
-      {/* 2. Company Credit Score */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <h4 className="text-sm font-semibold flex items-center gap-2">
-            <DocumentMagnifyingGlassIcon className="h-4 w-4 text-muted-foreground" />
-            Company Credit Score
-            <span className="text-xs font-normal text-muted-foreground">
-              Last updated —
-            </span>
-          </h4>
+      <ReviewFieldBlock title="Company Credit Score">
+        <div className="flex justify-between items-center mb-3">
+          <span className="text-xs text-muted-foreground">Last updated —</span>
           <Button variant="outline" size="sm" className="rounded-lg h-8 text-xs" disabled>
             Get Updated Credit Score
           </Button>
         </div>
-        <div className="rounded-xl border bg-card overflow-hidden min-h-[80px] flex items-center justify-center">
-          <p className="text-sm text-muted-foreground py-6">
+        <div className="rounded-xl border border-border bg-card overflow-hidden min-h-[80px] flex items-center justify-center">
+          <p className={`${reviewEmptyStateClass} py-6`}>
             Credit score data will be populated from external API (e.g. CTOS).
           </p>
         </div>
-      </div>
+      </ReviewFieldBlock>
 
-      {/* 3. Director & Shareholders */}
-      <div>
-        <h4 className="text-sm font-semibold flex items-center gap-2 mb-2">
-          <UserGroupIcon className="h-4 w-4 text-muted-foreground" />
-          Director & Shareholders
-        </h4>
+      <ReviewFieldBlock title="Director & Shareholders">
         {directorShareholders.length > 0 ? (
-          <div className="rounded-xl border bg-card overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="text-muted-foreground">Role</TableHead>
-                  <TableHead className="text-muted-foreground">Director</TableHead>
-                  <TableHead className="text-muted-foreground">Ownership</TableHead>
-                  <TableHead className="text-muted-foreground">KYC / KYB</TableHead>
-                  <TableHead className="text-muted-foreground">Last Credit Report</TableHead>
-                  <TableHead className="text-muted-foreground">Last Credit Score</TableHead>
-                  <TableHead className="text-muted-foreground w-[140px]">Action</TableHead>
+          <div className={applicationTableWrapperClass}>
+            <Table className="text-[15px]">
+              <TableHeader className={applicationTableHeaderBgClass}>
+                <TableRow className="hover:bg-transparent border-b border-border">
+                  <TableHead className={applicationTableHeaderClass}>Role</TableHead>
+                  <TableHead className={applicationTableHeaderClass}>Director</TableHead>
+                  <TableHead className={applicationTableHeaderClass}>Ownership</TableHead>
+                  <TableHead className={applicationTableHeaderClass}>KYC / KYB</TableHead>
+                  <TableHead className={applicationTableHeaderClass}>Last Credit Report</TableHead>
+                  <TableHead className={applicationTableHeaderClass}>Last Credit Score</TableHead>
+                  <TableHead className={`${applicationTableHeaderClass} w-[140px]`}>Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -597,11 +584,11 @@ export function ApplicationFinancialReviewContent({ app }: ApplicationFinancialR
                   const isApproved =
                     row.verificationStatus === "APPROVED" || row.verificationStatus === "Approved";
                   return (
-                    <TableRow key={row.id}>
-                      <TableCell className="text-muted-foreground text-sm">{row.role}</TableCell>
-                      <TableCell className="font-medium">{row.name}</TableCell>
-                      <TableCell>{row.ownership ?? "—"}</TableCell>
-                      <TableCell>
+                    <TableRow key={row.id} className={applicationTableRowClass}>
+                      <TableCell className={applicationTableCellClass}>{row.role}</TableCell>
+                      <TableCell className={`${applicationTableCellClass} font-medium`}>{row.name}</TableCell>
+                      <TableCell className={applicationTableCellClass}>{row.ownership ?? "—"}</TableCell>
+                      <TableCell className={applicationTableCellClass}>
                         {row.verificationStatus ? (
                           <Badge
                             variant="outline"
@@ -618,11 +605,11 @@ export function ApplicationFinancialReviewContent({ app }: ApplicationFinancialR
                           <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-muted-foreground">
+                      <TableCell className={applicationTableCellMutedClass}>
                         View (—)
                       </TableCell>
-                      <TableCell className="text-muted-foreground">—</TableCell>
-                      <TableCell>
+                      <TableCell className={applicationTableCellMutedClass}>—</TableCell>
+                      <TableCell className={applicationTableCellClass}>
                         <Button variant="outline" size="sm" className="rounded-lg h-8 text-xs" disabled>
                           Get Credit Report
                         </Button>
@@ -634,24 +621,19 @@ export function ApplicationFinancialReviewContent({ app }: ApplicationFinancialR
             </Table>
           </div>
         ) : (
-          <div className="rounded-xl border bg-card min-h-[80px] flex items-center justify-center">
-            <p className="text-sm text-muted-foreground py-6">
+          <div className="rounded-xl border border-border bg-card min-h-[80px] flex items-center justify-center">
+            <p className={`${reviewEmptyStateClass} py-6`}>
               No director or shareholder data available. Data is sourced from organization profile.
             </p>
           </div>
         )}
-      </div>
+      </ReviewFieldBlock>
 
-      {/* 4. Cashsouk Intelligence */}
-      <div>
-        <h4 className="text-sm font-semibold flex items-center gap-2 mb-2">
-          <SparklesIcon className="h-4 w-4 text-muted-foreground" />
-          Cashsouk Intelligence
-          <span className="text-xs font-normal text-muted-foreground">Score: —</span>
-        </h4>
-        <div className="rounded-xl border bg-card overflow-hidden">
+      <ReviewFieldBlock title="Cashsouk Intelligence">
+        <p className="text-xs text-muted-foreground mb-3">Score: —</p>
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
           <div className="p-6">
-            <p className="text-sm text-muted-foreground">
+            <p className={reviewEmptyStateClass}>
               In-house decisioning analysis component will be integrated here.
             </p>
             <div className="flex items-center gap-2 mt-4">
@@ -670,7 +652,7 @@ export function ApplicationFinancialReviewContent({ app }: ApplicationFinancialR
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </ReviewFieldBlock>
+    </>
   );
 }

@@ -219,12 +219,12 @@ export class AdminService {
           ? (application.financing_structure as Record<string, unknown>)
           : null;
       if (structure?.structure_type === "invoice_only") {
-        sections.delete("contract_details");
         prerequisitesBySection.invoice_details = [
           "financial",
           "company_details",
           "business_details",
           "supporting_documents",
+          "contract_details",
         ];
       }
       return sections;
@@ -4248,6 +4248,7 @@ export class AdminService {
     invoiceStatuses: string[];
     isContractTabUnlocked?: boolean;
     isInvoiceTabUnlocked?: boolean;
+    isInvoiceOnly?: boolean;
   }): ApplicationStatus {
     const {
       contractId,
@@ -4255,12 +4256,13 @@ export class AdminService {
       invoiceStatuses,
       isContractTabUnlocked,
       isInvoiceTabUnlocked,
+      isInvoiceOnly,
     } = input;
 
-    if (contractId) {
+    if (contractId && !isInvoiceOnly) {
       if (contractStatus === "OFFER_SENT") return ApplicationStatus.CONTRACT_SENT;
       if (contractStatus === "APPROVED") {
-        if (invoiceStatuses.length === 0) return ApplicationStatus.CONTRACT_ACCEPTED;
+        if (invoiceStatuses.length === 0) return ApplicationStatus.COMPLETED;
         if (this.allInvoicesOfferableOrResolved(invoiceStatuses)) {
           return ApplicationStatus.INVOICES_SENT;
         }
@@ -4292,6 +4294,8 @@ export class AdminService {
     }
   ) {
     if (appStatus === ApplicationStatus.SUBMITTED || appStatus === ApplicationStatus.RESUBMITTED) {
+      const structure = application.financing_structure as { structure_type?: string } | null | undefined;
+      const isInvoiceOnly = structure?.structure_type === "invoice_only";
       const sectionPolicy = await this.getReviewSectionPolicy(application);
       const isContractTabUnlocked =
         application.contract_id != null
@@ -4304,6 +4308,7 @@ export class AdminService {
         invoiceStatuses: (application.invoices ?? []).map((inv) => (inv as { status?: string }).status ?? "DRAFT"),
         isContractTabUnlocked,
         isInvoiceTabUnlocked,
+        isInvoiceOnly,
       });
       await repository.updateApplicationStatus(applicationId, targetStatus);
     }
@@ -4965,11 +4970,16 @@ export class AdminService {
       application
     );
     if (section === "contract_details" || section === "invoice_details") {
-      throw new AppError(
-        400,
-        "INVALID_ACTION",
-        "Contract and invoice approvals must be finalized by issuer offer response"
-      );
+      const structure = application.financing_structure as { structure_type?: string } | null | undefined;
+      const isInvoiceOnly = structure?.structure_type === "invoice_only";
+      const contractApprovalAllowed = section === "contract_details" && isInvoiceOnly;
+      if (!contractApprovalAllowed) {
+        throw new AppError(
+          400,
+          "INVALID_ACTION",
+          "Contract and invoice approvals must be finalized by issuer offer response"
+        );
+      }
     }
     await repository.ensureApplicationReviewSection(applicationId, section);
 
@@ -5089,7 +5099,12 @@ export class AdminService {
     );
     await repository.removeDraftAmendment(applicationId, "section", section);
     if (section === "contract_details") {
-      await repository.updateApplicationStatus(applicationId, ApplicationStatus.CONTRACT_PENDING);
+      const structure = application.financing_structure as { structure_type?: string } | null | undefined;
+      const isInvoiceOnly = structure?.structure_type === "invoice_only";
+      await repository.updateApplicationStatus(
+        applicationId,
+        isInvoiceOnly ? ApplicationStatus.UNDER_REVIEW : ApplicationStatus.CONTRACT_PENDING
+      );
     } else if (section === "invoice_details") {
       await repository.updateApplicationStatus(applicationId, ApplicationStatus.INVOICE_PENDING);
     }
@@ -5830,7 +5845,12 @@ export class AdminService {
             where: { id: application.contract_id },
             data: { status: "SUBMITTED" },
           });
-          await repository.updateApplicationStatus(applicationId, ApplicationStatus.CONTRACT_PENDING);
+          const structure = application.financing_structure as { structure_type?: string } | null | undefined;
+          const isInvoiceOnly = structure?.structure_type === "invoice_only";
+          await repository.updateApplicationStatus(
+            applicationId,
+            isInvoiceOnly ? ApplicationStatus.UNDER_REVIEW : ApplicationStatus.CONTRACT_PENDING
+          );
         }
       }
     }

@@ -9,6 +9,13 @@ import {
 } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
 import { ApplicationStatusBadge } from "@/components/application-review";
+import {
+  applicationTableRowClass,
+  applicationTableCellClass,
+  applicationTableCellMutedClass,
+  applicationTableCellNumericClass,
+  applicationTableCellCenterClass,
+} from "./application-review/application-table-styles";
 
 interface ApplicationsTableRowProps {
   application: ApplicationListItem;
@@ -20,9 +27,9 @@ export function ApplicationsTableRow({
   onViewDetails,
 }: ApplicationsTableRowProps) {
   return (
-    <TableRow className="odd:bg-muted/40 hover:bg-muted">
+    <TableRow className={applicationTableRowClass}>
       {/* Reference */}
-      <TableCell className="text-sm font-medium">
+      <TableCell className={applicationTableCellClass}>
         <div className="flex items-center gap-2">
           <span className="truncate max-w-[100px]" title={application.id}>
             {application.id.slice(-8).toUpperCase()}
@@ -31,14 +38,14 @@ export function ApplicationsTableRow({
       </TableCell>
 
       {/* Applicant */}
-      <TableCell className="text-sm">
+      <TableCell className={applicationTableCellClass}>
         <div className="font-medium truncate max-w-[200px]" title={application.issuerOrganizationName || ""}>
           {application.issuerOrganizationName || "Unnamed Organization"}
         </div>
       </TableCell>
 
       {/* Financing Structure */}
-      <TableCell>
+      <TableCell className={applicationTableCellClass}>
         <div className="flex items-center gap-1.5 text-muted-foreground text-sm">
           <BanknotesIcon className="h-4 w-4" />
           {application.financingStructureLabel}
@@ -46,29 +53,29 @@ export function ApplicationsTableRow({
       </TableCell>
 
       {/* Requested Amount */}
-      <TableCell className="text-sm font-semibold">
+      <TableCell className={applicationTableCellNumericClass}>
         {formatCurrency(application.requestedAmount)}
       </TableCell>
 
       {/* Submitted */}
-      <TableCell className="text-sm text-muted-foreground">
+      <TableCell className={applicationTableCellMutedClass}>
         {application.submittedAt
           ? format(new Date(application.submittedAt), "dd MMM yyyy")
           : "—"}
       </TableCell>
 
       {/* Status */}
-      <TableCell>
+      <TableCell className={applicationTableCellClass}>
         <ApplicationStatusBadge status={application.status} />
       </TableCell>
 
       {/* Updated */}
-      <TableCell className="text-sm text-muted-foreground">
+      <TableCell className={applicationTableCellMutedClass}>
         {formatDistanceToNow(new Date(application.updatedAt), { addSuffix: true })}
       </TableCell>
 
       {/* Actions */}
-      <TableCell>
+      <TableCell className={applicationTableCellCenterClass}>
         <Button
           variant="ghost"
           size="sm"

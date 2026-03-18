@@ -300,7 +300,7 @@ export function ReviewAndSubmitStep({
     if (!dateStr) return "—";
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return dateStr;
-    return format(date, "d/M/yyyy");
+    return format(date, "dd MMM yyyy");
   };
 
   const formatAddress = (addr: any) => {
@@ -442,7 +442,7 @@ export function ReviewAndSubmitStep({
                     <>
                       {/* Table — same structure as invoice-details; document column can overflow → horizontal scroll */}
                       <div className="overflow-x-auto">
-                        <Table className="min-w-[1080px] w-max">
+                        <Table className="w-full min-w-[1080px] table-fixed">
                           <TableHeader className="bg-muted/20">
                             <TableRow>
                               <TableHead className="w-[140px] whitespace-nowrap text-xs font-semibold">
@@ -461,7 +461,7 @@ export function ReviewAndSubmitStep({
                                 Financing Ratio
                               </TableHead>
                               <TableHead className="w-[200px] whitespace-nowrap text-xs font-semibold">
-                                <div className="inline-flex items-center gap-1">
+                                <div className="inline-flex items-center gap-0.5">
                                   Maximum Financing Amount
                                   {invoiceProductConfig &&
                                     (typeof invoiceProductConfig.min_invoice_value === "number" ||
@@ -472,14 +472,14 @@ export function ReviewAndSubmitStep({
                                             <InformationCircleIcon className="h-4 w-4" />
                                           </span>
                                         </TooltipTrigger>
-                                        <TooltipContent side="top" className={fieldTooltipContentClassName}>
-                                          Per-invoice financing limits:{" "}
+                                        <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
+                                          {"Per invoice\n"}
                                           {typeof invoiceProductConfig.min_invoice_value === "number"
                                             ? `min RM ${formatMoney(invoiceProductConfig.min_invoice_value)}`
                                             : ""}
                                           {typeof invoiceProductConfig.min_invoice_value === "number" &&
                                           typeof invoiceProductConfig.max_invoice_value === "number"
-                                            ? ", "
+                                            ? "\n"
                                             : ""}
                                           {typeof invoiceProductConfig.max_invoice_value === "number"
                                             ? `max RM ${formatMoney(invoiceProductConfig.max_invoice_value)}`
@@ -489,7 +489,7 @@ export function ReviewAndSubmitStep({
                                     )}
                                 </div>
                               </TableHead>
-                              <TableHead className="min-w-[160px] whitespace-nowrap text-xs font-semibold">
+                              <TableHead className="w-[200px] max-w-[200px] whitespace-nowrap text-xs font-semibold">
                                 Documents
                               </TableHead>
                               <TableHead className="w-[50px]" />
@@ -536,15 +536,16 @@ export function ReviewAndSubmitStep({
                                     {isValidNumber(financingAmount) ? renderMoney(financingAmount) : "—"}
                                   </TableCell>
 
-                                  {/* Document — wrap when long filenames */}
-                                  <TableCell className="p-2 min-w-[160px] break-words">
+                                  {/* Document — truncate long filenames */}
+                                  <TableCell className="p-2 max-w-[200px]">
                                     {d.document?.file_name ? (
-                                      <FileDisplayBadge
-                                        fileName={d.document.file_name}
-                                        size="sm"
-                                        className="bg-background"
-                                        truncate={false}
-                                      />
+                                      <div className="min-w-0 overflow-hidden">
+                                        <FileDisplayBadge
+                                          fileName={d.document.file_name}
+                                          size="sm"
+                                          className="bg-background"
+                                        />
+                                      </div>
                                     ) : (
                                       <span className="text-muted-foreground text-xs">—</span>
                                     )}
@@ -802,7 +803,7 @@ export function ReviewAndSubmitStep({
                         <div className={labelClassName}>{doc.title}</div>
                         <div className={valueClassName}>
                           {doc.file ? (
-                            <FileDisplayBadge fileName={doc.file.file_name} truncate={false} />
+                            <FileDisplayBadge fileName={doc.file.file_name} />
                           ) : (
                             <span className="text-xs text-muted-foreground italic">Not provided</span>
                           )}

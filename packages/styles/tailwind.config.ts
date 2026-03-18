@@ -12,6 +12,15 @@ const config: Omit<Config, "content"> = {
     },
     extend: {
       colors: {
+        /** Status groups by meaning. action, submitted, in-progress, success, rejected, neutral. */
+        status: {
+          action: { bg: "#FEFCE8", text: "#CA8A04" },
+          submitted: { bg: "#EFF6FF", text: "#2563EB" },
+          "in-progress": { bg: "#EEF2FF", text: "#4F46E5" },
+          success: { bg: "#ECFDF2", text: "#15803D" },
+          rejected: { bg: "#FEF2F2", text: "#DC2626" },
+          neutral: { bg: "#F1F5F9", text: "#64748B" },
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

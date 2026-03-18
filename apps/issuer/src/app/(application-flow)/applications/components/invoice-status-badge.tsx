@@ -1,6 +1,6 @@
 import { cn } from "@cashsouk/ui";
 import type { WithdrawReason } from "@cashsouk/types";
-import { getStatusPresentation } from "@/app/(application-management)/applications/status";
+import { getStatusColorAndLabel } from "@cashsouk/config";
 
 const ALLOWED_STATUSES = [
   "DRAFT",
@@ -27,7 +27,7 @@ export function StatusBadge({
     return null;
   }
 
-  const { color, label } = getStatusPresentation(status, withdrawReason);
+  const { color, label } = getStatusColorAndLabel(status ?? "", withdrawReason);
 
   return (
     <span className={cn(BADGE_BASE, color)}>

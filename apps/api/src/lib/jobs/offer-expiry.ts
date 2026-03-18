@@ -201,10 +201,13 @@ export async function runOfferExpiryJob(): Promise<OfferExpiryResult> {
         const contract = app.contract
           ? { status: app.contract.status as ContractStatus }
           : null;
+        const isInvoiceOnly =
+          (app.financing_structure as { structure_type?: string } | null)?.structure_type === "invoice_only";
         const newStatus = computeApplicationStatus(
           contract,
           app.invoices.map((i) => ({ status: i.status as InvoiceStatus })),
-          app.status as ApplicationStatus
+          app.status as ApplicationStatus,
+          { isInvoiceOnly }
         );
         const currentStatus = app.status as ApplicationStatus;
         if (newStatus !== currentStatus) {

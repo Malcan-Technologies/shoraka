@@ -3,21 +3,13 @@
 import * as React from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
+import { getReviewStatusPresentation } from "@/components/application-review/status-presentation";
 import type { ReviewTabDescriptor } from "@/components/application-review/review-registry";
 
 export type { ReviewTabDescriptor } from "@/components/application-review/review-registry";
 
 function StatusDot({ status }: { status: string }) {
-  const dotClass =
-    status === "APPROVED"
-      ? "bg-green-500"
-      : status === "OFFER_SENT"
-        ? "bg-blue-500"
-        : status === "AMENDMENT_REQUESTED"
-          ? "bg-yellow-500"
-          : status === "REJECTED"
-            ? "bg-destructive"
-            : "bg-muted-foreground";
+  const { dotClass } = getReviewStatusPresentation(status);
   return (
     <span
       className={cn("inline-block h-2 w-2 rounded-full shrink-0", dotClass)}
@@ -52,13 +44,13 @@ export function ApplicationReviewTabs({
   const defaultValue = defaultTabId ?? tabDescriptors[0]?.id ?? "financial";
 
   return (
-    <Tabs defaultValue={defaultValue} className="w-full">
-      <TabsList className="inline-flex h-11 w-full rounded-xl bg-muted p-1 gap-1">
+    <Tabs defaultValue={defaultValue} className="w-full min-w-0">
+      <TabsList className="flex flex-wrap h-auto min-h-11 w-full rounded-xl bg-muted p-1 gap-2">
         {tabDescriptors.map((tab) => (
           <TabsTrigger
             key={tab.id}
             value={tab.id}
-            className="flex items-center gap-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm px-4"
+            className="flex shrink-0 items-center gap-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm px-4"
           >
             <StatusDot status={sectionMap.get(tab.reviewSection) ?? "PENDING"} />
             {tab.label}
@@ -78,7 +70,7 @@ export function ApplicationReviewTabContent({
   children: React.ReactNode;
 }) {
   return (
-    <TabsContent value={value} className="mt-6 focus-visible:outline-none focus-visible:ring-0">
+    <TabsContent value={value} className="mt-8 focus-visible:outline-none focus-visible:ring-0">
       {children}
     </TabsContent>
   );

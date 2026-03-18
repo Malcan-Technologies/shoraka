@@ -377,10 +377,13 @@ async deleteInvoice(id: string, userId: string) {
         ? await this.contractRepository.findById(app.contract_id)
         : null;
       const currentStatus = (app?.status as ApplicationStatus) ?? ApplicationStatus.DRAFT;
+      const isInvoiceOnly =
+        (app?.financing_structure as { structure_type?: string } | null)?.structure_type === "invoice_only";
       const newStatus = computeApplicationStatus(
         contract ? { status: contract.status as ContractStatus } : null,
         allInvoices.map((i) => ({ status: i.status as InvoiceStatus })),
-        currentStatus
+        currentStatus,
+        { isInvoiceOnly }
       );
       if (newStatus === ApplicationStatus.WITHDRAWN && currentStatus !== ApplicationStatus.WITHDRAWN) {
         const { prisma } = await import("../../lib/prisma");

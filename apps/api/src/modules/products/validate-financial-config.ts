@@ -13,7 +13,11 @@ function stepIdStartsWith(step: unknown, prefix: string): boolean {
   return getStepId(step).toLowerCase().startsWith(prefix);
 }
 
-/** Mandatory step set: Financing Structure, Contract Details, Invoice Details. All three must be selected and in order. */
+/**
+ * Mandatory step set: Financing Structure, Contract Details, Invoice Details.
+ * Only applies when at least one of these steps is in the workflow.
+ * When applicable: all three must be selected and in order.
+ */
 function validateMandatoryWorkflowStepSet(workflow: unknown[]): void {
   if (!Array.isArray(workflow) || workflow.length === 0) return;
 
@@ -24,6 +28,11 @@ function validateMandatoryWorkflowStepSet(workflow: unknown[]): void {
   const hasFs = fsIndex >= 0;
   const hasCd = cdIndex >= 0;
   const hasId = idIndex >= 0;
+
+  /** Skip validation if none of these steps are in the workflow. */
+  if (!hasFs && !hasCd && !hasId) {
+    return;
+  }
 
   if (!hasFs || !hasCd || !hasId) {
     throw new AppError(

@@ -2,7 +2,7 @@
  * Mock application generator for dev debug mode.
  * Only used when process.env.NODE_ENV === "development".
  * Generates realistic NormalizedApplication cards for testing filters, sorting, and lifecycle UI.
- * Covers all FILTER_STATUSES (draft, submitted, under_review, pending_amendment, offer_sent, accepted,
+ * Covers all FILTER_STATUSES (draft, submitted, under_review, amendment_requested, offer_sent, accepted,
  * completed, withdrawn, rejected) and all NormalizedApplication/NormalizedInvoice fields.
  */
 

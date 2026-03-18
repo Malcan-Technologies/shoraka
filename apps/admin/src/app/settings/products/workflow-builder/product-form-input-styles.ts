@@ -1,7 +1,7 @@
 /**
  * Shared input styling for product workflow builder.
  * Normalizes Input, Textarea, Select across step configs.
- * Focus on border/line (no halo). Uses admin branding: --ring for focus, --destructive for error.
+ * Matches application flow and BRANDING.md.
  */
 
 import { cn } from "@/lib/utils";
@@ -28,3 +28,7 @@ export const FIELD_GAP = "gap-2";
 
 /** Section: between field groups. */
 export const SECTION_GAP = "gap-4";
+
+/** Category/section header: matches application flow (text-base font-semibold, border-b). */
+export const SECTION_HEADER_CLASS = "text-base font-semibold text-foreground";
+export const SECTION_HEADER_DIVIDER_CLASS = "border-b border-border mt-2 mb-4";
