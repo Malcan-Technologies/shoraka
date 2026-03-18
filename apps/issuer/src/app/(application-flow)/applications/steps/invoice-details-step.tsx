@@ -171,7 +171,7 @@ export default function InvoiceDetailsStep({
   applicationId,
   onDataChange,
   readOnly = false,
-  isAmendmentMode: _isAmendmentMode = false,
+  isAmendmentMode = false,
   flaggedSections: _flaggedSections,
   flaggedItems: _flaggedItems,
   remarks = [],
@@ -821,10 +821,6 @@ export default function InvoiceDetailsStep({
 
   React.useEffect(() => {
     if (!application) return;
-    if (isInitialized) {
-      setIsLoadingInvoices(false);
-      return;
-    }
 
     let mounted = true;
     const loadInvoices = async () => {
@@ -864,11 +860,20 @@ export default function InvoiceDetailsStep({
 
         let mapped: LocalInvoice[];
 
-        if (isExistingContract && contractId) {
+        const resp: any = await apiClient.getInvoicesByApplication(applicationId);
+        if (!("success" in resp) || !resp.success) return;
+        const items: any[] = resp.data || [];
+
+        if (isAmendmentMode) {
           /**
-           * EXISTING CONTRACT: Fetch by contract first, then by application
-           * Contract invoices (APPROVED/SUBMITTED) come first
-           * Application invoices exclude APPROVED/SUBMITTED to avoid duplicates
+           * AMENDMENT: Show all invoices (SUBMITTED, APPROVED, REJECTED, WITHDRAWN, DRAFT).
+           * For existing_contract, application fetch includes contract-linked invoices.
+           */
+          mapped = items.map(toLocalInvoice);
+        } else if (isExistingContract && contractId) {
+          /**
+           * EXISTING CONTRACT (non-amendment): Contract invoices (SUBMITTED/APPROVED) + DRAFT.
+           * DRAFT can be removed if user switches structure.
            */
           const contractResp: any = await apiClient.getInvoicesByContract(contractId);
           const contractItems: any[] =
@@ -877,35 +882,16 @@ export default function InvoiceDetailsStep({
                 (it: any) => it.status === "APPROVED" || it.status === "SUBMITTED"
               )
               : [];
-          const contractMapped = contractItems.map(toLocalInvoice);
-
-          const appResp: any = await apiClient.getInvoicesByApplication(applicationId);
-          if (!("success" in appResp) || !appResp.success) {
-            mapped = contractMapped;
-          } else {
-            const appItems: any[] = (appResp.data || []).filter(
-              (it: any) =>
-                it.status !== "REJECTED" &&
-                it.status !== "APPROVED" &&
-                it.status !== "SUBMITTED"
-            );
-            const appMapped = appItems.map(toLocalInvoice);
-            mapped = [...contractMapped, ...appMapped];
-          }
+          const contractIds = new Set(contractItems.map((it: any) => it.id));
+          const appDrafts = (items || []).filter(
+            (it: any) => it.status === "DRAFT" && !contractIds.has(it.id)
+          );
+          mapped = [...contractItems.map(toLocalInvoice), ...appDrafts.map(toLocalInvoice)];
         } else {
           /**
-           * INVOICE_ONLY / NEW_CONTRACT: Single fetch by application
+           * INVOICE_ONLY / NEW_CONTRACT: DRAFT only (not related to contract).
            */
-          const resp: any = await apiClient.getInvoicesByApplication(applicationId);
-          if (!("success" in resp) || !resp.success) return;
-
-          const items: any[] = resp.data || [];
-          const isInvoiceOnly = application?.financing_structure?.structure_type === "invoice_only";
-          const filtered = items.filter((it: any) => {
-            if (it.status === "REJECTED") return false;
-            if (isInvoiceOnly && it.status !== "DRAFT") return false;
-            return true;
-          });
+          const filtered = items.filter((it: any) => it.status === "DRAFT");
           mapped = filtered.map(toLocalInvoice);
         }
 
@@ -939,7 +925,7 @@ export default function InvoiceDetailsStep({
       mounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [applicationId, application?.financing_structure?.structure_type, application?.contract_id]);
+  }, [applicationId, application, application?.financing_structure?.structure_type, application?.contract_id, isAmendmentMode]);
 
   if (isLoadingApplication || devTools?.showSkeletonDebug) {
     return (

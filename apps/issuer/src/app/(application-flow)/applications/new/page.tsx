@@ -175,7 +175,7 @@ export default function NewApplicationPage() {
   };
 
   /**
-   * When user clicks "Continue"
+   * When user clicks "Save and Continue"
    *
    * Creates application in DB with:
    * - productId
@@ -320,7 +320,7 @@ export default function NewApplicationPage() {
         </div>
       </main>
 
-      {/* Bottom buttons - Back + Continue, same visibility as edit (hidden when loading) */}
+      {/* Bottom buttons - Back + Save and Continue */}
       <footer className="sticky bottom-0 border-t bg-background">
         <div className="max-w-7xl mx-auto w-full px-4 py-4 flex justify-between">
           <Button
@@ -337,7 +337,7 @@ export default function NewApplicationPage() {
             disabled={!selectedProductId || createApplicationMutation.isPending}
             className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2 h-11"
           >
-            {createApplicationMutation.isPending ? "Creating..." : "Continue"}
+            {createApplicationMutation.isPending ? "Creating..." : "Save and Continue"}
             <ArrowRightIcon className="h-4 w-4 ml-2" />
           </Button>
         </div>
