@@ -52,13 +52,13 @@ export function ApplicationReviewTabs({
   const defaultValue = defaultTabId ?? tabDescriptors[0]?.id ?? "financial";
 
   return (
-    <Tabs defaultValue={defaultValue} className="w-full">
-      <TabsList className="inline-flex h-11 w-full rounded-xl bg-muted p-1 gap-1">
+    <Tabs defaultValue={defaultValue} className="w-full min-w-0">
+      <TabsList className="flex flex-wrap h-auto min-h-11 w-full rounded-xl bg-muted p-1 gap-1">
         {tabDescriptors.map((tab) => (
           <TabsTrigger
             key={tab.id}
             value={tab.id}
-            className="flex items-center gap-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm px-4"
+            className="flex shrink-0 items-center gap-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm px-4"
           >
             <StatusDot status={sectionMap.get(tab.reviewSection) ?? "PENDING"} />
             {tab.label}

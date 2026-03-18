@@ -703,75 +703,76 @@ export default function DynamicApplicationDetailPage() {
                         const productVersion = typeof (app as { product_version?: number }).product_version === "number"
                           ? String((app as { product_version: number }).product_version)
                           : "—";
+                        const valueClass = "text-sm font-medium break-words min-w-0";
                         return (
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
                             <div className="flex flex-col gap-5 min-w-0">
-                              <div className="space-y-1">
+                              <div className="space-y-1 min-w-0">
                                 <div className="text-xs text-muted-foreground uppercase tracking-wider">
                                   Organization
                                 </div>
-                                <div className="text-sm font-medium">{app.issuer_organization.name}</div>
+                                <div className={valueClass}>{app.issuer_organization.name}</div>
                               </div>
-                              <div className="space-y-1">
+                              <div className="space-y-1 min-w-0">
                                 <div className="text-xs text-muted-foreground uppercase tracking-wider">
                                   Owner
                                 </div>
-                                <div className="text-sm font-medium">
+                                <div className={valueClass}>
                                   {app.issuer_organization.owner.first_name}{" "}
                                   {app.issuer_organization.owner.last_name}
                                 </div>
                               </div>
-                              <div className="space-y-1">
+                              <div className="space-y-1 min-w-0">
                                 <div className="text-xs text-muted-foreground uppercase tracking-wider">
                                   Email
                                 </div>
-                                <div className="text-sm font-medium">
+                                <div className={valueClass}>
                                   {app.issuer_organization.owner.email}
                                 </div>
                               </div>
                             </div>
-                            <div className="space-y-5">
-                              <div className="space-y-1">
+                            <div className="space-y-5 min-w-0">
+                              <div className="space-y-1 min-w-0">
                                 <div className="text-xs text-muted-foreground uppercase tracking-wider">
                                   Paymaster
                                 </div>
-                                <div className="text-sm font-medium">{paymaster}</div>
+                                <div className={valueClass}>{paymaster}</div>
                               </div>
-                              <div className="space-y-1">
+                              <div className="space-y-1 min-w-0">
                                 <div className="text-xs text-muted-foreground uppercase tracking-wider">
                                   Financing Structure
                                 </div>
-                                <div className="text-sm font-medium">{financingStructureLabel}</div>
+                                <div className={valueClass}>{financingStructureLabel}</div>
                               </div>
-                              <div className="space-y-1">
+                              <div className="space-y-1 min-w-0">
                                 <div className="text-xs text-muted-foreground uppercase tracking-wider">
                                   Product Version
                                 </div>
-                                <div className="text-sm font-medium">{productVersion}</div>
+                                <div className={valueClass}>{productVersion}</div>
                               </div>
                             </div>
-                            <div className="space-y-5">
-                              <div className="space-y-1">
+                            <div className="space-y-5 min-w-0">
+                              <div className="space-y-1 min-w-0">
                                 <div className="text-xs text-muted-foreground uppercase tracking-wider">
                                   Reference
                                 </div>
-                                <div className="text-sm font-medium">{app.id}</div>
+                                <div className={valueClass}>{app.id}</div>
                               </div>
-                              <div className="space-y-1">
+                              <div className="space-y-1 min-w-0">
                                 <div className="text-xs text-muted-foreground uppercase tracking-wider">
                                   Submitted At
                                 </div>
-                                <div className="text-sm font-medium">
+                                <div className={valueClass}>
                                   {app.submitted_at
                                     ? format(new Date(app.submitted_at), "PPP p")
                                     : "Not submitted"}
                                 </div>
                               </div>
-                              <div className="space-y-1">
+                              <div className="space-y-1 min-w-0">
                                 <div className="text-xs text-muted-foreground uppercase tracking-wider">
                                   Last Updated
                                 </div>
-                                <div className="text-sm font-medium">
+                                <div className={valueClass}>
                                   {format(new Date(app.updated_at), "PPP p")}
                                 </div>
                               </div>
