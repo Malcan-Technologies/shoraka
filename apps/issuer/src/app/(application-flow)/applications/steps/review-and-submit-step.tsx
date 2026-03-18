@@ -300,7 +300,7 @@ export function ReviewAndSubmitStep({
     if (!dateStr) return "—";
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) return dateStr;
-    return format(date, "d/M/yyyy");
+    return format(date, "dd MMM yyyy");
   };
 
   const formatAddress = (addr: any) => {
@@ -461,7 +461,7 @@ export function ReviewAndSubmitStep({
                                 Financing Ratio
                               </TableHead>
                               <TableHead className="w-[200px] whitespace-nowrap text-xs font-semibold">
-                                <div className="inline-flex items-center gap-1">
+                                <div className="inline-flex items-center gap-0.5">
                                   Maximum Financing Amount
                                   {invoiceProductConfig &&
                                     (typeof invoiceProductConfig.min_invoice_value === "number" ||
@@ -472,14 +472,14 @@ export function ReviewAndSubmitStep({
                                             <InformationCircleIcon className="h-4 w-4" />
                                           </span>
                                         </TooltipTrigger>
-                                        <TooltipContent side="top" className={fieldTooltipContentClassName}>
-                                          Per-invoice financing limits:{" "}
+                                        <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
+                                          {"Per invoice\n"}
                                           {typeof invoiceProductConfig.min_invoice_value === "number"
                                             ? `min RM ${formatMoney(invoiceProductConfig.min_invoice_value)}`
                                             : ""}
                                           {typeof invoiceProductConfig.min_invoice_value === "number" &&
                                           typeof invoiceProductConfig.max_invoice_value === "number"
-                                            ? ", "
+                                            ? "\n"
                                             : ""}
                                           {typeof invoiceProductConfig.max_invoice_value === "number"
                                             ? `max RM ${formatMoney(invoiceProductConfig.max_invoice_value)}`
