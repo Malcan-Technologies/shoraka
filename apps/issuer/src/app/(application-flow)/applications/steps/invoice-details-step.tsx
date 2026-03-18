@@ -54,7 +54,7 @@ import { Trash2 } from "lucide-react";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
 import { XMarkIcon, CloudArrowUpIcon, InformationCircleIcon } from "@heroicons/react/24/outline";
-import { Slider } from "@/components/ui/slider";
+import { Slider } from "@cashsouk/ui";
 import { cn } from "@cashsouk/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useProducts } from "@/hooks/use-products";

@@ -82,6 +82,7 @@ export { formatMoney, parseMoney, formatMoneyDisplay } from "./lib/money";
 export { Progress } from "./components/progress";
 export { Checkbox } from "./components/checkbox";
 export { Switch } from "./components/switch";
+export { Slider } from "./components/slider";
 export { Tabs, TabsList, TabsTrigger, TabsContent } from "./components/tabs";
 export { InviteMemberDialog } from "./invite-member-dialog";
 export type { InviteMemberDialogHooks, InviteMemberDialogProps } from "./invite-member-dialog";
