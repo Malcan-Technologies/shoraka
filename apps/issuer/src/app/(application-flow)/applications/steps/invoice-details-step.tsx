@@ -1151,7 +1151,7 @@ export default function InvoiceDetailsStep({
                           const maxRatio = productConfig?.max_financing_ratio_percent ?? 80;
                           const rawRatio = inv.financing_ratio_percent;
                           const ratioNum = (() => {
-                            if (rawRatio == null || rawRatio === "") return minRatio;
+                            if (rawRatio == null) return minRatio;
                             const n = typeof rawRatio === "number" ? rawRatio : Number(rawRatio);
                             if (!Number.isFinite(n)) return minRatio;
                             return Math.min(maxRatio, Math.max(minRatio, Math.round(n)));
