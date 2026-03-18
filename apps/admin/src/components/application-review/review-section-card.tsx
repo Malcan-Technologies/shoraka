@@ -80,7 +80,7 @@ export function ReviewSectionCard({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="space-y-8">{children}</CardContent>
+      <CardContent className="space-y-10">{children}</CardContent>
     </Card>
   );
 }
