@@ -130,6 +130,11 @@ function formatDate(date: string | Date | null | undefined): string {
   return format(new Date(date), "d MMM yyyy");
 }
 
+function formatDateTime(date: string | Date | null | undefined): string {
+  if (date == null) return "—";
+  return format(new Date(date), "dd MMM yyyy, h:mm a");
+}
+
 /** Invoice table document cell: filename badge + download button when s3_key exists. */
 function InvoiceDocumentCell({
   documentName,
@@ -310,7 +315,7 @@ function ApplicationCard({
                 This application is still being set up.
               </p>
               <span className="text-muted-foreground">Submitted:</span>
-              <span className="text-foreground">{formatDate(application.submittedAt)}</span>
+              <span className="text-foreground">{formatDateTime(application.submittedAt)}</span>
             </div>
           ) : (
           <div className="flex flex-wrap justify-between gap-6">
@@ -324,7 +329,7 @@ function ApplicationCard({
               <span className="text-muted-foreground">Customer:</span>
               <span className="text-foreground">{application.customer}</span>
               <span className="text-muted-foreground">Submitted:</span>
-              <span className="text-foreground">{formatDate(application.submittedAt)}</span>
+              <span className="text-foreground">{formatDateTime(application.submittedAt)}</span>
             </div>
             {hasContract && (
               <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
