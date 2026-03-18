@@ -354,7 +354,7 @@ Example: app says SUBMITTED, one invoice says AMENDMENT_REQUESTED. We show "Acti
 | badgeKey           | Priority | Label           |
 |--------------------|----------|-----------------|
 | rejected           | 1        | Rejected        |
-| pending_amendment  | 2        | Action Required |
+| amendment_requested  | 2        | Action Required |
 | sent               | 3        | Offer Received  |
 | under_review       | 4        | Under Review    |
 | submitted          | 5        | Submitted       |

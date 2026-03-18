@@ -231,7 +231,6 @@ const BADGE_KEY_PRESENTATION: Record<string, StatusPresentation> = {
   draft: { ...STATUS_PRESENTATION.DRAFT, label: "Draft" } as StatusPresentation,
   submitted: { ...STATUS_PRESENTATION.SUBMITTED, label: "Submitted" } as StatusPresentation,
   under_review: { ...STATUS_PRESENTATION.UNDER_REVIEW, label: "Under Review" } as StatusPresentation,
-  pending_amendment: { ...STATUS_PRESENTATION.AMENDMENT_REQUESTED, label: "Action Required" } as StatusPresentation,
   amendment_requested: { ...STATUS_PRESENTATION.AMENDMENT_REQUESTED, label: "Action Required" } as StatusPresentation,
   resubmitted: { ...STATUS_PRESENTATION.RESUBMITTED, label: "Resubmitted" } as StatusPresentation,
   offer_sent: { ...STATUS_PRESENTATION.OFFER_SENT, label: "Offer Received" } as StatusPresentation,
@@ -259,16 +258,26 @@ export function getStatusPresentationByBadgeKey(
 
 /**
  * Get status presentation for admin/issuer badges. Use for ApplicationStatusBadge, ReviewStepStatusBadge.
+ * Admin: uses raw STATUS_PRESENTATION (Contract Pending, Contract Sent, etc.).
+ * Issuer card: uses collapsed BADGE_KEY_PRESENTATION via getStatusPresentationByBadgeKey.
  */
 export function getStatusPresentation(
   status: string,
   withdrawReason?: WithdrawReason
 ): StatusPresentation {
-  const badgeKey =
-    API_STATUS_TO_BADGE_KEY[status?.toUpperCase() ?? ""] ?? status?.toLowerCase() ?? "draft";
+  const upper = status?.toUpperCase() ?? "";
+  const rawPres = STATUS_PRESENTATION[upper];
+  if (rawPres) {
+    const label =
+      upper === "WITHDRAWN"
+        ? formatWithdrawLabel(withdrawReason)
+        : (rawPres.label ?? toLabel(status || "Pending"));
+    return { ...rawPres, label } as StatusPresentation;
+  }
+  const badgeKey = API_STATUS_TO_BADGE_KEY[upper] ?? status?.toLowerCase() ?? "draft";
   const pres = BADGE_KEY_PRESENTATION[badgeKey] ?? PENDING_FALLBACK;
   const label =
-    status?.toUpperCase() === "WITHDRAWN"
+    upper === "WITHDRAWN"
       ? formatWithdrawLabel(withdrawReason)
       : (pres.label ?? toLabel(status || "Pending"));
   return { ...pres, label } as StatusPresentation;

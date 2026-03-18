@@ -27,7 +27,6 @@ const STATUS_OPTIONS = [
   { value: "APPROVED", label: "Approved" },
   { value: "REJECTED", label: "Rejected" },
   { value: "WITHDRAWN", label: "Withdrawn" },
-  { value: "ARCHIVED", label: "Archived" },
 ] as const;
 
 export function ApplicationsTableToolbar({

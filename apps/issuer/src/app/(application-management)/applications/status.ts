@@ -160,7 +160,7 @@ export const STATUS: Record<
   { label: string; color: string; sortOrder: number }
 > = {
   rejected: { label: "Rejected", color: statusColorClass("rejected"), sortOrder: 1 },
-  pending_amendment: { label: "Action Required", color: statusColorClass("pending_amendment"), sortOrder: 2 },
+  amendment_requested: { label: "Action Required", color: statusColorClass("amendment_requested"), sortOrder: 2 },
   offer_sent: { label: "Offer Received", color: statusColorClass("offer_sent"), sortOrder: 3 },
   under_review: { label: "Under Review", color: statusColorClass("under_review"), sortOrder: 4 },
   submitted: { label: "Submitted", color: statusColorClass("submitted"), sortOrder: 5 },
@@ -171,7 +171,6 @@ export const STATUS: Record<
   completed: { label: "Completed", color: statusColorClass("completed"), sortOrder: 9 },
   withdrawn: { label: "Withdrawn", color: statusColorClass("withdrawn"), sortOrder: 10 },
   archived: { label: "Archived", color: statusColorClass("archived"), sortOrder: 11 },
-  amendment_requested: { label: "Action Required", color: statusColorClass("amendment_requested"), sortOrder: 2 },
 };
 
 export function getSortOrder(status: string): number {
@@ -199,7 +198,7 @@ export const FILTER_STATUSES = [
   "draft",
   "submitted",
   "under_review",
-  "pending_amendment",
+  "amendment_requested",
   "offer_sent",
   "accepted",
   "completed",
@@ -272,10 +271,10 @@ export function getCardStatus(input: {
 
   /** Action Required: app, contract, or any invoice has AMENDMENT_REQUESTED. Highest urgency. */
   if (app === "AMENDMENT_REQUESTED") {
-    return { badgeKey: "pending_amendment", displayLabel: "Action Required", showReviewOffer: false, showMakeAmendments: true };
+    return { badgeKey: "amendment_requested", displayLabel: "Action Required", showReviewOffer: false, showMakeAmendments: true };
   }
   if (contractAmendmentRequested || anyInvoiceAmendmentRequested) {
-    return { badgeKey: "pending_amendment", displayLabel: "Action Required", showReviewOffer: false, showMakeAmendments: false };
+    return { badgeKey: "amendment_requested", displayLabel: "Action Required", showReviewOffer: false, showMakeAmendments: false };
   }
 
   /** Offer Waiting: contract or any invoice has OFFER_SENT. Card-level Review Offer only for contract offers. */
@@ -312,17 +311,20 @@ export function getCardStatus(input: {
   return { badgeKey: "draft", displayLabel: "Draft", showReviewOffer: false, showMakeAmendments: false };
 }
 
-/** Urgency-based sort order. Lower = higher in list. Applications needing attention appear first. */
+/**
+ * Urgency-based sort order. Lower = higher in list.
+ * UX order: 1) Needs action, 2) In progress, 3) Draft, 4) Success, 5) Closed.
+ */
 export const APPLICATION_STATUS_PRIORITY: Record<string, number> = Object.freeze({
-  pending_amendment: 1,
+  amendment_requested: 1,
   offer_sent: 2,
   under_review: 3,
   submitted: 4,
   resubmitted: 5,
   draft: 6,
-  completed: 7,
-  withdrawn: 8,
-  rejected: 9,
-  archived: 10,
-  accepted: 11,
+  accepted: 7,
+  completed: 8,
+  withdrawn: 9,
+  rejected: 10,
+  archived: 11,
 });

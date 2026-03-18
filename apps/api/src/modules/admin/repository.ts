@@ -2139,9 +2139,12 @@ export class AdminRepository {
     const where: Prisma.ApplicationWhereInput = {};
 
     if (statuses && statuses.length > 0) {
-      where.status = { in: statuses };
+      const filtered = statuses.filter((s) => s !== "ARCHIVED");
+      where.status = filtered.length > 0 ? { in: filtered } : { in: [] };
     } else if (status) {
-      where.status = status;
+      where.status = status === "ARCHIVED" ? { in: [] } : status;
+    } else {
+      where.status = { not: "ARCHIVED" };
     }
 
     /** Filter by product: use base_id so applications from all versions (active + inactive) are shown. */

@@ -39,7 +39,15 @@ Classes: `bg-status-{group}-bg text-status-{group}-text`. Add `packages/config/s
 | ARCHIVED | Archived |
 | PENDING | Pending |
 
-**Issuer display overrides:** `amendment_requested` / `pending_amendment` → "Action Required"; `offer_sent` → "Offer Received".
+**ARCHIVED:** Never shown in admin or issuer listing or filter. Excluded from both; API excludes ARCHIVED from admin applications list.
+
+**Admin vs Issuer:**
+- Admin: raw labels (Contract Pending, Contract Sent, Invoice Pending, Invoices Sent).
+- Issuer card: collapsed to "Under Review" for those; uses getStatusPresentationByBadgeKey.
+
+**AMENDMENT_REQUESTED:** API status. Mapped to badge key `amendment_requested` → "Action Required".
+
+**Issuer display overrides:** `offer_sent` → "Offer Received".
 
 ## Usage
 

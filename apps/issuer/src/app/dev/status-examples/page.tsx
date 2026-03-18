@@ -1,18 +1,63 @@
 "use client";
 
 /**
- * Dev-only page: shows all status badge examples.
+ * Dev-only page: status badge examples and reference.
  * URL: /dev/status-examples
- * Only available when NODE_ENV === "development".
  */
 
 import { notFound } from "next/navigation";
-import { getStatusPresentation, STATUS_EXAMPLE_KEYS } from "@cashsouk/config";
+import {
+  getStatusPresentation,
+  getStatusPresentationByBadgeKey,
+  STATUS_EXAMPLE_KEYS,
+  API_STATUS_TO_BADGE_KEY,
+} from "@cashsouk/config";
 import { WithdrawReason } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { APPLICATION_STATUS_PRIORITY } from "@/app/(application-management)/applications/status";
 
-const BADGE_BASE = "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold border";
+const BADGE_BASE = "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border";
+
+const ALL_WITHDRAWN_REASONS: (WithdrawReason | undefined)[] = [
+  undefined,
+  ...Object.values(WithdrawReason),
+];
+
+function Section({ title, children, className }: { title: string; children: React.ReactNode; className?: string }) {
+  return (
+    <section className={cn("rounded-xl border bg-card p-5 shadow-sm", className)}>
+      <h2 className="text-base font-semibold mb-3">{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+function BadgeItem({
+  badgeClass,
+  dotClass,
+  label,
+  meta,
+  noDot,
+  noMeta,
+}: {
+  badgeClass: string;
+  dotClass: string;
+  label: string;
+  meta?: string;
+  noDot?: boolean;
+  noMeta?: boolean;
+}) {
+  return (
+    <div className="flex flex-col items-start gap-0.5">
+      <Badge variant="outline" className={cn(BADGE_BASE, badgeClass)}>
+        {!noDot && <span className={cn("mr-1.5 h-1.5 w-1.5 rounded-full shrink-0", dotClass)} aria-hidden />}
+        {label}
+      </Badge>
+      {!noMeta && meta && <span className="text-[10px] font-mono text-muted-foreground">{meta}</span>}
+    </div>
+  );
+}
 
 export default function StatusExamplesPage() {
   if (process.env.NODE_ENV !== "development") {
@@ -20,69 +65,138 @@ export default function StatusExamplesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="mx-auto max-w-3xl space-y-8">
-        <div>
-          <h1 className="text-2xl font-bold">Status Badge Examples</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Dev-only. All statuses from @cashsouk/config status-badges.
+    <div className="min-h-screen bg-background p-6 md:p-8">
+      <div className="mx-auto max-w-4xl space-y-6">
+        <header>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Status Badge Reference</h1>
+          <p className="mt-1 text-[15px] text-muted-foreground">
+            Dev-only. Admin: raw labels. Issuer: collapsed (e.g. Contract Pending → Under Review). Archived never shown in admin or issuer listing.
           </p>
+        </header>
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <Section title="DB → Display (all)">
+            <p className="text-sm text-muted-foreground mb-3">
+              All API statuses. Admin shows these; issuer collapses some.
+            </p>
+            <div className="overflow-x-auto -mx-1">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left sticky top-0 bg-card">
+                    <th className="py-2 font-medium font-mono text-xs">DB</th>
+                    <th className="py-2 font-medium">Display</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {STATUS_EXAMPLE_KEYS.map((key) => {
+                    const pres = getStatusPresentation(
+                      key,
+                      key === "WITHDRAWN" ? WithdrawReason.USER_CANCELLED : undefined
+                    );
+                    return (
+                      <tr key={key} className="border-b last:border-0">
+                        <td className="py-1.5 font-mono text-xs text-muted-foreground">{key}</td>
+                        <td className="py-1.5">{pres.label}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Section>
+
+          <Section title="List priority (issuer)">
+            <p className="text-sm text-muted-foreground mb-3">
+              Lower = higher in list.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(APPLICATION_STATUS_PRIORITY)
+                .sort(([, a], [, b]) => a - b)
+                .map(([badgeKey, priority]) => (
+                  <span
+                    key={badgeKey}
+                    className="inline-flex items-center gap-1 rounded-md bg-muted/50 px-2 py-0.5 text-xs font-mono"
+                  >
+                    <span className="text-muted-foreground">{priority}</span>
+                    {badgeKey}
+                  </span>
+                ))}
+            </div>
+          </Section>
         </div>
 
-        <div className="space-y-6">
-          <h2 className="text-lg font-semibold">API statuses</h2>
+        <Section title="Badges — Admin view (all)">
+          <p className="text-sm text-muted-foreground mb-3">
+            Raw labels: Contract Pending, Contract Sent, Invoice Pending, etc.
+          </p>
           <div className="flex flex-wrap gap-3">
             {STATUS_EXAMPLE_KEYS.map((key) => {
               const pres = getStatusPresentation(
                 key,
                 key === "WITHDRAWN" ? WithdrawReason.USER_CANCELLED : undefined
               );
+              const badgeKey = API_STATUS_TO_BADGE_KEY[key] ?? key.toLowerCase();
+              const priority = APPLICATION_STATUS_PRIORITY[badgeKey];
               return (
-                <div key={key} className="flex flex-col items-start gap-1">
-                  <Badge
-                    variant="outline"
-                    className={cn(BADGE_BASE, pres.badgeClass)}
-                  >
-                    <span
-                      className={cn("mr-1.5 h-2 w-2 rounded-full shrink-0", pres.dotClass)}
-                      aria-hidden
-                    />
-                    {pres.label}
-                  </Badge>
-                  <span className="text-[11px] text-muted-foreground font-mono">
-                    {key}
-                  </span>
-                </div>
+                <BadgeItem
+                  key={key}
+                  badgeClass={pres.badgeClass}
+                  dotClass={pres.dotClass}
+                  label={pres.label}
+                  meta={`${key}${priority != null ? ` · #${priority}` : ""}`}
+                />
               );
             })}
           </div>
-        </div>
+        </Section>
 
-        <div className="space-y-6">
-          <h2 className="text-lg font-semibold">Withdrawn variants</h2>
+        <Section title="Badges — Issuer view (all)">
+          <p className="text-sm text-muted-foreground mb-3">
+            DB received → issuer shows. CONTRACT_PENDING, CONTRACT_SENT, etc. → Under Review.
+          </p>
           <div className="flex flex-wrap gap-3">
-            {[WithdrawReason.USER_CANCELLED, WithdrawReason.OFFER_EXPIRED, WithdrawReason.OFFER_REJECTED].map((reason) => {
-              const pres = getStatusPresentation("WITHDRAWN", reason);
+            {STATUS_EXAMPLE_KEYS.map((key) => {
+              const badgeKey = API_STATUS_TO_BADGE_KEY[key] ?? key.toLowerCase();
+              const pres = getStatusPresentationByBadgeKey(badgeKey);
+              const fullPres = getStatusPresentation(
+                key,
+                key === "WITHDRAWN" ? WithdrawReason.USER_CANCELLED : undefined
+              );
+              const priority = APPLICATION_STATUS_PRIORITY[badgeKey];
               return (
-                <div key={reason} className="flex flex-col items-start gap-1">
-                  <Badge
-                    variant="outline"
-                    className={cn(BADGE_BASE, pres.badgeClass)}
-                  >
-                    <span
-                      className={cn("mr-1.5 h-2 w-2 rounded-full shrink-0", pres.dotClass)}
-                      aria-hidden
-                    />
-                    {pres.label}
-                  </Badge>
-                  <span className="text-[11px] text-muted-foreground font-mono">
-                    WITHDRAWN + {reason}
-                  </span>
-                </div>
+                <BadgeItem
+                  key={key}
+                  badgeClass={pres.color}
+                  dotClass={fullPres.dotClass}
+                  label={pres.label}
+                  meta={`${key}${priority != null ? ` · #${priority}` : ""}`}
+                />
               );
             })}
           </div>
-        </div>
+        </Section>
+
+        <Section title="Withdrawn — all variants">
+          <p className="text-sm text-muted-foreground mb-3">
+            WITHDRAWN with each reason. Default (no reason) shown first.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            {ALL_WITHDRAWN_REASONS.map((reason) => {
+              const pres = getStatusPresentation("WITHDRAWN", reason);
+              const key = reason ?? "default";
+              const meta = reason ? `WITHDRAWN + ${reason}` : "WITHDRAWN (default)";
+              return (
+                <BadgeItem
+                  key={key}
+                  badgeClass={pres.badgeClass}
+                  dotClass={pres.dotClass}
+                  label={pres.label}
+                  meta={meta}
+                />
+              );
+            })}
+          </div>
+        </Section>
       </div>
     </div>
   );
