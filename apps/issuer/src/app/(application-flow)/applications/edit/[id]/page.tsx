@@ -259,7 +259,7 @@ export default function EditApplicationPage() {
     for (const r of amendmentContext.remarks || []) {
       const rem = r as { scope?: string; scope_key?: string };
       if (rem.scope === "section" && rem.scope_key) {
-        const key = rem.scope_key === "financial" ? "financial_statements" : rem.scope_key;
+        const key = rem.scope_key;
         s.add(key);
       }
     }
@@ -274,7 +274,7 @@ export default function EditApplicationPage() {
       const rem = r as { scope?: string; scope_key?: string };
       if (rem.scope === "item" && rem.scope_key) {
         const tab = rem.scope_key.split(":")[0];
-        const tabKey = tab === "financial" ? "financial_statements" : tab;
+        const tabKey = tab;
         if (!m.has(tabKey)) m.set(tabKey, new Set());
         m.get(tabKey)!.add(rem.scope_key);
       }
@@ -709,9 +709,7 @@ export default function EditApplicationPage() {
     return remarks
       .filter((r) => {
         if (r.scope !== "section" || !r.scope_key) return false;
-        const matchesKey = r.scope_key === currentStepKey;
-        const financialMatch = r.scope_key === "financial" && currentStepKey === "financial_statements";
-        return matchesKey || financialMatch;
+        return r.scope_key === currentStepKey;
       })
       .map((r) => r.remark || "");
   }, [currentStepKey, amendmentContext?.remarks]);

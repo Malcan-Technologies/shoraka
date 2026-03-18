@@ -33,17 +33,12 @@ export async function getAmendmentAllowedSections(
   const allowedSections = new Set<string>();
   const allowedItemKeys = new Set<string>();
 
-  /** Admin uses "financial"; Application field is "financial_statements". Map for updateStep lock check. */
-  const scopeKeyToField = (key: string) => (key === "financial" ? "financial_statements" : key);
-
   for (const r of remarks) {
     if (r.scope === "section" && r.scope_key) {
       allowedSections.add(r.scope_key);
-      allowedSections.add(scopeKeyToField(r.scope_key));
     } else if (r.scope === "item" && r.scope_key) {
       const stepKey = r.scope_key.split(":")[0];
       allowedSections.add(stepKey);
-      allowedSections.add(scopeKeyToField(stepKey));
       allowedItemKeys.add(r.scope_key);
     }
   }
