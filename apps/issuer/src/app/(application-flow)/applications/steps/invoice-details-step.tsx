@@ -60,6 +60,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useProducts } from "@/hooks/use-products";
 import {
   formInputDisabledClassName,
+  formLabelClassName,
   withFieldError,
   fieldTooltipContentClassName,
   fieldTooltipTriggerClassName,
@@ -75,8 +76,6 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { FileDisplayBadge } from "../components/file-display-badge";
 
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium";
-const sectionTitleClassName =
-  "text-base font-semibold text-foreground pb-1.5 border-b-2 border-border inline-block";
 
 /** Mock data for dev Auto Fill Step. Random 1–5 invoices. */
 export function generateMockData(): Record<string, unknown> {
@@ -945,73 +944,79 @@ export default function InvoiceDetailsStep({
       <div className="space-y-10 px-3 max-w-[1200px] mx-auto">
         {/* ================= Contract ================= */}
         {!isInvoiceOnly && (
-          <div className="rounded-xl border border-border bg-card p-6">
-            <h3 className={sectionTitleClassName}>
-              {isInvoiceOnly ? "Customer" : "Contract"}
-            </h3>
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
-              {!isInvoiceOnly && (
-                <>
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-muted-foreground">Contract title</p>
-                    <p className={valueClassName}>
-                      {application?.contract?.contract_details?.title ?? "—"}
-                    </p>
-                  </div>
-                </>
-              )}
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Customer</p>
-                <p className={valueClassName}>
+          <div className="space-y-3">
+            <div>
+              <h3 className="text-base font-semibold text-foreground">
+                {isInvoiceOnly ? "Customer" : "Contract"}
+              </h3>
+              <div className="border-b border-border mt-2 mb-4" />
+            </div>
+
+            <div className="space-y-3 mt-4 px-3">
+              <div className="grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-y-3">
+
+                {!isInvoiceOnly && (
+                  <>
+                {/* ================= Contract Title ================= */}
+                <div className={formLabelClassName}>Contract Title</div>
+                <div className={valueClassName}>
+                  {application?.contract?.contract_details?.title ?? "—"}
+                </div>
+                  </>
+                )}
+
+                {/* ================= Customer ================= */}
+                <div className={formLabelClassName}>Customer Name</div>
+                <div className={valueClassName}>
                   {application?.contract?.customer_details?.name ?? "—"}
-                </p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Contract value</p>
-                <p className={valueClassName}>
+                </div>
+
+                {/* ================= Contract Value ================= */}
+                <div className={formLabelClassName}>Contract Value</div>
+                <div className={valueClassName}>
                   {application?.contract?.contract_details?.value != null
                     ? `RM ${formatMoney(application.contract.contract_details.value)}`
                     : "—"}
-                </p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Financing</p>
-                <p className={valueClassName}>
+                </div>
+
+                {/* ================= Contract Financing ================= */}
+                <div className={formLabelClassName}>Contract Financing</div>
+                <div className={valueClassName}>
                   {application?.contract?.contract_details?.financing != null
                     ? `RM ${formatMoney(application.contract.contract_details.financing)}`
                     : "N/A"}
-                </p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Approved facility</p>
-                <p className={valueClassName}>
+                </div>
+
+                {/* ================= Approved Facility ================= */}
+                <div className={formLabelClassName}>Approved Facility</div>
+                <div className={valueClassName}>
                   {typeof cd?.approved_facility === "number"
                     ? `RM ${formatMoney(cd.approved_facility)}`
                     : "N/A"}
-                </p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Utilised facility</p>
-                <p className={valueClassName}>
+                </div>
+
+                {/* ================= Utilised Facility ================= */}
+                <div className={formLabelClassName}>Utilised Facility</div>
+                <div className={valueClassName}>
                   {typeof cd?.utilized_facility === "number"
                     ? `RM ${formatMoney(cd.utilized_facility)}`
                     : "N/A"}
-                </p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-muted-foreground">Available facility</p>
-                <p
+                </div>
+
+                {/* ================= Available Facility ================= */}
+                <div className={formLabelClassName}>Available Facility</div>
+                <div
                   className={cn(
-                    "text-[17px] leading-7 font-medium",
+                    "text-sm md:text-base leading-6 font-medium",
                     typeof cd?.available_facility === "number" &&
-                      cd.available_facility < 0 &&
-                      "text-destructive"
+                    cd.available_facility < 0 &&
+                    "text-destructive"
                   )}
                 >
                   {typeof cd?.available_facility === "number"
                     ? `RM ${formatMoney(cd.available_facility)}`
                     : "N/A"}
-                </p>
+                </div>
               </div>
             </div>
           </div>
@@ -1020,10 +1025,12 @@ export default function InvoiceDetailsStep({
         {/* ================= Invoice Details ================= */}
         {isLoadingApplication || devTools?.showSkeletonDebug ? null : (
           <div className="space-y-4">
-            <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="flex items-start justify-between">
               <div>
-                <h3 className={sectionTitleClassName}>Invoices</h3>
-                <p className="text-sm text-muted-foreground mt-2">
+                <h3 className="text-base font-semibold text-foreground">
+                  Invoices
+                </h3>
+                <p className="text-sm text-muted-foreground mt-1">
                   Add invoices below. Rows are local until you Save and Continue.
                 </p>
               </div>

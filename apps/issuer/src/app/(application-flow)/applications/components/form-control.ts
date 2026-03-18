@@ -28,12 +28,12 @@ export const formSelectTriggerClassName =
 
 /** Read-only / disabled field styling
  *
- * What: Neutral gray background, muted text, no opacity fade. Canonical per BRANDING.md.
- * Why: Locked amendment steps must show fields as locked; subtle, calm, professional.
+ * What: Grey background, readable text, no opacity fade.
+ * Why: Locked amendment steps must show fields as locked without washing out the page.
  * Use: Add to Input/Textarea/Select className when disabled={true}.
  */
 export const formInputDisabledClassName =
-  "bg-muted/50 text-muted-foreground cursor-not-allowed border-border disabled:opacity-100 disabled:bg-muted/50";
+  "bg-muted text-foreground opacity-100 cursor-not-allowed disabled:opacity-100 disabled:bg-muted border-border";
 
 /** Helpers
  *
