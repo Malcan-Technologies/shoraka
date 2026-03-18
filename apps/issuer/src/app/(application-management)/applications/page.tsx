@@ -49,7 +49,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { STATUS, FILTER_STATUSES, FINANCING_TYPES } from "./status";
+import { STATUS, FILTER_STATUSES, FINANCING_TYPES, API_STATUS_TO_BADGE_KEY } from "./status";
 import { useApplicationsData } from "./use-applications-data";
 import { ReviewOfferModal } from "./components/ReviewOfferModal";
 import { useCancelApplication, useWithdrawInvoice, useDeleteDraftApplication } from "@/hooks/use-applications";
@@ -62,7 +62,7 @@ import type { NormalizedApplication, NormalizedInvoice } from "./status";
 const SKELETON_COUNT = 8;
 const MOCK_APPLICATION_COUNT = 10;
 
-const BADGE_BASE = "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-semibold border";
+const BADGE_BASE = "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border whitespace-nowrap";
 const BADGE_FALLBACK = "border-slate-500/30 bg-slate-500/10 text-slate-600";
 
 /** Skeleton that matches ApplicationCard layout. */
@@ -145,12 +145,12 @@ function InvoiceDocumentCell({
   const [loading, setLoading] = React.useState(false);
   const hasDocument = documentName && documentName !== "—";
   if (!hasDocument) {
-    return <span className="text-xs text-muted-foreground">—</span>;
+    return <span className="text-[15px] text-muted-foreground">—</span>;
   }
   return (
     <FileDisplayBadge
       fileName={documentName}
-      size="xs"
+      size="sm"
       truncate
       className="min-w-0 bg-background"
       trailing={
@@ -217,7 +217,7 @@ function ApplicationCard({
         <CardHeader className="pb-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-base font-semibold">
+              <span className="text-[15px] font-semibold">
                 Application ID {displayId}
                 {showFinancingLabel
                   ? ` - ${application.type
@@ -307,8 +307,8 @@ function ApplicationCard({
         </CardHeader>
         <CardContent className="space-y-4">
           {useDraftCardLayout ? (
-            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
-              <p className="text-sm leading-6 text-muted-foreground col-span-2">
+            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[15px] leading-6">
+              <p className="text-[15px] leading-6 text-muted-foreground col-span-2">
                 This application is still being set up.
               </p>
               <span className="text-muted-foreground">Submitted:</span>
@@ -316,7 +316,7 @@ function ApplicationCard({
             </div>
           ) : (
           <div className="flex flex-wrap justify-between gap-6">
-            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+            <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[15px] leading-6">
               {hasContract && application.contractTitle && (
                 <>
                   <span className="text-muted-foreground">Contract title:</span>
@@ -329,7 +329,7 @@ function ApplicationCard({
               <span className="text-foreground">{formatDateTime(application.submittedAt)}</span>
             </div>
             {hasContract && (
-              <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+              <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[15px] leading-6">
                 <span className="text-muted-foreground">Contract value:</span>
                 <span className="text-foreground">
                   {application.contractValue != null
@@ -352,7 +352,7 @@ function ApplicationCard({
           <div className="flex justify-center pt-1">
             <button
               type="button"
-              className="text-sm font-medium text-primary hover:underline"
+              className="text-[15px] font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded"
               onClick={() => setExpanded((e) => !e)}
             >
               {expanded ? "Hide details" : "View details"}
@@ -362,55 +362,55 @@ function ApplicationCard({
 
           {!useDraftCardLayout && expanded && (
             <div className="mt-4 relative">
-              <h3 className="text-sm font-semibold text-foreground mb-3">
+              <h3 className="text-base font-semibold text-foreground mb-3">
                 Invoices
               </h3>
-              <div className="border rounded-xl bg-card overflow-hidden">
+              <div className="border rounded-xl bg-muted/30 overflow-hidden">
                 <div className="overflow-x-auto">
-              <Table className="table-fixed w-full">
-                <TableHeader className="bg-muted/20">
-                  <TableRow className="border-b border-border">
-                    <TableHead className="w-[120px] whitespace-nowrap text-xs font-semibold p-2 text-center">
+              <Table className="table-fixed w-full text-[15px]">
+                <TableHeader>
+                  <TableRow className="border-b border-border hover:bg-transparent">
+                    <TableHead className="w-[105px] min-w-[105px] whitespace-nowrap text-sm font-semibold p-3 text-left">
                       Invoice Number
                     </TableHead>
-                    <TableHead className="w-[100px] whitespace-nowrap text-xs font-semibold p-2 text-center">
+                    <TableHead className="w-[105px] min-w-[105px] whitespace-nowrap text-sm font-semibold p-3 text-left">
                       Maturity Date
                     </TableHead>
-                    <TableHead className="w-[110px] whitespace-nowrap text-xs font-semibold p-2 text-center tabular-nums">
+                    <TableHead className="w-[115px] min-w-[115px] whitespace-nowrap text-sm font-semibold p-3 text-right tabular-nums">
                       Invoice Value
                     </TableHead>
-                    <TableHead className="w-[110px] whitespace-nowrap text-xs font-semibold p-2 text-center tabular-nums">
+                    <TableHead className="w-[115px] min-w-[115px] whitespace-nowrap text-sm font-semibold p-3 text-right tabular-nums">
                       Applied Financing
                     </TableHead>
-                    <TableHead className="w-[160px] whitespace-nowrap text-xs font-semibold p-2 text-center">
+                    <TableHead className="w-[150px] min-w-[140px] whitespace-nowrap text-sm font-semibold p-3 text-left">
                       Documents
                     </TableHead>
-                    <TableHead className="w-[110px] whitespace-nowrap text-xs font-semibold p-2 text-center tabular-nums">
+                    <TableHead className="w-[115px] min-w-[115px] whitespace-nowrap text-sm font-semibold p-3 text-right tabular-nums">
                       Financing Offered
                     </TableHead>
-                    <TableHead className="w-[90px] whitespace-nowrap text-xs font-semibold p-2 text-center tabular-nums">
+                    <TableHead className="w-[95px] min-w-[95px] whitespace-nowrap text-sm font-semibold p-3 text-right tabular-nums">
                       Profit Rate
                     </TableHead>
-                    <TableHead className="w-[100px] whitespace-nowrap text-xs font-semibold p-2 text-center">
+                    <TableHead className="w-[120px] min-w-[120px] whitespace-nowrap text-sm font-semibold p-3 text-left">
                       Status
                     </TableHead>
-                    <TableHead className="w-[200px] whitespace-nowrap text-xs font-semibold p-2 text-center">
+                    <TableHead className="w-[180px] min-w-[160px] whitespace-nowrap text-sm font-semibold p-3 text-center">
                       Action
                     </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {application.invoices.length === 0 ? (
-                    <TableRow>
+                    <TableRow className="hover:bg-transparent">
                       <TableCell
                         colSpan={9}
-                        className="text-center py-8 text-xs text-muted-foreground"
+                        className="text-center py-8 text-[15px] text-muted-foreground"
                       >
                         No invoices available
                       </TableCell>
                     </TableRow>
                   ) : (
-                    application.invoices.map((inv: NormalizedInvoice) => {
+                    application.invoices.map((inv: NormalizedInvoice, idx: number) => {
                       const invStatus = String(inv.status ?? "").toUpperCase();
                       const showReviewOffer = invStatus === "OFFER_SENT" && inv.offerStatus === "Offer received";
                       const canReview = inv.canReviewOffer;
@@ -420,41 +420,46 @@ function ApplicationCard({
                       return (
                         <TableRow
                           key={inv.id}
-                          className="hover:bg-muted/40 transition-colors border-b border-border last:border-b-0"
+                          className={cn(
+                            "border-b border-border last:border-b-0 transition-colors hover:bg-muted",
+                            idx % 2 === 1 && "bg-muted/40"
+                          )}
                         >
-                          <TableCell className="p-2 text-xs align-middle text-center">
+                          <TableCell className="p-3 text-[15px] align-middle text-left whitespace-nowrap">
                             {inv.number}
                           </TableCell>
-                          <TableCell className="p-2 text-xs align-middle text-center">
+                          <TableCell className="p-3 text-[15px] align-middle text-left">
                             {formatDate(inv.maturityDate)}
                           </TableCell>
-                          <TableCell className="p-2 text-xs align-middle text-center tabular-nums whitespace-nowrap">
+                          <TableCell className="p-3 text-[15px] align-middle text-right tabular-nums whitespace-nowrap">
                             {inv.value ? formatCurrency(inv.value) : "—"}
                           </TableCell>
-                          <TableCell className="p-2 text-xs align-middle text-center tabular-nums whitespace-nowrap">
+                          <TableCell className="p-3 text-[15px] align-middle text-right tabular-nums whitespace-nowrap">
                             {inv.appliedFinancing != null
                               ? formatCurrency(inv.appliedFinancing)
                               : "—"}
                           </TableCell>
-                          <TableCell className="p-2 min-w-0 max-w-[160px] overflow-hidden align-middle text-center">
+                          <TableCell className="p-3 min-w-0 max-w-[150px] overflow-hidden align-middle text-left">
                             <InvoiceDocumentCell
                               documentName={inv.document}
                               documentS3Key={inv.documentS3Key}
                               onDownload={onDocumentDownload}
                             />
                           </TableCell>
-                          <TableCell className="p-2 text-xs align-middle text-center tabular-nums whitespace-nowrap">
+                          <TableCell className="p-3 text-[15px] align-middle text-right tabular-nums whitespace-nowrap">
                             {inv.financingOffered}
                           </TableCell>
-                          <TableCell className="p-2 text-xs align-middle text-center tabular-nums whitespace-nowrap">
+                          <TableCell className="p-3 text-[15px] align-middle text-right tabular-nums whitespace-nowrap">
                             {inv.profitRate}
                           </TableCell>
-                          <TableCell className="p-2 align-middle text-center">
-                            <StatusBadge
-                              badgeKey={inv.status.toLowerCase()}
-                            />
+                          <TableCell className="p-3 align-middle text-left whitespace-nowrap">
+                            <span className="inline-block">
+                              <StatusBadge
+                                badgeKey={API_STATUS_TO_BADGE_KEY[String(inv.status).toUpperCase()] ?? inv.status.toLowerCase()}
+                              />
+                            </span>
                           </TableCell>
-                          <TableCell className="p-2 align-top text-center">
+                          <TableCell className="p-3 align-top text-center">
                             <div className="flex items-start justify-center gap-2">
                               {(showReviewOffer || showMakeAmendments) && (
                                 <div className="flex flex-col items-center gap-1 min-w-[140px]">
@@ -484,7 +489,7 @@ function ApplicationCard({
                                     )
                                   )}
                                   {showReviewOffer && inv.offer_details?.expires_at != null ? (
-                                    <span className="text-[10px] text-muted-foreground">
+                                    <span className="text-xs text-muted-foreground">
                                       Offer valid until: {format(new Date(String(inv.offer_details.expires_at)), "d MMM yyyy")}
                                     </span>
                                   ) : null}
@@ -811,11 +816,11 @@ export default function ApplicationsPage() {
   }, [activeOrganization]);
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-      <div className=" p-2 md:p-4">
+    <div className="flex flex-1 flex-col gap-4 p-4 pt-4">
+      <div className="p-2 md:p-4">
       {isDev && (
         <Card
-          className="fixed bottom-5 right-5 z-[9999] w-[200px] shadow-lg border-2 border-amber-500/50"
+          className="fixed bottom-5 right-5 z-[9999] w-[200px] rounded-2xl shadow-lg border-2 border-amber-500/50"
           data-testid="applications-debug-panel"
         >
           <CardHeader className="py-2 px-3">
@@ -851,14 +856,16 @@ export default function ApplicationsPage() {
         </Card>
       )}
 
-      <section className="flex items-start justify-between">
+      <section className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h2 className="text-2xl font-bold mb-2">Welcome back, {displayName}!</h2>
-          <p className="text-[17px] leading-7 text-muted-foreground">
+          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
+            Welcome back, {displayName}!
+          </h2>
+          <p className="text-[17px] leading-7 text-muted-foreground mt-1">
             Manage your loan applications from this dashboard.
           </p>
         </div>
-        <Button asChild className="gap-2">
+        <Button asChild className="gap-2 bg-primary text-primary-foreground shadow-brand hover:opacity-95 h-11 rounded-xl font-semibold shrink-0">
           <Link href="/applications/new">
             <PlusIcon className="h-4 w-4" />
             Get Financed
@@ -867,12 +874,14 @@ export default function ApplicationsPage() {
       </section>
 
       <Card className="border-none shadow-none bg-transparent">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-7 px-0">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6 px-0">
           <div className="flex items-center gap-2">
-            <CardTitle className="text-2xl font-bold">Applications</CardTitle>
+            <CardTitle className="text-2xl md:text-3xl font-bold tracking-tight">
+              Applications
+            </CardTitle>
             <Badge
               variant="secondary"
-              className="rounded-full bg-muted text-muted-foreground font-normal hover:bg-muted"
+              className="rounded-full bg-secondary text-secondary-foreground font-medium px-3 py-1"
             >
               {filteredApplications.length}
             </Badge>
@@ -880,7 +889,7 @@ export default function ApplicationsPage() {
         </CardHeader>
         <CardContent className="p-0 space-y-6">
           {/* FILTER: Search + Status (multi) + Filters (Submitted, Financing, Offer expiring) + Clear + count. */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 w-full">
             <div className="relative flex-1 w-full">
               <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -890,7 +899,7 @@ export default function ApplicationsPage() {
                   setSearch(e.target.value);
                   setPage(1);
                 }}
-                className="pl-9 h-11 rounded-xl"
+                className="pl-9 h-11 rounded-xl border-input focus-visible:ring-2 focus-visible:ring-primary"
               />
             </div>
 
@@ -900,7 +909,7 @@ export default function ApplicationsPage() {
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="outline"
-                    className="gap-2 h-11 rounded-xl focus-visible:ring-1 focus-visible:ring-offset-0"
+                    className="gap-2 h-11 rounded-xl focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                   >
                     Status
                     {statusFilters.length > 0 && (
@@ -958,7 +967,7 @@ export default function ApplicationsPage() {
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="outline"
-                    className="gap-2 h-11 rounded-xl focus-visible:ring-1 focus-visible:ring-offset-0"
+                    className="gap-2 h-11 rounded-xl focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                   >
                     <FunnelIcon className="h-4 w-4" />
                     Filters
@@ -1066,7 +1075,7 @@ export default function ApplicationsPage() {
                     setOfferExpiryFilter("all");
                     setPage(1);
                   }}
-                  className="gap-2 h-11 rounded-xl focus-visible:ring-1 focus-visible:ring-offset-0"
+                  className="gap-2 h-11 rounded-xl hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                 >
                   <XMarkIcon className="h-4 w-4" />
                   <span className="hidden sm:inline">Clear</span>
@@ -1074,8 +1083,8 @@ export default function ApplicationsPage() {
               )}
 
               <Badge
-                variant="outline"
-                className="h-11 px-4 rounded-xl text-sm font-normal bg-muted/30 border-none whitespace-nowrap text-muted-foreground hover:bg-muted/30"
+                variant="secondary"
+                className="h-11 px-4 rounded-xl text-sm font-medium bg-secondary/20 text-secondary-foreground border-none whitespace-nowrap"
               >
                 {hasFilters ? (
                   <>
@@ -1117,7 +1126,7 @@ export default function ApplicationsPage() {
                 ))}
               </div>
             ) : (
-              <div className="py-12 text-center text-muted-foreground">
+              <div className="py-12 md:py-16 text-center text-[17px] leading-7 text-muted-foreground">
                 {totalCount === 0
                   ? "No applications yet."
                   : "No applications match your filters."}
@@ -1125,9 +1134,9 @@ export default function ApplicationsPage() {
             )}
 
             {filteredApplications.length > 0 && (
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t border-border pt-4">
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t border-border pt-6">
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-2 text-[15px] text-muted-foreground">
                     <span>Rows per page:</span>
                     <Select
                       value={String(perPage)}
@@ -1136,7 +1145,7 @@ export default function ApplicationsPage() {
                         setPage(1);
                       }}
                     >
-                      <SelectTrigger className="h-9 w-16 rounded-md">
+                      <SelectTrigger className="h-11 w-20 rounded-xl border-input focus:ring-2 focus:ring-primary">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -1148,7 +1157,7 @@ export default function ApplicationsPage() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-[15px] text-muted-foreground">
                     Showing {startIndex}-{endIndex} of {filteredApplications.length}
                   </span>
                 </div>
@@ -1158,10 +1167,11 @@ export default function ApplicationsPage() {
                     size="sm"
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                     disabled={page === 1}
+                    className="h-11 rounded-xl focus-visible:ring-2 focus-visible:ring-primary"
                   >
                     <ChevronLeftIcon className="h-4 w-4" />
                   </Button>
-                  <span className="text-sm font-medium">
+                  <span className="text-[15px] font-medium">
                     Page {page} of {totalPages}
                   </span>
                   <Button
@@ -1171,6 +1181,7 @@ export default function ApplicationsPage() {
                       setPage((p) => Math.min(totalPages, p + 1))
                     }
                     disabled={page === totalPages}
+                    className="h-11 rounded-xl focus-visible:ring-2 focus-visible:ring-primary"
                   >
                     <ChevronRightIcon className="h-4 w-4" />
                   </Button>
