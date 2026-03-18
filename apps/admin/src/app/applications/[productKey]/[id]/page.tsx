@@ -207,15 +207,11 @@ export default function DynamicApplicationDetailPage() {
     if (!Array.isArray(fromApi)) return null;
     const normalized = fromApi.filter((s): s is string => typeof s === "string");
     const set = new Set(normalized);
-    if (set.has("financial_statements") && !set.has("financial")) set.add("financial");
     return normalized.length > 0 ? set : null;
   }, [app]);
   const effectiveTabDescriptors = React.useMemo(() => {
     if (!visibleReviewSectionsFromApi) return tabDescriptors;
-    return tabDescriptors.filter((d) =>
-      visibleReviewSectionsFromApi.has(d.reviewSection) ||
-      (d.reviewSection === "financial" && visibleReviewSectionsFromApi.has("financial_statements"))
-    );
+    return tabDescriptors.filter((d) => visibleReviewSectionsFromApi.has(d.reviewSection));
   }, [tabDescriptors, visibleReviewSectionsFromApi]);
 
   const isExistingContract = React.useMemo(
