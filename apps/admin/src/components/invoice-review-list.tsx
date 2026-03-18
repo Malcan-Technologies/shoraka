@@ -302,9 +302,9 @@ export function InvoiceList({
                   className={
                     isRowGreyedOut
                       ? isInvoiceWithdrawn
-                        ? "bg-muted/20 text-muted-foreground opacity-60 cursor-not-allowed hover:bg-muted/30"
-                        : "bg-muted/20 text-muted-foreground hover:bg-muted/30"
-                      : "odd:bg-muted/30 hover:bg-muted/50"
+                        ? "bg-muted/30 text-muted-foreground cursor-not-allowed hover:bg-muted/40"
+                        : "bg-muted/30 text-muted-foreground hover:bg-muted/40"
+                      : "odd:bg-muted/40 hover:bg-muted"
                   }
                 >
                   <TableCell>
@@ -341,7 +341,7 @@ export function InvoiceList({
                   <TableCell
                     className={
                       isRowGreyedOut
-                        ? "bg-muted/40 text-center text-muted-foreground"
+                        ? "bg-muted/30 text-center text-muted-foreground"
                         : "text-center"
                     }
                   >
@@ -407,23 +407,23 @@ export function InvoiceList({
                             <div
                               className={
                                 isRowGreyedOut
-                                  ? "md:pl-3 space-y-3 opacity-60 pointer-events-none select-none"
+                                  ? "md:pl-3 space-y-3 text-muted-foreground pointer-events-none select-none"
                                   : "md:pl-3 space-y-3"
                               }
                             >
                               <p className="text-sm font-semibold text-foreground">
-                                Invoice details
+                                Invoice Details
                               </p>
                               <div className="mt-2 space-y-2">
                                 <div>
-                                  <p className="text-xs text-muted-foreground">Maturity date</p>
+                                  <p className="text-xs text-muted-foreground">Maturity Date</p>
                                   <p className="text-sm font-medium">
                                     {formatDateValue(maturityDate)}
                                   </p>
                                 </div>
                                 {estimates && (
                                   <div>
-                                    <p className="text-xs text-muted-foreground">Offer expiry</p>
+                                    <p className="text-xs text-muted-foreground">Offer Expiry</p>
                                     <p className="text-sm font-medium">
                                       {format(estimates.offerExpiryDate, "dd MMM yyyy")}
                                     </p>
@@ -449,7 +449,7 @@ export function InvoiceList({
                                 </div>
                                 <div>
                                   <p className="text-xs text-muted-foreground">
-                                    Estimated disbursement date
+                                    Estimated Disbursement Date
                                   </p>
                                   <p className="text-sm font-medium">
                                     {estimates
@@ -459,7 +459,7 @@ export function InvoiceList({
                                 </div>
                                 <div>
                                   <p className="text-xs text-muted-foreground">
-                                    Estimated period (Days)
+                                    Estimated Period (Days)
                                   </p>
                                   <p className="text-sm font-medium">
                                     {estimates != null && estimates.estPeriodDays != null
@@ -473,7 +473,7 @@ export function InvoiceList({
                             <div
                               className={
                                 isRowGreyedOut
-                                  ? "md:pl-3 space-y-3 opacity-60 pointer-events-none select-none"
+                                  ? "md:pl-3 space-y-3 text-muted-foreground pointer-events-none select-none"
                                   : "md:pl-3 space-y-3"
                               }
                             >
@@ -482,7 +482,7 @@ export function InvoiceList({
                               </p>
                               <div className="mt-2 space-y-2">
                                 <div>
-                                  <p className="text-xs text-muted-foreground">Financing ratio</p>
+                                  <p className="text-xs text-muted-foreground">Financing Ratio</p>
                                   <p className="text-sm font-medium">
                                     {financingRatio !== null
                                       ? `${financingRatio}%`
@@ -490,7 +490,7 @@ export function InvoiceList({
                                   </p>
                                 </div>
                                 <div>
-                                  <p className="text-xs text-muted-foreground">Financing amount</p>
+                                  <p className="text-xs text-muted-foreground">Financing Amount</p>
                                   <p className="text-sm font-medium tabular-nums">
                                     {issuerFinancingAmount !== null
                                       ? formatCurrency(issuerFinancingAmount)
@@ -503,7 +503,7 @@ export function InvoiceList({
                             <div
                               className={
                                 isRowGreyedOut
-                                  ? "md:pl-3 space-y-3 opacity-60 pointer-events-none select-none"
+                                  ? "md:pl-3 space-y-3 text-muted-foreground pointer-events-none select-none"
                                   : "md:pl-3 space-y-3"
                               }
                             >
@@ -513,7 +513,7 @@ export function InvoiceList({
                               <div className="mt-2 space-y-2">
                                 <div>
                                   <p className="text-xs text-muted-foreground mb-1">
-                                    Financing ratio
+                                    Financing Ratio
                                   </p>
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <span className="text-sm font-medium tabular-nums w-10">
@@ -660,11 +660,11 @@ export function InvoiceList({
             <>
               <div className="grid gap-2 py-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Invoice number</span>
+                  <span className="text-muted-foreground">Invoice Number</span>
                   <span className="font-medium">{invoiceOfferConfirm.invoiceNo}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Invoice value</span>
+                  <span className="text-muted-foreground">Invoice Value</span>
                   <span className="font-medium tabular-nums">
                     {invoiceOfferConfirm.invoiceValue !== null
                       ? formatCurrency(invoiceOfferConfirm.invoiceValue)
@@ -672,19 +672,19 @@ export function InvoiceList({
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Offered amount</span>
+                  <span className="text-muted-foreground">Offered Amount</span>
                   <span className="font-medium tabular-nums">
                     {formatCurrency(invoiceOfferConfirm.offeredAmount)}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Offered ratio</span>
+                  <span className="text-muted-foreground">Offered Ratio</span>
                   <span className="font-medium tabular-nums">
                     {invoiceOfferConfirm.offeredRatioPercent}%
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Profit rate</span>
+                  <span className="text-muted-foreground">Profit Rate</span>
                   <span className="font-medium tabular-nums">
                     {invoiceOfferConfirm.offeredProfitRatePercent}%
                   </span>

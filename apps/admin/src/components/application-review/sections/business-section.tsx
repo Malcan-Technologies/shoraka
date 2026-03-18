@@ -139,56 +139,56 @@ export function BusinessSection({
     >
       {view ? (
         <>
-          <ReviewFieldBlock title="About your business">
+          <ReviewFieldBlock title="About Your Business">
             <div className={reviewRowGridClass}>
-              <Label className={reviewLabelClass}>What does your company do?</Label>
+              <Label className={reviewLabelClass}>What Does Your Company Do?</Label>
               <ReviewValue value={view.about.whatDoesCompanyDo} multiline />
-              <Label className={reviewLabelClass}>Who are your main customers?</Label>
+              <Label className={reviewLabelClass}>Who Are Your Main Customers?</Label>
               <ReviewValue value={view.about.mainCustomers} multiline />
               <Label className={reviewLabelClass}>
-                Does any single customer make up more than 50% of your revenue?
+                Does Any Single Customer Make Up More Than 50% of Your Revenue?
               </Label>
               <span className={yesNoScaleWrapper}>
                 <YesNoRadioDisplay value={view.about.singleCustomerOver50Revenue} />
               </span>
-              <Label className={reviewLabelClass}>Which accounting software does the issuer use?</Label>
+              <Label className={reviewLabelClass}>Which Accounting Software Does the Issuer Use?</Label>
               <ReviewValue value={view.whyRaisingFunds.accountingSoftware} />
             </div>
           </ReviewFieldBlock>
 
-          <ReviewFieldBlock title="Why are you raising funds?">
+          <ReviewFieldBlock title="Why Are You Raising Funds?">
             <div className={reviewRowGridClass}>
-              <Label className={reviewLabelClass}>What is this financing for?</Label>
+              <Label className={reviewLabelClass}>What Is This Financing For?</Label>
               <ReviewValue value={view.whyRaisingFunds.financingFor} multiline />
-              <Label className={reviewLabelClass}>How will the funds be used?</Label>
+              <Label className={reviewLabelClass}>How Will the Funds Be Used?</Label>
               <ReviewValue value={view.whyRaisingFunds.howFundsUsed} multiline />
-              <Label className={reviewLabelClass}>Tell us about your business plan</Label>
+              <Label className={reviewLabelClass}>Tell Us About Your Business Plan</Label>
               <ReviewValue value={view.whyRaisingFunds.businessPlan} multiline />
               <Label className={reviewLabelClass}>
-                Are there any risks that may delay repayment of your invoices?
+                Are There Any Risks That May Delay Repayment of Your Invoices?
               </Label>
               <ReviewValue value={view.whyRaisingFunds.risksDelayRepayment} multiline />
               <Label className={reviewLabelClass}>
-                If payment is delayed, what is your backup plan?
+                If Payment Is Delayed, What Is Your Backup Plan?
               </Label>
               <ReviewValue value={view.whyRaisingFunds.backupPlan} multiline />
               <Label className={reviewLabelClass}>
-                Are you currently raising/applying funds on any other P2P platforms?
+                Are You Currently Raising/Applying Funds on Any Other P2P Platforms?
               </Label>
               <span className={yesNoScaleWrapper}>
                 <YesNoRadioDisplay value={view.whyRaisingFunds.raisingOnOtherP2P} />
               </span>
               {showP2PFields && (
                 <>
-                  <Label className={reviewLabelClass}>Name of platform</Label>
+                  <Label className={reviewLabelClass}>Name of Platform</Label>
                   <ReviewValue value={view.whyRaisingFunds.platformName} />
-                  <Label className={reviewLabelClass}>Amount raised</Label>
+                  <Label className={reviewLabelClass}>Amount Raised</Label>
                   <div className={`${reviewValueClass} !min-h-0 h-9`}>
                     {view.whyRaisingFunds.amountRaised != null
                       ? formatCurrency(view.whyRaisingFunds.amountRaised)
                       : REVIEW_EMPTY_LABEL}
                   </div>
-                  <Label className={reviewLabelClass}>Is the same invoice being used?</Label>
+                  <Label className={reviewLabelClass}>Is the Same Invoice Being Used?</Label>
                   <span className={yesNoScaleWrapper}>
                     <YesNoRadioDisplay value={view.whyRaisingFunds.sameInvoiceUsed} />
                   </span>

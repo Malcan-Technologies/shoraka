@@ -132,13 +132,13 @@ export function ContractSection({
       {hasData ? (
         <>
           <ReviewFieldBlock title="Offer to Issuer">
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div className={reviewRowGridClass}>
-                <Label className={reviewLabelClass}>Requested facility</Label>
+                <Label className={reviewLabelClass}>Requested Facility</Label>
                 <div className={reviewValueClass}>
                   {requestedFacility > 0 ? formatCurrency(requestedFacility) : REVIEW_EMPTY_LABEL}
                 </div>
-                <Label className={reviewLabelClass}>Offered facility</Label>
+                <Label className={reviewLabelClass}>Offered Facility</Label>
                 <div className="flex flex-col gap-1">
                   <div className="flex items-center gap-3">
                   <MoneyInput
@@ -184,43 +184,43 @@ export function ContractSection({
           </ReviewFieldBlock>
 
           {cd && (
-            <ReviewFieldBlock title="Contract details">
+            <ReviewFieldBlock title="Contract Details">
               <div className={reviewRowGridClass}>
-                <Label className={reviewLabelClass}>Contract title</Label>
+                <Label className={reviewLabelClass}>Contract Title</Label>
                 <div className={reviewValueClass}>{formatReviewValue(cd.title)}</div>
-                <Label className={reviewLabelClass}>Contract description</Label>
+                <Label className={reviewLabelClass}>Contract Description</Label>
                 <div className={reviewValueClassTextArea}>{formatReviewValue(cd.description)}</div>
-                <Label className={reviewLabelClass}>Contract number</Label>
+                <Label className={reviewLabelClass}>Contract Number</Label>
                 <div className={reviewValueClass}>{formatReviewValue(cd.number)}</div>
-                <Label className={reviewLabelClass}>Contract value</Label>
+                <Label className={reviewLabelClass}>Contract Value</Label>
                 <div className={reviewValueClass}>
                   {typeof cd.value === "number"
                     ? formatCurrency(cd.value)
                     : formatReviewValue(cd.value)}
                 </div>
-                <Label className={reviewLabelClass}>Contract financing</Label>
+                <Label className={reviewLabelClass}>Contract Financing</Label>
                 <div className={reviewValueClass}>
                   {typeof cd.financing === "number"
                     ? formatCurrency(cd.financing)
                     : formatReviewValue(cd.financing)}
                 </div>
-                <Label className={reviewLabelClass}>Contract start date</Label>
+                <Label className={reviewLabelClass}>Contract Start Date</Label>
                 <div className={reviewValueClass}>{formatReviewDate(cd.start_date as string)}</div>
-                <Label className={reviewLabelClass}>Contract end date</Label>
+                <Label className={reviewLabelClass}>Contract End Date</Label>
                 <div className={reviewValueClass}>{formatReviewDate(cd.end_date as string)}</div>
                 {typeof cd.approved_facility === "number" && cd.approved_facility > 0 && (
                   <>
-                    <Label className={reviewLabelClass}>Approved facility</Label>
+                    <Label className={reviewLabelClass}>Approved Facility</Label>
                     <div className={reviewValueClass}>
                       {formatCurrency(cd.approved_facility as number)}
                     </div>
-                    <Label className={reviewLabelClass}>Utilized facility</Label>
+                    <Label className={reviewLabelClass}>Utilized Facility</Label>
                     <div className={reviewValueClass}>
                       {formatCurrency(
                         typeof cd.utilized_facility === "number" ? cd.utilized_facility : 0
                       )}
                     </div>
-                    <Label className={reviewLabelClass}>Available facility</Label>
+                    <Label className={reviewLabelClass}>Available Facility</Label>
                     <div className={reviewValueClass}>
                       {formatCurrency(
                         typeof cd.available_facility === "number" ? cd.available_facility : 0
@@ -233,17 +233,17 @@ export function ContractSection({
           )}
 
           {cust && (
-            <ReviewFieldBlock title="Customer details">
+            <ReviewFieldBlock title="Customer Details">
               <div className={reviewRowGridClass}>
-                <Label className={reviewLabelClass}>Customer name</Label>
+                <Label className={reviewLabelClass}>Customer Name</Label>
                 <div className={reviewValueClass}>{formatReviewValue(cust.name)}</div>
-                <Label className={reviewLabelClass}>Customer entity type</Label>
+                <Label className={reviewLabelClass}>Customer Entity Type</Label>
                 <div className={reviewValueClass}>{formatReviewValue(cust.entity_type)}</div>
-                <Label className={reviewLabelClass}>Customer SSM number</Label>
+                <Label className={reviewLabelClass}>Customer SSM Number</Label>
                 <div className={reviewValueClass}>{formatReviewValue(cust.ssm_number)}</div>
-                <Label className={reviewLabelClass}>Customer country</Label>
+                <Label className={reviewLabelClass}>Customer Country</Label>
                 <div className={reviewValueClass}>{formatReviewValue(cust.country)}</div>
-                <Label className={reviewLabelClass}>Is customer related to issuer?</Label>
+                <Label className={reviewLabelClass}>Is Customer Related to Issuer?</Label>
                 <div className={reviewValueClass}>
                   {cust.is_related_party === true
                     ? "Yes"
@@ -261,7 +261,7 @@ export function ContractSection({
                 <div className="flex items-center gap-3 min-w-0">
                   <DocumentTextIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <div className="min-w-0">
-                    <div className="text-sm font-medium text-foreground">Contract document</div>
+                    <div className="text-sm font-medium text-foreground">Contract Document</div>
                     <div className="text-xs text-muted-foreground truncate">
                       {contractDoc?.file_name
                         ? `${contractDoc.file_name}${
@@ -290,7 +290,7 @@ export function ContractSection({
                 <div className="flex items-center gap-3 min-w-0">
                   <DocumentTextIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <div className="min-w-0">
-                    <div className="text-sm font-medium text-foreground">Customer consent</div>
+                    <div className="text-sm font-medium text-foreground">Customer Consent</div>
                     <div className="text-xs text-muted-foreground truncate">
                       {customerDoc?.file_name
                         ? `${customerDoc.file_name}${

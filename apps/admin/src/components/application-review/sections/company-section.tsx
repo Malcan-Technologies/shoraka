@@ -150,36 +150,36 @@ export function CompanySection({
       onReject={onReject}
       onRequestAmendment={onRequestAmendment}
     >
-      <ReviewFieldBlock title="Company info">
+      <ReviewFieldBlock title="Company Info">
         <div className={reviewRowGridClass}>
-          <Label className={reviewLabelClass}>Company name</Label>
+          <Label className={reviewLabelClass}>Company Name</Label>
           <div className={reviewValueClass}>{companyName}</div>
-          <Label className={reviewLabelClass}>Type of entity</Label>
+          <Label className={reviewLabelClass}>Type of Entity</Label>
           <div className={reviewValueClass}>{entityType}</div>
-          <Label className={reviewLabelClass}>SSM no</Label>
+          <Label className={reviewLabelClass}>SSM No</Label>
           <div className={reviewValueClass}>{ssmNo}</div>
           <Label className={reviewLabelClass}>Industry</Label>
           <div className={reviewValueClass}>{industry}</div>
-          <Label className={reviewLabelClass}>Number of employees</Label>
+          <Label className={reviewLabelClass}>Number of Employees</Label>
           <div className={reviewValueClass}>{numberOfEmployees}</div>
         </div>
       </ReviewFieldBlock>
 
       <ReviewFieldBlock title="Address">
         <div className={reviewRowGridClass}>
-          <Label className={reviewLabelClass}>Business address</Label>
+          <Label className={reviewLabelClass}>Business Address</Label>
           <div className={reviewValueClass}>{formatAddress(businessAddress)}</div>
-          <Label className={reviewLabelClass}>Registered address</Label>
+          <Label className={reviewLabelClass}>Registered Address</Label>
           <div className={reviewValueClass}>{formatAddress(registeredAddress)}</div>
         </div>
       </ReviewFieldBlock>
 
-      <ReviewFieldBlock title="Banking details">
+      <ReviewFieldBlock title="Banking Details">
         <div className={reviewRowGridClass}>
-          <Label className={reviewLabelClass}>Bank name</Label>
+          <Label className={reviewLabelClass}>Bank Name</Label>
           <div className={reviewValueClass}>{bankName || REVIEW_EMPTY_LABEL}</div>
           <div className="contents">
-            <Label className={reviewLabelClass}>Bank account number</Label>
+            <Label className={reviewLabelClass}>Bank Account Number</Label>
             <div>
               <div className={reviewValueClass}>{bankAccountNumber || REVIEW_EMPTY_LABEL}</div>
               <p className="mt-1 text-xs text-muted-foreground">10–18 digits</p>
@@ -190,13 +190,13 @@ export function CompanySection({
 
       <ReviewFieldBlock title="Contact Person">
         <div className={reviewRowGridClass}>
-          <Label className={reviewLabelClass}>Applicant name</Label>
+          <Label className={reviewLabelClass}>Applicant Name</Label>
           <div className={reviewValueClass}>{cpName || REVIEW_EMPTY_LABEL}</div>
-          <Label className={reviewLabelClass}>Applicant position</Label>
+          <Label className={reviewLabelClass}>Applicant Position</Label>
           <div className={reviewValueClass}>{cpPosition || REVIEW_EMPTY_LABEL}</div>
-          <Label className={reviewLabelClass}>Applicant IC no</Label>
+          <Label className={reviewLabelClass}>Applicant IC No</Label>
           <div className={reviewValueClass}>{cpIc || REVIEW_EMPTY_LABEL}</div>
-          <Label className={reviewLabelClass}>Applicant contact</Label>
+          <Label className={reviewLabelClass}>Applicant Contact</Label>
           <div className={reviewValueClass}>{cpContact || REVIEW_EMPTY_LABEL}</div>
         </div>
       </ReviewFieldBlock>

@@ -605,7 +605,7 @@ export function SupportingDocumentsStep({
                         <div
                           className={cn(
                             "flex flex-col items-end gap-2",
-                            !isEditable && "pointer-events-none opacity-60 cursor-not-allowed"
+                            !isEditable && "pointer-events-none bg-muted/30 text-muted-foreground cursor-not-allowed"
                           )}
                         >
                           {templateS3Key && (

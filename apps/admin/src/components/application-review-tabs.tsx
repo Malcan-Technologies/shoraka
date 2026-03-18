@@ -45,7 +45,7 @@ export function ApplicationReviewTabs({
 
   return (
     <Tabs defaultValue={defaultValue} className="w-full min-w-0">
-      <TabsList className="flex flex-wrap h-auto min-h-11 w-full rounded-xl bg-muted p-1 gap-1">
+      <TabsList className="flex flex-wrap h-auto min-h-11 w-full rounded-xl bg-muted p-1 gap-2">
         {tabDescriptors.map((tab) => (
           <TabsTrigger
             key={tab.id}

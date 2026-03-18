@@ -79,17 +79,17 @@ export function CustomerSection({
     >
       {hasData ? (
         <>
-          <ReviewFieldBlock title="Customer details">
+          <ReviewFieldBlock title="Customer Details">
             <div className={reviewRowGridClass}>
-              <Label className={reviewLabelClass}>Customer name</Label>
+              <Label className={reviewLabelClass}>Customer Name</Label>
               <div className={reviewValueClass}>{formatReviewValue(cust.name)}</div>
-              <Label className={reviewLabelClass}>Customer entity type</Label>
+              <Label className={reviewLabelClass}>Customer Entity Type</Label>
               <div className={reviewValueClass}>{formatReviewValue(cust.entity_type)}</div>
-              <Label className={reviewLabelClass}>Customer SSM number</Label>
+              <Label className={reviewLabelClass}>Customer SSM Number</Label>
               <div className={reviewValueClass}>{formatReviewValue(cust.ssm_number)}</div>
-              <Label className={reviewLabelClass}>Customer country</Label>
+              <Label className={reviewLabelClass}>Customer Country</Label>
               <div className={reviewValueClass}>{formatReviewValue(cust.country)}</div>
-              <Label className={reviewLabelClass}>Is customer related to issuer?</Label>
+              <Label className={reviewLabelClass}>Is Customer Related to Issuer?</Label>
               <div className={reviewValueClass}>
                 {cust.is_related_party === true
                   ? "Yes"
@@ -106,7 +106,7 @@ export function CustomerSection({
                 <div className="flex items-center gap-3 min-w-0">
                   <DocumentTextIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
                   <div className="min-w-0">
-                    <div className="text-sm font-medium text-foreground">Customer consent</div>
+                    <div className="text-sm font-medium text-foreground">Customer Consent</div>
                     <div className="text-xs text-muted-foreground truncate">
                       {customerDoc?.file_name
                         ? `${customerDoc.file_name}${

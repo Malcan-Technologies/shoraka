@@ -65,9 +65,10 @@ export function SectionComments({
   };
 
   return (
-    <section className="space-y-3">
+    <section className="space-y-4">
       <div>
         <h3 className={reviewSectionHeaderClass}>Comments</h3>
+        <div className="border-b border-border mt-2 mb-4" />
       </div>
       <div className="rounded-xl border border-border p-4">
       <div className="space-y-2">
