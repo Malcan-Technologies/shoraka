@@ -16,21 +16,15 @@ export function InvoiceDetailsSkeleton({
 
       {/* ================= Contract Section ================= */}
       {showContractSection && (
-        <div className="space-y-4">
-          <div>
-            <Skeleton className="h-7 w-24" />
-            <div className="mt-2 h-px bg-border" />
-          </div>
-
-          <div className="space-y-3 mt-4 px-3">
-            <div className="grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-y-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <React.Fragment key={i}>
-                  <Skeleton className="h-5 w-32" />
-                  <Skeleton className="h-5 w-40" />
-                </React.Fragment>
-              ))}
-            </div>
+        <div className="rounded-xl border border-border bg-card p-6">
+          <Skeleton className="h-6 w-24 mb-1" />
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="space-y-1">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-5 w-36" />
+              </div>
+            ))}
           </div>
         </div>
       )}

@@ -11,6 +11,7 @@ import {
   reviewLabelClass,
   reviewValueClass,
   reviewRowGridClass,
+  reviewEmptyStateClass,
   REVIEW_EMPTY_LABEL,
   formatReviewValue,
 } from "../review-section-styles";
@@ -135,7 +136,7 @@ export function CustomerSection({
           </ReviewFieldBlock>
         </>
       ) : (
-        <p className="text-sm text-muted-foreground">No customer details submitted.</p>
+        <p className={reviewEmptyStateClass}>No customer details submitted.</p>
       )}
       <SectionComments comments={comments} onSubmitComment={onAddComment} />
     </ReviewSectionCard>

@@ -8,8 +8,17 @@ import { format } from "date-fns";
 
 export const REVIEW_EMPTY_LABEL = "Not provided";
 
-/** Section title: matches application flow (text-base font-semibold). */
+/**
+ * Section/subsection title: text-base font-semibold per BRANDING.
+ * Used for ReviewFieldBlock, ApplicationFinancialReviewContent subsections, SectionComments.
+ */
 export const reviewSectionHeaderClass = "text-base font-semibold text-foreground";
+
+/** Main card title (tab-level): icon + title in header. */
+export const reviewCardTitleClass = "text-base font-semibold text-foreground";
+
+/** Empty state text: consistent across all tabs. */
+export const reviewEmptyStateClass = "text-sm text-muted-foreground";
 export const reviewLabelClass = "text-sm font-medium text-foreground leading-6";
 export const reviewValueClass =
   "min-h-[36px] w-full rounded-lg border border-input bg-muted/50 px-3 py-2 text-sm text-muted-foreground flex items-center";

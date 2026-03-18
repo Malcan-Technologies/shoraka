@@ -1,8 +1,8 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DocumentTextIcon } from "@heroicons/react/24/outline";
-import { SectionActionDropdown } from "../section-action-dropdown";
+import { reviewEmptyStateClass } from "../review-section-styles";
+import { ReviewSectionCard } from "../review-section-card";
 import { InvoiceList } from "@/components/invoice-review-list";
 import { ContractFacilitySummary } from "../contract-facility-summary";
 import type { ReviewSectionId } from "../section-types";
@@ -73,40 +73,30 @@ export function InvoiceSection({
   onAddComment,
 }: InvoiceSectionProps) {
   return (
-    <Card className="rounded-2xl">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <DocumentTextIcon className="h-5 w-5 text-primary" />
-            <CardTitle className="text-base font-semibold">Invoice</CardTitle>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <SectionActionDropdown
-            section={section}
-            isReviewable={isReviewable}
-            onApprove={onApprove}
-            onReject={onReject}
-            onRequestAmendment={onRequestAmendment}
-            isPending={approvePending}
-            isActionLocked={isActionLocked}
-            actionLockTooltip={actionLockTooltip}
-            showApprove={false}
-            sectionStatus={sectionStatus}
-            onResetToPending={onResetSectionToPending}
-          />
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {contractFacility && (
-          <ContractFacilitySummary
-            contractFacility={contractFacility.contractFacility}
-            availableFacility={contractFacility.availableFacility}
-            utilizedFacility={contractFacility.utilizedFacility}
-          />
-        )}
-        {invoices?.length ? (
-          <InvoiceList
+    <ReviewSectionCard
+      title="Invoice"
+      icon={DocumentTextIcon}
+      section={section}
+      isReviewable={isReviewable}
+      approvePending={approvePending}
+      isActionLocked={isActionLocked}
+      actionLockTooltip={actionLockTooltip}
+      sectionStatus={sectionStatus}
+      onResetToPending={onResetSectionToPending}
+      onApprove={onApprove}
+      onReject={onReject}
+      onRequestAmendment={onRequestAmendment}
+      showApprove={false}
+    >
+      {contractFacility && (
+        <ContractFacilitySummary
+          contractFacility={contractFacility.contractFacility}
+          availableFacility={contractFacility.availableFacility}
+          utilizedFacility={contractFacility.utilizedFacility}
+        />
+      )}
+      {invoices?.length ? (
+        <InvoiceList
             invoices={invoices}
             readOnlyInvoiceIds={readOnlyInvoiceIds}
             reviewItems={reviewItems}
@@ -126,12 +116,9 @@ export function InvoiceSection({
             isSendInvoiceOfferPending={isSendInvoiceOfferPending}
           />
         ) : (
-          <p className="text-sm text-muted-foreground">No invoices submitted.</p>
+          <p className={reviewEmptyStateClass}>No invoices submitted.</p>
         )}
-        <div className="mt-6">
-          <SectionComments comments={comments} onSubmitComment={onAddComment} />
-        </div>
-      </CardContent>
-    </Card>
+      <SectionComments comments={comments} onSubmitComment={onAddComment} />
+    </ReviewSectionCard>
   );
 }

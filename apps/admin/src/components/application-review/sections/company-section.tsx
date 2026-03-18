@@ -11,6 +11,7 @@ import {
   reviewLabelClass,
   reviewValueClass,
   reviewRowGridClass,
+  reviewEmptyStateClass,
   REVIEW_EMPTY_LABEL,
   formatReviewValue,
 } from "../review-section-styles";
@@ -130,7 +131,7 @@ export function CompanySection({
   if (!organizationId) {
     return (
       <ReviewSectionCard title="Company Details" icon={BuildingOffice2Icon}>
-        <p className="text-sm text-muted-foreground">No organization linked to this application.</p>
+        <p className={reviewEmptyStateClass}>No organization linked to this application.</p>
       </ReviewSectionCard>
     );
   }

@@ -11,6 +11,12 @@ import { Skeleton } from "@cashsouk/ui";
 import { ApplicationsTableRow } from "./applications-table-row";
 import type { ApplicationListItem } from "@cashsouk/types";
 import { TablePagination } from "@/shared/admin-list/components/table-pagination";
+import {
+  applicationTableHeaderClass,
+  applicationTableHeaderNumericClass,
+  applicationTableHeaderCenterClass,
+  applicationTableWrapperClass,
+} from "./application-review/application-table-styles";
 
 interface ApplicationsTableProps {
   applications: ApplicationListItem[];
@@ -55,27 +61,27 @@ export function ApplicationsTable({
   const endIndex = Math.min(currentPage * pageSize, totalApplications);
 
   return (
-    <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
+    <div className={applicationTableWrapperClass}>
       <div className="overflow-x-auto">
-        <Table>
+        <Table className="text-[15px]">
           <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead className="text-sm font-semibold">Reference</TableHead>
-              <TableHead className="text-sm font-semibold">Applicant</TableHead>
-              <TableHead className="text-sm font-semibold">Financing Structure</TableHead>
-              <TableHead className="text-sm font-semibold">Requested Amount</TableHead>
-              <TableHead className="text-sm font-semibold">Submitted</TableHead>
-              <TableHead className="text-sm font-semibold">Status</TableHead>
-              <TableHead className="text-sm font-semibold">Updated</TableHead>
-              <TableHead className="text-sm font-semibold">Actions</TableHead>
+            <TableRow className="hover:bg-transparent border-b border-border">
+              <TableHead className={applicationTableHeaderClass}>Reference</TableHead>
+              <TableHead className={applicationTableHeaderClass}>Applicant</TableHead>
+              <TableHead className={applicationTableHeaderClass}>Financing Structure</TableHead>
+              <TableHead className={applicationTableHeaderNumericClass}>Requested Amount</TableHead>
+              <TableHead className={applicationTableHeaderClass}>Submitted</TableHead>
+              <TableHead className={applicationTableHeaderClass}>Status</TableHead>
+              <TableHead className={applicationTableHeaderClass}>Updated</TableHead>
+              <TableHead className={applicationTableHeaderCenterClass}>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableSkeleton />
             ) : applications.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={8} className="text-center py-10 text-[15px] text-muted-foreground">
                   No applications found
                 </TableCell>
               </TableRow>

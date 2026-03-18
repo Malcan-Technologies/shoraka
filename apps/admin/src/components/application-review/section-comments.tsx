@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import { ChevronDownIcon } from "@heroicons/react/24/outline";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { reviewSectionHeaderClass } from "./review-section-styles";
+import { reviewSectionHeaderClass, reviewEmptyStateClass } from "./review-section-styles";
 
 const COMMENTS_PAGE_SIZE = 5;
 
@@ -65,7 +65,7 @@ export function SectionComments({
   };
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-3">
       <div>
         <h3 className={reviewSectionHeaderClass}>Comments</h3>
         <div className="border-b border-border mt-2 mb-4" />
@@ -92,7 +92,7 @@ export function SectionComments({
         </div>
       </div>
       {comments.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No comments yet.</p>
+        <p className={reviewEmptyStateClass}>No comments yet.</p>
       ) : (
         <div className="mt-3">
           <div className="space-y-3">

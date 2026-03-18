@@ -8,9 +8,8 @@ export interface ReviewFieldBlockProps {
 }
 
 /**
- * Section block with header, divider, and content. Used for "Contract details",
- * "Customer details", "About your business", etc.
- * Spacing: title → mt-2 → divider → mb-4 → content. Parent uses space-y-10 between sections.
+ * Section block with header, divider, and content. Matches application flow exactly:
+ * business-details/company-details pattern — div with h3 + divider.
  */
 export function ReviewFieldBlock({ title, children }: ReviewFieldBlockProps) {
   return (

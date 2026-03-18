@@ -19,24 +19,24 @@ export function ContractFacilitySummary({
   const isOverdrawn = availableFacility < 0;
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-4 rounded-xl border bg-muted/20 px-4 py-3">
+    <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border bg-muted/20 px-4 py-3">
       <div className="flex flex-wrap items-center gap-6">
         <div>
-          <p className="text-xs text-muted-foreground">Contract facility</p>
-          <p className="text-base font-semibold tabular-nums">
+          <p className="text-sm font-medium text-muted-foreground">Contract Facility</p>
+          <p className="text-[15px] leading-7 font-semibold tabular-nums">
             {formatCurrency(contractFacility)}
           </p>
         </div>
         <div>
-          <p className="text-xs text-muted-foreground">Utilized facility</p>
-          <p className="text-base font-semibold tabular-nums">
+          <p className="text-sm font-medium text-muted-foreground">Utilized Facility</p>
+          <p className="text-[15px] leading-7 font-semibold tabular-nums">
             {formatCurrency(utilizedFacility)}
           </p>
         </div>
         <div>
-          <p className="text-xs text-muted-foreground">Available facility</p>
+          <p className="text-sm font-medium text-muted-foreground">Available Facility</p>
           <p
-            className={`text-base font-semibold tabular-nums ${
+            className={`text-[15px] leading-7 font-semibold tabular-nums ${
               isOverdrawn ? "text-destructive" : ""
             }`}
           >

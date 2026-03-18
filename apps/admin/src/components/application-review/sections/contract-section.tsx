@@ -23,6 +23,7 @@ import {
   reviewValueClass,
   reviewValueClassTextArea,
   reviewRowGridClass,
+  reviewEmptyStateClass,
   REVIEW_EMPTY_LABEL,
   formatReviewValue,
   formatReviewDate,
@@ -319,7 +320,7 @@ export function ContractSection({
           </ReviewFieldBlock>
         </>
       ) : (
-        <p className="text-sm text-muted-foreground">No contract details submitted.</p>
+        <p className={reviewEmptyStateClass}>No contract details submitted.</p>
       )}
       <SectionComments comments={comments} onSubmitComment={onAddComment} />
 

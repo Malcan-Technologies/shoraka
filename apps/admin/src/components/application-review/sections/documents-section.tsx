@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DocumentTextIcon } from "@heroicons/react/24/outline";
+import { reviewCardTitleClass, reviewEmptyStateClass } from "../review-section-styles";
 import { SectionActionDropdown } from "../section-action-dropdown";
 import { DocumentList } from "../document-list";
 import type { ReviewSectionId } from "../section-types";
@@ -55,10 +56,10 @@ export function DocumentsSection({
   return (
     <Card className="rounded-2xl">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <DocumentTextIcon className="h-5 w-5 text-primary" />
-            <CardTitle className="text-base font-semibold">Supporting Documents</CardTitle>
+            <CardTitle className={reviewCardTitleClass}>Supporting Documents</CardTitle>
           </div>
           <SectionActionDropdown
             section={section}
@@ -74,7 +75,7 @@ export function DocumentsSection({
           />
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-10">
         {supportingDocuments && typeof supportingDocuments === "object" ? (
           <DocumentList
             documents={supportingDocuments}
@@ -91,11 +92,9 @@ export function DocumentsSection({
             actionLockTooltip={actionLockTooltip}
           />
         ) : (
-          <p className="text-sm text-muted-foreground">No supporting documents submitted.</p>
+          <p className={reviewEmptyStateClass}>No supporting documents submitted.</p>
         )}
-        <div className="mt-6">
-          <SectionComments comments={comments} onSubmitComment={onAddComment} />
-        </div>
+        <SectionComments comments={comments} onSubmitComment={onAddComment} />
       </CardContent>
     </Card>
   );

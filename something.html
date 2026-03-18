@@ -1,531 +1,212 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Activity Timeline (Standalone)</title>
+<meta charset="UTF-8" />
+<title>Invoice</title>
 
-  <style>
-    :root{
-      --bg: #f6f7fb;
-      --card: #ffffff;
-      --border: #e6e8ef;
-      --text: #111827;
-      --muted: #6b7280;
+<style>
+  body {
+    font-family: Inter, sans-serif;
+    background: #f9fafb;
+    padding: 24px;
+    color: #111827;
+  }
 
-      --primary: #8A0304;
+  .card {
+    background: white;
+    border-radius: 10px;
+    border: 1px solid #e5e7eb;
+    overflow: hidden;
+  }
 
-      --ok: #16a34a;
-      --bad: #dc2626;
-      --warn: #f59e0b;
-      --info: #2563eb;
+  .table-header, .table-row {
+    display: grid;
+    grid-template-columns: 40px 1fr 1fr 1fr 1fr 1fr;
+    padding: 16px;
+    align-items: center;
+  }
 
-      --chip-bg: #f3f4f6;
-      --chip-text: #374151;
+  .table-header {
+    font-weight: 600;
+    font-size: 14px;
+    color: #6b7280;
+    border-bottom: 1px solid #e5e7eb;
+  }
 
-      --chip-admin-bg: #ecfdf5;
-      --chip-admin-text: #047857;
+  .table-row {
+    border-bottom: 1px solid #e5e7eb;
+  }
 
-      --chip-issuer-bg: #f3f4f6;
-      --chip-issuer-text: #374151;
+  .expand {
+    cursor: pointer;
+  }
 
-      --shadow: 0 10px 28px rgba(17,24,39,0.08);
-      --radius: 16px;
-    }
+  .status {
+    background: #f3f4f6;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    display: inline-block;
+  }
 
-    * { box-sizing: border-box; }
-    body{
-      margin:0;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-      background: var(--bg);
-      color: var(--text);
-      padding: 32px;
-    }
+  .details {
+    display: none;
+    padding: 20px;
+    background: #fafafa;
+  }
 
-    .wrap{
-      max-width: 980px;
-      margin: 0 auto;
-    }
+  .details-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 20px;
+  }
 
-    .card{
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      padding: 20px;
-    }
+  .section {
+    border-right: 1px solid #e5e7eb;
+    padding-right: 16px;
+  }
 
-    .header{
-      display:flex;
-      align-items:flex-start;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 6px 4px 16px 4px;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 16px;
-    }
+  .section:last-child {
+    border-right: none;
+  }
 
-    .title{
-      font-size: 18px;
-      font-weight: 700;
-      margin:0;
-    }
-    .subtitle{
-      margin: 6px 0 0 0;
-      font-size: 13px;
-      color: var(--muted);
-    }
+  .label {
+    font-size: 12px;
+    color: #6b7280;
+    margin-top: 12px;
+  }
 
-    .count{
-      font-size: 12px;
-      color: var(--muted);
-      margin-top: 2px;
-      white-space: nowrap;
-    }
+  .value {
+    font-weight: 600;
+    margin-top: 4px;
+  }
 
-    .timeline{
-      position: relative;
-      max-height: 560px;
-      overflow: auto;
-      padding-right: 6px;
-      padding-left: 4px;
-    }
+  .slider {
+    width: 100%;
+    margin: 10px 0;
+  }
 
-    .line{
-      position:absolute;
-      left: 15px;
-      top: 0;
-      bottom: 0;
-      width: 2px;
-      background: var(--border);
-    }
+  .btn {
+    background: #b91c1c;
+    color: white;
+    padding: 10px;
+    border: none;
+    border-radius: 6px;
+    width: 100%;
+    margin-top: 16px;
+    cursor: pointer;
+  }
 
-    .item{
-      position: relative;
-      display:flex;
-      gap: 12px;
-      padding: 14px 0;
-    }
+  .btn:hover {
+    background: #991b1b;
+  }
 
-    .dot{
-      width: 26px;
-      height: 26px;
-      border-radius: 999px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-size: 12px;
-      font-weight: 700;
-      color: #fff;
-      flex: 0 0 26px;
-      z-index: 2;
-      margin-left: 2px;
-      margin-top: 1px;
-    }
+  .inline-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
 
-    .dot.approved{ background: var(--ok); }
-    .dot.rejected{ background: var(--bad); }
-    .dot.amend{ background: var(--warn); }
-    .dot.submitted{ background: var(--primary); }
-    .dot.default{ background: #9ca3af; }
-
-    .content{
-      flex:1;
-      padding-bottom: 2px;
-      min-width: 0;
-    }
-
-    .row-top{
-      display:flex;
-      align-items:center;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .event{
-      font-size: 14px;
-      font-weight: 650;
-      margin:0;
-    }
-
-    .chip{
-      font-size: 11px;
-      padding: 3px 10px;
-      border-radius: 999px;
-      border: 1px solid transparent;
-      background: var(--chip-bg);
-      color: var(--chip-text);
-      line-height: 1.6;
-    }
-
-    .chip.admin{
-      background: var(--chip-admin-bg);
-      color: var(--chip-admin-text);
-      border-color: rgba(4,120,87,0.12);
-    }
-
-    .chip.issuer{
-      background: var(--chip-issuer-bg);
-      color: var(--chip-issuer-text);
-      border-color: rgba(55,65,81,0.10);
-    }
-
-    .chip.cycle{
-      background: #eff6ff;
-      color: #1d4ed8;
-      border-color: rgba(29,78,216,0.12);
-    }
-
-    .meta{
-      margin-top: 6px;
-      font-size: 12px;
-      color: var(--muted);
-      display:flex;
-      align-items:center;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .meta .sep{ opacity: 0.6; }
-
-    .details-toggle{
-      margin-top: 10px;
-      display:inline-flex;
-      align-items:center;
-      gap: 8px;
-      background: transparent;
-      border: none;
-      padding: 0;
-      color: #374151;
-      font-size: 12px;
-      cursor: pointer;
-    }
-    .details-toggle:hover{ text-decoration: underline; }
-
-    .details{
-      display:none;
-      margin-top: 10px;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 12px;
-      background: #fafafa;
-    }
-
-    .details.show{ display:block; }
-
-    .details .label{
-      font-size: 12px;
-      font-weight: 650;
-      margin: 0 0 6px 0;
-      color: #111827;
-    }
-
-    .kv{
-      display:flex;
-      align-items:flex-start;
-      gap: 10px;
-      margin-top: 8px;
-      font-size: 12px;
-      color: #111827;
-    }
-    .kv .k{
-      width: 110px;
-      color: var(--muted);
-      flex: 0 0 110px;
-    }
-    .kv .v{
-      flex:1;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-
-    .remark{
-      margin-top: 10px;
-      border-radius: 12px;
-      padding: 12px;
-      border: 1px solid var(--border);
-      background: #f9fafb;
-      font-size: 12px;
-      color: #111827;
-      white-space: pre-wrap;
-      word-break: break-word;
-      max-height: 180px;
-      overflow: auto;
-    }
-
-    /* tint remark box by type */
-    .remark.approved { background: #ecfdf5; border-color: rgba(4,120,87,0.18); }
-    .remark.rejected { background: #fef2f2; border-color: rgba(220,38,38,0.18); }
-    .remark.amend { background: #fffbeb; border-color: rgba(245,158,11,0.22); }
-
-    .empty{
-      padding: 18px;
-      text-align:center;
-      color: var(--muted);
-      font-size: 13px;
-      border: 1px dashed var(--border);
-      border-radius: 12px;
-      background: #fafafa;
-    }
-
-    .footer-note{
-      margin-top: 14px;
-      font-size: 12px;
-      color: var(--muted);
-    }
-    code.inline{
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      font-size: 11px;
-      background: #f3f4f6;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 2px 6px;
-      color: #111827;
-    }
-  </style>
+  .doc-btn {
+    border: 1px solid #e5e7eb;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+</style>
 </head>
 
 <body>
-  <div class="wrap">
-    <div class="card">
 
-      <div class="header">
-        <div>
-          <h1 class="title">Activity Timeline</h1>
-          <p class="subtitle">Final application decisions and actions (audit trail)</p>
-        </div>
-        <div class="count" id="count">0 events</div>
-      </div>
+<div class="card">
 
-      <div class="timeline" id="timeline">
-        <div class="line"></div>
-        <!-- items injected here -->
-      </div>
-
-      <div class="footer-note">
-        Metadata is intentionally minimal: <code class="inline">remark</code> and (only for invoice/doc) <code class="inline">entityId</code>.
-      </div>
-    </div>
+  <!-- HEADER -->
+  <div class="table-header">
+    <div></div>
+    <div>Invoice No.</div>
+    <div>Invoice value</div>
+    <div>Financing ratio</div>
+    <div>Financing amount</div>
+    <div>Status</div>
   </div>
 
-  <script>
-    // ---- Demo data shape matches your backend table columns ----
-    // Only invoice + document may include metadata.entityId
-    const items = [
-      {
-        id: "1",
-        event_type: "APPLICATION_CREATED",
-        portal: "issuer",
-        review_cycle: 1,
-        metadata: null,
-        created_at: "2026-02-20T10:30:00Z",
-        actor_name: "Nur Hidayah"
-      },
-      {
-        id: "2",
-        event_type: "APPLICATION_SUBMITTED",
-        portal: "issuer",
-        review_cycle: 1,
-        metadata: null,
-        created_at: "2026-02-21T09:15:00Z",
-        actor_name: "Nur Hidayah"
-      },
-      {
-        id: "3",
-        event_type: "CONTRACT_AMENDMENT_REQUESTED",
-        portal: "admin",
-        review_cycle: 1,
-        metadata: { remark: "Contract number missing. Please update and re-upload signed copy." },
-        created_at: "2026-02-22T14:05:00Z",
-        actor_name: "Admin Team"
-      },
-      {
-        id: "4",
-        event_type: "APPLICATION_RESUBMITTED",
-        portal: "issuer",
-        review_cycle: 2,
-        metadata: { remark: "Updated contract number and re-uploaded signed contract." },
-        created_at: "2026-02-24T12:10:00Z",
-        actor_name: "Nur Hidayah"
-      },
-      {
-        id: "5",
-        event_type: "INVOICE_REJECTED",
-        portal: "admin",
-        review_cycle: 2,
-        metadata: { entityId: "INV-001", remark: "Invoice amount mismatch vs contract. Please correct invoice and re-upload." },
-        created_at: "2026-02-25T08:40:00Z",
-        actor_name: "Admin Team"
-      },
-      {
-        id: "6",
-        event_type: "DOCUMENT_AMENDMENT_REQUESTED",
-        portal: "admin",
-        review_cycle: 2,
-        metadata: { entityId: "SSM_CERT", remark: "SSM document expired. Upload latest company profile." },
-        created_at: "2026-02-25T09:00:00Z",
-        actor_name: "Admin Team"
-      },
-      {
-        id: "7",
-        event_type: "APPLICATION_APPROVED",
-        portal: "admin",
-        review_cycle: 2,
-        metadata: null,
-        created_at: "2026-02-26T16:25:00Z",
-        actor_name: "Admin Team"
-      }
-    ];
+  <!-- ROW -->
+  <div class="table-row">
+    <div class="expand" onclick="toggleDetails()">▾</div>
+    <div>INV-43377</div>
+    <div>RM 27,086.43</div>
+    <div>69%</div>
+    <div>RM 18,689.64</div>
+    <div><span class="status">Pending</span></div>
+  </div>
 
-    // ---- Helpers ----
-    function eventLabel(eventType){
-      const map = {
-        APPLICATION_CREATED: "Application Created",
-        APPLICATION_SUBMITTED: "Application Submitted",
-        APPLICATION_RESUBMITTED: "Application Resubmitted",
-        APPLICATION_APPROVED: "Application Approved",
-        APPLICATION_REJECTED: "Application Rejected",
+  <!-- EXPAND -->
+  <div class="details" id="details">
 
-        FIRST_STAGE_APPROVED: "First Stage Approved",
-        FIRST_STAGE_AMENDMENT_REQUESTED: "First Stage Amendment Requested",
+    <div class="details-grid">
 
-        CONTRACT_APPROVED: "Contract Approved",
-        CONTRACT_REJECTED: "Contract Rejected",
-        CONTRACT_AMENDMENT_REQUESTED: "Contract Amendment Requested",
+      <!-- LEFT -->
+      <div class="section">
+        <div class="label">Maturity Date</div>
+        <div class="value">23 May 2026</div>
 
-        INVOICE_APPROVED: "Invoice Approved",
-        INVOICE_REJECTED: "Invoice Rejected",
-        INVOICE_AMENDMENT_REQUESTED: "Invoice Amendment Requested",
+        <div class="label">Offer Expiry</div>
+        <div class="value">23 Mar 2026</div>
 
-        DOCUMENT_APPROVED: "Document Approved",
-        DOCUMENT_REJECTED: "Document Rejected",
-        DOCUMENT_AMENDMENT_REQUESTED: "Document Amendment Requested",
-      };
-      if (map[eventType]) return map[eventType];
-      return eventType.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
-    }
+        <div class="label">Document</div>
+        <div class="inline-row">
+          <div class="value">Dashboard Layouts.pdf</div>
+          <div class="doc-btn">View</div>
+        </div>
 
-    function dotType(eventType){
-      const t = eventType.toUpperCase();
-      if (t.includes("APPROVED")) return { cls: "approved", icon: "✓" };
-      if (t.includes("REJECTED")) return { cls: "rejected", icon: "✕" };
-      if (t.includes("AMENDMENT")) return { cls: "amend", icon: "!" };
-      if (t.includes("SUBMITTED") || t.includes("RESUBMITTED")) return { cls: "submitted", icon: "→" };
-      return { cls: "default", icon: "•" };
-    }
+        <div class="label">Estimated Disbursement Date</div>
+        <div class="value">07 Apr 2026</div>
 
-    function isInvoiceEvent(eventType){ return eventType.startsWith("INVOICE_"); }
-    function isDocEvent(eventType){ return eventType.startsWith("DOCUMENT_"); }
+        <div class="label">Estimated Period (Days)</div>
+        <div class="value">46 days</div>
+      </div>
 
-    function fmtDate(iso){
-      // simple readable format (keep it standalone)
-      const d = new Date(iso);
-      return d.toLocaleString(undefined, { year:"numeric", month:"short", day:"2-digit", hour:"2-digit", minute:"2-digit" });
-    }
+      <!-- MIDDLE -->
+      <div class="section">
+        <div class="label">Requested Financing Ratio</div>
+        <div class="value">69%</div>
 
-    // ---- Render ----
-    const timeline = document.getElementById("timeline");
-    const countEl = document.getElementById("count");
+        <div class="label">Requested Financing Amount</div>
+        <div class="value">RM 18,689.64</div>
+      </div>
 
-    function render(){
-      countEl.textContent = `${items.length} event${items.length === 1 ? "" : "s"}`;
+      <!-- RIGHT -->
+      <div>
+        <div class="label">Financing Ratio</div>
+        <div class="value">70%</div>
 
-      if (!items.length){
-        timeline.innerHTML = `<div class="line"></div><div class="empty">No activity yet.</div>`;
-        return;
-      }
+        <input type="range" min="0" max="100" value="70" class="slider" />
 
-      // clear existing (keep line)
-      timeline.innerHTML = `<div class="line"></div>`;
+        <div class="label">Financing Amount</div>
+        <div class="value">RM 18,960.50</div>
 
-      items
-        .slice() // copy
-        .sort((a,b) => new Date(b.created_at) - new Date(a.created_at)) // newest first
-        .forEach((it) => {
-          const { cls, icon } = dotType(it.event_type);
+        <div class="label">Profit Rate</div>
+        <div class="value">12%</div>
 
-          const portalChip = it.portal === "admin"
-            ? `<span class="chip admin">Admin</span>`
-            : `<span class="chip issuer">Issuer</span>`;
+        <div class="label">Estimated Profit</div>
+        <div class="value">RM 286.75</div>
 
-          const cycleChip = it.review_cycle > 1
-            ? `<span class="chip cycle">Review Cycle ${it.review_cycle}</span>`
-            : "";
+        <button class="btn">Send Offer</button>
+      </div>
 
-          // entity label only for invoice/doc item-level
-          let entityLine = "";
-          const entityId = it.metadata?.entityId;
-          if (entityId && isInvoiceEvent(it.event_type)) {
-            entityLine = `<div class="kv"><div class="k">Invoice</div><div class="v">${escapeHtml(entityId)}</div></div>`;
-          }
-          if (entityId && isDocEvent(it.event_type)) {
-            entityLine = `<div class="kv"><div class="k">Document</div><div class="v">${escapeHtml(entityId)}</div></div>`;
-          }
+    </div>
 
-          const remark = it.metadata?.remark ? String(it.metadata.remark) : "";
-          const hasDetails = Boolean(entityLine || remark);
+  </div>
 
-          const toggleBtn = hasDetails
-            ? `<button class="details-toggle" data-toggle="${it.id}">
-                 <span>View details</span>
-               </button>`
-            : "";
+</div>
 
-          const detailsBlock = hasDetails
-            ? `<div class="details" id="details-${it.id}">
-                 ${entityLine ? `<p class="label">Context</p>${entityLine}` : ""}
-                 ${remark ? `<p class="label" style="margin-top:${entityLine? "12px":"0"}">Remark</p>
-                            <div class="remark ${cls}">${escapeHtml(remark)}</div>` : ""}
-               </div>`
-            : "";
+<script>
+function toggleDetails() {
+  const el = document.getElementById("details");
+  el.style.display = el.style.display === "block" ? "none" : "block";
+}
+</script>
 
-          const el = document.createElement("div");
-          el.className = "item";
-          el.innerHTML = `
-            <div class="dot ${cls}">${icon}</div>
-            <div class="content">
-              <div class="row-top">
-                <p class="event">${escapeHtml(eventLabel(it.event_type))}</p>
-                ${portalChip}
-                ${cycleChip}
-              </div>
-
-              <div class="meta">
-                <span>${escapeHtml(it.actor_name || "Unknown")}</span>
-                <span class="sep">•</span>
-                <span>${escapeHtml(fmtDate(it.created_at))}</span>
-              </div>
-
-              ${toggleBtn}
-              ${detailsBlock}
-            </div>
-          `;
-
-          timeline.appendChild(el);
-        });
-
-      // wire toggles
-      document.querySelectorAll(".details-toggle").forEach(btn => {
-        btn.addEventListener("click", () => {
-          const id = btn.getAttribute("data-toggle");
-          const panel = document.getElementById(`details-${id}`);
-          const isOpen = panel.classList.contains("show");
-          panel.classList.toggle("show", !isOpen);
-          btn.querySelector("span").textContent = isOpen ? "View details" : "Hide details";
-        });
-      });
-    }
-
-    function escapeHtml(str){
-      return str
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
-
-    render();
-  </script>
 </body>
 </html>

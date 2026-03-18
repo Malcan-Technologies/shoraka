@@ -26,6 +26,24 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  applicationTableHeaderNumericClass,
+  applicationTableHeaderCenterClass,
+  applicationTableHeaderBgClass,
+  applicationTableRowClass,
+  applicationTableRowGreyedClass,
+  applicationTableCellNumericClass,
+  applicationTableCellCenterClass,
+  applicationTableWrapperClass,
+  applicationTableExpandableRowClass,
+  applicationTableExpandableContentClass,
+  applicationTableExpandableGridClass,
+  applicationTableExpandableSectionTitleClass,
+  applicationTableExpandableLabelClass,
+  applicationTableExpandableFieldBlockClass,
+  applicationTableExpandableValueClass,
+  applicationTableExpandableFieldGapClass,
+} from "@/components/application-review/application-table-styles";
 
 const PROFIT_RATE_OPTIONS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] as const;
 
@@ -257,17 +275,17 @@ export function InvoiceList({
   }, [onSendInvoiceOffer, invoiceOfferConfirm]);
 
   return (
-    <div className="rounded-xl border bg-card">
-      <Table>
-        <TableHeader className="bg-muted/20">
-          <TableRow className="hover:bg-transparent">
-            <TableHead className="w-10" />
-            <TableHead className="text-center text-sm font-semibold">Invoice No.</TableHead>
-            <TableHead className="text-center text-sm font-semibold">Invoice value</TableHead>
-            <TableHead className="text-center text-sm font-semibold">Financing ratio</TableHead>
-            <TableHead className="text-center text-sm font-semibold">Financing amount</TableHead>
-            <TableHead className="text-center text-sm font-semibold">Status</TableHead>
-            <TableHead className="w-[120px] text-center text-sm font-semibold">Action</TableHead>
+    <div className={applicationTableWrapperClass}>
+      <Table className="text-[15px]">
+        <TableHeader className={applicationTableHeaderBgClass}>
+          <TableRow className="hover:bg-transparent border-b border-border">
+            <TableHead className="w-10 px-4 py-3" />
+            <TableHead className={applicationTableHeaderCenterClass}>Invoice No.</TableHead>
+            <TableHead className={applicationTableHeaderNumericClass}>Invoice value</TableHead>
+            <TableHead className={applicationTableHeaderNumericClass}>Financing ratio</TableHead>
+            <TableHead className={applicationTableHeaderNumericClass}>Financing amount</TableHead>
+            <TableHead className={applicationTableHeaderCenterClass}>Status</TableHead>
+            <TableHead className={`${applicationTableHeaderCenterClass} w-[120px]`}>Action</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -300,14 +318,10 @@ export function InvoiceList({
               <React.Fragment key={inv.id}>
                 <TableRow
                   className={
-                    isRowGreyedOut
-                      ? isInvoiceWithdrawn
-                        ? "bg-muted/30 text-muted-foreground cursor-not-allowed hover:bg-muted/40"
-                        : "bg-muted/30 text-muted-foreground hover:bg-muted/40"
-                      : "odd:bg-muted/40 hover:bg-muted"
+                    isRowGreyedOut ? applicationTableRowGreyedClass : applicationTableRowClass
                   }
                 >
-                  <TableCell>
+                  <TableCell className={applicationTableCellCenterClass}>
                     <button
                       type="button"
                       onClick={() => toggleExpanded(inv.id)}
@@ -321,30 +335,24 @@ export function InvoiceList({
                       />
                     </button>
                   </TableCell>
-                  <TableCell className="text-center text-sm font-semibold text-foreground">
+                  <TableCell className={applicationTableCellCenterClass}>
                     {invoiceNo}
                   </TableCell>
-                  <TableCell className="text-center text-sm font-semibold text-foreground">
+                  <TableCell className={applicationTableCellNumericClass}>
                     {invoiceValue !== null ? formatCurrency(invoiceValue) : REVIEW_EMPTY_LABEL}
                   </TableCell>
-                  <TableCell className="text-center text-sm font-semibold text-foreground">
+                  <TableCell className={applicationTableCellNumericClass}>
                     {financingRatio !== null ? `${financingRatio}%` : REVIEW_EMPTY_LABEL}
                   </TableCell>
-                  <TableCell className="text-center text-sm font-semibold text-foreground">
+                  <TableCell className={applicationTableCellNumericClass}>
                     {issuerFinancingAmount !== null
                       ? formatCurrency(issuerFinancingAmount)
                       : REVIEW_EMPTY_LABEL}
                   </TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className={applicationTableCellCenterClass}>
                     <ReviewStepStatusBadge status={status} size="sm" />
                   </TableCell>
-                  <TableCell
-                    className={
-                      isRowGreyedOut
-                        ? "bg-muted/30 text-center text-muted-foreground"
-                        : "text-center"
-                    }
-                  >
+                  <TableCell className={applicationTableCellCenterClass}>
                     {isReviewable && !isRowGreyedOut ? (
                       <ItemActionDropdown
                         itemId={scopeKey}
@@ -365,11 +373,10 @@ export function InvoiceList({
                 </TableRow>
 
                 {isExpanded && (
-                  <TableRow className="bg-muted/10 hover:bg-muted/10">
-                    <TableCell colSpan={7}>
-                      <div className="space-y-4 py-2">
-                        <div className="rounded-lg bg-card p-4">
-                          <div className="grid gap-4 md:grid-cols-3">
+                  <TableRow className={applicationTableExpandableRowClass}>
+                    <TableCell colSpan={7} className="p-0 align-top">
+                      <div className={applicationTableExpandableContentClass}>
+                        <div className={applicationTableExpandableGridClass}>
                             {(() => {
                               const isOfferSent = status === "OFFER_SENT";
                               const offerDetails = inv.offer_details as
@@ -407,37 +414,65 @@ export function InvoiceList({
                             <div
                               className={
                                 isRowGreyedOut
-                                  ? "md:pl-3 space-y-3 text-muted-foreground pointer-events-none select-none"
-                                  : "md:pl-3 space-y-3"
+                                  ? `${applicationTableExpandableFieldGapClass} text-muted-foreground pointer-events-none select-none`
+                                  : applicationTableExpandableFieldGapClass
                               }
                             >
-                              <p className="text-sm font-semibold text-foreground">
+                              <p className={applicationTableExpandableSectionTitleClass}>
                                 Invoice Details
                               </p>
-                              <div className="mt-2 space-y-2">
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Maturity Date</p>
-                                  <p className="text-sm font-medium">
+                              <div className={applicationTableExpandableFieldGapClass}>
+                                <div className={applicationTableExpandableFieldBlockClass}>
+                                  <p className={applicationTableExpandableLabelClass}>
+                                    Maturity Date
+                                  </p>
+                                  <p className={applicationTableExpandableValueClass}>
                                     {formatDateValue(maturityDate)}
                                   </p>
                                 </div>
                                 {estimates && (
-                                  <div>
-                                    <p className="text-xs text-muted-foreground">Offer Expiry</p>
-                                    <p className="text-sm font-medium">
+                                  <div className={applicationTableExpandableFieldBlockClass}>
+                                    <p className={applicationTableExpandableLabelClass}>
+                                      Offer Expiry
+                                    </p>
+                                    <p className={applicationTableExpandableValueClass}>
                                       {format(estimates.offerExpiryDate, "dd MMM yyyy")}
                                     </p>
                                   </div>
                                 )}
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Document</p>
-                                  <div className="mt-1 flex items-center gap-2">
-                                    <p className="text-sm font-medium truncate">{documentName}</p>
+                                <div className={applicationTableExpandableFieldBlockClass}>
+                                  <p className={applicationTableExpandableLabelClass}>
+                                    Estimated Disbursement Date
+                                  </p>
+                                  <p className={applicationTableExpandableValueClass}>
+                                    {estimates
+                                      ? format(estimates.estDisbursementDate, "dd MMM yyyy")
+                                      : REVIEW_EMPTY_LABEL}
+                                  </p>
+                                </div>
+                                <div className={applicationTableExpandableFieldBlockClass}>
+                                  <p className={applicationTableExpandableLabelClass}>
+                                    Estimated Period (Days)
+                                  </p>
+                                  <p className={applicationTableExpandableValueClass}>
+                                    {estimates != null && estimates.estPeriodDays != null
+                                      ? estimates.estPeriodDays
+                                      : REVIEW_EMPTY_LABEL}
+                                  </p>
+                                </div>
+                                <div
+                                  className={`${applicationTableExpandableFieldBlockClass} border-t border-border pt-2 mt-2`}
+                                >
+                                  <p className={applicationTableExpandableLabelClass}>Document</p>
+                                  <div className="flex items-center gap-2">
+                                    <p className={`${applicationTableExpandableValueClass} truncate`}>
+                                      {documentName}
+                                    </p>
                                     {details?.document?.s3_key ? (
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        className="h-7 rounded-lg gap-1 px-2"
+                                        className="h-8 rounded-xl gap-1 px-2 shrink-0 text-[15px]"
                                         onClick={() => onViewDocument(details.document!.s3_key!)}
                                         disabled={isViewDocumentPending}
                                       >
@@ -447,51 +482,35 @@ export function InvoiceList({
                                     ) : null}
                                   </div>
                                 </div>
-                                <div>
-                                  <p className="text-xs text-muted-foreground">
-                                    Estimated Disbursement Date
-                                  </p>
-                                  <p className="text-sm font-medium">
-                                    {estimates
-                                      ? format(estimates.estDisbursementDate, "dd MMM yyyy")
-                                      : REVIEW_EMPTY_LABEL}
-                                  </p>
-                                </div>
-                                <div>
-                                  <p className="text-xs text-muted-foreground">
-                                    Estimated Period (Days)
-                                  </p>
-                                  <p className="text-sm font-medium">
-                                    {estimates != null && estimates.estPeriodDays != null
-                                      ? estimates.estPeriodDays
-                                      : REVIEW_EMPTY_LABEL}
-                                  </p>
-                                </div>
                               </div>
                             </div>
 
                             <div
                               className={
                                 isRowGreyedOut
-                                  ? "md:pl-3 space-y-3 text-muted-foreground pointer-events-none select-none"
-                                  : "md:pl-3 space-y-3"
+                                  ? `${applicationTableExpandableFieldGapClass} text-muted-foreground pointer-events-none select-none`
+                                  : applicationTableExpandableFieldGapClass
                               }
                             >
-                              <p className="text-sm font-semibold text-foreground">
+                              <p className={applicationTableExpandableSectionTitleClass}>
                                 Requested by Issuer
                               </p>
-                              <div className="mt-2 space-y-2">
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Financing Ratio</p>
-                                  <p className="text-sm font-medium">
+                              <div className={applicationTableExpandableFieldGapClass}>
+                                <div className={applicationTableExpandableFieldBlockClass}>
+                                  <p className={applicationTableExpandableLabelClass}>
+                                    Financing Ratio
+                                  </p>
+                                  <p className={applicationTableExpandableValueClass}>
                                     {financingRatio !== null
                                       ? `${financingRatio}%`
                                       : REVIEW_EMPTY_LABEL}
                                   </p>
                                 </div>
-                                <div>
-                                  <p className="text-xs text-muted-foreground">Financing Amount</p>
-                                  <p className="text-sm font-medium tabular-nums">
+                                <div className={applicationTableExpandableFieldBlockClass}>
+                                  <p className={applicationTableExpandableLabelClass}>
+                                    Financing Amount
+                                  </p>
+                                  <p className={applicationTableExpandableValueClass}>
                                     {issuerFinancingAmount !== null
                                       ? formatCurrency(issuerFinancingAmount)
                                       : REVIEW_EMPTY_LABEL}
@@ -503,106 +522,66 @@ export function InvoiceList({
                             <div
                               className={
                                 isRowGreyedOut
-                                  ? "md:pl-3 space-y-3 text-muted-foreground pointer-events-none select-none"
-                                  : "md:pl-3 space-y-3"
+                                  ? `${applicationTableExpandableFieldGapClass} text-muted-foreground pointer-events-none select-none`
+                                  : applicationTableExpandableFieldGapClass
                               }
                             >
-                              <p className="text-sm font-semibold text-foreground">
+                              <p className={applicationTableExpandableSectionTitleClass}>
                                 Offered by CashSouk
                               </p>
-                              <div className="mt-2 space-y-2">
-                                <div>
-                                  <p className="text-xs text-muted-foreground mb-1">
+                              <div className={`${applicationTableExpandableFieldGapClass} flex flex-col`}>
+                                <div className={applicationTableExpandableFieldBlockClass}>
+                                  <p className={applicationTableExpandableLabelClass}>
                                     Financing Ratio
                                   </p>
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-sm font-medium tabular-nums w-10">
-                                      {offeredRatio}%
-                                    </span>
-                                    {!isOfferSent && (
-                                      <>
-                                        <Slider
-                                          min={invoiceRatioLimits.min}
-                                          max={invoiceRatioLimits.max}
-                                          step={1}
-                                          value={[offered.ratio]}
-                                          onValueChange={(v) => setOffered(inv.id, { ratio: v[0] })}
-                                          disabled={isRowGreyedOut}
-                                          className="flex-1 max-w-[140px]
-                                            [&_[data-orientation=horizontal]]:h-1.5
-                                            [&_[data-orientation=horizontal]>span]:bg-primary
-                                            [&_[role=slider]]:h-4
-                                            [&_[role=slider]]:w-4
-                                            [&_[role=slider]]:border-2
-                                            [&_[role=slider]]:border-primary"
-                                        />
-                                        {onSendInvoiceOffer && (
-                                          <Button
-                                            type="button"
-                                            size="sm"
-                                            disabled={
-                                              isRowGreyedOut ||
-                                              !!isSendInvoiceOfferPending ||
-                                              offeredAmount === null
-                                            }
-                                            onClick={() =>
-                                              setInvoiceOfferConfirm({
-                                                invoiceId: inv.id,
-                                                invoiceNo,
-                                                offeredAmount: offeredAmount ?? 0,
-                                                offeredRatioPercent: offered.ratio,
-                                                offeredProfitRatePercent: offered.profitRate,
-                                                invoiceValue,
-                                              })
-                                            }
-                                          >
-                                            {isSendInvoiceOfferPending ? "Sending..." : "Send Offer"}
-                                          </Button>
-                                        )}
-                                      </>
-                                    )}
-                                    {isOfferSent && onResetItemToPending && (
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={isRowGreyedOut || isItemActionPending}
-                                        onClick={() => onResetItemToPending(scopeKey)}
-                                      >
-                                        {isItemActionPending ? "Retracting..." : "Retract Offer"}
-                                      </Button>
-                                    )}
-                                  </div>
+                                  <span
+                                    className={`${applicationTableExpandableValueClass} font-medium`}
+                                  >
+                                    {offeredRatio}%
+                                  </span>
+                                  {!isOfferSent && (
+                                    <div className="mt-2 w-full">
+                                      <Slider
+                                        min={invoiceRatioLimits.min}
+                                        max={invoiceRatioLimits.max}
+                                        step={1}
+                                        value={[offered.ratio]}
+                                        onValueChange={(v) => setOffered(inv.id, { ratio: v[0] })}
+                                        disabled={isRowGreyedOut}
+                                        className="w-full"
+                                      />
+                                    </div>
+                                  )}
                                 </div>
-                                <div>
-                                  <p className="text-xs text-muted-foreground">
-                                    Financing amount
+                                <div className={applicationTableExpandableFieldBlockClass}>
+                                  <p className={applicationTableExpandableLabelClass}>
+                                    Financing Amount
                                   </p>
-                                  <p className="text-sm font-medium tabular-nums">
+                                  <p className={applicationTableExpandableValueClass}>
                                     {offeredAmount !== null
                                       ? formatCurrency(offeredAmount)
                                       : REVIEW_EMPTY_LABEL}
                                   </p>
                                 </div>
-                                <div>
-                                  <p className="text-xs text-muted-foreground mb-1">
-                                    Profit rate
+                                <div className={applicationTableExpandableFieldBlockClass}>
+                                  <p className={applicationTableExpandableLabelClass}>
+                                    Profit Rate
                                   </p>
                                   {isOfferSent ? (
-                                    <p className="text-sm font-medium tabular-nums">
+                                    <p className={applicationTableExpandableValueClass}>
                                       {offeredProfitRate != null
                                         ? `${offeredProfitRate}%`
                                         : REVIEW_EMPTY_LABEL}
                                     </p>
                                   ) : (
                                     <Select
-                                      value={String(offered.profitRate)}
-                                      onValueChange={(v) =>
-                                        setOffered(inv.id, { profitRate: parseInt(v, 10) })
-                                      }
-                                      disabled={isRowGreyedOut}
-                                    >
-                                      <SelectTrigger className="h-8 w-full max-w-[100px]">
+                                        value={String(offered.profitRate)}
+                                        onValueChange={(v) =>
+                                          setOffered(inv.id, { profitRate: parseInt(v, 10) })
+                                        }
+                                        disabled={isRowGreyedOut}
+                                      >
+                                        <SelectTrigger className="h-9 w-full max-w-[88px] rounded-xl border-border bg-background text-[15px]">
                                         <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent className="max-h-[200px]">
@@ -615,16 +594,50 @@ export function InvoiceList({
                                     </Select>
                                   )}
                                 </div>
-                                <div>
-                                  <p className="text-xs text-muted-foreground">
-                                    Estimated profit
+                                <div className={applicationTableExpandableFieldBlockClass}>
+                                  <p className={applicationTableExpandableLabelClass}>
+                                    Estimated Profit
                                   </p>
-                                  <p className="text-sm font-medium tabular-nums">
+                                  <p className={applicationTableExpandableValueClass}>
                                     {estimates?.estProfit != null
                                       ? formatCurrency(estimates.estProfit)
                                       : REVIEW_EMPTY_LABEL}
                                   </p>
                                 </div>
+                                {!isOfferSent && onSendInvoiceOffer && (
+                                  <Button
+                                    type="button"
+                                    className="mt-3 w-full rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 h-10"
+                                    disabled={
+                                      isRowGreyedOut ||
+                                      !!isSendInvoiceOfferPending ||
+                                      offeredAmount === null
+                                    }
+                                    onClick={() =>
+                                      setInvoiceOfferConfirm({
+                                        invoiceId: inv.id,
+                                        invoiceNo,
+                                        offeredAmount: offeredAmount ?? 0,
+                                        offeredRatioPercent: offered.ratio,
+                                        offeredProfitRatePercent: offered.profitRate,
+                                        invoiceValue,
+                                      })
+                                    }
+                                  >
+                                    {isSendInvoiceOfferPending ? "Sending..." : "Send Offer"}
+                                  </Button>
+                                )}
+                                {isOfferSent && onResetItemToPending && (
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="mt-3 w-full rounded-xl h-10"
+                                    disabled={isRowGreyedOut || isItemActionPending}
+                                    onClick={() => onResetItemToPending(scopeKey)}
+                                  >
+                                    {isItemActionPending ? "Retracting..." : "Retract Offer"}
+                                  </Button>
+                                )}
                               </div>
                             </div>
                           </>
@@ -632,8 +645,7 @@ export function InvoiceList({
                         })()}
                       </div>
                     </div>
-                  </div>
-                </TableCell>
+                  </TableCell>
                   </TableRow>
                 )}
               </React.Fragment>
@@ -658,34 +670,34 @@ export function InvoiceList({
           </DialogHeader>
           {invoiceOfferConfirm && (
             <>
-              <div className="grid gap-2 py-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Invoice Number</span>
-                  <span className="font-medium">{invoiceOfferConfirm.invoiceNo}</span>
+              <div className="grid gap-3 py-2">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm font-medium text-muted-foreground">Invoice Number</span>
+                  <span className="text-[15px] font-medium">{invoiceOfferConfirm.invoiceNo}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Invoice Value</span>
-                  <span className="font-medium tabular-nums">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm font-medium text-muted-foreground">Invoice Value</span>
+                  <span className="text-[15px] font-medium tabular-nums">
                     {invoiceOfferConfirm.invoiceValue !== null
                       ? formatCurrency(invoiceOfferConfirm.invoiceValue)
                       : REVIEW_EMPTY_LABEL}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Offered Amount</span>
-                  <span className="font-medium tabular-nums">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm font-medium text-muted-foreground">Offered Amount</span>
+                  <span className="text-[15px] font-medium tabular-nums">
                     {formatCurrency(invoiceOfferConfirm.offeredAmount)}
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Offered Ratio</span>
-                  <span className="font-medium tabular-nums">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm font-medium text-muted-foreground">Offered Ratio</span>
+                  <span className="text-[15px] font-medium tabular-nums">
                     {invoiceOfferConfirm.offeredRatioPercent}%
                   </span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Profit Rate</span>
-                  <span className="font-medium tabular-nums">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm font-medium text-muted-foreground">Profit Rate</span>
+                  <span className="text-[15px] font-medium tabular-nums">
                     {invoiceOfferConfirm.offeredProfitRatePercent}%
                   </span>
                 </div>

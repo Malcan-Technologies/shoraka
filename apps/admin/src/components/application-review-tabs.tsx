@@ -70,7 +70,7 @@ export function ApplicationReviewTabContent({
   children: React.ReactNode;
 }) {
   return (
-    <TabsContent value={value} className="mt-6 focus-visible:outline-none focus-visible:ring-0">
+    <TabsContent value={value} className="mt-8 focus-visible:outline-none focus-visible:ring-0">
       {children}
     </TabsContent>
   );
