@@ -258,7 +258,7 @@ function MoneyFieldRow({
             <InformationCircleIcon className="h-4 w-4" />
           </span>
         </TooltipTrigger>
-        <TooltipContent side="top" className={fieldTooltipContentClassName}>
+        <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
           {NEGATIVE_TOOLTIP_TEXT}
         </TooltipContent>
       </Tooltip>
@@ -465,7 +465,7 @@ export function FinancialStatementsStep({
                     <InformationCircleIcon className="h-4 w-4" />
                   </span>
                 </TooltipTrigger>
-                <TooltipContent side="top" className={fieldTooltipContentClassName}>
+                <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
                   {FINANCIAL_DATA_UNTIL_TOOLTIP}
                 </TooltipContent>
               </Tooltip>

@@ -1182,7 +1182,7 @@ export function ContractDetailsStep({
                       <InformationCircleIcon className="h-4 w-4" />
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent side="top" className={fieldTooltipContentClassName}>
+                  <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
                     {`The contract must run for at least ${productMinMonths} months from the later of today or the contract start date`}
                   </TooltipContent>
                 </Tooltip>
@@ -1339,7 +1339,7 @@ export function ContractDetailsStep({
                     <InformationCircleIcon className="h-4 w-4" />
                   </span>
                 </TooltipTrigger>
-                <TooltipContent side="top" className={fieldTooltipContentClassName}>
+                <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
                   Related director/shareholder or having subsidiary/sister company or parent company relationship
                 </TooltipContent>
               </Tooltip>

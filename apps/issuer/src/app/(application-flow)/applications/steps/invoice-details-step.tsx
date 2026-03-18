@@ -1076,7 +1076,7 @@ export default function InvoiceDetailsStep({
                           </TableHead>
 
                           <TableHead className="w-[200px] whitespace-nowrap text-xs font-semibold">
-                            <div className="inline-flex items-center gap-1">
+                            <div className="inline-flex items-center gap-0.5">
                               Maximum Financing Amount
                               {productConfig &&
                                 (typeof productConfig.min_invoice_value === "number" ||
@@ -1087,14 +1087,14 @@ export default function InvoiceDetailsStep({
                                         <InformationCircleIcon className="h-4 w-4" />
                                       </span>
                                     </TooltipTrigger>
-                                    <TooltipContent side="top" className={fieldTooltipContentClassName}>
-                                      Per-invoice financing limits:{" "}
+                                    <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
+                                      {"Per invoice\n"}
                                       {typeof productConfig.min_invoice_value === "number"
                                         ? `min RM ${formatMoney(productConfig.min_invoice_value)}`
                                         : ""}
                                       {typeof productConfig.min_invoice_value === "number" &&
                                       typeof productConfig.max_invoice_value === "number"
-                                        ? ", "
+                                        ? "\n"
                                         : ""}
                                       {typeof productConfig.max_invoice_value === "number"
                                         ? `max RM ${formatMoney(productConfig.max_invoice_value)}`
