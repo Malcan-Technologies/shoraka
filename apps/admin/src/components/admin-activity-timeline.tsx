@@ -124,6 +124,8 @@ function formatItemLabelFromScopeKey(scopeKey: string): string {
  */
 interface AdminActivityTimelineProps {
   applicationId: string | null;
+  /** Override section labels for display (e.g. contract_details → "Customer" for invoice_only). */
+  sectionLabelOverrides?: Record<string, string>;
 }
 
 function getEventIcon(eventType: string) {
@@ -184,7 +186,8 @@ const ACTION_LABELS: Record<string, string> = {
 function getEventLabel(
   eventType: string,
   metadata?: Record<string, unknown> | null,
-  entityId?: string | null
+  entityId?: string | null,
+  sectionLabelOverrides?: Record<string, string>
 ): string {
   const baseLabels: Record<string, string> = {
     APPLICATION_CREATED: "Application Created",
@@ -238,7 +241,9 @@ function getEventLabel(
   if (actionLabel) {
     if (eventType.startsWith("SECTION_REVIEWED_")) {
       const scopeKey = metadata?.scope_key;
-      const sectionLabel = scopeKey ? getReviewTabLabel(String(scopeKey)) : "";
+      const sectionLabel = scopeKey
+        ? (sectionLabelOverrides?.[String(scopeKey)] ?? getReviewTabLabel(String(scopeKey)))
+        : "";
       return sectionLabel ? `${sectionLabel} ${actionLabel}` : actionLabel;
     }
     if (eventType.startsWith("ITEM_REVIEWED_")) {
@@ -310,7 +315,7 @@ function TimelineSkeleton() {
   );
 }
 
-export function AdminActivityTimeline({ applicationId }: AdminActivityTimelineProps) {
+export function AdminActivityTimeline({ applicationId, sectionLabelOverrides }: AdminActivityTimelineProps) {
   /**
    * Local state / hooks
    *
@@ -429,7 +434,7 @@ export function AdminActivityTimeline({ applicationId }: AdminActivityTimelinePr
                             <div className="flex items-center gap-1.5">
                               {getEventIcon(eventType)}
                               <span className="text-sm font-medium leading-tight">
-                                {getEventLabel(eventType, metadata, entityId)}
+                                {getEventLabel(eventType, metadata, entityId, sectionLabelOverrides)}
                               </span>
                             </div>
 

@@ -9,6 +9,7 @@ import { BusinessSection } from "./sections/business-section";
 import { DocumentsSection } from "./sections/documents-section";
 import { CompanySection } from "./sections/company-section";
 import { ContractSection } from "./sections/contract-section";
+import { CustomerSection } from "./sections/customer-section";
 import { InvoiceSection } from "./sections/invoice-section";
 import type { ReviewSectionId } from "./section-types";
 import type { ReviewTabDescriptor } from "./review-registry";
@@ -215,7 +216,30 @@ export function SectionContent({
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
         />
       );
-    case "contract_details":
+    case "contract_details": {
+      const structureType = (app.financing_structure as { structure_type?: string } | null | undefined)?.structure_type;
+      const isInvoiceOnly = structureType === "invoice_only";
+      if (isInvoiceOnly) {
+        return (
+          <CustomerSection
+            customerDetails={app.contract?.customer_details}
+            section={section}
+            isReviewable={isReviewable}
+            approvePending={approveSectionPending}
+            isActionLocked={isActionLocked}
+            actionLockTooltip={actionLockTooltip}
+            sectionStatus={sectionStatus}
+            onResetSectionToPending={onResetSectionToPending}
+            onApprove={onApproveSection}
+            onReject={onRejectSection}
+            onRequestAmendment={onRequestAmendmentSection}
+            onViewDocument={onViewDocument}
+            viewDocumentPending={viewDocumentPending}
+            comments={sectionComments}
+            onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
+          />
+        );
+      }
       return (
         <ContractSection
           contractDetails={app.contract?.contract_details}
@@ -239,6 +263,7 @@ export function SectionContent({
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
         />
       );
+    }
     case "invoice_details": {
       const appInvoices = app.invoices ?? [];
       const contract = app.contract as {

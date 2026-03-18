@@ -138,7 +138,8 @@ export function getTabUnlockTooltip(
   sectionId: string,
   sectionStatusMap: Map<string, string>,
   availableSections?: ReadonlySet<string>,
-  prerequisitesBySection?: Record<string, string[]>
+  prerequisitesBySection?: Record<string, string[]>,
+  labelOverrides?: Record<string, string>
 ): string {
   const prereqs = prerequisitesBySection?.[sectionId] ?? TAB_PREREQUISITES[sectionId];
   if (!prereqs?.length) return "";
@@ -148,6 +149,7 @@ export function getTabUnlockTooltip(
   if (!relevantPrereqs.length) return "";
   const missing = relevantPrereqs.filter((p) => sectionStatusMap.get(p) !== "APPROVED");
   if (missing.length === 0) return "";
-  const labels = missing.map((m) => REVIEW_TAB_LABELS[m] ?? m).join(", ");
+  const getLabel = (m: string) => labelOverrides?.[m] ?? REVIEW_TAB_LABELS[m] ?? m;
+  const labels = missing.map(getLabel).join(", ");
   return `Approve ${labels} section first`;
 }

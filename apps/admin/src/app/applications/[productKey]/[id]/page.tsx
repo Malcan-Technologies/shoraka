@@ -209,10 +209,19 @@ export default function DynamicApplicationDetailPage() {
     const set = new Set(normalized);
     return normalized.length > 0 ? set : null;
   }, [app]);
+  const structureType = (app?.financing_structure as { structure_type?: string } | null | undefined)?.structure_type;
+  const isInvoiceOnly = structureType === "invoice_only";
   const effectiveTabDescriptors = React.useMemo(() => {
-    if (!visibleReviewSectionsFromApi) return tabDescriptors;
-    return tabDescriptors.filter((d) => visibleReviewSectionsFromApi.has(d.reviewSection));
-  }, [tabDescriptors, visibleReviewSectionsFromApi]);
+    let descriptors = visibleReviewSectionsFromApi
+      ? tabDescriptors.filter((d) => visibleReviewSectionsFromApi.has(d.reviewSection))
+      : tabDescriptors;
+    if (isInvoiceOnly) {
+      descriptors = descriptors.map((d) =>
+        d.reviewSection === "contract_details" ? { ...d, label: "Customer" } : d
+      );
+    }
+    return descriptors;
+  }, [tabDescriptors, visibleReviewSectionsFromApi, isInvoiceOnly]);
 
   const isExistingContract = React.useMemo(
     () =>
@@ -422,7 +431,11 @@ export default function DynamicApplicationDetailPage() {
 
   const noteDialogIsSection = noteDialog && "section" in noteDialog;
   const noteDialogIsApprove = noteDialog?.action === "approve";
-  const sectionLabel = noteDialogIsSection ? getReviewTabLabel(noteDialog.section) : "";
+  const sectionLabel = noteDialogIsSection
+    ? noteDialog.section === "contract_details" && isInvoiceOnly
+      ? "Customer"
+      : getReviewTabLabel(noteDialog.section)
+    : "";
   const noteDialogTitle = noteDialogIsApprove
     ? noteDialogIsSection
       ? `Approve ${sectionLabel}?`
@@ -796,7 +809,8 @@ export default function DynamicApplicationDetailPage() {
                                 descriptor.reviewSection,
                                 sectionStatusMap,
                                 availableReviewSections,
-                                tabPrerequisitesFromApi
+                                tabPrerequisitesFromApi,
+                                isInvoiceOnly ? { contract_details: "Customer" } : undefined
                               )
                         : undefined;
                       const sectionStatus = sectionStatusMap.get(descriptor.reviewSection);
@@ -967,6 +981,7 @@ export default function DynamicApplicationDetailPage() {
                       }[]) ?? []
                     }
                     applicationId={applicationId}
+                    sectionLabelOverrides={isInvoiceOnly ? { contract_details: "Customer" } : undefined}
                   />
                 </div>
               </div>
