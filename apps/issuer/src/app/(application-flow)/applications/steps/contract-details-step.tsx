@@ -328,10 +328,19 @@ function FileUploadArea({
     }
   };
 
+  /** Format file size for display: B, KB, or MB depending on magnitude. */
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
   // Show uploaded or pending file
   if (uploadedFile || pendingFile) {
     const fileName = pendingFile?.name || uploadedFile?.file_name || "";
-    const fileSize = pendingFile?.size || uploadedFile?.file_size || 0;
+    const rawSize = pendingFile?.size ?? uploadedFile?.file_size;
+    const fileSizeBytes = typeof rawSize === "number" && rawSize >= 0 ? rawSize : 0;
+    const sizeDisplay = fileSizeBytes > 0 ? formatFileSize(fileSizeBytes) : "—";
     const isPending = !!pendingFile;
     const statusText = isPending ? " (Uploading…)" : "";
 
@@ -354,7 +363,7 @@ function FileUploadArea({
           <div className="min-w-0 flex-1" title={fileName}>
             <div className="text-sm font-medium truncate">{fileName}</div>
             <div className="text-xs text-muted-foreground">
-              {(fileSize / 1024 / 1024).toFixed(2)} MB
+              {sizeDisplay}
               {statusText}
             </div>
           </div>
