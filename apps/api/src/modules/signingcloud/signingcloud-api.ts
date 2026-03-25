@@ -142,7 +142,7 @@ export async function uploadPdfToSigningCloud(params: {
       signerinfo: [
         {
           email: signerEmail,
-          authtype: "0",
+          authtype: "1",
           caprovide: "1",
           signset: buildSignsetJsonString(),
         },

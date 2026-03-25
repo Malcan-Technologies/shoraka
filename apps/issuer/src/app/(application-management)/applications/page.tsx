@@ -253,24 +253,6 @@ function ApplicationCard({
                 </Button>
               )}
               <div className="flex flex-wrap items-center gap-2 justify-end">
-              {application.signedContractOfferLetterAvailable &&
-                hasContract &&
-                application.contractId &&
-                onDownloadSignedContractOffer && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="rounded-xl gap-1.5"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void onDownloadSignedContractOffer(application.id);
-                    }}
-                  >
-                    <ArrowDownTrayIcon className="h-4 w-4" />
-                    Signed offer letter
-                  </Button>
-                )}
               {cardStatus.showReviewOffer &&
                 hasContract &&
                 application.contractId &&
@@ -320,17 +302,60 @@ function ApplicationCard({
                       </DropdownMenuItem>
                     </>
                   ) : (
-                    <DropdownMenuItem
-                      className="cursor-pointer"
-                      disabled={isCancelApplicationPending}
-                      onClick={() => {
-                        if (!isCancelApplicationPending && onCancelApplication) {
-                          onCancelApplication(application.id);
+                    <>
+                      {(() => {
+                        const showDownloadSignedContract =
+                          application.signedContractOfferLetterAvailable &&
+                          hasContract &&
+                          application.contractId &&
+                          onDownloadSignedContractOffer;
+                        const signedOfferOnlyMenu =
+                          !!showDownloadSignedContract &&
+                          application.contractStatus === "APPROVED";
+                        if (signedOfferOnlyMenu) {
+                          return (
+                            <DropdownMenuItem
+                              className="cursor-pointer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void onDownloadSignedContractOffer!(application.id);
+                              }}
+                            >
+                              Download Signed Offer
+                            </DropdownMenuItem>
+                          );
                         }
-                      }}
-                    >
-                      {isCancelApplicationPending ? "Withdrawing..." : "Withdraw Application"}
-                    </DropdownMenuItem>
+                        return (
+                          <>
+                            {showDownloadSignedContract && (
+                              <>
+                                <DropdownMenuItem
+                                  className="cursor-pointer"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void onDownloadSignedContractOffer!(application.id);
+                                  }}
+                                >
+                                  Download Signed Offer
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                              </>
+                            )}
+                            <DropdownMenuItem
+                              className="cursor-pointer"
+                              disabled={isCancelApplicationPending}
+                              onClick={() => {
+                                if (!isCancelApplicationPending && onCancelApplication) {
+                                  onCancelApplication(application.id);
+                                }
+                              }}
+                            >
+                              {isCancelApplicationPending ? "Withdrawing..." : "Withdraw Application"}
+                            </DropdownMenuItem>
+                          </>
+                        );
+                      })()}
+                    </>
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -493,22 +518,6 @@ function ApplicationCard({
                           </TableCell>
                           <TableCell className="p-3 align-top text-center">
                             <div className="flex items-start justify-center gap-2">
-                              {inv.signedOfferLetterAvailable && onDownloadSignedInvoiceOffer && (
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-8 shrink-0 rounded-xl gap-1 px-2"
-                                  title="Download signed offer letter"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    void onDownloadSignedInvoiceOffer(application.id, inv.id);
-                                  }}
-                                >
-                                  <ArrowDownTrayIcon className="h-4 w-4" />
-                                  <span className="sr-only sm:not-sr-only sm:inline text-xs">Signed</span>
-                                </Button>
-                              )}
                               {(showReviewOffer || showMakeAmendments) && (
                                 <div className="flex flex-col items-center gap-1 min-w-[140px]">
                                   {showReviewOffer && (
@@ -566,24 +575,61 @@ function ApplicationCard({
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="rounded-xl">
-                                  <DropdownMenuItem
-                                    className="cursor-pointer"
-                                    disabled={!canWithdrawInvoice || isWithdrawInvoicePending}
-                                    onClick={() => {
-                                      if (canWithdrawInvoice && !isWithdrawInvoicePending && onWithdrawInvoice) {
-                                        onWithdrawInvoice(inv.id, application.id, application.issuerOrganizationId);
-                                      }
-                                    }}
-                                    title={
-                                      !canWithdrawInvoice
-                                        ? "Cannot withdraw: invoice is already approved, rejected, or withdrawn"
-                                        : isWithdrawInvoicePending
-                                          ? "Withdrawal in progress"
-                                          : undefined
+                                  {(() => {
+                                    const showDownloadSignedInvoice =
+                                      inv.signedOfferLetterAvailable && onDownloadSignedInvoiceOffer;
+                                    const signedOfferOnlyMenu =
+                                      !!showDownloadSignedInvoice && invStatus === "APPROVED";
+                                    if (signedOfferOnlyMenu) {
+                                      return (
+                                        <DropdownMenuItem
+                                          className="cursor-pointer"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            void onDownloadSignedInvoiceOffer!(application.id, inv.id);
+                                          }}
+                                        >
+                                          Download Signed Offer
+                                        </DropdownMenuItem>
+                                      );
                                     }
-                                  >
-                                    {isWithdrawInvoicePending ? "Withdrawing..." : "Withdraw Invoice"}
-                                  </DropdownMenuItem>
+                                    return (
+                                      <>
+                                        {showDownloadSignedInvoice && (
+                                          <>
+                                            <DropdownMenuItem
+                                              className="cursor-pointer"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                void onDownloadSignedInvoiceOffer!(application.id, inv.id);
+                                              }}
+                                            >
+                                              Download Signed Offer
+                                            </DropdownMenuItem>
+                                            <DropdownMenuSeparator />
+                                          </>
+                                        )}
+                                        <DropdownMenuItem
+                                          className="cursor-pointer"
+                                          disabled={!canWithdrawInvoice || isWithdrawInvoicePending}
+                                          onClick={() => {
+                                            if (canWithdrawInvoice && !isWithdrawInvoicePending && onWithdrawInvoice) {
+                                              onWithdrawInvoice(inv.id, application.id, application.issuerOrganizationId);
+                                            }
+                                          }}
+                                          title={
+                                            !canWithdrawInvoice
+                                              ? "Cannot withdraw: invoice is already approved, rejected, or withdrawn"
+                                              : isWithdrawInvoicePending
+                                                ? "Withdrawal in progress"
+                                                : undefined
+                                          }
+                                        >
+                                          {isWithdrawInvoicePending ? "Withdrawing..." : "Withdraw Invoice"}
+                                        </DropdownMenuItem>
+                                      </>
+                                    );
+                                  })()}
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </div>

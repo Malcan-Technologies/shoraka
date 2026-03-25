@@ -74,6 +74,24 @@ function buildIssuerSigningReturnUrl(applicationId: string, invoiceId?: string):
   }
 }
 
+/**
+ * When an offer already has a pending SigningCloud session, reuse the same uploaded document
+ * (same `contractnum`) and only refresh the manual-signing URL — no second upload.
+ */
+function canReusePendingOfferSigning(
+  offerSigning: Prisma.JsonValue | null | undefined,
+  signingContractnum: string | null | undefined,
+  signerEmail: string
+): boolean {
+  const cn = signingContractnum?.trim();
+  if (!cn) return false;
+  const os = offerSigning;
+  if (!os || typeof os !== "object" || Array.isArray(os)) return false;
+  const r = os as unknown as OfferSigningRecord;
+  if (r.provider !== "signingcloud" || r.status !== "pending") return false;
+  return r.signer_email?.trim() === signerEmail.trim();
+}
+
 function mergeOfferSigningSigned(
   existing: Prisma.JsonValue | null | undefined,
   signedOfferLetterS3Key: string,
@@ -1609,7 +1627,13 @@ export class ApplicationService {
 
     const contract = await prisma.contract.findUnique({
       where: { id: application.contract_id },
-      select: { id: true, status: true, offer_details: true },
+      select: {
+        id: true,
+        status: true,
+        offer_details: true,
+        offer_signing: true,
+        signing_sc_contractnum: true,
+      },
     });
     if (!contract || contract.status !== "OFFER_SENT") {
       throw new AppError(400, "INVALID_STATE", "No pending contract offer to sign");
@@ -1629,6 +1653,41 @@ export class ApplicationService {
     });
     if (!user?.email?.trim()) {
       throw new AppError(400, "INVALID_STATE", "Your account must have an email address to sign");
+    }
+
+    if (canReusePendingOfferSigning(contract.offer_signing, contract.signing_sc_contractnum, user.email)) {
+      const accessToken = await getSigningCloudAccessToken(cfg);
+      const redirectUrl = buildIssuerSigningReturnUrl(applicationId);
+      const apiPublic = process.env.API_PUBLIC_URL?.trim().replace(/\/$/, "");
+      const callbackUrl =
+        process.env.SIGNINGCLOUD_CALLBACK_URL?.trim() ||
+        (apiPublic ? `${apiPublic}/v1/webhooks/signingcloud/callback` : null);
+      const decryptedManual = await startManualSigning({
+        cfg,
+        accessToken,
+        contractnum: contract.signing_sc_contractnum!.trim(),
+        signerEmail: user.email.trim(),
+        redirectUrl,
+        callbackUrl,
+      });
+      const signingUrl = extractSigningUrlFromManualSigningResponse(decryptedManual);
+      if (!signingUrl) {
+        logger.error({ keys: Object.keys(decryptedManual) }, "SigningCloud manual signing returned no URL");
+        throw new AppError(502, "SIGNING_PROVIDER_ERROR", "Could not obtain signing URL from provider");
+      }
+      const prev = contract.offer_signing as unknown as OfferSigningRecord;
+      const offerSigning: OfferSigningRecord = {
+        ...prev,
+        signing_url: signingUrl,
+        return_url: redirectUrl ?? undefined,
+      };
+      await prisma.contract.update({
+        where: { id: contract.id },
+        data: {
+          offer_signing: offerSigning as unknown as Prisma.InputJsonValue,
+        },
+      });
+      return { signingUrl };
     }
 
     const offerDetails: ContractOfferDetails = {
@@ -1719,7 +1778,13 @@ export class ApplicationService {
 
     const dbInvoice = await prisma.invoice.findFirst({
       where: { id: invoiceId, application_id: applicationId },
-      select: { id: true, status: true, offer_details: true },
+      select: {
+        id: true,
+        status: true,
+        offer_details: true,
+        offer_signing: true,
+        signing_sc_contractnum: true,
+      },
     });
     if (!dbInvoice || dbInvoice.status !== "OFFER_SENT") {
       throw new AppError(400, "INVALID_STATE", "No pending invoice offer to sign");
@@ -1739,6 +1804,41 @@ export class ApplicationService {
     });
     if (!user?.email?.trim()) {
       throw new AppError(400, "INVALID_STATE", "Your account must have an email address to sign");
+    }
+
+    if (canReusePendingOfferSigning(dbInvoice.offer_signing, dbInvoice.signing_sc_contractnum, user.email)) {
+      const accessToken = await getSigningCloudAccessToken(cfg);
+      const redirectUrl = buildIssuerSigningReturnUrl(applicationId, invoiceId);
+      const apiPublic = process.env.API_PUBLIC_URL?.trim().replace(/\/$/, "");
+      const callbackUrl =
+        process.env.SIGNINGCLOUD_CALLBACK_URL?.trim() ||
+        (apiPublic ? `${apiPublic}/v1/webhooks/signingcloud/callback` : null);
+      const decryptedManual = await startManualSigning({
+        cfg,
+        accessToken,
+        contractnum: dbInvoice.signing_sc_contractnum!.trim(),
+        signerEmail: user.email.trim(),
+        redirectUrl,
+        callbackUrl,
+      });
+      const signingUrl = extractSigningUrlFromManualSigningResponse(decryptedManual);
+      if (!signingUrl) {
+        logger.error({ keys: Object.keys(decryptedManual) }, "SigningCloud manual signing returned no URL");
+        throw new AppError(502, "SIGNING_PROVIDER_ERROR", "Could not obtain signing URL from provider");
+      }
+      const prev = dbInvoice.offer_signing as unknown as OfferSigningRecord;
+      const offerSigning: OfferSigningRecord = {
+        ...prev,
+        signing_url: signingUrl,
+        return_url: redirectUrl ?? undefined,
+      };
+      await prisma.invoice.update({
+        where: { id: invoiceId, application_id: applicationId },
+        data: {
+          offer_signing: offerSigning as unknown as Prisma.InputJsonValue,
+        },
+      });
+      return { signingUrl };
     }
 
     const offerDetails: InvoiceOfferDetails = {
