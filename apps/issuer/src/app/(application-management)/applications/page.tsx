@@ -4,6 +4,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
   PlusIcon,
@@ -58,6 +59,13 @@ import { Separator } from "@/components/ui/separator";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { FileDisplayBadge } from "@/app/(application-flow)/applications/components/file-display-badge";
 import type { NormalizedApplication, NormalizedInvoice } from "./status";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const SKELETON_COUNT = 8;
 const MOCK_APPLICATION_COUNT = 10;
@@ -181,6 +189,8 @@ function InvoiceDocumentCell({
 function ApplicationCard({
   application,
   onDocumentDownload,
+  onDownloadSignedContractOffer,
+  onDownloadSignedInvoiceOffer,
   onReviewContractOffer,
   onReviewInvoiceOffer,
   onCancelApplication,
@@ -191,6 +201,8 @@ function ApplicationCard({
 }: {
   application: NormalizedApplication;
   onDocumentDownload: (s3Key: string) => Promise<void>;
+  onDownloadSignedContractOffer?: (applicationId: string) => Promise<void>;
+  onDownloadSignedInvoiceOffer?: (applicationId: string, invoiceId: string) => Promise<void>;
   onReviewContractOffer?: (applicationId: string, contractId: string) => void;
   onReviewInvoiceOffer?: (applicationId: string, invoice: NormalizedInvoice) => void;
   onCancelApplication?: (applicationId: string) => void;
@@ -240,6 +252,25 @@ function ApplicationCard({
                   </Link>
                 </Button>
               )}
+              <div className="flex flex-wrap items-center gap-2 justify-end">
+              {application.signedContractOfferLetterAvailable &&
+                hasContract &&
+                application.contractId &&
+                onDownloadSignedContractOffer && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="rounded-xl gap-1.5"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void onDownloadSignedContractOffer(application.id);
+                    }}
+                  >
+                    <ArrowDownTrayIcon className="h-4 w-4" />
+                    Signed offer letter
+                  </Button>
+                )}
               {cardStatus.showReviewOffer &&
                 hasContract &&
                 application.contractId &&
@@ -265,6 +296,7 @@ function ApplicationCard({
                     )}
                   </div>
                 )}
+              </div>
               {/* Edit Application: only for drafts. Links to /edit. Non-drafts get Withdraw only. */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -461,6 +493,22 @@ function ApplicationCard({
                           </TableCell>
                           <TableCell className="p-3 align-top text-center">
                             <div className="flex items-start justify-center gap-2">
+                              {inv.signedOfferLetterAvailable && onDownloadSignedInvoiceOffer && (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 shrink-0 rounded-xl gap-1 px-2"
+                                  title="Download signed offer letter"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    void onDownloadSignedInvoiceOffer(application.id, inv.id);
+                                  }}
+                                >
+                                  <ArrowDownTrayIcon className="h-4 w-4" />
+                                  <span className="sr-only sm:not-sr-only sm:inline text-xs">Signed</span>
+                                </Button>
+                              )}
                               {(showReviewOffer || showMakeAmendments) && (
                                 <div className="flex flex-col items-center gap-1 min-w-[140px]">
                                   {showReviewOffer && (
@@ -781,9 +829,85 @@ export default function ApplicationsPage() {
   );
 
   const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
   const apiClient = React.useMemo(
     () => createApiClient(undefined, getAccessToken),
     [getAccessToken]
+  );
+
+  const [signingReturnDialogOpen, setSigningReturnDialogOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("signing") !== "complete") return;
+
+    const applicationId = params.get("applicationId");
+    const invoiceId = params.get("invoiceId");
+
+    let cancelled = false;
+    const run = async () => {
+      if (applicationId) {
+        try {
+          if (invoiceId) {
+            await apiClient.finalizeInvoiceOfferSigningAfterReturn(applicationId, invoiceId);
+          } else {
+            await apiClient.finalizeContractOfferSigningAfterReturn(applicationId);
+          }
+        } catch {
+          if (!cancelled) {
+            toast.error(
+              "Could not confirm signing with the server. If your offer is still pending, refresh the page or try again shortly."
+            );
+          }
+        }
+      }
+      if (!cancelled) {
+        void queryClient.invalidateQueries({ queryKey: ["applications"] });
+        setSigningReturnDialogOpen(true);
+        const path = window.location.pathname;
+        window.history.replaceState({}, "", path);
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [queryClient, apiClient]);
+
+  const handleDownloadSignedContractOffer = React.useCallback(
+    async (applicationId: string) => {
+      try {
+        const blob = await apiClient.getSignedContractOfferLetterBlob(applicationId);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `signed-contract-offer-${applicationId.slice(-8)}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch {
+        toast.error("Could not download signed offer letter");
+      }
+    },
+    [apiClient]
+  );
+
+  const handleDownloadSignedInvoiceOffer = React.useCallback(
+    async (applicationId: string, invoiceId: string) => {
+      try {
+        const blob = await apiClient.getSignedInvoiceOfferLetterBlob(applicationId, invoiceId);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `signed-invoice-offer-${invoiceId.slice(-8)}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch {
+        toast.error("Could not download signed offer letter");
+      }
+    },
+    [apiClient]
   );
 
   /** Document download: fetches presigned URL from API, opens in new tab.
@@ -1115,6 +1239,8 @@ export default function ApplicationsPage() {
                     key={app.id}
                     application={app}
                     onDocumentDownload={handleDocumentDownload}
+                    onDownloadSignedContractOffer={handleDownloadSignedContractOffer}
+                    onDownloadSignedInvoiceOffer={handleDownloadSignedInvoiceOffer}
                     onReviewContractOffer={openReviewContractOffer}
                     onReviewInvoiceOffer={openReviewInvoiceOffer}
                     onCancelApplication={handleWithdrawApplicationClick}
@@ -1249,6 +1375,23 @@ export default function ApplicationsPage() {
           onClose={() => setReviewModalOpen(false)}
         />
       )}
+
+      <Dialog open={signingReturnDialogOpen} onOpenChange={setSigningReturnDialogOpen}>
+        <DialogContent className="sm:max-w-md rounded-xl">
+          <DialogHeader>
+            <DialogTitle>Offer approved</DialogTitle>
+            <DialogDescription className="text-[17px] leading-7 text-muted-foreground">
+              Thank you for completing signing. Your offer will show as approved once processing finishes. You can
+              download the signed offer letter from this page when it becomes available.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end pt-2">
+            <Button type="button" className="rounded-xl" onClick={() => setSigningReturnDialogOpen(false)}>
+              OK
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       </div>
     </div>
   );

@@ -1299,6 +1299,45 @@ export class ApiClient {
     );
   }
 
+  async startContractOfferSigning(
+    applicationId: string
+  ): Promise<ApiResponse<{ signingUrl: string }> | ApiError> {
+    return this.post<{ signingUrl: string }>(
+      `/v1/applications/${applicationId}/offers/contracts/start-signing`,
+      {}
+    );
+  }
+
+  async startInvoiceOfferSigning(
+    applicationId: string,
+    invoiceId: string
+  ): Promise<ApiResponse<{ signingUrl: string }> | ApiError> {
+    return this.post<{ signingUrl: string }>(
+      `/v1/applications/${applicationId}/offers/invoices/${invoiceId}/start-signing`,
+      {}
+    );
+  }
+
+  /** Poll SigningCloud and approve the offer if signing completed (fallback when webhook is unreachable). */
+  async finalizeContractOfferSigningAfterReturn(
+    applicationId: string
+  ): Promise<ApiResponse<{ skipped: boolean }> | ApiError> {
+    return this.post<{ skipped: boolean }>(
+      `/v1/applications/${applicationId}/offers/contracts/finalize-signing`,
+      {}
+    );
+  }
+
+  async finalizeInvoiceOfferSigningAfterReturn(
+    applicationId: string,
+    invoiceId: string
+  ): Promise<ApiResponse<{ skipped: boolean }> | ApiError> {
+    return this.post<{ skipped: boolean }>(
+      `/v1/applications/${applicationId}/offers/invoices/${invoiceId}/finalize-signing`,
+      {}
+    );
+  }
+
   async acceptContractOffer(applicationId: string): Promise<ApiResponse<Application> | ApiError> {
     return this.post<Application>(`/v1/applications/${applicationId}/offers/contracts/accept`, {});
   }
@@ -1350,6 +1389,36 @@ export class ApiClient {
       throw new Error("Invoice ID is required for invoice offer letter download");
     }
     const url = `${this.baseUrl}/v1/applications/${applicationId}/offers/invoices/${id}/letter`;
+    const authToken = await this.getAuthToken();
+    const headers: HeadersInit = {};
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+    const response = await fetch(url, { method: "GET", credentials: "include", headers });
+    if (!response.ok) {
+      const msg = await this.parseErrorResponse(response);
+      throw new Error(msg);
+    }
+    return response.blob();
+  }
+
+  async getSignedContractOfferLetterBlob(applicationId: string): Promise<Blob> {
+    const url = `${this.baseUrl}/v1/applications/${applicationId}/offers/contracts/signed-letter`;
+    const authToken = await this.getAuthToken();
+    const headers: HeadersInit = {};
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+    const response = await fetch(url, { method: "GET", credentials: "include", headers });
+    if (!response.ok) {
+      const msg = await this.parseErrorResponse(response);
+      throw new Error(msg);
+    }
+    return response.blob();
+  }
+
+  async getSignedInvoiceOfferLetterBlob(applicationId: string, invoiceId: string): Promise<Blob> {
+    const id = typeof invoiceId === "string" ? invoiceId.trim() : "";
+    if (!id) {
+      throw new Error("Invoice ID is required for signed invoice offer letter download");
+    }
+    const url = `${this.baseUrl}/v1/applications/${applicationId}/offers/invoices/${id}/signed-letter`;
     const authToken = await this.getAuthToken();
     const headers: HeadersInit = {};
     if (authToken) headers["Authorization"] = `Bearer ${authToken}`;

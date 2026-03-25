@@ -200,6 +200,47 @@ export async function deleteS3Object(key: string): Promise<void> {
   logger.info({ key }, "Deleted S3 object");
 }
 
+/**
+ * Server-side upload of a buffer (e.g. signed PDF from a provider callback).
+ */
+export async function putS3ObjectBuffer(params: {
+  key: string;
+  body: Buffer;
+  contentType: string;
+}): Promise<void> {
+  const client = getS3Client();
+  await client.send(
+    new PutObjectCommand({
+      Bucket: S3_BUCKET,
+      Key: params.key,
+      Body: params.body,
+      ContentType: params.contentType,
+    })
+  );
+  logger.info({ key: params.key, size: params.body.length }, "Uploaded buffer to S3");
+}
+
+/**
+ * Download object bytes (server-side), e.g. signed PDF for issuer download.
+ */
+export async function getS3ObjectBuffer(key: string): Promise<Buffer> {
+  const client = getS3Client();
+  const res = await client.send(
+    new GetObjectCommand({
+      Bucket: S3_BUCKET,
+      Key: key,
+    })
+  );
+  if (!res.Body) {
+    throw new Error(`Empty S3 body for key ${key}`);
+  }
+  const chunks: Buffer[] = [];
+  for await (const chunk of res.Body as AsyncIterable<Uint8Array>) {
+    chunks.push(Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
+
 
 /**
  * Check if an object exists in S3

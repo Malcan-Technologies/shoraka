@@ -24,6 +24,7 @@ import { formatCurrency } from "@cashsouk/config";
 import { ArrowDownTrayIcon, CheckIcon, CheckCircleIcon } from "@heroicons/react/24/solid";
 import { toast } from "sonner";
 import type { NormalizedInvoice } from "../status";
+import type { ApiError } from "@cashsouk/types";
 
 type ReviewOfferModalProps = {
   type: "contract" | "invoice";
@@ -163,20 +164,44 @@ export function ReviewOfferModal({
   const handleAccept = async () => {
     if (type === "contract") {
       try {
-        await acceptContract.mutateAsync(applicationId);
-        toast.success("Offer accepted successfully");
-        onClose();
-      } catch {
-        // toast handled by hook
+        const res = await apiClient.startContractOfferSigning(applicationId);
+        if (res.success && res.data?.signingUrl) {
+          window.location.assign(res.data.signingUrl);
+          return;
+        }
+        const err = res as ApiError;
+        if (!res.success && err.error?.code === "SIGNING_UNAVAILABLE") {
+          await acceptContract.mutateAsync(applicationId);
+          toast.success("Offer accepted successfully");
+          onClose();
+          return;
+        }
+        throw new Error(err.error?.message ?? "Failed to start signing");
+      } catch (e) {
+        toast.error("Could not start signing", {
+          description: e instanceof Error ? e.message : "Unknown error",
+        });
       }
     } else {
       if (!invoice?.id) return;
       try {
-        await acceptInvoice.mutateAsync({ applicationId, invoiceId: invoice.id });
-        toast.success("Offer accepted successfully");
-        onClose();
-      } catch {
-        // toast handled by hook
+        const res = await apiClient.startInvoiceOfferSigning(applicationId, invoice.id);
+        if (res.success && res.data?.signingUrl) {
+          window.location.assign(res.data.signingUrl);
+          return;
+        }
+        const err = res as ApiError;
+        if (!res.success && err.error?.code === "SIGNING_UNAVAILABLE") {
+          await acceptInvoice.mutateAsync({ applicationId, invoiceId: invoice.id });
+          toast.success("Offer accepted successfully");
+          onClose();
+          return;
+        }
+        throw new Error(err.error?.message ?? "Failed to start signing");
+      } catch (e) {
+        toast.error("Could not start signing", {
+          description: e instanceof Error ? e.message : "Unknown error",
+        });
       }
     }
   };

@@ -32,6 +32,7 @@ function makeInvoice(overrides: Partial<NormalizedInvoice> & { id: string }): No
     status: "DRAFT",
     offerStatus: null,
     canReviewOffer: false,
+    signedOfferLetterAvailable: false,
     ...overrides,
   };
 }
@@ -150,6 +151,7 @@ export function generateMockApplications(count: number): NormalizedApplication[]
           financingOffered: hasOffer ? `RM ${(invApplied * 1.1).toLocaleString("en-MY", { minimumFractionDigits: 2 })}` : "—",
           profitRate: hasOffer ? `${7 + (j % 3)}%` : "—",
           offer_details: invOfferDetails,
+          signedOfferLetterAvailable: invStatus === "APPROVED",
         })
       );
     }
@@ -215,6 +217,8 @@ export function generateMockApplications(count: number): NormalizedApplication[]
       issuerOrganizationId: "org-mock-1",
       withdrawReason: scenario.withdrawReason,
       expiresAt,
+      signedContractOfferLetterAvailable:
+        scenario.contractStatus === "APPROVED" && !!scenario.hasContract,
     });
   }
 

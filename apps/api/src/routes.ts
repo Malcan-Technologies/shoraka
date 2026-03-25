@@ -22,7 +22,6 @@ import { createInvoiceRouter } from "./modules/invoices/controller";
 import { activityRouter } from "./modules/activity/controller";
 import { createS3Router } from "./modules/s3/controller";
 import { notificationRouter } from "./modules/notification/controller";
-
 export function registerRoutes(app: Application): void {
   // Swagger API documentation (only in development)
   if (process.env.NODE_ENV !== "production") {
