@@ -38,6 +38,7 @@ interface ApiContract {
   offer_details?: { expires_at?: string | null; offered_facility?: number } | null;
   contract_details?: Record<string, unknown> | null;
   customer_details?: Record<string, unknown> | null;
+  offer_signing?: unknown;
 }
 
 interface ApiInvoice {
@@ -46,6 +47,7 @@ interface ApiInvoice {
   withdraw_reason?: string | null;
   offer_details?: { expires_at?: string | null } | Record<string, unknown> | null;
   details?: Record<string, unknown>;
+  offer_signing?: unknown;
 }
 
 interface ApiApplication {
@@ -56,6 +58,16 @@ interface ApiApplication {
   updated_at?: string;
   contract?: ApiContract | null;
   invoices?: ApiInvoice[];
+}
+
+function isSignedOfferLetterAvailable(offerSigning: unknown): boolean {
+  if (!offerSigning || typeof offerSigning !== "object") return false;
+  const o = offerSigning as Record<string, unknown>;
+  return (
+    o.status === "signed" &&
+    typeof o.signed_offer_letter_s3_key === "string" &&
+    o.signed_offer_letter_s3_key.length > 0
+  );
 }
 
 function prepareInvoice(api: ApiInvoice, contractStatus: string | null, structureType: string | undefined): NormalizedInvoice {
@@ -97,6 +109,7 @@ function prepareInvoice(api: ApiInvoice, contractStatus: string | null, structur
     offerStatus,
     canReviewOffer,
     offer_details: api.offer_details ?? null,
+    signedOfferLetterAvailable: isSignedOfferLetterAvailable(api.offer_signing),
   };
 }
 
@@ -177,6 +190,10 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
     if (io?.expires_at) expiresAt = String(io.expires_at);
   }
 
+  const signedContractOfferLetterAvailable = isSignedOfferLetterAvailable(
+    (contract as ApiContract | null)?.offer_signing
+  );
+
   return {
     id: api.id,
     type,
@@ -196,6 +213,7 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
     issuerOrganizationId,
     withdrawReason,
     expiresAt,
+    signedContractOfferLetterAvailable,
   };
 }
 

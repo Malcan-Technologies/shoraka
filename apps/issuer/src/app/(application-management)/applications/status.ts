@@ -115,6 +115,8 @@ export interface NormalizedInvoice {
   canReviewOffer: boolean;
   /** Raw offer details from API for modal display. */
   offer_details?: Record<string, unknown> | null;
+  /** True when SigningCloud signed PDF is stored (offer_signing.status === signed). */
+  signedOfferLetterAvailable: boolean;
 }
 
 export interface NormalizedApplication {
@@ -141,6 +143,8 @@ export interface NormalizedApplication {
   withdrawReason?: WithdrawReason;
   /** Offer expiry (contract or invoice). ISO string. Used for expiry indicator and filter. */
   expiresAt?: string | null;
+  /** True when contract has a stored signed offer letter PDF. */
+  signedContractOfferLetterAvailable: boolean;
 }
 
 /* =============================================================================

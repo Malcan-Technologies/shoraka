@@ -442,10 +442,15 @@ model Contract {
   issuer_organization_id String
   status                 ContractStatus     @default(DRAFT)
   withdraw_reason        WithdrawReason?
+  /// SigningCloud offer-letter workflow (pending/signed metadata; no unsigned PDF stored)
+  offer_signing          Json?
+  /// SigningCloud contract number for webhook lookup (unique when set)
+  signing_sc_contractnum String?          @unique
   applications           Application[]
   issuer_organization    IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
   invoices               Invoice[]
 
+  @@index([signing_sc_contractnum])
   @@map("contracts")
 }
 
@@ -459,11 +464,16 @@ model Invoice {
   updated_at      DateTime        @updatedAt
   status          InvoiceStatus   @default(DRAFT)
   withdraw_reason WithdrawReason?
+  /// SigningCloud offer-letter workflow (pending/signed metadata; no unsigned PDF stored)
+  offer_signing          Json?
+  /// SigningCloud contract number for webhook lookup (unique when set)
+  signing_sc_contractnum String?          @unique
   application     Application     @relation(fields: [application_id], references: [id], onDelete: Cascade)
   contract        Contract?       @relation(fields: [contract_id], references: [id])
 
   @@index([contract_id])
   @@index([application_id])
+  @@index([signing_sc_contractnum])
   @@map("invoices")
 }
 

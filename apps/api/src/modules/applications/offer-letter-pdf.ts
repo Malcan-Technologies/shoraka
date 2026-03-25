@@ -61,6 +61,12 @@ export function buildContractOfferLetterPdf(
   doc.fontSize(10).text(SAMPLE_TEXT);
   doc.moveDown();
   doc.text(SAMPLE_TEXT);
+  doc.fontSize(12).fillColor('black').text('Please sign below:');
+  doc.fontSize(8)
+   .fillColor('white') // Make it invisible against a white background
+   .text('\\s1\\', { lineGap: 50 }); // \s1\ stands for Signer 1
+
+doc.fillColor('black').text('Date: ____________');
 }
 
 /**
@@ -84,6 +90,9 @@ export function buildInvoiceOfferLetterPdf(
   doc.fontSize(10).text(SAMPLE_TEXT);
   doc.moveDown();
   doc.text(SAMPLE_TEXT);
+  doc.fontSize(12).fillColor("black").text("Please sign below:");
+  doc.fontSize(8).fillColor("white").text("\\s1\\", { lineGap: 50 });
+  doc.fillColor("black").text("Date: ____________");
 }
 
 /**

@@ -14,6 +14,7 @@ import { createSessionMiddleware } from "./session";
 import { initializeOpenIdClient } from "../lib/openid-client";
 import { hydrateVerifier } from "../lib/auth/cognito-jwt-verifier";
 import { regTankWebhookRouter } from "../modules/regtank/webhook-controller";
+import { signingCloudWebhookRouter } from "../modules/signingcloud/webhook-controller";
 
 export async function createApp(): Promise<Application> {
   const app = express();
@@ -47,6 +48,9 @@ export async function createApp(): Promise<Application> {
 
   // Register webhook routes BEFORE express.json() so we can capture raw body for signature verification
   app.use("/v1/webhooks", regTankWebhookRouter);
+  app.use("/v1/webhooks/signingcloud", signingCloudWebhookRouter);
+  // Alias: some envs use /api/v1/... (Next-style); SigningCloud callUrl must match a mounted path
+  app.use("/api/v1/webhooks/signingcloud", signingCloudWebhookRouter);
 
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
