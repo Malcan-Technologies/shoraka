@@ -13,12 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useContract } from "@/hooks/use-contracts";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import {
-  useAcceptContractOffer,
-  useRejectContractOffer,
-  useAcceptInvoiceOffer,
-  useRejectInvoiceOffer,
-} from "@/hooks/use-applications";
+import { useRejectContractOffer, useRejectInvoiceOffer } from "@/hooks/use-applications";
 import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
 import { ArrowDownTrayIcon, CheckIcon, CheckCircleIcon } from "@heroicons/react/24/solid";
@@ -61,9 +56,7 @@ export function ReviewOfferModal({
     type === "contract" && contractId ? contractId : ""
   );
 
-  const acceptContract = useAcceptContractOffer();
   const rejectContract = useRejectContractOffer();
-  const acceptInvoice = useAcceptInvoiceOffer();
   const rejectInvoice = useRejectInvoiceOffer();
 
   const offerDetails =
@@ -77,6 +70,7 @@ export function ReviewOfferModal({
   const isLoading = type === "contract" && isLoadingContract;
 
   const [downloading, setDownloading] = React.useState(false);
+  const [acceptSigningLoading, setAcceptSigningLoading] = React.useState(false);
   const [rejectionReason, setRejectionReason] = React.useState("");
   const [isRejectMode, setIsRejectMode] = React.useState(false);
 
@@ -162,47 +156,35 @@ export function ReviewOfferModal({
   };
 
   const handleAccept = async () => {
-    if (type === "contract") {
-      try {
+    setAcceptSigningLoading(true);
+    try {
+      if (type === "contract") {
         const res = await apiClient.startContractOfferSigning(applicationId);
         if (res.success && res.data?.signingUrl) {
           window.location.assign(res.data.signingUrl);
           return;
         }
         const err = res as ApiError;
-        if (!res.success && err.error?.code === "SIGNING_UNAVAILABLE") {
-          await acceptContract.mutateAsync(applicationId);
-          toast.success("Offer accepted successfully");
-          onClose();
-          return;
-        }
-        throw new Error(err.error?.message ?? "Failed to start signing");
-      } catch (e) {
-        toast.error("Could not start signing", {
-          description: e instanceof Error ? e.message : "Unknown error",
-        });
+        throw new Error(
+          !res.success && err.error?.message ? err.error.message : "Failed to start signing"
+        );
       }
-    } else {
       if (!invoice?.id) return;
-      try {
-        const res = await apiClient.startInvoiceOfferSigning(applicationId, invoice.id);
-        if (res.success && res.data?.signingUrl) {
-          window.location.assign(res.data.signingUrl);
-          return;
-        }
-        const err = res as ApiError;
-        if (!res.success && err.error?.code === "SIGNING_UNAVAILABLE") {
-          await acceptInvoice.mutateAsync({ applicationId, invoiceId: invoice.id });
-          toast.success("Offer accepted successfully");
-          onClose();
-          return;
-        }
-        throw new Error(err.error?.message ?? "Failed to start signing");
-      } catch (e) {
-        toast.error("Could not start signing", {
-          description: e instanceof Error ? e.message : "Unknown error",
-        });
+      const res = await apiClient.startInvoiceOfferSigning(applicationId, invoice.id);
+      if (res.success && res.data?.signingUrl) {
+        window.location.assign(res.data.signingUrl);
+        return;
       }
+      const err = res as ApiError;
+      throw new Error(
+        !res.success && err.error?.message ? err.error.message : "Failed to start signing"
+      );
+    } catch (e) {
+      toast.error("Could not start signing", {
+        description: e instanceof Error ? e.message : "Unknown error",
+      });
+    } finally {
+      setAcceptSigningLoading(false);
     }
   };
 
@@ -216,10 +198,7 @@ export function ReviewOfferModal({
         : "—";
 
   const isPending =
-    acceptContract.isPending ||
-    rejectContract.isPending ||
-    acceptInvoice.isPending ||
-    rejectInvoice.isPending;
+    acceptSigningLoading || rejectContract.isPending || rejectInvoice.isPending;
 
   const canDownload =
     type === "contract" || (type === "invoice" && !!invoice?.id);

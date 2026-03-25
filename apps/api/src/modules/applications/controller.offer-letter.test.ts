@@ -88,4 +88,37 @@ describe("Offer letter download", () => {
       expect(response.body).toBeInstanceOf(Buffer);
     });
   });
+
+  describe("GET /v1/applications/:id/offers/contracts/signed-letter", () => {
+    it("returns PDF buffer when signed letter exists", async () => {
+      const buf = Buffer.from("%PDF-1.4 signed");
+      (applicationService.getSignedContractOfferLetterBuffer as jest.Mock).mockResolvedValue({
+        buffer: buf,
+        filename: "signed-contract-offer-x.pdf",
+      });
+
+      const response = await request(app)
+        .get("/v1/applications/clh8x7y6z5w4v3u2t1s0r9q/offers/contracts/signed-letter");
+
+      expect(response.status).toBe(200);
+      expect(response.headers["content-type"]).toMatch(/application\/pdf/);
+      expect(response.body).toBeInstanceOf(Buffer);
+    });
+  });
+
+  describe("POST /v1/applications/:id/offers/contracts/start-signing", () => {
+    it("returns signingUrl", async () => {
+      (applicationService.startContractOfferSigning as jest.Mock).mockResolvedValue({
+        signingUrl: "https://sign.example/start",
+      });
+
+      const response = await request(app)
+        .post("/v1/applications/clh8x7y6z5w4v3u2t1s0r9q/offers/contracts/start-signing")
+        .send({});
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(response.body.data.signingUrl).toBe("https://sign.example/start");
+    });
+  });
 });

@@ -167,6 +167,22 @@
         {
           "name": "S3_REGION",
           "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:S3_REGION::"
+        },
+        {
+          "name": "SC_BASE_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:SC_BASE_URL::"
+        },
+        {
+          "name": "SC_API_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:SC_API_KEY::"
+        },
+        {
+          "name": "SC_API_SECRET",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:SC_API_SECRET::"
+        },
+        {
+          "name": "API_PUBLIC_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:API_PUBLIC_URL::"
         }
       ]
     }
