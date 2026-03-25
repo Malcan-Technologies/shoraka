@@ -64,8 +64,20 @@ export function sanitizeSigningCloudBackUrl(url: string | null | undefined): str
   return null;
 }
 
-/** Fetch SigningCloud `at` (access token) for SignServer API calls — not OAuth/Cognito. */
-export async function getSigningCloudAccessToken(cfg: SigningCloudEnvConfig): Promise<string> {
+/** Default 25m — SigningCloud tokens are ~30m; refresh before expiry. Override with SIGNINGCLOUD_ACCESS_TOKEN_TTL_MS. */
+const DEFAULT_SIGNINGCLOUD_ACCESS_TOKEN_TTL_MS = 25 * 60 * 1000;
+
+function signingCloudAccessTokenCacheKey(cfg: SigningCloudEnvConfig): string {
+  const base = cfg.baseUrl.trim().replace(/\/$/, "");
+  return `${base}\0${cfg.apiKey}`;
+}
+
+type CachedSigningCloudAccessToken = { token: string; expiresAt: number };
+
+const signingCloudAccessTokenCache = new Map<string, CachedSigningCloudAccessToken>();
+const signingCloudAccessTokenInFlight = new Map<string, Promise<string>>();
+
+async function fetchSigningCloudAccessTokenFromApi(cfg: SigningCloudEnvConfig): Promise<string> {
   const url = `${cfg.baseUrl}/signserver/v1/accesstoken?client_id=${encodeURIComponent(cfg.apiKey)}`;
   const res = await fetch(url);
   const body = (await res.json()) as SigningCloudEncryptedResponse;
@@ -76,6 +88,40 @@ export async function getSigningCloudAccessToken(cfg: SigningCloudEnvConfig): Pr
     throw new Error("SigningCloud accesstoken response missing `at`");
   }
   return at;
+}
+
+/**
+ * Fetch SigningCloud `at` (access token) for SignServer API calls
+ * Caches in-memory per process with TTL (default 25m) and deduplicates concurrent fetches.
+ */
+export async function getSigningCloudAccessToken(cfg: SigningCloudEnvConfig): Promise<string> {
+  const key = signingCloudAccessTokenCacheKey(cfg);
+  const now = Date.now();
+  const cached = signingCloudAccessTokenCache.get(key);
+  if (cached && now < cached.expiresAt) {
+    return cached.token;
+  }
+
+  const existing = signingCloudAccessTokenInFlight.get(key);
+  if (existing) {
+    return existing;
+  }
+
+  const promise = (async () => {
+    try {
+      const token = await fetchSigningCloudAccessTokenFromApi(cfg);
+      signingCloudAccessTokenCache.set(key, {
+        token,
+        expiresAt: Date.now() + DEFAULT_SIGNINGCLOUD_ACCESS_TOKEN_TTL_MS,
+      });
+      return token;
+    } finally {
+      signingCloudAccessTokenInFlight.delete(key);
+    }
+  })();
+
+  signingCloudAccessTokenInFlight.set(key, promise);
+  return promise;
 }
 
 export async function uploadPdfToSigningCloud(params: {
@@ -221,7 +267,8 @@ export async function getContractDetailsData(params: {
 }
 
 /**
- * Download signed contract file (decrypted JSON envelope; may contain base64 file or download URL).
+ * Download signed contract file (decrypted JSON envelope; `pdfdata` is hex per SignServer docs).
+ * `isReqCertOfCompletion: false` returns the PDF only; `true` returns a .zip with cert + contract.
  */
 export async function getContractFileData(params: {
   cfg: SigningCloudEnvConfig;
@@ -229,7 +276,10 @@ export async function getContractFileData(params: {
   contractnum: string;
 }): Promise<Record<string, unknown>> {
   const { cfg, accessToken, contractnum } = params;
-  const { data, mac } = encryptPayload(JSON.stringify({ contractnum }), cfg.apiSecret);
+  const { data, mac } = encryptPayload(
+    JSON.stringify({ contractnum, isReqCertOfCompletion: false }),
+    cfg.apiSecret
+  );
   const qs = new URLSearchParams({ accesstoken: accessToken, data, mac });
   const res = await fetch(`${cfg.baseUrl}/signserver/v1/contract/file?${qs.toString()}`);
   const body = (await res.json()) as SigningCloudEncryptedResponse;

@@ -48,7 +48,10 @@ import {
   getContractFileData,
   pdfBufferFromStream,
 } from "../signingcloud/signingcloud-api";
-import { extractSignedPdfBufferFromFileResponse, fetchPdfIfUrl } from "../signingcloud/signed-file";
+import {
+  MIN_SIGNED_PDF_BYTES,
+  resolveSignedPdfFromContractFileResponse,
+} from "../signingcloud/signed-file";
 import type { OfferSigningRecord } from "../signingcloud/types";
 
 /**
@@ -1911,27 +1914,25 @@ export class ApplicationService {
     contractnum: string,
     cfg: NonNullable<ReturnType<typeof readSigningCloudConfigFromEnv>>
   ): Promise<Buffer> {
-    for (let attempt = 0; attempt < 6; attempt++) {
+    const maxAttempts = 12;
+    const delayMs = 3000;
+    let lastFileTopKeys: string[] = [];
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
       if (attempt > 0) {
-        await new Promise((r) => setTimeout(r, 2000));
+        await new Promise((r) => setTimeout(r, delayMs));
       }
       const accessToken = await getSigningCloudAccessToken(cfg);
       const fileData = await getContractFileData({ cfg, accessToken, contractnum });
-      let pdfBuf =
-        extractSignedPdfBufferFromFileResponse(fileData) ||
-        (await fetchPdfIfUrl(
-          (fileData as Record<string, unknown>).fileurl ||
-            (fileData as Record<string, unknown>).downloadurl ||
-            (fileData as Record<string, unknown>).url
-        ));
-      if (!pdfBuf && fileData.data && typeof fileData.data === "object") {
-        pdfBuf = extractSignedPdfBufferFromFileResponse(fileData.data as Record<string, unknown>);
-      }
-      if (pdfBuf && pdfBuf.length >= 200) {
+      lastFileTopKeys = Object.keys(fileData);
+      const pdfBuf = await resolveSignedPdfFromContractFileResponse(fileData);
+      if (pdfBuf && pdfBuf.length >= MIN_SIGNED_PDF_BYTES) {
         return pdfBuf;
       }
     }
-    logger.error({ contractnum }, "Could not extract signed PDF from SigningCloud after retries");
+    logger.error(
+      { contractnum, fileResponseTopLevelKeys: lastFileTopKeys },
+      "Could not extract signed PDF from SigningCloud after retries"
+    );
     throw new AppError(502, "SIGNING_PROVIDER_ERROR", "Signed document not available yet");
   }
 
@@ -1981,7 +1982,7 @@ export class ApplicationService {
     const pdfBuf = await this.fetchSignedOfferPdfFromSigningCloud(contractnum, cfg);
 
     const sha256 = crypto.createHash("sha256").update(pdfBuf).digest("hex");
-    const s3Key = `signed-offer-letters/contracts/${contractId}/${Date.now()}.pdf`;
+    const s3Key = `applications/${application.id}/offer-letters/contract-${Date.now()}.pdf`;
     await putS3ObjectBuffer({ key: s3Key, body: pdfBuf, contentType: "application/pdf" });
 
     try {
@@ -2037,7 +2038,7 @@ export class ApplicationService {
     const pdfBuf = await this.fetchSignedOfferPdfFromSigningCloud(contractnum, cfg);
 
     const sha256 = crypto.createHash("sha256").update(pdfBuf).digest("hex");
-    const s3Key = `signed-offer-letters/invoices/${invoiceId}/${Date.now()}.pdf`;
+    const s3Key = `applications/${applicationId}/offer-letters/invoice-${invoiceId}-${Date.now()}.pdf`;
     await putS3ObjectBuffer({ key: s3Key, body: pdfBuf, contentType: "application/pdf" });
 
     try {
