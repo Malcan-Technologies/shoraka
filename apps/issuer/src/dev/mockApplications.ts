@@ -20,6 +20,7 @@ function cuidLike(): string {
 }
 
 function makeInvoice(overrides: Partial<NormalizedInvoice> & { id: string }): NormalizedInvoice {
+  const { signedOfferLetterS3Key, ...restOverrides } = overrides;
   return {
     number: "INV-" + Math.floor(1000 + Math.random() * 9000),
     maturityDate: "2026-06-15",
@@ -33,7 +34,8 @@ function makeInvoice(overrides: Partial<NormalizedInvoice> & { id: string }): No
     offerStatus: null,
     canReviewOffer: false,
     signedOfferLetterAvailable: false,
-    ...overrides,
+    ...restOverrides,
+    signedOfferLetterS3Key: signedOfferLetterS3Key ?? null,
   };
 }
 
@@ -152,6 +154,8 @@ export function generateMockApplications(count: number): NormalizedApplication[]
           profitRate: hasOffer ? `${7 + (j % 3)}%` : "—",
           offer_details: invOfferDetails,
           signedOfferLetterAvailable: invStatus === "APPROVED",
+          signedOfferLetterS3Key:
+            invStatus === "APPROVED" ? `applications/mock/${appId}/offers/invoice-${j + 1}.pdf` : null,
         })
       );
     }
@@ -219,6 +223,10 @@ export function generateMockApplications(count: number): NormalizedApplication[]
       expiresAt,
       signedContractOfferLetterAvailable:
         scenario.contractStatus === "APPROVED" && !!scenario.hasContract,
+      signedContractOfferLetterS3Key:
+        scenario.contractStatus === "APPROVED" && !!scenario.hasContract
+          ? `applications/mock/${appId}/offers/contract.pdf`
+          : null,
     });
   }
 
