@@ -84,7 +84,6 @@ export function ContractSection({
   onAddComment,
   onViewSignedContractOffer,
   signedContractOfferLetterAvailable,
-  viewSignedOfferLetterPending,
 }: ContractSectionProps) {
   const cd = contractDetails as Record<string, unknown> | null | undefined;
   const offer = offerDetails as Record<string, unknown> | null | undefined;
