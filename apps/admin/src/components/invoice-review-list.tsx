@@ -52,6 +52,7 @@ interface InvoiceReviewListProps {
   invoices: {
     id: string;
     details?: unknown;
+    document?: unknown;
     status?: string;
     offer_details?: unknown;
     offer_signing?: unknown;
@@ -79,9 +80,8 @@ interface InvoiceReviewListProps {
     offeredProfitRatePercent: number;
   }) => Promise<void>;
   isSendInvoiceOfferPending?: boolean;
-  /** Opens admin signed offer PDF in a new tab (blob). */
-  onViewSignedInvoiceOffer?: (invoiceId: string) => void | Promise<void>;
-  viewSignedOfferLetterPending?: boolean;
+  /** Opens signed offer document using the same document view-url flow. */
+  onViewSignedInvoiceOffer?: (signedOfferLetterS3Key: string) => void | Promise<void>;
 }
 
 interface InvoiceDetails {
@@ -178,7 +178,6 @@ export function InvoiceList({
   onSendInvoiceOffer,
   isSendInvoiceOfferPending,
   onViewSignedInvoiceOffer,
-  viewSignedOfferLetterPending,
 }: InvoiceReviewListProps) {
   const [expandedById, setExpandedById] = React.useState<Record<string, boolean>>({});
   const [invoiceOfferConfirm, setInvoiceOfferConfirm] = React.useState<{
@@ -303,6 +302,10 @@ export function InvoiceList({
         <TableBody>
           {invoices.map((inv, idx) => {
             const details = inv.details as InvoiceDetails | undefined;
+            const invoiceDocument = (
+              (inv as { document?: InvoiceDetails["document"] } | null | undefined)?.document ??
+              details?.document
+            );
             const invoiceNo = details?.number ?? idx + 1;
             const scopeKey = buildInvoiceScopeKey(idx, invoiceNo);
             const reviewItemStatus = getItemStatus(inv, reviewItems, scopeKey);
@@ -312,6 +315,14 @@ export function InvoiceList({
             const isTabLocked = !!isActionLocked || !isReviewable;
             const isInvoiceFinalizedByIssuer = reviewItemStatus === "APPROVED";
             const signedOfferAvailable = isSignedOfferLetterAvailable(inv.offer_signing);
+            const signedOfferS3Key =
+              signedOfferAvailable &&
+              inv.offer_signing &&
+              typeof (inv.offer_signing as { signed_offer_letter_s3_key?: unknown })
+                .signed_offer_letter_s3_key === "string"
+                ? (inv.offer_signing as { signed_offer_letter_s3_key: string })
+                    .signed_offer_letter_s3_key
+                : null;
             const isRowGreyedOut =
               isRowReadOnly ||
               isTabLocked ||
@@ -320,7 +331,7 @@ export function InvoiceList({
             const showFullActionMenu = isReviewable && !isRowGreyedOut;
             const showSignedOfferOnlyMenu =
               !!onViewSignedInvoiceOffer &&
-              signedOfferAvailable &&
+              !!signedOfferS3Key &&
               !showFullActionMenu;
             const isExpanded = Boolean(expandedById[inv.id]);
             const invoiceValue = toNumber(details?.value);
@@ -330,7 +341,7 @@ export function InvoiceList({
                 ? (invoiceValue * financingRatio) / 100
                 : null;
             const maturityDate = details?.maturity_date ?? details?.due_date;
-            const documentName = details?.document?.file_name ?? "No document uploaded";
+            const documentName = invoiceDocument?.file_name ?? "No document uploaded";
 
             return (
               <React.Fragment key={inv.id}>
@@ -370,7 +381,9 @@ export function InvoiceList({
                   <TableCell className={applicationTableCellCenterClass}>
                     <ReviewStepStatusBadge status={status} size="sm" />
                   </TableCell>
-                  <TableCell className={applicationTableCellCenterClass}>
+                  <TableCell
+                    className={`${applicationTableCellCenterClass} ${isRowGreyedOut ? "text-foreground" : ""}`}
+                  >
                     {showFullActionMenu ? (
                       <ItemActionDropdown
                         itemId={scopeKey}
@@ -384,8 +397,8 @@ export function InvoiceList({
                         onResetToPending={onResetItemToPending}
                         showApprove={false}
                         onViewSignedOffer={
-                          signedOfferAvailable && onViewSignedInvoiceOffer
-                            ? () => void onViewSignedInvoiceOffer(inv.id)
+                          signedOfferS3Key && onViewSignedInvoiceOffer
+                            ? () => void onViewSignedInvoiceOffer(signedOfferS3Key)
                             : undefined
                         }
                       />
@@ -393,10 +406,12 @@ export function InvoiceList({
                       <ItemActionDropdown
                         itemId={scopeKey}
                         status={status}
-                        isPending={isItemActionPending || !!viewSignedOfferLetterPending}
+                        isPending={isItemActionPending}
                         viewSignedOfferOnly
                         onViewSignedOffer={() => {
-                          if (onViewSignedInvoiceOffer) void onViewSignedInvoiceOffer(inv.id);
+                          if (onViewSignedInvoiceOffer && signedOfferS3Key) {
+                            void onViewSignedInvoiceOffer(signedOfferS3Key);
+                          }
                         }}
                       />
                     ) : (
@@ -501,31 +516,17 @@ export function InvoiceList({
                                     <p className={`${applicationTableExpandableValueClass} truncate`}>
                                       {documentName}
                                     </p>
-                                    {details?.document?.s3_key ? (
+                                    {invoiceDocument?.s3_key ? (
                                       <span className="pointer-events-auto shrink-0">
                                         <Button
                                           variant="outline"
                                           size="sm"
                                           className="h-8 rounded-xl gap-1 px-2 text-[15px]"
-                                          onClick={() => onViewDocument(details.document!.s3_key!)}
+                                          onClick={() => onViewDocument(invoiceDocument.s3_key!)}
                                           disabled={isViewDocumentPending}
                                         >
                                           <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
                                           View
-                                        </Button>
-                                      </span>
-                                    ) : null}
-                                    {signedOfferAvailable && onViewSignedInvoiceOffer ? (
-                                      <span className="pointer-events-auto shrink-0">
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          className="h-8 rounded-xl gap-1 px-2 text-[15px]"
-                                          onClick={() => void onViewSignedInvoiceOffer(inv.id)}
-                                          disabled={!!viewSignedOfferLetterPending}
-                                        >
-                                          <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
-                                          View Signed Offer
                                         </Button>
                                       </span>
                                     ) : null}

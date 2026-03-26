@@ -100,7 +100,7 @@ export interface SectionContentProps {
   offerExpiryDays?: number | null;
   /** Map of section id to status. Used for contract facility resolution in invoice section. */
   sectionStatusMap?: ReadonlyMap<string, string>;
-  onViewSignedInvoiceOffer?: (invoiceId: string) => void | Promise<void>;
+  onViewSignedInvoiceOffer?: (signedOfferLetterS3Key: string) => void | Promise<void>;
   onViewSignedContractOffer?: () => void | Promise<void>;
   viewSignedOfferLetterPending?: boolean;
 }
@@ -343,7 +343,6 @@ export function SectionContent({
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
           offerExpiryDays={offerExpiryDays}
           onViewSignedInvoiceOffer={onViewSignedInvoiceOffer}
-          viewSignedOfferLetterPending={viewSignedOfferLetterPending}
         />
       );
     }

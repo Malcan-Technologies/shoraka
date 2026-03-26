@@ -48,8 +48,7 @@ export interface InvoiceSectionProps {
   isSendInvoiceOfferPending?: boolean;
   comments: SectionCommentItem[];
   onAddComment?: (comment: string) => Promise<void> | void;
-  onViewSignedInvoiceOffer?: (invoiceId: string) => void | Promise<void>;
-  viewSignedOfferLetterPending?: boolean;
+  onViewSignedInvoiceOffer?: (signedOfferLetterS3Key: string) => void | Promise<void>;
 }
 
 export function InvoiceSection({
@@ -80,7 +79,6 @@ export function InvoiceSection({
   comments,
   onAddComment,
   onViewSignedInvoiceOffer,
-  viewSignedOfferLetterPending,
 }: InvoiceSectionProps) {
   return (
     <ReviewSectionCard
@@ -125,7 +123,6 @@ export function InvoiceSection({
             onSendInvoiceOffer={onSendInvoiceOffer}
             isSendInvoiceOfferPending={isSendInvoiceOfferPending}
             onViewSignedInvoiceOffer={onViewSignedInvoiceOffer}
-            viewSignedOfferLetterPending={viewSignedOfferLetterPending}
           />
         ) : (
           <p className={reviewEmptyStateClass}>No invoices submitted.</p>
