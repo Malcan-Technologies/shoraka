@@ -57,6 +57,9 @@ export interface ContractSectionProps {
   viewDocumentPending?: boolean;
   comments: SectionCommentItem[];
   onAddComment?: (comment: string) => Promise<void> | void;
+  onViewSignedContractOffer?: () => void | Promise<void>;
+  signedContractOfferLetterAvailable?: boolean;
+  viewSignedOfferLetterPending?: boolean;
 }
 
 export function ContractSection({
@@ -79,6 +82,9 @@ export function ContractSection({
   viewDocumentPending,
   comments,
   onAddComment,
+  onViewSignedContractOffer,
+  signedContractOfferLetterAvailable,
+  viewSignedOfferLetterPending,
 }: ContractSectionProps) {
   const cd = contractDetails as Record<string, unknown> | null | undefined;
   const offer = offerDetails as Record<string, unknown> | null | undefined;
@@ -275,18 +281,32 @@ export function ContractSection({
                     </div>
                   </div>
                 </div>
-                {contractDoc?.s3_key && onViewDocument && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="rounded-lg h-9 gap-1 shrink-0"
-                    onClick={() => onViewDocument(contractDoc.s3_key!)}
-                    disabled={viewDocumentPending}
-                  >
-                    <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                    View
-                  </Button>
-                )}
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  {contractDoc?.s3_key && onViewDocument && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-lg h-9 gap-1"
+                      onClick={() => onViewDocument(contractDoc.s3_key!)}
+                      disabled={viewDocumentPending}
+                    >
+                      <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                      View
+                    </Button>
+                  )}
+                  {signedContractOfferLetterAvailable && onViewSignedContractOffer && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="rounded-lg h-9 gap-1"
+                      onClick={() => void onViewSignedContractOffer()}
+                      disabled={!!viewSignedOfferLetterPending}
+                    >
+                      <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                      View Signed Offer
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="flex items-center justify-between rounded-xl border border-input bg-background px-4 py-3">
                 <div className="flex items-center gap-3 min-w-0">

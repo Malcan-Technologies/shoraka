@@ -17,7 +17,7 @@ const PDF_PAGE_HEIGHT_PT = 841.89;
 /** Signature rectangle — matches offer-letter-pdf “Please sign below:” band (contract + invoice). */
 const SIGNATURE_FIELD = {
   fieldtype: "sign",
-  top: 270,
+  top: 300,
   left: 50,
   height: 30,
   width: 100,

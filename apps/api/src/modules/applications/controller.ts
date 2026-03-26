@@ -463,7 +463,7 @@ export function createApplicationRouter(): Router {
         const userId = getUserId(req);
         const { buffer, filename } = await applicationService.getSignedContractOfferLetterBuffer(id, userId);
         res.setHeader("Content-Type", "application/pdf");
-        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+        res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
         res.send(buffer);
       } catch (e) {
         next(e);
@@ -484,7 +484,7 @@ export function createApplicationRouter(): Router {
           userId
         );
         res.setHeader("Content-Type", "application/pdf");
-        res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+        res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
         res.send(buffer);
       } catch (e) {
         next(e);

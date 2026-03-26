@@ -65,7 +65,7 @@ import {
   PencilSquareIcon,
   XCircleIcon,
 } from "@heroicons/react/24/outline";
-import { formatCurrency, useAuthToken } from "@cashsouk/config";
+import { createApiClient, formatCurrency, useAuthToken } from "@cashsouk/config";
 import { ApplicationStatusBadge } from "@/components/application-review";
 
 function PageSkeleton() {
@@ -166,7 +166,9 @@ export default function DynamicApplicationDetailPage() {
   ];
   const isReviewable = !!app && REVIEWABLE_STATUSES.includes(app.status);
   const { getAccessToken } = useAuthToken();
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
   const [viewDocumentPending, setViewDocumentPending] = React.useState(false);
+  const [viewSignedOfferLetterPending, setViewSignedOfferLetterPending] = React.useState(false);
 
   const handleViewDocument = React.useCallback(
     async (s3Key: string) => {
@@ -195,6 +197,42 @@ export default function DynamicApplicationDetailPage() {
     },
     [getAccessToken]
   );
+
+  const openPdfBlobInNewTab = React.useCallback((blob: Blob) => {
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, "_blank", "noopener,noreferrer");
+    if (!win) toast.error("Pop-up blocked. Allow pop-ups to view the PDF.");
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  }, []);
+
+  const handleViewSignedInvoiceOffer = React.useCallback(
+    async (invoiceId: string) => {
+      try {
+        setViewSignedOfferLetterPending(true);
+        const client = createApiClient(apiUrl, getAccessToken);
+        const blob = await client.getAdminSignedInvoiceOfferLetterBlob(applicationId, invoiceId);
+        openPdfBlobInNewTab(blob);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to open signed offer");
+      } finally {
+        setViewSignedOfferLetterPending(false);
+      }
+    },
+    [apiUrl, applicationId, getAccessToken, openPdfBlobInNewTab]
+  );
+
+  const handleViewSignedContractOffer = React.useCallback(async () => {
+    try {
+      setViewSignedOfferLetterPending(true);
+      const client = createApiClient(apiUrl, getAccessToken);
+      const blob = await client.getAdminSignedContractOfferLetterBlob(applicationId);
+      openPdfBlobInNewTab(blob);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to open signed offer");
+    } finally {
+      setViewSignedOfferLetterPending(false);
+    }
+  }, [apiUrl, applicationId, getAccessToken, openPdfBlobInNewTab]);
 
   const tabDescriptors = React.useMemo(
     () => getReviewTabDescriptorsFromWorkflow(currentProduct?.workflow),
@@ -950,6 +988,9 @@ export default function DynamicApplicationDetailPage() {
                             sendInvoiceOfferPending={sendInvoiceOffer.isPending}
                             invoiceRatioLimits={invoiceRatioLimits}
                             offerExpiryDays={offerExpiryDays}
+                            onViewSignedInvoiceOffer={handleViewSignedInvoiceOffer}
+                            onViewSignedContractOffer={handleViewSignedContractOffer}
+                            viewSignedOfferLetterPending={viewSignedOfferLetterPending}
                           />
                         </ApplicationReviewTabContent>
                       );

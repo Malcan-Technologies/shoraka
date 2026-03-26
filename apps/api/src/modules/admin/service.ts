@@ -67,6 +67,7 @@ import {
   computeContractFacilitySnapshot,
   resolveRequestedFacility,
 } from "../../lib/contract-facility";
+import { getS3ObjectBuffer } from "../../lib/s3/client";
 
 export class AdminService {
   private repository: AdminRepository;
@@ -4064,6 +4065,60 @@ export class AdminService {
       visible_review_sections: orderedVisibleSections,
       review_section_prerequisites: sectionPolicy.prerequisitesBySection,
     };
+  }
+
+  private assertSignedOfferLetterS3KeyFromJson(offerSigning: unknown): string {
+    if (!offerSigning || typeof offerSigning !== "object" || Array.isArray(offerSigning)) {
+      throw new AppError(400, "INVALID_STATE", "No signed offer letter on file");
+    }
+    const os = offerSigning as Record<string, unknown>;
+    if (os.status !== "signed") {
+      throw new AppError(400, "INVALID_STATE", "Offer letter is not signed yet");
+    }
+    const key = os.signed_offer_letter_s3_key;
+    if (typeof key !== "string" || !key.trim()) {
+      throw new AppError(400, "INVALID_STATE", "Signed offer letter is not available");
+    }
+    return key.trim();
+  }
+
+  /**
+   * Signed invoice offer letter PDF (admin). Does not require issuer org membership.
+   */
+  async getSignedInvoiceOfferLetterPdfForAdmin(applicationId: string, invoiceId: string) {
+    const invoice = await prisma.invoice.findFirst({
+      where: { id: invoiceId, application_id: applicationId },
+      select: { id: true, offer_signing: true },
+    });
+    if (!invoice) {
+      throw new AppError(404, "NOT_FOUND", "Invoice not found");
+    }
+    const s3Key = this.assertSignedOfferLetterS3KeyFromJson(invoice.offer_signing);
+    const buffer = await getS3ObjectBuffer(s3Key);
+    return { buffer, filename: `signed-invoice-offer-${invoice.id}.pdf` };
+  }
+
+  /**
+   * Signed contract offer letter PDF (admin). Does not require issuer org membership.
+   */
+  async getSignedContractOfferLetterPdfForAdmin(applicationId: string) {
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: { contract_id: true },
+    });
+    if (!application?.contract_id) {
+      throw new AppError(400, "INVALID_STATE", "Application has no contract");
+    }
+    const contract = await prisma.contract.findUnique({
+      where: { id: application.contract_id },
+      select: { id: true, offer_signing: true },
+    });
+    if (!contract) {
+      throw new AppError(404, "NOT_FOUND", "Contract not found");
+    }
+    const s3Key = this.assertSignedOfferLetterS3KeyFromJson(contract.offer_signing);
+    const buffer = await getS3ObjectBuffer(s3Key);
+    return { buffer, filename: `signed-contract-offer-${contract.id}.pdf` };
   }
 
   /**

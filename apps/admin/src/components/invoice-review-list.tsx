@@ -44,11 +44,18 @@ import {
   applicationTableExpandableValueClass,
   applicationTableExpandableFieldGapClass,
 } from "@/components/application-review/application-table-styles";
+import { isSignedOfferLetterAvailable } from "@/components/application-review/offer-signing-availability";
 
 const PROFIT_RATE_OPTIONS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] as const;
 
 interface InvoiceReviewListProps {
-  invoices: { id: string; details?: unknown; status?: string; offer_details?: unknown }[];
+  invoices: {
+    id: string;
+    details?: unknown;
+    status?: string;
+    offer_details?: unknown;
+    offer_signing?: unknown;
+  }[];
   /** Invoice IDs from other applications (same contract) - read-only, actions locked */
   readOnlyInvoiceIds?: Set<string>;
   reviewItems: { item_type: string; item_id: string; status: string }[];
@@ -72,6 +79,9 @@ interface InvoiceReviewListProps {
     offeredProfitRatePercent: number;
   }) => Promise<void>;
   isSendInvoiceOfferPending?: boolean;
+  /** Opens admin signed offer PDF in a new tab (blob). */
+  onViewSignedInvoiceOffer?: (invoiceId: string) => void | Promise<void>;
+  viewSignedOfferLetterPending?: boolean;
 }
 
 interface InvoiceDetails {
@@ -167,6 +177,8 @@ export function InvoiceList({
   isItemActionPending,
   onSendInvoiceOffer,
   isSendInvoiceOfferPending,
+  onViewSignedInvoiceOffer,
+  viewSignedOfferLetterPending,
 }: InvoiceReviewListProps) {
   const [expandedById, setExpandedById] = React.useState<Record<string, boolean>>({});
   const [invoiceOfferConfirm, setInvoiceOfferConfirm] = React.useState<{
@@ -299,11 +311,17 @@ export function InvoiceList({
             const isRowReadOnly = readOnlyInvoiceIds?.has(inv.id) ?? false;
             const isTabLocked = !!isActionLocked || !isReviewable;
             const isInvoiceFinalizedByIssuer = reviewItemStatus === "APPROVED";
+            const signedOfferAvailable = isSignedOfferLetterAvailable(inv.offer_signing);
             const isRowGreyedOut =
               isRowReadOnly ||
               isTabLocked ||
               isInvoiceFinalizedByIssuer ||
               isInvoiceWithdrawn;
+            const showFullActionMenu = isReviewable && !isRowGreyedOut;
+            const showSignedOfferOnlyMenu =
+              !!onViewSignedInvoiceOffer &&
+              signedOfferAvailable &&
+              !showFullActionMenu;
             const isExpanded = Boolean(expandedById[inv.id]);
             const invoiceValue = toNumber(details?.value);
             const financingRatio = toNumber(details?.financing_ratio_percent);
@@ -353,7 +371,7 @@ export function InvoiceList({
                     <ReviewStepStatusBadge status={status} size="sm" />
                   </TableCell>
                   <TableCell className={applicationTableCellCenterClass}>
-                    {isReviewable && !isRowGreyedOut ? (
+                    {showFullActionMenu ? (
                       <ItemActionDropdown
                         itemId={scopeKey}
                         status={status}
@@ -365,6 +383,21 @@ export function InvoiceList({
                         onRequestAmendment={onRequestAmendmentItem}
                         onResetToPending={onResetItemToPending}
                         showApprove={false}
+                        onViewSignedOffer={
+                          signedOfferAvailable && onViewSignedInvoiceOffer
+                            ? () => void onViewSignedInvoiceOffer(inv.id)
+                            : undefined
+                        }
+                      />
+                    ) : showSignedOfferOnlyMenu ? (
+                      <ItemActionDropdown
+                        itemId={scopeKey}
+                        status={status}
+                        isPending={isItemActionPending || !!viewSignedOfferLetterPending}
+                        viewSignedOfferOnly
+                        onViewSignedOffer={() => {
+                          if (onViewSignedInvoiceOffer) void onViewSignedInvoiceOffer(inv.id);
+                        }}
                       />
                     ) : (
                       <span className="text-muted-foreground">—</span>
@@ -479,6 +512,20 @@ export function InvoiceList({
                                         >
                                           <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
                                           View
+                                        </Button>
+                                      </span>
+                                    ) : null}
+                                    {signedOfferAvailable && onViewSignedInvoiceOffer ? (
+                                      <span className="pointer-events-auto shrink-0">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-8 rounded-xl gap-1 px-2 text-[15px]"
+                                          onClick={() => void onViewSignedInvoiceOffer(inv.id)}
+                                          disabled={!!viewSignedOfferLetterPending}
+                                        >
+                                          <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
+                                          View Signed Offer
                                         </Button>
                                       </span>
                                     ) : null}

@@ -5,6 +5,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -22,11 +23,14 @@ interface ItemActionDropdownProps {
   isPending: boolean;
   isActionLocked?: boolean;
   actionLockTooltip?: string;
-  onApprove: (itemId: string) => Promise<void>;
-  onReject: (itemId: string) => void;
-  onRequestAmendment: (itemId: string) => void;
+  onApprove?: (itemId: string) => Promise<void>;
+  onReject?: (itemId: string) => void;
+  onRequestAmendment?: (itemId: string) => void;
   onResetToPending?: (itemId: string) => void;
   showApprove?: boolean;
+  /** When true, menu shows only "View Signed Offer" (e.g. after invoice review is finalized). */
+  viewSignedOfferOnly?: boolean;
+  onViewSignedOffer?: () => void | Promise<void>;
 }
 
 export function ItemActionDropdown({
@@ -35,12 +39,37 @@ export function ItemActionDropdown({
   isPending,
   isActionLocked = false,
   actionLockTooltip,
-  onApprove,
-  onReject,
-  onRequestAmendment,
+  onApprove = async () => {},
+  onReject = () => {},
+  onRequestAmendment = () => {},
   onResetToPending,
   showApprove = true,
+  viewSignedOfferOnly = false,
+  onViewSignedOffer,
 }: ItemActionDropdownProps) {
+  if (viewSignedOfferOnly && onViewSignedOffer) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-lg h-9 gap-1"
+            disabled={isPending}
+          >
+            Action
+            <ChevronDownIcon className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="rounded-xl">
+          <DropdownMenuItem className="rounded-lg" onClick={() => void onViewSignedOffer()}>
+            View Signed Offer
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
+
   const button = (
     <Button
       variant="outline"
@@ -74,6 +103,14 @@ export function ItemActionDropdown({
         {button}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="rounded-xl">
+        {onViewSignedOffer && (
+          <>
+            <DropdownMenuItem className="rounded-lg" onClick={() => void onViewSignedOffer()}>
+              View Signed Offer
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         {showApprove && (
           <DropdownMenuItem
             className="rounded-lg"

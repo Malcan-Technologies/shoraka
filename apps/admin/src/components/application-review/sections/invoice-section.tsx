@@ -9,7 +9,13 @@ import type { ReviewSectionId } from "../section-types";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
 
 export interface InvoiceSectionProps {
-  invoices: { id: string; details?: unknown; status?: string; offer_details?: unknown }[];
+  invoices: {
+    id: string;
+    details?: unknown;
+    status?: string;
+    offer_details?: unknown;
+    offer_signing?: unknown;
+  }[];
   /** Invoice IDs that are from other applications (same contract) - read-only, actions locked */
   readOnlyInvoiceIds?: Set<string>;
   /** When set, shows Contract Facility, Available Facility and Utilized Facility above the invoice list (contract applications only) */
@@ -42,6 +48,8 @@ export interface InvoiceSectionProps {
   isSendInvoiceOfferPending?: boolean;
   comments: SectionCommentItem[];
   onAddComment?: (comment: string) => Promise<void> | void;
+  onViewSignedInvoiceOffer?: (invoiceId: string) => void | Promise<void>;
+  viewSignedOfferLetterPending?: boolean;
 }
 
 export function InvoiceSection({
@@ -71,6 +79,8 @@ export function InvoiceSection({
   isSendInvoiceOfferPending,
   comments,
   onAddComment,
+  onViewSignedInvoiceOffer,
+  viewSignedOfferLetterPending,
 }: InvoiceSectionProps) {
   return (
     <ReviewSectionCard
@@ -114,6 +124,8 @@ export function InvoiceSection({
             isItemActionPending={approvePending}
             onSendInvoiceOffer={onSendInvoiceOffer}
             isSendInvoiceOfferPending={isSendInvoiceOfferPending}
+            onViewSignedInvoiceOffer={onViewSignedInvoiceOffer}
+            viewSignedOfferLetterPending={viewSignedOfferLetterPending}
           />
         ) : (
           <p className={reviewEmptyStateClass}>No invoices submitted.</p>

@@ -523,6 +523,36 @@ export class ApiClient {
     );
   }
 
+  async getAdminSignedContractOfferLetterBlob(applicationId: string): Promise<Blob> {
+    const url = `${this.baseUrl}/v1/admin/applications/${applicationId}/offers/contracts/signed-letter`;
+    const authToken = await this.getAuthToken();
+    const headers: HeadersInit = {};
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+    const response = await fetch(url, { method: "GET", credentials: "include", headers });
+    if (!response.ok) {
+      const msg = await this.parseErrorResponse(response);
+      throw new Error(msg);
+    }
+    return response.blob();
+  }
+
+  async getAdminSignedInvoiceOfferLetterBlob(applicationId: string, invoiceId: string): Promise<Blob> {
+    const id = typeof invoiceId === "string" ? invoiceId.trim() : "";
+    if (!id) {
+      throw new Error("Invoice ID is required for signed invoice offer letter");
+    }
+    const url = `${this.baseUrl}/v1/admin/applications/${applicationId}/offers/invoices/${id}/signed-letter`;
+    const authToken = await this.getAuthToken();
+    const headers: HeadersInit = {};
+    if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+    const response = await fetch(url, { method: "GET", credentials: "include", headers });
+    if (!response.ok) {
+      const msg = await this.parseErrorResponse(response);
+      throw new Error(msg);
+    }
+    return response.blob();
+  }
+
   async addPendingAmendment(
     applicationId: string,
     params: {

@@ -13,6 +13,7 @@ import { CustomerSection } from "./sections/customer-section";
 import { InvoiceSection } from "./sections/invoice-section";
 import type { ReviewSectionId } from "./section-types";
 import type { ReviewTabDescriptor } from "./review-registry";
+import { isSignedOfferLetterAvailable } from "./offer-signing-availability";
 
 export interface SectionCommentRecord {
   id: string;
@@ -43,7 +44,13 @@ export interface SectionContentProps {
     company_details?: unknown;
     declarations?: unknown;
     contract?: { contract_details?: unknown; customer_details?: unknown } | null;
-    invoices?: { id: string; details?: unknown; status?: string; offer_details?: unknown }[];
+    invoices?: {
+      id: string;
+      details?: unknown;
+      status?: string;
+      offer_details?: unknown;
+      offer_signing?: unknown;
+    }[];
     application_review_items?: unknown;
     application_review_remarks?: unknown;
     issuer_organization?: {
@@ -93,6 +100,9 @@ export interface SectionContentProps {
   offerExpiryDays?: number | null;
   /** Map of section id to status. Used for contract facility resolution in invoice section. */
   sectionStatusMap?: ReadonlyMap<string, string>;
+  onViewSignedInvoiceOffer?: (invoiceId: string) => void | Promise<void>;
+  onViewSignedContractOffer?: () => void | Promise<void>;
+  viewSignedOfferLetterPending?: boolean;
 }
 
 /** Renders section content by descriptor. Single place to map descriptor → component. */
@@ -123,6 +133,9 @@ export function SectionContent({
   invoiceRatioLimits,
   offerExpiryDays,
   sectionStatusMap,
+  onViewSignedInvoiceOffer,
+  onViewSignedContractOffer,
+  viewSignedOfferLetterPending,
 }: SectionContentProps) {
   const reviewItems =
     (app.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? [];
@@ -261,6 +274,11 @@ export function SectionContent({
           viewDocumentPending={viewDocumentPending}
           comments={sectionComments}
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
+          onViewSignedContractOffer={onViewSignedContractOffer}
+          signedContractOfferLetterAvailable={isSignedOfferLetterAvailable(
+            (app.contract as { offer_signing?: unknown } | null | undefined)?.offer_signing
+          )}
+          viewSignedOfferLetterPending={viewSignedOfferLetterPending}
         />
       );
     }
@@ -324,6 +342,8 @@ export function SectionContent({
           comments={sectionComments}
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
           offerExpiryDays={offerExpiryDays}
+          onViewSignedInvoiceOffer={onViewSignedInvoiceOffer}
+          viewSignedOfferLetterPending={viewSignedOfferLetterPending}
         />
       );
     }

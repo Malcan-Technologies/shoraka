@@ -15,6 +15,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ArrowDownTrayIcon,
+  ArrowTopRightOnSquareIcon,
 } from "@heroicons/react/24/outline";
 import { useHeader } from "@cashsouk/ui";
 import { formatCurrency, createApiClient, useOrganization } from "@cashsouk/config";
@@ -140,18 +141,55 @@ function formatDateTime(date: string | Date | null | undefined): string {
   return format(new Date(date), "dd MMM yyyy, h:mm a");
 }
 
-/** Invoice table document cell: filename badge + download button when s3_key exists. */
+function openPdfBlobInNewTab(blob: Blob): void {
+  const url = URL.createObjectURL(blob);
+  const w = window.open(url, "_blank", "noopener,noreferrer");
+  if (!w) {
+    URL.revokeObjectURL(url);
+    return;
+  }
+  window.setTimeout(() => URL.revokeObjectURL(url), 120_000);
+}
+
+/** Invoice table document cell: signed offer (view in new tab) or invoice file badge + download. */
 function InvoiceDocumentCell({
   documentName,
   documentS3Key,
   onDownload,
+  signedOfferLetterAvailable,
+  onViewSignedOffer,
 }: {
   documentName: string;
   documentS3Key: string | null;
   onDownload: (s3Key: string) => Promise<void>;
+  signedOfferLetterAvailable?: boolean;
+  onViewSignedOffer?: () => void | Promise<void>;
 }) {
   const [loading, setLoading] = React.useState(false);
   const hasDocument = documentName && documentName !== "—";
+  if (signedOfferLetterAvailable && onViewSignedOffer) {
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-8 max-w-full rounded-xl gap-1.5 px-2 text-xs font-medium"
+        disabled={loading}
+        onClick={async (e) => {
+          e.stopPropagation();
+          setLoading(true);
+          try {
+            await onViewSignedOffer();
+          } finally {
+            setLoading(false);
+          }
+        }}
+      >
+        <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 shrink-0" />
+        <span className="truncate">{loading ? "Opening…" : "View Signed Offer"}</span>
+      </Button>
+    );
+  }
   if (!hasDocument) {
     return <span className="text-[15px] text-muted-foreground">—</span>;
   }
@@ -189,8 +227,8 @@ function InvoiceDocumentCell({
 function ApplicationCard({
   application,
   onDocumentDownload,
-  onDownloadSignedContractOffer,
-  onDownloadSignedInvoiceOffer,
+  onViewSignedContractOffer,
+  onViewSignedInvoiceOffer,
   onReviewContractOffer,
   onReviewInvoiceOffer,
   onCancelApplication,
@@ -201,8 +239,8 @@ function ApplicationCard({
 }: {
   application: NormalizedApplication;
   onDocumentDownload: (s3Key: string) => Promise<void>;
-  onDownloadSignedContractOffer?: (applicationId: string) => Promise<void>;
-  onDownloadSignedInvoiceOffer?: (applicationId: string, invoiceId: string) => Promise<void>;
+  onViewSignedContractOffer?: (applicationId: string) => Promise<void>;
+  onViewSignedInvoiceOffer?: (applicationId: string, invoiceId: string) => Promise<void>;
   onReviewContractOffer?: (applicationId: string, contractId: string) => void;
   onReviewInvoiceOffer?: (applicationId: string, invoice: NormalizedInvoice) => void;
   onCancelApplication?: (applicationId: string) => void;
@@ -304,51 +342,43 @@ function ApplicationCard({
                   ) : (
                     <>
                       {(() => {
-                        const showDownloadSignedContract =
+                        const showViewSignedContract =
                           application.signedContractOfferLetterAvailable &&
                           hasContract &&
                           application.contractId &&
-                          onDownloadSignedContractOffer;
-                        const signedOfferOnlyMenu =
-                          !!showDownloadSignedContract &&
-                          application.contractStatus === "APPROVED";
-                        if (signedOfferOnlyMenu) {
-                          return (
-                            <DropdownMenuItem
-                              className="cursor-pointer"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                void onDownloadSignedContractOffer!(application.id);
-                              }}
-                            >
-                              Download Signed Offer
-                            </DropdownMenuItem>
-                          );
-                        }
+                          onViewSignedContractOffer;
+                        const withdrawApplicationDisabled =
+                          isCancelApplicationPending ||
+                          !!showViewSignedContract;
                         return (
                           <>
-                            {showDownloadSignedContract && (
+                            {showViewSignedContract && (
                               <>
                                 <DropdownMenuItem
                                   className="cursor-pointer"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    void onDownloadSignedContractOffer!(application.id);
+                                    void onViewSignedContractOffer!(application.id);
                                   }}
                                 >
-                                  Download Signed Offer
+                                  View Signed Offer
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                               </>
                             )}
                             <DropdownMenuItem
                               className="cursor-pointer"
-                              disabled={isCancelApplicationPending}
+                              disabled={withdrawApplicationDisabled}
                               onClick={() => {
-                                if (!isCancelApplicationPending && onCancelApplication) {
+                                if (!withdrawApplicationDisabled && onCancelApplication) {
                                   onCancelApplication(application.id);
                                 }
                               }}
+                              title={
+                                showViewSignedContract
+                                  ? "Withdraw is not available while a signed offer letter is on file"
+                                  : undefined
+                              }
                             >
                               {isCancelApplicationPending ? "Withdrawing..." : "Withdraw Application"}
                             </DropdownMenuItem>
@@ -501,6 +531,12 @@ function ApplicationCard({
                               documentName={inv.document}
                               documentS3Key={inv.documentS3Key}
                               onDownload={onDocumentDownload}
+                              signedOfferLetterAvailable={inv.signedOfferLetterAvailable}
+                              onViewSignedOffer={
+                                onViewSignedInvoiceOffer && inv.signedOfferLetterAvailable
+                                  ? () => onViewSignedInvoiceOffer(application.id, inv.id)
+                                  : undefined
+                              }
                             />
                           </TableCell>
                           <TableCell className="p-3 text-[15px] align-middle text-right tabular-nums whitespace-nowrap">
@@ -576,53 +612,49 @@ function ApplicationCard({
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="rounded-xl">
                                   {(() => {
-                                    const showDownloadSignedInvoice =
-                                      inv.signedOfferLetterAvailable && onDownloadSignedInvoiceOffer;
-                                    const signedOfferOnlyMenu =
-                                      !!showDownloadSignedInvoice && invStatus === "APPROVED";
-                                    if (signedOfferOnlyMenu) {
-                                      return (
-                                        <DropdownMenuItem
-                                          className="cursor-pointer"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            void onDownloadSignedInvoiceOffer!(application.id, inv.id);
-                                          }}
-                                        >
-                                          Download Signed Offer
-                                        </DropdownMenuItem>
-                                      );
-                                    }
+                                    const showViewSignedInvoice =
+                                      inv.signedOfferLetterAvailable && onViewSignedInvoiceOffer;
+                                    const withdrawInvoiceDisabled =
+                                      !canWithdrawInvoice ||
+                                      isWithdrawInvoicePending ||
+                                      !!showViewSignedInvoice;
                                     return (
                                       <>
-                                        {showDownloadSignedInvoice && (
+                                        {showViewSignedInvoice && (
                                           <>
                                             <DropdownMenuItem
                                               className="cursor-pointer"
                                               onClick={(e) => {
                                                 e.stopPropagation();
-                                                void onDownloadSignedInvoiceOffer!(application.id, inv.id);
+                                                void onViewSignedInvoiceOffer!(application.id, inv.id);
                                               }}
                                             >
-                                              Download Signed Offer
+                                              View Signed Offer
                                             </DropdownMenuItem>
                                             <DropdownMenuSeparator />
                                           </>
                                         )}
                                         <DropdownMenuItem
                                           className="cursor-pointer"
-                                          disabled={!canWithdrawInvoice || isWithdrawInvoicePending}
+                                          disabled={withdrawInvoiceDisabled}
                                           onClick={() => {
-                                            if (canWithdrawInvoice && !isWithdrawInvoicePending && onWithdrawInvoice) {
+                                            if (
+                                              canWithdrawInvoice &&
+                                              !isWithdrawInvoicePending &&
+                                              !showViewSignedInvoice &&
+                                              onWithdrawInvoice
+                                            ) {
                                               onWithdrawInvoice(inv.id, application.id, application.issuerOrganizationId);
                                             }
                                           }}
                                           title={
-                                            !canWithdrawInvoice
-                                              ? "Cannot withdraw: invoice is already approved, rejected, or withdrawn"
-                                              : isWithdrawInvoicePending
-                                                ? "Withdrawal in progress"
-                                                : undefined
+                                            showViewSignedInvoice
+                                              ? "Withdraw is not available while a signed offer letter is on file"
+                                              : !canWithdrawInvoice
+                                                ? "Cannot withdraw: invoice is already approved, rejected, or withdrawn"
+                                                : isWithdrawInvoicePending
+                                                  ? "Withdrawal in progress"
+                                                  : undefined
                                           }
                                         >
                                           {isWithdrawInvoicePending ? "Withdrawing..." : "Withdraw Invoice"}
@@ -922,35 +954,25 @@ export default function ApplicationsPage() {
     };
   }, [queryClient, apiClient]);
 
-  const handleDownloadSignedContractOffer = React.useCallback(
+  const handleViewSignedContractOffer = React.useCallback(
     async (applicationId: string) => {
       try {
         const blob = await apiClient.getSignedContractOfferLetterBlob(applicationId);
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `signed-contract-offer-${applicationId.slice(-8)}.pdf`;
-        a.click();
-        URL.revokeObjectURL(url);
+        openPdfBlobInNewTab(blob);
       } catch {
-        toast.error("Could not download signed offer letter");
+        toast.error("Could not open signed offer letter");
       }
     },
     [apiClient]
   );
 
-  const handleDownloadSignedInvoiceOffer = React.useCallback(
+  const handleViewSignedInvoiceOffer = React.useCallback(
     async (applicationId: string, invoiceId: string) => {
       try {
         const blob = await apiClient.getSignedInvoiceOfferLetterBlob(applicationId, invoiceId);
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `signed-invoice-offer-${invoiceId.slice(-8)}.pdf`;
-        a.click();
-        URL.revokeObjectURL(url);
+        openPdfBlobInNewTab(blob);
       } catch {
-        toast.error("Could not download signed offer letter");
+        toast.error("Could not open signed offer letter");
       }
     },
     [apiClient]
@@ -1285,8 +1307,8 @@ export default function ApplicationsPage() {
                     key={app.id}
                     application={app}
                     onDocumentDownload={handleDocumentDownload}
-                    onDownloadSignedContractOffer={handleDownloadSignedContractOffer}
-                    onDownloadSignedInvoiceOffer={handleDownloadSignedInvoiceOffer}
+                    onViewSignedContractOffer={handleViewSignedContractOffer}
+                    onViewSignedInvoiceOffer={handleViewSignedInvoiceOffer}
                     onReviewContractOffer={openReviewContractOffer}
                     onReviewInvoiceOffer={openReviewInvoiceOffer}
                     onCancelApplication={handleWithdrawApplicationClick}

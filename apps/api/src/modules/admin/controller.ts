@@ -2340,6 +2340,38 @@ router.post(
   }
 );
 
+router.get(
+  "/applications/:id/offers/contracts/signed-letter",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const { buffer, filename } = await adminService.getSignedContractOfferLetterPdfForAdmin(id);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+      res.send(buffer);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  "/applications/:id/offers/invoices/:invoiceId/signed-letter",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id, invoiceId } = req.params;
+      const { buffer, filename } = await adminService.getSignedInvoiceOfferLetterPdfForAdmin(id, invoiceId);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+      res.send(buffer);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 router.post(
   "/applications/:id/reviews/pending-amendments",
   requireRole(UserRole.ADMIN),
