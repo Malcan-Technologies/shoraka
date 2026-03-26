@@ -117,6 +117,8 @@ export interface NormalizedInvoice {
   offer_details?: Record<string, unknown> | null;
   /** True when SigningCloud signed PDF is stored (offer_signing.status === signed). */
   signedOfferLetterAvailable: boolean;
+  /** S3 key for signed offer letter when available. */
+  signedOfferLetterS3Key: string | null;
 }
 
 export interface NormalizedApplication {
@@ -145,6 +147,8 @@ export interface NormalizedApplication {
   expiresAt?: string | null;
   /** True when contract has a stored signed offer letter PDF. */
   signedContractOfferLetterAvailable: boolean;
+  /** S3 key for contract signed offer letter when available. */
+  signedContractOfferLetterS3Key: string | null;
 }
 
 /* =============================================================================

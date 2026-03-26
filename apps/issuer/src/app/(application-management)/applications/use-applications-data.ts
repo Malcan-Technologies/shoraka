@@ -47,6 +47,7 @@ interface ApiInvoice {
   withdraw_reason?: string | null;
   offer_details?: { expires_at?: string | null } | Record<string, unknown> | null;
   details?: Record<string, unknown>;
+  document?: Record<string, unknown> | null;
   offer_signing?: unknown;
 }
 
@@ -70,11 +71,20 @@ function isSignedOfferLetterAvailable(offerSigning: unknown): boolean {
   );
 }
 
+function getSignedOfferLetterS3Key(offerSigning: unknown): string | null {
+  if (!offerSigning || typeof offerSigning !== "object") return null;
+  const s3Key = (offerSigning as Record<string, unknown>).signed_offer_letter_s3_key;
+  return typeof s3Key === "string" && s3Key.length > 0 ? s3Key : null;
+}
+
 function prepareInvoice(api: ApiInvoice, contractStatus: string | null, structureType: string | undefined): NormalizedInvoice {
   const details = (api.details ?? {}) as Record<string, unknown>;
-  const doc = details.document as { s3_key?: string; file_name?: string } | undefined;
+  const topLevelDoc = (api.document ?? null) as { s3_key?: string; file_name?: string } | null;
+  const detailsDoc = details.document as { s3_key?: string; file_name?: string } | undefined;
+  const doc = topLevelDoc ?? detailsDoc;
   const documentS3Key = doc?.s3_key ? String(doc.s3_key) : null;
   const documentName = String(doc?.file_name ?? details.document_name ?? details.document ?? "—");
+  const signedOfferLetterS3Key = getSignedOfferLetterS3Key(api.offer_signing);
 
   const offerStatus = api.status === "OFFER_SENT" && api.offer_details ? "Offer received" : null;
   const canReviewOffer = offerStatus === "Offer received" && (
@@ -110,6 +120,7 @@ function prepareInvoice(api: ApiInvoice, contractStatus: string | null, structur
     canReviewOffer,
     offer_details: api.offer_details ?? null,
     signedOfferLetterAvailable: isSignedOfferLetterAvailable(api.offer_signing),
+    signedOfferLetterS3Key,
   };
 }
 
@@ -193,6 +204,9 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
   const signedContractOfferLetterAvailable = isSignedOfferLetterAvailable(
     (contract as ApiContract | null)?.offer_signing
   );
+  const signedContractOfferLetterS3Key = getSignedOfferLetterS3Key(
+    (contract as ApiContract | null)?.offer_signing
+  );
 
   return {
     id: api.id,
@@ -214,6 +228,7 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
     withdrawReason,
     expiresAt,
     signedContractOfferLetterAvailable,
+    signedContractOfferLetterS3Key,
   };
 }
 

@@ -15,7 +15,6 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ArrowDownTrayIcon,
-  ArrowTopRightOnSquareIcon,
 } from "@heroicons/react/24/outline";
 import { useHeader } from "@cashsouk/ui";
 import { formatCurrency, createApiClient, useOrganization } from "@cashsouk/config";
@@ -141,55 +140,18 @@ function formatDateTime(date: string | Date | null | undefined): string {
   return format(new Date(date), "dd MMM yyyy, h:mm a");
 }
 
-function openPdfBlobInNewTab(blob: Blob): void {
-  const url = URL.createObjectURL(blob);
-  const w = window.open(url, "_blank", "noopener,noreferrer");
-  if (!w) {
-    URL.revokeObjectURL(url);
-    return;
-  }
-  window.setTimeout(() => URL.revokeObjectURL(url), 120_000);
-}
-
-/** Invoice table document cell: signed offer (view in new tab) or invoice file badge + download. */
+/** Invoice table document cell: invoice file badge + download. */
 function InvoiceDocumentCell({
   documentName,
   documentS3Key,
   onDownload,
-  signedOfferLetterAvailable,
-  onViewSignedOffer,
 }: {
   documentName: string;
   documentS3Key: string | null;
   onDownload: (s3Key: string) => Promise<void>;
-  signedOfferLetterAvailable?: boolean;
-  onViewSignedOffer?: () => void | Promise<void>;
 }) {
   const [loading, setLoading] = React.useState(false);
   const hasDocument = documentName && documentName !== "—";
-  if (signedOfferLetterAvailable && onViewSignedOffer) {
-    return (
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="h-8 max-w-full rounded-xl gap-1.5 px-2 text-xs font-medium"
-        disabled={loading}
-        onClick={async (e) => {
-          e.stopPropagation();
-          setLoading(true);
-          try {
-            await onViewSignedOffer();
-          } finally {
-            setLoading(false);
-          }
-        }}
-      >
-        <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 shrink-0" />
-        <span className="truncate">{loading ? "Opening…" : "View Signed Offer"}</span>
-      </Button>
-    );
-  }
   if (!hasDocument) {
     return <span className="text-[15px] text-muted-foreground">—</span>;
   }
@@ -239,8 +201,8 @@ function ApplicationCard({
 }: {
   application: NormalizedApplication;
   onDocumentDownload: (s3Key: string) => Promise<void>;
-  onViewSignedContractOffer?: (applicationId: string) => Promise<void>;
-  onViewSignedInvoiceOffer?: (applicationId: string, invoiceId: string) => Promise<void>;
+  onViewSignedContractOffer?: (signedOfferLetterS3Key: string) => Promise<void>;
+  onViewSignedInvoiceOffer?: (signedOfferLetterS3Key: string) => Promise<void>;
   onReviewContractOffer?: (applicationId: string, contractId: string) => void;
   onReviewInvoiceOffer?: (applicationId: string, invoice: NormalizedInvoice) => void;
   onCancelApplication?: (applicationId: string) => void;
@@ -344,6 +306,7 @@ function ApplicationCard({
                       {(() => {
                         const showViewSignedContract =
                           application.signedContractOfferLetterAvailable &&
+                          !!application.signedContractOfferLetterS3Key &&
                           hasContract &&
                           application.contractId &&
                           onViewSignedContractOffer;
@@ -358,7 +321,9 @@ function ApplicationCard({
                                   className="cursor-pointer"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    void onViewSignedContractOffer!(application.id);
+                                    void onViewSignedContractOffer!(
+                                      application.signedContractOfferLetterS3Key!
+                                    );
                                   }}
                                 >
                                   View Signed Offer
@@ -531,12 +496,6 @@ function ApplicationCard({
                               documentName={inv.document}
                               documentS3Key={inv.documentS3Key}
                               onDownload={onDocumentDownload}
-                              signedOfferLetterAvailable={inv.signedOfferLetterAvailable}
-                              onViewSignedOffer={
-                                onViewSignedInvoiceOffer && inv.signedOfferLetterAvailable
-                                  ? () => onViewSignedInvoiceOffer(application.id, inv.id)
-                                  : undefined
-                              }
                             />
                           </TableCell>
                           <TableCell className="p-3 text-[15px] align-middle text-right tabular-nums whitespace-nowrap">
@@ -613,7 +572,7 @@ function ApplicationCard({
                                 <DropdownMenuContent align="end" className="rounded-xl">
                                   {(() => {
                                     const showViewSignedInvoice =
-                                      inv.signedOfferLetterAvailable && onViewSignedInvoiceOffer;
+                                      !!inv.signedOfferLetterS3Key && onViewSignedInvoiceOffer;
                                     const withdrawInvoiceDisabled =
                                       !canWithdrawInvoice ||
                                       isWithdrawInvoicePending ||
@@ -626,7 +585,9 @@ function ApplicationCard({
                                               className="cursor-pointer"
                                               onClick={(e) => {
                                                 e.stopPropagation();
-                                                void onViewSignedInvoiceOffer!(application.id, inv.id);
+                                                void onViewSignedInvoiceOffer!(
+                                                  inv.signedOfferLetterS3Key!
+                                                );
                                               }}
                                             >
                                               View Signed Offer
@@ -954,33 +915,9 @@ export default function ApplicationsPage() {
     };
   }, [queryClient, apiClient]);
 
-  const handleViewSignedContractOffer = React.useCallback(
-    async (applicationId: string) => {
-      try {
-        const blob = await apiClient.getSignedContractOfferLetterBlob(applicationId);
-        openPdfBlobInNewTab(blob);
-      } catch {
-        toast.error("Could not open signed offer letter");
-      }
-    },
-    [apiClient]
-  );
-
-  const handleViewSignedInvoiceOffer = React.useCallback(
-    async (applicationId: string, invoiceId: string) => {
-      try {
-        const blob = await apiClient.getSignedInvoiceOfferLetterBlob(applicationId, invoiceId);
-        openPdfBlobInNewTab(blob);
-      } catch {
-        toast.error("Could not open signed offer letter");
-      }
-    },
-    [apiClient]
-  );
-
   /** Document download: fetches presigned URL from API, opens in new tab.
       Errors (network, API failure, missing URL) show toast. */
-  const handleDocumentDownload = async (s3Key: string) => {
+  const handleDocumentDownload = React.useCallback(async (s3Key: string) => {
     try {
       const resp = await apiClient.getS3DownloadUrl(s3Key);
       if (!resp.success || !resp.data?.downloadUrl) {
@@ -991,7 +928,21 @@ export default function ApplicationsPage() {
     } catch {
       toast.error("Could not get download link");
     }
-  };
+  }, [apiClient]);
+
+  const handleViewSignedContractOffer = React.useCallback(
+    async (signedOfferLetterS3Key: string) => {
+      await handleDocumentDownload(signedOfferLetterS3Key);
+    },
+    [handleDocumentDownload]
+  );
+
+  const handleViewSignedInvoiceOffer = React.useCallback(
+    async (signedOfferLetterS3Key: string) => {
+      await handleDocumentDownload(signedOfferLetterS3Key);
+    },
+    [handleDocumentDownload]
+  );
 
   const isDev = process.env.NODE_ENV === "development";
 
