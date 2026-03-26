@@ -89,7 +89,9 @@ function canReusePendingOfferSigning(
   if (!os || typeof os !== "object" || Array.isArray(os)) return false;
   const r = os as unknown as OfferSigningRecord;
   if (r.provider !== "signingcloud" || r.status !== "pending") return false;
-  return r.signer_email?.trim() === signerEmail.trim();
+  const a = r.signer_email?.trim().toLowerCase();
+  const b = signerEmail.trim().toLowerCase();
+  return Boolean(a && b && a === b);
 }
 
 function mergeOfferSigningSigned(
@@ -123,6 +125,49 @@ export class ApplicationService {
     this.productRepository = new ProductRepository();
     this.organizationRepository = new OrganizationRepository();
     this.contractRepository = new ContractRepository();
+  }
+
+  /**
+   * Re-fetch manual signing URL for an existing `contractnum`. SigningCloud often rejects a second
+   * `/contract/signature/manual` call while a session is already open; we then fall back to the
+   * last persisted `signing_url` so the issuer can continue with the same document.
+   */
+  private async refreshSigningUrlOrCached(
+    cfg: NonNullable<ReturnType<typeof readSigningCloudConfigFromEnv>>,
+    params: {
+      contractnum: string;
+      signerEmail: string;
+      redirectUrl: string | null;
+      callbackUrl: string | null;
+      cachedSigningUrl?: string | null;
+    }
+  ): Promise<string> {
+    const { contractnum, signerEmail, redirectUrl, callbackUrl, cachedSigningUrl } = params;
+    try {
+      const accessToken = await getSigningCloudAccessToken(cfg);
+      const decryptedManual = await startManualSigning({
+        cfg,
+        accessToken,
+        contractnum,
+        signerEmail,
+        redirectUrl,
+        callbackUrl,
+      });
+      const signingUrl = extractSigningUrlFromManualSigningResponse(decryptedManual);
+      if (signingUrl) {
+        return signingUrl;
+      }
+    } catch (e) {
+      logger.warn(
+        { err: e, contractnumPrefix: contractnum.slice(0, 8) },
+        "SigningCloud manual signing failed on pending-session reuse; will use cached signing_url if available"
+      );
+    }
+    const cached = cachedSigningUrl?.trim();
+    if (cached && /^https?:\/\//i.test(cached)) {
+      return cached;
+    }
+    throw new AppError(502, "SIGNING_PROVIDER_ERROR", "Could not obtain signing URL from provider");
   }
 
   /**
@@ -1656,26 +1701,19 @@ export class ApplicationService {
     }
 
     if (canReusePendingOfferSigning(contract.offer_signing, contract.signing_sc_contractnum, user.email)) {
-      const accessToken = await getSigningCloudAccessToken(cfg);
       const redirectUrl = buildIssuerSigningReturnUrl(applicationId);
       const apiPublic = process.env.API_PUBLIC_URL?.trim().replace(/\/$/, "");
       const callbackUrl =
         process.env.SIGNINGCLOUD_CALLBACK_URL?.trim() ||
         (apiPublic ? `${apiPublic}/v1/webhooks/signingcloud/callback` : null);
-      const decryptedManual = await startManualSigning({
-        cfg,
-        accessToken,
+      const prev = contract.offer_signing as unknown as OfferSigningRecord;
+      const signingUrl = await this.refreshSigningUrlOrCached(cfg, {
         contractnum: contract.signing_sc_contractnum!.trim(),
         signerEmail: user.email.trim(),
         redirectUrl,
         callbackUrl,
+        cachedSigningUrl: prev.signing_url,
       });
-      const signingUrl = extractSigningUrlFromManualSigningResponse(decryptedManual);
-      if (!signingUrl) {
-        logger.error({ keys: Object.keys(decryptedManual) }, "SigningCloud manual signing returned no URL");
-        throw new AppError(502, "SIGNING_PROVIDER_ERROR", "Could not obtain signing URL from provider");
-      }
-      const prev = contract.offer_signing as unknown as OfferSigningRecord;
       const offerSigning: OfferSigningRecord = {
         ...prev,
         signing_url: signingUrl,
@@ -1807,26 +1845,19 @@ export class ApplicationService {
     }
 
     if (canReusePendingOfferSigning(dbInvoice.offer_signing, dbInvoice.signing_sc_contractnum, user.email)) {
-      const accessToken = await getSigningCloudAccessToken(cfg);
       const redirectUrl = buildIssuerSigningReturnUrl(applicationId, invoiceId);
       const apiPublic = process.env.API_PUBLIC_URL?.trim().replace(/\/$/, "");
       const callbackUrl =
         process.env.SIGNINGCLOUD_CALLBACK_URL?.trim() ||
         (apiPublic ? `${apiPublic}/v1/webhooks/signingcloud/callback` : null);
-      const decryptedManual = await startManualSigning({
-        cfg,
-        accessToken,
+      const prev = dbInvoice.offer_signing as unknown as OfferSigningRecord;
+      const signingUrl = await this.refreshSigningUrlOrCached(cfg, {
         contractnum: dbInvoice.signing_sc_contractnum!.trim(),
         signerEmail: user.email.trim(),
         redirectUrl,
         callbackUrl,
+        cachedSigningUrl: prev.signing_url,
       });
-      const signingUrl = extractSigningUrlFromManualSigningResponse(decryptedManual);
-      if (!signingUrl) {
-        logger.error({ keys: Object.keys(decryptedManual) }, "SigningCloud manual signing returned no URL");
-        throw new AppError(502, "SIGNING_PROVIDER_ERROR", "Could not obtain signing URL from provider");
-      }
-      const prev = dbInvoice.offer_signing as unknown as OfferSigningRecord;
       const offerSigning: OfferSigningRecord = {
         ...prev,
         signing_url: signingUrl,
