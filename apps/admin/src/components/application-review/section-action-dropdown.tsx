@@ -5,6 +5,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -27,6 +28,9 @@ export interface SectionActionDropdownProps {
   actionLockTooltip?: string;
   /** When false, hides Approve action (offer-driven sections). */
   showApprove?: boolean;
+  /** When true, menu shows only "View Signed Offer". */
+  viewSignedOfferOnly?: boolean;
+  onViewSignedOffer?: () => void | Promise<void>;
 }
 
 export function SectionActionDropdown({
@@ -41,8 +45,28 @@ export function SectionActionDropdown({
   isActionLocked = false,
   actionLockTooltip,
   showApprove = true,
+  viewSignedOfferOnly = false,
+  onViewSignedOffer,
 }: SectionActionDropdownProps) {
   if (!isReviewable) return null;
+
+  if (viewSignedOfferOnly && onViewSignedOffer) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size="sm" className="rounded-xl gap-1.5" disabled={isPending}>
+            Action
+            <ChevronDownIcon className="h-4 w-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="rounded-xl">
+          <DropdownMenuItem className="rounded-lg" onClick={() => void onViewSignedOffer()}>
+            View Signed Offer
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
 
   const button = (
     <Button
@@ -75,6 +99,14 @@ export function SectionActionDropdown({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="rounded-xl">
+        {onViewSignedOffer && (
+          <>
+            <DropdownMenuItem className="rounded-lg" onClick={() => void onViewSignedOffer()}>
+              View Signed Offer
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         {showApprove && (
           <DropdownMenuItem
             className="rounded-lg"

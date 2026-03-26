@@ -108,6 +108,10 @@ export function ContractSection({
   const offeredExceedsContractValue = contractValue > 0 && offeredFacility > contractValue;
   const isContractApproved = sectionStatus === "APPROVED";
   const isContractFinalizedByIssuer = isContractApproved;
+  const showViewSignedOfferOnlyAction =
+    isContractFinalizedByIssuer &&
+    !!signedContractOfferLetterAvailable &&
+    !!onViewSignedContractOffer;
   const canSendContractOffer =
     !isContractApproved && offeredFacility > 0 && !offeredExceedsContractValue;
 
@@ -136,6 +140,8 @@ export function ContractSection({
       onReject={onReject}
       onRequestAmendment={onRequestAmendment}
       showApprove={false}
+      viewSignedOfferOnly={showViewSignedOfferOnlyAction}
+      onViewSignedOffer={onViewSignedContractOffer}
     >
       {hasData ? (
         <>
@@ -292,18 +298,6 @@ export function ContractSection({
                     >
                       <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                       View
-                    </Button>
-                  )}
-                  {signedContractOfferLetterAvailable && onViewSignedContractOffer && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="rounded-lg h-9 gap-1"
-                      onClick={() => void onViewSignedContractOffer()}
-                      disabled={!!viewSignedOfferLetterPending}
-                    >
-                      <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                      View Signed Offer
                     </Button>
                   )}
                 </div>
