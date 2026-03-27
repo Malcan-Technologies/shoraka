@@ -42,7 +42,7 @@ import { useDevTools } from "@/app/(application-flow)/applications/components/de
 
 /**
  * Mock data for dev Auto Fill. All 15 fields.
- * - turnover: >= 0; plminin, plnpbt, plnpat, plyear: may be negative; plnetdiv: positive.
+ * - turnover: >= 0; plnpbt, plnpat, plyear: may be negative; plnetdiv: positive.
  * - Decimals randomized (2 dp) to match MoneyInput.
  */
 export function generateMockData(): Record<string, unknown> {
@@ -50,7 +50,6 @@ export function generateMockData(): Record<string, unknown> {
   const fyEnd = format(subMonths(today, 6), "dd/MM/yyyy");
   const dataUntil = format(subMonths(today, 1), "dd/MM/yyyy");
   const plnpat = 120000.45;
-  const plminin = -15000.75;
   const plyear = 100000.25;
   return {
     pldd: fyEnd,
@@ -66,7 +65,6 @@ export function generateMockData(): Record<string, unknown> {
     turnover: formatMoney(1200000.56),
     plnpbt: formatMoney(150000.22),
     plnpat: formatMoney(plnpat),
-    plminin: formatMoney(plminin),
     plnetdiv: formatMoney(50000.77),
     plyear: formatMoney(plyear),
   };
@@ -91,7 +89,6 @@ interface FinancialStatementsPayload {
   turnover: string;
   plnpbt: string;
   plnpat: string;
-  plminin: string;
   plnetdiv: string;
   plyear: string;
 }
@@ -110,7 +107,6 @@ const DEFAULT_PAYLOAD: FinancialStatementsPayload = {
   turnover: "",
   plnpbt: "",
   plnpat: "",
-  plminin: "",
   plnetdiv: "",
   plyear: "",
 };
@@ -129,7 +125,6 @@ const LEGACY_KEY_MAP: Record<string, keyof FinancialStatementsPayload> = {
   paid_up: "bsqpuc",
   profit_before_tax: "plnpbt",
   profit_after_tax: "plnpat",
-  minority_interest: "plminin",
   net_dividend: "plnetdiv",
   profit_and_loss_year: "plyear",
 };
@@ -386,7 +381,7 @@ export function FinancialStatementsStep({
     const dateFields: (keyof FinancialStatementsPayload)[] = ["pldd", "bsdd"];
     const moneyFields: (keyof FinancialStatementsPayload)[] = [
       "bsfatot", "othass", "bscatot", "bsclbank", "curlib", "bsslltd", "bsclstd", "bsqpuc",
-      "turnover", "plnpbt", "plnpat", "plminin", "plnetdiv", "plyear",
+      "turnover", "plnpbt", "plnpat", "plnetdiv", "plyear",
     ];
     if (!dateFields.every((k) => hasValue(form[k]))) return false;
     if (bsddIsFuture) return false;
@@ -401,7 +396,7 @@ export function FinancialStatementsStep({
     const dateFields: (keyof FinancialStatementsPayload)[] = ["pldd", "bsdd"];
     const moneyFields: (keyof FinancialStatementsPayload)[] = [
       "bsfatot", "othass", "bscatot", "bsclbank", "curlib", "bsslltd", "bsclstd", "bsqpuc",
-      "turnover", "plnpbt", "plnpat", "plminin", "plnetdiv", "plyear",
+      "turnover", "plnpbt", "plnpat", "plnetdiv", "plyear",
     ];
     if (!dateFields.every((k) => hasValue(form[k]))) return false;
     if (!moneyFields.every((k) => hasValue(form[k]))) return false;
@@ -573,15 +568,6 @@ export function FinancialStatementsStep({
               label={getLabel("plnpat")}
               value={form.plnpat ?? ""}
               onValueChange={(v) => handleFieldChange("plnpat", v)}
-              readOnly={readOnly}
-              allowNegative
-              showNegativeTooltip
-            />
-            <MoneyFieldRow
-              id="plminin"
-              label={getLabel("plminin")}
-              value={form.plminin ?? ""}
-              onValueChange={(v) => handleFieldChange("plminin", v)}
               readOnly={readOnly}
               allowNegative
               showNegativeTooltip
