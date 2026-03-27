@@ -1095,7 +1095,21 @@ export default function InvoiceDetailsStep({
                           </TableHead>
 
                           <TableHead className="w-[150px] whitespace-nowrap text-xs font-semibold">
-                            Maturity Date
+                            <div className="inline-flex items-center gap-0.5">
+                              Maturity Date
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className={fieldTooltipTriggerClassName}>
+                                    <InformationCircleIcon className="h-4 w-4" />
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
+                                  Invoice maturity date is the deadline when your customer is required to pay for this
+                                  invoice. For example, if your invoice date is 1st of January, and your payment term is
+                                  60 days, the maturity date is 1st of March.
+                                </TooltipContent>
+                              </Tooltip>
+                            </div>
                           </TableHead>
 
                           <TableHead className="w-[150px] whitespace-nowrap text-xs font-semibold">
@@ -1254,15 +1268,9 @@ export default function InvoiceDetailsStep({
                                         updateInvoiceField(inv.id, "financing_ratio_percent", Math.round(value[0]))
                                       }
                                       className={cn(
-                                        "relative",
-                                        "[&_[data-orientation=horizontal]]:h-1.5",
-                                        "[&_[data-orientation=horizontal]]:bg-muted",
-                                        "[&_[data-orientation=horizontal]>span]:bg-primary",
-                                        "[&_[role=slider]]:h-4 [&_[role=slider]]:w-4",
-                                        "[&_[role=slider]]:border-2 [&_[role=slider]]:border-primary",
-                                        "[&_[role=slider]]:bg-background [&_[role=slider]]:shadow-none",
+                                        "relative w-full max-w-full",
                                         !isEditable &&
-                                          "data-[disabled]:[&_[data-orientation=horizontal]]:bg-muted data-[disabled]:[&_[data-orientation=horizontal]>span]:bg-muted-foreground/60 data-[disabled]:[&_[role=slider]]:border-muted-foreground/50 data-[disabled]:[&_[role=slider]]:bg-muted data-[disabled]:[&_[role=slider]]:opacity-100"
+                                          "opacity-100 [&_[data-disabled]]:opacity-100 [&_.relative.h-2]:bg-muted [&_span.absolute]:bg-muted-foreground/50 [&_button]:border-muted-foreground/50 [&_button]:bg-muted"
                                       )}
                                     />
                                   </div>
