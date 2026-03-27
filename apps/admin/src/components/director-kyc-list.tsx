@@ -99,6 +99,11 @@ export function DirectorKycList({ directors, isRefreshing }: DirectorKycListProp
           <div>
             <span className="font-medium">Role:</span> {person.role}
           </div>
+          {person.governmentIdNumber && (
+            <div>
+              <span className="font-medium">IC:</span> {person.governmentIdNumber}
+            </div>
+          )}
           {person.kycId && (
             <div>
               <span className="font-medium">KYC ID:</span> {person.kycId}

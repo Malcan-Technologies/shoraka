@@ -54,6 +54,7 @@ import {
 import { AMLFetcherService } from "../regtank/aml-fetcher";
 import type { PortalType } from "../regtank/types";
 import { extractCorporateEntities } from "../regtank/helpers/extract-corporate-entities";
+import { extractGovernmentIdFromCorporateUserInfo } from "../regtank/helpers/extract-government-id";
 import { logApplicationActivity } from "../applications/logs/service";
 import { ActivityPortal } from "../applications/logs/types";
 
@@ -3416,6 +3417,7 @@ export class AdminService {
         role: string;
         kycStatus: string;
         kycId?: string;
+        governmentIdNumber?: string;
         lastUpdated: string;
       }>();
 
@@ -3440,6 +3442,8 @@ export class AdminService {
             userInfo?.email ||
             "";
           const name = `${firstName} ${lastName}`.trim() || userInfo?.fullName || "";
+          const governmentIdNumber =
+            extractGovernmentIdFromCorporateUserInfo(userInfo as Record<string, unknown>) || undefined;
 
           const mapKey = normalizeKey(name, email);
 
@@ -3487,6 +3491,7 @@ export class AdminService {
             role: designation || "Director",
             kycStatus,
             kycId,
+            governmentIdNumber,
             lastUpdated: new Date().toISOString(),
           });
         }
@@ -3513,6 +3518,8 @@ export class AdminService {
           const sharePercent =
             typedFormContent.find((f) => f.fieldName === "% of Shares")?.fieldValue || "";
           const name = `${firstName} ${lastName}`.trim() || userInfo?.fullName || "";
+          const shareholderGovernmentId =
+            extractGovernmentIdFromCorporateUserInfo(userInfo as Record<string, unknown>) || undefined;
 
           const mapKey = normalizeKey(name, email);
           const existingDirector = directorsMap.get(mapKey);
@@ -3623,6 +3630,10 @@ export class AdminService {
               existingDirector.kycStatus = kycStatus;
             }
 
+            if (!existingDirector.governmentIdNumber && shareholderGovernmentId) {
+              existingDirector.governmentIdNumber = shareholderGovernmentId;
+            }
+
             existingDirector.lastUpdated = new Date().toISOString();
           } else {
             // Person is only a shareholder - add as new entry
@@ -3633,6 +3644,7 @@ export class AdminService {
               role: shareholderRole,
               kycStatus,
               kycId,
+              governmentIdNumber: shareholderGovernmentId,
               lastUpdated: new Date().toISOString(),
             });
           }

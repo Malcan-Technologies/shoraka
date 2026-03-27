@@ -63,6 +63,21 @@ export function DirectorsShareholdersCard({
     return "Director";
   };
 
+  const getGovernmentId = (entity: Record<string, unknown>): string | null => {
+    const personalInfo = entity.personalInfo as Record<string, unknown> | undefined;
+    if (personalInfo?.governmentIdNumber) {
+      return String(personalInfo.governmentIdNumber).trim() || null;
+    }
+    const formContent = personalInfo?.formContent as
+      | { content?: Array<{ fieldName?: string; fieldValue?: unknown }> }
+      | undefined;
+    const field = formContent?.content?.find((f) => f.fieldName === "Government ID Number");
+    if (field?.fieldValue != null && String(field.fieldValue).trim() !== "") {
+      return String(field.fieldValue).trim();
+    }
+    return null;
+  };
+
   // Helper to extract share percentage from shareholder
   const getSharePercentage = (entity: Record<string, unknown>): string => {
     const personalInfo = entity.personalInfo as Record<string, unknown> | undefined;
@@ -133,13 +148,22 @@ export function DirectorsShareholdersCard({
                 const name = getName(director);
                 const email = getEmail(director);
                 const designation = getDesignation(director);
+                const ic = getGovernmentId(director);
                 return (
                   <div
                     key={index}
                     className="flex items-center justify-between p-4 rounded-lg border bg-muted/30"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">{name}</p>
+                      <p className="font-medium text-sm">
+                        {name}
+                        {ic && (
+                          <span className="font-normal text-muted-foreground">
+                            {" "}
+                            · IC {ic}
+                          </span>
+                        )}
+                      </p>
                       <p className="text-xs text-muted-foreground mt-1">{email}</p>
                       <p className="text-xs text-muted-foreground mt-1">{designation}</p>
                     </div>
@@ -167,13 +191,22 @@ export function DirectorsShareholdersCard({
                 const role = sharePercent
                   ? `Shareholder (${sharePercent}%)`
                   : "Shareholder";
+                const ic = getGovernmentId(shareholder);
                 return (
                   <div
                     key={index}
                     className="flex items-center justify-between p-4 rounded-lg border bg-muted/30"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">{name}</p>
+                      <p className="font-medium text-sm">
+                        {name}
+                        {ic && (
+                          <span className="font-normal text-muted-foreground">
+                            {" "}
+                            · IC {ic}
+                          </span>
+                        )}
+                      </p>
                       <p className="text-xs text-muted-foreground mt-1">{email}</p>
                       <p className="text-xs text-muted-foreground mt-1">{role}</p>
                     </div>
