@@ -195,15 +195,6 @@ const FINANCIAL_ROW_DEFS: FinancialRowDef[] = [
     },
   },
   {
-    id: "plminin",
-    label: FINANCIAL_FIELD_LABELS.plminin,
-    getValue: (fs) => {
-      const v = fs.plminin;
-      if (v == null || v === "") return "—";
-      return formatCurrency(toNum(v), { decimals: 0 });
-    },
-  },
-  {
     id: "plnetdiv",
     label: FINANCIAL_FIELD_LABELS.plnetdiv,
     getValue: (fs) => {

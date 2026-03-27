@@ -189,7 +189,7 @@ export function BusinessSection({
                       ? formatCurrency(view.whyRaisingFunds.amountRaised)
                       : REVIEW_EMPTY_LABEL}
                   </div>
-                  <Label className={reviewLabelClass}>Is the Same Invoice Being Used?</Label>
+                  <Label className={reviewLabelClass}>Have the same invoices been used to apply for funding in the aforementioned platform?</Label>
                   <span className={yesNoScaleWrapper}>
                     <YesNoRadioDisplay value={view.whyRaisingFunds.sameInvoiceUsed} />
                   </span>

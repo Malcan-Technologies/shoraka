@@ -68,8 +68,8 @@ interface FormState {
   bankName: string;
   bankAccountNumber: string;
   contactPersonName: string;
+  contactPersonEmail: string;
   contactPersonPosition: string;
-  contactPersonIc: string;
   contactPersonContact: string;
 }
 
@@ -128,7 +128,6 @@ function normalizeName(name: string): string {
 const BANK_ACCOUNT_REGEX = /^\d*$/;
 const BANK_ACCOUNT_MIN_LENGTH = 10;
 const BANK_ACCOUNT_MAX_LENGTH = 18;
-const IC_NUMBER_REGEX = /^\d*$/;
 
 function isValidNumberOfEmployees(value: string): boolean {
   const n = Number.parseInt(value.trim(), 10);
@@ -136,10 +135,6 @@ function isValidNumberOfEmployees(value: string): boolean {
 }
 
 function restrictDigitsOnly(value: string): string {
-  return value.replace(/\D/g, "");
-}
-
-function restrictIcNumber(value: string): string {
   return value.replace(/\D/g, "");
 }
 
@@ -222,8 +217,8 @@ export function CompanyDetailsStep({
     bankName: "",
     bankAccountNumber: "",
     contactPersonName: "",
+    contactPersonEmail: "",
     contactPersonPosition: "",
-    contactPersonIc: "",
     contactPersonContact: "",
   });
 
@@ -262,8 +257,8 @@ export function CompanyDetailsStep({
       bankName: getBankField(bankDetails, "Bank"),
       bankAccountNumber: getBankField(bankDetails, "Bank account number"),
       contactPersonName: (savedContactPerson?.name as string) || "",
+      contactPersonEmail: (savedContactPerson?.email as string) || "",
       contactPersonPosition: (savedContactPerson?.position as string) || "",
-      contactPersonIc: (savedContactPerson?.ic as string) || "",
       contactPersonContact: (savedContactPerson?.contact as string) || "",
     };
 
@@ -286,16 +281,13 @@ export function CompanyDetailsStep({
       errors.push("Applicant name is required");
       fieldErrors.contactPersonName = "Required";
     }
+    if (!formState.contactPersonEmail?.trim()) {
+      errors.push("Applicant email is required");
+      fieldErrors.contactPersonEmail = "Required";
+    }
     if (!formState.contactPersonPosition?.trim()) {
       errors.push("Applicant position is required");
       fieldErrors.contactPersonPosition = "Required";
-    }
-    if (!formState.contactPersonIc?.trim()) {
-      errors.push("Applicant IC number is required");
-      fieldErrors.contactPersonIc = "Required";
-    } else if (!IC_NUMBER_REGEX.test(formState.contactPersonIc)) {
-      errors.push("Applicant IC number must contain only digits");
-      fieldErrors.contactPersonIc = "Digits only";
     }
     if (!formState.contactPersonContact?.trim()) {
       errors.push("Applicant contact is required");
@@ -436,8 +428,8 @@ export function CompanyDetailsStep({
       return {
         contact_person: {
           name: formState.contactPersonName.trim(),
+          email: formState.contactPersonEmail.trim(),
           position: formState.contactPersonPosition.trim(),
-          ic: formState.contactPersonIc.trim(),
           contact: formState.contactPersonContact.trim(),
         },
       };
@@ -451,7 +443,7 @@ export function CompanyDetailsStep({
     apiClient,
     queryClient,
     validateAll,
-    effectiveCanEdit, 
+    effectiveCanEdit,
   ]);
 
   /* ================================================================
@@ -463,8 +455,8 @@ export function CompanyDetailsStep({
       isValidAddress(formState.businessAddress) &&
       isValidAddress(formState.registeredAddress) &&
       formState.contactPersonName?.trim() &&
+      formState.contactPersonEmail?.trim() &&
       formState.contactPersonPosition?.trim() &&
-      formState.contactPersonIc?.trim() &&
       formState.contactPersonContact?.trim() &&
       formState.industry?.trim() &&
       formState.numberOfEmployees?.trim() &&
@@ -494,7 +486,6 @@ export function CompanyDetailsStep({
       contact_person: {
         name: formState.contactPersonName,
         position: formState.contactPersonPosition,
-        ic: formState.contactPersonIc,
         contact: formState.contactPersonContact,
       },
       saveFunction,
@@ -875,6 +866,33 @@ export function CompanyDetailsStep({
               )}
             </div>
 
+            <div className={labelClassNameEditable}>Applicant email</div>
+            <div className="flex flex-col gap-1">
+              <Input
+                value={formState.contactPersonEmail}
+                onChange={(e) =>
+                  setFormState((prev) => ({
+                    ...prev,
+                    contactPersonEmail: e.target.value,
+                  }))
+                }
+                disabled={!effectiveCanEdit}
+                placeholder="eg. john.doe@example.com"
+                className={cn(
+                  withFieldError(
+                    inputClassNameEditable,
+                    Boolean(fieldErrors.contactPersonEmail)
+                  ),
+                  !effectiveCanEdit && formInputDisabledClassName
+                )}
+              />
+              {fieldErrors.contactPersonEmail && (
+                <p className="text-xs text-destructive">
+                  {fieldErrors.contactPersonEmail}
+                </p>
+              )}
+            </div>
+
             <div className={labelClassNameEditable}>Applicant position</div>
             <div className="flex flex-col gap-1">
               <Input
@@ -898,33 +916,6 @@ export function CompanyDetailsStep({
               {fieldErrors.contactPersonPosition && (
                 <p className="text-xs text-destructive">
                   {fieldErrors.contactPersonPosition}
-                </p>
-              )}
-            </div>
-
-            <div className={labelClassNameEditable}>Applicant IC no</div>
-            <div className="flex flex-col gap-1">
-              <Input
-                value={formState.contactPersonIc}
-                onChange={(e) =>
-                  setFormState((prev) => ({
-                    ...prev,
-                    contactPersonIc: restrictIcNumber(e.target.value),
-                  }))
-                }
-                disabled={!effectiveCanEdit}
-                placeholder="eg. 1234567890"
-                className={cn(
-                  withFieldError(
-                    inputClassNameEditable,
-                    Boolean(fieldErrors.contactPersonIc)
-                  ),
-                  !effectiveCanEdit && formInputDisabledClassName
-                )}
-              />
-              {fieldErrors.contactPersonIc && (
-                <p className="text-xs text-destructive">
-                  {fieldErrors.contactPersonIc}
                 </p>
               )}
             </div>

@@ -758,7 +758,7 @@ export function BusinessDetailsStep({
               </div>
 
               <Label className={labelClassName}>
-                Is the same invoice being used?
+                Have the same invoices been used to apply for funding in the aforementioned platform?
               </Label>
               <YesNoRadioGroup
                 name="sameInvoiceUsed"

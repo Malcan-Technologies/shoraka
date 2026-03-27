@@ -52,8 +52,23 @@ import { formatMoney, parseMoney } from "@cashsouk/ui";
 import { MoneyInput } from "@cashsouk/ui";
 import { format, parse, isValid, parseISO } from "date-fns";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
+import { getCountries, type Country } from "react-phone-number-input";
+import phoneLabelsEn from "react-phone-number-input/locale/en.json";
+import phoneFlags from "react-phone-number-input/flags";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+/**
+ * Same ISO country set as default `PhoneInput` / libphonenumber-js `min` metadata.
+ */
+const PHONE_SUPPORTED_COUNTRIES = getCountries()
+  .map((code) => {
+    const name = phoneLabelsEn[code as keyof typeof phoneLabelsEn];
+    if (typeof name !== "string") return null;
+    return { code, name };
+  })
+  .filter((c): c is NonNullable<typeof c> => c !== null)
+  .sort((a, b) => a.name.localeCompare(b.name));
 
 /** Mock data for dev Auto Fill. financing <= value; dates d/M/yyyy; SSM 12 digits. */
 export function generateMockData(): Record<string, unknown> {
@@ -94,12 +109,6 @@ const ENTITY_TYPES = [
   "State Government Agency",
   "Unlisted Public Company",
 ];
-
-const COUNTRIES = [
-  { code: "MY", name: "Malaysia", flag: "🇲🇾" },
-  { code: "SG", name: "Singapore", flag: "🇸🇬" },
-];
-
 
 /* ================================================================
    VALIDATION HELPERS
@@ -342,7 +351,6 @@ function FileUploadArea({
     const fileSizeBytes = typeof rawSize === "number" && rawSize >= 0 ? rawSize : 0;
     const sizeDisplay = fileSizeBytes > 0 ? formatFileSize(fileSizeBytes) : "—";
     const isPending = !!pendingFile;
-    const statusText = isPending ? " (Uploading…)" : "";
 
     return (
       <div className="border border-border rounded-xl px-4 py-3 flex items-center justify-between gap-3 bg-card/50">
@@ -364,7 +372,6 @@ function FileUploadArea({
             <div className="text-sm font-medium truncate">{fileName}</div>
             <div className="text-xs text-muted-foreground">
               {sizeDisplay}
-              {statusText}
             </div>
           </div>
         </div>
@@ -1087,6 +1094,14 @@ export function ContractDetailsStep({
   const sectionHeaderClassName = "text-base font-semibold text-foreground";
   const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center";
 
+  const customerCountryCode = formData.customer.country as Country;
+  const customerCountryName =
+    PHONE_SUPPORTED_COUNTRIES.find((c) => c.code === customerCountryCode)?.name ??
+    (typeof phoneLabelsEn[customerCountryCode as keyof typeof phoneLabelsEn] === "string"
+      ? (phoneLabelsEn[customerCountryCode as keyof typeof phoneLabelsEn] as string)
+      : customerCountryCode);
+  const CustomerCountryFlag = phoneFlags[customerCountryCode];
+
   return (
     <>
       <div className="space-y-10 px-3">
@@ -1140,7 +1155,19 @@ export function ContractDetailsStep({
               />
             </div>
 
-            <Label className={labelClassName}>Contract Financing</Label>
+            <div className={cn("flex items-center", fieldTooltipLabelGap)}>
+              <Label className={labelClassName}>Financing Amount</Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className={fieldTooltipTriggerClassName}>
+                    <InformationCircleIcon className="h-4 w-4" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
+                  This refers to how much financing you would like to apply. Financing amount should not exceed your contract amount.
+                </TooltipContent>
+              </Tooltip>
+            </div>
             <div className="space-y-1">
               <div className="h-11 flex items-center">
                 <MoneyInput
@@ -1319,26 +1346,41 @@ export function ContractDetailsStep({
               )}
             </div>
 
-            <Label className={labelClassName}>Customer Country</Label>
-            <Select
-              value={formData.customer.country}
-              onValueChange={(value) => handleInputChange("customer", "country", value)}
-              disabled={!stepIsEditable}
+            <Label htmlFor="contract-customer-country" className={labelClassName}>
+              Customer Country
+            </Label>
+            <div
+              className={cn(
+                "flex h-11 w-full items-center gap-2 rounded-xl border border-input bg-background px-3",
+                "focus-within:border-primary focus-within:outline-none focus-within:ring-0",
+                !stepIsEditable && formInputDisabledClassName
+              )}
             >
-              <SelectTrigger className={cn(formSelectTriggerClassName, !stepIsEditable && formInputDisabledClassName)}>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {COUNTRIES.map((country) => (
-                  <SelectItem key={country.code} value={country.code}>
-                    <div className="flex items-center gap-2">
-                      <span>{country.flag}</span>
-                      <span>{country.name}</span>
-                    </div>
-                  </SelectItem>
+              <span
+                className="inline-flex h-5 w-7 shrink-0 items-center justify-center overflow-hidden bg-muted/30 [&_svg]:block [&_svg]:h-full [&_svg]:w-full"
+                aria-hidden
+              >
+                {CustomerCountryFlag ? (
+                  <CustomerCountryFlag title={customerCountryName} />
+                ) : null}
+              </span>
+              <select
+                id="contract-customer-country"
+                value={formData.customer.country}
+                onChange={(e) => handleInputChange("customer", "country", e.target.value)}
+                disabled={!stepIsEditable}
+                className={cn(
+                  "min-h-0 min-w-0 flex-1 border-0 bg-transparent py-2 text-sm text-foreground outline-none focus:ring-0",
+                  stepIsEditable ? "cursor-pointer" : "cursor-not-allowed"
+                )}
+              >
+                {PHONE_SUPPORTED_COUNTRIES.map(({ code, name }) => (
+                  <option key={code} value={code}>
+                    {name}
+                  </option>
                 ))}
-              </SelectContent>
-            </Select>
+              </select>
+            </div>
 
             <div className={cn("flex items-center", fieldTooltipLabelGap)}>
               <Label className={labelClassName}>Is the Customer Related to You?</Label>

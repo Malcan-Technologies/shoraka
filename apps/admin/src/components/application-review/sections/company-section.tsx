@@ -99,8 +99,8 @@ export function CompanySection({
     | Record<string, unknown>
     | undefined;
   const cpName = contactPerson?.name != null ? String(contactPerson.name).trim() : "";
+  const cpEmail = contactPerson?.email != null ? String(contactPerson.email).trim() : "";
   const cpPosition = contactPerson?.position != null ? String(contactPerson.position).trim() : "";
-  const cpIc = contactPerson?.ic != null ? String(contactPerson.ic).trim() : "";
   const cpContact = contactPerson?.contact != null ? String(contactPerson.contact).trim() : "";
 
   const emptyDash = "—";
@@ -193,10 +193,10 @@ export function CompanySection({
         <div className={reviewRowGridClass}>
           <Label className={reviewLabelClass}>Applicant Name</Label>
           <div className={reviewValueClass}>{cpName || REVIEW_EMPTY_LABEL}</div>
+          <Label className={reviewLabelClass}>Applicant Email</Label>
+          <div className={reviewValueClass}>{cpEmail || REVIEW_EMPTY_LABEL}</div>
           <Label className={reviewLabelClass}>Applicant Position</Label>
           <div className={reviewValueClass}>{cpPosition || REVIEW_EMPTY_LABEL}</div>
-          <Label className={reviewLabelClass}>Applicant IC No</Label>
-          <div className={reviewValueClass}>{cpIc || REVIEW_EMPTY_LABEL}</div>
           <Label className={reviewLabelClass}>Applicant Contact</Label>
           <div className={reviewValueClass}>{cpContact || REVIEW_EMPTY_LABEL}</div>
         </div>
