@@ -1,6 +1,7 @@
 import { BaseWebhookHandler } from "./base-webhook-handler";
 import { RegTankCODWebhook } from "../types";
 import { extractCorporateEntities } from "../helpers/extract-corporate-entities";
+import { extractGovernmentIdFromCorporateUserInfo } from "../helpers/extract-government-id";
 import { logger } from "../../../lib/logger";
 import { AppError } from "../../../lib/http/error-handler";
 import { RegTankRepository } from "../repository";
@@ -264,6 +265,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           role: string;
           kycStatus: string;
           kycId?: string;
+          governmentIdNumber?: string;
           lastUpdated: string;
         }>();
 
@@ -280,6 +282,8 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             const designation = formContent.find((f: any) => f.fieldName === "Designation")?.fieldValue || "";
             const email = formContent.find((f: any) => f.fieldName === "Email Address")?.fieldValue || userInfo?.email || "";
             const name = `${firstName} ${lastName}`.trim() || userInfo?.fullName || "";
+            const governmentIdNumber =
+              extractGovernmentIdFromCorporateUserInfo(userInfo as Record<string, unknown>) || undefined;
 
             const mapKey = normalizeKey(name, email);
 
@@ -326,6 +330,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               role: designation || "Director",
               kycStatus,
               kycId,
+              governmentIdNumber,
               lastUpdated: new Date().toISOString(),
             });
           }
@@ -344,6 +349,8 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             const email = formContent.find((f: any) => f.fieldName === "Email Address")?.fieldValue || userInfo?.email || "";
             const sharePercent = formContent.find((f: any) => f.fieldName === "% of Shares")?.fieldValue || "";
             const name = `${firstName} ${lastName}`.trim() || userInfo?.fullName || "";
+            const shareholderGovernmentId =
+              extractGovernmentIdFromCorporateUserInfo(userInfo as Record<string, unknown>) || undefined;
 
             const mapKey = normalizeKey(name, email);
             const existingDirector = directorsMap.get(mapKey);
@@ -467,6 +474,10 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 }
               }
 
+              if (!existingDirector.governmentIdNumber && shareholderGovernmentId) {
+                existingDirector.governmentIdNumber = shareholderGovernmentId;
+              }
+
               existingDirector.lastUpdated = new Date().toISOString();
             } else {
               // Person is only a shareholder - add as new entry
@@ -477,6 +488,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 role: shareholderRole,
                 kycStatus,
                 kycId,
+                governmentIdNumber: shareholderGovernmentId,
                 lastUpdated: new Date().toISOString(),
               });
             }

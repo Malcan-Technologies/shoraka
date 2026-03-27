@@ -657,6 +657,22 @@ function CorporateEntitiesDisplay({
       email = String(info?.email || "—");
     }
 
+    let icLabel: string | null = null;
+    if (!isCorporate) {
+      const info = person.personalInfo as Record<string, unknown> | undefined;
+      const fromField = info?.governmentIdNumber
+        ? String(info.governmentIdNumber).trim()
+        : null;
+      const formContent = info?.formContent as
+        | { content?: Array<{ fieldName?: string; fieldValue?: unknown }> }
+        | undefined;
+      const fromForm = formContent?.content?.find((f) => f.fieldName === "Government ID Number")
+        ?.fieldValue;
+      const fromFormStr =
+        fromForm != null && String(fromForm).trim() !== "" ? String(fromForm).trim() : null;
+      icLabel = fromField || fromFormStr;
+    }
+
     const idLabel = isCorporate ? "COD" : "EOD";
     const idValue = isCorporate ? codRequestId : eodRequestId;
     const hasDetails = idValue || typeof docs?.frontDocumentUrl === "string" || typeof docs?.backDocumentUrl === "string";
@@ -665,7 +681,15 @@ function CorporateEntitiesDisplay({
       <div key={idx} className="py-2.5 first:pt-0 last:pb-0 border-b last:border-0">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm font-medium">{name}</p>
+            <p className="text-sm font-medium">
+              {name}
+              {icLabel && (
+                <span className="font-normal text-muted-foreground">
+                  {" "}
+                  · IC {icLabel}
+                </span>
+              )}
+            </p>
             <p className="text-xs text-muted-foreground">{email}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -838,6 +862,9 @@ function DirectorStatusDisplay({
             const status = dir[statusKey] ? String(dir[statusKey]) : (dir.amlStatus ? String(dir.amlStatus) : null);
             const kycId = dir.kycId ? String(dir.kycId) : null;
             const eodId = dir.eodRequestId ? String(dir.eodRequestId) : null;
+            const governmentIdNumber = dir.governmentIdNumber
+              ? String(dir.governmentIdNumber)
+              : null;
             const riskLevel = dir.amlRiskLevel ? String(dir.amlRiskLevel) : null;
             const riskScore = dir.amlRiskScore ? String(dir.amlRiskScore) : null;
 
@@ -871,7 +898,8 @@ function DirectorStatusDisplay({
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground font-mono">
+                <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground font-mono flex-wrap">
+                  {governmentIdNumber && <span>IC: {governmentIdNumber}</span>}
                   {kycId && <span>KYC: {kycId}</span>}
                   {eodId && <span>EOD: {eodId}</span>}
                   {riskScore && <span>Score: {riskScore}</span>}

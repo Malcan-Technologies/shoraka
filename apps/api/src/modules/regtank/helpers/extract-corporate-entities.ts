@@ -1,3 +1,5 @@
+import { extractGovernmentIdFromCorporateUserInfo } from "./extract-government-id";
+
 /**
  * Shared helper to extract corporate entities from RegTank COD details.
  * Used by COD webhook handler and admin refresh endpoint.
@@ -18,6 +20,9 @@ export function extractCorporateEntities(codDetails: {
       fullName: (d.corporateUserRequestInfo as Record<string, unknown>)?.fullName || null,
       email: (d.corporateUserRequestInfo as Record<string, unknown>)?.email || null,
       formContent: (d.corporateUserRequestInfo as Record<string, unknown>)?.formContent || null,
+      governmentIdNumber: extractGovernmentIdFromCorporateUserInfo(
+        d.corporateUserRequestInfo as Record<string, unknown> | undefined
+      ),
     },
     documents: {
       documentType: (d.corporateDocumentInfo as Record<string, unknown>)?.documentType || null,
@@ -45,6 +50,9 @@ export function extractCorporateEntities(codDetails: {
       fullName: (s.corporateUserRequestInfo as Record<string, unknown>)?.fullName || null,
       email: (s.corporateUserRequestInfo as Record<string, unknown>)?.email || null,
       formContent: (s.corporateUserRequestInfo as Record<string, unknown>)?.formContent || null,
+      governmentIdNumber: extractGovernmentIdFromCorporateUserInfo(
+        s.corporateUserRequestInfo as Record<string, unknown> | undefined
+      ),
     },
     documents: {
       documentType: (s.corporateDocumentInfo as Record<string, unknown>)?.documentType || null,

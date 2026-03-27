@@ -638,6 +638,8 @@ export interface DirectorKycStatus {
   role: string; // "Director", "Shareholder", etc.
   kycStatus: "PENDING" | "EMAIL_SENT" | "LIVENESS_STARTED" | "LIVENESS_PASSED" | "WAIT_FOR_APPROVAL" | "APPROVED" | "REJECTED";
   kycId?: string;
+  /** IC / national ID from RegTank form (Government ID Number) */
+  governmentIdNumber?: string;
   lastUpdated: string; // ISO timestamp
 }
 
@@ -654,6 +656,7 @@ export interface DirectorAmlStatus {
   name: string;
   email: string;
   role: string; // "Director", "Shareholder", etc.
+  governmentIdNumber?: string;
   amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
   amlMessageStatus: "DONE" | "PENDING" | "ERROR";
   amlRiskScore: number | null;

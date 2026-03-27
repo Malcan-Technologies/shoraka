@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import { getRegTankAPIClient } from "./api-client";
 import { AmlIdentityRepository } from "./aml-identity-repository";
 import type { PortalType } from "./types";
+import { extractGovernmentIdFromCorporateUserInfo } from "./helpers/extract-government-id";
 
 interface DirectorAMLStatus {
   kycId: string;
@@ -11,6 +12,7 @@ interface DirectorAMLStatus {
   name: string;
   email: string;
   role: string;
+  governmentIdNumber?: string;
   amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
   amlMessageStatus: "DONE" | "PENDING" | "ERROR";
   amlRiskScore: number | null;
@@ -185,6 +187,8 @@ export class AMLFetcherService {
         const designation = formContent.find((f: any) => f.fieldName === "Designation")?.fieldValue || "";
         const email = formContent.find((f: any) => f.fieldName === "Email Address")?.fieldValue || userInfo?.email || "";
         const name = `${firstName} ${lastName}`.trim() || userInfo?.fullName || "";
+        const governmentIdNumber =
+          extractGovernmentIdFromCorporateUserInfo(userInfo as Record<string, unknown>) || undefined;
 
         try {
           // Step 4: Get EOD details to extract kycRequestInfo
@@ -209,11 +213,13 @@ export class AMLFetcherService {
           );
 
           if (existingDirectorIndex !== -1) {
+            const prev = directorKycStatus.directors[existingDirectorIndex] as Record<string, unknown>;
             // Update existing director with kycRequestInfo
             directorKycStatus.directors[existingDirectorIndex] = {
-              ...directorKycStatus.directors[existingDirectorIndex],
+              ...prev,
               kycId,
               kycRequestInfo: kycRequestInfo || undefined,
+              governmentIdNumber: (prev.governmentIdNumber as string | undefined) || governmentIdNumber,
               lastUpdated: new Date().toISOString(),
             };
           } else {
@@ -226,6 +232,7 @@ export class AMLFetcherService {
               kycStatus: director.corporateIndividualRequest?.status || "PENDING",
               kycId,
               kycRequestInfo: kycRequestInfo || undefined,
+              governmentIdNumber,
               lastUpdated: new Date().toISOString(),
             });
           }
@@ -255,6 +262,7 @@ export class AMLFetcherService {
             name,
             email,
             role: designation || "Director",
+            governmentIdNumber,
             amlStatus,
             amlMessageStatus,
             amlRiskScore,
@@ -385,6 +393,8 @@ export class AMLFetcherService {
         const email = formContent.find((f: any) => f.fieldName === "Email Address")?.fieldValue || userInfo?.email || "";
         const name = `${firstName} ${lastName}`.trim() || userInfo?.fullName || "";
         const role = `Shareholder${sharePercent ? ` (${sharePercent}%)` : ""}`;
+        const shareholderGovernmentId =
+          extractGovernmentIdFromCorporateUserInfo(userInfo as Record<string, unknown>) || undefined;
 
         try {
           // Step 4: Get EOD details to extract kycRequestInfo
@@ -411,13 +421,15 @@ export class AMLFetcherService {
 
           if (existingDirectorIndex !== -1) {
             // Person is both director and shareholder - merge roles
-            const existing = directorKycStatus.directors[existingDirectorIndex];
+            const existing = directorKycStatus.directors[existingDirectorIndex] as Record<string, unknown>;
             directorKycStatus.directors[existingDirectorIndex] = {
               ...existing,
               role: `${existing.role}, ${role}`,
               shareholderEodRequestId: eodRequestId,
-              kycId: existing.kycId || kycId,
+              kycId: (existing.kycId as string | undefined) || kycId,
               kycRequestInfo: existing.kycRequestInfo || kycRequestInfo || undefined,
+              governmentIdNumber:
+                (existing.governmentIdNumber as string | undefined) || shareholderGovernmentId,
               lastUpdated: new Date().toISOString(),
             };
           } else {
@@ -430,6 +442,7 @@ export class AMLFetcherService {
               kycStatus: shareholder.corporateIndividualRequest?.status || "PENDING",
               kycId,
               kycRequestInfo: kycRequestInfo || undefined,
+              governmentIdNumber: shareholderGovernmentId,
               lastUpdated: new Date().toISOString(),
             });
           }
@@ -459,6 +472,7 @@ export class AMLFetcherService {
             name,
             email,
             role,
+            governmentIdNumber: shareholderGovernmentId,
             amlStatus,
             amlMessageStatus,
             amlRiskScore,
