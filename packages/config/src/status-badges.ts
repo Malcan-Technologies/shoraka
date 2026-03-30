@@ -2,8 +2,8 @@
  * Centralized status badge config. Colors grouped by meaning:
  * - action: Draft, Amendment Requested — user must act
  * - submitted: Submitted, Resubmitted — waiting for admin pickup
- * - in-progress: Under Review, Contract/Invoice Pending/Sent — admin processing
- * - success: Approved, Completed, Offer Sent, Contract Accepted — done
+ * - in-progress: Under Review, Contract/Invoice Pending/Sent, Offer Sent — admin processing / awaiting issuer
+ * - success: Approved, Completed, Contract Accepted — done
  * - rejected: Rejected, Withdrawn — negative outcome
  * - neutral: Pending, Archived — inactive
  */
@@ -104,10 +104,10 @@ const STATUS_PRESENTATION: Record<string, Omit<StatusPresentation, "label"> & { 
   },
   OFFER_SENT: {
     label: "Offer Sent",
-    badgeClass: GROUP.success,
-    iconClass: "text-emerald-700 dark:text-emerald-400",
-    dotClass: DOT.success,
-    variant: "success",
+    badgeClass: GROUP["in-progress"],
+    iconClass: "text-indigo-600 dark:text-indigo-400",
+    dotClass: DOT["in-progress"],
+    variant: "in_progress",
   },
   AMENDMENT_REQUESTED: {
     label: "Amendment Requested",
