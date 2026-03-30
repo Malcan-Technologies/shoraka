@@ -8,6 +8,7 @@ import { ItemActionDropdown } from "@/components/application-review/item-action-
 import { ReviewStepStatusBadge } from "@/components/application-review/review-step-status-badge";
 import { REVIEW_EMPTY_LABEL } from "@/components/application-review/review-section-styles";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Slider } from "@cashsouk/ui";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -311,6 +312,8 @@ export function InvoiceList({
             const reviewItemStatus = getItemStatus(inv, reviewItems, scopeKey);
             const isInvoiceWithdrawn = (inv.status?.toString().toUpperCase() ?? "") === "WITHDRAWN";
             const status = isInvoiceWithdrawn ? "WITHDRAWN" : reviewItemStatus;
+            /** Admin rejected this invoice in review; offer stays locked until reset to pending. */
+            const isAdminRejected = reviewItemStatus === "REJECTED";
             const isRowReadOnly = readOnlyInvoiceIds?.has(inv.id) ?? false;
             const isTabLocked = !!isActionLocked || !isReviewable;
             const isInvoiceFinalizedByIssuer = reviewItemStatus === "APPROVED";
@@ -600,7 +603,7 @@ export function InvoiceList({
                                         step={1}
                                         value={[offered.ratio]}
                                         onValueChange={(v) => setOffered(inv.id, { ratio: v[0] })}
-                                        disabled={isRowGreyedOut}
+                                        disabled={isRowGreyedOut || isAdminRejected}
                                         className="w-full"
                                       />
                                     </div>
@@ -638,7 +641,7 @@ export function InvoiceList({
                                         onValueChange={(v) =>
                                           setOffered(inv.id, { profitRate: parseInt(v, 10) })
                                         }
-                                        disabled={isRowGreyedOut}
+                                        disabled={isRowGreyedOut || isAdminRejected}
                                       >
                                         <SelectTrigger className="h-9 w-full max-w-[88px] rounded-xl border-border bg-background text-[15px]">
                                         <SelectValue />
@@ -663,29 +666,53 @@ export function InvoiceList({
                                       : REVIEW_EMPTY_LABEL}
                                   </p>
                                 </div>
-                                {!isOfferSent && onSendInvoiceOffer && (
-                                  <Button
-                                    type="button"
-                                    className="mt-3 w-full rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 h-10"
-                                    disabled={
-                                      isRowGreyedOut ||
-                                      !!isSendInvoiceOfferPending ||
-                                      offeredAmount === null
-                                    }
-                                    onClick={() =>
-                                      setInvoiceOfferConfirm({
-                                        invoiceId: inv.id,
-                                        invoiceNo,
-                                        offeredAmount: offeredAmount ?? 0,
-                                        offeredRatioPercent: offered.ratio,
-                                        offeredProfitRatePercent: offered.profitRate,
-                                        invoiceValue,
-                                      })
-                                    }
-                                  >
-                                    {isSendInvoiceOfferPending ? "Sending..." : "Send Offer"}
-                                  </Button>
-                                )}
+                                {!isOfferSent && onSendInvoiceOffer &&
+                                  (isAdminRejected ? (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span className="mt-3 inline-flex w-full cursor-not-allowed">
+                                            <Button
+                                              type="button"
+                                              className="w-full rounded-xl bg-primary text-primary-foreground h-10 opacity-60"
+                                              disabled
+                                            >
+                                              Send Offer
+                                            </Button>
+                                          </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent
+                                          side="bottom"
+                                          className="max-w-xs border-border bg-muted text-muted-foreground"
+                                        >
+                                          This invoice was rejected. Use Action → Set to pending on this row, then
+                                          you can send an offer.
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  ) : (
+                                    <Button
+                                      type="button"
+                                      className="mt-3 w-full rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 h-10"
+                                      disabled={
+                                        isRowGreyedOut ||
+                                        !!isSendInvoiceOfferPending ||
+                                        offeredAmount === null
+                                      }
+                                      onClick={() =>
+                                        setInvoiceOfferConfirm({
+                                          invoiceId: inv.id,
+                                          invoiceNo,
+                                          offeredAmount: offeredAmount ?? 0,
+                                          offeredRatioPercent: offered.ratio,
+                                          offeredProfitRatePercent: offered.profitRate,
+                                          invoiceValue,
+                                        })
+                                      }
+                                    >
+                                      {isSendInvoiceOfferPending ? "Sending..." : "Send Offer"}
+                                    </Button>
+                                  ))}
                                 {isOfferSent && onResetItemToPending && (
                                   <Button
                                     type="button"

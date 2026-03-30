@@ -9,7 +9,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ArrowPathIcon, CheckCircleIcon, ChevronDownIcon, DocumentTextIcon, XCircleIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowPathIcon,
+  ArrowTopRightOnSquareIcon,
+  CheckCircleIcon,
+  ChevronDownIcon,
+  DocumentTextIcon,
+  XCircleIcon,
+} from "@heroicons/react/24/outline";
 import type { ReviewSectionId } from "./section-types";
 
 export interface SectionActionDropdownProps {
@@ -28,9 +35,17 @@ export interface SectionActionDropdownProps {
   actionLockTooltip?: string;
   /** When false, hides Approve action (offer-driven sections). */
   showApprove?: boolean;
+  /** When false, hides Reject (e.g. documents section uses item-level reject only). */
+  showReject?: boolean;
+  /** When false, hides Request amendment (e.g. documents section uses item-level only). */
+  showRequestAmendment?: boolean;
   /** When true, menu shows only "View Signed Offer". */
   viewSignedOfferOnly?: boolean;
   onViewSignedOffer?: () => void | Promise<void>;
+  /** When false, "View Signed Offer" is hidden (e.g. no signed PDF on file yet). */
+  signedOfferLetterAvailable?: boolean;
+  /** When the menu would be empty, Action stays visible but disabled. */
+  noActionsTooltip?: string;
 }
 
 export function SectionActionDropdown({
@@ -45,12 +60,18 @@ export function SectionActionDropdown({
   isActionLocked = false,
   actionLockTooltip,
   showApprove = true,
+  showReject = true,
+  showRequestAmendment = true,
   viewSignedOfferOnly = false,
   onViewSignedOffer,
+  signedOfferLetterAvailable = false,
+  noActionsTooltip,
 }: SectionActionDropdownProps) {
   if (!isReviewable) return null;
 
-  if (viewSignedOfferOnly && onViewSignedOffer) {
+  const showViewSignedOffer = !!onViewSignedOffer && signedOfferLetterAvailable === true;
+
+  if (viewSignedOfferOnly && showViewSignedOffer) {
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -61,12 +82,17 @@ export function SectionActionDropdown({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="rounded-xl">
           <DropdownMenuItem className="rounded-lg" onClick={() => void onViewSignedOffer()}>
+            <ArrowTopRightOnSquareIcon className="h-4 w-4 mr-2" />
             View Signed Offer
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     );
   }
+
+  const showResetOption = !!(onResetToPending && sectionStatus && sectionStatus !== "PENDING");
+  const hasAnyMenuAction =
+    showApprove || showReject || showRequestAmendment || showResetOption || showViewSignedOffer;
 
   const button = (
     <Button
@@ -79,6 +105,36 @@ export function SectionActionDropdown({
       <ChevronDownIcon className="h-4 w-4" />
     </Button>
   );
+
+  if (!hasAnyMenuAction) {
+    const emptyTooltip =
+      noActionsTooltip ??
+      "No section-level actions are available. Use the actions on each item below.";
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex cursor-not-allowed">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-xl gap-1.5 opacity-60"
+                disabled
+                aria-disabled
+              >
+                Action
+                <ChevronDownIcon className="h-4 w-4" />
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="max-w-xs bg-muted text-muted-foreground">
+            {emptyTooltip}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
 
   if (isActionLocked) {
     return (
@@ -99,9 +155,10 @@ export function SectionActionDropdown({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="rounded-xl">
-        {onViewSignedOffer && (
+        {showViewSignedOffer && (
           <>
             <DropdownMenuItem className="rounded-lg" onClick={() => void onViewSignedOffer()}>
+              <ArrowTopRightOnSquareIcon className="h-4 w-4 mr-2" />
               View Signed Offer
             </DropdownMenuItem>
             <DropdownMenuSeparator />
@@ -117,25 +174,20 @@ export function SectionActionDropdown({
             Approve
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem
-          className="rounded-lg"
-          onClick={() => onReject(section)}
-        >
-          <XCircleIcon className="h-4 w-4 mr-2" />
-          Reject
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className="rounded-lg"
-          onClick={() => onRequestAmendment(section)}
-        >
-          <DocumentTextIcon className="h-4 w-4 mr-2" />
-          Request amendment
-        </DropdownMenuItem>
+        {showReject && (
+          <DropdownMenuItem className="rounded-lg" onClick={() => onReject(section)}>
+            <XCircleIcon className="h-4 w-4 mr-2" />
+            Reject
+          </DropdownMenuItem>
+        )}
+        {showRequestAmendment && (
+          <DropdownMenuItem className="rounded-lg" onClick={() => onRequestAmendment(section)}>
+            <DocumentTextIcon className="h-4 w-4 mr-2" />
+            Request amendment
+          </DropdownMenuItem>
+        )}
         {onResetToPending && sectionStatus && sectionStatus !== "PENDING" && (
-          <DropdownMenuItem
-            className="rounded-lg"
-            onClick={() => onResetToPending(section)}
-          >
+          <DropdownMenuItem className="rounded-lg" onClick={() => onResetToPending(section)}>
             <ArrowPathIcon className="h-4 w-4 mr-2" />
             Set to Pending
           </DropdownMenuItem>

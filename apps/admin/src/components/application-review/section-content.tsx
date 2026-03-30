@@ -43,7 +43,11 @@ export interface SectionContentProps {
     financing_structure?: unknown;
     company_details?: unknown;
     declarations?: unknown;
-    contract?: { contract_details?: unknown; customer_details?: unknown } | null;
+    contract?: {
+      contract_details?: unknown;
+      customer_details?: unknown;
+      status?: string;
+    } | null;
     invoices?: {
       id: string;
       details?: unknown;
@@ -257,6 +261,7 @@ export function SectionContent({
         <ContractSection
           contractDetails={app.contract?.contract_details}
           offerDetails={(app.contract as { offer_details?: unknown } | null | undefined)?.offer_details}
+          contractStatus={app.contract?.status}
           customerDetails={app.contract?.customer_details}
           section={section}
           isReviewable={isReviewable}
@@ -320,16 +325,10 @@ export function SectionContent({
           readOnlyInvoiceIds={readOnlyInvoiceIds}
           contractFacility={contractFacility}
           reviewItems={reviewItems}
-          section={section}
           isReviewable={isReviewable}
           approvePending={approveItemPending}
           isActionLocked={isActionLocked}
           actionLockTooltip={actionLockTooltip}
-          sectionStatus={sectionStatus}
-          onResetSectionToPending={onResetSectionToPending}
-          onApprove={onApproveSection}
-          onReject={onRejectSection}
-          onRequestAmendment={onRequestAmendmentSection}
           onViewDocument={onViewDocument}
           viewDocumentPending={viewDocumentPending}
           invoiceRatioLimits={invoiceRatioLimits}

@@ -53,6 +53,10 @@ export function DocumentsSection({
   comments,
   onAddComment,
 }: DocumentsSectionProps) {
+  const peerDocumentRejected = reviewItems.some(
+    (r) => r.item_type === "document" && r.status === "REJECTED"
+  );
+
   return (
     <Card className="rounded-2xl">
       <CardHeader className="pb-3">
@@ -67,11 +71,19 @@ export function DocumentsSection({
             onApprove={onApprove}
             onReject={onReject}
             onRequestAmendment={onRequestAmendment}
+            showApprove={false}
+            showReject={false}
+            showRequestAmendment={false}
             isPending={approvePending}
             isActionLocked={isActionLocked}
             actionLockTooltip={actionLockTooltip}
             sectionStatus={sectionStatus}
             onResetToPending={onResetSectionToPending}
+            noActionsTooltip={
+              sectionStatus === "PENDING"
+                ? "Section status comes from individual documents. Use Approve, Reject, or Request amendment on each file below."
+                : undefined
+            }
           />
         </div>
       </CardHeader>
@@ -90,6 +102,7 @@ export function DocumentsSection({
             isViewDocumentPending={viewDocumentPending}
             isActionLocked={isActionLocked}
             actionLockTooltip={actionLockTooltip}
+            lockItemPrimaryReviewActions={peerDocumentRejected}
           />
         ) : (
           <p className={reviewEmptyStateClass}>No supporting documents submitted.</p>

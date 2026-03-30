@@ -69,6 +69,8 @@ import {
   resolveRequestedFacility,
 } from "../../lib/contract-facility";
 import { getS3ObjectBuffer } from "../../lib/s3/client";
+import { computeSupportingDocumentsSectionStatus } from "../applications/supporting-documents-section-status";
+import { computeInvoiceDetailsSectionStatus } from "../applications/invoice-details-section-status";
 
 export class AdminService {
   private repository: AdminRepository;
@@ -4505,6 +4507,136 @@ export class AdminService {
     }
   }
 
+  /**
+   * Updates supporting_documents section row from document item rows and logs SECTION_* when it changes.
+   */
+  private async syncSupportingDocumentsSectionFromItems(
+    repository: AdminRepository,
+    applicationId: string,
+    application: {
+      supporting_documents?: unknown;
+      application_reviews?: { section: string; status: string }[];
+      application_review_items?: { item_type: string; item_id: string; status: string }[];
+    },
+    reviewerUserId: string,
+    logContext?: AdminLogContext
+  ): Promise<void> {
+    const docs = application.supporting_documents;
+    if (!docs || typeof docs !== "object") {
+      return;
+    }
+    const docKeys = [...this.collectDocumentKeys(docs)];
+    if (docKeys.length === 0) {
+      return;
+    }
+
+    const documentRows =
+      application.application_review_items?.filter((r) => r.item_type === "document") ?? [];
+    const target = computeSupportingDocumentsSectionStatus(
+      docKeys,
+      documentRows.map((r) => ({ item_id: r.item_id, status: r.status }))
+    );
+
+    const existing = application.application_reviews?.find((r) => r.section === "supporting_documents");
+    const current = existing?.status ?? "PENDING";
+
+    if (target === current) {
+      return;
+    }
+
+    await repository.ensureApplicationReviewSection(applicationId, "supporting_documents");
+    await repository.updateSectionReviewStatus(
+      applicationId,
+      "supporting_documents",
+      target,
+      reviewerUserId
+    );
+
+    await this.logReviewActivity(
+      applicationId,
+      "section",
+      "supporting_documents",
+      current,
+      target,
+      reviewerUserId,
+      null,
+      logContext
+    );
+
+    if (target === "APPROVED") {
+      await repository.removeDraftAmendment(applicationId, "section", "supporting_documents");
+    }
+  }
+
+  private collectInvoiceScopeKeys(application: {
+    invoices?: { id: string; details?: unknown }[];
+  }): string[] {
+    const invoices = application.invoices ?? [];
+    return invoices.map((invoice, idx) => {
+      const details = invoice.details as { number?: string | number } | null | undefined;
+      const invoiceNo = details?.number ?? idx + 1;
+      const sanitized = String(invoiceNo).replace(/:/g, "_");
+      return `invoice_details:${idx}:${sanitized}`;
+    });
+  }
+
+  /**
+   * Updates invoice_details section row from per-invoice review items and logs SECTION_* when it changes.
+   */
+  private async syncInvoiceDetailsSectionFromItems(
+    repository: AdminRepository,
+    applicationId: string,
+    application: {
+      invoices?: { id: string; details?: unknown }[];
+      application_reviews?: { section: string; status: string }[];
+      application_review_items?: { item_type: string; item_id: string; status: string }[];
+    },
+    reviewerUserId: string,
+    logContext?: AdminLogContext
+  ): Promise<void> {
+    const invoiceKeys = this.collectInvoiceScopeKeys(application);
+    if (invoiceKeys.length === 0) {
+      return;
+    }
+
+    const invoiceRows =
+      application.application_review_items?.filter((r) => r.item_type === "invoice") ?? [];
+    const target = computeInvoiceDetailsSectionStatus(
+      invoiceKeys,
+      invoiceRows.map((r) => ({ item_id: r.item_id, status: r.status }))
+    );
+
+    const existing = application.application_reviews?.find((r) => r.section === "invoice_details");
+    const current = existing?.status ?? "PENDING";
+
+    if (target === current) {
+      return;
+    }
+
+    await repository.ensureApplicationReviewSection(applicationId, "invoice_details");
+    await repository.updateSectionReviewStatus(
+      applicationId,
+      "invoice_details",
+      target,
+      reviewerUserId
+    );
+
+    await this.logReviewActivity(
+      applicationId,
+      "section",
+      "invoice_details",
+      current,
+      target,
+      reviewerUserId,
+      null,
+      logContext
+    );
+
+    if (target === "APPROVED") {
+      await repository.removeDraftAmendment(applicationId, "section", "invoice_details");
+    }
+  }
+
   private async logReviewActivity(
     applicationId: string,
     scope: "section" | "item",
@@ -4775,6 +4907,18 @@ export class AdminService {
     }
     await this.ensureInvoiceOfferItemActionAllowed(applicationId, scopeKey, application);
 
+    const invoiceForSend = await prisma.invoice.findUnique({
+      where: { id: invoiceId, application_id: applicationId },
+      select: { status: true },
+    });
+    if (invoiceForSend?.status === "REJECTED") {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        "Invoice was rejected; reset review to pending before sending an offer"
+      );
+    }
+
     const invoiceOfferMeta = await prisma.$transaction(async (tx) => {
       const lockedApplications = await tx.$queryRaw<{ status: string }[]>`
         SELECT status
@@ -4980,7 +5124,18 @@ export class AdminService {
       deviceInfo: logContext?.deviceInfo ?? undefined,
     });
 
-    return repository.getApplicationById(applicationId);
+    let nextApp = await repository.getApplicationById(applicationId);
+    if (nextApp) {
+      await this.syncInvoiceDetailsSectionFromItems(
+        repository,
+        applicationId,
+        nextApp,
+        reviewerUserId,
+        logContext
+      );
+      nextApp = await repository.getApplicationById(applicationId);
+    }
+    return nextApp ?? repository.getApplicationById(applicationId);
   }
 
   /**
@@ -5036,6 +5191,13 @@ export class AdminService {
       application.status as ApplicationStatus,
       application
     );
+    if (section === "supporting_documents") {
+      throw new AppError(
+        400,
+        "INVALID_ACTION",
+        "Documents section status is derived from per-document reviews; approve each document instead"
+      );
+    }
     if (section === "contract_details" || section === "invoice_details") {
       const structure = application.financing_structure as { structure_type?: string } | null | undefined;
       const isInvoiceOnly = structure?.structure_type === "invoice_only";
@@ -5109,6 +5271,64 @@ export class AdminService {
     }
     if (section === "invoice_details") {
       await this.ensureInvoiceSectionActionAllowed(applicationId);
+    }
+
+    if (section === "supporting_documents") {
+      const docKeys = [...this.collectDocumentKeys(application.supporting_documents)];
+      if (docKeys.length > 0) {
+        for (const itemId of docKeys) {
+          await this.resetItemReviewToPending(applicationId, "document", itemId, reviewerUserId, logContext, {
+            skipSupportingDocumentsSectionSync: true,
+            skipItemActivityLog: true,
+          });
+        }
+        let nextApp = await repository.getApplicationById(applicationId);
+        if (nextApp) {
+          await this.syncSupportingDocumentsSectionFromItems(
+            repository,
+            applicationId,
+            nextApp,
+            reviewerUserId,
+            logContext
+          );
+          nextApp = await repository.getApplicationById(applicationId);
+        }
+        await repository.removeDraftAmendment(applicationId, "section", section);
+        logger.info({ applicationId, section, reviewerUserId }, "Review section reset to pending");
+        return nextApp ?? repository.getApplicationById(applicationId);
+      }
+    }
+
+    if (section === "invoice_details") {
+      const invoices = application.invoices ?? [];
+      if (invoices.length > 0) {
+        for (const inv of invoices) {
+          const scopeKey = this.resolveInvoiceScopeKeyById(
+            application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+            inv.id
+          );
+          if (!scopeKey) continue;
+          await this.resetItemReviewToPending(applicationId, "invoice", scopeKey, reviewerUserId, logContext, {
+            skipInvoiceDetailsSectionSync: true,
+            skipItemActivityLog: true,
+          });
+        }
+        let nextApp = await repository.getApplicationById(applicationId);
+        if (nextApp) {
+          await this.syncInvoiceDetailsSectionFromItems(
+            repository,
+            applicationId,
+            nextApp,
+            reviewerUserId,
+            logContext
+          );
+          nextApp = await repository.getApplicationById(applicationId);
+        }
+        await repository.removeDraftAmendment(applicationId, "section", section);
+        await repository.updateApplicationStatus(applicationId, ApplicationStatus.INVOICE_PENDING);
+        logger.info({ applicationId, section, reviewerUserId }, "Review section reset to pending");
+        return nextApp ?? repository.getApplicationById(applicationId);
+      }
     }
 
     const existing = application.application_reviews?.find(
@@ -5188,7 +5408,12 @@ export class AdminService {
     itemType: "invoice" | "document",
     itemId: string,
     reviewerUserId: string,
-    logContext?: AdminLogContext
+    logContext?: AdminLogContext,
+    options?: {
+      skipSupportingDocumentsSectionSync?: boolean;
+      skipInvoiceDetailsSectionSync?: boolean;
+      skipItemActivityLog?: boolean;
+    }
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     this.validateReviewItemExists(application, itemType, itemId);
@@ -5248,16 +5473,18 @@ export class AdminService {
         deviceInfo: logContext?.deviceInfo ?? undefined,
       });
     }
-    await this.logReviewActivity(
-      applicationId,
-      "item",
-      itemId,
-      oldStatus,
-      "PENDING",
-      reviewerUserId,
-      null,
-      logContext
-    );
+    if (!options?.skipItemActivityLog) {
+      await this.logReviewActivity(
+        applicationId,
+        "item",
+        itemId,
+        oldStatus,
+        "PENDING",
+        reviewerUserId,
+        null,
+        logContext
+      );
+    }
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
     await this.clearItemRemarks(repository, applicationId, itemType, itemId);
     if (itemType === "invoice") {
@@ -5265,7 +5492,77 @@ export class AdminService {
     }
 
     logger.info({ applicationId, itemType, itemId, reviewerUserId }, "Review item reset to pending");
-    return repository.getApplicationById(applicationId);
+    let nextApp = await repository.getApplicationById(applicationId);
+    if (
+      itemType === "document" &&
+      nextApp &&
+      !options?.skipSupportingDocumentsSectionSync
+    ) {
+      await this.syncSupportingDocumentsSectionFromItems(
+        repository,
+        applicationId,
+        nextApp,
+        reviewerUserId,
+        logContext
+      );
+      nextApp = await repository.getApplicationById(applicationId);
+    }
+    if (
+      itemType === "invoice" &&
+      nextApp &&
+      !options?.skipInvoiceDetailsSectionSync
+    ) {
+      await this.syncInvoiceDetailsSectionFromItems(
+        repository,
+        applicationId,
+        nextApp,
+        reviewerUserId,
+        logContext
+      );
+      nextApp = await repository.getApplicationById(applicationId);
+    }
+    return nextApp ?? repository.getApplicationById(applicationId);
+  }
+
+  /**
+   * When one document is rejected: remove amendment drafts on all other document items and
+   * reset any sibling in AMENDMENT_REQUESTED to PENDING (with activity logs). Section sync is left to caller.
+   */
+  private async clearSiblingDocumentAmendmentsAfterPeerReject(
+    repository: AdminRepository,
+    applicationId: string,
+    application: {
+      supporting_documents?: unknown;
+      application_review_items?: { item_type: string; item_id: string; status: string }[];
+    },
+    rejectedItemId: string,
+    reviewerUserId: string,
+    logContext?: AdminLogContext
+  ): Promise<void> {
+    const docs = application.supporting_documents;
+    if (!docs || typeof docs !== "object") {
+      return;
+    }
+    const keys = [...this.collectDocumentKeys(docs)];
+    for (const key of keys) {
+      if (key === rejectedItemId) {
+        continue;
+      }
+      await repository.removeDraftAmendment(applicationId, "item", key);
+      const row = application.application_review_items?.find(
+        (r) => r.item_type === "document" && r.item_id === key
+      );
+      if (row?.status === "AMENDMENT_REQUESTED") {
+        await this.resetItemReviewToPending(
+          applicationId,
+          "document",
+          key,
+          reviewerUserId,
+          logContext,
+          { skipSupportingDocumentsSectionSync: true }
+        );
+      }
+    }
   }
 
   /**
@@ -5286,6 +5583,13 @@ export class AdminService {
       application.status as ApplicationStatus,
       application
     );
+    if (section === "supporting_documents") {
+      throw new AppError(
+        400,
+        "INVALID_ACTION",
+        "Documents section status is derived from per-document reviews; reject documents instead"
+      );
+    }
     if (section === "contract_details") {
       this.ensureContractOfferActionAllowed(application);
     }
@@ -5354,6 +5658,13 @@ export class AdminService {
       application.status as ApplicationStatus,
       application
     );
+    if (section === "supporting_documents") {
+      throw new AppError(
+        400,
+        "INVALID_ACTION",
+        "Documents section status is derived from per-document reviews; request amendments on documents instead"
+      );
+    }
     if (section === "contract_details") {
       this.ensureContractOfferActionAllowed(application);
     }
@@ -5489,7 +5800,18 @@ export class AdminService {
 
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
 
-    return repository.getApplicationById(applicationId);
+    let nextApp = await repository.getApplicationById(applicationId);
+    if (itemType === "document" && nextApp) {
+      await this.syncSupportingDocumentsSectionFromItems(
+        repository,
+        applicationId,
+        nextApp,
+        reviewerUserId,
+        logContext
+      );
+      nextApp = await repository.getApplicationById(applicationId);
+    }
+    return nextApp ?? repository.getApplicationById(applicationId);
   }
 
   /**
@@ -5548,6 +5870,17 @@ export class AdminService {
 
     await this.clearItemDraftAmendments(repository, applicationId, itemType, itemId);
 
+    if (itemType === "document") {
+      await this.clearSiblingDocumentAmendmentsAfterPeerReject(
+        repository,
+        applicationId,
+        application,
+        itemId,
+        reviewerUserId,
+        logContext
+      );
+    }
+
     if (itemType === "invoice") {
       const invoiceId = this.resolveInvoiceIdFromScopeKey(
         application as { invoices?: { id: string; details?: { number?: string | number } }[] },
@@ -5564,7 +5897,28 @@ export class AdminService {
       }
     }
 
-    return repository.getApplicationById(applicationId);
+    let nextApp = await repository.getApplicationById(applicationId);
+    if (itemType === "document" && nextApp) {
+      await this.syncSupportingDocumentsSectionFromItems(
+        repository,
+        applicationId,
+        nextApp,
+        reviewerUserId,
+        logContext
+      );
+      nextApp = await repository.getApplicationById(applicationId);
+    }
+    if (itemType === "invoice" && nextApp) {
+      await this.syncInvoiceDetailsSectionFromItems(
+        repository,
+        applicationId,
+        nextApp,
+        reviewerUserId,
+        logContext
+      );
+      nextApp = await repository.getApplicationById(applicationId);
+    }
+    return nextApp ?? repository.getApplicationById(applicationId);
   }
 
   /**
@@ -5636,7 +5990,28 @@ export class AdminService {
       }
     }
 
-    return repository.getApplicationById(applicationId);
+    let nextApp = await repository.getApplicationById(applicationId);
+    if (itemType === "document" && nextApp) {
+      await this.syncSupportingDocumentsSectionFromItems(
+        repository,
+        applicationId,
+        nextApp,
+        reviewerUserId,
+        logContext
+      );
+      nextApp = await repository.getApplicationById(applicationId);
+    }
+    if (itemType === "invoice" && nextApp) {
+      await this.syncInvoiceDetailsSectionFromItems(
+        repository,
+        applicationId,
+        nextApp,
+        reviewerUserId,
+        logContext
+      );
+      nextApp = await repository.getApplicationById(applicationId);
+    }
+    return nextApp ?? repository.getApplicationById(applicationId);
   }
 
   /**
@@ -5665,6 +6040,13 @@ export class AdminService {
       const validSections = REVIEW_SECTION_ORDER;
       if (!validSections.includes(scopeKey as (typeof REVIEW_SECTION_ORDER)[number])) {
         throw new AppError(400, "INVALID_SCOPE", `Invalid section: ${scopeKey}`);
+      }
+      if (scopeKey === "supporting_documents") {
+        throw new AppError(
+          400,
+          "INVALID_ACTION",
+          "Documents section status is derived from per-document reviews; add drafts on document items instead"
+        );
       }
       if (scopeKey === "contract_details") {
         this.ensureContractOfferActionAllowed(application);
@@ -5751,7 +6133,28 @@ export class AdminService {
     }
 
     logger.info({ applicationId, scope, scopeKey, reviewerUserId }, "Pending amendment added");
-    return repository.getApplicationById(applicationId);
+    let result = await repository.getApplicationById(applicationId);
+    if (scope === "item" && itemType === "document" && result) {
+      await this.syncSupportingDocumentsSectionFromItems(
+        repository,
+        applicationId,
+        result,
+        reviewerUserId,
+        logContext
+      );
+      result = await repository.getApplicationById(applicationId);
+    }
+    if (scope === "item" && itemType === "invoice" && result) {
+      await this.syncInvoiceDetailsSectionFromItems(
+        repository,
+        applicationId,
+        result,
+        reviewerUserId,
+        logContext
+      );
+      result = await repository.getApplicationById(applicationId);
+    }
+    return result ?? repository.getApplicationById(applicationId);
   }
 
   /**
@@ -5919,6 +6322,19 @@ export class AdminService {
             isInvoiceOnly ? ApplicationStatus.UNDER_REVIEW : ApplicationStatus.CONTRACT_PENDING
           );
         }
+      }
+    }
+
+    if (affectedSection === "invoice_details") {
+      const nextApp = await repository.getApplicationById(applicationId);
+      if (nextApp) {
+        await this.syncInvoiceDetailsSectionFromItems(
+          repository,
+          applicationId,
+          nextApp,
+          reviewerUserId,
+          undefined
+        );
       }
     }
 

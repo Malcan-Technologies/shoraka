@@ -428,25 +428,25 @@ function ApplicationCard({
                     <TableHead className="w-[105px] min-w-[105px] whitespace-nowrap text-sm font-semibold p-3 text-left">
                       Maturity Date
                     </TableHead>
-                    <TableHead className="w-[115px] min-w-[115px] whitespace-nowrap text-sm font-semibold p-3 text-right tabular-nums">
+                    <TableHead className="w-[115px] min-w-[115px] whitespace-nowrap text-sm font-semibold p-3 text-left tabular-nums">
                       Invoice Value
                     </TableHead>
-                    <TableHead className="w-[115px] min-w-[115px] whitespace-nowrap text-sm font-semibold p-3 text-right tabular-nums">
+                    <TableHead className="w-[115px] min-w-[115px] whitespace-nowrap text-sm font-semibold p-3 text-left tabular-nums">
                       Applied Financing
                     </TableHead>
                     <TableHead className="w-[150px] min-w-[140px] whitespace-nowrap text-sm font-semibold p-3 text-left">
                       Documents
                     </TableHead>
-                    <TableHead className="w-[115px] min-w-[115px] whitespace-nowrap text-sm font-semibold p-3 text-right tabular-nums">
+                    <TableHead className="w-[115px] min-w-[115px] whitespace-nowrap text-sm font-semibold p-3 text-left tabular-nums">
                       Financing Offered
                     </TableHead>
-                    <TableHead className="w-[95px] min-w-[95px] whitespace-nowrap text-sm font-semibold p-3 text-right tabular-nums">
+                    <TableHead className="w-[95px] min-w-[95px] whitespace-nowrap text-sm font-semibold p-3 text-left tabular-nums">
                       Profit Rate
                     </TableHead>
                     <TableHead className="w-[120px] min-w-[120px] whitespace-nowrap text-sm font-semibold p-3 text-left">
                       Status
                     </TableHead>
-                    <TableHead className="w-[180px] min-w-[160px] whitespace-nowrap text-sm font-semibold p-3 text-center">
+                    <TableHead className="w-[180px] min-w-[160px] whitespace-nowrap text-sm font-semibold p-3 text-left">
                       Action
                     </TableHead>
                   </TableRow>
@@ -483,10 +483,10 @@ function ApplicationCard({
                           <TableCell className="p-3 text-[15px] align-middle text-left">
                             {formatDate(inv.maturityDate)}
                           </TableCell>
-                          <TableCell className="p-3 text-[15px] align-middle text-right tabular-nums whitespace-nowrap">
+                          <TableCell className="p-3 text-[15px] align-middle text-left tabular-nums whitespace-nowrap">
                             {inv.value ? formatCurrency(inv.value) : "—"}
                           </TableCell>
-                          <TableCell className="p-3 text-[15px] align-middle text-right tabular-nums whitespace-nowrap">
+                          <TableCell className="p-3 text-[15px] align-middle text-left tabular-nums whitespace-nowrap">
                             {inv.appliedFinancing != null
                               ? formatCurrency(inv.appliedFinancing)
                               : "—"}
@@ -498,10 +498,10 @@ function ApplicationCard({
                               onDownload={onDocumentDownload}
                             />
                           </TableCell>
-                          <TableCell className="p-3 text-[15px] align-middle text-right tabular-nums whitespace-nowrap">
+                          <TableCell className="p-3 text-[15px] align-middle text-left tabular-nums whitespace-nowrap">
                             {inv.financingOffered}
                           </TableCell>
-                          <TableCell className="p-3 text-[15px] align-middle text-right tabular-nums whitespace-nowrap">
+                          <TableCell className="p-3 text-[15px] align-middle text-left tabular-nums whitespace-nowrap">
                             {inv.profitRate}
                           </TableCell>
                           <TableCell className="p-3 align-middle text-left whitespace-nowrap">

@@ -14,6 +14,7 @@ import {
 import { MoneyInput } from "@cashsouk/ui";
 import { formatMoney, parseMoney } from "@cashsouk/ui";
 import { DocumentTextIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
+import { format } from "date-fns";
 import { formatCurrency, resolveRequestedFacility, resolveOfferedFacility } from "@cashsouk/config";
 import { ReviewSectionCard } from "../review-section-card";
 import { ReviewFieldBlock } from "../review-field-block";
@@ -40,6 +41,8 @@ interface FileDoc {
 export interface ContractSectionProps {
   contractDetails: unknown;
   offerDetails?: unknown;
+  /** Contract row status (e.g. OFFER_SENT, WITHDRAWN); used to lock Send Offer after send or issuer withdrawal. */
+  contractStatus?: string;
   customerDetails?: unknown;
   section: ReviewSectionId;
   isReviewable: boolean;
@@ -65,6 +68,7 @@ export interface ContractSectionProps {
 export function ContractSection({
   contractDetails,
   offerDetails,
+  contractStatus: contractRowStatus,
   customerDetails,
   section,
   isReviewable,
@@ -93,14 +97,50 @@ export function ContractSection({
   const customerDoc = cust?.document as FileDoc | undefined;
   const requestedFacility = resolveRequestedFacility(cd);
   const contractValue = typeof cd?.value === "number" ? cd.value : 0;
-  const offeredOrRequested = resolveOfferedFacility(offer) || requestedFacility;
-  const initialOffered = formatMoney(offeredOrRequested);
-  const [offeredFacilityInput, setOfferedFacilityInput] = React.useState<string>(initialOffered);
+  const persistedOffered = resolveOfferedFacility(offer);
+  const offerSentAtRaw =
+    typeof offer?.sent_at === "string" && offer.sent_at.trim().length > 0 ? offer.sent_at : null;
+  let offerSentAtLabel: string | null = null;
+  if (offerSentAtRaw) {
+    const d = new Date(offerSentAtRaw);
+    if (!Number.isNaN(d.getTime())) offerSentAtLabel = format(d, "PPpp");
+  }
+  const offerRespondedAtRaw =
+    typeof offer?.responded_at === "string" && offer.responded_at.trim().length > 0
+      ? offer.responded_at
+      : null;
+  let offerRespondedAtLabel: string | null = null;
+  if (offerRespondedAtRaw) {
+    const d = new Date(offerRespondedAtRaw);
+    if (!Number.isNaN(d.getTime())) offerRespondedAtLabel = format(d, "PPpp");
+  }
+  const offerTimelineLine = (() => {
+    if (offerRespondedAtLabel) {
+      if (contractRowStatus === "APPROVED") {
+        return `Issuer accepted the offer on ${offerRespondedAtLabel}`;
+      }
+      if (contractRowStatus === "WITHDRAWN") {
+        return `Issuer declined the offer on ${offerRespondedAtLabel}`;
+      }
+    }
+    if (offerSentAtLabel) {
+      return `Offer sent ${offerSentAtLabel}`;
+    }
+    return null;
+  })();
+  const isContractOfferSendLocked =
+    contractRowStatus === "OFFER_SENT" ||
+    contractRowStatus === "WITHDRAWN" ||
+    contractRowStatus === "APPROVED" ||
+    contractRowStatus === "REJECTED" ||
+    offerSentAtRaw != null;
+  const seedOfferedInput = persistedOffered > 0 ? formatMoney(persistedOffered) : "";
+  const [offeredFacilityInput, setOfferedFacilityInput] = React.useState<string>(seedOfferedInput);
   const [contractOfferConfirmOpen, setContractOfferConfirmOpen] = React.useState(false);
 
   React.useEffect(() => {
-    setOfferedFacilityInput(formatMoney(offeredOrRequested));
-  }, [offeredOrRequested]);
+    setOfferedFacilityInput(persistedOffered > 0 ? formatMoney(persistedOffered) : "");
+  }, [persistedOffered]);
 
   const hasData = cd || cust;
   const offeredFacility = parseMoney(offeredFacilityInput);
@@ -112,7 +152,10 @@ export function ContractSection({
     !!signedContractOfferLetterAvailable &&
     !!onViewSignedContractOffer;
   const canSendContractOffer =
-    !isContractApproved && offeredFacility > 0 && !offeredExceedsContractValue;
+    !isContractApproved &&
+    !isContractOfferSendLocked &&
+    offeredFacility > 0 &&
+    !offeredExceedsContractValue;
 
   const handleConfirmContractOffer = React.useCallback(async () => {
     if (!onSendOffer || !canSendContractOffer) return;
@@ -141,6 +184,7 @@ export function ContractSection({
       showApprove={false}
       viewSignedOfferOnly={showViewSignedOfferOnlyAction}
       onViewSignedOffer={onViewSignedContractOffer}
+      signedOfferLetterAvailable={!!signedContractOfferLetterAvailable}
     >
       {hasData ? (
         <>
@@ -153,38 +197,47 @@ export function ContractSection({
                 </div>
                 <Label className={reviewLabelClass}>Offered Facility</Label>
                 <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-3">
-                  <MoneyInput
-                    value={offeredFacilityInput}
-                    onValueChange={setOfferedFacilityInput}
-                    placeholder="0.00"
-                    disabled={
-                      !isReviewable ||
-                      !!isActionLocked ||
-                      !onSendOffer ||
-                      isContractApproved
-                    }
-                    inputClassName="h-9 w-[220px]"
-                    prefix="RM"
-                    maxIntDigits={12}
-                    allowEmpty={true}
-                  />
-                  {onSendOffer && (
-                    <Button
-                      type="button"
-                      variant="default"
-                      size="sm"
+                  <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
+                    <MoneyInput
+                      value={offeredFacilityInput}
+                      onValueChange={setOfferedFacilityInput}
+                      placeholder="0.00"
                       disabled={
                         !isReviewable ||
                         !!isActionLocked ||
-                        !!isSendOfferPending ||
-                        !canSendContractOffer
+                        !onSendOffer ||
+                        isContractApproved ||
+                        isContractOfferSendLocked
                       }
-                      onClick={() => setContractOfferConfirmOpen(true)}
-                    >
-                      {isSendOfferPending ? "Sending..." : "Send Offer"}
-                    </Button>
-                  )}
+                      inputClassName="h-9 w-[220px]"
+                      prefix="RM"
+                      maxIntDigits={12}
+                      allowEmpty={true}
+                    />
+                    {onSendOffer && (
+                      <div className="flex flex-col gap-1">
+                        <Button
+                          type="button"
+                          variant="default"
+                          size="sm"
+                          className="shrink-0"
+                          disabled={
+                            !isReviewable ||
+                            !!isActionLocked ||
+                            !!isSendOfferPending ||
+                            !canSendContractOffer
+                          }
+                          onClick={() => setContractOfferConfirmOpen(true)}
+                        >
+                          {isSendOfferPending ? "Sending..." : "Send Offer"}
+                        </Button>
+                        {offerTimelineLine ? (
+                          <p className="text-xs text-muted-foreground tabular-nums">
+                            {offerTimelineLine}
+                          </p>
+                        ) : null}
+                      </div>
+                    )}
                   </div>
                   {offeredExceedsContractValue && (
                     <p className="text-sm text-destructive">

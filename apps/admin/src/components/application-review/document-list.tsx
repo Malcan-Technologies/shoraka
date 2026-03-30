@@ -109,6 +109,8 @@ export interface DocumentListProps {
   isViewDocumentPending?: boolean;
   isActionLocked?: boolean;
   actionLockTooltip?: string;
+  /** When any document was rejected, hide approve/reject/amendment on all rows (reset still allowed where applicable). */
+  lockItemPrimaryReviewActions?: boolean;
 }
 
 export function DocumentList({
@@ -124,6 +126,7 @@ export function DocumentList({
   isViewDocumentPending,
   isActionLocked,
   actionLockTooltip,
+  lockItemPrimaryReviewActions = false,
 }: DocumentListProps) {
   const categoryGroups = React.useMemo(() => buildCategoryGroups(documents), [documents]);
 
@@ -162,15 +165,15 @@ export function DocumentList({
                   return (
                     <div
                       key={key}
-                      className="flex items-center justify-between"
+                      className="flex items-center justify-between gap-3 min-w-0"
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="min-w-0 flex-1">
                         <span className="text-sm text-foreground">{label}</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
                         {status !== "PENDING" && (
                           <ReviewStepStatusBadge status={status} size="sm" />
                         )}
-                      </div>
-                      <div className="flex items-center gap-2">
                         {s3Key && onViewDocument && (
                           <Button
                             variant="outline"
@@ -190,6 +193,14 @@ export function DocumentList({
                             isPending={isItemActionPending}
                             isActionLocked={isActionLocked}
                             actionLockTooltip={actionLockTooltip}
+                            showApprove={!lockItemPrimaryReviewActions}
+                            showReject={!lockItemPrimaryReviewActions}
+                            showRequestAmendment={!lockItemPrimaryReviewActions}
+                            noActionsTooltip={
+                              lockItemPrimaryReviewActions && status === "PENDING"
+                                ? "Another document was rejected. Clear that rejection or use Set to Pending on it, or reset the whole section."
+                                : undefined
+                            }
                             onApprove={onApproveItem}
                             onReject={onRejectItem}
                             onRequestAmendment={onRequestAmendmentItem}
