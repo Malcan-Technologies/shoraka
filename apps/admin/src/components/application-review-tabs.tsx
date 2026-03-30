@@ -45,18 +45,20 @@ export function ApplicationReviewTabs({
 
   return (
     <Tabs defaultValue={defaultValue} className="w-full min-w-0">
-      <TabsList className="flex flex-wrap h-auto min-h-11 w-full rounded-xl bg-muted p-1 gap-2">
-        {tabDescriptors.map((tab) => (
-          <TabsTrigger
-            key={tab.id}
-            value={tab.id}
-            className="flex shrink-0 items-center gap-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm px-4"
-          >
-            <StatusDot status={sectionMap.get(tab.reviewSection) ?? "PENDING"} />
-            {tab.label}
-          </TabsTrigger>
-        ))}
-      </TabsList>
+      <div className="w-full min-w-0 overflow-x-auto overflow-y-hidden rounded-xl bg-muted p-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/30">
+        <TabsList className="flex h-auto min-h-11 w-max min-w-full flex-nowrap justify-center gap-2 bg-transparent p-0 text-muted-foreground">
+          {tabDescriptors.map((tab) => (
+            <TabsTrigger
+              key={tab.id}
+              value={tab.id}
+              className="flex shrink-0 items-center gap-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm px-3 sm:px-4 text-sm"
+            >
+              <StatusDot status={sectionMap.get(tab.reviewSection) ?? "PENDING"} />
+              {tab.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </div>
       {children}
     </Tabs>
   );
