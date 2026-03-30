@@ -11,6 +11,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   ArrowPathIcon,
+  ArrowTopRightOnSquareIcon,
   CheckCircleIcon,
   ChevronDownIcon,
   DocumentTextIcon,
@@ -72,6 +73,7 @@ export function ItemActionDropdown({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="rounded-xl">
           <DropdownMenuItem className="rounded-lg" onClick={() => void onViewSignedOffer()}>
+            <ArrowTopRightOnSquareIcon className="h-4 w-4 mr-2" />
             View Signed Offer
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -150,6 +152,7 @@ export function ItemActionDropdown({
         {onViewSignedOffer && (
           <>
             <DropdownMenuItem className="rounded-lg" onClick={() => void onViewSignedOffer()}>
+              <ArrowTopRightOnSquareIcon className="h-4 w-4 mr-2" />
               View Signed Offer
             </DropdownMenuItem>
             <DropdownMenuSeparator />

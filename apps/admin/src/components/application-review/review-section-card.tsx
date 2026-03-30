@@ -24,6 +24,8 @@ export interface ReviewSectionCardProps {
   showApprove?: boolean;
   viewSignedOfferOnly?: boolean;
   onViewSignedOffer?: () => void | Promise<void>;
+  /** When true, "View Signed Offer" appears in the Action menu (signed PDF on file). */
+  signedOfferLetterAvailable?: boolean;
   children: React.ReactNode;
 }
 
@@ -48,6 +50,7 @@ export function ReviewSectionCard({
   showApprove = true,
   viewSignedOfferOnly = false,
   onViewSignedOffer,
+  signedOfferLetterAvailable = false,
   children,
 }: ReviewSectionCardProps) {
   const showActions =
@@ -82,6 +85,7 @@ export function ReviewSectionCard({
                 showApprove={showApprove}
                 viewSignedOfferOnly={viewSignedOfferOnly}
                 onViewSignedOffer={onViewSignedOffer}
+                signedOfferLetterAvailable={signedOfferLetterAvailable}
               />
             ) : null}
           </div>

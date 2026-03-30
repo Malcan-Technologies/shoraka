@@ -9,7 +9,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ArrowPathIcon, CheckCircleIcon, ChevronDownIcon, DocumentTextIcon, XCircleIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowPathIcon,
+  ArrowTopRightOnSquareIcon,
+  CheckCircleIcon,
+  ChevronDownIcon,
+  DocumentTextIcon,
+  XCircleIcon,
+} from "@heroicons/react/24/outline";
 import type { ReviewSectionId } from "./section-types";
 
 export interface SectionActionDropdownProps {
@@ -35,6 +42,8 @@ export interface SectionActionDropdownProps {
   /** When true, menu shows only "View Signed Offer". */
   viewSignedOfferOnly?: boolean;
   onViewSignedOffer?: () => void | Promise<void>;
+  /** When false, "View Signed Offer" is hidden (e.g. no signed PDF on file yet). */
+  signedOfferLetterAvailable?: boolean;
   /** When the menu would be empty, Action stays visible but disabled. */
   noActionsTooltip?: string;
 }
@@ -55,11 +64,15 @@ export function SectionActionDropdown({
   showRequestAmendment = true,
   viewSignedOfferOnly = false,
   onViewSignedOffer,
+  signedOfferLetterAvailable = false,
   noActionsTooltip,
 }: SectionActionDropdownProps) {
   if (!isReviewable) return null;
 
-  if (viewSignedOfferOnly && onViewSignedOffer) {
+  const showViewSignedOffer =
+    !!onViewSignedOffer && signedOfferLetterAvailable === true;
+
+  if (viewSignedOfferOnly && showViewSignedOffer) {
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -70,6 +83,7 @@ export function SectionActionDropdown({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="rounded-xl">
           <DropdownMenuItem className="rounded-lg" onClick={() => void onViewSignedOffer()}>
+            <ArrowTopRightOnSquareIcon className="h-4 w-4 mr-2" />
             View Signed Offer
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -83,7 +97,7 @@ export function SectionActionDropdown({
     showReject ||
     showRequestAmendment ||
     showResetOption ||
-    !!onViewSignedOffer;
+    showViewSignedOffer;
 
   const button = (
     <Button
@@ -146,9 +160,10 @@ export function SectionActionDropdown({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="rounded-xl">
-        {onViewSignedOffer && (
+        {showViewSignedOffer && (
           <>
             <DropdownMenuItem className="rounded-lg" onClick={() => void onViewSignedOffer()}>
+              <ArrowTopRightOnSquareIcon className="h-4 w-4 mr-2" />
               View Signed Offer
             </DropdownMenuItem>
             <DropdownMenuSeparator />
