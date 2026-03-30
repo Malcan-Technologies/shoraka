@@ -4907,6 +4907,18 @@ export class AdminService {
     }
     await this.ensureInvoiceOfferItemActionAllowed(applicationId, scopeKey, application);
 
+    const invoiceForSend = await prisma.invoice.findUnique({
+      where: { id: invoiceId, application_id: applicationId },
+      select: { status: true },
+    });
+    if (invoiceForSend?.status === "REJECTED") {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        "Invoice was rejected; reset review to pending before sending an offer"
+      );
+    }
+
     const invoiceOfferMeta = await prisma.$transaction(async (tx) => {
       const lockedApplications = await tx.$queryRaw<{ status: string }[]>`
         SELECT status
