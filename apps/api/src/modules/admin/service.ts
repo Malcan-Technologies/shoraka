@@ -69,7 +69,8 @@ import {
   resolveRequestedFacility,
 } from "../../lib/contract-facility";
 import { getS3ObjectBuffer } from "../../lib/s3/client";
-import { computeSupportingDocumentsSectionStatus } from "./supporting-documents-section-status";
+import { computeSupportingDocumentsSectionStatus } from "../applications/supporting-documents-section-status";
+import { computeInvoiceDetailsSectionStatus } from "../applications/invoice-details-section-status";
 
 export class AdminService {
   private repository: AdminRepository;
@@ -4567,6 +4568,75 @@ export class AdminService {
     }
   }
 
+  private collectInvoiceScopeKeys(application: {
+    invoices?: { id: string; details?: unknown }[];
+  }): string[] {
+    const invoices = application.invoices ?? [];
+    return invoices.map((invoice, idx) => {
+      const details = invoice.details as { number?: string | number } | null | undefined;
+      const invoiceNo = details?.number ?? idx + 1;
+      const sanitized = String(invoiceNo).replace(/:/g, "_");
+      return `invoice_details:${idx}:${sanitized}`;
+    });
+  }
+
+  /**
+   * Updates invoice_details section row from per-invoice review items and logs SECTION_* when it changes.
+   */
+  private async syncInvoiceDetailsSectionFromItems(
+    repository: AdminRepository,
+    applicationId: string,
+    application: {
+      invoices?: { id: string; details?: unknown }[];
+      application_reviews?: { section: string; status: string }[];
+      application_review_items?: { item_type: string; item_id: string; status: string }[];
+    },
+    reviewerUserId: string,
+    logContext?: AdminLogContext
+  ): Promise<void> {
+    const invoiceKeys = this.collectInvoiceScopeKeys(application);
+    if (invoiceKeys.length === 0) {
+      return;
+    }
+
+    const invoiceRows =
+      application.application_review_items?.filter((r) => r.item_type === "invoice") ?? [];
+    const target = computeInvoiceDetailsSectionStatus(
+      invoiceKeys,
+      invoiceRows.map((r) => ({ item_id: r.item_id, status: r.status }))
+    );
+
+    const existing = application.application_reviews?.find((r) => r.section === "invoice_details");
+    const current = existing?.status ?? "PENDING";
+
+    if (target === current) {
+      return;
+    }
+
+    await repository.ensureApplicationReviewSection(applicationId, "invoice_details");
+    await repository.updateSectionReviewStatus(
+      applicationId,
+      "invoice_details",
+      target,
+      reviewerUserId
+    );
+
+    await this.logReviewActivity(
+      applicationId,
+      "section",
+      "invoice_details",
+      current,
+      target,
+      reviewerUserId,
+      null,
+      logContext
+    );
+
+    if (target === "APPROVED") {
+      await repository.removeDraftAmendment(applicationId, "section", "invoice_details");
+    }
+  }
+
   private async logReviewActivity(
     applicationId: string,
     scope: "section" | "item",
@@ -5042,7 +5112,18 @@ export class AdminService {
       deviceInfo: logContext?.deviceInfo ?? undefined,
     });
 
-    return repository.getApplicationById(applicationId);
+    let nextApp = await repository.getApplicationById(applicationId);
+    if (nextApp) {
+      await this.syncInvoiceDetailsSectionFromItems(
+        repository,
+        applicationId,
+        nextApp,
+        reviewerUserId,
+        logContext
+      );
+      nextApp = await repository.getApplicationById(applicationId);
+    }
+    return nextApp ?? repository.getApplicationById(applicationId);
   }
 
   /**
@@ -5206,6 +5287,38 @@ export class AdminService {
       }
     }
 
+    if (section === "invoice_details") {
+      const invoices = application.invoices ?? [];
+      if (invoices.length > 0) {
+        for (const inv of invoices) {
+          const scopeKey = this.resolveInvoiceScopeKeyById(
+            application as { invoices?: { id: string; details?: { number?: string | number } }[] },
+            inv.id
+          );
+          if (!scopeKey) continue;
+          await this.resetItemReviewToPending(applicationId, "invoice", scopeKey, reviewerUserId, logContext, {
+            skipInvoiceDetailsSectionSync: true,
+            skipItemActivityLog: true,
+          });
+        }
+        let nextApp = await repository.getApplicationById(applicationId);
+        if (nextApp) {
+          await this.syncInvoiceDetailsSectionFromItems(
+            repository,
+            applicationId,
+            nextApp,
+            reviewerUserId,
+            logContext
+          );
+          nextApp = await repository.getApplicationById(applicationId);
+        }
+        await repository.removeDraftAmendment(applicationId, "section", section);
+        await repository.updateApplicationStatus(applicationId, ApplicationStatus.INVOICE_PENDING);
+        logger.info({ applicationId, section, reviewerUserId }, "Review section reset to pending");
+        return nextApp ?? repository.getApplicationById(applicationId);
+      }
+    }
+
     const existing = application.application_reviews?.find(
       (r: { section: string; status: string }) => r.section === section
     );
@@ -5284,7 +5397,11 @@ export class AdminService {
     itemId: string,
     reviewerUserId: string,
     logContext?: AdminLogContext,
-    options?: { skipSupportingDocumentsSectionSync?: boolean; skipItemActivityLog?: boolean }
+    options?: {
+      skipSupportingDocumentsSectionSync?: boolean;
+      skipInvoiceDetailsSectionSync?: boolean;
+      skipItemActivityLog?: boolean;
+    }
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     this.validateReviewItemExists(application, itemType, itemId);
@@ -5370,6 +5487,20 @@ export class AdminService {
       !options?.skipSupportingDocumentsSectionSync
     ) {
       await this.syncSupportingDocumentsSectionFromItems(
+        repository,
+        applicationId,
+        nextApp,
+        reviewerUserId,
+        logContext
+      );
+      nextApp = await repository.getApplicationById(applicationId);
+    }
+    if (
+      itemType === "invoice" &&
+      nextApp &&
+      !options?.skipInvoiceDetailsSectionSync
+    ) {
+      await this.syncInvoiceDetailsSectionFromItems(
         repository,
         applicationId,
         nextApp,
@@ -5765,6 +5896,16 @@ export class AdminService {
       );
       nextApp = await repository.getApplicationById(applicationId);
     }
+    if (itemType === "invoice" && nextApp) {
+      await this.syncInvoiceDetailsSectionFromItems(
+        repository,
+        applicationId,
+        nextApp,
+        reviewerUserId,
+        logContext
+      );
+      nextApp = await repository.getApplicationById(applicationId);
+    }
     return nextApp ?? repository.getApplicationById(applicationId);
   }
 
@@ -5840,6 +5981,16 @@ export class AdminService {
     let nextApp = await repository.getApplicationById(applicationId);
     if (itemType === "document" && nextApp) {
       await this.syncSupportingDocumentsSectionFromItems(
+        repository,
+        applicationId,
+        nextApp,
+        reviewerUserId,
+        logContext
+      );
+      nextApp = await repository.getApplicationById(applicationId);
+    }
+    if (itemType === "invoice" && nextApp) {
+      await this.syncInvoiceDetailsSectionFromItems(
         repository,
         applicationId,
         nextApp,
@@ -5973,6 +6124,16 @@ export class AdminService {
     let result = await repository.getApplicationById(applicationId);
     if (scope === "item" && itemType === "document" && result) {
       await this.syncSupportingDocumentsSectionFromItems(
+        repository,
+        applicationId,
+        result,
+        reviewerUserId,
+        logContext
+      );
+      result = await repository.getApplicationById(applicationId);
+    }
+    if (scope === "item" && itemType === "invoice" && result) {
+      await this.syncInvoiceDetailsSectionFromItems(
         repository,
         applicationId,
         result,
@@ -6149,6 +6310,19 @@ export class AdminService {
             isInvoiceOnly ? ApplicationStatus.UNDER_REVIEW : ApplicationStatus.CONTRACT_PENDING
           );
         }
+      }
+    }
+
+    if (affectedSection === "invoice_details") {
+      const nextApp = await repository.getApplicationById(applicationId);
+      if (nextApp) {
+        await this.syncInvoiceDetailsSectionFromItems(
+          repository,
+          applicationId,
+          nextApp,
+          reviewerUserId,
+          undefined
+        );
       }
     }
 

@@ -325,16 +325,10 @@ export function SectionContent({
           readOnlyInvoiceIds={readOnlyInvoiceIds}
           contractFacility={contractFacility}
           reviewItems={reviewItems}
-          section={section}
           isReviewable={isReviewable}
           approvePending={approveItemPending}
           isActionLocked={isActionLocked}
           actionLockTooltip={actionLockTooltip}
-          sectionStatus={sectionStatus}
-          onResetSectionToPending={onResetSectionToPending}
-          onApprove={onApproveSection}
-          onReject={onRejectSection}
-          onRequestAmendment={onRequestAmendmentSection}
           onViewDocument={onViewDocument}
           viewDocumentPending={viewDocumentPending}
           invoiceRatioLimits={invoiceRatioLimits}

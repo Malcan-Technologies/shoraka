@@ -69,8 +69,7 @@ export function SectionActionDropdown({
 }: SectionActionDropdownProps) {
   if (!isReviewable) return null;
 
-  const showViewSignedOffer =
-    !!onViewSignedOffer && signedOfferLetterAvailable === true;
+  const showViewSignedOffer = !!onViewSignedOffer && signedOfferLetterAvailable === true;
 
   if (viewSignedOfferOnly && showViewSignedOffer) {
     return (
@@ -93,11 +92,7 @@ export function SectionActionDropdown({
 
   const showResetOption = !!(onResetToPending && sectionStatus && sectionStatus !== "PENDING");
   const hasAnyMenuAction =
-    showApprove ||
-    showReject ||
-    showRequestAmendment ||
-    showResetOption ||
-    showViewSignedOffer;
+    showApprove || showReject || showRequestAmendment || showResetOption || showViewSignedOffer;
 
   const button = (
     <Button
@@ -180,28 +175,19 @@ export function SectionActionDropdown({
           </DropdownMenuItem>
         )}
         {showReject && (
-          <DropdownMenuItem
-            className="rounded-lg"
-            onClick={() => onReject(section)}
-          >
+          <DropdownMenuItem className="rounded-lg" onClick={() => onReject(section)}>
             <XCircleIcon className="h-4 w-4 mr-2" />
             Reject
           </DropdownMenuItem>
         )}
         {showRequestAmendment && (
-          <DropdownMenuItem
-            className="rounded-lg"
-            onClick={() => onRequestAmendment(section)}
-          >
+          <DropdownMenuItem className="rounded-lg" onClick={() => onRequestAmendment(section)}>
             <DocumentTextIcon className="h-4 w-4 mr-2" />
             Request amendment
           </DropdownMenuItem>
         )}
         {onResetToPending && sectionStatus && sectionStatus !== "PENDING" && (
-          <DropdownMenuItem
-            className="rounded-lg"
-            onClick={() => onResetToPending(section)}
-          >
+          <DropdownMenuItem className="rounded-lg" onClick={() => onResetToPending(section)}>
             <ArrowPathIcon className="h-4 w-4 mr-2" />
             Set to Pending
           </DropdownMenuItem>
