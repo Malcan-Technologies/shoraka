@@ -88,6 +88,15 @@ export function ReviewOfferModal({
     type === "contract" && contractDetails?.end_date
       ? formatDateOrDash(String(contractDetails.end_date))
       : null;
+  const offeredValue =
+    type === "contract"
+      ? od?.offered_facility != null
+        ? formatCurrency(Number(od.offered_facility))
+        : "—"
+      : od?.offered_amount != null
+        ? formatCurrency(Number(od.offered_amount))
+        : "—";
+
   const expiresAt = od?.expires_at
     ? format(new Date(String(od.expires_at)), "d MMM yyyy")
     : "—";
@@ -98,6 +107,23 @@ export function ReviewOfferModal({
         : "Expires"
       : "Expires";
   const dateValue = type === "contract" && contractEndDate ? contractEndDate : expiresAt;
+
+  const profitRateDisplay =
+    od?.offered_profit_rate_percent != null &&
+    Number.isFinite(Number(od.offered_profit_rate_percent))
+      ? `${Number(od.offered_profit_rate_percent)}%`
+      : "—";
+
+  const summarySecondLabel = type === "contract" ? "Approved facility:" : "Invoice value:";
+  const summarySecondValue =
+    type === "contract"
+      ? offeredValue
+      : invoice?.value != null && Number.isFinite(invoice.value)
+        ? formatCurrency(invoice.value)
+        : "—";
+
+  const summaryThirdLabel = type === "contract" ? `${dateLabel}:` : "Profit rate (p.a.):";
+  const summaryThirdValue = type === "contract" ? dateValue : profitRateDisplay;
 
   const handleDownload = async () => {
     if (type === "invoice" && !invoice?.id) {
@@ -188,15 +214,6 @@ export function ReviewOfferModal({
     }
   };
 
-  const offeredValue =
-    type === "contract"
-      ? od?.offered_facility != null
-        ? formatCurrency(Number(od.offered_facility))
-        : "—"
-      : od?.offered_amount != null
-        ? formatCurrency(Number(od.offered_amount))
-        : "—";
-
   const isPending =
     acceptSigningLoading || rejectContract.isPending || rejectInvoice.isPending;
 
@@ -243,18 +260,18 @@ export function ReviewOfferModal({
 
             <dl className="grid grid-cols-[1fr_auto] gap-x-6 gap-y-3 text-sm py-4 border-y border-border">
               <dt className="text-muted-foreground font-medium">
-                {type === "contract" ? "Contract name:" : "Invoice:"}
+                {type === "contract" ? "Contract name:" : "Invoice number:"}
               </dt>
               <dd className="font-medium text-foreground text-right tabular-nums">
                 {contractName}
               </dd>
-              <dt className="text-muted-foreground font-medium">Approved facility:</dt>
+              <dt className="text-muted-foreground font-medium">{summarySecondLabel}</dt>
               <dd className="font-medium text-foreground text-right tabular-nums">
-                {offeredValue}
+                {summarySecondValue}
               </dd>
-              <dt className="text-muted-foreground font-medium">{dateLabel}:</dt>
+              <dt className="text-muted-foreground font-medium">{summaryThirdLabel}</dt>
               <dd className="font-medium text-foreground text-right tabular-nums">
-                {dateValue}
+                {summaryThirdValue}
               </dd>
             </dl>
 
