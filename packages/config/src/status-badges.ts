@@ -27,7 +27,7 @@ export interface StatusPresentation {
   variant: StatusVariant;
 }
 
-/** Shared badge classes per group. Dot uses text color for consistency. */
+/** Shared badge classes per group. Dots use brighter fills than label text so small circles stay distinguishable. */
 const GROUP = {
   action: "border-transparent bg-status-action-bg text-status-action-text dark:bg-amber-950/40 dark:text-amber-300",
   submitted: "border-transparent bg-status-submitted-bg text-status-submitted-text dark:bg-blue-950/40 dark:text-blue-300",
@@ -40,9 +40,9 @@ const DOT = {
   action: "bg-status-action-text",
   submitted: "bg-status-submitted-text",
   "in-progress": "bg-status-in-progress-text",
-  success: "bg-status-success-text",
+  success: "bg-emerald-500 dark:bg-emerald-400",
   rejected: "bg-status-rejected-text",
-  neutral: "bg-status-neutral-text",
+  neutral: "bg-slate-400 dark:bg-slate-500",
 };
 
 const STATUS_PRESENTATION: Record<string, Omit<StatusPresentation, "label"> & { label?: string }> = {
@@ -84,7 +84,7 @@ const STATUS_PRESENTATION: Record<string, Omit<StatusPresentation, "label"> & { 
   CONTRACT_ACCEPTED: {
     label: "Contract Accepted",
     badgeClass: GROUP.success,
-    iconClass: "text-emerald-600 dark:text-emerald-400",
+    iconClass: "text-emerald-700 dark:text-emerald-400",
     dotClass: DOT.success,
     variant: "success",
   },
@@ -105,7 +105,7 @@ const STATUS_PRESENTATION: Record<string, Omit<StatusPresentation, "label"> & { 
   OFFER_SENT: {
     label: "Offer Sent",
     badgeClass: GROUP.success,
-    iconClass: "text-emerald-600 dark:text-emerald-400",
+    iconClass: "text-emerald-700 dark:text-emerald-400",
     dotClass: DOT.success,
     variant: "success",
   },
@@ -126,14 +126,14 @@ const STATUS_PRESENTATION: Record<string, Omit<StatusPresentation, "label"> & { 
   APPROVED: {
     label: "Approved",
     badgeClass: GROUP.success,
-    iconClass: "text-emerald-600 dark:text-emerald-400",
+    iconClass: "text-emerald-700 dark:text-emerald-400",
     dotClass: DOT.success,
     variant: "success",
   },
   COMPLETED: {
     label: "Completed",
     badgeClass: GROUP.success,
-    iconClass: "text-emerald-600 dark:text-emerald-400",
+    iconClass: "text-emerald-700 dark:text-emerald-400",
     dotClass: DOT.success,
     variant: "success",
   },
