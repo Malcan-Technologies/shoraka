@@ -28,9 +28,15 @@ export interface SectionActionDropdownProps {
   actionLockTooltip?: string;
   /** When false, hides Approve action (offer-driven sections). */
   showApprove?: boolean;
+  /** When false, hides Reject (e.g. documents section uses item-level reject only). */
+  showReject?: boolean;
+  /** When false, hides Request amendment (e.g. documents section uses item-level only). */
+  showRequestAmendment?: boolean;
   /** When true, menu shows only "View Signed Offer". */
   viewSignedOfferOnly?: boolean;
   onViewSignedOffer?: () => void | Promise<void>;
+  /** When the menu would be empty, Action stays visible but disabled. */
+  noActionsTooltip?: string;
 }
 
 export function SectionActionDropdown({
@@ -45,8 +51,11 @@ export function SectionActionDropdown({
   isActionLocked = false,
   actionLockTooltip,
   showApprove = true,
+  showReject = true,
+  showRequestAmendment = true,
   viewSignedOfferOnly = false,
   onViewSignedOffer,
+  noActionsTooltip,
 }: SectionActionDropdownProps) {
   if (!isReviewable) return null;
 
@@ -68,6 +77,14 @@ export function SectionActionDropdown({
     );
   }
 
+  const showResetOption = !!(onResetToPending && sectionStatus && sectionStatus !== "PENDING");
+  const hasAnyMenuAction =
+    showApprove ||
+    showReject ||
+    showRequestAmendment ||
+    showResetOption ||
+    !!onViewSignedOffer;
+
   const button = (
     <Button
       variant="outline"
@@ -79,6 +96,36 @@ export function SectionActionDropdown({
       <ChevronDownIcon className="h-4 w-4" />
     </Button>
   );
+
+  if (!hasAnyMenuAction) {
+    const emptyTooltip =
+      noActionsTooltip ??
+      "No section-level actions are available. Use the actions on each item below.";
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex cursor-not-allowed">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-xl gap-1.5 opacity-60"
+                disabled
+                aria-disabled
+              >
+                Action
+                <ChevronDownIcon className="h-4 w-4" />
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="max-w-xs bg-muted text-muted-foreground">
+            {emptyTooltip}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
 
   if (isActionLocked) {
     return (
@@ -117,20 +164,24 @@ export function SectionActionDropdown({
             Approve
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem
-          className="rounded-lg"
-          onClick={() => onReject(section)}
-        >
-          <XCircleIcon className="h-4 w-4 mr-2" />
-          Reject
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          className="rounded-lg"
-          onClick={() => onRequestAmendment(section)}
-        >
-          <DocumentTextIcon className="h-4 w-4 mr-2" />
-          Request amendment
-        </DropdownMenuItem>
+        {showReject && (
+          <DropdownMenuItem
+            className="rounded-lg"
+            onClick={() => onReject(section)}
+          >
+            <XCircleIcon className="h-4 w-4 mr-2" />
+            Reject
+          </DropdownMenuItem>
+        )}
+        {showRequestAmendment && (
+          <DropdownMenuItem
+            className="rounded-lg"
+            onClick={() => onRequestAmendment(section)}
+          >
+            <DocumentTextIcon className="h-4 w-4 mr-2" />
+            Request amendment
+          </DropdownMenuItem>
+        )}
         {onResetToPending && sectionStatus && sectionStatus !== "PENDING" && (
           <DropdownMenuItem
             className="rounded-lg"

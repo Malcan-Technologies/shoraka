@@ -109,6 +109,8 @@ export interface DocumentListProps {
   isViewDocumentPending?: boolean;
   isActionLocked?: boolean;
   actionLockTooltip?: string;
+  /** When any document was rejected, hide approve/reject/amendment on all rows (reset still allowed where applicable). */
+  lockItemPrimaryReviewActions?: boolean;
 }
 
 export function DocumentList({
@@ -124,6 +126,7 @@ export function DocumentList({
   isViewDocumentPending,
   isActionLocked,
   actionLockTooltip,
+  lockItemPrimaryReviewActions = false,
 }: DocumentListProps) {
   const categoryGroups = React.useMemo(() => buildCategoryGroups(documents), [documents]);
 
@@ -190,6 +193,14 @@ export function DocumentList({
                             isPending={isItemActionPending}
                             isActionLocked={isActionLocked}
                             actionLockTooltip={actionLockTooltip}
+                            showApprove={!lockItemPrimaryReviewActions}
+                            showReject={!lockItemPrimaryReviewActions}
+                            showRequestAmendment={!lockItemPrimaryReviewActions}
+                            noActionsTooltip={
+                              lockItemPrimaryReviewActions && status === "PENDING"
+                                ? "Another document was rejected. Clear that rejection or use Set to Pending on it, or reset the whole section."
+                                : undefined
+                            }
                             onApprove={onApproveItem}
                             onReject={onRejectItem}
                             onRequestAmendment={onRequestAmendmentItem}
