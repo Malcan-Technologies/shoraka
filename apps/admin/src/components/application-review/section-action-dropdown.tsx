@@ -35,9 +35,9 @@ export interface SectionActionDropdownProps {
   actionLockTooltip?: string;
   /** When false, hides Approve action (offer-driven sections). */
   showApprove?: boolean;
-  /** When false, hides Reject (e.g. documents section uses item-level reject only). */
+  /** When false, hides Reject (use item-level actions instead). */
   showReject?: boolean;
-  /** When false, hides Request amendment (e.g. documents section uses item-level only). */
+  /** When false, hides Request amendment (use item-level actions instead). */
   showRequestAmendment?: boolean;
   /** When true, menu shows only "View Signed Offer". */
   viewSignedOfferOnly?: boolean;

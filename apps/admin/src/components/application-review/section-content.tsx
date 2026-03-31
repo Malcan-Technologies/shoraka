@@ -213,17 +213,11 @@ export function SectionContent({
         <DocumentsSection
           supportingDocuments={app.supporting_documents}
           reviewItems={reviewItems}
-          section={section}
           isReviewable={isReviewable}
           approvePending={approveItemPending}
           isActionLocked={isActionLocked}
           actionLockTooltip={actionLockTooltip}
-          sectionStatus={sectionStatus}
-          onResetSectionToPending={onResetSectionToPending}
           viewDocumentPending={viewDocumentPending}
-          onApprove={onApproveSection}
-          onReject={onRejectSection}
-          onRequestAmendment={onRequestAmendmentSection}
           onViewDocument={onViewDocument}
           onApproveItem={(id) => onApproveItem(id, "document")}
           onRejectItem={(id) => onRejectItem(id, "document")}
