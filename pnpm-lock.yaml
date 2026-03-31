@@ -274,6 +274,9 @@ importers:
       cors:
         specifier: ^2.8.5
         version: 2.8.5
+      date-fns:
+        specifier: ^4.1.0
+        version: 4.1.0
       dotenv:
         specifier: ^16.3.1
         version: 16.6.1
@@ -800,6 +803,9 @@ importers:
       aws-amplify:
         specifier: ^6.0.0
         version: 6.15.8
+      date-fns:
+        specifier: ^4.1.0
+        version: 4.1.0
       react:
         specifier: ^19.0.0
         version: 19.2.3

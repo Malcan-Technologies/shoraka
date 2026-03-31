@@ -1,8 +1,11 @@
 /**
  * Validates product financial configuration before DB insert/update.
  * Prevents invalid configs (offer expiry, financing ratios) from corrupting the database.
+ *
+ * Invoice maturity helpers below align with @cashsouk/config offer-resolvers (parse / month rules).
  */
 
+import { addMonths, isBefore, parseISO, startOfDay, isValid } from "date-fns";
 import { AppError } from "../../lib/http/error-handler";
 
 function getStepId(step: unknown): string {
@@ -129,6 +132,24 @@ export function validateWorkflowFinancialConfig(workflow: unknown[]): void {
   if (minRatio != null && maxRatio != null && minRatio > maxRatio) {
     throw new AppError(400, "VALIDATION_ERROR", "Invalid financing ratio configuration");
   }
+
+  const parseMonth = (v: unknown): number | null => {
+    if (v == null || v === "") return null;
+    if (typeof v === "number" && Number.isFinite(v)) return Math.floor(v);
+    if (typeof v === "string") {
+      const n = parseInt(v.trim(), 10);
+      return !Number.isNaN(n) ? n : null;
+    }
+    return null;
+  };
+  for (const v of [
+    parseMonth(config.min_months_application_to_maturity),
+    parseMonth(config.min_months_review_to_maturity),
+  ]) {
+    if (v != null && (v < 0 || v > 120)) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invalid invoice maturity month configuration");
+    }
+  }
 }
 
 /**
@@ -142,5 +163,104 @@ export function validateFinancialConfig(params: {
   if (params.workflow && params.workflow.length > 0) {
     validateMandatoryWorkflowStepSet(params.workflow);
     validateWorkflowFinancialConfig(params.workflow);
+  }
+}
+
+// --- Invoice maturity (runtime checks; mirrors packages/config offer-resolvers) ---
+
+export function parseInvoiceMaturityDate(value: string | undefined | null): Date | null {
+  if (value == null || typeof value !== "string" || !value.trim()) return null;
+  const trimmed = value.trim();
+  const iso = trimmed.length === 10 ? parseISO(`${trimmed}T00:00:00`) : parseISO(trimmed);
+  if (!isValid(iso)) return null;
+  return startOfDay(iso);
+}
+
+export function maturityMeetsMinimumMonthsFrom(
+  maturityDate: Date,
+  referenceDate: Date,
+  minMonths: number | null | undefined
+): boolean {
+  if (minMonths == null || !Number.isFinite(minMonths) || minMonths <= 0) return true;
+  const months = Math.min(120, Math.max(0, Math.floor(minMonths)));
+  if (months === 0) return true;
+  const minAllowed = addMonths(startOfDay(referenceDate), months);
+  return !isBefore(startOfDay(maturityDate), minAllowed);
+}
+
+export function readInvoiceMaturityMonthsFromWorkflow(workflow: unknown): {
+  minMonthsApplicationToMaturity: number | null;
+  minMonthsReviewToMaturity: number | null;
+} {
+  const config = getInvoiceDetailsConfig(Array.isArray(workflow) ? workflow : []);
+  if (!config) {
+    return { minMonthsApplicationToMaturity: null, minMonthsReviewToMaturity: null };
+  }
+  const parse = (v: unknown): number | null => {
+    if (v == null || v === "") return null;
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+    if (typeof v === "string") {
+      const n = parseInt(v, 10);
+      return !Number.isNaN(n) ? n : null;
+    }
+    return null;
+  };
+  const application = parse(config.min_months_application_to_maturity);
+  const review = parse(config.min_months_review_to_maturity);
+  return {
+    minMonthsApplicationToMaturity: application != null && application > 0 ? application : null,
+    minMonthsReviewToMaturity: review != null && review > 0 ? review : null,
+  };
+}
+
+function normalizeRefDay(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+export function assertMaturityForApplication(
+  workflow: unknown,
+  details: Record<string, unknown>,
+  referenceDate: Date = new Date()
+): void {
+  const { minMonthsApplicationToMaturity } = readInvoiceMaturityMonthsFromWorkflow(workflow);
+  if (minMonthsApplicationToMaturity == null) return;
+  const raw = details.maturity_date ?? details.due_date;
+  const maturity = parseInvoiceMaturityDate(typeof raw === "string" ? raw : undefined);
+  if (!maturity) return;
+  if (
+    !maturityMeetsMinimumMonthsFrom(
+      maturity,
+      normalizeRefDay(referenceDate),
+      minMonthsApplicationToMaturity
+    )
+  ) {
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      `Invoice maturity must be at least ${minMonthsApplicationToMaturity} month(s) from today.`
+    );
+  }
+}
+
+export function assertMaturityForSendInvoiceOffer(
+  workflow: unknown,
+  details: Record<string, unknown>,
+  referenceDate: Date = new Date()
+): void {
+  const { minMonthsReviewToMaturity } = readInvoiceMaturityMonthsFromWorkflow(workflow);
+  if (minMonthsReviewToMaturity == null) return;
+  const raw = details.maturity_date ?? details.due_date;
+  const maturity = parseInvoiceMaturityDate(typeof raw === "string" ? raw : undefined);
+  if (!maturity) {
+    throw new AppError(400, "INVALID_STATE", "Invoice maturity date is missing");
+  }
+  if (!maturityMeetsMinimumMonthsFrom(maturity, normalizeRefDay(referenceDate), minMonthsReviewToMaturity)) {
+    throw new AppError(
+      400,
+      "VALIDATION_ERROR",
+      `Invoice maturity must be at least ${minMonthsReviewToMaturity} month(s) from today to send an offer.`
+    );
   }
 }

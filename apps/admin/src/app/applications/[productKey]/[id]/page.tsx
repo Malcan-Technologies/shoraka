@@ -65,7 +65,7 @@ import {
   PencilSquareIcon,
   XCircleIcon,
 } from "@heroicons/react/24/outline";
-import { formatCurrency, useAuthToken } from "@cashsouk/config";
+import { formatCurrency, useAuthToken, readInvoiceMaturityMonthsFromWorkflow } from "@cashsouk/config";
 import { ApplicationStatusBadge } from "@/components/application-review";
 
 function PageSkeleton() {
@@ -120,6 +120,11 @@ export default function DynamicApplicationDetailPage() {
 
   const offerExpiryDays =
     (currentProduct as { offer_expiry_days?: number | null })?.offer_expiry_days ?? 7;
+
+  const minMonthsReviewToMaturityForOffer = React.useMemo(() => {
+    const workflow = (currentProduct as { workflow?: unknown[] })?.workflow ?? [];
+    return readInvoiceMaturityMonthsFromWorkflow(workflow).minMonthsReviewToMaturity;
+  }, [currentProduct]);
 
   const [confirmAction, setConfirmAction] = React.useState<{
     type: "APPROVE" | "REJECT";
@@ -976,6 +981,7 @@ export default function DynamicApplicationDetailPage() {
                             sendInvoiceOfferPending={sendInvoiceOffer.isPending}
                             invoiceRatioLimits={invoiceRatioLimits}
                             offerExpiryDays={offerExpiryDays}
+                            minMonthsReviewToMaturityForOffer={minMonthsReviewToMaturityForOffer}
                             onViewSignedInvoiceOffer={handleViewSignedInvoiceOffer}
                             onViewSignedContractOffer={handleViewSignedContractOffer}
                           />

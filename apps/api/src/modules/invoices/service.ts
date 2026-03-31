@@ -17,18 +17,30 @@ import {
   deleteS3Object,
 } from "../../lib/s3/client";
 import { logger } from "../../lib/logger";
+import { ProductRepository } from "../products/repository";
+import { assertMaturityForApplication } from "../products/validate-financial-config";
 
 export class InvoiceService {
   private repository: InvoiceRepository;
   private applicationRepository: ApplicationRepository;
   private organizationRepository: OrganizationRepository;
   private contractRepository: ContractRepository;
+  private productRepository: ProductRepository;
 
   constructor() {
     this.repository = new InvoiceRepository();
     this.applicationRepository = new ApplicationRepository();
     this.organizationRepository = new OrganizationRepository();
     this.contractRepository = new ContractRepository();
+    this.productRepository = new ProductRepository();
+  }
+
+  private async loadWorkflowForApplication(applicationId: string): Promise<unknown | null> {
+    const app = await this.applicationRepository.findById(applicationId);
+    const productId = (app?.financing_type as { product_id?: string } | null)?.product_id;
+    if (!productId) return null;
+    const product = await this.productRepository.findById(productId);
+    return product?.workflow ?? null;
   }
 
   private async verifyInvoiceAccess(invoiceId: string, userId: string): Promise<Invoice> {
@@ -124,6 +136,11 @@ export class InvoiceService {
   async createInvoice(applicationId: string, contractId: string | undefined, details: any, userId: string): Promise<Invoice> {
     await this.verifyApplicationAccess(applicationId, userId);
 
+    const workflow = await this.loadWorkflowForApplication(applicationId);
+    if (workflow) {
+      assertMaturityForApplication(workflow, details as Record<string, unknown>);
+    }
+
     const s3Key = details?.document?.s3_key;
 
     try {
@@ -193,6 +210,12 @@ export class InvoiceService {
       ...updatedDetails,
       ...otherFields,
     };
+  }
+
+  const applicationId = (invoice as { application_id: string }).application_id;
+  const workflow = await this.loadWorkflowForApplication(applicationId);
+  if (workflow) {
+    assertMaturityForApplication(workflow, updatedDetails as Record<string, unknown>);
   }
 
   /**

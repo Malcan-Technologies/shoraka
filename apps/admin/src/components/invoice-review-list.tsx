@@ -2,13 +2,18 @@
 
 import * as React from "react";
 import { ArrowTopRightOnSquareIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
-import { format, addDays, differenceInDays, isValid } from "date-fns";
-import { formatCurrency, resolveOfferedAmount, resolveOfferedProfitRate } from "@cashsouk/config";
+import { format, addDays, differenceInDays, isValid, min as minDate } from "date-fns";
+import {
+  formatCurrency,
+  resolveOfferedAmount,
+  resolveOfferedProfitRate,
+  maturityMeetsMinimumMonthsFrom,
+  parseInvoiceMaturityDate,
+} from "@cashsouk/config";
 import { ItemActionDropdown } from "@/components/application-review/item-action-dropdown";
 import { ReviewStepStatusBadge } from "@/components/application-review/review-step-status-badge";
 import { REVIEW_EMPTY_LABEL } from "@/components/application-review/review-section-styles";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Slider } from "@cashsouk/ui";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -67,6 +72,8 @@ interface InvoiceReviewListProps {
   invoiceRatioLimits: { min: number; max: number };
   /** Product offer expiry in days. Used for estimated disbursement, period, profit and offer expiry date. */
   offerExpiryDays?: number | null;
+  /** From product workflow: minimum months from today to maturity required to enable Send Offer. */
+  minMonthsReviewToMaturityForOffer?: number | null;
   isActionLocked?: boolean;
   actionLockTooltip?: string;
   onApproveItem: (itemId: string) => Promise<void>;
@@ -116,8 +123,10 @@ function computeOfferEstimates(
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const offerExpiryDate = addDays(today, offerExpiryDays);
-  const estDisbursementDate = addDays(offerExpiryDate, 15);
+  const estDisbursementRaw = addDays(offerExpiryDate, 15);
   const maturityDate = parseMaturityDate(maturityDateStr);
+  const estDisbursementDate =
+    maturityDate !== null ? minDate([estDisbursementRaw, maturityDate]) : estDisbursementRaw;
   const estPeriodDays =
     maturityDate !== null
       ? Math.max(0, differenceInDays(maturityDate, estDisbursementDate))
@@ -169,6 +178,7 @@ export function InvoiceList({
   isViewDocumentPending,
   invoiceRatioLimits,
   offerExpiryDays,
+  minMonthsReviewToMaturityForOffer,
   isActionLocked,
   actionLockTooltip,
   onApproveItem,
@@ -460,6 +470,21 @@ export function InvoiceList({
                                       offeredAmount
                                     )
                                   : null;
+                              const reviewDay = new Date();
+                              reviewDay.setHours(0, 0, 0, 0);
+                              const maturityParsedForOffer = parseInvoiceMaturityDate(
+                                typeof maturityDate === "string" ? maturityDate : undefined
+                              );
+                              const sendOfferBlockedByMaturity =
+                                !isOfferSent &&
+                                typeof minMonthsReviewToMaturityForOffer === "number" &&
+                                minMonthsReviewToMaturityForOffer > 0 &&
+                                (maturityParsedForOffer === null ||
+                                  !maturityMeetsMinimumMonthsFrom(
+                                    maturityParsedForOffer,
+                                    reviewDay,
+                                    minMonthsReviewToMaturityForOffer
+                                  ));
                               return (
                                 <>
                             <div
@@ -668,28 +693,41 @@ export function InvoiceList({
                                 </div>
                                 {!isOfferSent && onSendInvoiceOffer &&
                                   (isAdminRejected ? (
-                                    <TooltipProvider>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <span className="mt-3 inline-flex w-full cursor-not-allowed">
-                                            <Button
-                                              type="button"
-                                              className="w-full rounded-xl bg-primary text-primary-foreground h-10 opacity-60"
-                                              disabled
-                                            >
-                                              Send Offer
-                                            </Button>
-                                          </span>
-                                        </TooltipTrigger>
-                                        <TooltipContent
-                                          side="bottom"
-                                          className="max-w-xs border-border bg-muted text-muted-foreground"
-                                        >
-                                          This invoice was rejected. Use Action → Set to pending on this row, then
-                                          you can send an offer.
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
+                                    <div className="mt-3 w-full space-y-2">
+                                      <Button
+                                        type="button"
+                                        className="w-full rounded-xl bg-primary text-primary-foreground h-10 opacity-60"
+                                        disabled
+                                        aria-describedby={`send-offer-blocked-${inv.id}-rejected`}
+                                      >
+                                        Send Offer
+                                      </Button>
+                                      <p
+                                        id={`send-offer-blocked-${inv.id}-rejected`}
+                                        className="text-sm text-destructive leading-snug"
+                                      >
+                                        This invoice was rejected. Use Action → Set to pending on this row, then you
+                                        can send an offer.
+                                      </p>
+                                    </div>
+                                  ) : sendOfferBlockedByMaturity ? (
+                                    <div className="mt-3 w-full space-y-2">
+                                      <Button
+                                        type="button"
+                                        className="w-full rounded-xl bg-primary text-primary-foreground h-10 opacity-60"
+                                        disabled
+                                        aria-describedby={`send-offer-blocked-${inv.id}-maturity`}
+                                      >
+                                        Send Offer
+                                      </Button>
+                                      <p
+                                        id={`send-offer-blocked-${inv.id}-maturity`}
+                                        className="text-sm text-destructive leading-snug"
+                                      >
+                                        Maturity date must be at least{" "}
+                                        {minMonthsReviewToMaturityForOffer} month(s) after today to send an offer.
+                                      </p>
+                                    </div>
                                   ) : (
                                     <Button
                                       type="button"

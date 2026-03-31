@@ -8,6 +8,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "date-fns": "^4.1.0",
     "@cashsouk/types": "workspace:*",
     "@tanstack/react-query": "^5.14.2",
     "aws-amplify": "^6.0.0"

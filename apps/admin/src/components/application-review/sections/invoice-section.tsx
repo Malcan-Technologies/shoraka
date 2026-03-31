@@ -32,6 +32,7 @@ export interface InvoiceSectionProps {
   viewDocumentPending: boolean;
   invoiceRatioLimits?: { min: number; max: number };
   offerExpiryDays?: number | null;
+  minMonthsReviewToMaturityForOffer?: number | null;
   onApproveItem: (itemId: string) => Promise<void>;
   onRejectItem: (itemId: string) => void;
   onRequestAmendmentItem: (itemId: string) => void;
@@ -61,6 +62,7 @@ export function InvoiceSection({
   viewDocumentPending,
   invoiceRatioLimits,
   offerExpiryDays,
+  minMonthsReviewToMaturityForOffer,
   onApproveItem,
   onRejectItem,
   onRequestAmendmentItem,
@@ -90,6 +92,7 @@ export function InvoiceSection({
           isViewDocumentPending={viewDocumentPending}
           invoiceRatioLimits={invoiceRatioLimits ?? { min: 60, max: 80 }}
           offerExpiryDays={offerExpiryDays}
+          minMonthsReviewToMaturityForOffer={minMonthsReviewToMaturityForOffer}
           isActionLocked={isActionLocked}
           actionLockTooltip={actionLockTooltip}
           onApproveItem={onApproveItem}

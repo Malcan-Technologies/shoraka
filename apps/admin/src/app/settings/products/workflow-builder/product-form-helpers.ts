@@ -54,6 +54,19 @@ export function buildPayloadFromSteps(steps: unknown[]): Step[] {
         return null;
       };
 
+      const parseOptionalMonthInt = (v: unknown): number | null => {
+        if (v == null || v === "") return null;
+        if (typeof v === "number" && Number.isFinite(v)) return Math.floor(v);
+        if (typeof v === "string") {
+          const n = parseInt(v.trim(), 10);
+          return !Number.isNaN(n) ? n : null;
+        }
+        return null;
+      };
+
+      const applicationMonths = parseOptionalMonthInt(config.min_months_application_to_maturity);
+      const reviewMonths = parseOptionalMonthInt(config.min_months_review_to_maturity);
+
       config = {
         ...config,
         min_invoice_value:
@@ -73,6 +86,9 @@ export function buildPayloadFromSteps(steps: unknown[]): Step[] {
         /** Default 60–80 when blank. */
         min_financing_ratio_percent: parseRatio(minRatioRaw) ?? 60,
         max_financing_ratio_percent: parseRatio(maxRatioRaw) ?? 80,
+        min_months_application_to_maturity:
+          applicationMonths != null && applicationMonths > 0 ? applicationMonths : null,
+        min_months_review_to_maturity: reviewMonths != null && reviewMonths > 0 ? reviewMonths : null,
       };
     }
 
@@ -296,6 +312,27 @@ function runStepValidation(steps: unknown[]): { errors: string[]; stepIdsWithErr
       if (minRatio != null && maxRatio != null && minRatio > maxRatio) {
         errors.push(`${stepLabel}: minimum financing ratio cannot be greater than maximum financing ratio`);
         stepIdsWithErrors.add(stepId);
+      }
+
+      const parseMonth = (v: unknown): number | null => {
+        if (v == null || v === "") return null;
+        if (typeof v === "number" && Number.isFinite(v)) return Math.floor(v);
+        if (typeof v === "string") {
+          const n = parseInt(v.trim(), 10);
+          return !Number.isNaN(n) ? n : null;
+        }
+        return null;
+      };
+      const applicationM = parseMonth(config.min_months_application_to_maturity);
+      const reviewM = parseMonth(config.min_months_review_to_maturity);
+      for (const [label, val] of [
+        ["Min months (application → maturity)", applicationM],
+        ["Min months (review → maturity)", reviewM],
+      ] as const) {
+        if (val != null && (val < 0 || val > 120)) {
+          errors.push(`${stepLabel}: ${label} must be between 0 and 120 (or leave blank)`);
+          stepIdsWithErrors.add(stepId);
+        }
       }
     }
 

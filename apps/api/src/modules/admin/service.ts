@@ -71,6 +71,7 @@ import {
 import { getS3ObjectBuffer } from "../../lib/s3/client";
 import { computeSupportingDocumentsSectionStatus } from "../applications/supporting-documents-section-status";
 import { computeInvoiceDetailsSectionStatus } from "../applications/invoice-details-section-status";
+import { assertMaturityForSendInvoiceOffer } from "../products/validate-financial-config";
 
 export class AdminService {
   private repository: AdminRepository;
@@ -4917,6 +4918,15 @@ export class AdminService {
         "INVALID_STATE",
         "Invoice was rejected; reset review to pending before sending an offer"
       );
+    }
+
+    const invoiceDetailsForMaturity = (invoice.details as Record<string, unknown> | null) ?? {};
+    const productIdForMaturity = (application.financing_type as { product_id?: string } | null)?.product_id;
+    if (productIdForMaturity) {
+      const productForMaturity = await this.productRepository.findById(productIdForMaturity);
+      if (productForMaturity?.workflow) {
+        assertMaturityForSendInvoiceOffer(productForMaturity.workflow, invoiceDetailsForMaturity);
+      }
     }
 
     const invoiceOfferMeta = await prisma.$transaction(async (tx) => {

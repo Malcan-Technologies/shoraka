@@ -85,6 +85,7 @@ export function generateMockData(): Record<string, unknown> {
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 import { parseISO, parse, isValid, format } from "date-fns";
+import { maturityMeetsMinimumMonthsFrom } from "@cashsouk/config";
 
 /**
  * PRODUCT CONFIG EXTRACTION
@@ -97,6 +98,7 @@ interface InvoiceConfig {
   max_invoice_value?: number | null;
   min_financing_ratio_percent?: number | null;
   max_financing_ratio_percent?: number | null;
+  min_months_application_to_maturity?: number | null;
 }
 
 /**
@@ -131,11 +133,18 @@ function getProductInvoiceConfig(application: any, products: any[] = []): Invoic
       minRatio >= 1 &&
       maxRatio <= 100;
     if (!hasValidRatioConfig) return null;
+    const applicationMonths =
+      typeof config.min_months_application_to_maturity === "number" &&
+      Number.isFinite(config.min_months_application_to_maturity) &&
+      config.min_months_application_to_maturity > 0
+        ? Math.floor(config.min_months_application_to_maturity)
+        : null;
     return {
       min_invoice_value: config.min_invoice_value ?? null,
       max_invoice_value: config.max_invoice_value ?? null,
       min_financing_ratio_percent: minRatio,
       max_financing_ratio_percent: maxRatio,
+      min_months_application_to_maturity: applicationMonths,
     };
   } catch {
     return null;
@@ -443,6 +452,21 @@ export default function InvoiceDetailsStep({
     today.setHours(0, 0, 0, 0);
     if (maturityDate < today) {
       return `Invoice ${inv.number}: Maturity date cannot be in the past.`;
+    }
+
+    if (
+      productConfig?.min_months_application_to_maturity != null &&
+      productConfig.min_months_application_to_maturity > 0
+    ) {
+      if (
+        !maturityMeetsMinimumMonthsFrom(
+          maturityDate,
+          today,
+          productConfig.min_months_application_to_maturity
+        )
+      ) {
+        return `Invoice ${inv.number}: Maturity date must be at least ${productConfig.min_months_application_to_maturity} month(s) after today.`;
+      }
     }
 
     // contract window check (only for contract-based structures)

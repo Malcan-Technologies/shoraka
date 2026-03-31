@@ -102,6 +102,8 @@ export interface SectionContentProps {
   invoiceRatioLimits?: { min: number; max: number };
   /** Product offer expiry in days. Used for invoice estimates and offer expiry when sending. */
   offerExpiryDays?: number | null;
+  /** Minimum months from today to maturity to enable Send Offer on invoice review. */
+  minMonthsReviewToMaturityForOffer?: number | null;
   /** Map of section id to status. Used for contract facility resolution in invoice section. */
   sectionStatusMap?: ReadonlyMap<string, string>;
   onViewSignedInvoiceOffer?: (signedOfferLetterS3Key: string) => void | Promise<void>;
@@ -136,6 +138,7 @@ export function SectionContent({
   onAddSectionComment,
   invoiceRatioLimits,
   offerExpiryDays,
+  minMonthsReviewToMaturityForOffer,
   sectionStatusMap,
   onViewSignedInvoiceOffer,
   onViewSignedContractOffer,
@@ -335,6 +338,7 @@ export function SectionContent({
           comments={sectionComments}
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
           offerExpiryDays={offerExpiryDays}
+          minMonthsReviewToMaturityForOffer={minMonthsReviewToMaturityForOffer}
           onViewSignedInvoiceOffer={onViewSignedInvoiceOffer}
         />
       );
