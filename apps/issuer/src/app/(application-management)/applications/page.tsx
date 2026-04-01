@@ -73,6 +73,38 @@ const MOCK_APPLICATION_COUNT = 10;
 const BADGE_BASE = "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border whitespace-nowrap";
 const BADGE_FALLBACK = "border-slate-500/30 bg-slate-500/10 text-slate-600";
 
+/** RM flush left, amount digits flush right (invoice table currency columns). */
+function IssuerInvoiceCurrencyCell({ amount }: { amount: number | null | undefined }) {
+  if (amount == null || !Number.isFinite(amount)) {
+    return <span className="tabular-nums">—</span>;
+  }
+  return (
+    <div className="flex w-full min-w-0 items-baseline justify-between gap-2 text-[15px]">
+      <span className="shrink-0 text-left">RM</span>
+      <span className="min-w-0 flex-1 text-right tabular-nums">
+        {formatCurrency(amount, { includeSymbol: false })}
+      </span>
+    </div>
+  );
+}
+
+/** Same layout for pre-formatted strings from normalization (e.g. financing offered). */
+function IssuerInvoiceCurrencyCellFromFormatted({ formatted }: { formatted: string }) {
+  if (formatted === "—" || !formatted.trim()) {
+    return <span className="tabular-nums">—</span>;
+  }
+  const match = /^RM\s+(.+)$/.exec(formatted.trim());
+  if (!match) {
+    return <span>{formatted}</span>;
+  }
+  return (
+    <div className="flex w-full min-w-0 items-baseline justify-between gap-2 text-[15px]">
+      <span className="shrink-0 text-left">RM</span>
+      <span className="min-w-0 flex-1 text-right tabular-nums">{match[1]}</span>
+    </div>
+  );
+}
+
 /** Skeleton that matches ApplicationCard layout. */
 function ApplicationCardSkeleton() {
   return (
@@ -483,13 +515,11 @@ function ApplicationCard({
                           <TableCell className="p-3 text-[15px] align-middle text-left">
                             {formatDate(inv.maturityDate)}
                           </TableCell>
-                          <TableCell className="p-3 text-[15px] align-middle text-left tabular-nums whitespace-nowrap">
-                            {inv.value ? formatCurrency(inv.value) : "—"}
+                          <TableCell className="p-3 text-[15px] align-middle min-w-0">
+                            <IssuerInvoiceCurrencyCell amount={inv.value} />
                           </TableCell>
-                          <TableCell className="p-3 text-[15px] align-middle text-left tabular-nums whitespace-nowrap">
-                            {inv.appliedFinancing != null
-                              ? formatCurrency(inv.appliedFinancing)
-                              : "—"}
+                          <TableCell className="p-3 text-[15px] align-middle min-w-0">
+                            <IssuerInvoiceCurrencyCell amount={inv.appliedFinancing} />
                           </TableCell>
                           <TableCell className="p-3 min-w-0 max-w-[150px] overflow-hidden align-middle text-left">
                             <InvoiceDocumentCell
@@ -498,8 +528,8 @@ function ApplicationCard({
                               onDownload={onDocumentDownload}
                             />
                           </TableCell>
-                          <TableCell className="p-3 text-[15px] align-middle text-left tabular-nums whitespace-nowrap">
-                            {inv.financingOffered}
+                          <TableCell className="p-3 text-[15px] align-middle min-w-0">
+                            <IssuerInvoiceCurrencyCellFromFormatted formatted={inv.financingOffered} />
                           </TableCell>
                           <TableCell className="p-3 text-[15px] align-middle text-left tabular-nums whitespace-nowrap">
                             {inv.profitRate}
