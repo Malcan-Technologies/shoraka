@@ -27,7 +27,9 @@ export function StatusBadge({
     return null;
   }
 
-  const { color, label } = getStatusColorAndLabel(status ?? "", withdrawReason);
+  const { color, label } = getStatusColorAndLabel(status ?? "", withdrawReason, {
+    issuerWithdrawPresentation: true,
+  });
 
   return (
     <span className={cn(BADGE_BASE, color)}>

@@ -17,8 +17,14 @@ import {
   ArrowDownTrayIcon,
 } from "@heroicons/react/24/outline";
 import { useHeader } from "@cashsouk/ui";
-import { formatCurrency, createApiClient, useOrganization } from "@cashsouk/config";
-import { WithdrawReason, formatWithdrawLabel } from "@cashsouk/types";
+import {
+  formatCurrency,
+  createApiClient,
+  useOrganization,
+  getStatusPresentationByBadgeKey,
+  resolveIssuerInvoiceStatusBadgeKey,
+} from "@cashsouk/config";
+import type { WithdrawReason } from "@cashsouk/types";
 import { useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,7 +56,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { STATUS, FILTER_STATUSES, FINANCING_TYPES, API_STATUS_TO_BADGE_KEY } from "./status";
+import { STATUS, FILTER_STATUSES, FINANCING_TYPES } from "./status";
 import { useApplicationsData } from "./use-applications-data";
 import { ReviewOfferModal } from "./components/ReviewOfferModal";
 import { useCancelApplication, useWithdrawInvoice, useDeleteDraftApplication } from "@/hooks/use-applications";
@@ -149,16 +155,10 @@ function StatusBadge({
   badgeKey: string;
   withdrawReason?: WithdrawReason;
 }) {
-  const s = STATUS[badgeKey];
-  const label =
-    badgeKey === "withdrawn" && withdrawReason
-      ? formatWithdrawLabel(withdrawReason)
-      : (s?.label ?? badgeKey);
-  return (
-    <span className={cn(BADGE_BASE, s?.color ?? BADGE_FALLBACK)}>
-      {label}
-    </span>
-  );
+  const { color, label } = getStatusPresentationByBadgeKey(badgeKey, withdrawReason, {
+    issuerWithdrawPresentation: true,
+  });
+  return <span className={cn(BADGE_BASE, color || BADGE_FALLBACK)}>{label}</span>;
 }
 
 /** Single date display format used across the page. e.g. "10 Mar 2026" */
@@ -272,7 +272,13 @@ function ApplicationCard({
               </span>
               <StatusBadge
                 badgeKey={cardStatus.badgeKey}
-                withdrawReason={cardStatus.badgeKey === "withdrawn" ? application.withdrawReason : undefined}
+                withdrawReason={
+                  cardStatus.badgeKey === "withdrawn" ||
+                  cardStatus.badgeKey === "declined" ||
+                  cardStatus.badgeKey === "offer_expired"
+                    ? application.withdrawReason
+                    : undefined
+                }
               />
             </div>
             <div className="flex items-center gap-2">
@@ -537,7 +543,8 @@ function ApplicationCard({
                           <TableCell className="p-3 align-middle text-left whitespace-nowrap">
                             <span className="inline-block">
                               <StatusBadge
-                                badgeKey={API_STATUS_TO_BADGE_KEY[String(inv.status).toUpperCase()] ?? inv.status.toLowerCase()}
+                                badgeKey={resolveIssuerInvoiceStatusBadgeKey(inv.status, inv.withdrawReason)}
+                                withdrawReason={inv.withdrawReason}
                               />
                             </span>
                           </TableCell>

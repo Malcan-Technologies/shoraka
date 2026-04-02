@@ -15,8 +15,6 @@ type OfferSignViewProps = {
 };
 
 export function OfferSignView({ type, record }: OfferSignViewProps) {
-  console.log("OfferSignView received record:", record);
-
   const title = type === "contract" ? "Contract Offer Signing" : "Invoice Offer Signing";
 
   return (
@@ -34,7 +32,7 @@ export function OfferSignView({ type, record }: OfferSignViewProps) {
 
       <div className="flex gap-3">
         <Button>Accept and Sign</Button>
-        <Button variant="outline">Reject Offer</Button>
+        <Button variant="outline">Decline offer</Button>
       </div>
     </div>
   );

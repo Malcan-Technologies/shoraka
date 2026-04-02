@@ -65,6 +65,7 @@ import {
   fieldTooltipContentClassName,
   fieldTooltipTriggerClassName,
 } from "@/app/(application-flow)/applications/components/form-control";
+import { WithdrawReason } from "@cashsouk/types";
 import { StatusBadge } from "../components/invoice-status-badge";
 import { InvoiceErrorCard } from "../components/amendments";
 import { formatMoney, parseMoney } from "@cashsouk/ui";
@@ -178,6 +179,7 @@ type LocalInvoice = {
   maturity_date: string;
   financing_ratio_percent?: number;
   status?: string;
+  withdraw_reason?: WithdrawReason;
   document?: { file_name: string; file_size?: number; s3_key?: string; uploaded_at?: string } | null;
 };
 
@@ -881,11 +883,19 @@ export default function InvoiceDetailsStep({
 
         const toLocalInvoice = (it: any): LocalInvoice => {
           const d = it.details || {};
+          const wr = it.withdraw_reason;
+          const withdraw_reason =
+            wr === WithdrawReason.USER_CANCELLED ||
+            wr === WithdrawReason.OFFER_EXPIRED ||
+            wr === WithdrawReason.OFFER_REJECTED
+              ? wr
+              : undefined;
           return {
             id: it.id,
             isPersisted: true,
             number: d.number || "",
             status: it.status || "DRAFT",
+            withdraw_reason,
             value: d.value != null ? formatMoney(d.value) : "",
             maturity_date: (() => {
               if (!d.maturity_date) return "";
@@ -1234,7 +1244,7 @@ export default function InvoiceDetailsStep({
                               </TableCell>
 
                               <TableCell className="p-2">
-                                <StatusBadge status={inv.status} />
+                                <StatusBadge status={inv.status} withdrawReason={inv.withdraw_reason} />
                               </TableCell>
 
                               <TableCell className="p-2">

@@ -157,10 +157,15 @@ export default function StatusExamplesPage() {
           <div className="flex flex-wrap gap-3">
             {STATUS_EXAMPLE_KEYS.map((key) => {
               const badgeKey = API_STATUS_TO_BADGE_KEY[key] ?? key.toLowerCase();
-              const pres = getStatusPresentationByBadgeKey(badgeKey);
+              const pres = getStatusPresentationByBadgeKey(
+                badgeKey,
+                key === "WITHDRAWN" ? WithdrawReason.USER_CANCELLED : undefined,
+                { issuerWithdrawPresentation: true }
+              );
               const fullPres = getStatusPresentation(
                 key,
-                key === "WITHDRAWN" ? WithdrawReason.USER_CANCELLED : undefined
+                key === "WITHDRAWN" ? WithdrawReason.USER_CANCELLED : undefined,
+                { issuerWithdrawPresentation: true }
               );
               const priority = APPLICATION_STATUS_PRIORITY[badgeKey];
               return (
@@ -176,25 +181,50 @@ export default function StatusExamplesPage() {
           </div>
         </Section>
 
-        <Section title="Withdrawn — all variants">
+        <Section title="WITHDRAWN — admin vs issuer (by withdraw_reason)">
           <p className="text-sm text-muted-foreground mb-3">
-            WITHDRAWN with each reason. Default (no reason) shown first.
+            Same DB status; admin keeps long labels. Issuer shows Declined for OFFER_REJECTED, Withdrawn for
+            USER_CANCELLED, Offer Expired for OFFER_EXPIRED.
           </p>
-          <div className="flex flex-wrap gap-3">
-            {ALL_WITHDRAWN_REASONS.map((reason) => {
-              const pres = getStatusPresentation("WITHDRAWN", reason);
-              const key = reason ?? "default";
-              const meta = reason ? `WITHDRAWN + ${reason}` : "WITHDRAWN (default)";
-              return (
-                <BadgeItem
-                  key={key}
-                  badgeClass={pres.badgeClass}
-                  dotClass={pres.dotClass}
-                  label={pres.label}
-                  meta={meta}
-                />
-              );
-            })}
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground mb-2">Admin</p>
+              <div className="flex flex-wrap gap-3">
+                {ALL_WITHDRAWN_REASONS.map((reason) => {
+                  const pres = getStatusPresentation("WITHDRAWN", reason);
+                  const rkey = reason ?? "default";
+                  const meta = reason ? `WITHDRAWN + ${reason}` : "WITHDRAWN (default)";
+                  return (
+                    <BadgeItem
+                      key={`admin-${rkey}`}
+                      badgeClass={pres.badgeClass}
+                      dotClass={pres.dotClass}
+                      label={pres.label}
+                      meta={meta}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground mb-2">Issuer</p>
+              <div className="flex flex-wrap gap-3">
+                {ALL_WITHDRAWN_REASONS.map((reason) => {
+                  const pres = getStatusPresentation("WITHDRAWN", reason, { issuerWithdrawPresentation: true });
+                  const rkey = reason ?? "default";
+                  const meta = reason ? `WITHDRAWN + ${reason}` : "WITHDRAWN (default)";
+                  return (
+                    <BadgeItem
+                      key={`issuer-${rkey}`}
+                      badgeClass={pres.badgeClass}
+                      dotClass={pres.dotClass}
+                      label={pres.label}
+                      meta={meta}
+                    />
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </Section>
       </div>

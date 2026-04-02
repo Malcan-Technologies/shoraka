@@ -77,6 +77,17 @@ function getSignedOfferLetterS3Key(offerSigning: unknown): string | null {
   return typeof s3Key === "string" && s3Key.length > 0 ? s3Key : null;
 }
 
+function parseInvoiceWithdrawReason(raw: string | null | undefined): WithdrawReason | undefined {
+  if (
+    raw === WithdrawReason.USER_CANCELLED ||
+    raw === WithdrawReason.OFFER_EXPIRED ||
+    raw === WithdrawReason.OFFER_REJECTED
+  ) {
+    return raw;
+  }
+  return undefined;
+}
+
 function prepareInvoice(api: ApiInvoice, contractStatus: string | null, structureType: string | undefined): NormalizedInvoice {
   const details = (api.details ?? {}) as Record<string, unknown>;
   const topLevelDoc = (api.document ?? null) as { s3_key?: string; file_name?: string } | null;
@@ -121,6 +132,7 @@ function prepareInvoice(api: ApiInvoice, contractStatus: string | null, structur
     offer_details: api.offer_details ?? null,
     signedOfferLetterAvailable: isSignedOfferLetterAvailable(api.offer_signing),
     signedOfferLetterS3Key,
+    withdrawReason: parseInvoiceWithdrawReason(api.withdraw_reason),
   };
 }
 
@@ -129,10 +141,32 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
   const contractStatus = contract?.status ?? null;
   const invoices = api.invoices ?? [];
 
+  /** Withdraw reason: from contract or first withdrawn invoice (needed before getCardStatus). */
+  let withdrawReason: WithdrawReason | undefined;
+  const contractWithdraw = (contract as ApiContract)?.withdraw_reason;
+  if (
+    contractWithdraw === WithdrawReason.USER_CANCELLED ||
+    contractWithdraw === WithdrawReason.OFFER_EXPIRED ||
+    contractWithdraw === WithdrawReason.OFFER_REJECTED
+  ) {
+    withdrawReason = contractWithdraw as WithdrawReason;
+  } else {
+    const withdrawnInv = invoices.find((i) => (i.status ?? "").toUpperCase() === "WITHDRAWN");
+    const invReason = (withdrawnInv as ApiInvoice)?.withdraw_reason;
+    if (
+      invReason === WithdrawReason.USER_CANCELLED ||
+      invReason === WithdrawReason.OFFER_EXPIRED ||
+      invReason === WithdrawReason.OFFER_REJECTED
+    ) {
+      withdrawReason = invReason as WithdrawReason;
+    }
+  }
+
   const cardStatus = getCardStatus({
     applicationStatus: api.status ?? "DRAFT",
     contractStatus,
     invoiceStatuses: invoices.map((i) => i.status ?? "DRAFT"),
+    withdrawReason,
   });
 
   const structureType = (api.financing_structure as { structure_type?: string } | undefined)?.structure_type;
@@ -169,27 +203,6 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
 
   const contractId = (contract as ApiContract & { id?: string })?.id ?? (api as any).contract_id ?? null;
   const issuerOrganizationId = (api as any).issuer_organization_id as string | undefined;
-
-  /** Withdraw reason: from contract or first withdrawn invoice. */
-  let withdrawReason: WithdrawReason | undefined;
-  const contractWithdraw = (contract as ApiContract)?.withdraw_reason;
-  if (
-    contractWithdraw === WithdrawReason.USER_CANCELLED ||
-    contractWithdraw === WithdrawReason.OFFER_EXPIRED ||
-    contractWithdraw === WithdrawReason.OFFER_REJECTED
-  ) {
-    withdrawReason = contractWithdraw as WithdrawReason;
-  } else {
-    const withdrawnInv = invoices.find((i) => (i.status ?? "").toUpperCase() === "WITHDRAWN");
-    const invReason = (withdrawnInv as ApiInvoice)?.withdraw_reason;
-    if (
-      invReason === WithdrawReason.USER_CANCELLED ||
-      invReason === WithdrawReason.OFFER_EXPIRED ||
-      invReason === WithdrawReason.OFFER_REJECTED
-    ) {
-      withdrawReason = invReason as WithdrawReason;
-    }
-  }
 
   /** Offer expiry: from contract or first invoice with offer. */
   let expiresAt: string | null | undefined;

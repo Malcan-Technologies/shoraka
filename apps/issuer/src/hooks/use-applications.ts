@@ -371,7 +371,7 @@ export function useRejectContractOffer() {
       await queryClient.refetchQueries({ queryKey: ["applications"] });
     },
     onError: (error: Error) => {
-      toast.error("Failed to reject offer", { description: error.message });
+      toast.error("Failed to decline offer", { description: error.message });
     },
   });
 }
@@ -434,7 +434,7 @@ export function useRejectInvoiceOffer() {
       await queryClient.refetchQueries({ queryKey: ["applications"] });
     },
     onError: (error: Error) => {
-      toast.error("Failed to reject offer", { description: error.message });
+      toast.error("Failed to decline offer", { description: error.message });
     },
   });
 }

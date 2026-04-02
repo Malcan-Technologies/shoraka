@@ -88,7 +88,7 @@ export function ReviewOfferModal({ open, onOpenChange, context }: ReviewOfferMod
           reason: rejectionReason || undefined,
         });
       }
-      toast.success("Offer rejected");
+      toast.success("Offer declined");
       onOpenChange(false);
     } catch {
       // Error handled by mutation
@@ -106,7 +106,7 @@ export function ReviewOfferModal({ open, onOpenChange, context }: ReviewOfferMod
         <DialogHeader>
           <DialogTitle>Review offer</DialogTitle>
           <DialogDescription>
-            Review the offer details below before accepting or rejecting.
+            Review the offer details below before accepting or declining.
           </DialogDescription>
         </DialogHeader>
 
@@ -165,7 +165,7 @@ export function ReviewOfferModal({ open, onOpenChange, context }: ReviewOfferMod
           )}
           <div className="space-y-2">
             <Label htmlFor="rejection-reason" className="text-sm text-muted-foreground">
-              Please provide a reason for rejecting this offer.
+              Please provide a reason for declining this offer.
             </Label>
             <Textarea
               id="rejection-reason"
@@ -193,7 +193,7 @@ export function ReviewOfferModal({ open, onOpenChange, context }: ReviewOfferMod
             onClick={handleReject}
             disabled={isPending}
           >
-            {isPending ? "Processing..." : "Reject"}
+            {isPending ? "Processing..." : "Decline"}
           </Button>
           <Button
             type="button"
