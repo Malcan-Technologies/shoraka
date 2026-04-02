@@ -30,7 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AuthGuard>
             <SidebarProvider>
               <AppSidebar />
-              <SidebarInset>
+              <SidebarInset className="min-w-0 overflow-x-hidden">
                 <Header />
                 {children}
               </SidebarInset>
