@@ -91,6 +91,7 @@ import { WithdrawReason } from "@cashsouk/types";
 import {
   getStatusPresentationByBadgeKey,
   getStatusColorAndLabel,
+  resolveIssuerInvoiceStatusBadgeKey,
 } from "@cashsouk/config";
 
 export type CardStatusResult = {
@@ -121,6 +122,17 @@ export interface NormalizedInvoice {
   signedOfferLetterS3Key: string | null;
   /** When status is WITHDRAWN: distinguishes user decline vs withdraw vs expiry (issuer UI). */
   withdrawReason?: WithdrawReason;
+  /**
+   * Combined text for issuer decline reason (offer rejection) and/or admin reviewer remarks.
+   * Populated from API when available; used only for Rejected / Declined invoice badges.
+   */
+  reasonOrRemarks?: string | null;
+}
+
+/** True when the invoice badge is Rejected or Declined (issuer can open reason/remarks from the row menu). */
+export function issuerInvoiceCanViewReasonRemarks(inv: NormalizedInvoice): boolean {
+  const badge = resolveIssuerInvoiceStatusBadgeKey(inv.status, inv.withdrawReason);
+  return badge === "rejected" || badge === "declined";
 }
 
 export interface NormalizedApplication {

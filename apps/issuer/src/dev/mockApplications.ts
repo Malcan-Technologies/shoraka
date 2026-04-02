@@ -34,6 +34,7 @@ function makeInvoice(overrides: Partial<NormalizedInvoice> & { id: string }): No
     offerStatus: null,
     canReviewOffer: false,
     signedOfferLetterAvailable: false,
+    reasonOrRemarks: null,
     ...restOverrides,
     signedOfferLetterS3Key: signedOfferLetterS3Key ?? null,
   };
@@ -140,6 +141,16 @@ export function generateMockApplications(count: number): NormalizedApplication[]
           ? { expires_at: invoiceExpiresAt.toISOString() }
           : null;
 
+      let reasonOrRemarks: string | null = null;
+      if (invStatus === "REJECTED") {
+        reasonOrRemarks =
+          "Reviewer remarks: Amount could not be verified against supporting documents.";
+      }
+      if (invStatus === "WITHDRAWN" && scenario.withdrawReason === WithdrawReason.OFFER_REJECTED) {
+        reasonOrRemarks =
+          "Decline reason: The profit rate and tenure did not meet our internal policy.";
+      }
+
       invoices.push(
         makeInvoice({
           id: "inv-" + cuidLike().slice(0, 12),
@@ -159,6 +170,7 @@ export function generateMockApplications(count: number): NormalizedApplication[]
           signedOfferLetterS3Key:
             invStatus === "APPROVED" ? `applications/mock/${appId}/offers/invoice-${j + 1}.pdf` : null,
           withdrawReason: invStatus === "WITHDRAWN" ? scenario.withdrawReason : undefined,
+          reasonOrRemarks,
         })
       );
     }

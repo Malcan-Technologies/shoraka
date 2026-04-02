@@ -23,6 +23,12 @@ import {
 import type { WithdrawReason } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -38,7 +44,11 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { FileDisplayBadge } from "@/app/(application-flow)/applications/components/file-display-badge";
-import type { NormalizedApplication, NormalizedInvoice } from "../status";
+import {
+  issuerInvoiceCanViewReasonRemarks,
+  type NormalizedApplication,
+  type NormalizedInvoice,
+} from "../status";
 
 const BADGE_BASE =
   "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border whitespace-nowrap";
@@ -229,7 +239,11 @@ export function ScrollableInvoiceTable({
   onWithdrawInvoice,
   isWithdrawInvoicePending,
 }: ScrollableInvoiceTableProps) {
+  const [reasonRemarksOpen, setReasonRemarksOpen] = React.useState(false);
+  const [reasonRemarksBody, setReasonRemarksBody] = React.useState("");
+
   return (
+    <>
     <ScrollableInvoiceTableWrapper>
       <table
         className="w-full min-w-0 table-fixed border-collapse text-[15px]"
@@ -527,6 +541,7 @@ export function ScrollableInvoiceTable({
                           {(() => {
                             const showViewSignedInvoice =
                               !!inv.signedOfferLetterS3Key && onViewSignedInvoiceOffer;
+                            const showViewReasonRemarks = issuerInvoiceCanViewReasonRemarks(inv);
                             const withdrawInvoiceDisabled =
                               !canWithdrawInvoice ||
                               !!isWithdrawInvoicePending ||
@@ -543,6 +558,24 @@ export function ScrollableInvoiceTable({
                                       }}
                                     >
                                       View Signed Offer
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                  </>
+                                )}
+                                {showViewReasonRemarks && (
+                                  <>
+                                    <DropdownMenuItem
+                                      className="cursor-pointer"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setReasonRemarksBody(
+                                          inv.reasonOrRemarks?.trim() ||
+                                            "No reason were recorded for this invoice."
+                                        );
+                                        setReasonRemarksOpen(true);
+                                      }}
+                                    >
+                                      View reason
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                   </>
@@ -590,5 +623,16 @@ export function ScrollableInvoiceTable({
         </TableBody>
       </table>
     </ScrollableInvoiceTableWrapper>
+    <Dialog open={reasonRemarksOpen} onOpenChange={setReasonRemarksOpen}>
+      <DialogContent className="rounded-xl sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Reason</DialogTitle>
+        </DialogHeader>
+        <p className="whitespace-pre-wrap break-words text-[15px] leading-7 text-foreground">
+          {reasonRemarksBody}
+        </p>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

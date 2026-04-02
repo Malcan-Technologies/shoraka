@@ -51,6 +51,13 @@ interface ApiInvoice {
   offer_signing?: unknown;
 }
 
+interface ApiReviewRemark {
+  scope: string;
+  scope_key: string;
+  action_type: string;
+  remark: string;
+}
+
 interface ApiApplication {
   id: string;
   status?: string;
@@ -59,6 +66,7 @@ interface ApiApplication {
   updated_at?: string;
   contract?: ApiContract | null;
   invoices?: ApiInvoice[];
+  application_review_remarks?: ApiReviewRemark[];
 }
 
 function isSignedOfferLetterAvailable(offerSigning: unknown): boolean {
@@ -88,7 +96,81 @@ function parseInvoiceWithdrawReason(raw: string | null | undefined): WithdrawRea
   return undefined;
 }
 
-function prepareInvoice(api: ApiInvoice, contractStatus: string | null, structureType: string | undefined): NormalizedInvoice {
+function readApplicationReviewRemarks(api: ApiApplication): ApiReviewRemark[] {
+  const raw = (api as { application_review_remarks?: unknown[] }).application_review_remarks;
+  if (!Array.isArray(raw)) return [];
+  return raw.map((r) => {
+    const row = r as Record<string, unknown>;
+    return {
+      scope: String(row.scope ?? ""),
+      scope_key: String(row.scope_key ?? row.scopeKey ?? ""),
+      action_type: String(row.action_type ?? row.actionType ?? ""),
+      remark: String(row.remark ?? ""),
+    };
+  });
+}
+
+function sanitizeInvoiceScopePart(v: string | number): string {
+  return String(v).replace(/:/g, "_");
+}
+
+/** Invoice item reject remarks use scope_key like admin `collectInvoiceScopeKeys` / `resolveInvoiceScopeKeyById`. */
+function invoiceRejectScopeKeysFromDetails(details: Record<string, unknown>, invoiceIndex: number): string[] {
+  const nNum = details.number;
+  const nInv = details.invoice_number;
+  const keys = new Set<string>();
+  if (nNum != null) {
+    keys.add(`invoice_details:${invoiceIndex}:${sanitizeInvoiceScopePart(nNum as string | number)}`);
+  }
+  if (nInv != null) {
+    keys.add(`invoice_details:${invoiceIndex}:${sanitizeInvoiceScopePart(nInv as string | number)}`);
+  }
+  keys.add(`invoice_details:${invoiceIndex}:${sanitizeInvoiceScopePart(invoiceIndex + 1)}`);
+  return [...keys];
+}
+
+function findAdminRejectRemarkForInvoice(
+  details: Record<string, unknown>,
+  invoiceIndex: number,
+  remarks: ApiReviewRemark[] | undefined
+): string | null {
+  if (!remarks?.length) return null;
+  const keys = invoiceRejectScopeKeysFromDetails(details, invoiceIndex);
+  const hit = remarks.find(
+    (r) => r.scope === "item" && r.action_type === "REJECT" && keys.includes(r.scope_key)
+  );
+  const trimmed = hit?.remark?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function extractIssuerDeclineReason(offerDetails: unknown): string | null {
+  if (!offerDetails || typeof offerDetails !== "object") return null;
+  const r = (offerDetails as Record<string, unknown>).rejection_reason;
+  return typeof r === "string" && r.trim() ? r.trim() : null;
+}
+
+function buildInvoiceReasonOrRemarks(
+  api: ApiInvoice,
+  invoiceIndex: number,
+  remarks: ApiReviewRemark[] | undefined
+): string | null {
+  const details = (api.details ?? {}) as Record<string, unknown>;
+  const parts: string[] = [];
+  const decline = extractIssuerDeclineReason(api.offer_details);
+  if (decline) parts.push(`Decline reason: ${decline}`);
+  const admin = findAdminRejectRemarkForInvoice(details, invoiceIndex, remarks);
+  if (admin) parts.push(`Reason: ${admin}`);
+  if (parts.length === 0) return null;
+  return parts.join("\n\n");
+}
+
+function prepareInvoice(
+  api: ApiInvoice,
+  contractStatus: string | null,
+  structureType: string | undefined,
+  invoiceIndex: number,
+  reviewRemarks: ApiReviewRemark[] | undefined
+): NormalizedInvoice {
   const details = (api.details ?? {}) as Record<string, unknown>;
   const topLevelDoc = (api.document ?? null) as { s3_key?: string; file_name?: string } | null;
   const detailsDoc = details.document as { s3_key?: string; file_name?: string } | undefined;
@@ -133,6 +215,7 @@ function prepareInvoice(api: ApiInvoice, contractStatus: string | null, structur
     signedOfferLetterAvailable: isSignedOfferLetterAvailable(api.offer_signing),
     signedOfferLetterS3Key,
     withdrawReason: parseInvoiceWithdrawReason(api.withdraw_reason),
+    reasonOrRemarks: buildInvoiceReasonOrRemarks(api, invoiceIndex, reviewRemarks),
   };
 }
 
@@ -221,6 +304,8 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
     (contract as ApiContract | null)?.offer_signing
   );
 
+  const reviewRemarks = readApplicationReviewRemarks(api);
+
   return {
     id: api.id,
     type,
@@ -235,7 +320,7 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
     facilityApplied,
     approvedFacility,
     updatedAt: updated.toISOString(),
-    invoices: invoices.map((inv) => prepareInvoice(inv, contractStatus, structureType)),
+    invoices: invoices.map((inv, idx) => prepareInvoice(inv, contractStatus, structureType, idx, reviewRemarks)),
     contractStatus,
     issuerOrganizationId,
     withdrawReason,
