@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { DeclarationHtmlContent } from "@cashsouk/ui/declaration-rich-text";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useApplication } from "@/hooks/use-applications";
@@ -41,7 +42,7 @@ export function DeclarationsStep({
   /**
  * Declarations source of truth:
  *
- * - Declaration TEXT comes from product workflow config:
+ * - Declaration TEXT comes from product workflow config (HTML: bold, lists):
  *   config.declarations = Array<{ text: string }>
  *
  * - Declaration CHECKED state is stored in DB:
@@ -244,10 +245,11 @@ return (
                   )}
                 />
 
-                {/* Declaration Text */}
-                <span className="text-sm md:text-base leading-6 text-foreground">
-                  {declaration}
-                </span>
+                {/* Declaration text (allowlisted HTML from product config) */}
+                <DeclarationHtmlContent
+                  className="min-w-0 flex-1"
+                  html={declaration}
+                />
               </label>
             );
           })}

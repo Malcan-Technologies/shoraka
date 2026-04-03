@@ -30,7 +30,7 @@ async function main() {
   const [issuerOrgIdArg, productIdArg, contractIdArg] = process.argv.slice(2);
 
   const issuerOrgId = issuerOrgIdArg ?? "cmknlimvf0003grp0hsbmc1dp";
-  const productId = productIdArg ?? "cmm1rrzct00029crp14sbuup9";
+  const productId = productIdArg ?? "cmnee7dzx00018hrvz33d48wb";
 
   const issuerOrg = await prisma.issuerOrganization.findUnique({ where: { id: issuerOrgId } });
   if (!issuerOrg) {

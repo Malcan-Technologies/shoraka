@@ -2,7 +2,7 @@
 
 /**
  * Modal for reviewing contract or invoice offers. Issuer can download offer letter,
- * accept, or reject. CashSouk brand styling per BRANDING.md.
+ * accept, or decline. CashSouk brand styling per BRANDING.md.
  * Contract end date uses contract_details.end_date; offer expiry shown in footer.
  */
 
@@ -160,7 +160,7 @@ export function ReviewOfferModal({
     if (type === "contract") {
       try {
         await rejectContract.mutateAsync({ applicationId, reason: rejectionReason || undefined });
-        toast.success("Offer rejected");
+        toast.success("Offer declined");
         onClose();
       } catch {
         // toast handled by hook
@@ -173,7 +173,7 @@ export function ReviewOfferModal({
           invoiceId: invoice.id,
           reason: rejectionReason || undefined,
         });
-        toast.success("Offer rejected");
+        toast.success("Offer declined");
         onClose();
       } catch {
         // toast handled by hook
@@ -301,7 +301,7 @@ export function ReviewOfferModal({
                     : "h-12 rounded-xl border-border bg-[#e9edf2] text-foreground hover:bg-[#dde4eb]"
                 }
               >
-                Reject offer
+                Decline offer
               </Button>
               <Button
                 size="lg"
@@ -316,7 +316,7 @@ export function ReviewOfferModal({
             {isRejectMode && (
               <div className="mt-6 space-y-3">
                 <Label htmlFor="rejection-reason" className="block text-base font-semibold text-foreground">
-                  Please provide a reason for rejecting this offer?
+                  Please provide a reason for declining this offer?
                 </Label>
                 <div className="relative">
                   <Textarea
@@ -359,7 +359,7 @@ export function ReviewOfferModal({
                   className="inline-flex h-9 min-h-[36px] items-center justify-center gap-2 rounded-xl border border-[#e3e8ee] bg-[#edf1f5] px-3.5 text-[15px] font-medium text-[#444] hover:bg-[#e6ebf0]"
                 >
                   <CheckCircleIcon className="h-4 w-4" />
-                  Confirm rejection
+                  Confirm decline
                 </Button>
               )}
             </div>

@@ -13,6 +13,10 @@ export interface InvoiceDetailsConfigShape {
   max_invoice_value?: string | null;
   min_financing_ratio_percent?: number | null;
   max_financing_ratio_percent?: number | null;
+  /** Minimum whole months from today to maturity while completing the application (issuer invoice step). */
+  min_months_application_to_maturity?: number | null;
+  /** Minimum whole months from today to maturity for admin to send an invoice offer (review time). */
+  min_months_review_to_maturity?: number | null;
 }
 
 const DEFAULT_MIN_RATIO = 60;
@@ -50,6 +54,20 @@ function getConfig(
         ? c.max_financing_ratio_percent
         : typeof c?.max_financing_ratio_percent === "string"
           ? parseInt(c.max_financing_ratio_percent, 10)
+          : null,
+
+    min_months_application_to_maturity:
+      typeof c?.min_months_application_to_maturity === "number"
+        ? c.min_months_application_to_maturity
+        : typeof c?.min_months_application_to_maturity === "string"
+          ? parseInt(c.min_months_application_to_maturity, 10)
+          : null,
+
+    min_months_review_to_maturity:
+      typeof c?.min_months_review_to_maturity === "number"
+        ? c.min_months_review_to_maturity
+        : typeof c?.min_months_review_to_maturity === "string"
+          ? parseInt(c.min_months_review_to_maturity, 10)
           : null,
 
     raw: c ?? {},
@@ -157,6 +175,55 @@ export function InvoiceDetailsConfig({
       <p className="text-xs text-muted-foreground -mt-2">
         Used for issuer and admin invoice financing ratio limits. Defaults to 60–80% if blank.
       </p>
+
+      <div className={cn("grid grid-cols-2", SECTION_GAP)}>
+        <div className={cn("grid min-w-0", FIELD_GAP)}>
+          <Label className="text-sm font-medium">
+            Min months (application → maturity)
+          </Label>
+          <Input
+            type="text"
+            inputMode="numeric"
+            value={current.min_months_application_to_maturity ?? ""}
+            onChange={(e) => {
+              const v = e.target.value;
+              const num = v === "" ? null : parseInt(v, 10);
+              update({
+                min_months_application_to_maturity: num != null && !Number.isNaN(num) ? num : null,
+              });
+            }}
+            placeholder="None"
+            maxLength={3}
+            className={INPUT_CLASS}
+          />
+          <p className="text-xs text-muted-foreground">
+            Maturity must be at least this many months after today while the issuer is completing the application.
+          </p>
+        </div>
+        <div className={cn("grid min-w-0", FIELD_GAP)}>
+          <Label className="text-sm font-medium">
+            Min months (review → maturity)
+          </Label>
+          <Input
+            type="text"
+            inputMode="numeric"
+            value={current.min_months_review_to_maturity ?? ""}
+            onChange={(e) => {
+              const v = e.target.value;
+              const num = v === "" ? null : parseInt(v, 10);
+              update({
+                min_months_review_to_maturity: num != null && !Number.isNaN(num) ? num : null,
+              });
+            }}
+            placeholder="None"
+            maxLength={3}
+            className={INPUT_CLASS}
+          />
+          <p className="text-xs text-muted-foreground">
+            Send Offer stays disabled until maturity is at least this many months after today.
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

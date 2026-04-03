@@ -4,6 +4,8 @@
  * Use for normalizing API shape to display values in issuer/admin UIs.
  */
 
+import { addMonths, isBefore, parseISO, startOfDay, isValid } from "date-fns";
+
 export type DetailsLike = Record<string, unknown> | null | undefined;
 
 /** Contract: requested facility keys, checked in order. */
@@ -85,4 +87,65 @@ export function resolveOfferedProfitRate(offer: DetailsLike): number | null {
     return Number.isFinite(n) && n >= 0 ? n : null;
   }
   return null;
+}
+
+// --- Invoice maturity (product workflow + review UI) ---
+
+function workflowStepId(step: unknown): string {
+  return (step as { id?: string })?.id ?? "";
+}
+
+function invoiceDetailsConfigFromWorkflow(workflow: unknown): Record<string, unknown> | null {
+  if (!Array.isArray(workflow)) return null;
+  const step = workflow.find((s) => workflowStepId(s).toLowerCase().startsWith("invoice_details"));
+  if (!step || typeof step !== "object") return null;
+  const config = (step as { config?: unknown }).config;
+  return config && typeof config === "object" ? (config as Record<string, unknown>) : null;
+}
+
+/** Parse invoice maturity from stored details (ISO yyyy-MM-dd or full ISO). */
+export function parseInvoiceMaturityDate(value: string | undefined | null): Date | null {
+  if (value == null || typeof value !== "string" || !value.trim()) return null;
+  const trimmed = value.trim();
+  const iso = trimmed.length === 10 ? parseISO(`${trimmed}T00:00:00`) : parseISO(trimmed);
+  if (!isValid(iso)) return null;
+  return startOfDay(iso);
+}
+
+/** True if maturity is on or after addMonths(startOfDay(referenceDate), minMonths). */
+export function maturityMeetsMinimumMonthsFrom(
+  maturityDate: Date,
+  referenceDate: Date,
+  minMonths: number | null | undefined
+): boolean {
+  if (minMonths == null || !Number.isFinite(minMonths) || minMonths <= 0) return true;
+  const months = Math.min(120, Math.max(0, Math.floor(minMonths)));
+  if (months === 0) return true;
+  const minAllowed = addMonths(startOfDay(referenceDate), months);
+  return !isBefore(startOfDay(maturityDate), minAllowed);
+}
+
+export function readInvoiceMaturityMonthsFromWorkflow(workflow: unknown): {
+  minMonthsApplicationToMaturity: number | null;
+  minMonthsReviewToMaturity: number | null;
+} {
+  const c = invoiceDetailsConfigFromWorkflow(workflow);
+  if (!c) {
+    return { minMonthsApplicationToMaturity: null, minMonthsReviewToMaturity: null };
+  }
+  const parse = (v: unknown): number | null => {
+    if (v == null || v === "") return null;
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+    if (typeof v === "string") {
+      const n = parseInt(v, 10);
+      return !Number.isNaN(n) ? n : null;
+    }
+    return null;
+  };
+  const application = parse(c.min_months_application_to_maturity);
+  const review = parse(c.min_months_review_to_maturity);
+  return {
+    minMonthsApplicationToMaturity: application != null && application > 0 ? application : null,
+    minMonthsReviewToMaturity: review != null && review > 0 ? review : null,
+  };
 }

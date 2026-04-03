@@ -1,10 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { DeclarationRichTextEditor } from "@cashsouk/ui/declaration-rich-text";
 import { cn } from "@/lib/utils";
-import { Textarea } from "../../../../../components/ui/textarea";
 import { Button } from "../../../../../components/ui/button";
-import { TEXTAREA_CLASS, FIELD_GAP, SECTION_GAP } from "../product-form-input-styles";
+import { FIELD_GAP, SECTION_GAP } from "../product-form-input-styles";
 import { ChevronUpIcon, ChevronDownIcon, TrashIcon, PlusIcon } from "@heroicons/react/24/outline";
 
 const CONFIG_KEY = "declarations";
@@ -94,13 +94,12 @@ export function DeclarationsConfig({ config, onChange }: { config: unknown; onCh
                 {index + 1}
               </span>
               <div className={cn("flex min-w-0 flex-1 flex-col", FIELD_GAP)}>
-                <Textarea
+                <DeclarationRichTextEditor
                   id={`declaration-${index}`}
                   value={item.text}
-                  onChange={(e) => updateAt(index, e.target.value)}
+                  onChange={(html) => updateAt(index, html)}
                   placeholder="e.g. I confirm that the information provided is accurate."
-                  maxLength={5000}
-                  className={cn(TEXTAREA_CLASS, "min-w-0")}
+                  className="min-w-0"
                 />
                 <div className="flex shrink-0 flex-wrap items-center justify-end gap-0.5">
                   <Button

@@ -65,6 +65,7 @@ import {
   fieldTooltipContentClassName,
   fieldTooltipTriggerClassName,
 } from "@/app/(application-flow)/applications/components/form-control";
+import { WithdrawReason } from "@cashsouk/types";
 import { StatusBadge } from "../components/invoice-status-badge";
 import { InvoiceErrorCard } from "../components/amendments";
 import { formatMoney, parseMoney } from "@cashsouk/ui";
@@ -85,6 +86,7 @@ export function generateMockData(): Record<string, unknown> {
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 import { parseISO, parse, isValid, format } from "date-fns";
+import { maturityMeetsMinimumMonthsFrom } from "@cashsouk/config";
 
 /**
  * PRODUCT CONFIG EXTRACTION
@@ -97,6 +99,7 @@ interface InvoiceConfig {
   max_invoice_value?: number | null;
   min_financing_ratio_percent?: number | null;
   max_financing_ratio_percent?: number | null;
+  min_months_application_to_maturity?: number | null;
 }
 
 /**
@@ -131,11 +134,18 @@ function getProductInvoiceConfig(application: any, products: any[] = []): Invoic
       minRatio >= 1 &&
       maxRatio <= 100;
     if (!hasValidRatioConfig) return null;
+    const applicationMonths =
+      typeof config.min_months_application_to_maturity === "number" &&
+      Number.isFinite(config.min_months_application_to_maturity) &&
+      config.min_months_application_to_maturity > 0
+        ? Math.floor(config.min_months_application_to_maturity)
+        : null;
     return {
       min_invoice_value: config.min_invoice_value ?? null,
       max_invoice_value: config.max_invoice_value ?? null,
       min_financing_ratio_percent: minRatio,
       max_financing_ratio_percent: maxRatio,
+      min_months_application_to_maturity: applicationMonths,
     };
   } catch {
     return null;
@@ -169,6 +179,7 @@ type LocalInvoice = {
   maturity_date: string;
   financing_ratio_percent?: number;
   status?: string;
+  withdraw_reason?: WithdrawReason;
   document?: { file_name: string; file_size?: number; s3_key?: string; uploaded_at?: string } | null;
 };
 
@@ -443,6 +454,21 @@ export default function InvoiceDetailsStep({
     today.setHours(0, 0, 0, 0);
     if (maturityDate < today) {
       return `Invoice ${inv.number}: Maturity date cannot be in the past.`;
+    }
+
+    if (
+      productConfig?.min_months_application_to_maturity != null &&
+      productConfig.min_months_application_to_maturity > 0
+    ) {
+      if (
+        !maturityMeetsMinimumMonthsFrom(
+          maturityDate,
+          today,
+          productConfig.min_months_application_to_maturity
+        )
+      ) {
+        return `Invoice ${inv.number}: Maturity date must be at least ${productConfig.min_months_application_to_maturity} month(s) after today.`;
+      }
     }
 
     // contract window check (only for contract-based structures)
@@ -857,11 +883,19 @@ export default function InvoiceDetailsStep({
 
         const toLocalInvoice = (it: any): LocalInvoice => {
           const d = it.details || {};
+          const wr = it.withdraw_reason;
+          const withdraw_reason =
+            wr === WithdrawReason.USER_CANCELLED ||
+            wr === WithdrawReason.OFFER_EXPIRED ||
+            wr === WithdrawReason.OFFER_REJECTED
+              ? wr
+              : undefined;
           return {
             id: it.id,
             isPersisted: true,
             number: d.number || "",
             status: it.status || "DRAFT",
+            withdraw_reason,
             value: d.value != null ? formatMoney(d.value) : "",
             maturity_date: (() => {
               if (!d.maturity_date) return "";
@@ -1210,7 +1244,7 @@ export default function InvoiceDetailsStep({
                               </TableCell>
 
                               <TableCell className="p-2">
-                                <StatusBadge status={inv.status} />
+                                <StatusBadge status={inv.status} withdrawReason={inv.withdraw_reason} />
                               </TableCell>
 
                               <TableCell className="p-2">

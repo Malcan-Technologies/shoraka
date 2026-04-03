@@ -91,6 +91,7 @@ import { WithdrawReason } from "@cashsouk/types";
 import {
   getStatusPresentationByBadgeKey,
   getStatusColorAndLabel,
+  resolveIssuerInvoiceStatusBadgeKey,
 } from "@cashsouk/config";
 
 export type CardStatusResult = {
@@ -119,6 +120,19 @@ export interface NormalizedInvoice {
   signedOfferLetterAvailable: boolean;
   /** S3 key for signed offer letter when available. */
   signedOfferLetterS3Key: string | null;
+  /** When status is WITHDRAWN: distinguishes user decline vs withdraw vs expiry (issuer UI). */
+  withdrawReason?: WithdrawReason;
+  /**
+   * Combined text for issuer decline reason (offer rejection) and/or admin reviewer remarks.
+   * Populated from API when available; used only for Rejected / Declined invoice badges.
+   */
+  reasonOrRemarks?: string | null;
+}
+
+/** True when the invoice badge is Rejected or Declined (issuer can open reason/remarks from the row menu). */
+export function issuerInvoiceCanViewReasonRemarks(inv: NormalizedInvoice): boolean {
+  const badge = resolveIssuerInvoiceStatusBadgeKey(inv.status, inv.withdrawReason);
+  return badge === "rejected" || badge === "declined";
 }
 
 export interface NormalizedApplication {
@@ -159,7 +173,9 @@ export interface NormalizedApplication {
 const BADGE_FALLBACK = "border-transparent bg-slate-500/10 text-slate-600";
 
 function statusColorClass(badgeKey: string, withdrawReason?: WithdrawReason): string {
-  const { color } = getStatusPresentationByBadgeKey(badgeKey, withdrawReason);
+  const { color } = getStatusPresentationByBadgeKey(badgeKey, withdrawReason, {
+    issuerWithdrawPresentation: true,
+  });
   return color || BADGE_FALLBACK;
 }
 
@@ -178,6 +194,8 @@ export const STATUS: Record<
   approved: { label: "Approved", color: statusColorClass("approved"), sortOrder: 8 },
   completed: { label: "Completed", color: statusColorClass("completed"), sortOrder: 9 },
   withdrawn: { label: "Withdrawn", color: statusColorClass("withdrawn"), sortOrder: 10 },
+  declined: { label: "Declined", color: statusColorClass("declined"), sortOrder: 10 },
+  offer_expired: { label: "Offer Expired", color: statusColorClass("offer_expired"), sortOrder: 10 },
   archived: { label: "Archived", color: statusColorClass("archived"), sortOrder: 11 },
 };
 
@@ -193,7 +211,7 @@ export function getStatusPresentation(
   apiStatus: string,
   withdrawReason?: WithdrawReason
 ): { color: string; label: string } {
-  return getStatusColorAndLabel(apiStatus, withdrawReason);
+  return getStatusColorAndLabel(apiStatus, withdrawReason, { issuerWithdrawPresentation: true });
 }
 
 /* =============================================================================
@@ -211,6 +229,8 @@ export const FILTER_STATUSES = [
   "accepted",
   "completed",
   "withdrawn",
+  "declined",
+  "offer_expired",
   "rejected",
 ] as const;
 
@@ -254,6 +274,7 @@ export function getCardStatus(input: {
   applicationStatus: string;
   contractStatus?: string | null;
   invoiceStatuses: string[];
+  withdrawReason?: WithdrawReason;
 }): CardStatusResult {
   const app = String(input.applicationStatus ?? "DRAFT").toUpperCase();
   const contract = input.contractStatus ? String(input.contractStatus).toUpperCase() : null;
@@ -271,6 +292,13 @@ export function getCardStatus(input: {
     return { badgeKey: "completed", displayLabel: "Completed", showReviewOffer: false, showMakeAmendments: false };
   }
   if (app === "WITHDRAWN") {
+    const wr = input.withdrawReason;
+    if (wr === WithdrawReason.OFFER_REJECTED) {
+      return { badgeKey: "declined", displayLabel: "Declined", showReviewOffer: false, showMakeAmendments: false };
+    }
+    if (wr === WithdrawReason.OFFER_EXPIRED) {
+      return { badgeKey: "offer_expired", displayLabel: "Offer Expired", showReviewOffer: false, showMakeAmendments: false };
+    }
     return { badgeKey: "withdrawn", displayLabel: "Withdrawn", showReviewOffer: false, showMakeAmendments: false };
   }
   if (app === "ARCHIVED") {
@@ -333,6 +361,8 @@ export const APPLICATION_STATUS_PRIORITY: Record<string, number> = Object.freeze
   accepted: 7,
   completed: 8,
   withdrawn: 9,
+  declined: 9,
+  offer_expired: 9,
   rejected: 10,
   archived: 11,
 });

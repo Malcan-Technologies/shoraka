@@ -14,25 +14,21 @@ import {
   XMarkIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  ArrowDownTrayIcon,
 } from "@heroicons/react/24/outline";
 import { useHeader } from "@cashsouk/ui";
-import { formatCurrency, createApiClient, useOrganization } from "@cashsouk/config";
-import { WithdrawReason, formatWithdrawLabel } from "@cashsouk/types";
+import {
+  formatCurrency,
+  createApiClient,
+  useOrganization,
+  getStatusPresentationByBadgeKey,
+} from "@cashsouk/config";
+import type { WithdrawReason } from "@cashsouk/types";
 import { useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,15 +46,15 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
-import { STATUS, FILTER_STATUSES, FINANCING_TYPES, API_STATUS_TO_BADGE_KEY } from "./status";
+import { STATUS, FILTER_STATUSES, FINANCING_TYPES } from "./status";
 import { useApplicationsData } from "./use-applications-data";
 import { ReviewOfferModal } from "./components/ReviewOfferModal";
 import { useCancelApplication, useWithdrawInvoice, useDeleteDraftApplication } from "@/hooks/use-applications";
 import { generateMockApplications } from "@/dev/mockApplications";
 import { Separator } from "@/components/ui/separator";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { FileDisplayBadge } from "@/app/(application-flow)/applications/components/file-display-badge";
 import type { NormalizedApplication, NormalizedInvoice } from "./status";
+import { ScrollableInvoiceTable } from "./components/scrollable-invoice-table";
 import {
   Dialog,
   DialogContent,
@@ -117,73 +113,15 @@ function StatusBadge({
   badgeKey: string;
   withdrawReason?: WithdrawReason;
 }) {
-  const s = STATUS[badgeKey];
-  const label =
-    badgeKey === "withdrawn" && withdrawReason
-      ? formatWithdrawLabel(withdrawReason)
-      : (s?.label ?? badgeKey);
-  return (
-    <span className={cn(BADGE_BASE, s?.color ?? BADGE_FALLBACK)}>
-      {label}
-    </span>
-  );
-}
-
-/** Single date display format used across the page. e.g. "10 Mar 2026" */
-function formatDate(date: string | Date | null | undefined): string {
-  if (date == null) return "—";
-  return format(new Date(date), "d MMM yyyy");
+  const { color, label } = getStatusPresentationByBadgeKey(badgeKey, withdrawReason, {
+    issuerWithdrawPresentation: true,
+  });
+  return <span className={cn(BADGE_BASE, color || BADGE_FALLBACK)}>{label}</span>;
 }
 
 function formatDateTime(date: string | Date | null | undefined): string {
   if (date == null) return "—";
   return format(new Date(date), "dd MMM yyyy, h:mm a");
-}
-
-/** Invoice table document cell: invoice file badge + download. */
-function InvoiceDocumentCell({
-  documentName,
-  documentS3Key,
-  onDownload,
-}: {
-  documentName: string;
-  documentS3Key: string | null;
-  onDownload: (s3Key: string) => Promise<void>;
-}) {
-  const [loading, setLoading] = React.useState(false);
-  const hasDocument = documentName && documentName !== "—";
-  if (!hasDocument) {
-    return <span className="text-[15px] text-muted-foreground">—</span>;
-  }
-  return (
-    <FileDisplayBadge
-      fileName={documentName}
-      size="sm"
-      truncate
-      className="min-w-0 bg-background"
-      trailing={
-        documentS3Key ? (
-          <button
-            type="button"
-            onClick={async (e) => {
-              e.preventDefault();
-              setLoading(true);
-              try {
-                await onDownload(documentS3Key);
-              } finally {
-                setLoading(false);
-              }
-            }}
-            disabled={loading}
-            className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-50"
-            aria-label={`Download ${documentName}`}
-          >
-            <ArrowDownTrayIcon className="h-3 w-3" />
-          </button>
-        ) : undefined
-      }
-    />
-  );
 }
 
 function ApplicationCard({
@@ -225,7 +163,7 @@ function ApplicationCard({
 
   return (
     <>
-      <Card className="rounded-2xl border bg-card shadow-sm md:shadow">
+      <Card className="min-w-0 max-w-full rounded-2xl border bg-card shadow-sm md:shadow">
         <CardHeader className="pb-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex flex-wrap items-center gap-2">
@@ -240,7 +178,13 @@ function ApplicationCard({
               </span>
               <StatusBadge
                 badgeKey={cardStatus.badgeKey}
-                withdrawReason={cardStatus.badgeKey === "withdrawn" ? application.withdrawReason : undefined}
+                withdrawReason={
+                  cardStatus.badgeKey === "withdrawn" ||
+                  cardStatus.badgeKey === "declined" ||
+                  cardStatus.badgeKey === "offer_expired"
+                    ? application.withdrawReason
+                    : undefined
+                }
               />
             </div>
             <div className="flex items-center gap-2">
@@ -357,7 +301,7 @@ function ApplicationCard({
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="min-w-0 max-w-full space-y-4">
           {useDraftCardLayout ? (
             <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[15px] leading-6">
               <p className="text-[15px] leading-6 text-muted-foreground col-span-2">
@@ -413,228 +357,18 @@ function ApplicationCard({
           )}
 
           {!useDraftCardLayout && expanded && (
-            <div className="mt-4 relative">
+            <div className="mt-4 min-w-0 max-w-full">
               <h3 className="text-base font-semibold text-foreground mb-3">
                 Invoices
               </h3>
-              <div className="border rounded-xl bg-muted/30 overflow-hidden">
-                <div className="overflow-x-auto">
-              <Table className="table-fixed w-full text-[15px]">
-                <TableHeader>
-                  <TableRow className="border-b border-border hover:bg-transparent">
-                    <TableHead className="w-[105px] min-w-[105px] whitespace-nowrap text-sm font-semibold p-3 text-left">
-                      Invoice Number
-                    </TableHead>
-                    <TableHead className="w-[105px] min-w-[105px] whitespace-nowrap text-sm font-semibold p-3 text-left">
-                      Maturity Date
-                    </TableHead>
-                    <TableHead className="w-[115px] min-w-[115px] whitespace-nowrap text-sm font-semibold p-3 text-left tabular-nums">
-                      Invoice Value
-                    </TableHead>
-                    <TableHead className="w-[115px] min-w-[115px] whitespace-nowrap text-sm font-semibold p-3 text-left tabular-nums">
-                      Applied Financing
-                    </TableHead>
-                    <TableHead className="w-[150px] min-w-[140px] whitespace-nowrap text-sm font-semibold p-3 text-left">
-                      Documents
-                    </TableHead>
-                    <TableHead className="w-[115px] min-w-[115px] whitespace-nowrap text-sm font-semibold p-3 text-left tabular-nums">
-                      Financing Offered
-                    </TableHead>
-                    <TableHead className="w-[95px] min-w-[95px] whitespace-nowrap text-sm font-semibold p-3 text-left tabular-nums">
-                      Profit Rate
-                    </TableHead>
-                    <TableHead className="w-[120px] min-w-[120px] whitespace-nowrap text-sm font-semibold p-3 text-left">
-                      Status
-                    </TableHead>
-                    <TableHead className="w-[180px] min-w-[160px] whitespace-nowrap text-sm font-semibold p-3 text-left">
-                      Action
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {application.invoices.length === 0 ? (
-                    <TableRow className="hover:bg-transparent">
-                      <TableCell
-                        colSpan={9}
-                        className="text-center py-8 text-[15px] text-muted-foreground"
-                      >
-                        No invoices available
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    application.invoices.map((inv: NormalizedInvoice, idx: number) => {
-                      const invStatus = String(inv.status ?? "").toUpperCase();
-                      const showReviewOffer = invStatus === "OFFER_SENT" && inv.offerStatus === "Offer received";
-                      const canReview = inv.canReviewOffer;
-                      const showMakeAmendments =
-                        application.cardStatus.showMakeAmendments && invStatus === "AMENDMENT_REQUESTED";
-                      const canWithdrawInvoice = !["APPROVED", "REJECTED", "WITHDRAWN"].includes(invStatus);
-                      return (
-                        <TableRow
-                          key={inv.id}
-                          className={cn(
-                            "border-b border-border last:border-b-0 transition-colors hover:bg-muted",
-                            idx % 2 === 1 && "bg-muted/40"
-                          )}
-                        >
-                          <TableCell className="p-3 text-[15px] align-middle text-left whitespace-nowrap">
-                            {inv.number}
-                          </TableCell>
-                          <TableCell className="p-3 text-[15px] align-middle text-left">
-                            {formatDate(inv.maturityDate)}
-                          </TableCell>
-                          <TableCell className="p-3 text-[15px] align-middle text-left tabular-nums whitespace-nowrap">
-                            {inv.value ? formatCurrency(inv.value) : "—"}
-                          </TableCell>
-                          <TableCell className="p-3 text-[15px] align-middle text-left tabular-nums whitespace-nowrap">
-                            {inv.appliedFinancing != null
-                              ? formatCurrency(inv.appliedFinancing)
-                              : "—"}
-                          </TableCell>
-                          <TableCell className="p-3 min-w-0 max-w-[150px] overflow-hidden align-middle text-left">
-                            <InvoiceDocumentCell
-                              documentName={inv.document}
-                              documentS3Key={inv.documentS3Key}
-                              onDownload={onDocumentDownload}
-                            />
-                          </TableCell>
-                          <TableCell className="p-3 text-[15px] align-middle text-left tabular-nums whitespace-nowrap">
-                            {inv.financingOffered}
-                          </TableCell>
-                          <TableCell className="p-3 text-[15px] align-middle text-left tabular-nums whitespace-nowrap">
-                            {inv.profitRate}
-                          </TableCell>
-                          <TableCell className="p-3 align-middle text-left whitespace-nowrap">
-                            <span className="inline-block">
-                              <StatusBadge
-                                badgeKey={API_STATUS_TO_BADGE_KEY[String(inv.status).toUpperCase()] ?? inv.status.toLowerCase()}
-                              />
-                            </span>
-                          </TableCell>
-                          <TableCell className="p-3 align-top text-center">
-                            <div className="flex items-start justify-center gap-2">
-                              {(showReviewOffer || showMakeAmendments) && (
-                                <div className="flex flex-col items-center gap-1 min-w-[140px]">
-                                  {showReviewOffer && (
-                                    canReview && onReviewInvoiceOffer ? (
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="reviewOffer"
-                                        className="h-8 w-full min-w-[140px] text-xs font-medium rounded-xl"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          onReviewInvoiceOffer(application.id, inv);
-                                        }}
-                                      >
-                                        Review Offer
-                                      </Button>
-                                    ) : (
-                                      <Button
-                                        size="sm"
-                                        variant="reviewOffer"
-                                        className="h-8 w-full min-w-[140px] text-xs font-medium rounded-xl"
-                                        disabled
-                                      >
-                                        Review Offer
-                                      </Button>
-                                    )
-                                  )}
-                                  {showReviewOffer && inv.offer_details?.expires_at != null ? (
-                                    <span className="text-xs text-muted-foreground">
-                                      Offer valid until: {format(new Date(String(inv.offer_details.expires_at)), "d MMM yyyy")}
-                                    </span>
-                                  ) : null}
-                                  {showMakeAmendments && (
-                                    <Button
-                                      size="sm"
-                                      variant="makeAmendments"
-                                      className="h-8 w-full min-w-[140px] text-xs font-medium rounded-xl"
-                                      asChild
-                                    >
-                                      <Link href={`/applications/edit/${application.id}`}>
-                                        Make Amendments
-                                      </Link>
-                                    </Button>
-                                  )}
-                                </div>
-                              )}
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 shrink-0 mt-0"
-                                  >
-                                    <EllipsisVerticalIcon className="h-4 w-4" />
-                                  </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="rounded-xl">
-                                  {(() => {
-                                    const showViewSignedInvoice =
-                                      !!inv.signedOfferLetterS3Key && onViewSignedInvoiceOffer;
-                                    const withdrawInvoiceDisabled =
-                                      !canWithdrawInvoice ||
-                                      isWithdrawInvoicePending ||
-                                      !!showViewSignedInvoice;
-                                    return (
-                                      <>
-                                        {showViewSignedInvoice && (
-                                          <>
-                                            <DropdownMenuItem
-                                              className="cursor-pointer"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                void onViewSignedInvoiceOffer!(
-                                                  inv.signedOfferLetterS3Key!
-                                                );
-                                              }}
-                                            >
-                                              View Signed Offer
-                                            </DropdownMenuItem>
-                                            <DropdownMenuSeparator />
-                                          </>
-                                        )}
-                                        <DropdownMenuItem
-                                          className="cursor-pointer"
-                                          disabled={withdrawInvoiceDisabled}
-                                          onClick={() => {
-                                            if (
-                                              canWithdrawInvoice &&
-                                              !isWithdrawInvoicePending &&
-                                              !showViewSignedInvoice &&
-                                              onWithdrawInvoice
-                                            ) {
-                                              onWithdrawInvoice(inv.id, application.id, application.issuerOrganizationId);
-                                            }
-                                          }}
-                                          title={
-                                            showViewSignedInvoice
-                                              ? "Withdraw is not available while a signed offer letter is on file"
-                                              : !canWithdrawInvoice
-                                                ? "Cannot withdraw: invoice is already approved, rejected, or withdrawn"
-                                                : isWithdrawInvoicePending
-                                                  ? "Withdrawal in progress"
-                                                  : undefined
-                                          }
-                                        >
-                                          {isWithdrawInvoicePending ? "Withdrawing..." : "Withdraw Invoice"}
-                                        </DropdownMenuItem>
-                                      </>
-                                    );
-                                  })()}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })
-                  )}
-                </TableBody>
-              </Table>
-                </div>
-              </div>
+              <ScrollableInvoiceTable
+                application={application}
+                onDocumentDownload={onDocumentDownload}
+                onViewSignedInvoiceOffer={onViewSignedInvoiceOffer}
+                onReviewInvoiceOffer={onReviewInvoiceOffer}
+                onWithdrawInvoice={onWithdrawInvoice}
+                isWithdrawInvoicePending={isWithdrawInvoicePending}
+              />
             </div>
           )}
         </CardContent>
@@ -959,8 +693,8 @@ export default function ApplicationsPage() {
   }, [activeOrganization]);
 
   return (
-    <div className="flex flex-1 flex-col gap-4 p-4 pt-4">
-      <div className="p-2 md:p-4">
+    <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-x-hidden p-4 pt-4">
+      <div className="min-w-0 max-w-full p-2 md:p-4">
       {isDev && (
         <Card
           className="fixed bottom-5 right-5 z-[9999] w-[200px] rounded-2xl shadow-lg border-2 border-amber-500/50"
@@ -1016,7 +750,7 @@ export default function ApplicationsPage() {
         </Button>
       </section>
 
-      <Card className="border-none shadow-none bg-transparent">
+      <Card className="min-w-0 max-w-full border-none bg-transparent shadow-none">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-6 px-0">
           <div className="flex items-center gap-2">
             <CardTitle className="text-2xl md:text-3xl font-bold tracking-tight">
@@ -1244,7 +978,7 @@ export default function ApplicationsPage() {
           </div>
 
           {/* Application cards */}
-          <div className="rounded-xl border bg-muted/30 p-6">
+          <div className="min-w-0 max-w-full rounded-xl border bg-muted/30 p-6">
             {isLoading ? (
               <div className="space-y-4">
                 {Array.from({ length: debugShowSkeleton ? SKELETON_COUNT : perPage }).map((_, i) => (

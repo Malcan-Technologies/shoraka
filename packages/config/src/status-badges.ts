@@ -4,11 +4,21 @@
  * - submitted: Submitted, Resubmitted — waiting for admin pickup
  * - in-progress: Under Review, Contract/Invoice Pending/Sent, Offer Sent — admin processing / awaiting issuer
  * - success: Approved, Completed, Contract Accepted — done
- * - rejected: Rejected, Withdrawn — negative outcome
+ * - rejected: Rejected — admin / platform negative outcome
+ * - withdrawn: User withdrew (issuer UI); distinct from Declined (user declined an offer)
+ * - declined: Issuer declined an offer (issuer UI; same red styling as Rejected)
  * - neutral: Pending, Archived — inactive
  */
 
 import { WithdrawReason, formatWithdrawLabel } from "@cashsouk/types";
+
+export type StatusPresentationOptions = {
+  /**
+   * Issuer portal: WITHDRAWN is shown as Declined (offer rejected), Withdrawn (user cancelled),
+   * or Offer Expired — not the generic admin-oriented withdraw strings.
+   */
+  issuerWithdrawPresentation?: boolean;
+};
 
 export type StatusVariant =
   | "success"
@@ -151,6 +161,20 @@ const STATUS_PRESENTATION: Record<string, Omit<StatusPresentation, "label"> & { 
     dotClass: DOT.rejected,
     variant: "withdrawn",
   },
+  DECLINED: {
+    label: "Declined",
+    badgeClass: GROUP.rejected,
+    iconClass: "text-red-600 dark:text-red-400",
+    dotClass: DOT.rejected,
+    variant: "rejected",
+  },
+  OFFER_EXPIRED: {
+    label: "Offer Expired",
+    badgeClass: GROUP.rejected,
+    iconClass: "text-red-600 dark:text-red-400",
+    dotClass: DOT.rejected,
+    variant: "withdrawn",
+  },
   ARCHIVED: {
     label: "Archived",
     badgeClass: GROUP.neutral,
@@ -205,6 +229,24 @@ const API_STATUS_TO_BADGE_KEY: Record<string, string> = {
 
 export { API_STATUS_TO_BADGE_KEY };
 
+/**
+ * Maps API invoice/application status + withdraw reason to issuer card/table badge key.
+ * WITHDRAWN + OFFER_REJECTED → declined; WITHDRAWN + OFFER_EXPIRED → offer_expired; else API map.
+ */
+export function resolveIssuerInvoiceStatusBadgeKey(
+  status: string | undefined,
+  withdrawReason?: WithdrawReason
+): string {
+  const upper = String(status ?? "").toUpperCase();
+  if (upper === "WITHDRAWN" && withdrawReason === WithdrawReason.OFFER_REJECTED) {
+    return "declined";
+  }
+  if (upper === "WITHDRAWN" && withdrawReason === WithdrawReason.OFFER_EXPIRED) {
+    return "offer_expired";
+  }
+  return API_STATUS_TO_BADGE_KEY[upper] ?? (status?.toLowerCase() ?? "draft");
+}
+
 /** All status keys for dev/showcase pages. */
 export const STATUS_EXAMPLE_KEYS = [
   "DRAFT",
@@ -238,6 +280,8 @@ const BADGE_KEY_PRESENTATION: Record<string, StatusPresentation> = {
   approved: { ...STATUS_PRESENTATION.APPROVED, label: "Approved" } as StatusPresentation,
   completed: { ...STATUS_PRESENTATION.COMPLETED, label: "Completed" } as StatusPresentation,
   withdrawn: { ...STATUS_PRESENTATION.WITHDRAWN, label: "Withdrawn" } as StatusPresentation,
+  declined: { ...STATUS_PRESENTATION.DECLINED, label: "Declined" } as StatusPresentation,
+  offer_expired: { ...STATUS_PRESENTATION.OFFER_EXPIRED, label: "Offer Expired" } as StatusPresentation,
   rejected: { ...STATUS_PRESENTATION.REJECTED, label: "Rejected" } as StatusPresentation,
   archived: { ...STATUS_PRESENTATION.ARCHIVED, label: "Archived" } as StatusPresentation,
 };
@@ -247,12 +291,43 @@ const BADGE_KEY_PRESENTATION: Record<string, StatusPresentation> = {
  */
 export function getStatusPresentationByBadgeKey(
   badgeKey: string,
-  withdrawReason?: WithdrawReason
+  withdrawReason?: WithdrawReason,
+  options?: StatusPresentationOptions
 ): { color: string; label: string } {
   const key = badgeKey?.toLowerCase() ?? "draft";
+  const issuer = options?.issuerWithdrawPresentation === true;
+
+  if (issuer && withdrawReason === WithdrawReason.OFFER_REJECTED) {
+    const pres = BADGE_KEY_PRESENTATION.declined;
+    return { color: pres.badgeClass, label: "Declined" };
+  }
+
+  if (issuer && withdrawReason === WithdrawReason.OFFER_EXPIRED) {
+    const pres = BADGE_KEY_PRESENTATION.offer_expired;
+    return { color: pres.badgeClass, label: pres.label ?? "Offer Expired" };
+  }
+
+  if (key === "declined") {
+    const pres = BADGE_KEY_PRESENTATION.declined;
+    return { color: pres.badgeClass, label: pres.label ?? "Declined" };
+  }
+
+  if (key === "offer_expired") {
+    const pres = BADGE_KEY_PRESENTATION.offer_expired;
+    return { color: pres.badgeClass, label: pres.label ?? "Offer Expired" };
+  }
+
+  if (key === "withdrawn") {
+    const pres = BADGE_KEY_PRESENTATION.withdrawn;
+    if (issuer) {
+      return { color: pres.badgeClass, label: "Withdrawn" };
+    }
+    const label = formatWithdrawLabel(withdrawReason);
+    return { color: pres.badgeClass, label };
+  }
+
   const pres = BADGE_KEY_PRESENTATION[key] ?? PENDING_FALLBACK;
-  const label =
-    key === "withdrawn" ? formatWithdrawLabel(withdrawReason) : (pres.label ?? toLabel(badgeKey));
+  const label = pres.label ?? toLabel(badgeKey);
   return { color: pres.badgeClass, label };
 }
 
@@ -263,9 +338,22 @@ export function getStatusPresentationByBadgeKey(
  */
 export function getStatusPresentation(
   status: string,
-  withdrawReason?: WithdrawReason
+  withdrawReason?: WithdrawReason,
+  options?: StatusPresentationOptions
 ): StatusPresentation {
   const upper = status?.toUpperCase() ?? "";
+  const issuer = options?.issuerWithdrawPresentation === true;
+
+  if (upper === "WITHDRAWN" && issuer) {
+    if (withdrawReason === WithdrawReason.OFFER_REJECTED) {
+      return { ...STATUS_PRESENTATION.DECLINED, label: "Declined" } as StatusPresentation;
+    }
+    if (withdrawReason === WithdrawReason.OFFER_EXPIRED) {
+      return { ...STATUS_PRESENTATION.OFFER_EXPIRED, label: "Offer Expired" } as StatusPresentation;
+    }
+    return { ...STATUS_PRESENTATION.WITHDRAWN, label: "Withdrawn" } as StatusPresentation;
+  }
+
   const rawPres = STATUS_PRESENTATION[upper];
   if (rawPres) {
     const label =
@@ -288,9 +376,10 @@ export function getStatusPresentation(
  */
 export function getStatusColorAndLabel(
   apiStatus: string,
-  withdrawReason?: WithdrawReason
+  withdrawReason?: WithdrawReason,
+  options?: StatusPresentationOptions
 ): { color: string; label: string } {
-  const p = getStatusPresentation(apiStatus, withdrawReason);
+  const p = getStatusPresentation(apiStatus, withdrawReason, options);
   return { color: p.badgeClass, label: p.label };
 }
 
@@ -299,7 +388,8 @@ export function getStatusColorAndLabel(
  */
 export function getStatusBadgeClass(
   status: string,
-  withdrawReason?: WithdrawReason
+  withdrawReason?: WithdrawReason,
+  options?: StatusPresentationOptions
 ): string {
-  return getStatusPresentation(status, withdrawReason).badgeClass;
+  return getStatusPresentation(status, withdrawReason, options).badgeClass;
 }

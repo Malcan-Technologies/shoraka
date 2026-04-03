@@ -31,6 +31,7 @@ export class ApplicationRepository {
         issuer_organization: true,
         contract: true,
         invoices: { orderBy: { created_at: "asc" } },
+        application_review_remarks: true,
       },
     });
   }
@@ -55,6 +56,7 @@ export class ApplicationRepository {
       include: {
         contract: true,
         invoices: { orderBy: { created_at: "asc" } },
+        application_review_remarks: true,
       },
     });
   }

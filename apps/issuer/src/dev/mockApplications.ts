@@ -3,7 +3,7 @@
  * Only used when process.env.NODE_ENV === "development".
  * Generates realistic NormalizedApplication cards for testing filters, sorting, and lifecycle UI.
  * Covers all FILTER_STATUSES (draft, submitted, under_review, amendment_requested, offer_sent, accepted,
- * completed, withdrawn, rejected) and all NormalizedApplication/NormalizedInvoice fields.
+ * completed, withdrawn, declined, offer_expired, rejected) and all NormalizedApplication/NormalizedInvoice fields.
  */
 
 import { WithdrawReason } from "@cashsouk/types";
@@ -34,6 +34,7 @@ function makeInvoice(overrides: Partial<NormalizedInvoice> & { id: string }): No
     offerStatus: null,
     canReviewOffer: false,
     signedOfferLetterAvailable: false,
+    reasonOrRemarks: null,
     ...restOverrides,
     signedOfferLetterS3Key: signedOfferLetterS3Key ?? null,
   };
@@ -89,6 +90,8 @@ const SCENARIOS: Array<{
   { appStatus: "APPROVED", contractStatus: "APPROVED", invoiceStatuses: ["APPROVED", "APPROVED"], type: "Contract financing", hasContract: true, invoiceCount: 2 },
   { appStatus: "COMPLETED", contractStatus: null, invoiceStatuses: ["APPROVED", "REJECTED"], type: "Invoice financing", hasContract: false, invoiceCount: 2 },
   { appStatus: "WITHDRAWN", contractStatus: null, invoiceStatuses: ["WITHDRAWN", "WITHDRAWN"], type: "Invoice financing", hasContract: false, invoiceCount: 2, withdrawReason: WithdrawReason.USER_CANCELLED },
+  /** User declined offer — card shows Declined. */
+  { appStatus: "WITHDRAWN", contractStatus: null, invoiceStatuses: ["WITHDRAWN"], type: "Invoice financing", hasContract: false, invoiceCount: 1, withdrawReason: WithdrawReason.OFFER_REJECTED },
   { appStatus: "REJECTED", contractStatus: "REJECTED", invoiceStatuses: [], type: "Contract financing", hasContract: true, invoiceCount: 0 },
   { appStatus: "APPROVED", contractStatus: "APPROVED", invoiceStatuses: [], type: "Contract financing", hasContract: true, invoiceCount: 0, hasExpiry: true },
   { appStatus: "COMPLETED", contractStatus: null, invoiceStatuses: ["APPROVED"], type: "Invoice financing", hasContract: false, invoiceCount: 1 },
@@ -138,6 +141,16 @@ export function generateMockApplications(count: number): NormalizedApplication[]
           ? { expires_at: invoiceExpiresAt.toISOString() }
           : null;
 
+      let reasonOrRemarks: string | null = null;
+      if (invStatus === "REJECTED") {
+        reasonOrRemarks =
+          "Reviewer remarks: Amount could not be verified against supporting documents.";
+      }
+      if (invStatus === "WITHDRAWN" && scenario.withdrawReason === WithdrawReason.OFFER_REJECTED) {
+        reasonOrRemarks =
+          "Decline reason: The profit rate and tenure did not meet our internal policy.";
+      }
+
       invoices.push(
         makeInvoice({
           id: "inv-" + cuidLike().slice(0, 12),
@@ -156,6 +169,8 @@ export function generateMockApplications(count: number): NormalizedApplication[]
           signedOfferLetterAvailable: invStatus === "APPROVED",
           signedOfferLetterS3Key:
             invStatus === "APPROVED" ? `applications/mock/${appId}/offers/invoice-${j + 1}.pdf` : null,
+          withdrawReason: invStatus === "WITHDRAWN" ? scenario.withdrawReason : undefined,
+          reasonOrRemarks,
         })
       );
     }
@@ -164,6 +179,7 @@ export function generateMockApplications(count: number): NormalizedApplication[]
       applicationStatus: scenario.appStatus,
       contractStatus: scenario.contractStatus,
       invoiceStatuses: scenario.invoiceStatuses,
+      withdrawReason: scenario.withdrawReason,
     });
 
     let customer = CUSTOMERS[i % CUSTOMERS.length];
