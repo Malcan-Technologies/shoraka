@@ -5,6 +5,7 @@
  */
 
 import { getStepKeyFromStepId, STEP_KEY_DISPLAY } from "@cashsouk/types";
+import { isDeclarationHtmlEmpty } from "@cashsouk/ui/declaration-rich-text";
 import { parseMoney } from "@cashsouk/ui";
 
 // Step keys we use in validation and payload
@@ -397,11 +398,11 @@ function runStepValidation(steps: unknown[]): { errors: string[]; stepIdsWithErr
         const empty = raw.some((item: unknown) => {
           const text =
             typeof item === "object" && item != null && "text" in item
-              ? String((item as { text: unknown }).text ?? "").trim()
+              ? String((item as { text: unknown }).text ?? "")
               : typeof item === "string"
-                ? item.trim()
+                ? item
                 : "";
-          return !text;
+          return isDeclarationHtmlEmpty(text);
         });
         if (empty) {
           errors.push(`${stepLabel}: every declaration must have text`);
