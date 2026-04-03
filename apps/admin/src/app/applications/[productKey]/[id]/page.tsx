@@ -126,10 +126,7 @@ export default function DynamicApplicationDetailPage() {
     return readInvoiceMaturityMonthsFromWorkflow(workflow).minMonthsReviewToMaturity;
   }, [currentProduct]);
 
-  const [confirmAction, setConfirmAction] = React.useState<{
-    type: "APPROVE" | "REJECT";
-    isOpen: boolean;
-  }>({ type: "APPROVE", isOpen: false });
+  const [rejectApplicationDialogOpen, setRejectApplicationDialogOpen] = React.useState(false);
 
   const approveSection = useApproveReviewSection();
   const rejectSection = useRejectReviewSection();
@@ -503,11 +500,11 @@ export default function DynamicApplicationDetailPage() {
     addPendingAmendment.isPending ||
     rejectItem.isPending;
 
-  const handleUpdateStatus = async (status: string) => {
+  const handleConfirmRejectApplication = async () => {
     try {
-      await updateStatus.mutateAsync({ id: applicationId, status });
-      toast.success(`Application ${status.toLowerCase()} successfully`);
-      setConfirmAction((prev) => ({ ...prev, isOpen: false }));
+      await updateStatus.mutateAsync({ id: applicationId, status: "REJECTED" });
+      toast.success("Application rejected successfully");
+      setRejectApplicationDialogOpen(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update status");
     }
@@ -678,7 +675,7 @@ export default function DynamicApplicationDetailPage() {
                                 allSectionsApproved ||
                                 !hasRejectedSection
                               }
-                              onClick={() => setConfirmAction({ type: "REJECT", isOpen: true })}
+                              onClick={() => setRejectApplicationDialogOpen(true)}
                             >
                               <XCircleIcon className="h-4 w-4" />
                               Reject
@@ -992,16 +989,7 @@ export default function DynamicApplicationDetailPage() {
                 </div>
 
                 <div className="min-w-0 space-y-6">
-                  <ReviewSummaryCard
-                    sections={reviewSections}
-                    reviewItems={
-                      (app.application_review_items as {
-                        item_type: string;
-                        item_id: string;
-                        status: string;
-                      }[]) ?? []
-                    }
-                  />
+                  <ReviewSummaryCard sections={reviewSections} />
 
                   <RecentActivityCard
                     events={
@@ -1063,34 +1051,22 @@ export default function DynamicApplicationDetailPage() {
         isSubmitPending={submitAmendmentRequest.isPending}
       />
 
-      <AlertDialog
-        open={confirmAction.isOpen}
-        onOpenChange={(open) => setConfirmAction((prev) => ({ ...prev, isOpen: open }))}
-      >
+      <AlertDialog open={rejectApplicationDialogOpen} onOpenChange={setRejectApplicationDialogOpen}>
         <AlertDialogContent className="rounded-2xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {confirmAction.type === "APPROVE" ? "Approve Application?" : "Reject Application?"}
-            </AlertDialogTitle>
+            <AlertDialogTitle>Reject Application?</AlertDialogTitle>
             <AlertDialogDescription>
-              {confirmAction.type === "APPROVE"
-                ? "This will approve the financing application and move it to the next stage in the workflow."
-                : "This will reject the application. The issuer will be notified and will need to submit a new application."}
+              This will reject the application. The issuer will be notified and will need to submit a
+              new application.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className={`rounded-xl ${
-                confirmAction.type === "APPROVE"
-                  ? "bg-primary hover:bg-primary/90 text-primary-foreground"
-                  : "bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-              }`}
-              onClick={() =>
-                handleUpdateStatus(confirmAction.type === "APPROVE" ? "APPROVED" : "REJECTED")
-              }
+              className="rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+              onClick={() => void handleConfirmRejectApplication()}
             >
-              Confirm {confirmAction.type === "APPROVE" ? "Approval" : "Rejection"}
+              Confirm Rejection
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
