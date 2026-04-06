@@ -76,6 +76,7 @@ import type {
   AdminUpdateNotificationTypePayload,
   AdminSeedTypesResponse,
   WithdrawReason,
+  AdminCtosReportListItem,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
 
@@ -378,6 +379,18 @@ export class ApiClient {
 
   async getAdminApplicationDetail(id: string): Promise<ApiResponse<any> | ApiError> {
     return this.get<any>(`/v1/admin/applications/${id}`);
+  }
+
+  async listAdminApplicationCtosReports(
+    applicationId: string
+  ): Promise<ApiResponse<AdminCtosReportListItem[]> | ApiError> {
+    return this.get<AdminCtosReportListItem[]>(`/v1/admin/applications/${applicationId}/ctos-reports`);
+  }
+
+  async createAdminApplicationCtosReport(
+    applicationId: string
+  ): Promise<ApiResponse<AdminCtosReportListItem> | ApiError> {
+    return this.post<AdminCtosReportListItem>(`/v1/admin/applications/${applicationId}/ctos-reports`, {});
   }
 
   async updateAdminApplicationStatus(

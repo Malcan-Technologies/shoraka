@@ -1169,3 +1169,14 @@ export interface GetProductsParams {
   pageSize: number;
   search?: string;
 }
+
+export interface AdminCtosReportListItem {
+  id: string;
+  issuer_organization_id: string;
+  fetched_at: string;
+  created_at: string;
+  updated_at: string;
+  has_report_html: boolean;
+  /** Present on list GET; omitted on create response until refetch. */
+  financials_json?: unknown;
+}

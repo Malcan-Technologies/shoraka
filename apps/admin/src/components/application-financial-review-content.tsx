@@ -22,8 +22,22 @@ import {
 import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
 import { reviewEmptyStateClass } from "@/components/application-review/review-section-styles";
 import { CheckCircleIcon } from "@heroicons/react/24/outline";
-import { formatCurrency, formatNumber } from "@cashsouk/config";
-import { FINANCIAL_FIELD_LABELS, calculateFinancialMetrics } from "@cashsouk/types";
+import { formatCurrency, formatNumber, useAuthToken } from "@cashsouk/config";
+import {
+  FINANCIAL_FIELD_LABELS,
+  computeColumnMetrics,
+  computeTurnoverGrowth,
+  financialFormToBsPl,
+  type ColumnComputedMetrics,
+  type FinancialStatementsInput,
+} from "@cashsouk/types";
+import { toast } from "sonner";
+import {
+  useAdminApplicationCtosReports,
+  useCreateAdminApplicationCtosReport,
+} from "@/hooks/use-admin-application-ctos-reports";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 const COMPUTED_FIELD_LABELS: Record<string, string> = {
   totass: "Total Assets",
@@ -34,6 +48,31 @@ const COMPUTED_FIELD_LABELS: Record<string, string> = {
   currat: "Current Ratio",
   workcap: "Working Capital",
 };
+
+interface CtosFinRow {
+  reporting_year: number | null;
+  financial_year_end_date: string | null;
+  balance_sheet_date: string | null;
+  balance_sheet: {
+    fixed_assets: number | null;
+    other_assets: number | null;
+    current_assets: number | null;
+    non_current_assets: number | null;
+    total_assets: number | null;
+    current_liabilities: number | null;
+    long_term_liabilities: number | null;
+    non_current_liabilities: number | null;
+    total_liabilities: number | null;
+    equity: number | null;
+  };
+  profit_and_loss: {
+    revenue: number | null;
+    profit_before_tax: number | null;
+    profit_after_tax: number | null;
+    net_dividend: number | null;
+    profit_line_amount: number | null;
+  };
+}
 
 function toNum(v: unknown): number {
   if (typeof v === "number" && !Number.isNaN(v)) return v;
@@ -49,210 +88,42 @@ function parseFinancialStatements(raw: unknown): Record<string, unknown> {
   return obj;
 }
 
-interface FinancialRowDef {
-  id: string;
-  label: string;
-  getValue: (
-    fs: Record<string, unknown>,
-    computed: ReturnType<typeof calculateFinancialMetrics> | null
-  ) => string;
+function ctosFinToFs(r: CtosFinRow): Record<string, unknown> {
+  const bs = r.balance_sheet;
+  const pl = r.profit_and_loss;
+  return {
+    pldd: r.financial_year_end_date ?? "",
+    bsdd: r.balance_sheet_date ?? "",
+    bsfatot: bs.fixed_assets ?? "",
+    othass: bs.other_assets ?? "",
+    bscatot: bs.current_assets ?? "",
+    bsclbank: bs.non_current_assets ?? "",
+    curlib: bs.current_liabilities ?? "",
+    bsslltd: bs.long_term_liabilities ?? "",
+    bsclstd: bs.non_current_liabilities ?? "",
+    bsqpuc: bs.equity ?? "",
+    turnover: pl.revenue ?? "",
+    plnpbt: pl.profit_before_tax ?? "",
+    plnpat: pl.profit_after_tax ?? "",
+    plnetdiv: pl.net_dividend ?? "",
+    plyear: pl.profit_line_amount ?? "",
+  };
 }
 
-const FINANCIAL_ROW_DEFS: FinancialRowDef[] = [
-  {
-    id: "pldd",
-    label: FINANCIAL_FIELD_LABELS.pldd,
-    getValue: (fs) => {
-      const v = fs.pldd;
-      if (v == null || v === "") return "—";
-      return String(v);
-    },
-  },
-  {
-    id: "bsdd",
-    label: FINANCIAL_FIELD_LABELS.bsdd,
-    getValue: (fs) => {
-      const v = fs.bsdd;
-      if (v == null || v === "") return "—";
-      return String(v);
-    },
-  },
-  {
-    id: "bsfatot",
-    label: FINANCIAL_FIELD_LABELS.bsfatot,
-    getValue: (fs) => {
-      const v = fs.bsfatot;
-      if (v == null || v === "") return "—";
-      return formatCurrency(toNum(v), { decimals: 0 });
-    },
-  },
-  {
-    id: "othass",
-    label: FINANCIAL_FIELD_LABELS.othass,
-    getValue: (fs) => {
-      const v = fs.othass;
-      if (v == null || v === "") return "—";
-      return formatCurrency(toNum(v), { decimals: 0 });
-    },
-  },
-  {
-    id: "bscatot",
-    label: FINANCIAL_FIELD_LABELS.bscatot,
-    getValue: (fs) => {
-      const v = fs.bscatot;
-      if (v == null || v === "") return "—";
-      return formatCurrency(toNum(v), { decimals: 0 });
-    },
-  },
-  {
-    id: "bsclbank",
-    label: FINANCIAL_FIELD_LABELS.bsclbank,
-    getValue: (fs) => {
-      const v = fs.bsclbank;
-      if (v == null || v === "") return "—";
-      return formatCurrency(toNum(v), { decimals: 0 });
-    },
-  },
-  {
-    id: "totass",
-    label: COMPUTED_FIELD_LABELS.totass,
-    getValue: (_fs, computed) => {
-      if (!computed) return "—";
-      const n = computed.totass;
-      return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
-    },
-  },
-  {
-    id: "curlib",
-    label: FINANCIAL_FIELD_LABELS.curlib,
-    getValue: (fs) => {
-      const v = fs.curlib;
-      if (v == null || v === "") return "—";
-      return formatCurrency(toNum(v), { decimals: 0 });
-    },
-  },
-  {
-    id: "bsslltd",
-    label: FINANCIAL_FIELD_LABELS.bsslltd,
-    getValue: (fs) => {
-      const v = fs.bsslltd;
-      if (v == null || v === "") return "—";
-      return formatCurrency(toNum(v), { decimals: 0 });
-    },
-  },
-  {
-    id: "bsclstd",
-    label: FINANCIAL_FIELD_LABELS.bsclstd,
-    getValue: (fs) => {
-      const v = fs.bsclstd;
-      if (v == null || v === "") return "—";
-      return formatCurrency(toNum(v), { decimals: 0 });
-    },
-  },
-  {
-    id: "totlib",
-    label: COMPUTED_FIELD_LABELS.totlib,
-    getValue: (_fs, computed) => {
-      if (!computed) return "—";
-      const n = computed.totlib;
-      return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
-    },
-  },
-  {
-    id: "bsqpuc",
-    label: FINANCIAL_FIELD_LABELS.bsqpuc,
-    getValue: (fs) => {
-      const v = fs.bsqpuc;
-      if (v == null || v === "") return "—";
-      return formatCurrency(toNum(v), { decimals: 0 });
-    },
-  },
-  {
-    id: "turnover",
-    label: FINANCIAL_FIELD_LABELS.turnover,
-    getValue: (fs) => {
-      const v = fs.turnover;
-      if (v == null || v === "") return "—";
-      return formatCurrency(toNum(v), { decimals: 0 });
-    },
-  },
-  {
-    id: "plnpbt",
-    label: FINANCIAL_FIELD_LABELS.plnpbt,
-    getValue: (fs) => {
-      const v = fs.plnpbt;
-      if (v == null || v === "") return "—";
-      return formatCurrency(toNum(v), { decimals: 0 });
-    },
-  },
-  {
-    id: "plnpat",
-    label: FINANCIAL_FIELD_LABELS.plnpat,
-    getValue: (fs) => {
-      const v = fs.plnpat;
-      if (v == null || v === "") return "—";
-      return formatCurrency(toNum(v), { decimals: 0 });
-    },
-  },
-  {
-    id: "plnetdiv",
-    label: FINANCIAL_FIELD_LABELS.plnetdiv,
-    getValue: (fs) => {
-      const v = fs.plnetdiv;
-      if (v == null || v === "") return "—";
-      return formatCurrency(toNum(v), { decimals: 0 });
-    },
-  },
-  {
-    id: "plyear",
-    label: FINANCIAL_FIELD_LABELS.plyear,
-    getValue: (fs) => {
-      const v = fs.plyear;
-      if (v == null || v === "") return "—";
-      return formatCurrency(toNum(v), { decimals: 0 });
-    },
-  },
-  {
-    id: "turnover_growth",
-    label: COMPUTED_FIELD_LABELS.turnover_growth,
-    getValue: (_fs, computed) => {
-      if (!computed || computed.turnover_growth == null) return "—";
-      return formatNumber(computed.turnover_growth * 100, 2) + "%";
-    },
-  },
-  {
-    id: "profit_margin",
-    label: COMPUTED_FIELD_LABELS.profit_margin,
-    getValue: (_fs, computed) => {
-      if (!computed || computed.profit_margin == null) return "—";
-      return formatNumber(computed.profit_margin * 100, 2) + "%";
-    },
-  },
-  {
-    id: "return_of_equity",
-    label: COMPUTED_FIELD_LABELS.return_of_equity,
-    getValue: (_fs, computed) => {
-      if (!computed || computed.return_of_equity == null) return "—";
-      return formatNumber(computed.return_of_equity * 100, 2) + "%";
-    },
-  },
-  {
-    id: "currat",
-    label: COMPUTED_FIELD_LABELS.currat,
-    getValue: (_fs, computed) => {
-      if (!computed || computed.currat == null) return "—";
-      return formatNumber(computed.currat, 2);
-    },
-  },
-  {
-    id: "workcap",
-    label: COMPUTED_FIELD_LABELS.workcap,
-    getValue: (_fs, computed) => {
-      if (!computed) return "—";
-      return formatCurrency(computed.workcap, { decimals: 0 });
-    },
-  },
-];
+function financialRecordToInput(fs: Record<string, unknown>): FinancialStatementsInput {
+  return {
+    bsfatot: toNum(fs.bsfatot),
+    othass: toNum(fs.othass),
+    bscatot: toNum(fs.bscatot),
+    bsclbank: toNum(fs.bsclbank),
+    curlib: toNum(fs.curlib),
+    bsslltd: toNum(fs.bsslltd),
+    bsclstd: toNum(fs.bsclstd),
+    bsqpuc: toNum(fs.bsqpuc),
+    turnover: toNum(fs.turnover),
+    plnpat: toNum(fs.plnpat),
+  };
+}
 
 interface DirectorShareholderRow {
   id: string;
@@ -356,7 +227,7 @@ function extractDirectorShareholders(
     const displayAreas = Array.isArray(formContent?.displayAreas) ? formContent.displayAreas : [];
     for (const area of displayAreas) {
       const content = Array.isArray((area as Record<string, unknown>)?.content)
-        ? (area as Record<string, unknown>).content as Array<{ fieldName?: string; fieldValue?: string }>
+        ? ((area as Record<string, unknown>).content as Array<{ fieldName?: string; fieldValue?: string }>)
         : [];
       const shareField = content.find((f) => f.fieldName === "% of Shares");
       if (shareField?.fieldValue) return `${shareField.fieldValue}% ownership`;
@@ -420,7 +291,8 @@ function extractDirectorShareholders(
         (a: Record<string, unknown>) => a.displayArea === "Basic Information Setting"
       ) as { content?: Array<{ fieldName?: string; fieldValue?: string }> } | undefined;
       const areaContent = Array.isArray(basicInfo?.content) ? basicInfo.content : [];
-      const shareField = content.find((f: { fieldName?: string }) => f.fieldName === "% of Shares") ??
+      const shareField =
+        content.find((f: { fieldName?: string }) => f.fieldName === "% of Shares") ??
         areaContent.find((f: { fieldName?: string }) => f.fieldName === "% of Shares");
       const ownership = shareField?.fieldValue ? `${shareField.fieldValue}% ownership` : null;
       const status = p.status ?? p.approveStatus;
@@ -451,6 +323,8 @@ function extractDirectorShareholders(
 }
 
 interface ApplicationFinancialReviewContentProps {
+  applicationId: string;
+  applicationCreatedAt: string;
   app: {
     issuer_organization?: {
       corporate_entities?: unknown;
@@ -461,37 +335,319 @@ interface ApplicationFinancialReviewContentProps {
   };
 }
 
-export function ApplicationFinancialReviewContent({ app }: ApplicationFinancialReviewContentProps) {
+export function ApplicationFinancialReviewContent({
+  applicationId,
+  applicationCreatedAt,
+  app,
+}: ApplicationFinancialReviewContentProps) {
+  const { getAccessToken } = useAuthToken();
+  const { data: ctosList, isLoading: ctosLoading } = useAdminApplicationCtosReports(applicationId);
+  const createCtos = useCreateAdminApplicationCtosReport(applicationId);
+
   const directorShareholders = React.useMemo(
     () => extractDirectorShareholders(app.issuer_organization),
     [app.issuer_organization]
   );
 
-  const { parsedFs, computed } = React.useMemo(() => {
-    const fs = parseFinancialStatements(app.financial_statements);
-    const hasData = Object.keys(fs).length > 0;
-    const input = {
-      bsfatot: toNum(fs.bsfatot),
-      othass: toNum(fs.othass),
-      bscatot: toNum(fs.bscatot),
-      bsclbank: toNum(fs.bsclbank),
-      curlib: toNum(fs.curlib),
-      bsslltd: toNum(fs.bsslltd),
-      bsclstd: toNum(fs.bsclstd),
-      bsqpuc: toNum(fs.bsqpuc),
-      turnover: toNum(fs.turnover),
-      plnpat: toNum(fs.plnpat),
-    };
-    const metrics = hasData ? calculateFinancialMetrics(input) : null;
-    return { parsedFs: fs, computed: metrics };
-  }, [app.financial_statements]);
+  const parsedFs = React.useMemo(() => parseFinancialStatements(app.financial_statements), [app.financial_statements]);
+  const hasIssuerFinancialData = Object.keys(parsedFs).length > 0;
+
+  const baseYear = React.useMemo(() => new Date(applicationCreatedAt).getUTCFullYear(), [applicationCreatedAt]);
+  const colYears = React.useMemo(() => [baseYear - 3, baseYear - 2, baseYear - 1, baseYear], [baseYear]);
+
+  const latestCtos = ctosList?.[0];
+
+  const financialRows: CtosFinRow[] = React.useMemo(() => {
+    const raw = latestCtos?.financials_json;
+    if (!raw || !Array.isArray(raw)) return [];
+    return raw as CtosFinRow[];
+  }, [latestCtos]);
+
+  const byYear = React.useMemo(() => {
+    const m = new Map<number, CtosFinRow>();
+    for (const r of financialRows) {
+      if (r.reporting_year != null) m.set(r.reporting_year, r);
+    }
+    return m;
+  }, [financialRows]);
+
+  const columnCtosActive = React.useMemo(
+    () => [
+      Boolean(latestCtos && byYear.get(colYears[0])),
+      Boolean(latestCtos && byYear.get(colYears[1])),
+      Boolean(latestCtos && byYear.get(colYears[2])),
+      true,
+    ],
+    [latestCtos, byYear, colYears]
+  );
+
+  const turnovers = React.useMemo(() => {
+    return colYears.map((y, idx) => {
+      if (idx < 3) {
+        const row = byYear.get(y);
+        return { year: y, turnover: row?.profit_and_loss.revenue ?? null };
+      }
+      const rawT = parsedFs.turnover;
+      const t =
+        rawT != null && rawT !== "" && String(rawT).trim() !== ""
+          ? toNum(rawT)
+          : null;
+      return { year: y, turnover: hasIssuerFinancialData ? t : null };
+    });
+  }, [colYears, byYear, parsedFs, hasIssuerFinancialData]);
+
+  const columnMetrics = React.useMemo((): (ColumnComputedMetrics | null)[] => {
+    return colYears.map((y, idx) => {
+      const g =
+        idx === 0
+          ? null
+          : computeTurnoverGrowth({
+              targetYear: turnovers[idx].year,
+              targetTurnover: turnovers[idx].turnover,
+              priorYear: turnovers[idx - 1].year,
+              priorTurnover: turnovers[idx - 1].turnover,
+            });
+
+      if (idx < 3) {
+        if (!columnCtosActive[idx]) return null;
+        const row = byYear.get(y)!;
+        const { bs, pl } = financialFormToBsPl({
+          bsfatot: row.balance_sheet.fixed_assets ?? 0,
+          othass: row.balance_sheet.other_assets ?? 0,
+          bscatot: row.balance_sheet.current_assets ?? 0,
+          bsclbank: row.balance_sheet.non_current_assets ?? 0,
+          curlib: row.balance_sheet.current_liabilities ?? 0,
+          bsslltd: row.balance_sheet.long_term_liabilities ?? 0,
+          bsclstd: row.balance_sheet.non_current_liabilities ?? 0,
+          bsqpuc: row.balance_sheet.equity ?? 0,
+          turnover: row.profit_and_loss.revenue ?? 0,
+          plnpat: row.profit_and_loss.profit_after_tax ?? 0,
+        });
+        Object.assign(bs, {
+          total_assets: row.balance_sheet.total_assets,
+          total_liabilities: row.balance_sheet.total_liabilities,
+        });
+        return computeColumnMetrics(bs, pl, g);
+      }
+
+      if (!hasIssuerFinancialData) return null;
+      const input = financialRecordToInput(parsedFs);
+      const { bs, pl } = financialFormToBsPl(input);
+      return computeColumnMetrics(bs, pl, g);
+    });
+  }, [colYears, byYear, columnCtosActive, turnovers, hasIssuerFinancialData, parsedFs]);
+
+  const getFsCol = React.useCallback(
+    (idx: number): Record<string, unknown> | null => {
+      if (idx < 3) {
+        if (!columnCtosActive[idx]) return null;
+        const row = byYear.get(colYears[idx]);
+        return row ? ctosFinToFs(row) : null;
+      }
+      return parsedFs;
+    },
+    [columnCtosActive, byYear, colYears, parsedFs]
+  );
+
+  const formatCell = (
+    colIdx: number,
+    naAllowed: boolean,
+    valueMissing: boolean,
+    fmt: () => string
+  ): string => {
+    if (colIdx < 3 && !columnCtosActive[colIdx]) return naAllowed ? "N/A" : "N/A";
+    if (valueMissing) return "—";
+    return fmt();
+  };
+
+  const onGetCtos = () => {
+    const t = toast.loading("Fetching CTOS report…");
+    createCtos.mutate(undefined, {
+      onSuccess: () => {
+        toast.dismiss(t);
+        toast.success("CTOS report saved.");
+      },
+      onError: (e: Error) => {
+        toast.dismiss(t);
+        toast.error(e.message || "CTOS request failed");
+      },
+    });
+  };
+
+  const openFullReport = async () => {
+    if (!latestCtos?.id) return;
+    const token = await getAccessToken();
+    if (!token) {
+      toast.error("Not signed in");
+      return;
+    }
+    const url = `${API_URL}/v1/admin/applications/${applicationId}/ctos-reports/${latestCtos.id}/html`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) {
+      toast.error("Could not load full report");
+      return;
+    }
+    const html = await res.text();
+    const w = window.open("", "_blank");
+    if (w) {
+      w.document.write(html);
+      w.document.close();
+    }
+  };
+
+  const rowLabels: { id: string; label: string }[] = [
+    { id: "pldd", label: FINANCIAL_FIELD_LABELS.pldd },
+    { id: "bsdd", label: FINANCIAL_FIELD_LABELS.bsdd },
+    { id: "bsfatot", label: FINANCIAL_FIELD_LABELS.bsfatot },
+    { id: "othass", label: FINANCIAL_FIELD_LABELS.othass },
+    { id: "bscatot", label: FINANCIAL_FIELD_LABELS.bscatot },
+    { id: "bsclbank", label: FINANCIAL_FIELD_LABELS.bsclbank },
+    { id: "totass", label: COMPUTED_FIELD_LABELS.totass },
+    { id: "curlib", label: FINANCIAL_FIELD_LABELS.curlib },
+    { id: "bsslltd", label: FINANCIAL_FIELD_LABELS.bsslltd },
+    { id: "bsclstd", label: FINANCIAL_FIELD_LABELS.bsclstd },
+    { id: "totlib", label: COMPUTED_FIELD_LABELS.totlib },
+    { id: "bsqpuc", label: FINANCIAL_FIELD_LABELS.bsqpuc },
+    { id: "turnover", label: FINANCIAL_FIELD_LABELS.turnover },
+    { id: "plnpbt", label: FINANCIAL_FIELD_LABELS.plnpbt },
+    { id: "plnpat", label: FINANCIAL_FIELD_LABELS.plnpat },
+    { id: "plnetdiv", label: FINANCIAL_FIELD_LABELS.plnetdiv },
+    { id: "plyear", label: FINANCIAL_FIELD_LABELS.plyear },
+    { id: "turnover_growth", label: COMPUTED_FIELD_LABELS.turnover_growth },
+    { id: "profit_margin", label: COMPUTED_FIELD_LABELS.profit_margin },
+    { id: "return_of_equity", label: COMPUTED_FIELD_LABELS.return_of_equity },
+    { id: "currat", label: COMPUTED_FIELD_LABELS.currat },
+    { id: "workcap", label: COMPUTED_FIELD_LABELS.workcap },
+  ];
+
+  const renderRowCell = (rowId: string, colIdx: number): string => {
+    const fs = getFsCol(colIdx);
+    const computed = columnMetrics[colIdx];
+
+    switch (rowId) {
+      case "pldd":
+        return formatCell(colIdx, true, !fs || fs.pldd == null || fs.pldd === "", () => String(fs!.pldd));
+      case "bsdd":
+        return formatCell(colIdx, true, !fs || fs.bsdd == null || fs.bsdd === "", () => String(fs!.bsdd));
+      case "bsfatot":
+        return formatCell(colIdx, true, !fs || fs.bsfatot == null || fs.bsfatot === "", () =>
+          formatCurrency(toNum(fs!.bsfatot), { decimals: 0 })
+        );
+      case "othass":
+        return formatCell(colIdx, true, !fs || fs.othass == null || fs.othass === "", () =>
+          formatCurrency(toNum(fs!.othass), { decimals: 0 })
+        );
+      case "bscatot":
+        return formatCell(colIdx, true, !fs || fs.bscatot == null || fs.bscatot === "", () =>
+          formatCurrency(toNum(fs!.bscatot), { decimals: 0 })
+        );
+      case "bsclbank":
+        return formatCell(colIdx, true, !fs || fs.bsclbank == null || fs.bsclbank === "", () =>
+          formatCurrency(toNum(fs!.bsclbank), { decimals: 0 })
+        );
+      case "totass": {
+        if (colIdx < 3 && !columnCtosActive[colIdx]) return "N/A";
+        if (!computed) return "—";
+        const n = computed.totass;
+        return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
+      }
+      case "curlib":
+        return formatCell(colIdx, true, !fs || fs.curlib == null || fs.curlib === "", () =>
+          formatCurrency(toNum(fs!.curlib), { decimals: 0 })
+        );
+      case "bsslltd":
+        return formatCell(colIdx, true, !fs || fs.bsslltd == null || fs.bsslltd === "", () =>
+          formatCurrency(toNum(fs!.bsslltd), { decimals: 0 })
+        );
+      case "bsclstd":
+        return formatCell(colIdx, true, !fs || fs.bsclstd == null || fs.bsclstd === "", () =>
+          formatCurrency(toNum(fs!.bsclstd), { decimals: 0 })
+        );
+      case "totlib": {
+        if (colIdx < 3 && !columnCtosActive[colIdx]) return "N/A";
+        if (!computed) return "—";
+        const n = computed.totlib;
+        return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
+      }
+      case "bsqpuc":
+        return formatCell(colIdx, true, !fs || fs.bsqpuc == null || fs.bsqpuc === "", () =>
+          formatCurrency(toNum(fs!.bsqpuc), { decimals: 0 })
+        );
+      case "turnover":
+        return formatCell(colIdx, true, !fs || fs.turnover == null || fs.turnover === "", () =>
+          formatCurrency(toNum(fs!.turnover), { decimals: 0 })
+        );
+      case "plnpbt":
+        return formatCell(colIdx, true, !fs || fs.plnpbt == null || fs.plnpbt === "", () =>
+          formatCurrency(toNum(fs!.plnpbt), { decimals: 0 })
+        );
+      case "plnpat":
+        return formatCell(colIdx, true, !fs || fs.plnpat == null || fs.plnpat === "", () =>
+          formatCurrency(toNum(fs!.plnpat), { decimals: 0 })
+        );
+      case "plnetdiv":
+        return formatCell(colIdx, true, !fs || fs.plnetdiv == null || fs.plnetdiv === "", () =>
+          formatCurrency(toNum(fs!.plnetdiv), { decimals: 0 })
+        );
+      case "plyear":
+        return formatCell(colIdx, true, !fs || fs.plyear == null || fs.plyear === "", () =>
+          formatCurrency(toNum(fs!.plyear), { decimals: 0 })
+        );
+      case "turnover_growth": {
+        if (colIdx < 3 && !columnCtosActive[colIdx]) return "N/A";
+        if (!computed || computed.turnover_growth == null) return "—";
+        return formatNumber(computed.turnover_growth * 100, 2) + "%";
+      }
+      case "profit_margin": {
+        if (colIdx < 3 && !columnCtosActive[colIdx]) return "N/A";
+        if (!computed || computed.profit_margin == null) return "—";
+        return formatNumber(computed.profit_margin * 100, 2) + "%";
+      }
+      case "return_of_equity": {
+        if (colIdx < 3 && !columnCtosActive[colIdx]) return "N/A";
+        if (!computed || computed.return_of_equity == null) return "—";
+        return formatNumber(computed.return_of_equity * 100, 2) + "%";
+      }
+      case "currat": {
+        if (colIdx < 3 && !columnCtosActive[colIdx]) return "N/A";
+        if (!computed || computed.currat == null) return "—";
+        return formatNumber(computed.currat, 2);
+      }
+      case "workcap": {
+        if (colIdx < 3 && !columnCtosActive[colIdx]) return "N/A";
+        if (!computed) return "—";
+        return formatCurrency(computed.workcap, { decimals: 0 });
+      }
+      default:
+        return "—";
+    }
+  };
+
+  const fetchedLabel = latestCtos?.fetched_at
+    ? new Date(latestCtos.fetched_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+    : null;
 
   return (
     <>
-      <ReviewFieldBlock title="Financial Data">
-        <div className="flex justify-end mb-3">
-          <Button variant="outline" size="sm" className="rounded-lg h-8 text-xs" disabled>
-            Get Updated Financial Data
+      <ReviewFieldBlock title="CTOS report">
+        <div className="flex flex-wrap justify-end gap-2 mb-3">
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-lg h-8 text-xs"
+            disabled={createCtos.isPending || ctosLoading}
+            onClick={onGetCtos}
+          >
+            {createCtos.isPending ? "Fetching…" : "Get CTOS report"}
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="rounded-lg h-8 text-xs"
+            disabled={!latestCtos?.has_report_html || ctosLoading}
+            onClick={() => void openFullReport()}
+          >
+            View full report
           </Button>
         </div>
         <div className={applicationTableWrapperClass}>
@@ -501,44 +657,40 @@ export function ApplicationFinancialReviewContent({ app }: ApplicationFinancialR
                 <TableHead className="text-sm font-semibold text-foreground px-3 py-2 w-[22%] min-w-[140px] border-r border-border">
                   Financial Item
                 </TableHead>
-                <TableHead className="text-sm font-semibold text-foreground px-3 py-2 w-[19.5%] border-r border-border">
-                  2023
-                </TableHead>
-                <TableHead className="text-sm font-semibold text-foreground px-3 py-2 w-[19.5%] border-r border-border">
-                  2024
-                </TableHead>
-                <TableHead className="text-sm font-semibold text-foreground px-3 py-2 w-[19.5%] border-r border-border">
-                  2025
-                </TableHead>
-                <TableHead className="text-sm font-semibold text-foreground px-3 py-2 text-right tabular-nums w-[19.5%]">
-                  2026 (Unaudited)
-                </TableHead>
+                {colYears.map((y, i) => (
+                  <TableHead
+                    key={y}
+                    className={`text-sm font-semibold text-foreground px-3 py-2 ${i < 3 ? "w-[19.5%] border-r border-border" : "w-[19.5%] text-right tabular-nums"}`}
+                  >
+                    {i === 3 ? `${y} (Unaudited)` : String(y)}
+                  </TableHead>
+                ))}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {FINANCIAL_ROW_DEFS.map((row) => (
+              {rowLabels.map((row) => (
                 <TableRow key={row.id} className="border-b border-border last:border-b-0 odd:bg-muted/40 hover:bg-muted">
-                  <TableCell className="text-sm px-3 py-2 border-r border-border font-medium">
-                    {row.label}
-                  </TableCell>
-                  <TableCell className="text-sm px-3 py-2 text-muted-foreground border-r border-border text-left">—</TableCell>
-                  <TableCell className="text-sm px-3 py-2 text-muted-foreground border-r border-border text-left">—</TableCell>
-                  <TableCell className="text-sm px-3 py-2 text-muted-foreground border-r border-border text-left">—</TableCell>
-                  <TableCell className="text-sm px-3 py-2 text-right tabular-nums">
-                    {row.getValue(parsedFs, computed)}
-                  </TableCell>
+                  <TableCell className="text-sm px-3 py-2 border-r border-border font-medium">{row.label}</TableCell>
+                  {[0, 1, 2, 3].map((ci) => (
+                    <TableCell
+                      key={ci}
+                      className={`text-sm px-3 py-2 text-left ${ci < 3 ? "border-r border-border" : "text-right tabular-nums"} ${
+                        renderRowCell(row.id, ci) === "N/A" ? "text-muted-foreground" : ""
+                      }`}
+                    >
+                      {renderRowCell(row.id, ci)}
+                    </TableCell>
+                  ))}
                 </TableRow>
               ))}
             </TableBody>
           </Table>
         </div>
-        <p className="text-xs text-muted-foreground mt-2">
-          Extract button only appears if no data has been extracted previously. Automatically populate
-          the table if data is available (from previous application).
-        </p>
-        <Button variant="secondary" size="sm" className="rounded-lg mt-2 h-8 text-xs" disabled>
-          Extract Audited Financial Data
-        </Button>
+        {fetchedLabel ? (
+          <p className="text-xs text-muted-foreground mt-2">Last CTOS fetch: {fetchedLabel}</p>
+        ) : (
+          <p className="text-xs text-muted-foreground mt-2">No CTOS snapshot on file for this organization yet.</p>
+        )}
       </ReviewFieldBlock>
 
       <ReviewFieldBlock title="Company Credit Score">
@@ -596,9 +748,7 @@ export function ApplicationFinancialReviewContent({ app }: ApplicationFinancialR
                           <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      <TableCell className={applicationTableCellMutedClass}>
-                        View (—)
-                      </TableCell>
+                      <TableCell className={applicationTableCellMutedClass}>View (—)</TableCell>
                       <TableCell className={applicationTableCellMutedClass}>—</TableCell>
                       <TableCell className={applicationTableCellClass}>
                         <Button variant="outline" size="sm" className="rounded-lg h-8 text-xs" disabled>

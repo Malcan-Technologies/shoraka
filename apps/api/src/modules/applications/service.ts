@@ -602,7 +602,6 @@ export class ApplicationService {
         turnover: toNum(raw.turnover),
         plnpbt: toNum(raw.plnpbt),
         plnpat: toNum(raw.plnpat),
-        plminin: toNum(raw.plminin),
         plnetdiv: toNum(raw.plnetdiv),
         plyear: toNum(raw.plyear),
       } as Prisma.InputJsonValue;

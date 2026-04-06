@@ -35,7 +35,6 @@ The stored JSON is a flat object. There is no nesting. Each key maps directly to
 - **turnover** — Turnover (number).
 - **plnpbt** — Profit before tax (number).
 - **plnpat** — Profit after tax (number).
-- **plminin** — Minority interest (number).
 - **plnetdiv** — Net dividend (number).
 - **plyear** — Profit and loss year (number).
 

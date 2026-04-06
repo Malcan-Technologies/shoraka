@@ -144,7 +144,6 @@ export function buildFinancialStatements(): Record<string, unknown> {
   const bsdd = formatDate(new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000));
   const turnover = randomInt(500000, 5000000);
   const plnpat = randomInt(100000, 500000);
-  const plminin = randomInt(0, 50000);
   const plyear = randomInt(100000, 300000);
   return {
     pldd,
@@ -160,7 +159,6 @@ export function buildFinancialStatements(): Record<string, unknown> {
     turnover,
     plnpbt: Math.round(plnpat * 1.2),
     plnpat,
-    plminin,
     plnetdiv: randomInt(10000, 100000),
     plyear,
   };

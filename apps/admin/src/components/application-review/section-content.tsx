@@ -37,6 +37,8 @@ export interface PendingAmendmentItem {
 export interface SectionContentProps {
   descriptor: ReviewTabDescriptor;
   app: {
+    id?: string;
+    created_at?: string;
     business_details?: unknown;
     supporting_documents?: unknown;
     financing_type?: unknown;
@@ -160,6 +162,8 @@ export function SectionContent({
     case "financial":
       return (
         <FinancialSection
+          applicationId={app.id ?? ""}
+          applicationCreatedAt={app.created_at ?? new Date().toISOString()}
           app={app}
           section={section}
           isReviewable={isReviewable}

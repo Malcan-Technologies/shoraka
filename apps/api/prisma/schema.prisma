@@ -306,11 +306,32 @@ model IssuerOrganization {
   onboarding_logs              OnboardingLog[]
   members                      OrganizationMember[]
   regtank_onboarding           RegTankOnboarding[]            @relation("RegTankOnboardingToIssuerOrg")
+  ctos_reports                 CtosReport[]
 
   @@index([owner_user_id])
   @@index([owner_user_id, type])
   @@index([onboarding_status])
   @@map("issuer_organizations")
+}
+
+model CtosReport {
+  id                       String             @id @default(cuid())
+  issuer_organization_id   String
+  fetched_at               DateTime
+  created_at               DateTime           @default(now())
+  updated_at               DateTime           @updatedAt
+  raw_xml                  String             @db.Text
+  report_html              String?            @db.Text
+  summary_json             Json
+  company_json             Json
+  legal_json               Json
+  ccris_json               Json
+  financials_json          Json
+  issuer_organization      IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Restrict)
+
+  @@index([issuer_organization_id])
+  @@index([issuer_organization_id, fetched_at(sort: Desc)])
+  @@map("ctos_reports")
 }
 
 model Application {

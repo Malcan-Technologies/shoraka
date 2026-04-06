@@ -15,7 +15,7 @@ function randomDecimal(min: number, max: number, decimals = 2): number {
   return Math.round(raw * factor) / factor;
 }
 
-/** Random value that can be negative (for P&L: plminin, plnpbt, plnpat, plyear). Includes decimals. */
+/** Random value that can be negative (for P&L: plnpbt, plnpat, plyear). Includes decimals. */
 function randomMoneyAllowNegative(min: number, max: number): number {
   const val = randomDecimal(Math.abs(min), Math.abs(max));
   return Math.random() < 0.5 ? val : -val;
@@ -63,7 +63,7 @@ export function generateContractData(): Record<string, unknown> {
 /**
  * Financial statements data. All 15 fields.
  * - turnover: >= 0 (validation rule)
- * - plminin, plnpbt, plnpat, plyear: may be negative
+ * - plnpbt, plnpat, plyear: may be negative
  * - plnetdiv: positive only (no allowNegative in form)
  * - All money: 2 decimal places, max 15 int digits
  */
@@ -73,7 +73,6 @@ export function generateFinancialData(): Record<string, unknown> {
   const dataUntil = format(subDays(today, 30), "dd/MM/yyyy");
   const turnover = randomDecimal(500000, 5000000);
   const plnpat = randomMoneyAllowNegative(10000, 500000);
-  const plminin = randomMoneyAllowNegative(0, 50000);
   const plyear = randomMoneyAllowNegative(10000, 200000);
   return {
     pldd: fyEnd,
@@ -89,7 +88,6 @@ export function generateFinancialData(): Record<string, unknown> {
     turnover: formatMoney(turnover),
     plnpbt: formatMoney(plnpat * 1.2),
     plnpat: formatMoney(plnpat),
-    plminin: formatMoney(plminin),
     plnetdiv: formatMoney(randomDecimal(10000, Math.abs(plyear) * 0.5)),
     plyear: formatMoney(plyear),
   };

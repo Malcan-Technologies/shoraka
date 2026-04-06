@@ -7,6 +7,8 @@ import type { ReviewSectionId } from "../section-types";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
 
 export interface FinancialSectionProps {
+  applicationId: string;
+  applicationCreatedAt: string;
   app: {
     issuer_organization?: {
       corporate_entities?: unknown;
@@ -30,6 +32,8 @@ export interface FinancialSectionProps {
 }
 
 export function FinancialSection({
+  applicationId,
+  applicationCreatedAt,
   app,
   section,
   isReviewable,
@@ -59,7 +63,11 @@ export function FinancialSection({
       onReject={onReject}
       onRequestAmendment={onRequestAmendment}
     >
-      <ApplicationFinancialReviewContent app={app} />
+      <ApplicationFinancialReviewContent
+        applicationId={applicationId}
+        applicationCreatedAt={applicationCreatedAt}
+        app={app}
+      />
       <SectionComments comments={comments} onSubmitComment={onAddComment} />
     </ReviewSectionCard>
   );

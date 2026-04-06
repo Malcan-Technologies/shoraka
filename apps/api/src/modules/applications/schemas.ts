@@ -77,7 +77,6 @@ export const financialStatementsInputSchema = z.object({
   turnover: numSchema,
   plnpbt: numSchema,
   plnpat: numSchema,
-  plminin: numSchema,
   plnetdiv: numSchema,
   plyear: numSchema,
 });

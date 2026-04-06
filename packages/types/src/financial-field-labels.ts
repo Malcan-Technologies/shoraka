@@ -17,7 +17,6 @@ export const FINANCIAL_FIELD_LABELS: Record<string, string> = {
   turnover: "Turnover",
   plnpbt: "Profit Before Tax",
   plnpat: "Profit After Tax",
-  plminin: "Minority Interest",
   plnetdiv: "Net Dividend",
   plyear: "Profit and Loss of the Year",
 };
