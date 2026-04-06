@@ -8,6 +8,7 @@ Complete guide for setting up CashSouk for local development.
 - **pnpm** 9.0.0+
 - **Docker Desktop** (for local database)
 - **Git**
+- **xsltproc** (optional, for CTOS “View full report” when running the API locally): e.g. `sudo apt install xsltproc` on Ubuntu/WSL. The production API image installs it via `libxslt`.
 
 ## Quick Start
 

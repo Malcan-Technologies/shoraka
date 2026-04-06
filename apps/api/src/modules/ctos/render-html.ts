@@ -1,6 +1,6 @@
 /**
  * SECTION: CTOS XML → HTML via XSLT
- * WHY: Pre-render full report for fast admin viewing
+ * WHY: Pre-render full report for fast admin viewing. PDF is not produced here (future phase may use this HTML).
  * INPUT: raw CTOS report XML
  * OUTPUT: HTML string or null if transform unavailable/fails
  * WHERE USED: ctos report service after fetch
