@@ -317,6 +317,8 @@ model IssuerOrganization {
 model CtosReport {
   id                       String             @id @default(cuid())
   issuer_organization_id   String
+  /// Null = company/org CTOS snapshot; non-null = RegTank subject (e.g. EOD or COD).
+  subject_ref              String?            @db.Text
   fetched_at               DateTime
   created_at               DateTime           @default(now())
   updated_at               DateTime           @updatedAt
@@ -331,6 +333,7 @@ model CtosReport {
 
   @@index([issuer_organization_id])
   @@index([issuer_organization_id, fetched_at(sort: Desc)])
+  @@index([issuer_organization_id, subject_ref, fetched_at(sort: Desc)])
   @@map("ctos_reports")
 }
 

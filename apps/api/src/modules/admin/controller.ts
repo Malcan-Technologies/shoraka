@@ -41,11 +41,14 @@ import {
   sendInvoiceOfferSchema,
   addPendingAmendmentSchema,
   updatePendingAmendmentSchema,
+  createCtosSubjectReportSchema,
 } from "./schemas";
 import { prisma } from "../../lib/prisma";
 import {
   listCtosReportsForIssuerOrg,
+  listLatestCtosSubjectReportsForIssuerOrg,
   fetchAndInsertCtosReport,
+  fetchAndInsertCtosSubjectReport,
   getCtosReportById,
 } from "../ctos/ctos-report-service";
 
@@ -55,6 +58,7 @@ const adminService = new AdminService();
 function ctosRowPublicSummary(row: {
   id: string;
   issuer_organization_id: string;
+  subject_ref?: string | null;
   fetched_at: Date;
   created_at: Date;
   updated_at: Date;
@@ -63,6 +67,7 @@ function ctosRowPublicSummary(row: {
   return {
     id: row.id,
     issuer_organization_id: row.issuer_organization_id,
+    subject_ref: row.subject_ref ?? null,
     fetched_at: row.fetched_at,
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -2166,6 +2171,112 @@ router.post(
         throw new AppError(404, "NOT_FOUND", "Application not found");
       }
       const row = await fetchAndInsertCtosReport(app.issuer_organization_id, res.locals.correlationId);
+      res.status(201).json({
+        success: true,
+        data: ctosRowPublicSummary(row),
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  "/applications/:id/ctos-subject-reports",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id: applicationId } = req.params;
+      const app = await prisma.application.findUnique({
+        where: { id: applicationId },
+        select: { issuer_organization_id: true },
+      });
+      if (!app) {
+        throw new AppError(404, "NOT_FOUND", "Application not found");
+      }
+      const data = await listLatestCtosSubjectReportsForIssuerOrg(app.issuer_organization_id);
+      res.json({
+        success: true,
+        data,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/applications/:id/ctos-subject-reports",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id: applicationId } = req.params;
+      const app = await prisma.application.findUnique({
+        where: { id: applicationId },
+        select: { issuer_organization_id: true },
+      });
+      if (!app) {
+        throw new AppError(404, "NOT_FOUND", "Application not found");
+      }
+      const body = createCtosSubjectReportSchema.parse(req.body);
+      const row = await fetchAndInsertCtosSubjectReport(
+        app.issuer_organization_id,
+        { subjectRef: body.subjectRef, subjectKind: body.subjectKind },
+        res.locals.correlationId
+      );
+      res.status(201).json({
+        success: true,
+        data: ctosRowPublicSummary(row),
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  "/organizations/:portal/:id/ctos-subject-reports",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { portal, id } = req.params;
+      if (portal !== "issuer") {
+        throw new AppError(400, "VALIDATION_ERROR", "CTOS is only available for issuer organizations");
+      }
+      const org = await prisma.issuerOrganization.findUnique({ where: { id } });
+      if (!org) {
+        throw new AppError(404, "NOT_FOUND", "Organization not found");
+      }
+      const data = await listLatestCtosSubjectReportsForIssuerOrg(id);
+      res.json({
+        success: true,
+        data,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/organizations/:portal/:id/ctos-subject-reports",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { portal, id } = req.params;
+      if (portal !== "issuer") {
+        throw new AppError(400, "VALIDATION_ERROR", "CTOS is only available for issuer organizations");
+      }
+      const org = await prisma.issuerOrganization.findUnique({ where: { id } });
+      if (!org) {
+        throw new AppError(404, "NOT_FOUND", "Organization not found");
+      }
+      const body = createCtosSubjectReportSchema.parse(req.body);
+      const row = await fetchAndInsertCtosSubjectReport(id, { subjectRef: body.subjectRef, subjectKind: body.subjectKind }, res.locals.correlationId);
       res.status(201).json({
         success: true,
         data: ctosRowPublicSummary(row),

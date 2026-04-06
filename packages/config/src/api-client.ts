@@ -393,6 +393,19 @@ export class ApiClient {
     return this.post<AdminCtosReportListItem>(`/v1/admin/applications/${applicationId}/ctos-reports`, {});
   }
 
+  async listAdminApplicationCtosSubjectReports(
+    applicationId: string
+  ): Promise<ApiResponse<AdminCtosReportListItem[]> | ApiError> {
+    return this.get<AdminCtosReportListItem[]>(`/v1/admin/applications/${applicationId}/ctos-subject-reports`);
+  }
+
+  async createAdminApplicationCtosSubjectReport(
+    applicationId: string,
+    body: { subjectRef: string; subjectKind: "INDIVIDUAL" | "CORPORATE" }
+  ): Promise<ApiResponse<AdminCtosReportListItem> | ApiError> {
+    return this.post<AdminCtosReportListItem>(`/v1/admin/applications/${applicationId}/ctos-subject-reports`, body);
+  }
+
   async updateAdminApplicationStatus(
     id: string,
     status: string

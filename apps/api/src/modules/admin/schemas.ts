@@ -372,3 +372,10 @@ export const addPendingAmendmentSchema = z
 export const updatePendingAmendmentSchema = z.object({
   remark: z.string().min(1, "Remark is required"),
 });
+
+export const createCtosSubjectReportSchema = z.object({
+  subjectRef: z.string().min(1).max(80),
+  subjectKind: z.enum(["INDIVIDUAL", "CORPORATE"]),
+});
+
+export type CreateCtosSubjectReportInput = z.infer<typeof createCtosSubjectReportSchema>;
