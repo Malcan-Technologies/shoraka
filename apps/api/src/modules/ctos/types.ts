@@ -36,10 +36,19 @@ export interface CtosFinancialYearRow {
   profit_and_loss: CtosFinancialProfitAndLoss;
 }
 
+export interface CtosPersonJson {
+  name: string | null;
+  ic_no: string | null;
+  nationality: string | null;
+  birth_date: string | null;
+  address: string | null;
+}
+
 export interface CtosReportParsed {
   raw_xml: string;
   summary_json: Record<string, unknown>;
-  company_json: Record<string, unknown>;
+  person_json: CtosPersonJson | null;
+  company_json: Record<string, unknown> | null;
   legal_json: Record<string, unknown>;
   ccris_json: Record<string, unknown>;
   financials_json: CtosFinancialYearRow[];

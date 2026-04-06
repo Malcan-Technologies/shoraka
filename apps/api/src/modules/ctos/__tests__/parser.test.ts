@@ -53,4 +53,47 @@ describe("parseCtosReportXml", () => {
     expect(parsed.financials_json[0].reporting_year).toBe(2018);
     expect(parsed.financials_json[0].profit_and_loss.revenue).toBe(200);
   });
+
+  it("individual ptype I: person_json set, company null, no financials even with accounts", async () => {
+    const xml = `<?xml version="1.0"?>
+<report version="5.11.0" xmlns="http://ws.cmctos.com.my/ctosnet/response">
+  <enq_report>
+    <summary>
+      <enq_sum ptype="I"></enq_sum>
+    </summary>
+    <enquiry>
+      <section_summary></section_summary>
+      <section_a data="true">
+        <record>
+          <name>JANE TEST</name>
+          <nic_brno>800808088888</nic_brno>
+          <nationality>MYS</nationality>
+          <birth_date>1980-08-08</birth_date>
+          <addr>10 Jalan Test</addr>
+          <accounts>
+            <account>
+              <pldd>31-12-2018</pldd>
+              <bsdd>2018-12-31</bsdd>
+              <plyear>2018</plyear>
+              <turnover>999</turnover>
+            </account>
+          </accounts>
+        </record>
+      </section_a>
+      <section_ccris></section_ccris>
+    </enquiry>
+  </enq_report>
+</report>`;
+
+    const parsed = await parseCtosReportXml(xml);
+    expect(parsed.company_json).toBeNull();
+    expect(parsed.financials_json.length).toBe(0);
+    expect(parsed.person_json).toEqual({
+      name: "JANE TEST",
+      ic_no: "800808088888",
+      nationality: "MYS",
+      birth_date: "1980-08-08",
+      address: "10 Jalan Test",
+    });
+  });
 });

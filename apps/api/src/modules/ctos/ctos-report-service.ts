@@ -6,7 +6,7 @@
  * WHERE USED: admin routes
  */
 
-import type { CtosReport, Prisma } from "@prisma/client";
+import { Prisma, type CtosReport } from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
 import { AppError } from "../../lib/http/error-handler";
@@ -132,7 +132,12 @@ export async function fetchAndInsertCtosReport(
       raw_xml: parsed.raw_xml,
       report_html: reportHtml,
       summary_json: parsed.summary_json as Prisma.InputJsonValue,
-      company_json: parsed.company_json as Prisma.InputJsonValue,
+      company_json:
+        parsed.company_json === null ? Prisma.DbNull : (parsed.company_json as Prisma.InputJsonValue),
+      person_json:
+        parsed.person_json === null
+          ? Prisma.DbNull
+          : (parsed.person_json as unknown as Prisma.InputJsonValue),
       legal_json: parsed.legal_json as Prisma.InputJsonValue,
       ccris_json: parsed.ccris_json as Prisma.InputJsonValue,
       financials_json: parsed.financials_json as unknown as Prisma.InputJsonValue,
@@ -212,7 +217,12 @@ export async function fetchAndInsertCtosSubjectReport(
       raw_xml: parsed.raw_xml,
       report_html: reportHtml,
       summary_json: parsed.summary_json as Prisma.InputJsonValue,
-      company_json: parsed.company_json as Prisma.InputJsonValue,
+      company_json:
+        parsed.company_json === null ? Prisma.DbNull : (parsed.company_json as Prisma.InputJsonValue),
+      person_json:
+        parsed.person_json === null
+          ? Prisma.DbNull
+          : (parsed.person_json as unknown as Prisma.InputJsonValue),
       legal_json: parsed.legal_json as Prisma.InputJsonValue,
       ccris_json: parsed.ccris_json as Prisma.InputJsonValue,
       financials_json: parsed.financials_json as unknown as Prisma.InputJsonValue,

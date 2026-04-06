@@ -325,7 +325,8 @@ model CtosReport {
   raw_xml                  String             @db.Text
   report_html              String?            @db.Text
   summary_json             Json
-  company_json             Json
+  company_json             Json?
+  person_json              Json?
   legal_json               Json
   ccris_json               Json
   financials_json          Json

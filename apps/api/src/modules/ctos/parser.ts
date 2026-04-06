@@ -62,6 +62,10 @@ export async function parseCtosReportXml(xmlStr: string): Promise<CtosReportPars
     | undefined;
   const enquiry = (report?.enquiry?.[0] ?? {}) as Record<string, unknown>;
 
+  const sumTop = report?.summary?.[0] as { enq_sum?: unknown[] } | undefined;
+  const enqSum0 = sumTop?.enq_sum?.[0] as { $?: { ptype?: string }; fico_index?: unknown[] } | undefined;
+  const isIndividual = enqSum0?.$?.ptype === "I";
+
   const summary = (enquiry?.section_summary as unknown[] | undefined)?.[0] as Record<string, unknown> | undefined;
   const sectionA = (enquiry?.section_a as unknown[] | undefined)?.[0] as Record<string, unknown> | undefined;
   const sectionDNode = (enquiry?.section_d as unknown[] | undefined)?.[0] as Record<string, unknown> | undefined;
@@ -131,43 +135,45 @@ export async function parseCtosReportXml(xmlStr: string): Promise<CtosReportPars
     };
   });
 
-  const financialsArray: CtosFinancialYearRow[] = accountsList
-    .map((accounts: unknown) => {
-      const acc = accounts as Record<string, unknown>;
-      const plddRaw = safeGet(acc, ["pldd", 0]);
-      const bsddRaw = safeGet(acc, ["bsdd", 0]);
-      const pldd = plddRaw != null ? String(plddRaw) : null;
-      const bsdd = bsddRaw != null ? String(bsddRaw) : null;
-      const reportingYear = parseReportingYearFromCtosDates(pldd, bsdd);
+  const financialsArray: CtosFinancialYearRow[] = isIndividual
+    ? []
+    : accountsList
+        .map((accounts: unknown) => {
+          const acc = accounts as Record<string, unknown>;
+          const plddRaw = safeGet(acc, ["pldd", 0]);
+          const bsddRaw = safeGet(acc, ["bsdd", 0]);
+          const pldd = plddRaw != null ? String(plddRaw) : null;
+          const bsdd = bsddRaw != null ? String(bsddRaw) : null;
+          const reportingYear = parseReportingYearFromCtosDates(pldd, bsdd);
 
-      const plyearAmt = toNumber(safeGet(acc, ["plyear", 0]));
+          const plyearAmt = toNumber(safeGet(acc, ["plyear", 0]));
 
-      return {
-        reporting_year: reportingYear,
-        financial_year_end_date: pldd,
-        balance_sheet_date: bsdd,
-        balance_sheet: {
-          fixed_assets: toNumber(safeGet(acc, ["bsfatot", 0])),
-          other_assets: toNumber(safeGet(acc, ["othass", 0])),
-          current_assets: toNumber(safeGet(acc, ["bscatot", 0])),
-          non_current_assets: toNumber(safeGet(acc, ["bsclbank", 0])),
-          total_assets: toNumber(safeGet(acc, ["totass", 0])),
-          current_liabilities: toNumber(safeGet(acc, ["curlib", 0])),
-          long_term_liabilities: toNumber(safeGet(acc, ["bsslltd", 0])),
-          non_current_liabilities: toNumber(safeGet(acc, ["bsclstd", 0])),
-          total_liabilities: toNumber(safeGet(acc, ["totlib", 0])),
-          equity: toNumber(safeGet(acc, ["bsqpuc", 0])),
-        },
-        profit_and_loss: {
-          revenue: toNumber(safeGet(acc, ["turnover", 0])),
-          profit_before_tax: toNumber(safeGet(acc, ["plnpbt", 0])),
-          profit_after_tax: toNumber(safeGet(acc, ["plnpat", 0])),
-          net_dividend: toNumber(safeGet(acc, ["plnetdiv", 0])),
-          profit_line_amount: plyearAmt,
-        },
-      };
-    })
-    .filter((row) => row.reporting_year !== null);
+          return {
+            reporting_year: reportingYear,
+            financial_year_end_date: pldd,
+            balance_sheet_date: bsdd,
+            balance_sheet: {
+              fixed_assets: toNumber(safeGet(acc, ["bsfatot", 0])),
+              other_assets: toNumber(safeGet(acc, ["othass", 0])),
+              current_assets: toNumber(safeGet(acc, ["bscatot", 0])),
+              non_current_assets: toNumber(safeGet(acc, ["bsclbank", 0])),
+              total_assets: toNumber(safeGet(acc, ["totass", 0])),
+              current_liabilities: toNumber(safeGet(acc, ["curlib", 0])),
+              long_term_liabilities: toNumber(safeGet(acc, ["bsslltd", 0])),
+              non_current_liabilities: toNumber(safeGet(acc, ["bsclstd", 0])),
+              total_liabilities: toNumber(safeGet(acc, ["totlib", 0])),
+              equity: toNumber(safeGet(acc, ["bsqpuc", 0])),
+            },
+            profit_and_loss: {
+              revenue: toNumber(safeGet(acc, ["turnover", 0])),
+              profit_before_tax: toNumber(safeGet(acc, ["plnpbt", 0])),
+              profit_after_tax: toNumber(safeGet(acc, ["plnpat", 0])),
+              net_dividend: toNumber(safeGet(acc, ["plnetdiv", 0])),
+              profit_line_amount: plyearAmt,
+            },
+          };
+        })
+        .filter((row) => row.reporting_year !== null);
 
   const totalLimit = toNumber(
     safeGet(ccris, ["summary", 0, "liabilities", 0, "borrower", 0, "$", "total_limit"])
@@ -200,10 +206,6 @@ export async function parseCtosReportXml(xmlStr: string): Promise<CtosReportPars
   const dcheqRaw = safeGet(summary, ["dcheqs", 0, "$", "entity"]);
   const dcheqFlag = toNumber(dcheqRaw);
 
-  const rootReport = parsed as { report?: { enq_report?: unknown[] } };
-  const enq0 = rootReport?.report?.enq_report?.[0] as { summary?: unknown[] } | undefined;
-  const sum0 = enq0?.summary?.[0] as { enq_sum?: unknown[] } | undefined;
-  const enqSum0 = sum0?.enq_sum?.[0] as { fico_index?: unknown[] } | undefined;
   const ficoIndexNode = enqSum0?.fico_index?.[0] ?? {};
   const ficoObj = ficoIndexNode as { $?: { score?: string }; fico_factor?: unknown[] };
   const ficoScore = toNumber(ficoObj?.$?.score);
@@ -234,18 +236,44 @@ export async function parseCtosReportXml(xmlStr: string): Promise<CtosReportPars
         raw_flag: dcheqFlag,
       },
     },
-    company_json: {
-      name: safeGet(companyNode, ["name", 0, "_"]) ?? safeGet(companyNode, ["name", 0]),
-      registration_no: safeGet(companyNode, ["brn_ssm", 0]) ?? safeGet(companyNode, ["ic_lcno", 0]),
-      status: safeGet(companyNode, ["status", 0]),
-      business_type: safeGet(companyNode, ["type_of_business", 0]),
-      company_type: safeGet(companyNode, ["comp_type", 0, "_"]) ?? safeGet(companyNode, ["comp_type", 0]),
-      company_category:
-        safeGet(companyNode, ["comp_category", 0, "_"]) ?? safeGet(companyNode, ["comp_category", 0]),
-      address,
-      directors,
-      shareholders,
-    },
+    person_json: isIndividual
+      ? {
+          name: (() => {
+            const v = safeGet(companyNode, ["name", 0, "_"]) ?? safeGet(companyNode, ["name", 0]);
+            return v == null ? null : String(v);
+          })(),
+          ic_no: (() => {
+            const v = safeGet(companyNode, ["nic_brno", 0]) ?? safeGet(companyNode, ["ic_lcno", 0]);
+            return v == null ? null : String(v);
+          })(),
+          nationality: (() => {
+            const v = safeGet(companyNode, ["nationality", 0]);
+            return v == null ? null : String(v);
+          })(),
+          birth_date: (() => {
+            const v = safeGet(companyNode, ["birth_date", 0]);
+            return v == null ? null : String(v);
+          })(),
+          address: (() => {
+            const v = safeGet(companyNode, ["addr", 0, "_"]) ?? safeGet(companyNode, ["addr", 0]);
+            return v == null ? null : String(v);
+          })(),
+        }
+      : null,
+    company_json: isIndividual
+      ? null
+      : {
+          name: safeGet(companyNode, ["name", 0, "_"]) ?? safeGet(companyNode, ["name", 0]),
+          registration_no: safeGet(companyNode, ["brn_ssm", 0]) ?? safeGet(companyNode, ["ic_lcno", 0]),
+          status: safeGet(companyNode, ["status", 0]),
+          business_type: safeGet(companyNode, ["type_of_business", 0]),
+          company_type: safeGet(companyNode, ["comp_type", 0, "_"]) ?? safeGet(companyNode, ["comp_type", 0]),
+          company_category:
+            safeGet(companyNode, ["comp_category", 0, "_"]) ?? safeGet(companyNode, ["comp_category", 0]),
+          address,
+          directors,
+          shareholders,
+        },
     legal_json: { cases: legalCases },
     ccris_json: {
       summary: {

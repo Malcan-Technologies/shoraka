@@ -2044,6 +2044,7 @@ router.get(
           updated_at: row.updated_at,
           report_html: row.report_html,
           summary_json: row.summary_json,
+          person_json: row.person_json,
           company_json: row.company_json,
           legal_json: row.legal_json,
           ccris_json: row.ccris_json,
