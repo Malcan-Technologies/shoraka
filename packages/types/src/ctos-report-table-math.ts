@@ -83,6 +83,13 @@ export function computeWorkingCapital(currentAssets: number | null, currentLiabi
   return (currentAssets ?? 0) - (currentLiabilities ?? 0);
 }
 
+/**
+ * Book net worth (net assets): total assets minus total liabilities. Matches totass and totlib rules.
+ */
+export function computeNetWorth(totalAssets: number, totalLiabilities: number): number {
+  return totalAssets - totalLiabilities;
+}
+
 export interface TurnoverGrowthInput {
   targetYear: number;
   targetTurnover: number | null;
@@ -106,6 +113,7 @@ export function computeTurnoverGrowth(i: TurnoverGrowthInput): number | null {
 export interface ColumnComputedMetrics {
   totass: number;
   totlib: number;
+  networth: number;
   profit_margin: number | null;
   return_of_equity: number | null;
   currat: number | null;
@@ -134,9 +142,11 @@ export function computeColumnMetrics(
 ): ColumnComputedMetrics {
   const totass = computeTotalAssets(bs);
   const totlib = computeTotalLiabilities(bs);
+  const networth = computeNetWorth(totass, totlib);
   return {
     totass,
     totlib,
+    networth,
     profit_margin: computeProfitMargin(pl.profit_after_tax, pl.revenue),
     return_of_equity: computeReturnOnEquity(pl.profit_after_tax, bs.equity),
     currat: computeCurrentRatio(bs.current_assets, bs.current_liabilities),

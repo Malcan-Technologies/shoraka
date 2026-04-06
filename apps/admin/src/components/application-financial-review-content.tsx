@@ -42,6 +42,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const COMPUTED_FIELD_LABELS: Record<string, string> = {
   totass: "Total Assets",
   totlib: "Total Liability",
+  networth: "Net Worth",
   turnover_growth: "Turnover Growth",
   profit_margin: "Profit Margin",
   return_of_equity: "Return of Equity",
@@ -507,6 +508,7 @@ export function ApplicationFinancialReviewContent({
     { id: "bsslltd", label: FINANCIAL_FIELD_LABELS.bsslltd },
     { id: "bsclstd", label: FINANCIAL_FIELD_LABELS.bsclstd },
     { id: "totlib", label: COMPUTED_FIELD_LABELS.totlib },
+    { id: "networth", label: COMPUTED_FIELD_LABELS.networth },
     { id: "bsqpuc", label: FINANCIAL_FIELD_LABELS.bsqpuc },
     { id: "turnover", label: FINANCIAL_FIELD_LABELS.turnover },
     { id: "plnpbt", label: FINANCIAL_FIELD_LABELS.plnpbt },
@@ -567,6 +569,12 @@ export function ApplicationFinancialReviewContent({
         if (colIdx < 3 && !columnCtosActive[colIdx]) return "N/A";
         if (!computed) return "—";
         const n = computed.totlib;
+        return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
+      }
+      case "networth": {
+        if (colIdx < 3 && !columnCtosActive[colIdx]) return "N/A";
+        if (!computed) return "—";
+        const n = computed.networth;
         return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
       }
       case "bsqpuc":

@@ -1,4 +1,5 @@
 import {
+  computeNetWorth,
   computeTurnoverGrowth,
   computeProfitMargin,
   computeTotalAssets,
@@ -57,5 +58,12 @@ describe("computeTotalAssets", () => {
         non_current_assets: 4,
       })
     ).toBe(999);
+  });
+});
+
+describe("computeNetWorth", () => {
+  it("is total assets minus total liabilities", () => {
+    expect(computeNetWorth(100, 40)).toBe(60);
+    expect(computeNetWorth(100, 100)).toBe(0);
   });
 });
