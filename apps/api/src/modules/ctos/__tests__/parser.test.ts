@@ -5,13 +5,13 @@ describe("parseReportingYearFromCtosDates", () => {
     expect(parseReportingYearFromCtosDates("31-12-2018", "2018-12-31")).toBe(2018);
   });
 
-  it("prefers balance sheet date first", () => {
-    expect(parseReportingYearFromCtosDates("31-01-2019", "2018-06-30")).toBe(2018);
+  it("prefers FY end (pldd) when dates imply different years", () => {
+    expect(parseReportingYearFromCtosDates("31-01-2019", "2018-06-30")).toBe(2019);
   });
 });
 
 describe("parseCtosReportXml", () => {
-  it("extracts reporting_year from account dates with non-zero plyear", async () => {
+  it("extracts reporting_year from pldd and bsdd", async () => {
     const xml = `<?xml version="1.0"?>
 <report version="5.11.0" xmlns="http://ws.cmctos.com.my/ctosnet/response">
   <enq_report>
@@ -38,7 +38,7 @@ describe("parseCtosReportXml", () => {
               <plnpbt>10</plnpbt>
               <plnpat>8</plnpat>
               <plnetdiv>0</plnetdiv>
-              <plyear>2018</plyear>
+              <plyear>50000</plyear>
             </account>
           </accounts>
         </record>
@@ -52,6 +52,7 @@ describe("parseCtosReportXml", () => {
     expect(parsed.financials_json.length).toBe(1);
     expect(parsed.financials_json[0].reporting_year).toBe(2018);
     expect(parsed.financials_json[0].profit_and_loss.revenue).toBe(200);
+    expect(parsed.financials_json[0].profit_and_loss.profit_line_amount).toBe(50000);
   });
 
   it("individual ptype I: person_json set, company null, no financials even with accounts", async () => {
@@ -74,7 +75,7 @@ describe("parseCtosReportXml", () => {
             <account>
               <pldd>31-12-2018</pldd>
               <bsdd>2018-12-31</bsdd>
-              <plyear>2018</plyear>
+              <plyear>0</plyear>
               <turnover>999</turnover>
             </account>
           </accounts>
@@ -97,7 +98,7 @@ describe("parseCtosReportXml", () => {
     });
   });
 
-  it("keeps first account only when duplicate plyear years", async () => {
+  it("keeps first account only when duplicate calendar year from dates", async () => {
     const xml = `<?xml version="1.0"?>
 <report version="5.11.0" xmlns="http://ws.cmctos.com.my/ctosnet/response">
   <enq_report>
@@ -110,13 +111,13 @@ describe("parseCtosReportXml", () => {
             <account>
               <pldd>31-12-2022</pldd>
               <bsdd>2022-12-31</bsdd>
-              <plyear>2022</plyear>
+              <plyear>1000000</plyear>
               <turnover>100</turnover>
             </account>
             <account>
               <pldd>30-06-2022</pldd>
               <bsdd>2022-06-30</bsdd>
-              <plyear>2022</plyear>
+              <plyear>2000000</plyear>
               <turnover>999</turnover>
             </account>
           </accounts>

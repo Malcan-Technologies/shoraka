@@ -32,13 +32,14 @@ function toBoolean(v: unknown): boolean | null {
 }
 
 /**
- * Calendar year from CTOS date: YYYY-MM-DD or DD-MM-YYYY
+ * Calendar year from CTOS `pldd` / `bsdd`-style dates (YYYY-MM-DD or DD-MM-YYYY).
+ * Tries first arg (FY end / `pldd`) first, then second (`bsdd`) as fallback.
  */
 export function parseReportingYearFromCtosDates(
   financialYearEnd: string | null,
   balanceSheetDate: string | null
 ): number | null {
-  for (const raw of [balanceSheetDate, financialYearEnd]) {
+  for (const raw of [financialYearEnd, balanceSheetDate]) {
     if (!raw || typeof raw !== "string") continue;
     const s = raw.trim();
     const iso = s.match(/^(\d{4})-\d{2}-\d{2}$/);
@@ -116,13 +117,18 @@ export async function parseCtosReportXml(xmlStr: string): Promise<CtosReportPars
     };
   });
 
-  const seenPlyears = new Set<number>();
+  const seenYears = new Set<number>();
   const accountsForFinancials: unknown[] = [];
   for (const acc of accountsList) {
-    const year = toNumber(safeGet(acc as Record<string, unknown>, ["plyear", 0]));
-    if (year === null || year === 0) continue;
-    if (seenPlyears.has(year)) continue;
-    seenPlyears.add(year);
+    const a = acc as Record<string, unknown>;
+    const plddRaw = safeGet(a, ["pldd", 0]);
+    const bsddRaw = safeGet(a, ["bsdd", 0]);
+    const plddStr = plddRaw != null ? String(plddRaw) : null;
+    const bsddStr = bsddRaw != null ? String(bsddRaw) : null;
+    const year = parseReportingYearFromCtosDates(plddStr, bsddStr);
+    if (year === null) continue;
+    if (seenYears.has(year)) continue;
+    seenYears.add(year);
     accountsForFinancials.push(acc);
   }
 
