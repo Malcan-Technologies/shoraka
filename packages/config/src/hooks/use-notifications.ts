@@ -146,7 +146,17 @@ export function useAdminNotifications(
   });
 
   const updateTypeMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: { enabled_platform?: boolean; enabled_email?: boolean } }) => {
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: {
+        enabled_platform?: boolean;
+        enabled_email?: boolean;
+        portal_targets?: ("INVESTOR" | "ISSUER")[];
+      };
+    }) => {
       const response = await apiClient.updateAdminNotificationType(id, data);
       if ("error" in response) throw new Error(response.error.message);
       return response.data;

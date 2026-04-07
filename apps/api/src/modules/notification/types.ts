@@ -3,6 +3,7 @@ import {
   NotificationType,
   NotificationCategory,
   NotificationPriority,
+  NotificationPortalTarget,
 } from '@prisma/client';
 
 export type NotificationWithDetails = Notification & {
@@ -27,6 +28,7 @@ export interface NotificationFilters {
   read?: boolean;
   category?: NotificationCategory;
   priority?: NotificationPriority;
+  portalTarget?: NotificationPortalTarget;
   startDate?: Date;
   endDate?: Date;
   limit?: number;

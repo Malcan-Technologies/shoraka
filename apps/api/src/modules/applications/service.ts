@@ -53,6 +53,9 @@ import {
   resolveSignedPdfFromContractFileResponse,
 } from "../signingcloud/signed-file";
 import type { OfferSigningRecord } from "../signingcloud/types";
+import { NotificationService } from "../notification/service";
+import { NotificationTypeIds } from "../notification/registry";
+import { getIssuerRecipientUserIdsForApplication } from "../notification/application-recipients";
 
 /**
  * Return URL after manual signing. Prefer SIGNINGCLOUD_ISSUER_RETURN_URL (full URL to applications page);
@@ -119,12 +122,33 @@ export class ApplicationService {
   private productRepository: ProductRepository;
   private organizationRepository: OrganizationRepository;
   private contractRepository: ContractRepository;
+  private notificationService: NotificationService;
 
   constructor() {
     this.repository = new ApplicationRepository();
     this.productRepository = new ProductRepository();
     this.organizationRepository = new OrganizationRepository();
     this.contractRepository = new ContractRepository();
+    this.notificationService = new NotificationService();
+  }
+
+  private async sendIssuerNotification(
+    applicationId: string,
+    typeId: (typeof NotificationTypeIds)[keyof typeof NotificationTypeIds],
+    payload: Record<string, unknown>,
+    idempotencySuffix: string
+  ) {
+    const recipientUserIds = await getIssuerRecipientUserIdsForApplication(applicationId);
+    await Promise.all(
+      recipientUserIds.map((userId) =>
+        this.notificationService.sendTyped(
+          userId,
+          typeId as never,
+          payload as never,
+          `app:${applicationId}:notif:${typeId}:user:${userId}:${idempotencySuffix}`
+        )
+      )
+    );
   }
 
   /**
@@ -465,7 +489,26 @@ export class ApplicationService {
     if ((application as any).status !== "AMENDMENT_REQUESTED") {
       throw new AppError(400, "INVALID_STATE", "Resubmit allowed only in AMENDMENT_REQUESTED state");
     }
-    return amendmentResubmitApplication(applicationId, userId, this.repository);
+    const result = await amendmentResubmitApplication(applicationId, userId, this.repository);
+
+    try {
+      await this.sendIssuerNotification(
+        applicationId,
+        NotificationTypeIds.APPLICATION_RESUBMITTED_CONFIRMATION,
+        {
+          applicationId,
+          reviewCycle: (result as { review_cycle?: number })?.review_cycle ?? ((application as { review_cycle?: number }).review_cycle ?? 1) + 1,
+        },
+        `resubmitted:${(result as { review_cycle?: number })?.review_cycle ?? "next"}`
+      );
+    } catch (notificationError) {
+      logger.error(
+        { error: notificationError, applicationId },
+        "Failed to send application resubmitted confirmation notification"
+      );
+    }
+
+    return result;
   }
 
   /**
@@ -876,6 +919,19 @@ export class ApplicationService {
         portal: ActivityPortal.ISSUER,
         metadata: { withdraw_reason: WithdrawReason.USER_CANCELLED },
       });
+      try {
+        await this.sendIssuerNotification(
+          id,
+          NotificationTypeIds.APPLICATION_WITHDRAWN_CONFIRMATION,
+          { applicationId: id },
+          "withdrawn:user-cancelled"
+        );
+      } catch (notificationError) {
+        logger.error(
+          { error: notificationError, applicationId: id },
+          "Failed to send application withdrawn confirmation notification"
+        );
+      }
     }
 
     return updated;
@@ -1279,6 +1335,21 @@ export class ApplicationService {
           : {}),
       },
     });
+    if (responseMeta.appStatus === ApplicationStatus.WITHDRAWN) {
+      try {
+        await this.sendIssuerNotification(
+          applicationId,
+          NotificationTypeIds.APPLICATION_WITHDRAWN_CONFIRMATION,
+          { applicationId },
+          "withdrawn:contract-offer-response"
+        );
+      } catch (notificationError) {
+        logger.error(
+          { error: notificationError, applicationId },
+          "Failed to send application withdrawn confirmation notification (contract flow)"
+        );
+      }
+    }
     if (responseMeta.appStatus === ApplicationStatus.COMPLETED) {
       await logApplicationActivity({
         userId,
@@ -1286,6 +1357,19 @@ export class ApplicationService {
         eventType: "APPLICATION_COMPLETED",
         portal: ActivityPortal.ISSUER,
       });
+      try {
+        await this.sendIssuerNotification(
+          applicationId,
+          NotificationTypeIds.APPLICATION_COMPLETED,
+          { applicationId },
+          "completed:contract-flow"
+        );
+      } catch (notificationError) {
+        logger.error(
+          { error: notificationError, applicationId },
+          "Failed to send application completed notification (contract flow)"
+        );
+      }
     }
 
     const updated = await this.repository.findById(applicationId);
@@ -1544,6 +1628,21 @@ export class ApplicationService {
           : {}),
       },
     });
+    if (responseMeta.appStatus === ApplicationStatus.WITHDRAWN) {
+      try {
+        await this.sendIssuerNotification(
+          applicationId,
+          NotificationTypeIds.APPLICATION_WITHDRAWN_CONFIRMATION,
+          { applicationId },
+          "withdrawn:invoice-offer-response"
+        );
+      } catch (notificationError) {
+        logger.error(
+          { error: notificationError, applicationId },
+          "Failed to send application withdrawn confirmation notification (invoice flow)"
+        );
+      }
+    }
     if (responseMeta.appStatus === ApplicationStatus.COMPLETED) {
       await logApplicationActivity({
         userId,
@@ -1551,6 +1650,19 @@ export class ApplicationService {
         eventType: "APPLICATION_COMPLETED",
         portal: ActivityPortal.ISSUER,
       });
+      try {
+        await this.sendIssuerNotification(
+          applicationId,
+          NotificationTypeIds.APPLICATION_COMPLETED,
+          { applicationId },
+          "completed:invoice-flow"
+        );
+      } catch (notificationError) {
+        logger.error(
+          { error: notificationError, applicationId },
+          "Failed to send application completed notification (invoice flow)"
+        );
+      }
     }
 
     const updated = await this.repository.findById(applicationId);

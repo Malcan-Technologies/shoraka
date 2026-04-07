@@ -109,6 +109,9 @@ export default function NotificationsAdminPage() {
   const [logSearchQuery, setLogSearchQuery] = useState<string>("");
   const [logTypeFilter, setLogTypeFilter] = useState<string>("all");
   const [logTargetFilter, setLogTargetFilter] = useState<string>("all");
+  const [configPortalFilter, setConfigPortalFilter] = useState<"INVESTOR" | "ISSUER" | "BOTH">(
+    "ISSUER"
+  );
   const limit = 10;
   const {
     types,
@@ -160,6 +163,16 @@ export default function NotificationsAdminPage() {
   // Log View State
   const [selectedLog, setSelectedLog] = useState<AdminNotificationLog | null>(null);
   const [isLogDetailsOpen, setIsLogDetailsOpen] = useState(false);
+
+  const getPortalTargetsLabel = (targets: string[]) => {
+    if (targets.includes("INVESTOR") && targets.includes("ISSUER")) return "Investor + Issuer";
+    if (targets.includes("INVESTOR")) return "Investor";
+    if (targets.includes("ISSUER")) return "Issuer";
+    return "Unscoped";
+  };
+
+  const selectedTargetPortal =
+    targetType === "INVESTORS" ? "INVESTOR" : targetType === "ISSUERS" ? "ISSUER" : null;
 
   const handleTogglePlatform = (typeId: string, enabled: boolean) => {
     updateType({ id: typeId, data: { enabled_platform: enabled } });
@@ -369,6 +382,22 @@ export default function NotificationsAdminPage() {
                     {isSeeding ? "Seeding..." : "Add Missing Types"}
                   </Button>
                 </div>
+                <div className="flex items-center gap-2 pt-3">
+                  <Label className="text-xs text-muted-foreground">Portal Scope</Label>
+                  <Tabs
+                    value={configPortalFilter}
+                    onValueChange={(value) =>
+                      setConfigPortalFilter(value as "INVESTOR" | "ISSUER" | "BOTH")
+                    }
+                    className="w-auto"
+                  >
+                    <TabsList className="grid w-full grid-cols-3 max-w-[320px]">
+                      <TabsTrigger value="INVESTOR">Investor</TabsTrigger>
+                      <TabsTrigger value="ISSUER">Issuer</TabsTrigger>
+                      <TabsTrigger value="BOTH">Both</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
               </CardHeader>
               <CardContent>
                 {isLoadingTypes ? (
@@ -380,7 +409,18 @@ export default function NotificationsAdminPage() {
                 ) : (
                   <div className="divide-y">
                     {types
-                      .filter((type: AdminNotificationType) => type.category === "SYSTEM" || type.category === "AUTHENTICATION")
+                      .filter(
+                        (type: AdminNotificationType) =>
+                          type.category === "SYSTEM" || type.category === "AUTHENTICATION"
+                      )
+                      .filter((type: AdminNotificationType) => {
+                        const targets = type.portal_targets || [];
+                        const hasInvestor = targets.includes("INVESTOR");
+                        const hasIssuer = targets.includes("ISSUER");
+                        if (configPortalFilter === "INVESTOR") return hasInvestor && !hasIssuer;
+                        if (configPortalFilter === "ISSUER") return hasIssuer && !hasInvestor;
+                        return hasInvestor && hasIssuer;
+                      })
                       .map((type: AdminNotificationType) => (
                         <div
                           key={type.id}
@@ -441,6 +481,11 @@ export default function NotificationsAdminPage() {
                           .filter(
                             (type: AdminNotificationType) =>
                               type.category === "MARKETING" || type.category === "ANNOUNCEMENT"
+                          )
+                          .filter((type: AdminNotificationType) =>
+                            selectedTargetPortal
+                              ? type.portal_targets?.includes(selectedTargetPortal)
+                              : true
                           )
                           .map((type: AdminNotificationType) => (
                             <SelectItem key={type.id} value={type.id}>
@@ -838,6 +883,11 @@ export default function NotificationsAdminPage() {
                               >
                                 {log.notification_type?.name || "Custom"}
                               </div>
+                              {log.notification_type?.portal_targets?.length ? (
+                                <Badge variant="outline" className="mt-1 text-[10px]">
+                                  {getPortalTargetsLabel(log.notification_type.portal_targets)}
+                                </Badge>
+                              ) : null}
                             </TableCell>
                             <TableCell>
                               <div className="max-w-[300px]">
@@ -1048,6 +1098,11 @@ export default function NotificationsAdminPage() {
                   <p className="text-sm font-medium">
                     {selectedLog.notification_type?.name || selectedLog.notification_type_id}
                   </p>
+                  {selectedLog.notification_type?.portal_targets?.length ? (
+                    <Badge variant="outline" className="text-[10px] mt-1">
+                      {getPortalTargetsLabel(selectedLog.notification_type.portal_targets)}
+                    </Badge>
+                  ) : null}
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs font-medium text-muted-foreground uppercase">Recipients</p>
