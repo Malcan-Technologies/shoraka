@@ -87,6 +87,17 @@ export function DateInput({
     }
   };
 
+  /** Keep calendar open when using shadcn Select inside it (Select content is portaled to body). */
+  const isFromNestedSelect = (target: EventTarget | null) => {
+    const el = target instanceof HTMLElement ? target : null;
+    if (!el) return false;
+    return Boolean(
+      el.closest("[data-radix-select-content]") ||
+        el.closest("[data-radix-select-viewport]") ||
+        el.closest("[data-slot='select-content']")
+    );
+  };
+
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
       <PopoverPrimitive.Trigger asChild>
@@ -143,6 +154,12 @@ export function DateInput({
           sideOffset={6}
           collisionPadding={8}
           onOpenAutoFocus={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => {
+            if (isFromNestedSelect(e.target)) e.preventDefault();
+          }}
+          onInteractOutside={(e) => {
+            if (isFromNestedSelect(e.target)) e.preventDefault();
+          }}
           className={cn("z-50", popoverClassName)}
         >
           <CalendarPopover
