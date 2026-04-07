@@ -250,7 +250,7 @@ export function ReviewOfferModal({
               <p className="text-base font-semibold text-foreground">
                 Congratulations! Your {type === "contract" ? "contract" : "invoice"} financing request
               </p>
-              <p className="text-3xl sm:text-4xl font-extrabold text-primary tracking-tight mt-2">
+              <p className="text-3xl sm:text-4xl font-extrabold text-status-success-text tracking-tight mt-2">
                 {offeredValue}
               </p>
               <p className="text-base font-semibold text-foreground mt-1">
