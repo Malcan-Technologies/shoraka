@@ -11,7 +11,7 @@ describe("parseReportingYearFromCtosDates", () => {
 });
 
 describe("parseCtosReportXml", () => {
-  it("extracts reporting_year from account dates when plyear is zero", async () => {
+  it("extracts reporting_year from account dates with non-zero plyear", async () => {
     const xml = `<?xml version="1.0"?>
 <report version="5.11.0" xmlns="http://ws.cmctos.com.my/ctosnet/response">
   <enq_report>
@@ -38,7 +38,7 @@ describe("parseCtosReportXml", () => {
               <plnpbt>10</plnpbt>
               <plnpat>8</plnpat>
               <plnetdiv>0</plnetdiv>
-              <plyear>0</plyear>
+              <plyear>2018</plyear>
             </account>
           </accounts>
         </record>
@@ -95,5 +95,40 @@ describe("parseCtosReportXml", () => {
       birth_date: "1980-08-08",
       address: "10 Jalan Test",
     });
+  });
+
+  it("keeps first account only when duplicate plyear years", async () => {
+    const xml = `<?xml version="1.0"?>
+<report version="5.11.0" xmlns="http://ws.cmctos.com.my/ctosnet/response">
+  <enq_report>
+    <summary></summary>
+    <enquiry>
+      <section_summary></section_summary>
+      <section_a data="true">
+        <record>
+          <accounts>
+            <account>
+              <pldd>31-12-2022</pldd>
+              <bsdd>2022-12-31</bsdd>
+              <plyear>2022</plyear>
+              <turnover>100</turnover>
+            </account>
+            <account>
+              <pldd>30-06-2022</pldd>
+              <bsdd>2022-06-30</bsdd>
+              <plyear>2022</plyear>
+              <turnover>999</turnover>
+            </account>
+          </accounts>
+        </record>
+      </section_a>
+      <section_ccris></section_ccris>
+    </enquiry>
+  </enq_report>
+</report>`;
+
+    const parsed = await parseCtosReportXml(xml);
+    expect(parsed.financials_json.length).toBe(1);
+    expect(parsed.financials_json[0].profit_and_loss.revenue).toBe(100);
   });
 });

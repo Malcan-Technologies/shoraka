@@ -84,7 +84,10 @@ export async function parseCtosReportXml(xmlStr: string): Promise<CtosReportPars
     safeGet(sectionA, ["person", 0])) as Record<string, unknown> | undefined;
 
   const address = {
-    full: safeGet(companyNode, ["addr", 0, "_"]) ?? safeGet(companyNode, ["addr", 0]),
+    full:
+      (safeGet(companyNode, ["addr", 0, "_"]) ?? safeGet(companyNode, ["addr", 0])) ||
+      (safeGet(companyNode, ["addr1", 0, "_"]) ?? safeGet(companyNode, ["addr1", 0])) ||
+      null,
     line1: safeGet(companyNode, ["addr_breakdown", 0, "addr1", 0]),
     line2: safeGet(companyNode, ["addr_breakdown", 0, "addr2", 0]),
     city: safeGet(companyNode, ["addr_breakdown", 0, "city", 0]),
@@ -113,31 +116,19 @@ export async function parseCtosReportXml(xmlStr: string): Promise<CtosReportPars
     };
   });
 
-  const shareholdersRaw = safeGet(companyNode, ["shareholders", 0, "shareholder"]) || [];
-  const shareholdersArr = Array.isArray(shareholdersRaw)
-    ? shareholdersRaw
-    : shareholdersRaw
-      ? [shareholdersRaw]
-      : [];
-
-  const shareholders = shareholdersArr.map((s: unknown) => {
-    const x = s as Record<string, unknown>;
-    return {
-      name: safeGet(x, ["name", 0]),
-      alias: safeGet(x, ["alias", 0]),
-      ic_lcno: safeGet(x, ["ic_lcno", 0]),
-      nic_brno: safeGet(x, ["nic_brno", 0]),
-      addr: safeGet(x, ["addr", 0]),
-      shares: toNumber(safeGet(x, ["shares", 0])),
-      equity_percentage: toNumber(safeGet(x, ["equity_percentage", 0])),
-      remark: safeGet(x, ["remark", 0]),
-      party_type: safeGet(x, ["party_type", 0]),
-    };
-  });
+  const seenPlyears = new Set<number>();
+  const accountsForFinancials: unknown[] = [];
+  for (const acc of accountsList) {
+    const year = toNumber(safeGet(acc as Record<string, unknown>, ["plyear", 0]));
+    if (year === null || year === 0) continue;
+    if (seenPlyears.has(year)) continue;
+    seenPlyears.add(year);
+    accountsForFinancials.push(acc);
+  }
 
   const financialsArray: CtosFinancialYearRow[] = isIndividual
     ? []
-    : accountsList
+    : accountsForFinancials
         .map((accounts: unknown) => {
           const acc = accounts as Record<string, unknown>;
           const plddRaw = safeGet(acc, ["pldd", 0]);
@@ -255,7 +246,10 @@ export async function parseCtosReportXml(xmlStr: string): Promise<CtosReportPars
             return v == null ? null : String(v);
           })(),
           address: (() => {
-            const v = safeGet(companyNode, ["addr", 0, "_"]) ?? safeGet(companyNode, ["addr", 0]);
+            const v =
+              (safeGet(companyNode, ["addr", 0, "_"]) ?? safeGet(companyNode, ["addr", 0])) ||
+              (safeGet(companyNode, ["addr1", 0, "_"]) ?? safeGet(companyNode, ["addr1", 0])) ||
+              null;
             return v == null ? null : String(v);
           })(),
         }
@@ -272,7 +266,6 @@ export async function parseCtosReportXml(xmlStr: string): Promise<CtosReportPars
             safeGet(companyNode, ["comp_category", 0, "_"]) ?? safeGet(companyNode, ["comp_category", 0]),
           address,
           directors,
-          shareholders,
         },
     legal_json: { cases: legalCases },
     ccris_json: {
