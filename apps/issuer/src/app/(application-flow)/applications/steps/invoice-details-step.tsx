@@ -1051,36 +1051,40 @@ export default function InvoiceDetailsStep({
                     : "N/A"}
                 </div>
 
-                {/* ================= Approved Facility ================= */}
-                <div className={formLabelClassName}>Approved Facility</div>
-                <div className={valueClassName}>
-                  {typeof cd?.approved_facility === "number"
-                    ? `RM ${formatMoney(cd.approved_facility)}`
-                    : "N/A"}
-                </div>
+                {structureType === "existing_contract" && (
+                  <>
+                    {/* ================= Approved Facility ================= */}
+                    <div className={formLabelClassName}>Approved Facility</div>
+                    <div className={valueClassName}>
+                      {typeof cd?.approved_facility === "number"
+                        ? `RM ${formatMoney(cd.approved_facility)}`
+                        : "N/A"}
+                    </div>
 
-                {/* ================= Utilised Facility ================= */}
-                <div className={formLabelClassName}>Utilised Facility</div>
-                <div className={valueClassName}>
-                  {typeof cd?.utilized_facility === "number"
-                    ? `RM ${formatMoney(cd.utilized_facility)}`
-                    : "N/A"}
-                </div>
+                    {/* ================= Utilised Facility ================= */}
+                    <div className={formLabelClassName}>Utilised Facility</div>
+                    <div className={valueClassName}>
+                      {typeof cd?.utilized_facility === "number"
+                        ? `RM ${formatMoney(cd.utilized_facility)}`
+                        : "N/A"}
+                    </div>
 
-                {/* ================= Available Facility ================= */}
-                <div className={formLabelClassName}>Available Facility</div>
-                <div
-                  className={cn(
-                    "text-sm md:text-base leading-6 font-medium",
-                    typeof cd?.available_facility === "number" &&
-                    cd.available_facility < 0 &&
-                    "text-destructive"
-                  )}
-                >
-                  {typeof cd?.available_facility === "number"
-                    ? `RM ${formatMoney(cd.available_facility)}`
-                    : "N/A"}
-                </div>
+                    {/* ================= Available Facility ================= */}
+                    <div className={formLabelClassName}>Available Facility</div>
+                    <div
+                      className={cn(
+                        "text-sm md:text-base leading-6 font-medium",
+                        typeof cd?.available_facility === "number" &&
+                        cd.available_facility < 0 &&
+                        "text-destructive"
+                      )}
+                    >
+                      {typeof cd?.available_facility === "number"
+                        ? `RM ${formatMoney(cd.available_facility)}`
+                        : "N/A"}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>

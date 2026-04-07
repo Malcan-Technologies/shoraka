@@ -392,26 +392,30 @@ export function ReviewAndSubmitStep({
                         : renderMoney(contractDetails?.financing)}
                     </div>
 
-                    <div className={labelClassName}>Approved Facility</div>
-                    <div className={valueClassName}>
-                      {typeof contractDetails.approved_facility === "number"
-                        ? renderMoney(contractDetails.approved_facility)
-                        : "N/A"}
-                    </div>
+                    {structureType === "existing_contract" && (
+                      <>
+                        <div className={labelClassName}>Approved Facility</div>
+                        <div className={valueClassName}>
+                          {typeof contractDetails.approved_facility === "number"
+                            ? renderMoney(contractDetails.approved_facility)
+                            : "N/A"}
+                        </div>
 
-                    <div className={labelClassName}>Utilised Facility</div>
-                    <div className={valueClassName}>
-                      {typeof contractDetails.utilized_facility === "number"
-                        ? renderMoney(contractDetails.utilized_facility)
-                        : "N/A"}
-                    </div>
+                        <div className={labelClassName}>Utilised Facility</div>
+                        <div className={valueClassName}>
+                          {typeof contractDetails.utilized_facility === "number"
+                            ? renderMoney(contractDetails.utilized_facility)
+                            : "N/A"}
+                        </div>
 
-                    <div className={labelClassName}>Available Facility</div>
-                    <div className={valueClassName}>
-                      {typeof contractDetails.available_facility === "number"
-                        ? renderMoney(contractDetails.available_facility)
-                        : "N/A"}
-                    </div>
+                        <div className={labelClassName}>Available Facility</div>
+                        <div className={valueClassName}>
+                          {typeof contractDetails.available_facility === "number"
+                            ? renderMoney(contractDetails.available_facility)
+                            : "N/A"}
+                        </div>
+                      </>
+                    )}
                   </>
                 )}
               </div>
