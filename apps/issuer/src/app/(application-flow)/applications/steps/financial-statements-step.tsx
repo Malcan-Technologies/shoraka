@@ -150,12 +150,9 @@ function fromSaved(saved: unknown): FinancialStatementsPayload {
     if (val === undefined || val === null) return;
     if (key === "pldd" || key === "bsdd") {
       (out as unknown as Record<string, unknown>)[key] = String(val);
-    } else if (key === "plyear") {
-      const n = toNum(val);
-      (out as unknown as Record<string, unknown>)[key] = n === 0 ? "" : formatMoney(n);
     } else {
       const n = toNum(val);
-      (out as unknown as Record<string, unknown>)[key] = n === 0 ? "" : formatMoney(n);
+      (out as unknown as Record<string, unknown>)[key] = formatMoney(n);
     }
   };
 
