@@ -37,6 +37,16 @@ import { FileDisplayBadge } from "../components/file-display-badge";
 const isValidNumber = (v: any): v is number =>
   typeof v === "number" && !Number.isNaN(v);
 
+/** Show financial year end as a four-digit year (issuer step stores year; legacy rows may be a full date). */
+function financialYearEndDisplay(val: unknown): string {
+  const s = String(val).trim();
+  if (/^\d{4}$/.test(s)) return s;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 4);
+  const d = new Date(s);
+  if (!Number.isNaN(d.getTime())) return String(d.getFullYear());
+  return s;
+}
+
 
 /**
  * REVIEW AND SUBMIT STEP
@@ -755,13 +765,13 @@ export function ReviewAndSubmitStep({
                   {keys.map((key) => {
                     const label = FINANCIAL_FIELD_LABELS[key];
                     const val = flat[key];
-                    const isDate = key === "pldd" || key === "bsdd";
                     const display = val == null || val === ""
-
                       ? "N/A"
-                      : isDate
-                        ? String(val)
-                        : renderMoney(Number(String(val).replace(/,/g, "")));
+                      : key === "pldd"
+                        ? financialYearEndDisplay(val)
+                        : key === "bsdd"
+                          ? String(val)
+                          : renderMoney(Number(String(val).replace(/,/g, "")));
                     return (
                       <React.Fragment key={key}>
                         <div className={labelClassName}>{label}</div>

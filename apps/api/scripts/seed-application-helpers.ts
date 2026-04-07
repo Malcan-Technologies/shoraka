@@ -140,7 +140,7 @@ export function buildBusinessDetails(): Record<string, unknown> {
 /** financial_statements: flat fields (numeric or date string). Schema accepts string|number. */
 export function buildFinancialStatements(): Record<string, unknown> {
   const today = new Date();
-  const pldd = formatDate(new Date(today.getFullYear() - 1, 11, 31));
+  const pldd = String(today.getFullYear() - 1);
   const bsdd = formatDate(new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000));
   const turnover = randomInt(500000, 5000000);
   const plnpat = randomInt(100000, 500000);

@@ -69,13 +69,13 @@ export function generateContractData(): Record<string, unknown> {
  */
 export function generateFinancialData(): Record<string, unknown> {
   const today = new Date();
-  const fyEnd = format(subDays(today, 180), "dd/MM/yyyy");
+  const financialYear = String(today.getFullYear() - 1);
   const dataUntil = format(subDays(today, 30), "dd/MM/yyyy");
   const turnover = randomDecimal(500000, 5000000);
   const plnpat = randomMoneyAllowNegative(10000, 500000);
   const plyear = randomMoneyAllowNegative(10000, 200000);
   return {
-    pldd: fyEnd,
+    pldd: financialYear,
     bsdd: dataUntil,
     bsfatot: formatMoney(randomDecimal(100000, 500000)),
     othass: formatMoney(randomDecimal(20000, 100000)),

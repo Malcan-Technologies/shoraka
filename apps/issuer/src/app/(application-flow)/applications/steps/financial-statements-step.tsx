@@ -19,6 +19,7 @@
 import * as React from "react";
 import { useApplication } from "@/hooks/use-applications";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { DateInput } from "@/app/(application-flow)/applications/components/date-input";
 import { cn } from "@/lib/utils";
 import {
@@ -42,17 +43,18 @@ import { useDevTools } from "@/app/(application-flow)/applications/components/de
 
 /**
  * Mock data for dev Auto Fill. All 15 fields.
+ * - pldd: four-digit financial year; bsdd: date string.
  * - turnover: >= 0; plnpbt, plnpat, plyear: may be negative; plnetdiv: positive.
  * - Decimals randomized (2 dp) to match MoneyInput.
  */
 export function generateMockData(): Record<string, unknown> {
   const today = new Date();
-  const fyEnd = format(subMonths(today, 6), "dd/MM/yyyy");
+  const financialYear = String(subMonths(today, 6).getFullYear());
   const dataUntil = format(subMonths(today, 1), "dd/MM/yyyy");
   const plnpat = 120000.45;
   const plyear = 100000.25;
   return {
-    pldd: fyEnd,
+    pldd: financialYear,
     bsdd: dataUntil,
     bsfatot: formatMoney(500000.12),
     othass: formatMoney(100000.88),
@@ -139,6 +141,44 @@ function toNum(v: unknown): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
+const MIN_FINANCIAL_YEAR = 1900;
+
+function maxFinancialYear(): number {
+  return new Date().getFullYear() + 1;
+}
+
+/** Load pldd as a four-digit year. Migrates legacy full-date values from JSON. */
+function normalizePlddFromSaved(val: unknown): string {
+  if (val === undefined || val === null) return "";
+  const s = String(val).trim();
+  if (s === "") return "";
+  if (/^\d{4}$/.test(s)) return s;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 4);
+  try {
+    const parsed = parse(s, "d/M/yyyy", new Date());
+    if (isValidDate(parsed)) return String(parsed.getFullYear());
+  } catch {
+    /* ignore */
+  }
+  const asDate = new Date(s);
+  if (!Number.isNaN(asDate.getTime())) return String(asDate.getFullYear());
+  const m = s.match(/\b(19|20)\d{2}\b/);
+  return m ? m[0] : "";
+}
+
+function normalizePlddForApi(s: string): string {
+  const t = s.trim();
+  if (/^\d{4}$/.test(t)) return t;
+  return normalizePlddFromSaved(t);
+}
+
+function isValidFinancialYear(s: string): boolean {
+  const t = s.trim();
+  if (!/^\d{4}$/.test(t)) return false;
+  const y = parseInt(t, 10);
+  return y >= MIN_FINANCIAL_YEAR && y <= maxFinancialYear();
+}
+
 function fromSaved(saved: unknown): FinancialStatementsPayload {
   const raw = saved as { input?: Record<string, unknown> } | Record<string, unknown> | null | undefined;
   const data = (raw && typeof raw === "object" && "input" in raw ? raw.input : raw) as Record<string, unknown> | null | undefined;
@@ -148,12 +188,16 @@ function fromSaved(saved: unknown): FinancialStatementsPayload {
 
   const setVal = (key: keyof FinancialStatementsPayload, val: unknown) => {
     if (val === undefined || val === null) return;
-    if (key === "pldd" || key === "bsdd") {
-      (out as unknown as Record<string, unknown>)[key] = String(val);
-    } else {
-      const n = toNum(val);
-      (out as unknown as Record<string, unknown>)[key] = formatMoney(n);
+    if (key === "pldd") {
+      out.pldd = normalizePlddFromSaved(val);
+      return;
     }
+    if (key === "bsdd") {
+      out.bsdd = String(val);
+      return;
+    }
+    const n = toNum(val);
+    (out as unknown as Record<string, unknown>)[key] = formatMoney(n);
   };
 
   for (const key of Object.keys(DEFAULT_PAYLOAD) as (keyof FinancialStatementsPayload)[]) {
@@ -171,8 +215,10 @@ function fromSaved(saved: unknown): FinancialStatementsPayload {
 function toApiPayload(form: FinancialStatementsPayload): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const k of Object.keys(DEFAULT_PAYLOAD) as (keyof FinancialStatementsPayload)[]) {
-    if (k === "pldd" || k === "bsdd") {
-      out[k] = form[k];
+    if (k === "pldd") {
+      out[k] = normalizePlddForApi(form.pldd ?? "");
+    } else if (k === "bsdd") {
+      out[k] = form.bsdd;
     } else if (k === "plyear") {
       out[k] = parseMoney(form.plyear ?? "");
     } else {
@@ -373,14 +419,14 @@ export function FinancialStatementsStep({
     return startOfDay(d) > startOfDay(new Date());
   }, [form.bsdd]);
 
-  /** Full validation: all fields, turnover >= 0, bsdd not in future. Used by saveFunction. */
+  /** Full validation: all fields, financial year four digits, turnover >= 0, bsdd not in future. Used by saveFunction. */
   const isValid = React.useMemo(() => {
-    const dateFields: (keyof FinancialStatementsPayload)[] = ["pldd", "bsdd"];
     const moneyFields: (keyof FinancialStatementsPayload)[] = [
       "bsfatot", "othass", "bscatot", "bsclbank", "curlib", "bsslltd", "bsclstd", "bsqpuc",
       "turnover", "plnpbt", "plnpat", "plnetdiv", "plyear",
     ];
-    if (!dateFields.every((k) => hasValue(form[k]))) return false;
+    if (!hasValue(form.pldd) || !isValidFinancialYear(form.pldd ?? "")) return false;
+    if (!hasValue(form.bsdd)) return false;
     if (bsddIsFuture) return false;
     if (!moneyFields.every((k) => hasValue(form[k]))) return false;
     const turnoverNum = parseMoney(form.turnover ?? "");
@@ -390,12 +436,12 @@ export function FinancialStatementsStep({
 
   /** For Save button: exclude bsdd future check so user can click Save and see validation error. */
   const isValidForButton = React.useMemo(() => {
-    const dateFields: (keyof FinancialStatementsPayload)[] = ["pldd", "bsdd"];
     const moneyFields: (keyof FinancialStatementsPayload)[] = [
       "bsfatot", "othass", "bscatot", "bsclbank", "curlib", "bsslltd", "bsclstd", "bsqpuc",
       "turnover", "plnpbt", "plnpat", "plnetdiv", "plyear",
     ];
-    if (!dateFields.every((k) => hasValue(form[k]))) return false;
+    if (!hasValue(form.pldd) || !isValidFinancialYear(form.pldd ?? "")) return false;
+    if (!hasValue(form.bsdd)) return false;
     if (!moneyFields.every((k) => hasValue(form[k]))) return false;
     const turnoverNum = parseMoney(form.turnover ?? "");
     if (turnoverNum < 0) return false;
@@ -440,13 +486,35 @@ export function FinancialStatementsStep({
             <Label htmlFor="pldd" className={labelClassName}>
               {getLabel("pldd")}
             </Label>
-            <DateInput
-              value={form.pldd}
-              onChange={(v) => handleFieldChange("pldd", v)}
-              disabled={readOnly}
-              className={cn(inputClassName, readOnly && formInputDisabledClassName)}
-              placeholder="Enter date"
-            />
+            <div className="flex flex-col gap-1">
+              <Input
+                id="pldd"
+                value={form.pldd}
+                onChange={(e) =>
+                  handleFieldChange("pldd", e.target.value.replace(/\D/g, "").slice(0, 4))
+                }
+                disabled={readOnly}
+                inputMode="numeric"
+                maxLength={4}
+                placeholder="e.g. 2024"
+                className={cn(
+                  inputClassName,
+                  readOnly && formInputDisabledClassName,
+                  hasSubmitted &&
+                    (!hasValue(form.pldd) || !isValidFinancialYear(form.pldd ?? "")) &&
+                    "border-destructive focus-visible:border-2 focus-visible:border-destructive"
+                )}
+                aria-invalid={hasSubmitted && (!hasValue(form.pldd) || !isValidFinancialYear(form.pldd ?? ""))}
+              />
+              {hasSubmitted && !hasValue(form.pldd) && (
+                <p className="text-xs text-destructive">Financial year is required.</p>
+              )}
+              {hasSubmitted && hasValue(form.pldd) && !isValidFinancialYear(form.pldd ?? "") && (
+                <p className="text-xs text-destructive">
+                  {`Enter a valid year (${MIN_FINANCIAL_YEAR}–${maxFinancialYear()}).`}
+                </p>
+              )}
+            </div>
             <div className={cn("flex items-center", fieldTooltipLabelGap)}>
               <Label htmlFor="bsdd" className={labelClassName}>
                 {getLabel("bsdd")}
