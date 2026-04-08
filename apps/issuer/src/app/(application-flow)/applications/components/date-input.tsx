@@ -152,7 +152,9 @@ export function DateInput({
           side="bottom"
           align="start"
           sideOffset={6}
-          collisionPadding={8}
+          collisionPadding={12}
+          avoidCollisions
+          sticky="always"
           onOpenAutoFocus={(e) => e.preventDefault()}
           onPointerDownOutside={(e) => {
             if (isFromNestedSelect(e.target)) e.preventDefault();

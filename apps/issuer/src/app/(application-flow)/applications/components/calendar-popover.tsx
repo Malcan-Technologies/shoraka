@@ -51,8 +51,8 @@ export function CalendarPopover({
 
   const nowY = new Date().getFullYear();
   const viewY = currentMonth.getFullYear();
-  const yearMin = Math.min(nowY - 80, viewY);
-  const yearMax = Math.max(nowY + 10, viewY);
+  const yearMin = Math.min(nowY - 30, viewY);
+  const yearMax = Math.max(nowY + 5, viewY);
   const yearOptions = React.useMemo(() => {
     const out: number[] = [];
     for (let y = yearMin; y <= yearMax; y++) out.push(y);
@@ -74,7 +74,7 @@ export function CalendarPopover({
   }
 
   const selectContentClass =
-    "z-[60] max-h-60 min-w-[var(--radix-select-trigger-width)] sm:min-w-0";
+    "z-[60] max-h-52 min-w-[var(--radix-select-trigger-width)] sm:min-w-0";
 
   return (
     <div className="w-[220px] rounded-lg border bg-card shadow-lg z-50">
