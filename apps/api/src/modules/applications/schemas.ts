@@ -53,6 +53,17 @@ const whyRaisingFundsSchema = z.object({
   amount_raised: z.union([z.string(), z.number()]).nullable().optional(),
   same_invoice_used: z.boolean().nullable().optional(),
   accounting_software: z.string().max(200).optional().default(""),
+  supporting_documents: z
+    .array(
+      z.object({
+        file_name: z.string().min(1),
+        file_size: z.number().int().nonnegative(),
+        s3_key: z.string().min(1),
+        uploaded_at: z.string().optional(),
+      })
+    )
+    .optional()
+    .default([]),
 });
 
 const guarantorIndividualSchema = z.object({

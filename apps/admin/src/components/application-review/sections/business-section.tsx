@@ -3,11 +3,23 @@
 import { Label } from "@/components/ui/label";
 import { YesNoRadioDisplay } from "@cashsouk/ui";
 import { formatCurrency } from "@cashsouk/config";
-import { DocumentTextIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowDownTrayIcon,
+  ArrowTopRightOnSquareIcon,
+  ChevronDownIcon,
+  DocumentTextIcon,
+} from "@heroicons/react/24/outline";
 import { ReviewSectionCard } from "../review-section-card";
 import { ReviewFieldBlock } from "../review-field-block";
 import { ReviewValue } from "../review-value";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   reviewLabelClass,
   reviewValueClass,
@@ -35,6 +47,9 @@ export interface BusinessSectionProps {
   onApprove: (section: ReviewSectionId) => void;
   onReject: (section: ReviewSectionId) => void;
   onRequestAmendment: (section: ReviewSectionId) => void;
+  onViewDocument: (s3Key: string) => void;
+  onDownloadDocument: (s3Key: string, fileName?: string) => void;
+  viewDocumentPending?: boolean;
   comments: SectionCommentItem[];
   onAddComment?: (comment: string) => Promise<void> | void;
 }
@@ -75,6 +90,7 @@ interface BusinessDetailsView {
     amountRaised: number | null;
     sameInvoiceUsed: boolean | null;
     accountingSoftware: string;
+    supportingDocuments: Array<{ s3Key: string; fileName: string }>;
   };
   declarationConfirmed: boolean;
   guarantors: GuarantorReviewRow[];
@@ -134,6 +150,20 @@ function parseBusinessDetails(raw: unknown): BusinessDetailsView | null {
   };
 
   const str = reviewStr;
+  const supportDocsRaw = w?.supporting_documents ?? w?.supportingDocuments;
+  const supportingDocuments = Array.isArray(supportDocsRaw)
+    ? supportDocsRaw
+        .map((doc, index) => {
+          if (!doc || typeof doc !== "object") return null;
+          const row = doc as Record<string, unknown>;
+          const s3Key = reviewStr(row.s3_key ?? row.s3Key);
+          if (!s3Key) return null;
+          const fileName =
+            reviewStr(row.file_name ?? row.fileName) || `Supporting Document ${index + 1}.pdf`;
+          return { s3Key, fileName };
+        })
+        .filter((d): d is { s3Key: string; fileName: string } => Boolean(d))
+    : [];
 
   const num = (v: unknown): number | null => {
     if (typeof v === "number" && !Number.isNaN(v)) return v;
@@ -161,6 +191,7 @@ function parseBusinessDetails(raw: unknown): BusinessDetailsView | null {
       amountRaised: num(w?.amount_raised ?? w?.amountRaised),
       sameInvoiceUsed: bool(w?.same_invoice_used ?? w?.sameInvoiceUsed),
       accountingSoftware: str(w?.accounting_software ?? w?.accountingSoftware) || REVIEW_EMPTY_LABEL,
+      supportingDocuments,
     },
     declarationConfirmed: Boolean(r.declaration_confirmed ?? r.declarationConfirmed),
     guarantors: parseGuarantors(r.guarantors),
@@ -181,11 +212,17 @@ export function BusinessSection({
   onApprove,
   onReject,
   onRequestAmendment,
+  onViewDocument,
+  onDownloadDocument,
+  viewDocumentPending = false,
   comments,
   onAddComment,
 }: BusinessSectionProps) {
   const view = parseBusinessDetails(businessDetails);
   const showP2PFields = view?.whyRaisingFunds.raisingOnOtherP2P === true;
+  const supportingFiles = view?.whyRaisingFunds.supportingDocuments ?? [];
+  const canViewMultiple = supportingFiles.length > 1;
+  const canViewSingle = supportingFiles.length === 1;
 
   return (
     <ReviewSectionCard
@@ -237,6 +274,102 @@ export function BusinessSection({
                 If Payment Is Delayed, What Is Your Backup Plan?
               </Label>
               <ReviewValue value={view.whyRaisingFunds.backupPlan} multiline />
+              <Label className={reviewLabelClass}>
+                Relevant Supporting Documents for This Section
+              </Label>
+              <div className="min-h-0 h-9 flex items-center justify-start">
+                {supportingFiles.length > 0 ? (
+                  <div className="flex items-center gap-2 shrink-0">
+                    {canViewSingle && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-lg h-9 gap-1"
+                        onClick={() => onViewDocument(supportingFiles[0]!.s3Key)}
+                        disabled={viewDocumentPending}
+                      >
+                        <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                        View
+                      </Button>
+                    )}
+                    {canViewMultiple && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="rounded-lg h-9 gap-1"
+                            disabled={viewDocumentPending}
+                          >
+                            <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                            View
+                            <ChevronDownIcon className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="min-w-[220px]">
+                          {supportingFiles.map((f, fileIndex) => (
+                            <DropdownMenuItem
+                              key={`${f.s3Key}-${fileIndex}`}
+                              onClick={() => onViewDocument(f.s3Key)}
+                              className="flex items-center justify-between gap-3"
+                            >
+                              <span className="truncate min-w-0">{f.fileName}</span>
+                              <ArrowTopRightOnSquareIcon className="h-4 w-4 shrink-0" />
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                    {canViewSingle && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-lg h-9 gap-1"
+                        onClick={() =>
+                          onDownloadDocument(
+                            supportingFiles[0]!.s3Key,
+                            supportingFiles[0]!.fileName
+                          )
+                        }
+                        disabled={viewDocumentPending}
+                      >
+                        <ArrowDownTrayIcon className="h-4 w-4" />
+                        Download
+                      </Button>
+                    )}
+                    {canViewMultiple && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="rounded-lg h-9 gap-1"
+                            disabled={viewDocumentPending}
+                          >
+                            <ArrowDownTrayIcon className="h-4 w-4" />
+                            Download
+                            <ChevronDownIcon className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="min-w-[220px]">
+                          {supportingFiles.map((f, fileIndex) => (
+                            <DropdownMenuItem
+                              key={`${f.s3Key}-${fileIndex}-download`}
+                              onClick={() => onDownloadDocument(f.s3Key, f.fileName)}
+                              className="flex items-center justify-between gap-3"
+                            >
+                              <span className="truncate min-w-0">{f.fileName}</span>
+                              <ArrowDownTrayIcon className="h-4 w-4 shrink-0" />
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </div>
+                ) : (
+                  REVIEW_EMPTY_LABEL
+                )}
+              </div>
               <Label className={reviewLabelClass}>
                 Are You Currently Raising/Applying Funds on Any Other P2P Platforms?
               </Label>

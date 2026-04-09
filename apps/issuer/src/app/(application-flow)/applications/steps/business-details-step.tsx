@@ -42,7 +42,14 @@ import {
 } from "@/components/ui/select";
 import { formSelectTriggerClassName } from "@/app/(application-flow)/applications/components/form-control";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ChevronRightIcon, EyeIcon, TrashIcon } from "@heroicons/react/24/outline";
+import {
+  ChevronRightIcon,
+  EyeIcon,
+  TrashIcon,
+} from "@heroicons/react/24/outline";
+import { CloudUpload, X, CheckCircle2 } from "lucide-react";
+import { useAuthToken } from "@cashsouk/config";
+import { toast } from "sonner";
 
 /**
  * BUSINESS DETAILS STEP
@@ -61,6 +68,7 @@ const DECLARATION_TEXT =
 
 const SAME_INVOICE_OTHER_P2P_ERROR =
   "This invoice has already been applied on another P2P platform and cannot be submitted.";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 type YesNo = "yes" | "no";
 
@@ -81,6 +89,13 @@ interface WhyRaisingFunds {
   amountRaised: string;
   sameInvoiceUsed: YesNo | "";
   accountingSoftware: string;
+  supportingDocuments: Array<{
+    file_name: string;
+    file_size: number;
+    s3_key?: string;
+    uploaded_at: string;
+    client_id?: string;
+  }>;
 }
 
 interface GuarantorIndividualRow {
@@ -172,6 +187,12 @@ interface BusinessDetailsSnake {
     amount_raised?: number | null;
     same_invoice_used?: boolean | null;
     accounting_software?: string;
+    supporting_documents?: Array<{
+      file_name: string;
+      file_size: number;
+      s3_key: string;
+      uploaded_at?: string;
+    }>;
   };
   declaration_confirmed?: boolean;
   guarantors?: Array<
@@ -203,6 +224,19 @@ function booleanToYesNo(v: boolean | string | undefined): YesNo | "" {
   return "";
 }
 
+function makeClientId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
 function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
   const basePayload: BusinessDetailsSnake = {
     about_your_business: {
@@ -218,6 +252,14 @@ function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
       backup_plan: p.whyRaisingFunds.backupPlan ?? "",
       raising_on_other_p2p: yesNoToBoolean(p.whyRaisingFunds.raisingOnOtherP2P),
       accounting_software: p.whyRaisingFunds.accountingSoftware ?? "",
+      supporting_documents: (p.whyRaisingFunds.supportingDocuments ?? [])
+        .filter((d) => typeof d.s3_key === "string" && d.s3_key.trim() !== "")
+        .map((d) => ({
+          file_name: d.file_name,
+          file_size: d.file_size ?? 0,
+          s3_key: d.s3_key!,
+          uploaded_at: d.uploaded_at,
+        })),
     },
     declaration_confirmed: p.declarationConfirmed,
     guarantors: p.guarantors.map((g) =>
@@ -273,6 +315,14 @@ function fromSnakeSaved(saved: BusinessDetailsSnake | Record<string, unknown> | 
       amountRaised: w?.amount_raised != null || w?.amountRaised != null ? formatMoney(w?.amount_raised ?? w?.amountRaised) : "",
       sameInvoiceUsed: booleanToYesNo(w?.same_invoice_used ?? w?.sameInvoiceUsed),
       accountingSoftware: w?.accounting_software ?? w?.accountingSoftware ?? "",
+      supportingDocuments: Array.isArray(w?.supporting_documents ?? w?.supportingDocuments)
+        ? (w?.supporting_documents ?? w?.supportingDocuments).map((doc: any) => ({
+            file_name: String(doc?.file_name ?? doc?.fileName ?? "document.pdf"),
+            file_size: Number(doc?.file_size ?? doc?.fileSize ?? 0),
+            s3_key: typeof doc?.s3_key === "string" ? doc.s3_key : undefined,
+            uploaded_at: String(doc?.uploaded_at ?? doc?.uploadedAt ?? new Date().toISOString()),
+          }))
+        : [],
     },
     declarationConfirmed: raw?.declaration_confirmed ?? raw?.declarationConfirmed ?? false,
     guarantors: parseGuarantorsFromRaw(raw?.guarantors),
@@ -337,6 +387,7 @@ const defaultWhy: WhyRaisingFunds = {
   amountRaised: "",
   sameInvoiceUsed: "",
   accountingSoftware: "",
+  supportingDocuments: [],
 };
 
 interface BusinessDetailsStepProps {
@@ -771,6 +822,7 @@ export function BusinessDetailsStep({
   onDataChange,
   readOnly = false,
 }: BusinessDetailsStepProps) {
+  const { getAccessToken } = useAuthToken();
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   const devTools = useDevTools();
 
@@ -778,6 +830,9 @@ export function BusinessDetailsStep({
   const [whyRaisingFunds, setWhyRaisingFunds] = React.useState<WhyRaisingFunds>(defaultWhy);
   const [declarationConfirmed, setDeclarationConfirmed] = React.useState(false);
   const [guarantors, setGuarantors] = React.useState<GuarantorFormRow[]>([emptyIndividualGuarantor()]);
+  const [pendingSupportingDocuments, setPendingSupportingDocuments] = React.useState<
+    Array<{ file: File; client_id: string }>
+  >([]);
   /** Collapsible guarantor cards; index 0 defaults open until user toggles. */
   const [guarantorPanelOpen, setGuarantorPanelOpen] = React.useState<Record<number, boolean>>({});
 
@@ -883,6 +938,7 @@ export function BusinessDetailsStep({
     });
     setDeclarationConfirmed(initial.declarationConfirmed);
     setGuarantors(initial.guarantors);
+    setPendingSupportingDocuments([]);
     initialPayloadRef.current = JSON.stringify(toSnakePayload(initial));
     setIsInitialized(true);
   }, [application, isInitialized]);
@@ -911,6 +967,7 @@ export function BusinessDetailsStep({
     setWhyRaisingFunds(initial.whyRaisingFunds);
     setDeclarationConfirmed(initial.declarationConfirmed);
     setGuarantors(initial.guarantors);
+    setPendingSupportingDocuments([]);
     initialPayloadRef.current = JSON.stringify(toSnakePayload(initial));
     if (devTools) {
       if (devTools.autoFillData?.stepKey === "business_details") devTools.clearAutoFill();
@@ -932,8 +989,8 @@ export function BusinessDetailsStep({
 
   const hasPendingChanges = React.useMemo(() => {
     if (!isInitialized) return false;
-    return JSON.stringify(snakePayload) !== initialPayloadRef.current;
-  }, [snakePayload, isInitialized]);
+    return JSON.stringify(snakePayload) !== initialPayloadRef.current || pendingSupportingDocuments.length > 0;
+  }, [snakePayload, isInitialized, pendingSupportingDocuments.length]);
 
   React.useEffect(() => {
     if (!onDataChangeRef.current || !isInitialized) return;
@@ -948,8 +1005,17 @@ export function BusinessDetailsStep({
       ...snakePayload,
       hasPendingChanges,
       isValid: validateBusinessDetails(),
+      saveFunction:
+        pendingSupportingDocuments.length > 0 ? uploadWhySectionSupportingDocuments : undefined,
     });
-  }, [snakePayload, hasPendingChanges, declarationConfirmed, isInitialized, validateBusinessDetails]);
+  }, [
+    snakePayload,
+    hasPendingChanges,
+    declarationConfirmed,
+    isInitialized,
+    pendingSupportingDocuments.length,
+    validateBusinessDetails,
+  ]);
 
   if (isLoadingApp || !isInitialized || devTools?.showSkeletonDebug) {
     return <BusinessDetailsSkeleton />;
@@ -965,6 +1031,143 @@ export function BusinessDetailsStep({
 
   const setGuarantorTypeAt = (index: number, type: "individual" | "company") => {
     replaceGuarantorRow(index, type === "individual" ? emptyIndividualGuarantor() : emptyCompanyGuarantor());
+  };
+
+  async function uploadWhySectionSupportingDocuments() {
+    if (pendingSupportingDocuments.length === 0) {
+      return snakePayload;
+    }
+
+    const token = await getAccessToken();
+    if (!token) {
+      throw new Error("Authentication required to upload supporting documents.");
+    }
+
+    const uploadedByClientId = new Map<
+      string,
+      { s3_key: string; file_name: string; file_size: number; uploaded_at: string }
+    >();
+
+    for (const pending of pendingSupportingDocuments) {
+      const presignRes = await fetch(`${API_URL}/v1/applications/${applicationId}/upload-document-url`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          fileName: pending.file.name,
+          contentType: pending.file.type || "application/octet-stream",
+          fileSize: pending.file.size,
+        }),
+      });
+
+      if (!presignRes.ok) {
+        throw new Error(`Failed to prepare upload for ${pending.file.name}`);
+      }
+
+      const presignJson = await presignRes.json();
+      const uploadUrl = String(presignJson?.data?.uploadUrl ?? "");
+      const s3Key = String(presignJson?.data?.s3Key ?? "");
+      if (!uploadUrl || !s3Key) {
+        throw new Error(`Invalid upload response for ${pending.file.name}`);
+      }
+
+      const putRes = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": pending.file.type || "application/octet-stream",
+        },
+        body: pending.file,
+      });
+
+      if (!putRes.ok) {
+        throw new Error(`Failed to upload ${pending.file.name}`);
+      }
+
+      uploadedByClientId.set(pending.client_id, {
+        s3_key: s3Key,
+        file_name: pending.file.name,
+        file_size: pending.file.size,
+        uploaded_at: new Date().toISOString(),
+      });
+    }
+
+    const nextWhyRaisingFunds: WhyRaisingFunds = {
+      ...whyRaisingFunds,
+      supportingDocuments: whyRaisingFunds.supportingDocuments.map((doc) => {
+        if (!doc.client_id) return doc;
+        const uploaded = uploadedByClientId.get(doc.client_id);
+        if (!uploaded) return doc;
+        return {
+          ...doc,
+          ...uploaded,
+          client_id: undefined,
+        };
+      }),
+    };
+
+    setWhyRaisingFunds(nextWhyRaisingFunds);
+    setPendingSupportingDocuments([]);
+
+    return toSnakePayload({
+      aboutYourBusiness,
+      whyRaisingFunds: nextWhyRaisingFunds,
+      declarationConfirmed,
+      guarantors,
+    });
+  }
+
+  const handleWhySectionSupportingDocumentsSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    if (files.length === 0) return;
+
+    for (const file of files) {
+      if (file.type !== "application/pdf") {
+        toast.error("Please select a PDF file");
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("File is too large (max 5MB)");
+        return;
+      }
+    }
+
+    const pendingBatch = files.map((file) => {
+      const client_id = makeClientId();
+      return { file, client_id };
+    });
+
+    setPendingSupportingDocuments((prev) => [...prev, ...pendingBatch]);
+    setWhyRaisingFunds((prev) => ({
+      ...prev,
+      supportingDocuments: [
+        ...prev.supportingDocuments,
+        ...pendingBatch.map((p) => ({
+          file_name: p.file.name,
+          file_size: p.file.size,
+          uploaded_at: new Date().toISOString(),
+          client_id: p.client_id,
+        })),
+      ],
+    }));
+
+    e.currentTarget.value = "";
+  };
+
+  const removeWhySectionSupportingDocumentAt = (index: number) => {
+    setWhyRaisingFunds((prev) => {
+      const target = prev.supportingDocuments[index];
+      if (target?.client_id) {
+        setPendingSupportingDocuments((pendingPrev) =>
+          pendingPrev.filter((pending) => pending.client_id !== target.client_id)
+        );
+      }
+      return {
+        ...prev,
+        supportingDocuments: prev.supportingDocuments.filter((_, i) => i !== index),
+      };
+    });
   };
 
   return (
@@ -1168,6 +1371,101 @@ export function BusinessDetailsStep({
               countLabel={`${whyRaisingFunds.backupPlan.length}/200 characters`}
               disabled={fieldsLocked}
             />
+          </div>
+
+          <Label className={labelClassName}>
+            Upload any relevant supporting documents for this section
+          </Label>
+          <div className="min-w-0 space-y-3">
+            {whyRaisingFunds.supportingDocuments.length > 0 ? (
+              <div className="flex flex-col gap-2">
+                {whyRaisingFunds.supportingDocuments.map((doc, index) => (
+                  <div
+                    key={`${doc.s3_key ?? doc.client_id ?? doc.file_name}-${index}`}
+                    className="border border-border rounded-xl px-4 py-3 flex items-center justify-between gap-3 bg-card/50"
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div
+                        className={cn(
+                          "p-1 rounded-full shrink-0",
+                          doc.client_id ? "bg-yellow-500/10" : "bg-primary/10"
+                        )}
+                      >
+                        <CheckCircle2
+                          className={cn(
+                            "h-4 w-4",
+                            doc.client_id ? "text-yellow-500" : "text-primary"
+                          )}
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1" title={doc.file_name}>
+                        <div className="text-sm font-medium truncate">{doc.file_name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {formatFileSize(Math.max(doc.file_size ?? 0, 0))}
+                        </div>
+                      </div>
+                    </div>
+                    {!fieldsLocked ? (
+                      <button
+                        type="button"
+                        onClick={() => removeWhySectionSupportingDocumentAt(index)}
+                        className="p-1 hover:bg-muted rounded-full transition-colors"
+                        aria-label={`Remove ${doc.file_name}`}
+                      >
+                        <X className="h-3 w-3 text-muted-foreground" />
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+                {!fieldsLocked && (
+                  <label htmlFor="why-section-supporting-documents" className="cursor-pointer">
+                    <div className="border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-colors border-border bg-card/50 hover:bg-muted/50">
+                      <div className="p-2 rounded-full bg-background border shadow-sm">
+                        <CloudUpload className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <div className="text-center">
+                        <span className="text-base font-semibold text-primary">Add files</span>
+                      </div>
+                      <div className="text-sm text-muted-foreground">PDF (max. 5MB)</div>
+                    </div>
+                    <Input
+                      id="why-section-supporting-documents"
+                      type="file"
+                      accept="application/pdf"
+                      multiple
+                      onChange={handleWhySectionSupportingDocumentsSelected}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </div>
+            ) : fieldsLocked ? (
+              <span className="text-[14px] text-muted-foreground">—</span>
+            ) : (
+              <label
+                htmlFor="why-section-supporting-documents"
+                className="cursor-pointer"
+              >
+                <div className="border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-colors border-border bg-card/50 hover:bg-muted/50">
+                  <div className="p-2 rounded-full bg-background border shadow-sm">
+                    <CloudUpload className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  <div className="text-center">
+                    <span className="text-base font-semibold text-primary">Click to upload</span>
+                    <span className="text-base text-muted-foreground"> or drag and drop</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground">PDF (max. 5MB)</div>
+                </div>
+                <Input
+                  id="why-section-supporting-documents"
+                  type="file"
+                  accept="application/pdf"
+                  multiple
+                  onChange={handleWhySectionSupportingDocumentsSelected}
+                  className="hidden"
+                />
+              </label>
+            )}
           </div>
 
           <Label className={labelClassName}>

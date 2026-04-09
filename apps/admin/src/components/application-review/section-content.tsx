@@ -199,6 +199,9 @@ export function SectionContent({
           onApprove={onApproveSection}
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}
+          onViewDocument={onViewDocument}
+          onDownloadDocument={onDownloadDocument}
+          viewDocumentPending={viewDocumentPending}
           comments={sectionComments}
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
         />
