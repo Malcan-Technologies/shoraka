@@ -59,6 +59,9 @@ import { ChevronRightIcon, EyeIcon, TrashIcon } from "@heroicons/react/24/outlin
 const DECLARATION_TEXT =
   "I confirm that all information provided is true, accurate, and not misleading, and I understand that false or incomplete information may result in removal from the platform and regulatory action.";
 
+const SAME_INVOICE_OTHER_P2P_ERROR =
+  "This invoice has already been applied on another P2P platform and cannot be submitted.";
+
 type YesNo = "yes" | "no";
 
 interface AboutYourBusiness {
@@ -835,6 +838,9 @@ export function BusinessDetailsStep({
       ) {
         return false;
       }
+      if (sameInvoiceUsed === "yes") {
+        return false;
+      }
     }
 
     /* At least one guarantor; each row must be complete (applies to every added guarantor). */
@@ -949,6 +955,10 @@ export function BusinessDetailsStep({
     return <BusinessDetailsSkeleton />;
   }
 
+  const sameInvoiceP2pBlocked =
+    whyRaisingFunds.raisingOnOtherP2P === "yes" && whyRaisingFunds.sameInvoiceUsed === "yes";
+  const fieldsLocked = readOnly || sameInvoiceP2pBlocked;
+
   const replaceGuarantorRow = (index: number, next: GuarantorFormRow) => {
     setGuarantors((prev) => prev.map((row, i) => (i === index ? next : row)));
   };
@@ -970,7 +980,12 @@ export function BusinessDetailsStep({
           <div className="border-b border-border mt-4 mb-6" />
         </div>
 
-        <div className={rowGridClassName}>
+        <div
+          className={cn(
+            rowGridClassName,
+            sameInvoiceP2pBlocked && "pointer-events-none opacity-50 select-none"
+          )}
+        >
           <Label htmlFor="what-does-company-do" className={labelClassName}>
             What does your company do?
           </Label>
@@ -987,7 +1002,7 @@ export function BusinessDetailsStep({
             maxLength={200}
             className={textareaClassName}
             countLabel={`${aboutYourBusiness.whatDoesCompanyDo.length}/200 characters`}
-            disabled={readOnly}
+            disabled={fieldsLocked}
           />
 
           <Label htmlFor="main-customers" className={labelClassName}>
@@ -1006,7 +1021,7 @@ export function BusinessDetailsStep({
             maxLength={200}
             className={textareaClassName}
             countLabel={`${aboutYourBusiness.mainCustomers.length}/200 characters`}
-            disabled={readOnly}
+            disabled={fieldsLocked}
           />
 
           <Label className={labelClassName}>
@@ -1019,7 +1034,7 @@ export function BusinessDetailsStep({
               onValueChange={(v) =>
                 setAboutYourBusiness((prev) => ({ ...prev, singleCustomerOver50Revenue: v }))
               }
-              disabled={readOnly}
+              disabled={fieldsLocked}
             />
           </div>
 
@@ -1036,8 +1051,8 @@ export function BusinessDetailsStep({
               }))
             }
             placeholder="e.g. QuickBooks, Xero, SAP"
-            className={cn(inputClassName, readOnly && formInputDisabledClassName)}
-            disabled={readOnly}
+            className={cn(inputClassName, fieldsLocked && formInputDisabledClassName)}
+            disabled={fieldsLocked}
           />
         </div>
       </section>
@@ -1053,100 +1068,107 @@ export function BusinessDetailsStep({
         </div>
 
         <div className={rowGridClassName}>
-          <Label htmlFor="financing-for" className={labelClassName}>
-            What is this financing for?
-          </Label>
-          <TextareaWithCharCount
-            id="financing-for"
-            value={whyRaisingFunds.financingFor}
-            onChange={(e) =>
-              setWhyRaisingFunds((prev) => ({
-                ...prev,
-                financingFor: e.target.value.slice(0, 200),
-              }))
-            }
-            placeholder="Add details"
-            maxLength={200}
-            className={textareaClassName}
-            countLabel={`${whyRaisingFunds.financingFor.length}/200 characters`}
-            disabled={readOnly}
-          />
+          <div
+            className={cn(
+              "contents",
+              sameInvoiceP2pBlocked && "[&>*]:pointer-events-none [&>*]:opacity-50 [&>*]:select-none"
+            )}
+          >
+            <Label htmlFor="financing-for" className={labelClassName}>
+              What is this financing for?
+            </Label>
+            <TextareaWithCharCount
+              id="financing-for"
+              value={whyRaisingFunds.financingFor}
+              onChange={(e) =>
+                setWhyRaisingFunds((prev) => ({
+                  ...prev,
+                  financingFor: e.target.value.slice(0, 200),
+                }))
+              }
+              placeholder="Add details"
+              maxLength={200}
+              className={textareaClassName}
+              countLabel={`${whyRaisingFunds.financingFor.length}/200 characters`}
+              disabled={fieldsLocked}
+            />
 
-          <Label htmlFor="how-funds-used" className={labelClassName}>
-            How will the funds be used?
-          </Label>
-          <TextareaWithCharCount
-            id="how-funds-used"
-            value={whyRaisingFunds.howFundsUsed}
-            onChange={(e) =>
-              setWhyRaisingFunds((prev) => ({
-                ...prev,
-                howFundsUsed: e.target.value.slice(0, 200),
-              }))
-            }
-            placeholder="Add details"
-            maxLength={200}
-            className={textareaClassName}
-            countLabel={`${whyRaisingFunds.howFundsUsed.length}/200 characters`}
-            disabled={readOnly}
-          />
+            <Label htmlFor="how-funds-used" className={labelClassName}>
+              How will the funds be used?
+            </Label>
+            <TextareaWithCharCount
+              id="how-funds-used"
+              value={whyRaisingFunds.howFundsUsed}
+              onChange={(e) =>
+                setWhyRaisingFunds((prev) => ({
+                  ...prev,
+                  howFundsUsed: e.target.value.slice(0, 200),
+                }))
+              }
+              placeholder="Add details"
+              maxLength={200}
+              className={textareaClassName}
+              countLabel={`${whyRaisingFunds.howFundsUsed.length}/200 characters`}
+              disabled={fieldsLocked}
+            />
 
-          <Label htmlFor="business-plan" className={labelClassName}>
-            Tell us about your business plan
-          </Label>
-          <TextareaWithCharCount
-            id="business-plan"
-            value={whyRaisingFunds.businessPlan}
-            onChange={(e) =>
-              setWhyRaisingFunds((prev) => ({
-                ...prev,
-                businessPlan: e.target.value.slice(0, 1000),
-              }))
-            }
-            placeholder="Add details"
-            maxLength={1000}
-            className={textareaClassName}
-            countLabel={`${whyRaisingFunds.businessPlan.length}/1000 characters`}
-            disabled={readOnly}
-          />
+            <Label htmlFor="business-plan" className={labelClassName}>
+              Tell us about your business plan
+            </Label>
+            <TextareaWithCharCount
+              id="business-plan"
+              value={whyRaisingFunds.businessPlan}
+              onChange={(e) =>
+                setWhyRaisingFunds((prev) => ({
+                  ...prev,
+                  businessPlan: e.target.value.slice(0, 1000),
+                }))
+              }
+              placeholder="Add details"
+              maxLength={1000}
+              className={textareaClassName}
+              countLabel={`${whyRaisingFunds.businessPlan.length}/1000 characters`}
+              disabled={fieldsLocked}
+            />
 
-          <Label htmlFor="risks-delay-repayment" className={labelClassName}>
-            Are there any risks that may delay repayment of your invoices?
-          </Label>
-          <TextareaWithCharCount
-            id="risks-delay-repayment"
-            value={whyRaisingFunds.risksDelayRepayment}
-            onChange={(e) =>
-              setWhyRaisingFunds((prev) => ({
-                ...prev,
-                risksDelayRepayment: e.target.value.slice(0, 200),
-              }))
-            }
-            placeholder="Add details"
-            maxLength={200}
-            className={textareaClassName}
-            countLabel={`${whyRaisingFunds.risksDelayRepayment.length}/200 characters`}
-            disabled={readOnly}
-          />
+            <Label htmlFor="risks-delay-repayment" className={labelClassName}>
+              Are there any risks that may delay repayment of your invoices?
+            </Label>
+            <TextareaWithCharCount
+              id="risks-delay-repayment"
+              value={whyRaisingFunds.risksDelayRepayment}
+              onChange={(e) =>
+                setWhyRaisingFunds((prev) => ({
+                  ...prev,
+                  risksDelayRepayment: e.target.value.slice(0, 200),
+                }))
+              }
+              placeholder="Add details"
+              maxLength={200}
+              className={textareaClassName}
+              countLabel={`${whyRaisingFunds.risksDelayRepayment.length}/200 characters`}
+              disabled={fieldsLocked}
+            />
 
-          <Label htmlFor="backup-plan" className={labelClassName}>
-            If payment is delayed, what is your backup plan?
-          </Label>
-          <TextareaWithCharCount
-            id="backup-plan"
-            value={whyRaisingFunds.backupPlan}
-            onChange={(e) =>
-              setWhyRaisingFunds((prev) => ({
-                ...prev,
-                backupPlan: e.target.value.slice(0, 200),
-              }))
-            }
-            placeholder="Add details"
-            maxLength={200}
-            className={textareaClassName}
-            countLabel={`${whyRaisingFunds.backupPlan.length}/200 characters`}
-            disabled={readOnly}
-          />
+            <Label htmlFor="backup-plan" className={labelClassName}>
+              If payment is delayed, what is your backup plan?
+            </Label>
+            <TextareaWithCharCount
+              id="backup-plan"
+              value={whyRaisingFunds.backupPlan}
+              onChange={(e) =>
+                setWhyRaisingFunds((prev) => ({
+                  ...prev,
+                  backupPlan: e.target.value.slice(0, 200),
+                }))
+              }
+              placeholder="Add details"
+              maxLength={200}
+              className={textareaClassName}
+              countLabel={`${whyRaisingFunds.backupPlan.length}/200 characters`}
+              disabled={fieldsLocked}
+            />
+          </div>
 
           <Label className={labelClassName}>
             Are you currently raising/applying funds on any other P2P platforms?
@@ -1177,8 +1199,11 @@ export function BusinessDetailsStep({
                   }))
                 }
                 placeholder="e.g. CAPBAY"
-                className={cn(inputClassName, readOnly && formInputDisabledClassName)}
-                disabled={readOnly}
+                className={cn(
+                  inputClassName,
+                  (readOnly || sameInvoiceP2pBlocked) && formInputDisabledClassName
+                )}
+                disabled={readOnly || sameInvoiceP2pBlocked}
               />
 
               <Label htmlFor="amount-raised" className={labelClassName}>
@@ -1199,8 +1224,12 @@ export function BusinessDetailsStep({
                     }
                     placeholder="0.00"
                     prefix="RM"
-                    inputClassName={cn(inputClassName, "pl-12", readOnly && formInputDisabledClassName)}
-                    disabled={readOnly}
+                    inputClassName={cn(
+                      inputClassName,
+                      "pl-12",
+                      (readOnly || sameInvoiceP2pBlocked) && formInputDisabledClassName
+                    )}
+                    disabled={readOnly || sameInvoiceP2pBlocked}
                   />
                 </div>
               </div>
@@ -1208,15 +1237,22 @@ export function BusinessDetailsStep({
               <Label className={labelClassName}>
                 Have the same invoices been used to apply for funding in the aforementioned platform?
               </Label>
-              <div className={radioGridControlClassName}>
-                <YesNoRadioGroup
-                  name="sameInvoiceUsed"
-                  value={whyRaisingFunds.sameInvoiceUsed}
-                  onValueChange={(v) =>
-                    setWhyRaisingFunds((prev) => ({ ...prev, sameInvoiceUsed: v }))
-                  }
-                  disabled={readOnly}
-                />
+              <div className="min-w-0 space-y-2 self-center w-full">
+                <div className={radioGridControlClassName}>
+                  <YesNoRadioGroup
+                    name="sameInvoiceUsed"
+                    value={whyRaisingFunds.sameInvoiceUsed}
+                    onValueChange={(v) =>
+                      setWhyRaisingFunds((prev) => ({ ...prev, sameInvoiceUsed: v }))
+                    }
+                    disabled={readOnly}
+                  />
+                </div>
+                {whyRaisingFunds.sameInvoiceUsed === "yes" && (
+                  <p className="text-sm text-destructive" role="alert">
+                    {SAME_INVOICE_OTHER_P2P_ERROR}
+                  </p>
+                )}
               </div>
             </>
           )}
@@ -1224,7 +1260,13 @@ export function BusinessDetailsStep({
       </section>
 
       {/* ===================== GUARANTOR DETAILS ===================== */}
-      <section className={`${sectionWrapperClassName} space-y-5`}>
+      <section
+        className={cn(
+          sectionWrapperClassName,
+          "space-y-5",
+          sameInvoiceP2pBlocked && "opacity-50"
+        )}
+      >
         <div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
             <h3 className={sectionHeaderClassName}>Guarantor details</h3>
@@ -1232,7 +1274,7 @@ export function BusinessDetailsStep({
               type="button"
               variant="default"
               className="shrink-0 w-full sm:w-auto"
-              disabled={readOnly}
+              disabled={fieldsLocked}
               onClick={() => setGuarantors((prev) => [...prev, emptyIndividualGuarantor()])}
             >
               + Add guarantor
@@ -1249,7 +1291,7 @@ export function BusinessDetailsStep({
                 variant="ghost"
                 size="sm"
                 className="text-destructive hover:text-destructive justify-start sm:justify-center px-0 sm:px-3"
-                disabled={readOnly || guarantors.length <= 1}
+                disabled={fieldsLocked || guarantors.length <= 1}
                 onClick={(e) => {
                   e.stopPropagation();
                   setGuarantors((prev) =>
@@ -1266,7 +1308,7 @@ export function BusinessDetailsStep({
               <GuarantorCardFields
                 row={row}
                 index={index}
-                readOnly={readOnly}
+                readOnly={fieldsLocked}
                 replaceGuarantorRow={replaceGuarantorRow}
                 setGuarantorTypeAt={setGuarantorTypeAt}
               />
@@ -1274,7 +1316,7 @@ export function BusinessDetailsStep({
 
             const subtitle = guarantorCardSummarySubtitle(row);
             const panelOpen =
-              readOnly ||
+              fieldsLocked ||
               (guarantorPanelOpen[index] !== undefined ? guarantorPanelOpen[index]! : index === 0);
 
             return (
@@ -1283,7 +1325,7 @@ export function BusinessDetailsStep({
                 className="group rounded-xl border border-border bg-background"
                 open={panelOpen}
                 onToggle={(e) => {
-                  if (readOnly) {
+                  if (fieldsLocked) {
                     e.preventDefault();
                     (e.currentTarget as HTMLDetailsElement).open = true;
                     return;
@@ -1322,9 +1364,9 @@ export function BusinessDetailsStep({
           type="button"
           className={cn(
             "hidden w-full rounded-xl border border-dashed border-border bg-muted/20 py-3 text-sm font-semibold text-foreground",
-            readOnly ? "opacity-50 pointer-events-none" : "hover:bg-muted/40 cursor-pointer"
+            fieldsLocked ? "opacity-50 pointer-events-none" : "hover:bg-muted/40 cursor-pointer"
           )}
-          disabled={readOnly}
+          disabled={fieldsLocked}
           onClick={() => setGuarantors((prev) => [...prev, emptyIndividualGuarantor()])}
         >
           + Add another guarantor
@@ -1332,21 +1374,33 @@ export function BusinessDetailsStep({
       </section>
 
       {/* ===================== DECLARATIONS ===================== */}
-      <section className={`${sectionWrapperClassName} space-y-5`}>
+      <section
+        className={cn(
+          sectionWrapperClassName,
+          "space-y-5",
+          sameInvoiceP2pBlocked && "opacity-50"
+        )}
+      >
         <div>
           <h3 className={sectionHeaderClassName}>Declarations</h3>
           <div className="border-b border-border mt-3 mb-6" />
         </div>
 
         <div className="rounded-xl border border-border bg-background p-4 sm:p-5">
-          <label className="flex items-start gap-3 cursor-pointer">
+          <label
+            className={cn(
+              "flex items-start gap-3",
+              fieldsLocked ? "cursor-not-allowed" : "cursor-pointer"
+            )}
+          >
             <Checkbox
               checked={declarationConfirmed}
               onCheckedChange={(checked) => setDeclarationConfirmed(checked === true)}
-              disabled={readOnly}
+              disabled={fieldsLocked}
               className={cn(
                 "mt-0.5 rounded-[4px]",
-                readOnly && "disabled:opacity-100 data-[state=checked]:bg-muted data-[state=checked]:border-muted-foreground data-[state=checked]:text-muted-foreground"
+                fieldsLocked &&
+                  "disabled:opacity-100 data-[state=checked]:bg-muted data-[state=checked]:border-muted-foreground data-[state=checked]:text-muted-foreground"
               )}
             />
             <span className="text-sm md:text-base leading-6 text-foreground">

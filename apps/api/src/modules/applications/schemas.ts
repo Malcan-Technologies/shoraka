@@ -79,12 +79,24 @@ const guarantorEntrySchema = z.discriminatedUnion("guarantor_type", [
   guarantorCompanySchema,
 ]);
 
-export const businessDetailsDataSchema = z.object({
-  about_your_business: aboutYourBusinessSchema.optional().default({}),
-  why_raising_funds: whyRaisingFundsSchema.optional().default({}),
-  declaration_confirmed: z.boolean(),
-  guarantors: z.array(guarantorEntrySchema).min(1, "At least one guarantor is required"),
-});
+export const businessDetailsDataSchema = z
+  .object({
+    about_your_business: aboutYourBusinessSchema.optional().default({}),
+    why_raising_funds: whyRaisingFundsSchema.optional().default({}),
+    declaration_confirmed: z.boolean(),
+    guarantors: z.array(guarantorEntrySchema).min(1, "At least one guarantor is required"),
+  })
+  .superRefine((data, ctx) => {
+    const w = data.why_raising_funds;
+    if (w?.raising_on_other_p2p === true && w?.same_invoice_used === true) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "This invoice has already been applied on another P2P platform and cannot be submitted.",
+        path: ["why_raising_funds", "same_invoice_used"],
+      });
+    }
+  });
 
 /** Validates stored input fields for financial_statements step. Flat storage; no computed fields. */
 const numSchema = z.union([z.string(), z.number()]).optional().default(0);
