@@ -67,6 +67,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { formatCurrency, useAuthToken, readInvoiceMaturityMonthsFromWorkflow } from "@cashsouk/config";
 import { ApplicationStatusBadge } from "@/components/application-review";
+import JSZip from "jszip";
 
 function PageSkeleton() {
   return (
@@ -169,6 +170,7 @@ export default function DynamicApplicationDetailPage() {
   const isReviewable = !!app && REVIEWABLE_STATUSES.includes(app.status);
   const { getAccessToken } = useAuthToken();
   const [viewDocumentPending, setViewDocumentPending] = React.useState(false);
+  const [downloadAllDocumentsPending, setDownloadAllDocumentsPending] = React.useState(false);
 
   const handleViewDocument = React.useCallback(
     async (s3Key: string) => {
@@ -239,6 +241,88 @@ export default function DynamicApplicationDetailPage() {
       }
     },
     [getAccessToken]
+  );
+
+  const handleDownloadAllDocuments = React.useCallback(
+    async (files: { s3Key: string; fileName: string; category: string; field: string }[]) => {
+      if (!files.length) {
+        toast.error("No supporting documents available for download");
+        return;
+      }
+      try {
+        setDownloadAllDocumentsPending(true);
+        const token = await getAccessToken();
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+        const zip = new JSZip();
+        const usedNames = new Map<string, Map<string, number>>();
+
+        const sanitizePathSegment = (value: string, fallback: string) => {
+          const v = value.trim();
+          const cleaned = v.replace(/[\\/:*?"<>|]/g, "_").replace(/\.+/g, ".").replace(/\s+/g, " ");
+          return cleaned || fallback;
+        };
+
+        const getUniqueName = (name: string, category: string, field: string) => {
+          const trimmed = name.trim() || "document.pdf";
+          const safeCategory = sanitizePathSegment(category, "Others");
+          const safeField = sanitizePathSegment(field, "Document");
+          const folderKey = `${safeCategory}/${safeField}`;
+          const byFolder = usedNames.get(folderKey) ?? new Map<string, number>();
+          const count = byFolder.get(trimmed) ?? 0;
+          byFolder.set(trimmed, count + 1);
+          usedNames.set(folderKey, byFolder);
+          const safeName = sanitizePathSegment(trimmed, "document.pdf");
+          if (count === 0) return `${safeCategory}/${safeField}/${safeName}`;
+          const dot = safeName.lastIndexOf(".");
+          if (dot <= 0) return `${safeCategory}/${safeField}/${safeName} (${count + 1})`;
+          const base = safeName.slice(0, dot);
+          const ext = safeName.slice(dot);
+          return `${safeCategory}/${safeField}/${base} (${count + 1})${ext}`;
+        };
+
+        for (const item of files) {
+          const response = await fetch(`${apiUrl}/v1/s3/download-url`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token && { Authorization: `Bearer ${token}` }),
+            },
+            body: JSON.stringify({ s3Key: item.s3Key }),
+          });
+          const result = await response.json();
+          if (!result.success) {
+            throw new Error(result.error?.message || "Failed to get download URL");
+          }
+          const downloadUrl = result.data?.downloadUrl;
+          if (!downloadUrl) {
+            throw new Error("Failed to get download URL");
+          }
+          const fileResponse = await fetch(downloadUrl);
+          if (!fileResponse.ok) {
+            throw new Error("Failed to fetch one of the files");
+          }
+          const blob = await fileResponse.blob();
+          const entryName = getUniqueName(item.fileName, item.category, item.field);
+          zip.file(entryName, blob);
+        }
+
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        const objectUrl = URL.createObjectURL(zipBlob);
+        const link = document.createElement("a");
+        link.href = objectUrl;
+        const suffix = (app?.id ?? applicationId).slice(-8).toUpperCase();
+        link.download = `supporting-documents-${suffix}.zip`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(objectUrl);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to download documents ZIP");
+      } finally {
+        setDownloadAllDocumentsPending(false);
+      }
+    },
+    [getAccessToken, app?.id, applicationId]
   );
 
   const handleViewSignedInvoiceOffer = React.useCallback(
@@ -924,6 +1008,8 @@ export default function DynamicApplicationDetailPage() {
                             }
                             onViewDocument={handleViewDocument}
                             onDownloadDocument={handleDownloadDocument}
+                            onDownloadAllDocuments={handleDownloadAllDocuments}
+                            downloadAllDocumentsPending={downloadAllDocumentsPending}
                             onApproveItem={async (itemId, itemType) => {
                               setNoteDialog({
                                 open: true,

@@ -27,7 +27,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 type DocFile = { label: string; s3Key: string };
-type DocItem = { key: string; label: string; s3Key?: string; files: DocFile[] };
+type DocItem = {
+  key: string;
+  label: string;
+  s3Key?: string;
+  downloadFileName?: string;
+  files: DocFile[];
+};
 type CategoryGroup = { categoryKey: string; categoryLabel: string; items: DocItem[] };
 
 function buildCategoryGroups(documents: unknown): CategoryGroup[] {
@@ -42,6 +48,10 @@ function buildCategoryGroups(documents: unknown): CategoryGroup[] {
         key: `supporting_documents:others:${i}:${slug}`,
         label: name || `Document ${i + 1}`,
         s3Key: file?.s3_key ?? (d?.s3_key as string | undefined),
+        downloadFileName:
+          typeof (d?.file as { file_name?: string } | undefined)?.file_name === "string"
+            ? (d?.file as { file_name?: string }).file_name
+            : undefined,
         files:
           typeof (file?.s3_key ?? (d?.s3_key as string | undefined)) === "string" &&
           String(file?.s3_key ?? (d?.s3_key as string | undefined)).trim() !== ""
@@ -95,6 +105,10 @@ function buildCategoryGroups(documents: unknown): CategoryGroup[] {
           key: `supporting_documents:${categoryKey}:${docIndex}:${slug}`,
           label: labelWithCount,
           s3Key: file?.s3_key ?? (d?.s3_key as string | undefined),
+          downloadFileName:
+            typeof file?.file_name === "string" && file.file_name.trim() !== ""
+              ? file.file_name
+              : undefined,
           files: viewFiles,
         };
       });
@@ -118,6 +132,10 @@ function buildCategoryGroups(documents: unknown): CategoryGroup[] {
         key: `supporting_documents:${categoryKey}:${i}:${slug}`,
         label: name || `${categoryKey} ${i + 1}`,
         s3Key: file?.s3_key ?? (d?.s3_key as string | undefined),
+        downloadFileName:
+          typeof (d?.file as { file_name?: string } | undefined)?.file_name === "string"
+            ? (d?.file as { file_name?: string }).file_name
+            : undefined,
         files:
           typeof (file?.s3_key ?? (d?.s3_key as string | undefined)) === "string" &&
           String(file?.s3_key ?? (d?.s3_key as string | undefined)).trim() !== ""
@@ -207,7 +225,7 @@ export function DocumentList({
             </CollapsibleTrigger>
             <CollapsibleContent>
               <div className="border-t pl-12 pr-4 py-3 space-y-3">
-                {items.map(({ key, label, s3Key, files }) => {
+                {items.map(({ key, label, s3Key, downloadFileName, files }) => {
                   const status = getItemStatus(key);
                   const canViewSingle = Boolean(s3Key && onViewDocument);
                   const canViewMultiple = Boolean(onViewDocument && files.length > 1);
@@ -270,7 +288,7 @@ export function DocumentList({
                             variant="outline"
                             size="sm"
                             className="rounded-lg h-9 gap-1 border-0"
-                            onClick={() => onDownloadDocument?.(s3Key!, label)}
+                            onClick={() => onDownloadDocument?.(s3Key!, downloadFileName)}
                             disabled={isViewDocumentPending}
                           >
                             <ArrowDownTrayIcon className="h-4 w-4" />
