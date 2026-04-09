@@ -186,6 +186,21 @@ export function generateBusinessDetailsData(): Record<string, unknown> {
       accounting_software: "Xero",
     },
     declaration_confirmed: true,
+    guarantors: [
+      {
+        guarantor_type: "individual" as const,
+        first_name: "John",
+        last_name: "Doe",
+        ic_number: "901212-10-1234",
+        relationship: "family_members_of_director" as const,
+      },
+      {
+        guarantor_type: "company" as const,
+        company_name: "ABC Holdings Sdn Bhd",
+        ssm_number: "1234567-X",
+        relationship: "parent_company" as const,
+      },
+    ],
   };
 }
 

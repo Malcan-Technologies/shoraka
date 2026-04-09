@@ -24,6 +24,24 @@ import { parseMoney, formatMoney } from "@cashsouk/ui";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import { BusinessDetailsSkeleton } from "@/app/(application-flow)/applications/components/business-details-skeleton";
 import { generateBusinessDetailsData } from "@/app/(application-flow)/applications/utils/dev-data-generator";
+import {
+  GUARANTOR_COMPANY_RELATIONSHIP_LABELS,
+  GUARANTOR_COMPANY_RELATIONSHIPS,
+  GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS,
+  GUARANTOR_INDIVIDUAL_RELATIONSHIPS,
+  type GuarantorCompanyRelationship,
+  type GuarantorIndividualRelationship,
+} from "@cashsouk/types";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { formSelectTriggerClassName } from "@/app/(application-flow)/applications/components/form-control";
+import { ChevronRightIcon, TrashIcon } from "@heroicons/react/24/outline";
 
 /**
  * BUSINESS DETAILS STEP
@@ -61,10 +79,75 @@ interface WhyRaisingFunds {
   accountingSoftware: string;
 }
 
+interface GuarantorIndividualRow {
+  guarantorType: "individual";
+  firstName: string;
+  lastName: string;
+  icNumber: string;
+  relationship: GuarantorIndividualRelationship | "";
+}
+
+interface GuarantorCompanyRow {
+  guarantorType: "company";
+  companyName: string;
+  ssmNumber: string;
+  relationship: GuarantorCompanyRelationship | "";
+}
+
+type GuarantorFormRow = GuarantorIndividualRow | GuarantorCompanyRow;
+
+function guarantorCardSummarySubtitle(row: GuarantorFormRow): string {
+  if (row.guarantorType === "individual") {
+    const name = [row.firstName, row.lastName]
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .join(" ");
+    const rel =
+      row.relationship &&
+      GUARANTOR_INDIVIDUAL_RELATIONSHIPS.includes(row.relationship as GuarantorIndividualRelationship)
+        ? GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS[row.relationship as GuarantorIndividualRelationship]
+        : "";
+    if (name && rel) return `${name} (${rel})`;
+    if (name) return name;
+    if (rel) return `(${rel})`;
+    return "";
+  }
+  const co = row.companyName.trim();
+  const rel =
+    row.relationship &&
+    GUARANTOR_COMPANY_RELATIONSHIPS.includes(row.relationship as GuarantorCompanyRelationship)
+      ? GUARANTOR_COMPANY_RELATIONSHIP_LABELS[row.relationship as GuarantorCompanyRelationship]
+      : "";
+  if (co && rel) return `${co} (${rel})`;
+  if (co) return co;
+  if (rel) return `(${rel})`;
+  return "";
+}
+
+function emptyIndividualGuarantor(): GuarantorIndividualRow {
+  return {
+    guarantorType: "individual",
+    firstName: "",
+    lastName: "",
+    icNumber: "",
+    relationship: "",
+  };
+}
+
+function emptyCompanyGuarantor(): GuarantorCompanyRow {
+  return {
+    guarantorType: "company",
+    companyName: "",
+    ssmNumber: "",
+    relationship: "",
+  };
+}
+
 interface BusinessDetailsPayload {
   aboutYourBusiness: AboutYourBusiness;
   whyRaisingFunds: WhyRaisingFunds;
   declarationConfirmed: boolean;
+  guarantors: GuarantorFormRow[];
 }
 
 /** API/DB shape: snake_case keys; yes/no fields stored as boolean */
@@ -87,6 +170,21 @@ interface BusinessDetailsSnake {
     accounting_software?: string;
   };
   declaration_confirmed?: boolean;
+  guarantors?: Array<
+    | {
+        guarantor_type: "individual";
+        first_name: string;
+        last_name: string;
+        ic_number: string;
+        relationship: GuarantorIndividualRelationship;
+      }
+    | {
+        guarantor_type: "company";
+        company_name: string;
+        ssm_number: string;
+        relationship: GuarantorCompanyRelationship;
+      }
+  >;
 }
 
 function yesNoToBoolean(v: YesNo | ""): boolean | undefined {
@@ -118,6 +216,22 @@ function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
       accounting_software: p.whyRaisingFunds.accountingSoftware ?? "",
     },
     declaration_confirmed: p.declarationConfirmed,
+    guarantors: p.guarantors.map((g) =>
+      g.guarantorType === "individual"
+        ? {
+            guarantor_type: "individual" as const,
+            first_name: g.firstName.trim(),
+            last_name: g.lastName.trim(),
+            ic_number: g.icNumber.trim(),
+            relationship: g.relationship as GuarantorIndividualRelationship,
+          }
+        : {
+            guarantor_type: "company" as const,
+            company_name: g.companyName.trim(),
+            ssm_number: g.ssmNumber.trim(),
+            relationship: g.relationship as GuarantorCompanyRelationship,
+          }
+    ),
   };
 
   /* Always include P2P-dependent fields. When "no", set to null to preserve structure. */
@@ -157,7 +271,44 @@ function fromSnakeSaved(saved: BusinessDetailsSnake | Record<string, unknown> | 
       accountingSoftware: w?.accounting_software ?? w?.accountingSoftware ?? "",
     },
     declarationConfirmed: raw?.declaration_confirmed ?? raw?.declarationConfirmed ?? false,
+    guarantors: parseGuarantorsFromRaw(raw?.guarantors),
   };
+}
+
+function parseGuarantorsFromRaw(raw: unknown): GuarantorFormRow[] {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return [emptyIndividualGuarantor()];
+  }
+  const out: GuarantorFormRow[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const o = item as Record<string, unknown>;
+    const gt = o.guarantor_type ?? o.guarantorType;
+    if (gt === "individual") {
+      const rel = o.relationship;
+      const relationshipOk =
+        typeof rel === "string" &&
+        (GUARANTOR_INDIVIDUAL_RELATIONSHIPS as readonly string[]).includes(rel);
+      out.push({
+        guarantorType: "individual",
+        firstName: String(o.first_name ?? o.firstName ?? ""),
+        lastName: String(o.last_name ?? o.lastName ?? ""),
+        icNumber: String(o.ic_number ?? o.icNumber ?? ""),
+        relationship: relationshipOk ? (rel as GuarantorIndividualRelationship) : "",
+      });
+    } else if (gt === "company") {
+      const rel = o.relationship;
+      const relationshipOk =
+        typeof rel === "string" && (GUARANTOR_COMPANY_RELATIONSHIPS as readonly string[]).includes(rel);
+      out.push({
+        guarantorType: "company",
+        companyName: String(o.company_name ?? o.companyName ?? ""),
+        ssmNumber: String(o.ssm_number ?? o.ssmNumber ?? ""),
+        relationship: relationshipOk ? (rel as GuarantorCompanyRelationship) : "",
+      });
+    }
+  }
+  return out.length > 0 ? out : [emptyIndividualGuarantor()];
 }
 
 /** Mock data for dev Auto Fill. Re-exports from dev-data-generator. */
@@ -211,7 +362,10 @@ const textareaClassName = cn(formTextareaClassName, "min-h-[100px]");
  * Includes px-3 for consistent indentation with other steps
  */
 const rowGridClassName =
-  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 w-full max-w-[1200px] items-center px-3";
+  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-8 mt-5 w-full max-w-[1200px] items-start px-3";
+
+/** Right-column wrapper for yes/no rows: vertically center radios vs multi-line labels. */
+const radioGridControlClassName = "self-center w-full min-w-0";
 
 /**
  * Section wrapper
@@ -220,11 +374,10 @@ const sectionWrapperClassName =
   "w-full max-w-[1200px]";
 
 /**
- * Outer form spacing
- * gap-8 = consistent section separation
+ * Outer form spacing — room between major sections (BRANDING: breathable layout).
  */
 const formOuterClassName =
-  "w-full max-w-[1200px] flex flex-col gap-10 px-3";
+  "w-full max-w-[1200px] flex flex-col gap-12 md:gap-14 px-3";
 
 /**
  * Radio labels (use canonical form label styles)
@@ -375,6 +528,210 @@ function TextareaWithCharCount({
   );
 }
 
+interface GuarantorCardFieldsProps {
+  row: GuarantorFormRow;
+  index: number;
+  readOnly: boolean;
+  replaceGuarantorRow: (index: number, next: GuarantorFormRow) => void;
+  setGuarantorTypeAt: (index: number, type: "individual" | "company") => void;
+}
+
+function GuarantorCardFields({
+  row,
+  index,
+  readOnly,
+  replaceGuarantorRow,
+  setGuarantorTypeAt,
+}: GuarantorCardFieldsProps) {
+  const inputClassName = formInputClassName;
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2 w-full min-w-0">
+        <Label className={formLabelClassName}>Guarantor type</Label>
+        <Select
+          value={row.guarantorType}
+          disabled={readOnly}
+          onValueChange={(v) => setGuarantorTypeAt(index, v as "individual" | "company")}
+        >
+          <SelectTrigger
+            className={cn(
+              formSelectTriggerClassName,
+              "w-full",
+              readOnly && formInputDisabledClassName
+            )}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="individual">Individual</SelectItem>
+            <SelectItem value="company">Company</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {row.guarantorType === "individual" ? (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full min-w-0">
+            <div className="space-y-2 w-full min-w-0">
+              <Label htmlFor={`g-${index}-first`} className={formLabelClassName}>
+                First name
+              </Label>
+              <Input
+                id={`g-${index}-first`}
+                value={row.firstName}
+                onChange={(e) =>
+                  replaceGuarantorRow(index, {
+                    ...row,
+                    firstName: e.target.value.slice(0, 100),
+                  })
+                }
+                placeholder="First name"
+                className={cn(inputClassName, readOnly && formInputDisabledClassName)}
+                disabled={readOnly}
+              />
+            </div>
+            <div className="space-y-2 w-full min-w-0">
+              <Label htmlFor={`g-${index}-last`} className={formLabelClassName}>
+                Last name
+              </Label>
+              <Input
+                id={`g-${index}-last`}
+                value={row.lastName}
+                onChange={(e) =>
+                  replaceGuarantorRow(index, {
+                    ...row,
+                    lastName: e.target.value.slice(0, 100),
+                  })
+                }
+                placeholder="Last name"
+                className={cn(inputClassName, readOnly && formInputDisabledClassName)}
+                disabled={readOnly}
+              />
+            </div>
+          </div>
+          <div className="space-y-2 w-full min-w-0">
+            <Label htmlFor={`g-${index}-ic`} className={formLabelClassName}>
+              IC number
+            </Label>
+            <Input
+              id={`g-${index}-ic`}
+              value={row.icNumber}
+              onChange={(e) =>
+                replaceGuarantorRow(index, {
+                  ...row,
+                  icNumber: e.target.value.slice(0, 30),
+                })
+              }
+              placeholder="e.g. 901212-10-1234"
+              className={cn(inputClassName, readOnly && formInputDisabledClassName)}
+              disabled={readOnly}
+            />
+          </div>
+          <div className="space-y-2 w-full min-w-0">
+            <Label className={formLabelClassName}>Relationship</Label>
+            <Select
+              value={row.relationship || undefined}
+              disabled={readOnly}
+              onValueChange={(v) =>
+                replaceGuarantorRow(index, {
+                  ...row,
+                  relationship: v as GuarantorIndividualRelationship,
+                })
+              }
+            >
+              <SelectTrigger
+                className={cn(
+                  formSelectTriggerClassName,
+                  "w-full",
+                  readOnly && formInputDisabledClassName
+                )}
+              >
+                <SelectValue placeholder="Select relationship" />
+              </SelectTrigger>
+              <SelectContent>
+                {GUARANTOR_INDIVIDUAL_RELATIONSHIPS.map((key) => (
+                  <SelectItem key={key} value={key}>
+                    {GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS[key]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="space-y-2 w-full min-w-0">
+            <Label htmlFor={`g-${index}-co`} className={formLabelClassName}>
+              Company name
+            </Label>
+            <Input
+              id={`g-${index}-co`}
+              value={row.companyName}
+              onChange={(e) =>
+                replaceGuarantorRow(index, {
+                  ...row,
+                  companyName: e.target.value.slice(0, 200),
+                })
+              }
+              placeholder="e.g. ABC Holdings Sdn Bhd"
+              className={cn(inputClassName, readOnly && formInputDisabledClassName)}
+              disabled={readOnly}
+            />
+          </div>
+          <div className="space-y-2 w-full min-w-0">
+            <Label htmlFor={`g-${index}-ssm`} className={formLabelClassName}>
+              SSM number
+            </Label>
+            <Input
+              id={`g-${index}-ssm`}
+              value={row.ssmNumber}
+              onChange={(e) =>
+                replaceGuarantorRow(index, {
+                  ...row,
+                  ssmNumber: e.target.value.slice(0, 50),
+                })
+              }
+              placeholder="e.g. 1234567-X123456"
+              className={cn(inputClassName, readOnly && formInputDisabledClassName)}
+              disabled={readOnly}
+            />
+          </div>
+          <div className="space-y-2 w-full min-w-0">
+            <Label className={formLabelClassName}>Relationship</Label>
+            <Select
+              value={row.relationship || undefined}
+              disabled={readOnly}
+              onValueChange={(v) =>
+                replaceGuarantorRow(index, {
+                  ...row,
+                  relationship: v as GuarantorCompanyRelationship,
+                })
+              }
+            >
+              <SelectTrigger
+                className={cn(
+                  formSelectTriggerClassName,
+                  "w-full",
+                  readOnly && formInputDisabledClassName
+                )}
+              >
+                <SelectValue placeholder="Select relationship" />
+              </SelectTrigger>
+              <SelectContent>
+                {GUARANTOR_COMPANY_RELATIONSHIPS.map((key) => (
+                  <SelectItem key={key} value={key}>
+                    {GUARANTOR_COMPANY_RELATIONSHIP_LABELS[key]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function BusinessDetailsStep({
   applicationId,
   onDataChange,
@@ -386,6 +743,9 @@ export function BusinessDetailsStep({
   const [aboutYourBusiness, setAboutYourBusiness] = React.useState<AboutYourBusiness>(defaultAbout);
   const [whyRaisingFunds, setWhyRaisingFunds] = React.useState<WhyRaisingFunds>(defaultWhy);
   const [declarationConfirmed, setDeclarationConfirmed] = React.useState(false);
+  const [guarantors, setGuarantors] = React.useState<GuarantorFormRow[]>([emptyIndividualGuarantor()]);
+  /** Collapsible guarantor cards; index 0 defaults open until user toggles. */
+  const [guarantorPanelOpen, setGuarantorPanelOpen] = React.useState<Record<number, boolean>>({});
 
   const [isInitialized, setIsInitialized] = React.useState(false);
   const initialPayloadRef = React.useRef<string>("");
@@ -394,6 +754,16 @@ export function BusinessDetailsStep({
   React.useEffect(() => {
     onDataChangeRef.current = onDataChange;
   }, [onDataChange]);
+
+  React.useEffect(() => {
+    setGuarantorPanelOpen((prev) => {
+      const next: Record<number, boolean> = {};
+      for (let i = 0; i < guarantors.length; i++) {
+        if (prev[i] !== undefined) next[i] = prev[i]!;
+      }
+      return next;
+    });
+  }, [guarantors.length]);
 
   const validateBusinessDetails = React.useCallback(() => {
     const { whatDoesCompanyDo, mainCustomers, singleCustomerOver50Revenue } = aboutYourBusiness;
@@ -435,8 +805,27 @@ export function BusinessDetailsStep({
         return false;
       }
     }
+
+    if (guarantors.length < 1) return false;
+    for (const g of guarantors) {
+      if (g.guarantorType === "individual") {
+        if (
+          !g.firstName.trim() ||
+          !g.lastName.trim() ||
+          !g.icNumber.trim() ||
+          !g.relationship
+        ) {
+          return false;
+        }
+      } else {
+        if (!g.companyName.trim() || !g.ssmNumber.trim() || !g.relationship) {
+          return false;
+        }
+      }
+    }
+
     return true;
-  }, [aboutYourBusiness, whyRaisingFunds, declarationConfirmed]);
+  }, [aboutYourBusiness, whyRaisingFunds, declarationConfirmed, guarantors]);
 
   React.useEffect(() => {
     if (application === undefined || isInitialized) return;
@@ -449,6 +838,7 @@ export function BusinessDetailsStep({
       amountRaised: initial.whyRaisingFunds.amountRaised,
     });
     setDeclarationConfirmed(initial.declarationConfirmed);
+    setGuarantors(initial.guarantors);
     initialPayloadRef.current = JSON.stringify(toSnakePayload(initial));
     setIsInitialized(true);
   }, [application, isInitialized]);
@@ -476,6 +866,7 @@ export function BusinessDetailsStep({
     setAboutYourBusiness(initial.aboutYourBusiness);
     setWhyRaisingFunds(initial.whyRaisingFunds);
     setDeclarationConfirmed(initial.declarationConfirmed);
+    setGuarantors(initial.guarantors);
     initialPayloadRef.current = JSON.stringify(toSnakePayload(initial));
     if (devTools) {
       if (devTools.autoFillData?.stepKey === "business_details") devTools.clearAutoFill();
@@ -488,8 +879,9 @@ export function BusinessDetailsStep({
       aboutYourBusiness,
       whyRaisingFunds,
       declarationConfirmed,
+      guarantors,
     }),
-    [aboutYourBusiness, whyRaisingFunds, declarationConfirmed]
+    [aboutYourBusiness, whyRaisingFunds, declarationConfirmed, guarantors]
   );
 
   const snakePayload = React.useMemo(() => toSnakePayload(payload), [payload]);
@@ -519,14 +911,22 @@ export function BusinessDetailsStep({
     return <BusinessDetailsSkeleton />;
   }
 
+  const replaceGuarantorRow = (index: number, next: GuarantorFormRow) => {
+    setGuarantors((prev) => prev.map((row, i) => (i === index ? next : row)));
+  };
+
+  const setGuarantorTypeAt = (index: number, type: "individual" | "company") => {
+    replaceGuarantorRow(index, type === "individual" ? emptyIndividualGuarantor() : emptyCompanyGuarantor());
+  };
+
   return (
     <>
       <div className={formOuterClassName}>
         {/* ===================== ABOUT YOUR BUSINESS ===================== */}
-        <section className={`${sectionWrapperClassName} space-y-3`}>
+        <section className={`${sectionWrapperClassName} space-y-5`}>
         <div>
           <h3 className={sectionHeaderClassName}>About your business</h3>
-          <div className="border-b border-border mt-2 mb-4" />
+          <div className="border-b border-border mt-3 mb-6" />
         </div>
 
         <div className={rowGridClassName}>
@@ -571,14 +971,16 @@ export function BusinessDetailsStep({
           <Label className={labelClassName}>
             Does any single customer make up more than 50% of your revenue?
           </Label>
-          <YesNoRadioGroup
-            name="singleCustomerOver50Revenue"
-            value={aboutYourBusiness.singleCustomerOver50Revenue}
-            onValueChange={(v) =>
-              setAboutYourBusiness((prev) => ({ ...prev, singleCustomerOver50Revenue: v }))
-            }
-            disabled={readOnly}
-          />
+          <div className={radioGridControlClassName}>
+            <YesNoRadioGroup
+              name="singleCustomerOver50Revenue"
+              value={aboutYourBusiness.singleCustomerOver50Revenue}
+              onValueChange={(v) =>
+                setAboutYourBusiness((prev) => ({ ...prev, singleCustomerOver50Revenue: v }))
+              }
+              disabled={readOnly}
+            />
+          </div>
 
           <Label htmlFor="accounting-software" className={labelClassName}>
             Which accounting software does the issuer use?
@@ -600,10 +1002,10 @@ export function BusinessDetailsStep({
       </section>
 
       {/* ===================== WHY ARE YOU RAISING FUNDS ===================== */}
-      <section className={`${sectionWrapperClassName} space-y-3`}>
+      <section className={`${sectionWrapperClassName} space-y-5`}>
         <div>
           <h3 className={sectionHeaderClassName}>Why are you raising funds?</h3>
-          <div className="border-b border-border mt-2 mb-4" />
+          <div className="border-b border-border mt-3 mb-6" />
         </div>
 
         <div className={rowGridClassName}>
@@ -705,14 +1107,16 @@ export function BusinessDetailsStep({
           <Label className={labelClassName}>
             Are you currently raising/applying funds on any other P2P platforms?
           </Label>
-          <YesNoRadioGroup
-            name="raisingOnOtherP2P"
-            value={whyRaisingFunds.raisingOnOtherP2P}
-            onValueChange={(v) =>
-              setWhyRaisingFunds((prev) => ({ ...prev, raisingOnOtherP2P: v }))
-            }
-            disabled={readOnly}
-          />
+          <div className={radioGridControlClassName}>
+            <YesNoRadioGroup
+              name="raisingOnOtherP2P"
+              value={whyRaisingFunds.raisingOnOtherP2P}
+              onValueChange={(v) =>
+                setWhyRaisingFunds((prev) => ({ ...prev, raisingOnOtherP2P: v }))
+              }
+              disabled={readOnly}
+            />
+          </div>
 
           {whyRaisingFunds.raisingOnOtherP2P === "yes" && (
             <>
@@ -760,24 +1164,134 @@ export function BusinessDetailsStep({
               <Label className={labelClassName}>
                 Have the same invoices been used to apply for funding in the aforementioned platform?
               </Label>
-              <YesNoRadioGroup
-                name="sameInvoiceUsed"
-                value={whyRaisingFunds.sameInvoiceUsed}
-                onValueChange={(v) =>
-                  setWhyRaisingFunds((prev) => ({ ...prev, sameInvoiceUsed: v }))
-                }
-                disabled={readOnly}
-              />
+              <div className={radioGridControlClassName}>
+                <YesNoRadioGroup
+                  name="sameInvoiceUsed"
+                  value={whyRaisingFunds.sameInvoiceUsed}
+                  onValueChange={(v) =>
+                    setWhyRaisingFunds((prev) => ({ ...prev, sameInvoiceUsed: v }))
+                  }
+                  disabled={readOnly}
+                />
+              </div>
             </>
           )}
         </div>
       </section>
 
+      {/* ===================== GUARANTOR DETAILS ===================== */}
+      <section className={`${sectionWrapperClassName} space-y-5`}>
+        <div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h3 className={sectionHeaderClassName}>Guarantor details</h3>
+            <Button
+              type="button"
+              variant="default"
+              className="shrink-0 w-full sm:w-auto"
+              disabled={readOnly}
+              onClick={() => setGuarantors((prev) => [...prev, emptyIndividualGuarantor()])}
+            >
+              + Add guarantor
+            </Button>
+          </div>
+          <div className="border-b border-border mt-3 mb-4" />
+        </div>
+
+        <div className="flex flex-col gap-6">
+          {guarantors.map((row, index) => {
+            const removeButton = (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive justify-start sm:justify-center px-0 sm:px-3"
+                disabled={readOnly || guarantors.length <= 1}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setGuarantors((prev) =>
+                    prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)
+                  );
+                }}
+              >
+                <TrashIcon className="h-4 w-4 mr-1" aria-hidden />
+                Remove
+              </Button>
+            );
+
+            const fields = (
+              <GuarantorCardFields
+                row={row}
+                index={index}
+                readOnly={readOnly}
+                replaceGuarantorRow={replaceGuarantorRow}
+                setGuarantorTypeAt={setGuarantorTypeAt}
+              />
+            );
+
+            const subtitle = guarantorCardSummarySubtitle(row);
+            const panelOpen =
+              readOnly ||
+              (guarantorPanelOpen[index] !== undefined ? guarantorPanelOpen[index]! : index === 0);
+
+            return (
+              <details
+                key={index}
+                className="group rounded-xl border border-border bg-background"
+                open={panelOpen}
+                onToggle={(e) => {
+                  if (readOnly) {
+                    e.preventDefault();
+                    (e.currentTarget as HTMLDetailsElement).open = true;
+                    return;
+                  }
+                  const d = e.currentTarget;
+                  setGuarantorPanelOpen((p) => ({ ...p, [index]: d.open }));
+                }}
+              >
+                <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-2 px-4 sm:px-5 py-4 border-b border-border">
+                    <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                      <span className="shrink-0 text-base font-semibold text-foreground">
+                        Guarantor {index + 1}
+                      </span>
+                      <ChevronRightIcon
+                        className="h-5 w-5 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-90"
+                        aria-hidden
+                      />
+                      {subtitle ? (
+                        <span className="min-w-0 truncate text-sm text-muted-foreground">
+                          {subtitle}
+                        </span>
+                      ) : null}
+                    </div>
+                    {removeButton}
+                  </div>
+                </summary>
+                <div className="px-4 sm:px-5 pb-4 sm:pb-5 pt-4">{fields}</div>
+              </details>
+            );
+          })}
+        </div>
+
+        {/* Secondary add control — same handler as header; hidden until product wants dashed CTA again. */}
+        <button
+          type="button"
+          className={cn(
+            "hidden w-full rounded-xl border border-dashed border-border bg-muted/20 py-3 text-sm font-semibold text-foreground",
+            readOnly ? "opacity-50 pointer-events-none" : "hover:bg-muted/40 cursor-pointer"
+          )}
+          disabled={readOnly}
+          onClick={() => setGuarantors((prev) => [...prev, emptyIndividualGuarantor()])}
+        >
+          + Add another guarantor
+        </button>
+      </section>
+
       {/* ===================== DECLARATIONS ===================== */}
-      <section className={`${sectionWrapperClassName} space-y-3`}>
+      <section className={`${sectionWrapperClassName} space-y-5`}>
         <div>
           <h3 className={sectionHeaderClassName}>Declarations</h3>
-          <div className="border-b border-border mt-2 mb-4" />
+          <div className="border-b border-border mt-3 mb-6" />
         </div>
 
         <div className="rounded-xl border border-border bg-background p-4 sm:p-5">

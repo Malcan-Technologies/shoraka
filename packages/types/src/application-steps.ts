@@ -68,9 +68,9 @@ export const STEP_KEY_DISPLAY: Record<ApplicationStepKey, StepKeyDisplay> = {
     description: "Make sure all company details are up to date",
   },
   business_details: {
-    title: "Business Details",
-    pageTitle: "Business Details",
-    description: "Tell us about your business",
+    title: "Business & Guarantor Details",
+    pageTitle: "Business & Guarantor Details",
+    description: "Tell us about your business and provide at least one guarantor",
   },
   financial_statements: {
     title: "Financial Statements",

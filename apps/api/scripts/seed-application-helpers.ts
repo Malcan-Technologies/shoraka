@@ -110,7 +110,7 @@ export function buildCompanyDetails(issuerOrganizationId: string): Record<string
   };
 }
 
-/** business_details: about_your_business, why_raising_funds, declaration_confirmed. */
+/** business_details: about_your_business, why_raising_funds, declaration_confirmed, guarantors. */
 export function buildBusinessDetails(): Record<string, unknown> {
   return {
     about_your_business: {
@@ -134,6 +134,21 @@ export function buildBusinessDetails(): Record<string, unknown> {
     },
     declaration_confirmed: true,
     isDeclarationConfirmed: true,
+    guarantors: [
+      {
+        guarantor_type: "individual" as const,
+        first_name: "Ahmad",
+        last_name: "Hassan",
+        ic_number: "850315-10-1234",
+        relationship: "director_shareholder" as const,
+      },
+      {
+        guarantor_type: "company" as const,
+        company_name: "ABC Holdings Sdn Bhd",
+        ssm_number: "1234567-A",
+        relationship: "parent_company" as const,
+      },
+    ],
   };
 }
 

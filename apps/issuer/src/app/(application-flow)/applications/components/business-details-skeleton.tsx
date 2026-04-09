@@ -10,11 +10,11 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
 const formOuterClassName =
-  "w-full max-w-[1200px] flex flex-col gap-10 px-3";
+  "w-full max-w-[1200px] flex flex-col gap-12 md:gap-14 px-3";
 const sectionWrapperClassName =
   "w-full max-w-[1200px]";
 const rowGridClassName =
-  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 w-full max-w-[1200px] items-start px-3";
+  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-8 mt-5 w-full max-w-[1200px] items-start px-3";
 
 export function BusinessDetailsSkeleton() {
   return (
@@ -98,6 +98,34 @@ export function BusinessDetailsSkeleton() {
             <Skeleton className="h-5 w-[80px]" />
           </div>
         </div>
+      </section>
+
+      {/* ===================== GUARANTOR DETAILS ===================== */}
+      <section className={`${sectionWrapperClassName} space-y-5`}>
+        <div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <Skeleton className="h-6 w-[180px]" />
+            <Skeleton className="h-10 w-full sm:w-[160px] rounded-xl shrink-0" />
+          </div>
+          <div className="mt-3 mb-4 h-px bg-border" />
+        </div>
+        <div className="rounded-xl border border-border bg-background p-4 sm:p-5">
+          <div className="flex justify-between items-center gap-3 pb-4 mb-4 border-b border-border">
+            <Skeleton className="h-5 w-[120px]" />
+            <Skeleton className="h-8 w-[88px]" />
+          </div>
+          <div className="space-y-4">
+            <Skeleton className="h-5 w-[140px]" />
+            <Skeleton className="h-10 w-full rounded-xl" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Skeleton className="h-10 w-full rounded-xl" />
+              <Skeleton className="h-10 w-full rounded-xl" />
+            </div>
+            <Skeleton className="h-10 w-full rounded-xl" />
+            <Skeleton className="h-10 w-full rounded-xl" />
+          </div>
+        </div>
+        <Skeleton className="hidden h-12 w-full rounded-xl" aria-hidden />
       </section>
 
       {/* ===================== DECLARATIONS ===================== */}

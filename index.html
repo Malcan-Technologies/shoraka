@@ -11,9 +11,11 @@
 
     body {
       margin: 0;
-      font-family: Inter, Arial, sans-serif;
+      font-family: Inter, system-ui, sans-serif;
+      font-size: 17px;
+      line-height: 1.75;
       background: #f7f7f8;
-      color: #171717;
+      color: #111827;
     }
 
     .app {
@@ -179,7 +181,7 @@
     }
 
     .section {
-      padding: 28px;
+      padding: 32px 28px 36px;
       border-bottom: 1px solid #f0f0f0;
     }
 
@@ -202,7 +204,7 @@
     .form-grid {
       display: grid;
       grid-template-columns: 260px 1fr;
-      row-gap: 18px;
+      row-gap: 24px;
       column-gap: 22px;
       align-items: start;
     }
@@ -222,13 +224,27 @@
     textarea,
     select {
       width: 100%;
-      border: 1px solid #dcdfe4;
-      border-radius: 10px;
+      max-width: 100%;
+      min-width: 0;
+      display: block;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.8rem;
       background: #fff;
-      font-size: 15px;
+      font-size: 17px;
+      line-height: 1.5;
       color: #111827;
       padding: 12px 14px;
       outline: none;
+      box-sizing: border-box;
+    }
+
+    select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      background-size: 1.25rem;
+      padding-right: 40px;
     }
 
     textarea {
@@ -243,12 +259,16 @@
       box-shadow: 0 0 0 3px rgba(138, 3, 4, 0.08);
     }
 
+    /* Center yes/no controls vertically when the label is taller (multi-line). */
+    .form-grid .radio-row {
+      align-self: center;
+    }
+
     .radio-row {
       display: flex;
       gap: 28px;
       align-items: center;
       min-height: 44px;
-      padding-top: 8px;
     }
 
     .radio-option {
@@ -262,12 +282,23 @@
       accent-color: #8a0304;
     }
 
-    .guarantor-header {
+    .guarantor-section-title-row {
       display: flex;
+      flex-wrap: wrap;
       justify-content: space-between;
       align-items: center;
-      gap: 16px;
-      margin-bottom: 18px;
+      gap: 12px 16px;
+    }
+
+    .guarantor-section-title-row .section-title {
+      margin: 0;
+    }
+
+    .guarantor-section-rule {
+      height: 1px;
+      background: #e5e7eb;
+      margin-top: 12px;
+      margin-bottom: 20px;
     }
 
     .btn {
@@ -285,7 +316,7 @@
     }
 
     .btn-primary:hover {
-      background: #730304;
+      background: #ce2922;
     }
 
     .btn-light {
@@ -302,23 +333,26 @@
 
     .guarantor-card {
       border: 1px solid #e5e7eb;
-      border-radius: 14px;
-      overflow: hidden;
+      border-radius: 0.8rem;
       background: #fff;
+      padding: 20px 18px;
     }
 
-    .guarantor-card-top {
+    .guarantor-card-heading {
       display: flex;
+      flex-wrap: wrap;
       justify-content: space-between;
       align-items: center;
-      padding: 16px 18px;
-      background: #fafafa;
-      border-bottom: 1px solid #ececec;
+      gap: 10px 16px;
+      padding-bottom: 16px;
+      margin-bottom: 18px;
+      border-bottom: 1px solid #e5e7eb;
     }
 
     .guarantor-card-title {
-      font-size: 18px;
+      font-size: 1rem;
       font-weight: 700;
+      color: #111827;
     }
 
     .remove-btn {
@@ -331,7 +365,72 @@
     }
 
     .guarantor-card-body {
-      padding: 20px 18px 18px;
+      width: 100%;
+    }
+
+    /* Guarantor cards: native disclosure; first card open by default */
+    .guarantor-collapsible {
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .guarantor-collapsible > summary.guarantor-summary {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px 16px;
+      padding: 20px 18px 16px;
+      margin-bottom: 0;
+      border-bottom: 1px solid #e5e7eb;
+      cursor: pointer;
+    }
+
+    .guarantor-collapsible > summary.guarantor-summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .guarantor-summary-inner {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .guarantor-summary-meta {
+      font-size: 14px;
+      font-weight: 500;
+      color: #6b7280;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .guarantor-chevron {
+      display: inline-block;
+      font-size: 0.65rem;
+      color: #6b7280;
+      transition: transform 0.15s ease;
+      line-height: 1;
+    }
+
+    .guarantor-collapsible[open] .guarantor-chevron {
+      transform: rotate(90deg);
+    }
+
+    .guarantor-collapsible .guarantor-card-body {
+      padding: 18px 18px 20px;
+    }
+
+    .guarantor-card-body .field-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      width: 100%;
+      max-width: 100%;
     }
 
     .field-stack {
@@ -344,25 +443,32 @@
       display: flex;
       flex-direction: column;
       gap: 8px;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
     }
 
     .field-group label {
-      font-size: 14px;
+      font-size: 15px;
       font-weight: 600;
-      color: #374151;
+      color: #111827;
     }
 
-    .helper-box {
-      margin-top: 14px;
-      border-radius: 10px;
-      background: #f9fafb;
-      border: 1px solid #eceff3;
-      padding: 12px 14px;
-      font-size: 14px;
-      color: #6b7280;
+    .name-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      width: 100%;
+    }
+
+    @media (max-width: 640px) {
+      .name-row {
+        grid-template-columns: 1fr;
+      }
     }
 
     .add-another {
+      display: none; /* Same action as header “+ Add guarantor”; unhide if wireframe needs dashed CTA */
       margin-top: 18px;
       border: 1px dashed #d1d5db;
       border-radius: 12px;
@@ -416,9 +522,8 @@
         padding-top: 0;
       }
 
-      .guarantor-header {
-        flex-direction: column;
-        align-items: stretch;
+      .guarantor-section-title-row .btn-primary {
+        width: 100%;
       }
 
       .actions {
@@ -476,7 +581,7 @@
               <div class="step-line"></div>
               <div class="step done"><div class="step-dot"></div><span>Company Details</span></div>
               <div class="step-line"></div>
-              <div class="step current"><div class="step-dot"></div><span>Business Details</span></div>
+              <div class="step current"><div class="step-dot"></div><span>Business &amp; Guarantor Details</span></div>
             </div>
           </div>
 
@@ -520,24 +625,29 @@
           </section>
 
           <section class="section">
-            <div class="guarantor-header">
-              <div>
-                <h2 class="section-title" style="margin-bottom: 8px;">Guarantor Details</h2>
-                <div class="section-subtitle" style="margin: 0;">
-                  Provide at least one guarantor to support your financing application
-                </div>
-              </div>
-
-              <button class="btn btn-primary">+ Add Guarantor</button>
+            <div class="guarantor-section-title-row">
+              <h2 class="section-title">Guarantor details</h2>
+              <button type="button" class="btn btn-primary">+ Add guarantor</button>
             </div>
+            <div class="guarantor-section-rule" aria-hidden="true"></div>
 
             <div class="guarantor-list">
-              <!-- Guarantor 1 -->
-              <div class="guarantor-card">
-                <div class="guarantor-card-top">
-                  <div class="guarantor-card-title">Guarantor 1</div>
-                  <button class="remove-btn">Remove</button>
-                </div>
+              <!-- Guarantor 1: open by default; summary shows name + relationship when collapsed -->
+              <details class="guarantor-card guarantor-collapsible" open>
+                <summary class="guarantor-summary">
+                  <span class="guarantor-summary-inner">
+                    <span class="guarantor-card-title">Guarantor 1</span>
+                    <span class="guarantor-chevron" aria-hidden="true">▶</span>
+                    <span class="guarantor-summary-meta">John Doe (Family members of director)</span>
+                  </span>
+                  <button
+                    type="button"
+                    class="remove-btn"
+                    onclick="event.preventDefault(); event.stopPropagation();"
+                  >
+                    Remove
+                  </button>
+                </summary>
 
                 <div class="guarantor-card-body">
                   <div class="field-stack">
@@ -549,38 +659,50 @@
                       </select>
                     </div>
 
-                    <div class="field-group">
-                      <label>Full Name (First &amp; Last Name) <span class="required">*</span></label>
-                      <input type="text" value="John Doe" />
+                    <div class="name-row">
+                      <div class="field-group">
+                        <label>First name <span class="required">*</span></label>
+                        <input type="text" placeholder="e.g. John" value="John" />
+                      </div>
+                      <div class="field-group">
+                        <label>Last name <span class="required">*</span></label>
+                        <input type="text" placeholder="e.g. Doe" value="Doe" />
+                      </div>
                     </div>
 
                     <div class="field-group">
                       <label>IC Number <span class="required">*</span></label>
-                      <input type="text" value="901212-10-1234" />
+                      <input type="text" placeholder="e.g. 901212-10-1234" value="901212-10-1234" />
                     </div>
 
                     <div class="field-group">
                       <label>Relationship <span class="required">*</span></label>
                       <select>
-                        <option>Family Member of Director</option>
-                        <option>Director / Shareholder</option>
-                        <option>Unrelated Party</option>
+                        <option selected>Family members of director</option>
+                        <option>Director / shareholder</option>
+                        <option>Unrelated party</option>
                       </select>
                     </div>
                   </div>
-
-                  <div class="helper-box">
-                    Guarantor information will be used for credit and risk assessment.
-                  </div>
                 </div>
-              </div>
+              </details>
 
-              <!-- Guarantor 2 -->
-              <div class="guarantor-card">
-                <div class="guarantor-card-top">
-                  <div class="guarantor-card-title">Guarantor 2</div>
-                  <button class="remove-btn">Remove</button>
-                </div>
+              <!-- Guarantor 2: closed by default -->
+              <details class="guarantor-card guarantor-collapsible">
+                <summary class="guarantor-summary">
+                  <span class="guarantor-summary-inner">
+                    <span class="guarantor-card-title">Guarantor 2</span>
+                    <span class="guarantor-chevron" aria-hidden="true">▶</span>
+                    <span class="guarantor-summary-meta">ABC Holdings Sdn Bhd (Parent company)</span>
+                  </span>
+                  <button
+                    type="button"
+                    class="remove-btn"
+                    onclick="event.preventDefault(); event.stopPropagation();"
+                  >
+                    Remove
+                  </button>
+                </summary>
 
                 <div class="guarantor-card-body">
                   <div class="field-stack">
@@ -593,30 +715,26 @@
                     </div>
 
                     <div class="field-group">
-                      <label>Company Name <span class="required">*</span></label>
-                      <input type="text" value="ABC Holdings Sdn Bhd" />
+                      <label>Company name <span class="required">*</span></label>
+                      <input type="text" placeholder="e.g. ABC Holdings Sdn Bhd" value="ABC Holdings Sdn Bhd" />
                     </div>
 
                     <div class="field-group">
-                      <label>SSM Number <span class="required">*</span></label>
-                      <input type="text" value="1234567-X" />
+                      <label>SSM number <span class="required">*</span></label>
+                      <input type="text" placeholder="e.g. 1234567-X123456" value="1234567-X" />
                     </div>
 
                     <div class="field-group">
                       <label>Relationship <span class="required">*</span></label>
                       <select>
-                        <option>Parent Company</option>
+                        <option selected>Parent company</option>
                         <option>Subsidiary</option>
-                        <option>Related Party</option>
+                        <option>Related party</option>
                       </select>
                     </div>
                   </div>
-
-                  <div class="helper-box">
-                    Use company guarantor when the support is provided by a related business entity.
-                  </div>
                 </div>
-              </div>
+              </details>
             </div>
 
             <div class="add-another">+ Add another guarantor</div>

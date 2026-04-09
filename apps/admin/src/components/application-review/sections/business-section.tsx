@@ -16,6 +16,12 @@ import {
   REVIEW_EMPTY_LABEL,
 } from "../review-section-styles";
 import type { ReviewSectionId } from "../section-types";
+import {
+  GUARANTOR_COMPANY_RELATIONSHIP_LABELS,
+  GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS,
+  type GuarantorCompanyRelationship,
+  type GuarantorIndividualRelationship,
+} from "@cashsouk/types";
 
 export interface BusinessSectionProps {
   businessDetails: unknown;
@@ -35,6 +41,21 @@ export interface BusinessSectionProps {
 
 const DECLARATION_TEXT =
   "I confirm that all information provided is true, accurate, and not misleading, and I understand that false or incomplete information may result in removal from the platform and regulatory action.";
+
+type GuarantorReviewRow =
+  | {
+      kind: "individual";
+      firstName: string;
+      lastName: string;
+      icNumber: string;
+      relationshipLabel: string;
+    }
+  | {
+      kind: "company";
+      companyName: string;
+      ssmNumber: string;
+      relationshipLabel: string;
+    };
 
 /** Normalized view model for Business Details review. Supports snake_case and camelCase from API/DB. */
 interface BusinessDetailsView {
@@ -56,6 +77,48 @@ interface BusinessDetailsView {
     accountingSoftware: string;
   };
   declarationConfirmed: boolean;
+  guarantors: GuarantorReviewRow[];
+}
+
+function reviewStr(v: unknown): string {
+  return typeof v === "string" ? v.trim() : "";
+}
+
+function parseGuarantors(raw: unknown): GuarantorReviewRow[] {
+  if (!raw || !Array.isArray(raw)) return [];
+  const rows: GuarantorReviewRow[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const o = item as Record<string, unknown>;
+    const gt = o.guarantor_type ?? o.guarantorType;
+    if (gt === "individual") {
+      const rel = o.relationship;
+      const relKey =
+        typeof rel === "string" && rel in GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS
+          ? (rel as GuarantorIndividualRelationship)
+          : null;
+      rows.push({
+        kind: "individual",
+        firstName: reviewStr(o.first_name ?? o.firstName),
+        lastName: reviewStr(o.last_name ?? o.lastName),
+        icNumber: reviewStr(o.ic_number ?? o.icNumber),
+        relationshipLabel: relKey ? GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS[relKey] : REVIEW_EMPTY_LABEL,
+      });
+    } else if (gt === "company") {
+      const rel = o.relationship;
+      const relKey =
+        typeof rel === "string" && rel in GUARANTOR_COMPANY_RELATIONSHIP_LABELS
+          ? (rel as GuarantorCompanyRelationship)
+          : null;
+      rows.push({
+        kind: "company",
+        companyName: reviewStr(o.company_name ?? o.companyName),
+        ssmNumber: reviewStr(o.ssm_number ?? o.ssmNumber),
+        relationshipLabel: relKey ? GUARANTOR_COMPANY_RELATIONSHIP_LABELS[relKey] : REVIEW_EMPTY_LABEL,
+      });
+    }
+  }
+  return rows;
 }
 
 function parseBusinessDetails(raw: unknown): BusinessDetailsView | null {
@@ -70,7 +133,7 @@ function parseBusinessDetails(raw: unknown): BusinessDetailsView | null {
     return null;
   };
 
-  const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
+  const str = reviewStr;
 
   const num = (v: unknown): number | null => {
     if (typeof v === "number" && !Number.isNaN(v)) return v;
@@ -81,7 +144,7 @@ function parseBusinessDetails(raw: unknown): BusinessDetailsView | null {
     return null;
   };
 
-    return {
+  return {
     about: {
       whatDoesCompanyDo: str(a?.what_does_company_do ?? a?.whatDoesCompanyDo) || REVIEW_EMPTY_LABEL,
       mainCustomers: str(a?.main_customers ?? a?.mainCustomers) || REVIEW_EMPTY_LABEL,
@@ -100,6 +163,7 @@ function parseBusinessDetails(raw: unknown): BusinessDetailsView | null {
       accountingSoftware: str(w?.accounting_software ?? w?.accountingSoftware) || REVIEW_EMPTY_LABEL,
     },
     declarationConfirmed: Boolean(r.declaration_confirmed ?? r.declarationConfirmed),
+    guarantors: parseGuarantors(r.guarantors),
   };
 }
 
@@ -125,7 +189,7 @@ export function BusinessSection({
 
   return (
     <ReviewSectionCard
-      title="Business Details"
+      title="Business & Guarantor Details"
       icon={DocumentTextIcon}
       section={section}
       isReviewable={isReviewable}
@@ -197,6 +261,46 @@ export function BusinessSection({
               )}
             </div>
           </ReviewFieldBlock>
+
+          {view.guarantors.length > 0 && (
+            <ReviewFieldBlock title="Guarantor details">
+              <div className="flex flex-col gap-4">
+                {view.guarantors.map((g, idx) => (
+                  <div
+                    key={idx}
+                    className="rounded-lg border border-border bg-muted/20 p-3 space-y-2"
+                  >
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Guarantor {idx + 1} · {g.kind === "individual" ? "Individual" : "Company"}
+                    </p>
+                    <div className={reviewRowGridClass}>
+                      {g.kind === "individual" ? (
+                        <>
+                          <Label className={reviewLabelClass}>First name</Label>
+                          <ReviewValue value={g.firstName || REVIEW_EMPTY_LABEL} />
+                          <Label className={reviewLabelClass}>Last name</Label>
+                          <ReviewValue value={g.lastName || REVIEW_EMPTY_LABEL} />
+                          <Label className={reviewLabelClass}>IC number</Label>
+                          <ReviewValue value={g.icNumber || REVIEW_EMPTY_LABEL} />
+                          <Label className={reviewLabelClass}>Relationship</Label>
+                          <ReviewValue value={g.relationshipLabel} />
+                        </>
+                      ) : (
+                        <>
+                          <Label className={reviewLabelClass}>Company name</Label>
+                          <ReviewValue value={g.companyName || REVIEW_EMPTY_LABEL} multiline />
+                          <Label className={reviewLabelClass}>SSM number</Label>
+                          <ReviewValue value={g.ssmNumber || REVIEW_EMPTY_LABEL} />
+                          <Label className={reviewLabelClass}>Relationship</Label>
+                          <ReviewValue value={g.relationshipLabel} />
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ReviewFieldBlock>
+          )}
 
           <ReviewFieldBlock title="Declarations">
               <div className="rounded-lg border border-input bg-background p-3">

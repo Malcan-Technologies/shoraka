@@ -32,7 +32,7 @@ const REVIEW_TAB_STEP_KEYS = new Set([
 
 const REVIEW_TAB_LABELS: Record<string, string> = {
   financial: "Financial",
-  business_details: "Business",
+  business_details: "Business & Guarantor",
   supporting_documents: "Documents",
   contract_details: "Contract",
   invoice_details: "Invoice",

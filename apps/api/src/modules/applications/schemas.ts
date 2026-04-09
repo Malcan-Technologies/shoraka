@@ -55,10 +55,35 @@ const whyRaisingFundsSchema = z.object({
   accounting_software: z.string().max(200).optional().default(""),
 });
 
+const guarantorIndividualSchema = z.object({
+  guarantor_type: z.literal("individual"),
+  first_name: z.string().min(1).max(100),
+  last_name: z.string().min(1).max(100),
+  ic_number: z.string().min(1).max(30),
+  relationship: z.enum([
+    "family_members_of_director",
+    "director_shareholder",
+    "unrelated_party",
+  ]),
+});
+
+const guarantorCompanySchema = z.object({
+  guarantor_type: z.literal("company"),
+  company_name: z.string().min(1).max(200),
+  ssm_number: z.string().min(1).max(50),
+  relationship: z.enum(["parent_company", "subsidiary", "related_party"]),
+});
+
+const guarantorEntrySchema = z.discriminatedUnion("guarantor_type", [
+  guarantorIndividualSchema,
+  guarantorCompanySchema,
+]);
+
 export const businessDetailsDataSchema = z.object({
   about_your_business: aboutYourBusinessSchema.optional().default({}),
   why_raising_funds: whyRaisingFundsSchema.optional().default({}),
   declaration_confirmed: z.boolean(),
+  guarantors: z.array(guarantorEntrySchema).min(1, "At least one guarantor is required"),
 });
 
 /** Validates stored input fields for financial_statements step. Flat storage; no computed fields. */

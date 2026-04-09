@@ -237,9 +237,9 @@ const sectionHeaderClassName = "text-base font-semibold text-foreground";
 const labelClassName = cn(formLabelClassName, "font-normal");
 const inputClassName = formInputClassName;
 const rowGridClassName =
-  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 w-full max-w-[1200px] items-center px-3";
+  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-8 mt-5 w-full max-w-[1200px] items-start px-3";
 const sectionWrapperClassName = "w-full max-w-[1200px]";
-const formOuterClassName = "w-full max-w-[1200px] flex flex-col gap-10 px-3";
+const formOuterClassName = "w-full max-w-[1200px] flex flex-col gap-12 md:gap-14 px-3";
 
 /* ================================================================
    MONEY FIELD ROW
@@ -477,10 +477,10 @@ export function FinancialStatementsStep({
     <>
       <div className={formOuterClassName}>
         {/* ===================== FINANCIAL YEAR ===================== */}
-        <section className={`${sectionWrapperClassName} space-y-3`}>
+        <section className={`${sectionWrapperClassName} space-y-5`}>
           <div>
             <h3 className={sectionHeaderClassName}>Financial Year</h3>
-            <div className="border-b border-border mt-2 mb-4" />
+            <div className="border-b border-border mt-3 mb-6" />
           </div>
           <div className={rowGridClassName}>
             <Label htmlFor="pldd" className={labelClassName}>
@@ -547,10 +547,10 @@ export function FinancialStatementsStep({
         </section>
 
         {/* ===================== ASSETS ===================== */}
-        <section className={`${sectionWrapperClassName} space-y-3`}>
+        <section className={`${sectionWrapperClassName} space-y-5`}>
           <div>
             <h3 className={sectionHeaderClassName}>Assets</h3>
-            <div className="border-b border-border mt-2 mb-4" />
+            <div className="border-b border-border mt-3 mb-6" />
           </div>
           <div className={rowGridClassName}>
             {(["bsfatot", "othass", "bscatot", "bsclbank"] as const).map((key) => (
@@ -567,10 +567,10 @@ export function FinancialStatementsStep({
         </section>
 
         {/* ===================== LIABILITIES ===================== */}
-        <section className={`${sectionWrapperClassName} space-y-3`}>
+        <section className={`${sectionWrapperClassName} space-y-5`}>
           <div>
             <h3 className={sectionHeaderClassName}>Liabilities</h3>
-            <div className="border-b border-border mt-2 mb-4" />
+            <div className="border-b border-border mt-3 mb-6" />
           </div>
           <div className={rowGridClassName}>
             {(["curlib", "bsslltd", "bsclstd"] as const).map((key) => (
@@ -587,10 +587,10 @@ export function FinancialStatementsStep({
         </section>
 
         {/* ===================== EQUITY ===================== */}
-        <section className={`${sectionWrapperClassName} space-y-3`}>
+        <section className={`${sectionWrapperClassName} space-y-5`}>
           <div>
             <h3 className={sectionHeaderClassName}>Equity</h3>
-            <div className="border-b border-border mt-2 mb-4" />
+            <div className="border-b border-border mt-3 mb-6" />
           </div>
           <div className={rowGridClassName}>
             <MoneyFieldRow
@@ -604,10 +604,10 @@ export function FinancialStatementsStep({
         </section>
 
         {/* ===================== PROFIT AND LOSS ===================== */}
-        <section className={`${sectionWrapperClassName} space-y-3`}>
+        <section className={`${sectionWrapperClassName} space-y-5`}>
           <div>
             <h3 className={sectionHeaderClassName}>Profit and Loss</h3>
-            <div className="border-b border-border mt-2 mb-4" />
+            <div className="border-b border-border mt-3 mb-6" />
           </div>
           <div className={rowGridClassName}>
             <MoneyFieldRow
