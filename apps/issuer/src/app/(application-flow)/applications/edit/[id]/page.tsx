@@ -423,9 +423,12 @@ function EditApplicationPageBody() {
   const { isMismatch, blockReason, checkNow } = useProductVersionGuard(applicationId);
 
   const versionBlocksNavigation = React.useCallback(async () => {
+    if (application?.status === "AMENDMENT_REQUESTED" || devPreviewAmendment) {
+      return false;
+    }
     if (isMismatch) return true;
     return await checkNow();
-  }, [isMismatch, checkNow]);
+  }, [application?.status, devPreviewAmendment, isMismatch, checkNow]);
 
   const navigateWithVersionCheck = React.useCallback(
     async (path: string, mode: "push" | "replace" = "push"): Promise<boolean> => {
@@ -677,7 +680,12 @@ function EditApplicationPageBody() {
    */
   React.useEffect(() => {
     if (isSubmittingRef.current) return;
-    if (!application || isLoadingApp || isLoadingProducts || isMismatch) return;
+    if (!application || isLoadingApp || isLoadingProducts) return;
+    const versionMismatchBlocksStepGating =
+      isMismatch &&
+      application.status !== "AMENDMENT_REQUESTED" &&
+      !devPreviewAmendment;
+    if (versionMismatchBlocksStepGating) return;
     if (wizardState === null) return;
     if (!searchParams.get("step")) return;
     // Keep review & submit stable: if user is on the review page, do not
@@ -1276,6 +1284,8 @@ function EditApplicationPageBody() {
     process.env.NODE_ENV === "development" && (devTools?.previewWizardLoadingShell ?? false);
   const useWizardContentShell =
     useBlockedFlowBackdrop || showStepLoadingShell || previewWizardLoadingShell;
+  /** Keep footer visible during loading/block shell; buttons stay disabled so layout does not jump. */
+  const footerActionsLocked = useWizardContentShell;
 
   if (isEditBlocked) {
     return null;
@@ -1371,14 +1381,20 @@ function EditApplicationPageBody() {
         </div>
       </main>
 
-      {/* Bottom buttons */}
-      {application && isStepRouteReady && !useWizardContentShell ? (
+      {/* Bottom buttons — visible during shell; disabled until route is interactive */}
+      {application ? (
         <footer className="sticky bottom-0 border-t bg-background">
           <div className="max-w-7xl mx-auto w-full px-3 sm:px-4 py-3 sm:py-4 flex flex-col sm:flex-row gap-3 sm:gap-0 sm:justify-between">
             <Button
               variant="outline"
               onClick={handleBack}
-              disabled={isSaving || (currentStepKey === "review_and_submit" && application?.status === "AMENDMENT_REQUESTED" && resubmitMutation.isPending)}
+              disabled={
+                footerActionsLocked ||
+                isSaving ||
+                (currentStepKey === "review_and_submit" &&
+                  application?.status === "AMENDMENT_REQUESTED" &&
+                  resubmitMutation.isPending)
+              }
               className="text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-2 sm:order-1 h-11"
             >
               <ArrowLeftIcon className="h-4 w-4 mr-2" />
@@ -1414,7 +1430,8 @@ function EditApplicationPageBody() {
                   : handleSaveAndContinue
               }
               disabled={
-                currentStepKey === "review_and_submit" && (application?.status === "AMENDMENT_REQUESTED" || devPreviewAmendment)
+                footerActionsLocked ||
+                (currentStepKey === "review_and_submit" && (application?.status === "AMENDMENT_REQUESTED" || devPreviewAmendment)
                   ? resubmitMutation.isPending ||
                     isSubmittingRef.current ||
                     !allAmendmentStepsAcknowledged ||
@@ -1423,7 +1440,7 @@ function EditApplicationPageBody() {
                     updateStatusMutation.isPending ||
                     isSaving ||
                     !isCurrentStepValid ||
-                    !isStepMapped
+                    !isStepMapped)
               }
               className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2 h-11"
             >

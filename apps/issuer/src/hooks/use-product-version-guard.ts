@@ -26,10 +26,6 @@ export function useProductVersionGuard(applicationId: string) {
   const [blockReason, setBlockReason] = React.useState<IssuerProductBlockReason>(null);
 
   const checkNow = React.useCallback(async (): Promise<boolean> => {
-    if (isMismatch) return true;
-
-    setIsChecking(true);
-
     if (!application) {
       setIsChecking(false);
       setIsMismatch(false);
@@ -42,6 +38,13 @@ export function useProductVersionGuard(applicationId: string) {
       setIsChecking(false);
       return false;
     }
+
+    if (isMismatch) {
+      setIsChecking(false);
+      return true;
+    }
+
+    setIsChecking(true);
 
     if (!productId?.trim()) {
       console.log("[VERSION CHECK] no product_id on application — PRODUCT_UNAVAILABLE");
