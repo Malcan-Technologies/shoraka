@@ -99,8 +99,8 @@ function getConfig(config: unknown): Record<CategoryKey, SupportingDocItemShape[
 const TEMPLATE_ACCEPT = "application/pdf";
 const MAX_TEMPLATE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
 
-/** Optional template feature: disabled. Set to true to re-enable. Logic preserved below. */
-const OPTIONAL_TEMPLATE_ENABLED = false;
+/** Optional PDF template per document row; uploaded in admin, shown as “Download template” on issuer supporting docs step. */
+const OPTIONAL_TEMPLATE_ENABLED = true;
 
 export function SupportingDocumentsConfig({
   config,
