@@ -9,6 +9,15 @@ import { CheckIcon } from "@heroicons/react/24/solid";
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { cn } from "@cashsouk/ui";
 
+/**
+ * SECTION: Loading skeleton without product workflow
+ * WHY: Product unavailable / missing workflow yields empty steps; map would render nothing.
+ * INPUT: isLoading true, steps [].
+ * OUTPUT: Same skeleton UI with a fixed number of placeholders.
+ * WHERE USED: edit flow when catalog has no product; products still loading edge cases.
+ */
+const DEFAULT_LOADING_PLACEHOLDER_STEPS = 6;
+
 interface ProgressIndicatorProps {
   steps: string[];
   currentStep: number;
@@ -36,10 +45,18 @@ export function ProgressIndicator({
   stepKeys = [],
 }: ProgressIndicatorProps) {
   if (isLoading) {
+    const skeletonCount =
+      steps.length > 0 ? steps.length : DEFAULT_LOADING_PLACEHOLDER_STEPS;
+    if (steps.length === 0) {
+      console.log(
+        "ProgressIndicator: loading skeleton with placeholder step count:",
+        skeletonCount
+      );
+    }
     return (
       <div className="mt-3">
         <div className="relative flex items-start justify-between min-h-[80px]">
-          {steps.map((_, index) => (
+          {Array.from({ length: skeletonCount }, (_, index) => (
             <div
               key={index}
               className="relative flex flex-1 flex-col items-center min-w-0"

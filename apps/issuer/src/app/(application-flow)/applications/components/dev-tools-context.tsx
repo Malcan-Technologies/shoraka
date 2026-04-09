@@ -8,6 +8,9 @@ import * as React from "react";
 interface DevToolsContextValue {
   showSkeletonDebug: boolean;
   setShowSkeletonDebug: (v: boolean) => void;
+  /** Full-page wizard loading / blocked shell (generic skeleton). Dev-only preview. */
+  previewWizardLoadingShell: boolean;
+  setPreviewWizardLoadingShell: (v: boolean) => void;
   autoFillData: { stepKey: string; data: Record<string, unknown> } | null;
   autoFillDataMap: Record<string, Record<string, unknown>>;
   requestAutoFill: (stepKey: string, data: Record<string, unknown>) => void;
@@ -20,6 +23,7 @@ const DevToolsContext = React.createContext<DevToolsContextValue | null>(null);
 
 export function DevToolsProvider({ children }: { children: React.ReactNode }) {
   const [showSkeletonDebug, setShowSkeletonDebug] = React.useState(false);
+  const [previewWizardLoadingShell, setPreviewWizardLoadingShell] = React.useState(false);
   const [autoFillData, setAutoFillData] = React.useState<{
     stepKey: string;
     data: Record<string, unknown>;
@@ -57,6 +61,8 @@ export function DevToolsProvider({ children }: { children: React.ReactNode }) {
     () => ({
       showSkeletonDebug,
       setShowSkeletonDebug,
+      previewWizardLoadingShell,
+      setPreviewWizardLoadingShell,
       autoFillData,
       autoFillDataMap,
       requestAutoFill,
@@ -66,6 +72,7 @@ export function DevToolsProvider({ children }: { children: React.ReactNode }) {
     }),
     [
       showSkeletonDebug,
+      previewWizardLoadingShell,
       autoFillData,
       autoFillDataMap,
       requestAutoFill,

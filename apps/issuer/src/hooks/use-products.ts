@@ -41,6 +41,40 @@ export function useProducts(
   return result;
 }
 
+/** Issuer portal: active products catalog (no admin role required). */
+export function useIssuerProducts(
+  params: GetProductsParams,
+  queryOptions?: { staleTime?: number; refetchOnMount?: boolean }
+) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  const result = useQuery<GetProductsResponse>({
+    queryKey: ["issuer-products", params.page, params.pageSize, params.search],
+    queryFn: async () => {
+      const response = await apiClient.getIssuerProducts({
+        page: params.page,
+        pageSize: params.pageSize,
+        search: params.search,
+      });
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      return response.data;
+    },
+    staleTime: queryOptions?.staleTime ?? 5 * 60 * 1000,
+    refetchOnMount: queryOptions?.refetchOnMount ?? true,
+  });
+
+  useEffect(() => {
+    if (result.isError && result.error) {
+      toast.error(result.error instanceof Error ? result.error.message : "Failed to load products");
+    }
+  }, [result.isError, result.error]);
+
+  return result;
+}
+
 export function useProduct(id: string) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);

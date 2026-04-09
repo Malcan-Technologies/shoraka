@@ -60,6 +60,8 @@ import type {
   Product,
   GetProductsResponse,
   Application,
+  ApplicationProductVersionCompare,
+  IssuerProductLiveCheck,
   ApplicationStatus,
   CreateApplicationInput,
   UpdateApplicationStepInput,
@@ -1260,6 +1262,27 @@ export class ApiClient {
     return this.get<Product>(`/v1/products/${id}`);
   }
 
+  async getIssuerProducts(params: {
+    page: number;
+    pageSize: number;
+    search?: string;
+  }): Promise<ApiResponse<GetProductsResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", String(params.page));
+    queryParams.append("pageSize", String(params.pageSize));
+    if (params.search) queryParams.append("search", params.search);
+    queryParams.append("active", "true");
+
+    return this.get<GetProductsResponse>(`/v1/issuer/products?${queryParams.toString()}`);
+  }
+
+  async getIssuerProductLiveCheck(
+    productId: string
+  ): Promise<ApiResponse<IssuerProductLiveCheck> | ApiError> {
+    const id = encodeURIComponent(productId);
+    return this.get<IssuerProductLiveCheck>(`/v1/issuer/products/live-check/${id}`);
+  }
+
   async createProduct(data: {
     workflow: unknown[];
     offer_expiry_days?: number | null;
@@ -1323,6 +1346,14 @@ export class ApiClient {
 
   async getApplication(id: string): Promise<ApiResponse<Application> | ApiError> {
     return this.get<Application>(`/v1/applications/${id}`);
+  }
+
+  async getApplicationProductVersionCompare(
+    applicationId: string
+  ): Promise<ApiResponse<ApplicationProductVersionCompare> | ApiError> {
+    return this.get<ApplicationProductVersionCompare>(
+      `/v1/applications/${applicationId}/product-version-compare`
+    );
   }
 
   async updateApplicationStep(id: string, data: UpdateApplicationStepInput): Promise<ApiResponse<Application> | ApiError> {

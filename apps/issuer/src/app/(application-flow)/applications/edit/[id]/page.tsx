@@ -47,6 +47,10 @@ import {
   type ApplicationStepKey,
 } from "@cashsouk/types";
 import { ProgressIndicator } from "../../components/progress-indicator";
+import {
+  ApplicationFlowBlockedBackdrop,
+  ApplicationFlowBlockedStepSkeleton,
+} from "../../components/application-flow-blocked-backdrop";
 import { AmendmentRemarkCard, ReadOnlyStepBanner } from "../../components/amendments";
 import { useHeader } from "@cashsouk/ui";
 import { FinancingTypeStep } from "../../steps/financing-type-step";
@@ -64,7 +68,7 @@ import { useProductVersionGuard } from "@/hooks/use-product-version-guard";
 import { VersionMismatchModal } from "@/components/VersionMismatchModal";
 import { useNavigationGuard } from "@/hooks/use-navigation-guard2";
 import { UnsavedChangesModal } from "@/components/unsaved-changes-modal";
-import { DevToolsProvider } from "../../components/dev-tools-context";
+import { DevToolsProvider, useDevTools } from "../../components/dev-tools-context";
 import { DevToolsPanel } from "../../components/dev-tools-panel";
 import "../../components/dev-tools-registry";
 
@@ -105,7 +109,32 @@ interface WizardState {
   allowedMaxStep: number;
 }
 
-export default function EditApplicationPage() {
+/**
+ * SECTION: Edit page Suspense fallback
+ * WHY: useSearchParams() can omit ?step= on first paint so parsing defaults to 1 and flashes wrong step.
+ * INPUT: none
+ * OUTPUT: Same shell as blocked/loading so navigation feels stable.
+ * WHERE USED: Suspense boundary wrapping edit page client tree.
+ */
+function EditApplicationSuspenseFallback() {
+  return (
+    <div className="flex flex-col h-full">
+      <main className="flex-1 overflow-y-auto p-3 sm:p-4">
+        <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 py-4 sm:py-8">
+          <ApplicationFlowBlockedBackdrop>
+            <ProgressIndicator steps={[]} currentStep={1} isLoading />
+          </ApplicationFlowBlockedBackdrop>
+        </div>
+        <div className="h-px bg-border w-full" />
+        <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 pt-4 sm:pt-6 relative">
+          <ApplicationFlowBlockedStepSkeleton />
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function EditApplicationPageBody() {
   const { setTitle } = useHeader();
   React.useEffect(() => {
     setTitle("Edit Application");
@@ -393,6 +422,24 @@ export default function EditApplicationPage() {
      ================================================================ */
   const { isMismatch, blockReason, checkNow } = useProductVersionGuard(applicationId);
 
+  const versionBlocksNavigation = React.useCallback(async () => {
+    if (isMismatch) return true;
+    return await checkNow();
+  }, [isMismatch, checkNow]);
+
+  const navigateWithVersionCheck = React.useCallback(
+    async (path: string, mode: "push" | "replace" = "push"): Promise<boolean> => {
+      const blocked = await versionBlocksNavigation();
+      if (blocked) return false;
+
+      if (mode === "replace") router.replace(path);
+      else router.push(path);
+
+      return true;
+    },
+    [router, versionBlocksNavigation]
+  );
+
   /* ================================================================
      CURRENT STEP RESOLUTION
      ================================================================ */
@@ -404,10 +451,14 @@ export default function EditApplicationPage() {
 
   const currentStepId = (currentStepConfig?.id as string) || "";
   const currentStepKey = React.useMemo(() => {
+    if (!effectiveWorkflow.length) {
+      return null;
+    }
+
     const key = getStepKeyFromStepId(currentStepId);
     if (key) return key;
 
-    // Fallback detection from application data
+    // Fallback detection from application data (only after workflow is known)
     if (application && stepFromUrl > 1) {
       const stepSequence: ApplicationStepKey[] = [
         "financing_type",
@@ -435,7 +486,7 @@ export default function EditApplicationPage() {
     if (rawKey === "verify_company_info") return "company_details" as const;
 
     return null;
-  }, [currentStepId, application, stepFromUrl]);
+  }, [currentStepId, application, stepFromUrl, effectiveWorkflow.length]);
 
   const isStepMapped =
     currentStepKey !== null &&
@@ -512,43 +563,30 @@ export default function EditApplicationPage() {
 
   const onConfirmNavigation = React.useCallback(
     async (path: string) => {
-      // Parent must reset unsaved BEFORE navigating
-      setHasUnsavedChanges(false);
-
       const pending = pendingNavRef.current;
+      isNavigatingRef.current = true;
+      try {
+        if (path === "__BACK__") {
+          pendingNavRef.current = null;
+          const didNavigate = await navigateWithVersionCheck("/", "replace");
+          if (didNavigate) setHasUnsavedChanges(false);
+          return;
+        }
 
-      // Handle back sentinel
-      if (path === "__BACK__") {
-        // Deterministic: always exit wizard to dashboard
-        pendingNavRef.current = null;
-        isNavigatingRef.current = true;
-        try {
-          await router.replace("/");
-        } finally {
-          isNavigatingRef.current = false;
+        if (pending?.leavingPage) {
+          pendingNavRef.current = null;
+          const didNavigate = await navigateWithVersionCheck(path, "replace");
+          if (didNavigate) setHasUnsavedChanges(false);
+        } else {
+          pendingNavRef.current = null;
+          const didNavigate = await navigateWithVersionCheck(path, "push");
+          if (didNavigate) setHasUnsavedChanges(false);
         }
-        return;
-      }
-
-      if (pending?.leavingPage) {
-        pendingNavRef.current = null;
-        isNavigatingRef.current = true;
-        try {
-          await router.replace(path);
-        } finally {
-          isNavigatingRef.current = false;
-        }
-      } else {
-        pendingNavRef.current = null;
-        isNavigatingRef.current = true;
-        try {
-          await router.push(path);
-        } finally {
-          isNavigatingRef.current = false;
-        }
+      } finally {
+        isNavigatingRef.current = false;
       }
     },
-    [router]
+    [navigateWithVersionCheck]
   );
 
   const { isModalOpen, requestNavigation, confirmLeave, cancelLeave, pendingPath } = useNavigationGuard(
@@ -556,27 +594,21 @@ export default function EditApplicationPage() {
     onConfirmNavigation
   );
 
-  // Centralized safe navigation that enforces version guard precedence
   const safeNavigate = React.useCallback(
-    async (path: string, opts: { leavingPage?: boolean; forceSkipGuard?: boolean } = {}) => {
-      const mismatch = await checkNow();
-      if (mismatch) return;
-
+    async (
+      path: string,
+      opts: { leavingPage?: boolean; forceSkipGuard?: boolean } = {}
+    ): Promise<boolean> => {
       const { leavingPage = false, forceSkipGuard = false } = opts;
       if (forceSkipGuard || !hasUnsavedChanges) {
-        if (leavingPage) {
-          router.replace(path);
-        } else {
-          router.push(path);
-        }
-        return;
+        return await navigateWithVersionCheck(path, leavingPage ? "replace" : "push");
       }
 
-      // Has unsaved changes -> store pending and ask guard to open modal
       pendingNavRef.current = { path, leavingPage };
       requestNavigation(path);
+      return false;
     },
-    [checkNow, hasUnsavedChanges, pendingNavRef, requestNavigation, router]
+    [hasUnsavedChanges, requestNavigation, navigateWithVersionCheck]
   );
 
   /* ================================================================
@@ -616,12 +648,14 @@ export default function EditApplicationPage() {
       } else {
         targetStep = wizardState.allowedMaxStep;
       }
-      router.replace(`/applications/edit/${applicationId}?step=${targetStep}`);
+      void navigateWithVersionCheck(
+        `/applications/edit/${applicationId}?step=${targetStep}`,
+        "replace"
+      );
     }
   }, [
     application,
     applicationId,
-    router,
     searchParams,
     isLoadingApp,
     wizardState,
@@ -630,6 +664,7 @@ export default function EditApplicationPage() {
     amendmentFlaggedStepKeys,
     acknowledgedWorkflowIds,
     effectiveWorkflow,
+    navigateWithVersionCheck,
   ]);
 
   /* ================================================================
@@ -657,19 +692,22 @@ export default function EditApplicationPage() {
 
     // NaN guard: parseInt("abc") returns NaN; NaN < 1 is false, so explicit check required
     if (!Number.isFinite(stepFromUrl)) {
-      router.replace(`/applications/edit/${applicationId}?step=1`);
+      void navigateWithVersionCheck(`/applications/edit/${applicationId}?step=1`, "replace");
       return;
     }
 
     // Lower bound: requestedStep < 1 → redirect to step 1
     if (stepFromUrl < 1) {
-      router.replace(`/applications/edit/${applicationId}?step=1`);
+      void navigateWithVersionCheck(`/applications/edit/${applicationId}?step=1`, "replace");
       return;
     }
 
     // Upper bound: requestedStep > totalSteps → redirect to last step
     if (maxStepInWorkflow > 0 && stepFromUrl > maxStepInWorkflow) {
-      router.replace(`/applications/edit/${applicationId}?step=${maxStepInWorkflow}`);
+      void navigateWithVersionCheck(
+        `/applications/edit/${applicationId}?step=${maxStepInWorkflow}`,
+        "replace"
+      );
       return;
     }
 
@@ -677,7 +715,10 @@ export default function EditApplicationPage() {
     if (!isAmendmentMode && stepFromUrl > maxAllowed) {
       toast.error("Please complete steps in order");
       const targetStep = maxStepInWorkflow > 0 ? Math.min(maxAllowed, maxStepInWorkflow) : maxAllowed;
-      router.replace(`/applications/edit/${applicationId}?step=${targetStep}`);
+      void navigateWithVersionCheck(
+        `/applications/edit/${applicationId}?step=${targetStep}`,
+        "replace"
+      );
       return;
     }
 
@@ -685,7 +726,6 @@ export default function EditApplicationPage() {
     application,
     applicationId,
     stepFromUrl,
-    router,
     isLoadingApp,
     isLoadingProducts,
     effectiveWorkflow,
@@ -693,6 +733,7 @@ export default function EditApplicationPage() {
     searchParams,
     wizardState,
     devPreviewAmendment,
+    navigateWithVersionCheck,
   ]);
 
   /* ================================================================
@@ -849,8 +890,7 @@ export default function EditApplicationPage() {
     try {
       if (!applicationId) return;
 
-      const mismatch = await checkNow();
-      if (mismatch) return;
+      if (await versionBlocksNavigation()) return;
 
       const finalStepNumber = effectiveWorkflow.length;
       await updateStepMutation.mutateAsync({
@@ -869,11 +909,12 @@ export default function EditApplicationPage() {
         status: isResubmit ? "RESUBMITTED" : "SUBMITTED",
       });
 
-      toast.success(
-        isResubmit ? "Application resubmitted successfully" : "Application submitted successfully"
-      );
-
-      router.replace("/");
+      const didLeave = await navigateWithVersionCheck("/", "replace");
+      if (didLeave) {
+        toast.success(
+          isResubmit ? "Application resubmitted successfully" : "Application submitted successfully"
+        );
+      }
     } catch {
       toast.error("Failed to submit application");
     } finally {
@@ -889,9 +930,6 @@ export default function EditApplicationPage() {
     if (isSubmittingRef.current || isSavingRef.current) return;
 
     (async () => {
-      const mismatch = await checkNow();
-      if (mismatch) return;
-
       if (currentStep === 1) {
         pendingNavRef.current = { path: "/", leavingPage: true };
         requestNavigation("/", { forceModal: true });
@@ -952,11 +990,8 @@ export default function EditApplicationPage() {
      ================================================================ */
 
   /**
-   * Save flow runs in order: validate step (throws if invalid), then call saveFunction if present.
-   * 3. Call updateStepMutation or updateStatusMutation
-   * 4. Update local wizardState immediately
-   * 5. Invalidate react-query cache
-   * 6. Navigate to next step
+   * Save flow: validate form ready → product version guard → save helpers (uploads) → step validations
+   * → updateStepMutation → navigate (version checked again inside navigateWithVersionCheck).
    */
   const handleSaveAndContinue = async () => {
     if (isSubmittingRef.current || isSavingRef.current) return;
@@ -966,22 +1001,20 @@ export default function EditApplicationPage() {
     try {
       // Locked step: navigate only, no save, no DB write, no toast
       if (isAmendmentModeEffective && !isStepFlagged) {
-        setHasUnsavedChanges(false);
         const nextStep = stepFromUrl + 1;
+        const didNav = await safeNavigate(`/applications/edit/${applicationId}?step=${nextStep}`, {
+          leavingPage: false,
+          forceSkipGuard: true,
+        });
+        if (!didNav) return;
+        setHasUnsavedChanges(false);
         if (wizardState) {
           setWizardState({
             lastCompletedStep: wizardState.lastCompletedStep,
             allowedMaxStep: Math.max(wizardState.allowedMaxStep, nextStep),
           });
         }
-        await safeNavigate(`/applications/edit/${applicationId}?step=${nextStep}`, { leavingPage: false, forceSkipGuard: true });
         return;
-      }
-
-      // Live version guard: perform an up-to-date check before saving/navigation
-      {
-        const mismatch = await checkNow();
-        if (mismatch) return;
       }
 
       const rawData = stepDataRef.current;
@@ -993,6 +1026,11 @@ export default function EditApplicationPage() {
         toast.error("Please wait for the form to load before saving");
         return;
       }
+
+      if (await versionBlocksNavigation()) {
+        return;
+      }
+
       let dataToSave: Record<string, unknown> | null = { ...rawData };
 
       const structureChanged =
@@ -1000,9 +1038,8 @@ export default function EditApplicationPage() {
         (dataToSave as Record<string, unknown>)?.structureChanged === true;
 
       /**
-       * Step-specific save functions run first. They handle pending uploads (contract, invoice, supporting documents)
-       * file uploads that must happen BEFORE we delete saveFunction.
-       * These functions return the fully persisted data.
+       * Step-specific save helpers (uploads, etc.) run after product version is OK.
+       * They return persisted data merged into dataToSave; saveFunction is deleted after.
        */
       const saveFunctionFromData = (
         dataToSave as Record<string, unknown>
@@ -1076,9 +1113,14 @@ export default function EditApplicationPage() {
 
       // No data case
       if (dataToSave === null) {
-        toast.success("Step completed");
-        setHasUnsavedChanges(false);
-        await safeNavigate(`/applications/edit/${applicationId}?step=${stepFromUrl + 1}`, { leavingPage: false, forceSkipGuard: true });
+        const didNav = await safeNavigate(
+          `/applications/edit/${applicationId}?step=${stepFromUrl + 1}`,
+          { leavingPage: false, forceSkipGuard: true }
+        );
+        if (didNav) {
+          toast.success("Step completed");
+          setHasUnsavedChanges(false);
+        }
         return;
       }
 
@@ -1093,8 +1135,11 @@ export default function EditApplicationPage() {
         // If step has been saved before, skip the save
         const hasBeenSavedBefore = (dataToSave as Record<string, unknown>)?.hasBeenSavedBefore as boolean | undefined;
         if (hasBeenSavedBefore) {
-          setHasUnsavedChanges(false);
-          await safeNavigate(`/applications/edit/${applicationId}?step=${nextStep}`, { leavingPage: false, forceSkipGuard: true });
+          const ok = await safeNavigate(`/applications/edit/${applicationId}?step=${nextStep}`, {
+            leavingPage: false,
+            forceSkipGuard: true,
+          });
+          if (ok) setHasUnsavedChanges(false);
           return;
         }
         // First-time save: fall through to standard save flow
@@ -1115,7 +1160,7 @@ export default function EditApplicationPage() {
         ...(structureChanged && { forceRewindToStep: stepFromUrl }),
       };
 
-      // Save to database
+      // Save to database (version already checked above, before save helpers)
       await updateStepMutation.mutateAsync({
         id: applicationId,
         stepData: stepPayload,
@@ -1139,6 +1184,16 @@ export default function EditApplicationPage() {
         // ignore acknowledgement failures - backend enforcement remains authoritative
       }
 
+      const navigationStep = structureChanged ? stepFromUrl + 1 : nextStep;
+      const didNav = await safeNavigate(
+        `/applications/edit/${applicationId}?step=${navigationStep}`,
+        { leavingPage: false, forceSkipGuard: true }
+      );
+
+      if (!didNav) {
+        return;
+      }
+
       /** In amendment flow, wizard state is not updated here. Progress is driven by acknowledgement only. */
       if (wizardState && application?.status !== "AMENDMENT_REQUESTED") {
         setWizardState({
@@ -1148,18 +1203,13 @@ export default function EditApplicationPage() {
       }
 
       setHasUnsavedChanges(false);
-      toast.success("Saved successfully");
 
-      // Clear session override BEFORE navigation (if financing structure changed)
       if (currentStepKey === "financing_structure") {
         sessionStorage.removeItem("cashsouk:financing_structure_override");
         setSessionStructureType(null);
       }
 
-      // Navigate to next step IMMEDIATELY (deterministic, no loops)
-      // forceSkipGuard: closure has stale hasUnsavedChanges; we just saved so skip confirmation modal
-      const navigationStep = structureChanged ? stepFromUrl + 1 : nextStep;
-      await safeNavigate(`/applications/edit/${applicationId}?step=${navigationStep}`, { leavingPage: false, forceSkipGuard: true });
+      toast.success("Saved successfully");
     } catch (err) {
       if (err instanceof Error && err.message.startsWith("VALIDATION_")) {
         return;
@@ -1191,11 +1241,14 @@ export default function EditApplicationPage() {
           mockFlagged.has(getStepKeyFromStepId((s.id as string) || "") || "")
       );
       const targetStep = firstFlagged >= 0 ? firstFlagged + 1 : 1;
-      queueMicrotask(() =>
-        router.replace(`/applications/edit/${applicationId}?step=${targetStep}`)
-      );
+      queueMicrotask(() => {
+        void navigateWithVersionCheck(
+          `/applications/edit/${applicationId}?step=${targetStep}`,
+          "replace"
+        );
+      });
     }
-  }, [devPreviewAmendment, effectiveWorkflow, router, applicationId]);
+  }, [devPreviewAmendment, effectiveWorkflow, applicationId, navigateWithVersionCheck]);
 
   /* ================================================================
      RENDER LOGIC
@@ -1203,49 +1256,96 @@ export default function EditApplicationPage() {
 
   const isLoading = isLoadingApp || isLoadingProducts;
   const showBlockingDialog = Boolean(blockReason);
+  const useBlockedFlowBackdrop =
+    showBlockingDialog ||
+    (!isLoading && Boolean(application) && effectiveWorkflow.length === 0);
+
+  const hasStepQuery = searchParams.has("step");
+  const isStepRouteReady =
+    !useBlockedFlowBackdrop &&
+    hasStepQuery &&
+    Boolean(application) &&
+    !isLoadingApp &&
+    !isLoadingProducts &&
+    effectiveWorkflow.length > 0 &&
+    wizardState !== null;
+
+  const showStepLoadingShell = !useBlockedFlowBackdrop && !isStepRouteReady;
+  const devTools = useDevTools();
+  const previewWizardLoadingShell =
+    process.env.NODE_ENV === "development" && (devTools?.previewWizardLoadingShell ?? false);
+  const useWizardContentShell =
+    useBlockedFlowBackdrop || showStepLoadingShell || previewWizardLoadingShell;
 
   if (isEditBlocked) {
     return null;
   }
 
   return (
-    <DevToolsProvider>
+    <>
     <div className="flex flex-col h-full">
       {/* Main content */}
       <main className="flex-1 overflow-y-auto p-3 sm:p-4">
         <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 py-4 sm:py-8">
-          {/* Page Title */}
-          {application ? (
-            <div className="mb-4 sm:mb-6">
-              <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">
-                {currentStepInfo.title}
-              </h1>
-              <p className="text-sm sm:text-[15px] leading-6 sm:leading-7 text-muted-foreground mt-1">
-                {currentStepInfo.description}
-              </p>
-            </div>
-          ) : null}
-
-          {/* Progress Indicator */}
-          <ProgressIndicator
-            steps={effectiveWorkflow.map((s: Record<string, unknown>) => {
-              const stepKey = getStepKeyFromStepId((s.id as string) || "");
-              if (stepKey === "contract_details") {
-                return effectiveStructureType === "invoice_only" ? "Customer Details" : "Contract Details";
-              }
-              return (s.name as string) ?? "";
-            })}
-            currentStep={currentStep}
-            isLoading={isLoading || !effectiveWorkflow.length}
-            isAmendmentMode={isAmendmentModeEffective}
-            amendmentFlaggedStepKeys={amendmentFlaggedStepKeys}
-            acknowledgedWorkflowIds={acknowledgedWorkflowIds}
-            stepKeys={effectiveWorkflow.map(
-              (s: Record<string, unknown>) =>
-                getStepKeyFromStepId((s.id as string) || "") || ""
-            )}
-            onStepClick={isAmendmentModeEffective ? handleStepClick : undefined}
-          />
+          {useWizardContentShell ? (
+            <ApplicationFlowBlockedBackdrop>
+              <ProgressIndicator
+                steps={effectiveWorkflow.map((s: Record<string, unknown>) => {
+                  const stepKey = getStepKeyFromStepId((s.id as string) || "");
+                  if (stepKey === "contract_details") {
+                    return effectiveStructureType === "invoice_only"
+                      ? "Customer Details"
+                      : "Contract Details";
+                  }
+                  return (s.name as string) ?? "";
+                })}
+                currentStep={currentStep}
+                isLoading
+                isAmendmentMode={isAmendmentModeEffective}
+                amendmentFlaggedStepKeys={amendmentFlaggedStepKeys}
+                acknowledgedWorkflowIds={acknowledgedWorkflowIds}
+                stepKeys={effectiveWorkflow.map(
+                  (s: Record<string, unknown>) =>
+                    getStepKeyFromStepId((s.id as string) || "") || ""
+                )}
+                onStepClick={isAmendmentModeEffective ? handleStepClick : undefined}
+              />
+            </ApplicationFlowBlockedBackdrop>
+          ) : (
+            <>
+              {application ? (
+                <div className="mb-4 sm:mb-6">
+                  <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">
+                    {currentStepInfo.title}
+                  </h1>
+                  <p className="text-sm sm:text-[15px] leading-6 sm:leading-7 text-muted-foreground mt-1">
+                    {currentStepInfo.description}
+                  </p>
+                </div>
+              ) : null}
+              <ProgressIndicator
+                steps={effectiveWorkflow.map((s: Record<string, unknown>) => {
+                  const stepKey = getStepKeyFromStepId((s.id as string) || "");
+                  if (stepKey === "contract_details") {
+                    return effectiveStructureType === "invoice_only"
+                      ? "Customer Details"
+                      : "Contract Details";
+                  }
+                  return (s.name as string) ?? "";
+                })}
+                currentStep={currentStep}
+                isLoading={isLoading || !effectiveWorkflow.length}
+                isAmendmentMode={isAmendmentModeEffective}
+                amendmentFlaggedStepKeys={amendmentFlaggedStepKeys}
+                acknowledgedWorkflowIds={acknowledgedWorkflowIds}
+                stepKeys={effectiveWorkflow.map(
+                  (s: Record<string, unknown>) =>
+                    getStepKeyFromStepId((s.id as string) || "") || ""
+                )}
+                onStepClick={isAmendmentModeEffective ? handleStepClick : undefined}
+              />
+            </>
+          )}
         </div>
 
         {/* Divider */}
@@ -1253,20 +1353,26 @@ export default function EditApplicationPage() {
 
         {/* Step Content - Shows step's own skeleton when loading */}
         <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 pt-4 sm:pt-6 relative">
-          {isAmendmentModeEffective && !isStepFlagged && currentStepKey !== "review_and_submit" ? (
-            <ReadOnlyStepBanner />
-          ) : null}
-          {isStepFlagged ? (
-            <div className="mb-6">
-              <AmendmentRemarkCard remarks={currentStepRemarks} showDefaultIntro={false} />
-            </div>
-          ) : null}
-          {renderStepComponent()}
+          {useWizardContentShell ? (
+            <ApplicationFlowBlockedStepSkeleton />
+          ) : (
+            <>
+              {isAmendmentModeEffective && !isStepFlagged && currentStepKey !== "review_and_submit" ? (
+                <ReadOnlyStepBanner />
+              ) : null}
+              {isStepFlagged ? (
+                <div className="mb-6">
+                  <AmendmentRemarkCard remarks={currentStepRemarks} showDefaultIntro={false} />
+                </div>
+              ) : null}
+              {renderStepComponent()}
+            </>
+          )}
         </div>
       </main>
 
       {/* Bottom buttons */}
-      {application && !showBlockingDialog ? (
+      {application && isStepRouteReady && !useWizardContentShell ? (
         <footer className="sticky bottom-0 border-t bg-background">
           <div className="max-w-7xl mx-auto w-full px-3 sm:px-4 py-3 sm:py-4 flex flex-col sm:flex-row gap-3 sm:gap-0 sm:justify-between">
             <Button
@@ -1291,11 +1397,12 @@ export default function EditApplicationPage() {
                       }
                       isSubmittingRef.current = true;
                       try {
-                        const mismatch = await checkNow();
-                        if (mismatch) return;
+                        if (await versionBlocksNavigation()) return;
                         await resubmitMutation.mutateAsync(applicationId);
-                        toast.success("Application resubmitted successfully");
-                        router.replace("/");
+                        const didLeave = await navigateWithVersionCheck("/", "replace");
+                        if (didLeave) {
+                          toast.success("Application resubmitted successfully");
+                        }
                       } catch {
                         toast.error("Failed to resubmit application");
                       } finally {
@@ -1368,6 +1475,22 @@ export default function EditApplicationPage() {
       isPreviewAmendmentActive={devPreviewAmendment}
       approvedContractIds={approvedContracts?.map((c: { id: string }) => c.id) ?? []}
     />
+    </>
+  );
+}
+
+function EditApplicationPageInner() {
+  return (
+    <DevToolsProvider>
+      <EditApplicationPageBody />
     </DevToolsProvider>
+  );
+}
+
+export default function EditApplicationPage() {
+  return (
+    <React.Suspense fallback={<EditApplicationSuspenseFallback />}>
+      <EditApplicationPageInner />
+    </React.Suspense>
   );
 }

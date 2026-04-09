@@ -36,7 +36,14 @@ export function UnsavedChangesModal({
   const confirmLabel = isExit ? "Leave Application" : "Don't Save";
 
   return (
-    <Dialog open={true} onOpenChange={() => {}}>
+    <Dialog
+      open={true}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) {
+          onCancel();
+        }
+      }}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>

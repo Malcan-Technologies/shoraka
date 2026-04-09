@@ -14,7 +14,7 @@ import {
   financialStatementsInputSchema,
 } from "./schemas";
 import { AppError } from "../../lib/http/error-handler";
-import { Application, Prisma, ApplicationStatus as DbApplicationStatus } from "@prisma/client";
+import { Application, Prisma, ApplicationStatus as DbApplicationStatus, ProductStatus } from "@prisma/client";
 import { requestPresignedUploadUrl, deleteDocumentFromS3 } from "./documents/service";
 import { deleteS3Object } from "../../lib/s3/client";
 import { logger } from "../../lib/logger";
@@ -328,13 +328,19 @@ export class ApplicationService {
    * Create a new application
    */
   async createApplication(input: CreateApplicationInput): Promise<Application> {
-    // 1. Fetch product to get latest version
     const product = await this.productRepository.findById(input.productId);
     if (!product) {
       throw new AppError(404, "PRODUCT_NOT_FOUND", "Product not found");
     }
+    if (product.status !== ProductStatus.ACTIVE) {
+      throw new AppError(
+        400,
+        "PRODUCT_NOT_ACTIVE",
+        "This financing product is not available. Refresh the product list and select a current product."
+      );
+    }
 
-    // 2. Create application with product version and product_id in financing_type
+    // Create application with product version and product_id in financing_type
     return this.repository.create({
       issuer_organization_id: input.issuerOrganizationId,
       product_version: product.version,
@@ -362,6 +368,30 @@ export class ApplicationService {
     }
 
     return application;
+  }
+
+  /**
+   * Issuer guard: version to compare against application.product_version (INACTIVE row → ACTIVE successor by base_id).
+   */
+  async getProductVersionCompareForApplication(applicationId: string, userId: string) {
+    await this.verifyApplicationAccess(applicationId, userId);
+
+    const application = await this.repository.findById(applicationId);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+
+    const financing = application.financing_type as Record<string, unknown> | null | undefined;
+    const productId = financing?.product_id as string | undefined;
+    if (!productId?.trim()) {
+      return { outcome: "NO_PRODUCT_ID" as const };
+    }
+
+    const target = await this.productRepository.getVersionCompareTarget(productId.trim());
+    if (target.kind === "UNAVAILABLE") {
+      return { outcome: "PRODUCT_UNAVAILABLE" as const };
+    }
+    return { outcome: "COMPARE" as const, compare_version: target.version };
   }
 
   /**

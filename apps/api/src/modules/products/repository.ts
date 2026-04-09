@@ -59,6 +59,32 @@ export class ProductRepository {
     });
   }
 
+  /**
+   * Guard-only: which product.version to compare to application.product_version.
+   * If the id row cannot supply a live version (missing, deleted, inactive with no active sibling), returns UNAVAILABLE.
+   */
+  async getVersionCompareTarget(productId: string): Promise<
+    | { kind: "UNAVAILABLE" }
+    | { kind: "COMPARE"; version: number; resolvedProductId: string }
+  > {
+    const row = await this.findById(productId);
+    if (!row || row.status === "DELETED") {
+      return { kind: "UNAVAILABLE" };
+    }
+    if (row.status === "ACTIVE") {
+      return { kind: "COMPARE", version: row.version, resolvedProductId: row.id };
+    }
+    const baseId = row.base_id ?? row.id;
+    const active = await prisma.product.findFirst({
+      where: { base_id: baseId, status: "ACTIVE" },
+      orderBy: { version: "desc" },
+    });
+    if (!active) {
+      return { kind: "UNAVAILABLE" };
+    }
+    return { kind: "COMPARE", version: active.version, resolvedProductId: active.id };
+  }
+
   async create(data: CreateProductData, _logContext?: LogContext): Promise<Product> {
     // Determine category and ordering from workflow config (financing type step)
     const workflow = data.workflow as unknown[];

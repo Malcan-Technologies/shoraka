@@ -1,0 +1,1302 @@
+
+==== BrightNova Solutions Sdn. Bhd.
+Parsing CTOS XML with local parser (ctos.new.ts copy of parser.ts)
+Parsed CTOS XML, financial year rows: 4
+{
+  "raw_xml": "<report version=\"5.11.0\" xmlns=\"http://ws.cmctos.com.my/ctosnet/response\">\n  <enq_report id=\"BB-8849-20260408104631\" report_type=\"CTOS\" title=\"CTOS ENQUIRY\">\n    <header>\n      <user id=\"shor_uat\">shor_uat</user>\n      <company id=\"SHORUAT\">Shoraka Suyula Platform Sdn Bhd.</company>\n      <account>SHORUAT</account>\n      <tel/>\n      <fax/>\n      <enq_date>2026-04-08</enq_date>\n      <enq_time>10:46:31</enq_time>\n      <enq_status code=\"1\">SUCCESS</enq_status>\n    </header>\n    <summary>\n      <enq_sum ptype=\"C\" pcode=\"24\" seq=\"1\">\n        <name>BrightNova Solutions Sdn. Bhd.</name>\n        <ic_lcno>202501234567</ic_lcno>\n        <nic_brno/>\n        <stat>6000</stat>\n        <dd_index>0000</dd_index>\n        <fico_index score=\"0\">\n          <fico_factor code=\"7\">Score fail to generate because the gross revenue is more than 50 million.</fico_factor>\n          <fico_factor code=\"\"/>\n          <fico_factor code=\"\"/>\n          <fico_factor code=\"\"/>\n        </fico_index>\n        <mphone_nos/>\n        <ref_no>202501234567</ref_no>\n        <dist_code/>\n        <purpose code=\"200\"/>\n        <include_ctos>1</include_ctos>\n        <include_trex>1</include_trex>\n        <include_ccris sum=\"\">1</include_ccris>\n        <include_dcheq>0</include_dcheq>\n        <include_fico>1</include_fico>\n        <include_sfi>0</include_sfi>\n        <include_ssm_retention>0</include_ssm_retention>\n        <include_etr_plus>2</include_etr_plus>\n        <enq_status code=\"1\">SUCCESS</enq_status>\n        <enq_code code=\"11\">CTOS SME FICO Report</enq_code>\n      </enq_sum>\n    </summary>\n    <enquiry seq=\"1\">\n      <section_summary>\n        <ctos>\n          <bankruptcy status=\"0\"/>\n          <legal total=\"0\" value=\"0\"/>\n          <legal_personal_capacity total=\"0\" value=\"0\"/>\n          <legal_non_personal_capacity total=\"0\" value=\"0\"/>\n          <related_parties>\n            <bankruptcy status=\"0\"/>\n            <legal total=\"0\" value=\"0\"/>\n            <legal_personal_capacity total=\"0\" value=\"0\"/>\n            <legal_non_personal_capacity total=\"0\" value=\"0\"/>\n          </related_parties>\n        </ctos>\n        <tr>\n          <trex_ref negative=\"0\" positive=\"0\"/>\n          <related_parties>\n            <trex_ref negative=\"0\" positive=\"0\"/>\n          </related_parties>\n        </tr>\n        <ccris>\n          <application total=\"0\" approved=\"0\" pending=\"0\"/>\n          <facility total=\"0\" arrears=\"0\" value=\"0\"/>\n          <special_attention accounts=\"0\"/>\n          <related_parties>\n            <application total=\"0\" approved=\"0\" pending=\"0\"/>\n            <facility total=\"0\" value=\"0.00\" arrears=\"0\"/>\n            <special_attention accounts=\"0\"/>\n          </related_parties>\n        </ccris>\n        <dcheqs entity=\"0\" related_parties=\"0\"/>\n      </section_summary>\n      <section_a data=\"true\" title=\"SECTION A - COMPANIES COMMISSION OF MALAYSIA (CCM) INFORMATION\">\n        <record rpttype=\"CE\" seq=\"1\">\n          <name match=\"1\">BrightNova Solutions Sdn. Bhd.</name>\n          <additional_registration_no>5432198</additional_registration_no>\n          <ic_lcno>202501234567</ic_lcno>\n          <lc_checksum>A</lc_checksum>\n          <addr/>\n          <addr1>LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK</addr1>\n          <addr_breakdown/>\n          <ccris_addresses/>\n          <source>SSM</source>\n          <previous_cpo_date/>\n          <cpo_date>30-11-2019</cpo_date>\n          <register_date>10-11-2020</register_date>\n          <comp_category code=\"S\">LIMITED BY SHARES</comp_category>\n          <comp_type code=\"R\">PRIVATE LIMITED</comp_type>\n          <status>EXISTING</status>\n          <type_of_business>Food and Beverage</type_of_business>\n          <remark>AMBANK TEST DATA DO NOT CHANGE</remark>\n          <capital>800000</capital>\n          <paid_up>800000</paid_up>\n          <directors seq=\"1\">\n            <director seq=\"1\">\n              <name>Lim Wei Jian</name>\n              <alias/>\n              <ic_lcno/>\n              <nic_brno>881102140566</nic_brno>\n              <position>DS</position>\n              <addr>LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK</addr>\n              <appoint>01-07-2018</appoint>\n              <resign_date/>\n              <equity>16000</equity>\n              <equity_percentage>2.00</equity_percentage>\n              <remark>DIRECTOR SHAREHOLDER</remark>\n              <party_type>I</party_type>\n            </director>\n            <director seq=\"2\">\n              <name>Siti Farhana Binti Halim</name>\n              <alias/>\n              <ic_lcno/>\n              <nic_brno>910304050722</nic_brno>\n              <position>DS</position>\n              <addr>LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK</addr>\n              <appoint>01-07-2018</appoint>\n              <resign_date/>\n              <equity>16000</equity>\n              <equity_percentage>2.00</equity_percentage>\n              <remark>DIRECTOR SHAREHOLDER</remark>\n              <party_type>I</party_type>\n            </director>\n            <director seq=\"3\">\n              <name>Muhammad Arif Bin Zainal</name>\n              <alias/>\n              <ic_lcno/>\n              <nic_brno>900512140877</nic_brno>\n              <position>SO</position>\n              <addr>LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK</addr>\n              <appoint>01-07-2018</appoint>\n              <resign_date/>\n              <equity>400000</equity>\n              <equity_percentage>50.00</equity_percentage>\n              <remark>SHAREHOLDER</remark>\n              <party_type>I</party_type>\n            </director>\n            <director seq=\"4\">\n              <name>Darren Yap Jun Hao</name>\n              <alias/>\n              <ic_lcno/>\n              <nic_brno>970821140455</nic_brno>\n              <position>SO</position>\n              <addr>LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK</addr>\n              <appoint>01-07-2018</appoint>\n              <resign_date/>\n              <equity>48000</equity>\n              <equity_percentage>6.00</equity_percentage>\n              <remark>SHAREHOLDER</remark>\n              <party_type>I</party_type>\n            </director>\n            <director seq=\"5\">\n              <name>Stellar Apex Holdings Sdn. Bhd.</name>\n              <alias/>\n              <additional_registration_no>201901345678</additional_registration_no>\n              <ic_lcno>7328154B</ic_lcno>\n              <nic_brno/>\n              <position>SO</position>\n              <addr>Lot 12, Jalan Melati 3, Taman Seri Indah, 43000 Kajang, Selangor</addr>\n              <appoint/>\n              <resign_date/>\n              <equity>320000</equity>\n              <equity_percentage>40.00</equity_percentage>\n              <remark/>\n              <party_type>C</party_type>\n              <brn_ssm>7328154B</brn_ssm>\n            </director>\n          </directors>\n          <secretaries/>\n          <previous_names name=\"\" change_date=\"\"/>\n          <charges>\n            <charge seq=\"1\"/>\n          </charges>\n          <sme_financial_score/>\n          <accounts auditor_name=\"UHY\">\n            <account seq=\"1\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2024</pldd>\n              <bsdd>2024-06-30</bsdd>\n              <tabledt>26-11-2024</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth>0.0</turnover_growth>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n            <account seq=\"2\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2023</pldd>\n              <bsdd>2023-06-30</bsdd>\n              <tabledt>26-11-2023</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth>0.0</turnover_growth>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n            <account seq=\"3\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2022</pldd>\n              <bsdd>2022-06-30</bsdd>\n              <tabledt>26-11-2022</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth>0.0</turnover_growth>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n            <account seq=\"4\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2022</pldd>\n              <bsdd>2022-06-30</bsdd>\n              <tabledt>26-11-2022</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth>0.0</turnover_growth>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n            <account seq=\"5\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2021</pldd>\n              <bsdd>2021-06-30</bsdd>\n              <tabledt>26-11-2021</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth/>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n          </accounts>\n          <capital_details>\n            <auth_capital/>\n            <paidup_capital>800000</paidup_capital>\n            <paidup_ord_amount>800000.00</paidup_ord_amount>\n            <paidup_ordA_amount>0.00</paidup_ordA_amount>\n            <paidup_ordB_amount>0.00</paidup_ordB_amount>\n            <paidup_ord_divided>0</paidup_ord_divided>\n            <paidup_ordA_divided>0</paidup_ordA_divided>\n            <paidup_ordB_divided>0</paidup_ordB_divided>\n            <paidup_ord_nominal>100</paidup_ord_nominal>\n            <paidup_pre_amount>0.00</paidup_pre_amount>\n            <paidup_preA_amount>0.00</paidup_preA_amount>\n            <paidup_preB_amount>0.00</paidup_preB_amount>\n            <paidup_pre_divided>0</paidup_pre_divided>\n            <paidup_preA_divided>0</paidup_preA_divided>\n            <paidup_preB_divided>0</paidup_preB_divided>\n            <paidup_pre_nominal>0</paidup_pre_nominal>\n            <paidup_oth_amount>0.00</paidup_oth_amount>\n            <paidup_othA_amount>0.00</paidup_othA_amount>\n            <paidup_othB_amount>0.00</paidup_othB_amount>\n            <paidup_oth_divided>0</paidup_oth_divided>\n            <paidup_othA_divided>0</paidup_othA_divided>\n            <paidup_othB_divided>0</paidup_othB_divided>\n            <paidup_oth_nominal>0</paidup_oth_nominal>\n          </capital_details>\n          <brn_ssm>5432198A</brn_ssm>\n          <msic_ssms>\n            <msic_ssm code=\"56101 \" priority=\"1\">Restaurants and restaurant cum night clubs</msic_ssm>\n          </msic_ssms>\n        </record>\n      </section_a>\n      <section_b title=\"SECTION B - INTERNAL LIST\" data=\"true\">\n        <history seq=\"1\" rpttype=\"EH\" year=\"2026\">\n          <period month=\"1\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"2\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"3\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"4\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"5\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"6\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"7\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"8\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"9\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"10\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"11\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"12\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n        </history>\n        <history seq=\"2\" rpttype=\"EH\" year=\"2025\">\n          <period month=\"1\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"2\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"3\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"4\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"5\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"6\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"7\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"8\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"9\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"10\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"11\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"12\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n        </history>\n      </section_b>\n      <section_c title=\"SECTION C - DIRECTORSHIPS AND BUSINESS INTERESTS\" data=\"false\"/>\n      <section_d title=\"SECTION D\" data=\"false\"/>\n      <section_d2 title=\"SECTION D2 - SUBJECT AS PLAINTIFF\" data=\"false\"/>\n      <section_ccris title=\"SECTION CCRIS\" data=\"false\"/>\n      <section_dcheqs title=\"\" data=\"false\"/>\n      <section_etr_plus title=\"ETR PLUS\" data=\"false\"/>\n      <section_e title=\"SECTION E - TRADE REFEREES\" data=\"false\"/>\n    </enquiry>\n  </enq_report>\n</report>",
+  "summary_json": {
+    "fico_score": 0,
+    "fico_factors": [
+      "Score fail to generate because the gross revenue is more than 50 million."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "has_history": false,
+      "raw_flag": 0
+    }
+  },
+  "person_json": null,
+  "company_json": {
+    "name": "BrightNova Solutions Sdn. Bhd.",
+    "registration_no": "5432198A",
+    "status": "EXISTING",
+    "business_type": "Food and Beverage",
+    "company_type": "PRIVATE LIMITED",
+    "company_category": "LIMITED BY SHARES",
+    "address": {
+      "full": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+      "line1": null,
+      "line2": null,
+      "city": null,
+      "state": null,
+      "postcode": null
+    },
+    "directors": [
+      {
+        "name": "Lim Wei Jian",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "881102140566",
+        "position": "DS",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 16000,
+        "equity_percentage": 2,
+        "remark": "DIRECTOR SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Siti Farhana Binti Halim",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "910304050722",
+        "position": "DS",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 16000,
+        "equity_percentage": 2,
+        "remark": "DIRECTOR SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Muhammad Arif Bin Zainal",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "900512140877",
+        "position": "SO",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 400000,
+        "equity_percentage": 50,
+        "remark": "SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Darren Yap Jun Hao",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "970821140455",
+        "position": "SO",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 48000,
+        "equity_percentage": 6,
+        "remark": "SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Stellar Apex Holdings Sdn. Bhd.",
+        "alias": null,
+        "ic_lcno": "7328154B",
+        "nic_brno": null,
+        "position": "SO",
+        "addr": "Lot 12, Jalan Melati 3, Taman Seri Indah, 43000 Kajang, Selangor",
+        "appoint": null,
+        "resign_date": null,
+        "equity": 320000,
+        "equity_percentage": 40,
+        "remark": null,
+        "party_type": "C"
+      }
+    ]
+  },
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": null,
+      "total_outstanding": null
+    }
+  },
+  "financials_json": [
+    {
+      "reporting_year": 2024,
+      "financial_year_end_date": "30-06-2024",
+      "balance_sheet_date": "2024-06-30",
+      "balance_sheet": {
+        "fixed_assets": 0,
+        "other_assets": 0,
+        "current_assets": 2109152381,
+        "non_current_assets": 2056177549,
+        "total_assets": 4165329930,
+        "current_liabilities": 1592807689,
+        "long_term_liabilities": 817697089,
+        "non_current_liabilities": 0,
+        "total_liabilities": 2410504778,
+        "equity": 922887304
+      },
+      "profit_and_loss": {
+        "revenue": 1723857391,
+        "profit_before_tax": 216927247,
+        "profit_after_tax": 137514515,
+        "net_dividend": -35059118,
+        "profit_line_amount": 128538935
+      }
+    },
+    {
+      "reporting_year": 2023,
+      "financial_year_end_date": "30-06-2023",
+      "balance_sheet_date": "2023-06-30",
+      "balance_sheet": {
+        "fixed_assets": 0,
+        "other_assets": 0,
+        "current_assets": 2109152381,
+        "non_current_assets": 2056177549,
+        "total_assets": 4165329930,
+        "current_liabilities": 1592807689,
+        "long_term_liabilities": 817697089,
+        "non_current_liabilities": 0,
+        "total_liabilities": 2410504778,
+        "equity": 922887304
+      },
+      "profit_and_loss": {
+        "revenue": 1723857391,
+        "profit_before_tax": 216927247,
+        "profit_after_tax": 137514515,
+        "net_dividend": -35059118,
+        "profit_line_amount": 128538935
+      }
+    },
+    {
+      "reporting_year": 2022,
+      "financial_year_end_date": "30-06-2022",
+      "balance_sheet_date": "2022-06-30",
+      "balance_sheet": {
+        "fixed_assets": 0,
+        "other_assets": 0,
+        "current_assets": 2109152381,
+        "non_current_assets": 2056177549,
+        "total_assets": 4165329930,
+        "current_liabilities": 1592807689,
+        "long_term_liabilities": 817697089,
+        "non_current_liabilities": 0,
+        "total_liabilities": 2410504778,
+        "equity": 922887304
+      },
+      "profit_and_loss": {
+        "revenue": 1723857391,
+        "profit_before_tax": 216927247,
+        "profit_after_tax": 137514515,
+        "net_dividend": -35059118,
+        "profit_line_amount": 128538935
+      }
+    },
+    {
+      "reporting_year": 2021,
+      "financial_year_end_date": "30-06-2021",
+      "balance_sheet_date": "2021-06-30",
+      "balance_sheet": {
+        "fixed_assets": 0,
+        "other_assets": 0,
+        "current_assets": 2109152381,
+        "non_current_assets": 2056177549,
+        "total_assets": 4165329930,
+        "current_liabilities": 1592807689,
+        "long_term_liabilities": 817697089,
+        "non_current_liabilities": 0,
+        "total_liabilities": 2410504778,
+        "equity": 922887304
+      },
+      "profit_and_loss": {
+        "revenue": 1723857391,
+        "profit_before_tax": 216927247,
+        "profit_after_tax": 137514515,
+        "net_dividend": -35059118,
+        "profit_line_amount": 128538935
+      }
+    }
+  ]
+}
+
+==== Vertex Quantum Technologies Sdn. Bhd.
+Parsing CTOS XML with local parser (ctos.new.ts copy of parser.ts)
+Parsed CTOS XML, financial year rows: 4
+{
+  "raw_xml": "<report version=\"5.11.0\" xmlns=\"http://ws.cmctos.com.my/ctosnet/response\">\n  <enq_report id=\"BB-8736-20260408104632\" report_type=\"CTOS\" title=\"CTOS ENQUIRY\">\n    <header>\n      <user id=\"shor_uat\">shor_uat</user>\n      <company id=\"SHORUAT\">Shoraka Suyula Platform Sdn Bhd.</company>\n      <account>SHORUAT</account>\n      <tel/>\n      <fax/>\n      <enq_date>2026-04-08</enq_date>\n      <enq_time>10:46:32</enq_time>\n      <enq_status code=\"1\">SUCCESS</enq_status>\n    </header>\n    <summary>\n      <enq_sum ptype=\"C\" pcode=\"24\" seq=\"1\">\n        <name>Vertex Quantum Technologies Sdn. Bhd.</name>\n        <ic_lcno>202501998877</ic_lcno>\n        <nic_brno/>\n        <stat>6000</stat>\n        <dd_index>0000</dd_index>\n        <fico_index score=\"0\">\n          <fico_factor code=\"7\">Score fail to generate because the gross revenue is more than 50 million.</fico_factor>\n          <fico_factor code=\"\"/>\n          <fico_factor code=\"\"/>\n          <fico_factor code=\"\"/>\n        </fico_index>\n        <mphone_nos/>\n        <ref_no>202501998877</ref_no>\n        <dist_code/>\n        <purpose code=\"200\"/>\n        <include_ctos>1</include_ctos>\n        <include_trex>1</include_trex>\n        <include_ccris sum=\"\">1</include_ccris>\n        <include_dcheq>0</include_dcheq>\n        <include_fico>1</include_fico>\n        <include_sfi>0</include_sfi>\n        <include_ssm_retention>0</include_ssm_retention>\n        <include_etr_plus>2</include_etr_plus>\n        <enq_status code=\"1\">SUCCESS</enq_status>\n        <enq_code code=\"11\">CTOS SME FICO Report</enq_code>\n      </enq_sum>\n    </summary>\n    <enquiry seq=\"1\">\n      <section_summary>\n        <ctos>\n          <bankruptcy status=\"0\"/>\n          <legal total=\"0\" value=\"0\"/>\n          <legal_personal_capacity total=\"0\" value=\"0\"/>\n          <legal_non_personal_capacity total=\"0\" value=\"0\"/>\n          <related_parties>\n            <bankruptcy status=\"0\"/>\n            <legal total=\"0\" value=\"0\"/>\n            <legal_personal_capacity total=\"0\" value=\"0\"/>\n            <legal_non_personal_capacity total=\"0\" value=\"0\"/>\n          </related_parties>\n        </ctos>\n        <tr>\n          <trex_ref negative=\"0\" positive=\"0\"/>\n          <related_parties>\n            <trex_ref negative=\"0\" positive=\"0\"/>\n          </related_parties>\n        </tr>\n        <ccris>\n          <application total=\"0\" approved=\"0\" pending=\"0\"/>\n          <facility total=\"0\" arrears=\"0\" value=\"0\"/>\n          <special_attention accounts=\"0\"/>\n          <related_parties>\n            <application total=\"0\" approved=\"0\" pending=\"0\"/>\n            <facility total=\"0\" value=\"0.00\" arrears=\"0\"/>\n            <special_attention accounts=\"0\"/>\n          </related_parties>\n        </ccris>\n        <dcheqs entity=\"0\" related_parties=\"0\"/>\n      </section_summary>\n      <section_a data=\"true\" title=\"SECTION A - COMPANIES COMMISSION OF MALAYSIA (CCM) INFORMATION\">\n        <record rpttype=\"CE\" seq=\"1\">\n          <name match=\"1\">Vertex Quantum Technologies Sdn. Bhd.</name>\n          <additional_registration_no>6549031</additional_registration_no>\n          <ic_lcno>202501998877</ic_lcno>\n          <lc_checksum>C</lc_checksum>\n          <addr/>\n          <addr1>Lot 45, Jalan Tun Razak, 50400 Kuala Lumpur, Malaysia</addr1>\n          <addr_breakdown/>\n          <ccris_addresses/>\n          <source>SSM</source>\n          <previous_cpo_date/>\n          <cpo_date>30-11-2019</cpo_date>\n          <register_date>10-11-2020</register_date>\n          <comp_category code=\"S\">LIMITED BY SHARES</comp_category>\n          <comp_type code=\"R\">PRIVATE LIMITED</comp_type>\n          <status>EXISTING</status>\n          <type_of_business>Food and Beverage</type_of_business>\n          <remark>AMBANK TEST DATA DO NOT CHANGE</remark>\n          <capital>800000</capital>\n          <paid_up>800000</paid_up>\n          <directors seq=\"1\">\n            <director seq=\"1\">\n              <name>Darren Ong Wei Jian</name>\n              <alias/>\n              <ic_lcno/>\n              <nic_brno>910417140766</nic_brno>\n              <position>DO</position>\n              <addr>LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK</addr>\n              <appoint>01-07-2018</appoint>\n              <resign_date/>\n              <equity>0</equity>\n              <equity_percentage>0.00</equity_percentage>\n              <remark>DIRECTOR</remark>\n              <party_type>I</party_type>\n            </director>\n            <director seq=\"2\">\n              <name>Kelvin Lee Jun Hua</name>\n              <alias/>\n              <ic_lcno/>\n              <nic_brno>990202140899</nic_brno>\n              <position>DO</position>\n              <addr>LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK</addr>\n              <appoint>01-07-2018</appoint>\n              <resign_date/>\n              <equity>0</equity>\n              <equity_percentage>0.00</equity_percentage>\n              <remark>DIRECTOR</remark>\n              <party_type>I</party_type>\n            </director>\n            <director seq=\"3\">\n              <name>Siti Noraini Binti Azfar</name>\n              <alias/>\n              <ic_lcno/>\n              <nic_brno>960318050722</nic_brno>\n              <position>DO</position>\n              <addr>LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK</addr>\n              <appoint>01-07-2018</appoint>\n              <resign_date/>\n              <equity>0</equity>\n              <equity_percentage>0.00</equity_percentage>\n              <remark>DIRECTOR</remark>\n              <party_type>I</party_type>\n            </director>\n            <director seq=\"4\">\n              <name>Nur Aina Farisha Binti Salleh</name>\n              <alias/>\n              <ic_lcno/>\n              <nic_brno>950829050688</nic_brno>\n              <position>DS</position>\n              <addr>LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK</addr>\n              <appoint>01-07-2018</appoint>\n              <resign_date/>\n              <equity>80000</equity>\n              <equity_percentage>10.00</equity_percentage>\n              <remark>DIRECTOR SHAREHOLDER</remark>\n              <party_type>I</party_type>\n            </director>\n            <director seq=\"5\">\n              <name>Muhammad Haziq Bin Razman</name>\n              <alias/>\n              <ic_lcno/>\n              <nic_brno>930512140744</nic_brno>\n              <position>SO</position>\n              <addr>No. 88, Jalan Pudu, 55100 Kuala Lumpur, Malaysia</addr>\n              <appoint>01-07-2018</appoint>\n              <resign_date/>\n              <equity>160000</equity>\n              <equity_percentage>20.00</equity_percentage>\n              <remark>SHAREHOLDER</remark>\n              <party_type>I</party_type>\n            </director>\n            <director seq=\"6\">\n              <name>Tan Li Wen</name>\n              <alias/>\n              <ic_lcno/>\n              <nic_brno>981203140522</nic_brno>\n              <position>SO</position>\n              <addr>Unit 7, Menara TH, Jalan Sultan Ismail, 50250 Kuala Lumpur, Malaysia</addr>\n              <appoint>01-07-2018</appoint>\n              <resign_date/>\n              <equity>160000</equity>\n              <equity_percentage>20.00</equity_percentage>\n              <remark>SHAREHOLDER</remark>\n              <party_type>I</party_type>\n            </director>\n            <director seq=\"7\">\n              <name>Orion Crest Holdings Sdn. Bhd.</name>\n              <alias/>\n              <additional_registration_no>202001556432</additional_registration_no>\n              <ic_lcno>8217649D</ic_lcno>\n              <nic_brno/>\n              <position>SO</position>\n              <addr>No. 22, Jalan Klang Lama, 58200 Kuala Lumpur, Malaysia</addr>\n              <appoint/>\n              <resign_date/>\n              <equity>400000</equity>\n              <equity_percentage>50.00</equity_percentage>\n              <remark/>\n              <party_type>C</party_type>\n              <brn_ssm>8217649D</brn_ssm>\n            </director>\n          </directors>\n          <secretaries/>\n          <previous_names name=\"\" change_date=\"\"/>\n          <charges>\n            <charge seq=\"1\"/>\n          </charges>\n          <sme_financial_score/>\n          <accounts auditor_name=\"UHY\">\n            <account seq=\"1\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2024</pldd>\n              <bsdd>2024-06-30</bsdd>\n              <tabledt>26-11-2024</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth>0.0</turnover_growth>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n            <account seq=\"2\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2023</pldd>\n              <bsdd>2023-06-30</bsdd>\n              <tabledt>26-11-2023</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth>0.0</turnover_growth>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n            <account seq=\"3\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2022</pldd>\n              <bsdd>2022-06-30</bsdd>\n              <tabledt>26-11-2022</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth>0.0</turnover_growth>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n            <account seq=\"4\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2022</pldd>\n              <bsdd>2022-06-30</bsdd>\n              <tabledt>26-11-2022</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth>0.0</turnover_growth>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n            <account seq=\"5\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2021</pldd>\n              <bsdd>2021-06-30</bsdd>\n              <tabledt>26-11-2021</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth/>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n          </accounts>\n          <capital_details>\n            <auth_capital/>\n            <paidup_capital>800000</paidup_capital>\n            <paidup_ord_amount>800000.00</paidup_ord_amount>\n            <paidup_ordA_amount>0.00</paidup_ordA_amount>\n            <paidup_ordB_amount>0.00</paidup_ordB_amount>\n            <paidup_ord_divided>0</paidup_ord_divided>\n            <paidup_ordA_divided>0</paidup_ordA_divided>\n            <paidup_ordB_divided>0</paidup_ordB_divided>\n            <paidup_ord_nominal>100</paidup_ord_nominal>\n            <paidup_pre_amount>0.00</paidup_pre_amount>\n            <paidup_preA_amount>0.00</paidup_preA_amount>\n            <paidup_preB_amount>0.00</paidup_preB_amount>\n            <paidup_pre_divided>0</paidup_pre_divided>\n            <paidup_preA_divided>0</paidup_preA_divided>\n            <paidup_preB_divided>0</paidup_preB_divided>\n            <paidup_pre_nominal>0</paidup_pre_nominal>\n            <paidup_oth_amount>0.00</paidup_oth_amount>\n            <paidup_othA_amount>0.00</paidup_othA_amount>\n            <paidup_othB_amount>0.00</paidup_othB_amount>\n            <paidup_oth_divided>0</paidup_oth_divided>\n            <paidup_othA_divided>0</paidup_othA_divided>\n            <paidup_othB_divided>0</paidup_othB_divided>\n            <paidup_oth_nominal>0</paidup_oth_nominal>\n          </capital_details>\n          <brn_ssm>6549031C</brn_ssm>\n          <msic_ssms>\n            <msic_ssm code=\"56101 \" priority=\"1\">Restaurants and restaurant cum night clubs</msic_ssm>\n          </msic_ssms>\n        </record>\n      </section_a>\n      <section_b title=\"SECTION B - INTERNAL LIST\" data=\"true\">\n        <history seq=\"1\" rpttype=\"EH\" year=\"2026\">\n          <period month=\"1\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"2\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"3\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"4\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"5\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"6\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"7\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"8\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"9\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"10\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"11\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"12\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n        </history>\n        <history seq=\"2\" rpttype=\"EH\" year=\"2025\">\n          <period month=\"1\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"2\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"3\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"4\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"5\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"6\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"7\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"8\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"9\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"10\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"11\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"12\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n        </history>\n      </section_b>\n      <section_c title=\"SECTION C - DIRECTORSHIPS AND BUSINESS INTERESTS\" data=\"false\"/>\n      <section_d title=\"SECTION D\" data=\"false\"/>\n      <section_d2 title=\"SECTION D2 - SUBJECT AS PLAINTIFF\" data=\"false\"/>\n      <section_ccris title=\"SECTION CCRIS\" data=\"false\"/>\n      <section_dcheqs title=\"\" data=\"false\"/>\n      <section_etr_plus title=\"ETR PLUS\" data=\"false\"/>\n      <section_e title=\"SECTION E - TRADE REFEREES\" data=\"false\"/>\n    </enquiry>\n  </enq_report>\n</report>",
+  "summary_json": {
+    "fico_score": 0,
+    "fico_factors": [
+      "Score fail to generate because the gross revenue is more than 50 million."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "has_history": false,
+      "raw_flag": 0
+    }
+  },
+  "person_json": null,
+  "company_json": {
+    "name": "Vertex Quantum Technologies Sdn. Bhd.",
+    "registration_no": "6549031C",
+    "status": "EXISTING",
+    "business_type": "Food and Beverage",
+    "company_type": "PRIVATE LIMITED",
+    "company_category": "LIMITED BY SHARES",
+    "address": {
+      "full": "Lot 45, Jalan Tun Razak, 50400 Kuala Lumpur, Malaysia",
+      "line1": null,
+      "line2": null,
+      "city": null,
+      "state": null,
+      "postcode": null
+    },
+    "directors": [
+      {
+        "name": "Darren Ong Wei Jian",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "910417140766",
+        "position": "DO",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 0,
+        "equity_percentage": 0,
+        "remark": "DIRECTOR",
+        "party_type": "I"
+      },
+      {
+        "name": "Kelvin Lee Jun Hua",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "990202140899",
+        "position": "DO",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 0,
+        "equity_percentage": 0,
+        "remark": "DIRECTOR",
+        "party_type": "I"
+      },
+      {
+        "name": "Siti Noraini Binti Azfar",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "960318050722",
+        "position": "DO",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 0,
+        "equity_percentage": 0,
+        "remark": "DIRECTOR",
+        "party_type": "I"
+      },
+      {
+        "name": "Nur Aina Farisha Binti Salleh",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "950829050688",
+        "position": "DS",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 80000,
+        "equity_percentage": 10,
+        "remark": "DIRECTOR SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Muhammad Haziq Bin Razman",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "930512140744",
+        "position": "SO",
+        "addr": "No. 88, Jalan Pudu, 55100 Kuala Lumpur, Malaysia",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 160000,
+        "equity_percentage": 20,
+        "remark": "SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Tan Li Wen",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "981203140522",
+        "position": "SO",
+        "addr": "Unit 7, Menara TH, Jalan Sultan Ismail, 50250 Kuala Lumpur, Malaysia",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 160000,
+        "equity_percentage": 20,
+        "remark": "SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Orion Crest Holdings Sdn. Bhd.",
+        "alias": null,
+        "ic_lcno": "8217649D",
+        "nic_brno": null,
+        "position": "SO",
+        "addr": "No. 22, Jalan Klang Lama, 58200 Kuala Lumpur, Malaysia",
+        "appoint": null,
+        "resign_date": null,
+        "equity": 400000,
+        "equity_percentage": 50,
+        "remark": null,
+        "party_type": "C"
+      }
+    ]
+  },
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": null,
+      "total_outstanding": null
+    }
+  },
+  "financials_json": [
+    {
+      "reporting_year": 2024,
+      "financial_year_end_date": "30-06-2024",
+      "balance_sheet_date": "2024-06-30",
+      "balance_sheet": {
+        "fixed_assets": 0,
+        "other_assets": 0,
+        "current_assets": 2109152381,
+        "non_current_assets": 2056177549,
+        "total_assets": 4165329930,
+        "current_liabilities": 1592807689,
+        "long_term_liabilities": 817697089,
+        "non_current_liabilities": 0,
+        "total_liabilities": 2410504778,
+        "equity": 922887304
+      },
+      "profit_and_loss": {
+        "revenue": 1723857391,
+        "profit_before_tax": 216927247,
+        "profit_after_tax": 137514515,
+        "net_dividend": -35059118,
+        "profit_line_amount": 128538935
+      }
+    },
+    {
+      "reporting_year": 2023,
+      "financial_year_end_date": "30-06-2023",
+      "balance_sheet_date": "2023-06-30",
+      "balance_sheet": {
+        "fixed_assets": 0,
+        "other_assets": 0,
+        "current_assets": 2109152381,
+        "non_current_assets": 2056177549,
+        "total_assets": 4165329930,
+        "current_liabilities": 1592807689,
+        "long_term_liabilities": 817697089,
+        "non_current_liabilities": 0,
+        "total_liabilities": 2410504778,
+        "equity": 922887304
+      },
+      "profit_and_loss": {
+        "revenue": 1723857391,
+        "profit_before_tax": 216927247,
+        "profit_after_tax": 137514515,
+        "net_dividend": -35059118,
+        "profit_line_amount": 128538935
+      }
+    },
+    {
+      "reporting_year": 2022,
+      "financial_year_end_date": "30-06-2022",
+      "balance_sheet_date": "2022-06-30",
+      "balance_sheet": {
+        "fixed_assets": 0,
+        "other_assets": 0,
+        "current_assets": 2109152381,
+        "non_current_assets": 2056177549,
+        "total_assets": 4165329930,
+        "current_liabilities": 1592807689,
+        "long_term_liabilities": 817697089,
+        "non_current_liabilities": 0,
+        "total_liabilities": 2410504778,
+        "equity": 922887304
+      },
+      "profit_and_loss": {
+        "revenue": 1723857391,
+        "profit_before_tax": 216927247,
+        "profit_after_tax": 137514515,
+        "net_dividend": -35059118,
+        "profit_line_amount": 128538935
+      }
+    },
+    {
+      "reporting_year": 2021,
+      "financial_year_end_date": "30-06-2021",
+      "balance_sheet_date": "2021-06-30",
+      "balance_sheet": {
+        "fixed_assets": 0,
+        "other_assets": 0,
+        "current_assets": 2109152381,
+        "non_current_assets": 2056177549,
+        "total_assets": 4165329930,
+        "current_liabilities": 1592807689,
+        "long_term_liabilities": 817697089,
+        "non_current_liabilities": 0,
+        "total_liabilities": 2410504778,
+        "equity": 922887304
+      },
+      "profit_and_loss": {
+        "revenue": 1723857391,
+        "profit_before_tax": 216927247,
+        "profit_after_tax": 137514515,
+        "net_dividend": -35059118,
+        "profit_line_amount": 128538935
+      }
+    }
+  ]
+}
+
+==== Orion Crest Holdings Sdn. Bhd.
+Parsing CTOS XML with local parser (ctos.new.ts copy of parser.ts)
+Parsed CTOS XML, financial year rows: 4
+{
+  "raw_xml": "<report version=\"5.11.0\" xmlns=\"http://ws.cmctos.com.my/ctosnet/response\">\n  <enq_report id=\"BB-3475-20260408104633\" report_type=\"CTOS\" title=\"CTOS ENQUIRY\">\n    <header>\n      <user id=\"shor_uat\">shor_uat</user>\n      <company id=\"SHORUAT\">Shoraka Suyula Platform Sdn Bhd.</company>\n      <account>SHORUAT</account>\n      <tel/>\n      <fax/>\n      <enq_date>2026-04-08</enq_date>\n      <enq_time>10:46:33</enq_time>\n      <enq_status code=\"1\">SUCCESS</enq_status>\n    </header>\n    <summary>\n      <enq_sum ptype=\"C\" pcode=\"24\" seq=\"1\">\n        <name>Orion Crest Holdings Sdn. Bhd.</name>\n        <ic_lcno>202001556432</ic_lcno>\n        <nic_brno/>\n        <stat>6010</stat>\n        <dd_index>0000</dd_index>\n        <fico_index score=\"0\">\n          <fico_factor code=\"7\">Score fail to generate because the gross revenue is more than 50 million.</fico_factor>\n          <fico_factor code=\"\"/>\n          <fico_factor code=\"\"/>\n          <fico_factor code=\"\"/>\n        </fico_index>\n        <mphone_nos/>\n        <ref_no>202001556432</ref_no>\n        <dist_code/>\n        <purpose code=\"200\"/>\n        <include_ctos>1</include_ctos>\n        <include_trex>1</include_trex>\n        <include_ccris sum=\"\">1</include_ccris>\n        <include_dcheq>0</include_dcheq>\n        <include_fico>1</include_fico>\n        <include_sfi>0</include_sfi>\n        <include_ssm_retention>0</include_ssm_retention>\n        <include_etr_plus>2</include_etr_plus>\n        <enq_status code=\"1\">SUCCESS</enq_status>\n        <enq_code code=\"11\">CTOS SME FICO Report</enq_code>\n      </enq_sum>\n    </summary>\n    <enquiry seq=\"1\">\n      <section_summary>\n        <ctos>\n          <bankruptcy status=\"0\"/>\n          <legal total=\"0\" value=\"0\"/>\n          <legal_personal_capacity total=\"0\" value=\"0\"/>\n          <legal_non_personal_capacity total=\"0\" value=\"0\"/>\n          <related_parties>\n            <bankruptcy status=\"0\"/>\n            <legal total=\"0\" value=\"0\"/>\n            <legal_personal_capacity total=\"0\" value=\"0\"/>\n            <legal_non_personal_capacity total=\"0\" value=\"0\"/>\n          </related_parties>\n        </ctos>\n        <tr>\n          <trex_ref negative=\"0\" positive=\"0\"/>\n          <related_parties>\n            <trex_ref negative=\"0\" positive=\"0\"/>\n          </related_parties>\n        </tr>\n        <ccris>\n          <application total=\"0\" approved=\"0\" pending=\"0\"/>\n          <facility total=\"0\" arrears=\"0\" value=\"0\"/>\n          <special_attention accounts=\"0\"/>\n          <related_parties>\n            <application total=\"0\" approved=\"0\" pending=\"0\"/>\n            <facility total=\"0\" value=\"0.00\" arrears=\"0\"/>\n            <special_attention accounts=\"0\"/>\n          </related_parties>\n        </ccris>\n        <dcheqs entity=\"0\" related_parties=\"0\"/>\n      </section_summary>\n      <section_a data=\"true\" title=\"SECTION A - COMPANIES COMMISSION OF MALAYSIA (CCM) INFORMATION\">\n        <record rpttype=\"CE\" seq=\"1\">\n          <name match=\"1\">Orion Crest Holdings Sdn. Bhd.</name>\n          <additional_registration_no>8217649</additional_registration_no>\n          <ic_lcno>202001556432</ic_lcno>\n          <lc_checksum>D</lc_checksum>\n          <addr/>\n          <addr1>No. 22, Jalan Klang Lama, 58200 Kuala Lumpur, Malaysia</addr1>\n          <addr_breakdown/>\n          <ccris_addresses/>\n          <source>SSM</source>\n          <previous_cpo_date/>\n          <cpo_date>30-11-2019</cpo_date>\n          <register_date>10-11-2020</register_date>\n          <comp_category code=\"S\">LIMITED BY SHARES</comp_category>\n          <comp_type code=\"R\">PRIVATE LIMITED</comp_type>\n          <status>EXISTING</status>\n          <type_of_business>Food and Beverage</type_of_business>\n          <remark>AMBANK TEST DATA DO NOT CHANGE</remark>\n          <capital>800000</capital>\n          <paid_up>800000</paid_up>\n          <directors seq=\"1\">\n            <director seq=\"1\">\n              <name>Muhammad Faez Bin Rahim</name>\n              <alias/>\n              <ic_lcno/>\n              <nic_brno>920715140622</nic_brno>\n              <position>SO</position>\n              <addr>No. 88, Jalan Pudu, 55100 Kuala Lumpur, Malaysia</addr>\n              <appoint>01-07-2018</appoint>\n              <resign_date/>\n              <equity>400000</equity>\n              <equity_percentage>50.00</equity_percentage>\n              <remark>SHAREHOLDER</remark>\n              <party_type>I</party_type>\n            </director>\n            <director seq=\"2\">\n              <name>Tan Yue Qi</name>\n              <alias/>\n              <ic_lcno/>\n              <nic_brno>981224140755</nic_brno>\n              <position>SO</position>\n              <addr>Unit 7, Menara TH, Jalan Sultan Ismail, 50250 Kuala Lumpur, Malaysia</addr>\n              <appoint>01-07-2018</appoint>\n              <resign_date/>\n              <equity>400000</equity>\n              <equity_percentage>50.00</equity_percentage>\n              <remark>SHAREHOLDER</remark>\n              <party_type>I</party_type>\n            </director>\n          </directors>\n          <secretaries/>\n          <previous_names name=\"\" change_date=\"\"/>\n          <charges>\n            <charge seq=\"1\"/>\n          </charges>\n          <sme_financial_score/>\n          <accounts auditor_name=\"UHY\">\n            <account seq=\"1\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2024</pldd>\n              <bsdd>2024-06-30</bsdd>\n              <tabledt>26-11-2024</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth>0.0</turnover_growth>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n            <account seq=\"2\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2023</pldd>\n              <bsdd>2023-06-30</bsdd>\n              <tabledt>26-11-2023</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth>0.0</turnover_growth>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n            <account seq=\"3\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2022</pldd>\n              <bsdd>2022-06-30</bsdd>\n              <tabledt>26-11-2022</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth>0.0</turnover_growth>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n            <account seq=\"4\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2022</pldd>\n              <bsdd>2022-06-30</bsdd>\n              <tabledt>26-11-2022</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth>0.0</turnover_growth>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n            <account seq=\"5\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2021</pldd>\n              <bsdd>2021-06-30</bsdd>\n              <tabledt>26-11-2021</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth/>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n          </accounts>\n          <capital_details>\n            <auth_capital/>\n            <paidup_capital>800000</paidup_capital>\n            <paidup_ord_amount>800000.00</paidup_ord_amount>\n            <paidup_ordA_amount>0.00</paidup_ordA_amount>\n            <paidup_ordB_amount>0.00</paidup_ordB_amount>\n            <paidup_ord_divided>0</paidup_ord_divided>\n            <paidup_ordA_divided>0</paidup_ordA_divided>\n            <paidup_ordB_divided>0</paidup_ordB_divided>\n            <paidup_ord_nominal>100</paidup_ord_nominal>\n            <paidup_pre_amount>0.00</paidup_pre_amount>\n            <paidup_preA_amount>0.00</paidup_preA_amount>\n            <paidup_preB_amount>0.00</paidup_preB_amount>\n            <paidup_pre_divided>0</paidup_pre_divided>\n            <paidup_preA_divided>0</paidup_preA_divided>\n            <paidup_preB_divided>0</paidup_preB_divided>\n            <paidup_pre_nominal>0</paidup_pre_nominal>\n            <paidup_oth_amount>0.00</paidup_oth_amount>\n            <paidup_othA_amount>0.00</paidup_othA_amount>\n            <paidup_othB_amount>0.00</paidup_othB_amount>\n            <paidup_oth_divided>0</paidup_oth_divided>\n            <paidup_othA_divided>0</paidup_othA_divided>\n            <paidup_othB_divided>0</paidup_othB_divided>\n            <paidup_oth_nominal>0</paidup_oth_nominal>\n          </capital_details>\n          <brn_ssm>8217649D</brn_ssm>\n          <msic_ssms>\n            <msic_ssm code=\"56101 \" priority=\"1\">Restaurants and restaurant cum night clubs</msic_ssm>\n          </msic_ssms>\n        </record>\n      </section_a>\n      <section_b title=\"SECTION B - INTERNAL LIST\" data=\"true\">\n        <history seq=\"1\" rpttype=\"EH\" year=\"2026\">\n          <period month=\"1\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"2\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"3\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"4\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"5\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"6\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"7\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"8\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"9\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"10\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"11\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"12\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n        </history>\n        <history seq=\"2\" rpttype=\"EH\" year=\"2025\">\n          <period month=\"1\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"2\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"3\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"4\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"5\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"6\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"7\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"8\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"9\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"10\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"11\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"12\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n        </history>\n      </section_b>\n      <section_c title=\"SECTION C - DIRECTORSHIPS AND BUSINESS INTERESTS\" data=\"true\">\n        <record rpttype=\"SU\" seq=\"1\">\n          <company_name>Vertex Quantum Technologies Sdn. Bhd.</company_name>\n          <additional_registration_no>202501998877</additional_registration_no>\n          <local>6549031</local>\n          <locala>C</locala>\n          <cpo_date>20-11-2025</cpo_date>\n          <paidup>800000</paidup>\n          <shares>50.00</shares>\n          <status>EXISTING</status>\n          <brn_ssm>6549031C</brn_ssm>\n        </record>\n      </section_c>\n      <section_d title=\"SECTION D\" data=\"false\"/>\n      <section_d2 title=\"SECTION D2 - SUBJECT AS PLAINTIFF\" data=\"false\"/>\n      <section_ccris title=\"SECTION CCRIS\" data=\"false\"/>\n      <section_dcheqs title=\"\" data=\"false\"/>\n      <section_etr_plus title=\"ETR PLUS\" data=\"false\"/>\n      <section_e title=\"SECTION E - TRADE REFEREES\" data=\"false\"/>\n    </enquiry>\n  </enq_report>\n</report>",
+  "summary_json": {
+    "fico_score": 0,
+    "fico_factors": [
+      "Score fail to generate because the gross revenue is more than 50 million."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "has_history": false,
+      "raw_flag": 0
+    }
+  },
+  "person_json": null,
+  "company_json": {
+    "name": "Orion Crest Holdings Sdn. Bhd.",
+    "registration_no": "8217649D",
+    "status": "EXISTING",
+    "business_type": "Food and Beverage",
+    "company_type": "PRIVATE LIMITED",
+    "company_category": "LIMITED BY SHARES",
+    "address": {
+      "full": "No. 22, Jalan Klang Lama, 58200 Kuala Lumpur, Malaysia",
+      "line1": null,
+      "line2": null,
+      "city": null,
+      "state": null,
+      "postcode": null
+    },
+    "directors": [
+      {
+        "name": "Muhammad Faez Bin Rahim",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "920715140622",
+        "position": "SO",
+        "addr": "No. 88, Jalan Pudu, 55100 Kuala Lumpur, Malaysia",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 400000,
+        "equity_percentage": 50,
+        "remark": "SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Tan Yue Qi",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "981224140755",
+        "position": "SO",
+        "addr": "Unit 7, Menara TH, Jalan Sultan Ismail, 50250 Kuala Lumpur, Malaysia",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 400000,
+        "equity_percentage": 50,
+        "remark": "SHAREHOLDER",
+        "party_type": "I"
+      }
+    ]
+  },
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": null,
+      "total_outstanding": null
+    }
+  },
+  "financials_json": [
+    {
+      "reporting_year": 2024,
+      "financial_year_end_date": "30-06-2024",
+      "balance_sheet_date": "2024-06-30",
+      "balance_sheet": {
+        "fixed_assets": 0,
+        "other_assets": 0,
+        "current_assets": 2109152381,
+        "non_current_assets": 2056177549,
+        "total_assets": 4165329930,
+        "current_liabilities": 1592807689,
+        "long_term_liabilities": 817697089,
+        "non_current_liabilities": 0,
+        "total_liabilities": 2410504778,
+        "equity": 922887304
+      },
+      "profit_and_loss": {
+        "revenue": 1723857391,
+        "profit_before_tax": 216927247,
+        "profit_after_tax": 137514515,
+        "net_dividend": -35059118,
+        "profit_line_amount": 128538935
+      }
+    },
+    {
+      "reporting_year": 2023,
+      "financial_year_end_date": "30-06-2023",
+      "balance_sheet_date": "2023-06-30",
+      "balance_sheet": {
+        "fixed_assets": 0,
+        "other_assets": 0,
+        "current_assets": 2109152381,
+        "non_current_assets": 2056177549,
+        "total_assets": 4165329930,
+        "current_liabilities": 1592807689,
+        "long_term_liabilities": 817697089,
+        "non_current_liabilities": 0,
+        "total_liabilities": 2410504778,
+        "equity": 922887304
+      },
+      "profit_and_loss": {
+        "revenue": 1723857391,
+        "profit_before_tax": 216927247,
+        "profit_after_tax": 137514515,
+        "net_dividend": -35059118,
+        "profit_line_amount": 128538935
+      }
+    },
+    {
+      "reporting_year": 2022,
+      "financial_year_end_date": "30-06-2022",
+      "balance_sheet_date": "2022-06-30",
+      "balance_sheet": {
+        "fixed_assets": 0,
+        "other_assets": 0,
+        "current_assets": 2109152381,
+        "non_current_assets": 2056177549,
+        "total_assets": 4165329930,
+        "current_liabilities": 1592807689,
+        "long_term_liabilities": 817697089,
+        "non_current_liabilities": 0,
+        "total_liabilities": 2410504778,
+        "equity": 922887304
+      },
+      "profit_and_loss": {
+        "revenue": 1723857391,
+        "profit_before_tax": 216927247,
+        "profit_after_tax": 137514515,
+        "net_dividend": -35059118,
+        "profit_line_amount": 128538935
+      }
+    },
+    {
+      "reporting_year": 2021,
+      "financial_year_end_date": "30-06-2021",
+      "balance_sheet_date": "2021-06-30",
+      "balance_sheet": {
+        "fixed_assets": 0,
+        "other_assets": 0,
+        "current_assets": 2109152381,
+        "non_current_assets": 2056177549,
+        "total_assets": 4165329930,
+        "current_liabilities": 1592807689,
+        "long_term_liabilities": 817697089,
+        "non_current_liabilities": 0,
+        "total_liabilities": 2410504778,
+        "equity": 922887304
+      },
+      "profit_and_loss": {
+        "revenue": 1723857391,
+        "profit_before_tax": 216927247,
+        "profit_after_tax": 137514515,
+        "net_dividend": -35059118,
+        "profit_line_amount": 128538935
+      }
+    }
+  ]
+}
+
+==== QuantumEdge Solutions Sdn. Bhd.
+Parsing CTOS XML with local parser (ctos.new.ts copy of parser.ts)
+Parsed CTOS XML, financial year rows: 4
+{
+  "raw_xml": "<report version=\"5.11.0\" xmlns=\"http://ws.cmctos.com.my/ctosnet/response\">\n  <enq_report id=\"BB-4743-20260408104634\" report_type=\"CTOS\" title=\"CTOS ENQUIRY\">\n    <header>\n      <user id=\"shor_uat\">shor_uat</user>\n      <company id=\"SHORUAT\">Shoraka Suyula Platform Sdn Bhd.</company>\n      <account>SHORUAT</account>\n      <tel/>\n      <fax/>\n      <enq_date>2026-04-08</enq_date>\n      <enq_time>10:46:34</enq_time>\n      <enq_status code=\"1\">SUCCESS</enq_status>\n    </header>\n    <summary>\n      <enq_sum ptype=\"C\" pcode=\"24\" seq=\"1\">\n        <name>QuantumEdge Solutions Sdn. Bhd.</name>\n        <ic_lcno>202501447890</ic_lcno>\n        <nic_brno/>\n        <stat>6000</stat>\n        <dd_index>0000</dd_index>\n        <fico_index score=\"0\">\n          <fico_factor code=\"7\">Score fail to generate because the gross revenue is more than 50 million.</fico_factor>\n          <fico_factor code=\"\"/>\n          <fico_factor code=\"\"/>\n          <fico_factor code=\"\"/>\n        </fico_index>\n        <mphone_nos/>\n        <ref_no>202501447890</ref_no>\n        <dist_code/>\n        <purpose code=\"200\"/>\n        <include_ctos>1</include_ctos>\n        <include_trex>1</include_trex>\n        <include_ccris sum=\"\">1</include_ccris>\n        <include_dcheq>0</include_dcheq>\n        <include_fico>1</include_fico>\n        <include_sfi>0</include_sfi>\n        <include_ssm_retention>0</include_ssm_retention>\n        <include_etr_plus>2</include_etr_plus>\n        <enq_status code=\"1\">SUCCESS</enq_status>\n        <enq_code code=\"11\">CTOS SME FICO Report</enq_code>\n      </enq_sum>\n    </summary>\n    <enquiry seq=\"1\">\n      <section_summary>\n        <ctos>\n          <bankruptcy status=\"0\"/>\n          <legal total=\"0\" value=\"0\"/>\n          <legal_personal_capacity total=\"0\" value=\"0\"/>\n          <legal_non_personal_capacity total=\"0\" value=\"0\"/>\n          <related_parties>\n            <bankruptcy status=\"0\"/>\n            <legal total=\"0\" value=\"0\"/>\n            <legal_personal_capacity total=\"0\" value=\"0\"/>\n            <legal_non_personal_capacity total=\"0\" value=\"0\"/>\n          </related_parties>\n        </ctos>\n        <tr>\n          <trex_ref negative=\"0\" positive=\"0\"/>\n          <related_parties>\n            <trex_ref negative=\"0\" positive=\"0\"/>\n          </related_parties>\n        </tr>\n        <ccris>\n          <application total=\"0\" approved=\"0\" pending=\"0\"/>\n          <facility total=\"0\" arrears=\"0\" value=\"0\"/>\n          <special_attention accounts=\"0\"/>\n          <related_parties>\n            <application total=\"0\" approved=\"0\" pending=\"0\"/>\n            <facility total=\"0\" value=\"0.00\" arrears=\"0\"/>\n            <special_attention accounts=\"0\"/>\n          </related_parties>\n        </ccris>\n        <dcheqs entity=\"0\" related_parties=\"0\"/>\n      </section_summary>\n      <section_a data=\"true\" title=\"SECTION A - COMPANIES COMMISSION OF MALAYSIA (CCM) INFORMATION\">\n        <record rpttype=\"CE\" seq=\"1\">\n          <name match=\"1\">QuantumEdge Solutions Sdn. Bhd.</name>\n          <additional_registration_no>6547893</additional_registration_no>\n          <ic_lcno>202501447890</ic_lcno>\n          <lc_checksum>F</lc_checksum>\n          <addr/>\n          <addr1>Block B, Jalan Ampang, 50450 Kuala Lumpur, Malaysia</addr1>\n          <addr_breakdown/>\n          <ccris_addresses/>\n          <source>SSM</source>\n          <previous_cpo_date/>\n          <cpo_date>30-11-2019</cpo_date>\n          <register_date>10-11-2020</register_date>\n          <comp_category code=\"S\">LIMITED BY SHARES</comp_category>\n          <comp_type code=\"R\">PRIVATE LIMITED</comp_type>\n          <status>EXISTING</status>\n          <type_of_business>Food and Beverage</type_of_business>\n          <remark>AMBANK TEST DATA DO NOT CHANGE</remark>\n          <capital>800000</capital>\n          <paid_up>800000</paid_up>\n          <directors seq=\"1\">\n            <director seq=\"1\">\n              <name>Nur Aina Farisha Binti Salleh</name>\n              <alias/>\n              <ic_lcno/>\n              <nic_brno>950829050688</nic_brno>\n              <position>DS</position>\n              <addr>LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK</addr>\n              <appoint>01-07-2018</appoint>\n              <resign_date/>\n              <equity>40000</equity>\n              <equity_percentage>5.00</equity_percentage>\n              <remark>DIRECTOR SHAREHOLDER</remark>\n              <party_type>I</party_type>\n            </director>\n            <director seq=\"2\">\n              <name>Darren Ong Wei Jian</name>\n              <alias/>\n              <ic_lcno/>\n              <nic_brno>910417140766</nic_brno>\n              <position>DS</position>\n              <addr>LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK</addr>\n              <appoint>01-07-2018</appoint>\n              <resign_date/>\n              <equity>40000</equity>\n              <equity_percentage>5.00</equity_percentage>\n              <remark>DIRECTOR SHAREHOLDER</remark>\n              <party_type>I</party_type>\n            </director>\n            <director seq=\"3\">\n              <name>Kelvin Lee Jun Hua</name>\n              <alias/>\n              <ic_lcno/>\n              <nic_brno>990202140899</nic_brno>\n              <position>DS</position>\n              <addr>LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK</addr>\n              <appoint>01-07-2018</appoint>\n              <resign_date/>\n              <equity>40000</equity>\n              <equity_percentage>5.00</equity_percentage>\n              <remark>DIRECTOR SHAREHOLDER</remark>\n              <party_type>I</party_type>\n            </director>\n            <director seq=\"4\">\n              <name>Siti Noraini Binti Azfar</name>\n              <alias/>\n              <ic_lcno/>\n              <nic_brno>960318050722</nic_brno>\n              <position>DS</position>\n              <addr>LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK</addr>\n              <appoint>01-07-2018</appoint>\n              <resign_date/>\n              <equity>40000</equity>\n              <equity_percentage>5.00</equity_percentage>\n              <remark>DIRECTOR SHAREHOLDER</remark>\n              <party_type>I</party_type>\n            </director>\n            <director seq=\"5\">\n              <name>Muhammad Haziq Bin Razman</name>\n              <alias/>\n              <ic_lcno/>\n              <nic_brno>930512140744</nic_brno>\n              <position>SO</position>\n              <addr>No. 88, Jalan Pudu, 55100 Kuala Lumpur, Malaysia</addr>\n              <appoint>01-07-2018</appoint>\n              <resign_date/>\n              <equity>160000</equity>\n              <equity_percentage>20.00</equity_percentage>\n              <remark>SHAREHOLDER</remark>\n              <party_type>I</party_type>\n            </director>\n            <director seq=\"6\">\n              <name>Tan Li Wen</name>\n              <alias/>\n              <ic_lcno/>\n              <nic_brno>981203140522</nic_brno>\n              <position>SO</position>\n              <addr>Unit 7, Menara TH, Jalan Sultan Ismail, 50250 Kuala Lumpur, Malaysia</addr>\n              <appoint>01-07-2018</appoint>\n              <resign_date/>\n              <equity>80000</equity>\n              <equity_percentage>10.00</equity_percentage>\n              <remark>SHAREHOLDER</remark>\n              <party_type>I</party_type>\n            </director>\n            <director seq=\"7\">\n              <name>ApexStar Holdings Sdn. Bhd.</name>\n              <alias/>\n              <additional_registration_no>202001223344</additional_registration_no>\n              <ic_lcno>7321984G</ic_lcno>\n              <nic_brno/>\n              <position>SO</position>\n              <addr>No. 5, Jalan Tun Sambanthan, 50470 Kuala Lumpur, Malaysia</addr>\n              <appoint/>\n              <resign_date/>\n              <equity>400000</equity>\n              <equity_percentage>50.00</equity_percentage>\n              <remark/>\n              <party_type>C</party_type>\n              <brn_ssm>7321984G</brn_ssm>\n            </director>\n          </directors>\n          <secretaries/>\n          <previous_names name=\"\" change_date=\"\"/>\n          <charges>\n            <charge seq=\"1\"/>\n          </charges>\n          <sme_financial_score/>\n          <accounts auditor_name=\"UHY\">\n            <account seq=\"1\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2024</pldd>\n              <bsdd>2024-06-30</bsdd>\n              <tabledt>26-11-2024</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth>0.0</turnover_growth>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n            <account seq=\"2\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2023</pldd>\n              <bsdd>2023-06-30</bsdd>\n              <tabledt>26-11-2023</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth>0.0</turnover_growth>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n            <account seq=\"3\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2022</pldd>\n              <bsdd>2022-06-30</bsdd>\n              <tabledt>26-11-2022</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth>0.0</turnover_growth>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n            <account seq=\"4\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2022</pldd>\n              <bsdd>2022-06-30</bsdd>\n              <tabledt>26-11-2022</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth>0.0</turnover_growth>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n            <account seq=\"5\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2021</pldd>\n              <bsdd>2021-06-30</bsdd>\n              <tabledt>26-11-2021</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth/>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n          </accounts>\n          <capital_details>\n            <auth_capital/>\n            <paidup_capital>800000</paidup_capital>\n            <paidup_ord_amount>800000.00</paidup_ord_amount>\n            <paidup_ordA_amount>0.00</paidup_ordA_amount>\n            <paidup_ordB_amount>0.00</paidup_ordB_amount>\n            <paidup_ord_divided>0</paidup_ord_divided>\n            <paidup_ordA_divided>0</paidup_ordA_divided>\n            <paidup_ordB_divided>0</paidup_ordB_divided>\n            <paidup_ord_nominal>100</paidup_ord_nominal>\n            <paidup_pre_amount>0.00</paidup_pre_amount>\n            <paidup_preA_amount>0.00</paidup_preA_amount>\n            <paidup_preB_amount>0.00</paidup_preB_amount>\n            <paidup_pre_divided>0</paidup_pre_divided>\n            <paidup_preA_divided>0</paidup_preA_divided>\n            <paidup_preB_divided>0</paidup_preB_divided>\n            <paidup_pre_nominal>0</paidup_pre_nominal>\n            <paidup_oth_amount>0.00</paidup_oth_amount>\n            <paidup_othA_amount>0.00</paidup_othA_amount>\n            <paidup_othB_amount>0.00</paidup_othB_amount>\n            <paidup_oth_divided>0</paidup_oth_divided>\n            <paidup_othA_divided>0</paidup_othA_divided>\n            <paidup_othB_divided>0</paidup_othB_divided>\n            <paidup_oth_nominal>0</paidup_oth_nominal>\n          </capital_details>\n          <brn_ssm>6547893F</brn_ssm>\n          <msic_ssms>\n            <msic_ssm code=\"56101 \" priority=\"1\">Restaurants and restaurant cum night clubs</msic_ssm>\n          </msic_ssms>\n        </record>\n      </section_a>\n      <section_b title=\"SECTION B - INTERNAL LIST\" data=\"true\">\n        <history seq=\"1\" rpttype=\"EH\" year=\"2026\">\n          <period month=\"1\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"2\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"3\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"4\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"5\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"6\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"7\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"8\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"9\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"10\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"11\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"12\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n        </history>\n        <history seq=\"2\" rpttype=\"EH\" year=\"2025\">\n          <period month=\"1\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"2\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"3\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"4\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"5\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"6\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"7\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"8\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"9\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"10\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"11\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"12\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n        </history>\n      </section_b>\n      <section_c title=\"SECTION C - DIRECTORSHIPS AND BUSINESS INTERESTS\" data=\"false\"/>\n      <section_d title=\"SECTION D\" data=\"false\"/>\n      <section_d2 title=\"SECTION D2 - SUBJECT AS PLAINTIFF\" data=\"false\"/>\n      <section_ccris title=\"SECTION CCRIS\" data=\"false\"/>\n      <section_dcheqs title=\"\" data=\"false\"/>\n      <section_etr_plus title=\"ETR PLUS\" data=\"false\"/>\n      <section_e title=\"SECTION E - TRADE REFEREES\" data=\"false\"/>\n    </enquiry>\n  </enq_report>\n</report>",
+  "summary_json": {
+    "fico_score": 0,
+    "fico_factors": [
+      "Score fail to generate because the gross revenue is more than 50 million."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "has_history": false,
+      "raw_flag": 0
+    }
+  },
+  "person_json": null,
+  "company_json": {
+    "name": "QuantumEdge Solutions Sdn. Bhd.",
+    "registration_no": "6547893F",
+    "status": "EXISTING",
+    "business_type": "Food and Beverage",
+    "company_type": "PRIVATE LIMITED",
+    "company_category": "LIMITED BY SHARES",
+    "address": {
+      "full": "Block B, Jalan Ampang, 50450 Kuala Lumpur, Malaysia",
+      "line1": null,
+      "line2": null,
+      "city": null,
+      "state": null,
+      "postcode": null
+    },
+    "directors": [
+      {
+        "name": "Nur Aina Farisha Binti Salleh",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "950829050688",
+        "position": "DS",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 40000,
+        "equity_percentage": 5,
+        "remark": "DIRECTOR SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Darren Ong Wei Jian",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "910417140766",
+        "position": "DS",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 40000,
+        "equity_percentage": 5,
+        "remark": "DIRECTOR SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Kelvin Lee Jun Hua",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "990202140899",
+        "position": "DS",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 40000,
+        "equity_percentage": 5,
+        "remark": "DIRECTOR SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Siti Noraini Binti Azfar",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "960318050722",
+        "position": "DS",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 40000,
+        "equity_percentage": 5,
+        "remark": "DIRECTOR SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Muhammad Haziq Bin Razman",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "930512140744",
+        "position": "SO",
+        "addr": "No. 88, Jalan Pudu, 55100 Kuala Lumpur, Malaysia",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 160000,
+        "equity_percentage": 20,
+        "remark": "SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Tan Li Wen",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "981203140522",
+        "position": "SO",
+        "addr": "Unit 7, Menara TH, Jalan Sultan Ismail, 50250 Kuala Lumpur, Malaysia",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 80000,
+        "equity_percentage": 10,
+        "remark": "SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "ApexStar Holdings Sdn. Bhd.",
+        "alias": null,
+        "ic_lcno": "7321984G",
+        "nic_brno": null,
+        "position": "SO",
+        "addr": "No. 5, Jalan Tun Sambanthan, 50470 Kuala Lumpur, Malaysia",
+        "appoint": null,
+        "resign_date": null,
+        "equity": 400000,
+        "equity_percentage": 50,
+        "remark": null,
+        "party_type": "C"
+      }
+    ]
+  },
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": null,
+      "total_outstanding": null
+    }
+  },
+  "financials_json": [
+    {
+      "reporting_year": 2024,
+      "financial_year_end_date": "30-06-2024",
+      "balance_sheet_date": "2024-06-30",
+      "balance_sheet": {
+        "fixed_assets": 0,
+        "other_assets": 0,
+        "current_assets": 2109152381,
+        "non_current_assets": 2056177549,
+        "total_assets": 4165329930,
+        "current_liabilities": 1592807689,
+        "long_term_liabilities": 817697089,
+        "non_current_liabilities": 0,
+        "total_liabilities": 2410504778,
+        "equity": 922887304
+      },
+      "profit_and_loss": {
+        "revenue": 1723857391,
+        "profit_before_tax": 216927247,
+        "profit_after_tax": 137514515,
+        "net_dividend": -35059118,
+        "profit_line_amount": 128538935
+      }
+    },
+    {
+      "reporting_year": 2023,
+      "financial_year_end_date": "30-06-2023",
+      "balance_sheet_date": "2023-06-30",
+      "balance_sheet": {
+        "fixed_assets": 0,
+        "other_assets": 0,
+        "current_assets": 2109152381,
+        "non_current_assets": 2056177549,
+        "total_assets": 4165329930,
+        "current_liabilities": 1592807689,
+        "long_term_liabilities": 817697089,
+        "non_current_liabilities": 0,
+        "total_liabilities": 2410504778,
+        "equity": 922887304
+      },
+      "profit_and_loss": {
+        "revenue": 1723857391,
+        "profit_before_tax": 216927247,
+        "profit_after_tax": 137514515,
+        "net_dividend": -35059118,
+        "profit_line_amount": 128538935
+      }
+    },
+    {
+      "reporting_year": 2022,
+      "financial_year_end_date": "30-06-2022",
+      "balance_sheet_date": "2022-06-30",
+      "balance_sheet": {
+        "fixed_assets": 0,
+        "other_assets": 0,
+        "current_assets": 2109152381,
+        "non_current_assets": 2056177549,
+        "total_assets": 4165329930,
+        "current_liabilities": 1592807689,
+        "long_term_liabilities": 817697089,
+        "non_current_liabilities": 0,
+        "total_liabilities": 2410504778,
+        "equity": 922887304
+      },
+      "profit_and_loss": {
+        "revenue": 1723857391,
+        "profit_before_tax": 216927247,
+        "profit_after_tax": 137514515,
+        "net_dividend": -35059118,
+        "profit_line_amount": 128538935
+      }
+    },
+    {
+      "reporting_year": 2021,
+      "financial_year_end_date": "30-06-2021",
+      "balance_sheet_date": "2021-06-30",
+      "balance_sheet": {
+        "fixed_assets": 0,
+        "other_assets": 0,
+        "current_assets": 2109152381,
+        "non_current_assets": 2056177549,
+        "total_assets": 4165329930,
+        "current_liabilities": 1592807689,
+        "long_term_liabilities": 817697089,
+        "non_current_liabilities": 0,
+        "total_liabilities": 2410504778,
+        "equity": 922887304
+      },
+      "profit_and_loss": {
+        "revenue": 1723857391,
+        "profit_before_tax": 216927247,
+        "profit_after_tax": 137514515,
+        "net_dividend": -35059118,
+        "profit_line_amount": 128538935
+      }
+    }
+  ]
+}
+
+==== ApexStar Holdings Sdn. Bhd.
+Parsing CTOS XML with local parser (ctos.new.ts copy of parser.ts)
+Parsed CTOS XML, financial year rows: 4
+{
+  "raw_xml": "<report version=\"5.11.0\" xmlns=\"http://ws.cmctos.com.my/ctosnet/response\">\n  <enq_report id=\"BB-0864-20260408104635\" report_type=\"CTOS\" title=\"CTOS ENQUIRY\">\n    <header>\n      <user id=\"shor_uat\">shor_uat</user>\n      <company id=\"SHORUAT\">Shoraka Suyula Platform Sdn Bhd.</company>\n      <account>SHORUAT</account>\n      <tel/>\n      <fax/>\n      <enq_date>2026-04-08</enq_date>\n      <enq_time>10:46:35</enq_time>\n      <enq_status code=\"1\">SUCCESS</enq_status>\n    </header>\n    <summary>\n      <enq_sum ptype=\"C\" pcode=\"24\" seq=\"1\">\n        <name>ApexStar Holdings Sdn. Bhd.</name>\n        <ic_lcno>202001223344</ic_lcno>\n        <nic_brno/>\n        <stat>6010</stat>\n        <dd_index>0000</dd_index>\n        <fico_index score=\"0\">\n          <fico_factor code=\"7\">Score fail to generate because the gross revenue is more than 50 million.</fico_factor>\n          <fico_factor code=\"\"/>\n          <fico_factor code=\"\"/>\n          <fico_factor code=\"\"/>\n        </fico_index>\n        <mphone_nos/>\n        <ref_no>202001223344</ref_no>\n        <dist_code/>\n        <purpose code=\"200\"/>\n        <include_ctos>1</include_ctos>\n        <include_trex>1</include_trex>\n        <include_ccris sum=\"\">1</include_ccris>\n        <include_dcheq>0</include_dcheq>\n        <include_fico>1</include_fico>\n        <include_sfi>0</include_sfi>\n        <include_ssm_retention>0</include_ssm_retention>\n        <include_etr_plus>2</include_etr_plus>\n        <confirm_entity>10341408</confirm_entity>\n        <enq_status code=\"1\">SUCCESS</enq_status>\n        <enq_code code=\"11\">CTOS SME FICO Report</enq_code>\n      </enq_sum>\n    </summary>\n    <enquiry seq=\"1\">\n      <section_summary>\n        <ctos>\n          <bankruptcy status=\"0\"/>\n          <legal total=\"0\" value=\"0\"/>\n          <legal_personal_capacity total=\"0\" value=\"0\"/>\n          <legal_non_personal_capacity total=\"0\" value=\"0\"/>\n          <related_parties>\n            <bankruptcy status=\"0\"/>\n            <legal total=\"0\" value=\"0\"/>\n            <legal_personal_capacity total=\"0\" value=\"0\"/>\n            <legal_non_personal_capacity total=\"0\" value=\"0\"/>\n          </related_parties>\n        </ctos>\n        <tr>\n          <trex_ref negative=\"0\" positive=\"0\"/>\n          <related_parties>\n            <trex_ref negative=\"0\" positive=\"0\"/>\n          </related_parties>\n        </tr>\n        <ccris>\n          <application total=\"0\" approved=\"0\" pending=\"0\"/>\n          <facility total=\"0\" arrears=\"0\" value=\"0.00\"/>\n          <special_attention accounts=\"0\"/>\n          <related_parties>\n            <application total=\"0\" approved=\"0\" pending=\"0\"/>\n            <facility total=\"0\" value=\"0.00\" arrears=\"0\"/>\n            <special_attention accounts=\"0\"/>\n          </related_parties>\n        </ccris>\n        <dcheqs entity=\"0\" related_parties=\"0\"/>\n      </section_summary>\n      <section_a data=\"true\" title=\"SECTION A - COMPANIES COMMISSION OF MALAYSIA (CCM) INFORMATION\">\n        <record rpttype=\"CE\" seq=\"1\">\n          <name match=\"1\">ApexStar Holdings Sdn. Bhd.</name>\n          <additional_registration_no>7321984</additional_registration_no>\n          <ic_lcno>202001223344</ic_lcno>\n          <lc_checksum>G</lc_checksum>\n          <addr/>\n          <addr1>No. 5, Jalan Tun Sambanthan, 50470 Kuala Lumpur, Malaysia</addr1>\n          <addr_breakdown/>\n          <ccris_addresses/>\n          <source>SSM</source>\n          <previous_cpo_date/>\n          <cpo_date>30-11-2019</cpo_date>\n          <register_date>10-11-2020</register_date>\n          <comp_category code=\"S\">LIMITED BY SHARES</comp_category>\n          <comp_type code=\"R\">PRIVATE LIMITED</comp_type>\n          <status>EXISTING</status>\n          <type_of_business>Food and Beverage</type_of_business>\n          <remark>AMBANK TEST DATA DO NOT CHANGE</remark>\n          <capital>800000</capital>\n          <paid_up>800000</paid_up>\n          <directors seq=\"1\">\n            <director seq=\"1\">\n              <name>Muhammad Faiz Bin Rahim</name>\n              <alias/>\n              <ic_lcno/>\n              <nic_brno>920715140622</nic_brno>\n              <position>SO</position>\n              <addr>No. 88, Jalan Pudu, 55100 Kuala Lumpur, Malaysia</addr>\n              <appoint>01-07-2018</appoint>\n              <resign_date/>\n              <equity>400000</equity>\n              <equity_percentage>50.00</equity_percentage>\n              <remark>SHAREHOLDER</remark>\n              <party_type>I</party_type>\n            </director>\n            <director seq=\"2\">\n              <name>Tan Yue Qi</name>\n              <alias/>\n              <ic_lcno/>\n              <nic_brno>981224140755</nic_brno>\n              <position>SO</position>\n              <addr>Unit 7, Menara TH, Jalan Sultan Ismail, 50250 Kuala Lumpur, Malaysia</addr>\n              <appoint>01-07-2018</appoint>\n              <resign_date/>\n              <equity>400000</equity>\n              <equity_percentage>50.00</equity_percentage>\n              <remark>SHAREHOLDER</remark>\n              <party_type>I</party_type>\n            </director>\n          </directors>\n          <secretaries/>\n          <previous_names name=\"\" change_date=\"\"/>\n          <charges>\n            <charge seq=\"1\"/>\n          </charges>\n          <sme_financial_score/>\n          <accounts auditor_name=\"UHY\">\n            <account seq=\"1\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2024</pldd>\n              <bsdd>2024-06-30</bsdd>\n              <tabledt>26-11-2024</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth>0.0</turnover_growth>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n            <account seq=\"2\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2023</pldd>\n              <bsdd>2023-06-30</bsdd>\n              <tabledt>26-11-2023</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth>0.0</turnover_growth>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n            <account seq=\"3\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2022</pldd>\n              <bsdd>2022-06-30</bsdd>\n              <tabledt>26-11-2022</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth>0.0</turnover_growth>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n            <account seq=\"4\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2022</pldd>\n              <bsdd>2022-06-30</bsdd>\n              <tabledt>26-11-2022</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth>0.0</turnover_growth>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n            <account seq=\"5\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2021</pldd>\n              <bsdd>2021-06-30</bsdd>\n              <tabledt>26-11-2021</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth/>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n          </accounts>\n          <capital_details>\n            <auth_capital/>\n            <paidup_capital>800000</paidup_capital>\n            <paidup_ord_amount>800000.00</paidup_ord_amount>\n            <paidup_ordA_amount>0.00</paidup_ordA_amount>\n            <paidup_ordB_amount>0.00</paidup_ordB_amount>\n            <paidup_ord_divided>0</paidup_ord_divided>\n            <paidup_ordA_divided>0</paidup_ordA_divided>\n            <paidup_ordB_divided>0</paidup_ordB_divided>\n            <paidup_ord_nominal>100</paidup_ord_nominal>\n            <paidup_pre_amount>0.00</paidup_pre_amount>\n            <paidup_preA_amount>0.00</paidup_preA_amount>\n            <paidup_preB_amount>0.00</paidup_preB_amount>\n            <paidup_pre_divided>0</paidup_pre_divided>\n            <paidup_preA_divided>0</paidup_preA_divided>\n            <paidup_preB_divided>0</paidup_preB_divided>\n            <paidup_pre_nominal>0</paidup_pre_nominal>\n            <paidup_oth_amount>0.00</paidup_oth_amount>\n            <paidup_othA_amount>0.00</paidup_othA_amount>\n            <paidup_othB_amount>0.00</paidup_othB_amount>\n            <paidup_oth_divided>0</paidup_oth_divided>\n            <paidup_othA_divided>0</paidup_othA_divided>\n            <paidup_othB_divided>0</paidup_othB_divided>\n            <paidup_oth_nominal>0</paidup_oth_nominal>\n          </capital_details>\n          <brn_ssm>7321984G</brn_ssm>\n          <msic_ssms>\n            <msic_ssm code=\"56101 \" priority=\"1\">Restaurants and restaurant cum night clubs</msic_ssm>\n          </msic_ssms>\n        </record>\n      </section_a>\n      <section_b title=\"SECTION B - INTERNAL LIST\" data=\"true\">\n        <history seq=\"1\" rpttype=\"EH\" year=\"2026\">\n          <period month=\"1\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"2\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"3\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"4\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"5\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"6\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"7\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"8\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"9\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"10\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"11\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"12\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n        </history>\n        <history seq=\"2\" rpttype=\"EH\" year=\"2025\">\n          <period month=\"1\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"2\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"3\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"4\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"5\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"6\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"7\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"8\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"9\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"10\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"11\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"12\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n        </history>\n      </section_b>\n      <section_c title=\"SECTION C - DIRECTORSHIPS AND BUSINESS INTERESTS\" data=\"true\">\n        <record rpttype=\"SU\" seq=\"1\">\n          <company_name>QuantumEdge Solutions Sdn. Bhd.</company_name>\n          <additional_registration_no>202501447890</additional_registration_no>\n          <local>6547893</local>\n          <locala>F</locala>\n          <cpo_date>20-11-2025</cpo_date>\n          <paidup>800000</paidup>\n          <shares>50.00</shares>\n          <status>EXISTING</status>\n          <brn_ssm>6547893F</brn_ssm>\n        </record>\n      </section_c>\n      <section_d title=\"SECTION D\" data=\"false\"/>\n      <section_d2 title=\"SECTION D2 - SUBJECT AS PLAINTIFF\" data=\"false\"/>\n      <section_ccris title=\"SECTION CCRIS\" data=\"true\">\n        <summary entity_key=\"10341408\" entity_warning=\"Pending Verification\" fi_code=\"\">\n          <application>\n            <approved count=\"0\">0.00</approved>\n            <pending count=\"6\">95000.00</pending>\n          </application>\n          <liabilities>\n            <borrower total_limit=\"0.00\" fec_limit=\"0.00\">0.00</borrower>\n            <guarantor/>\n          </liabilities>\n          <legal status=\"0\"/>\n          <special_attention status=\"0\"/>\n          <special_name status=\"0\"/>\n        </summary>\n        <derivatives>\n          <application>\n            <date/>\n            <facility/>\n          </application>\n          <facilities>\n            <secure total=\"0\">\n              <outstanding average=\"0.0\" limit=\"0\">0</outstanding>\n            </secure>\n            <unsecure total=\"0\">\n              <outstanding average=\"0.0\" limit=\"0\">0</outstanding>\n            </unsecure>\n          </facilities>\n          <credit_card avg_usage_6_mths=\"0.00\"/>\n          <oth_revolving_credits avg_usage_6_mths=\"0.00\"/>\n          <charge_card min_usage_12_months=\"0\" max_usage_12_months=\"0\"/>\n          <ptptn total=\"0\"/>\n          <local_lenders total=\"0\"/>\n          <foreign_lenders total=\"0\"/>\n        </derivatives>\n        <applications>\n          <application>\n            <org1/>\n            <org2/>\n            <adta_id>451077</adta_id>\n            <date>30-08-2021</date>\n            <app_type>N</app_type>\n            <status code=\"P\">Pending decision by FI</status>\n            <capacity code=\"Own\">The loan is for this customer only</capacity>\n            <lender_type code=\"CB\">Commercial bank and Islamic bank</lender_type>\n            <my_fgn/>\n            <amount>30000</amount>\n            <facility code=\"FFENTRBD\"/>\n            <property_status code=\"\"/>\n            <property_add1/>\n            <property_add2/>\n            <property_add3/>\n            <property_add4/>\n            <property_city/>\n            <property_post_code/>\n            <property_state/>\n            <property_country/>\n          </application>\n          <application>\n            <org1/>\n            <org2/>\n            <adta_id>451078</adta_id>\n            <date>30-08-2021</date>\n            <app_type>N</app_type>\n            <status code=\"P\">Pending decision by FI</status>\n            <capacity code=\"Own\">The loan is for this customer only</capacity>\n            <lender_type code=\"CB\">Commercial bank and Islamic bank</lender_type>\n            <my_fgn/>\n            <amount>20000</amount>\n            <facility code=\"FFENTRBR\"/>\n            <property_status code=\"\"/>\n            <property_add1/>\n            <property_add2/>\n            <property_add3/>\n            <property_add4/>\n            <property_city/>\n            <property_post_code/>\n            <property_state/>\n            <property_country/>\n          </application>\n          <application>\n            <org1/>\n            <org2/>\n            <adta_id>451079</adta_id>\n            <date>30-08-2021</date>\n            <app_type>N</app_type>\n            <status code=\"P\">Pending decision by FI</status>\n            <capacity code=\"Own\">The loan is for this customer only</capacity>\n            <lender_type code=\"CB\">Commercial bank and Islamic bank</lender_type>\n            <my_fgn/>\n            <amount>20000</amount>\n            <facility code=\"FFENTRIA\"/>\n            <property_status code=\"\"/>\n            <property_add1/>\n            <property_add2/>\n            <property_add3/>\n            <property_add4/>\n            <property_city/>\n            <property_post_code/>\n            <property_state/>\n            <property_country/>\n          </application>\n          <application>\n            <org1/>\n            <org2/>\n            <adta_id>451080</adta_id>\n            <date>30-08-2021</date>\n            <app_type>N</app_type>\n            <status code=\"P\">Pending decision by FI</status>\n            <capacity code=\"Own\">The loan is for this customer only</capacity>\n            <lender_type code=\"CB\">Commercial bank and Islamic bank</lender_type>\n            <my_fgn/>\n            <amount>10000</amount>\n            <facility code=\"FFENTRID\"/>\n            <property_status code=\"\"/>\n            <property_add1/>\n            <property_add2/>\n            <property_add3/>\n            <property_add4/>\n            <property_city/>\n            <property_post_code/>\n            <property_state/>\n            <property_country/>\n          </application>\n          <application>\n            <org1/>\n            <org2/>\n            <adta_id>451081</adta_id>\n            <date>30-08-2021</date>\n            <app_type>N</app_type>\n            <status code=\"P\">Pending decision by FI</status>\n            <capacity code=\"Own\">The loan is for this customer only</capacity>\n            <lender_type code=\"CB\">Commercial bank and Islamic bank</lender_type>\n            <my_fgn/>\n            <amount>10000</amount>\n            <facility code=\"FFENTROT\"/>\n            <property_status code=\"\"/>\n            <property_add1/>\n            <property_add2/>\n            <property_add3/>\n            <property_add4/>\n            <property_city/>\n            <property_post_code/>\n            <property_state/>\n            <property_country/>\n          </application>\n          <application>\n            <org1/>\n            <org2/>\n            <adta_id>451082</adta_id>\n            <date>30-08-2021</date>\n            <app_type>N</app_type>\n            <status code=\"P\">Pending decision by FI</status>\n            <capacity code=\"Own\">The loan is for this customer only</capacity>\n            <lender_type code=\"CB\">Commercial bank and Islamic bank</lender_type>\n            <my_fgn/>\n            <amount>5000</amount>\n            <facility code=\"FFETRADE\"/>\n            <property_status code=\"\"/>\n            <property_add1/>\n            <property_add2/>\n            <property_add3/>\n            <property_add4/>\n            <property_city/>\n            <property_post_code/>\n            <property_state/>\n            <property_country/>\n          </application>\n        </applications>\n        <accounts/>\n        <special_attention_accs/>\n      </section_ccris>\n      <section_dcheqs title=\"\" data=\"false\"/>\n      <section_etr_plus title=\"ETR PLUS\" data=\"false\"/>\n      <section_e title=\"SECTION E - TRADE REFEREES\" data=\"false\"/>\n    </enquiry>\n  </enq_report>\n</report>",
+  "summary_json": {
+    "fico_score": 0,
+    "fico_factors": [
+      "Score fail to generate because the gross revenue is more than 50 million."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "has_history": false,
+      "raw_flag": 0
+    }
+  },
+  "person_json": null,
+  "company_json": {
+    "name": "ApexStar Holdings Sdn. Bhd.",
+    "registration_no": "7321984G",
+    "status": "EXISTING",
+    "business_type": "Food and Beverage",
+    "company_type": "PRIVATE LIMITED",
+    "company_category": "LIMITED BY SHARES",
+    "address": {
+      "full": "No. 5, Jalan Tun Sambanthan, 50470 Kuala Lumpur, Malaysia",
+      "line1": null,
+      "line2": null,
+      "city": null,
+      "state": null,
+      "postcode": null
+    },
+    "directors": [
+      {
+        "name": "Muhammad Faiz Bin Rahim",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "920715140622",
+        "position": "SO",
+        "addr": "No. 88, Jalan Pudu, 55100 Kuala Lumpur, Malaysia",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 400000,
+        "equity_percentage": 50,
+        "remark": "SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Tan Yue Qi",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "981224140755",
+        "position": "SO",
+        "addr": "Unit 7, Menara TH, Jalan Sultan Ismail, 50250 Kuala Lumpur, Malaysia",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 400000,
+        "equity_percentage": 50,
+        "remark": "SHAREHOLDER",
+        "party_type": "I"
+      }
+    ]
+  },
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": 0,
+      "total_outstanding": 0
+    }
+  },
+  "financials_json": [
+    {
+      "reporting_year": 2024,
+      "financial_year_end_date": "30-06-2024",
+      "balance_sheet_date": "2024-06-30",
+      "balance_sheet": {
+        "fixed_assets": 0,
+        "other_assets": 0,
+        "current_assets": 2109152381,
+        "non_current_assets": 2056177549,
+        "total_assets": 4165329930,
+        "current_liabilities": 1592807689,
+        "long_term_liabilities": 817697089,
+        "non_current_liabilities": 0,
+        "total_liabilities": 2410504778,
+        "equity": 922887304
+      },
+      "profit_and_loss": {
+        "revenue": 1723857391,
+        "profit_before_tax": 216927247,
+        "profit_after_tax": 137514515,
+        "net_dividend": -35059118,
+        "profit_line_amount": 128538935
+      }
+    },
+    {
+      "reporting_year": 2023,
+      "financial_year_end_date": "30-06-2023",
+      "balance_sheet_date": "2023-06-30",
+      "balance_sheet": {
+        "fixed_assets": 0,
+        "other_assets": 0,
+        "current_assets": 2109152381,
+        "non_current_assets": 2056177549,
+        "total_assets": 4165329930,
+        "current_liabilities": 1592807689,
+        "long_term_liabilities": 817697089,
+        "non_current_liabilities": 0,
+        "total_liabilities": 2410504778,
+        "equity": 922887304
+      },
+      "profit_and_loss": {
+        "revenue": 1723857391,
+        "profit_before_tax": 216927247,
+        "profit_after_tax": 137514515,
+        "net_dividend": -35059118,
+        "profit_line_amount": 128538935
+      }
+    },
+    {
+      "reporting_year": 2022,
+      "financial_year_end_date": "30-06-2022",
+      "balance_sheet_date": "2022-06-30",
+      "balance_sheet": {
+        "fixed_assets": 0,
+        "other_assets": 0,
+        "current_assets": 2109152381,
+        "non_current_assets": 2056177549,
+        "total_assets": 4165329930,
+        "current_liabilities": 1592807689,
+        "long_term_liabilities": 817697089,
+        "non_current_liabilities": 0,
+        "total_liabilities": 2410504778,
+        "equity": 922887304
+      },
+      "profit_and_loss": {
+        "revenue": 1723857391,
+        "profit_before_tax": 216927247,
+        "profit_after_tax": 137514515,
+        "net_dividend": -35059118,
+        "profit_line_amount": 128538935
+      }
+    },
+    {
+      "reporting_year": 2021,
+      "financial_year_end_date": "30-06-2021",
+      "balance_sheet_date": "2021-06-30",
+      "balance_sheet": {
+        "fixed_assets": 0,
+        "other_assets": 0,
+        "current_assets": 2109152381,
+        "non_current_assets": 2056177549,
+        "total_assets": 4165329930,
+        "current_liabilities": 1592807689,
+        "long_term_liabilities": 817697089,
+        "non_current_liabilities": 0,
+        "total_liabilities": 2410504778,
+        "equity": 922887304
+      },
+      "profit_and_loss": {
+        "revenue": 1723857391,
+        "profit_before_tax": 216927247,
+        "profit_after_tax": 137514515,
+        "net_dividend": -35059118,
+        "profit_line_amount": 128538935
+      }
+    }
+  ]
+}
+
+==== AeroNova Solutions Sdn. Bhd.
+Parsing CTOS XML with local parser (ctos.new.ts copy of parser.ts)
+Parsed CTOS XML, financial year rows: 4
+{
+  "raw_xml": "<report version=\"5.11.0\" xmlns=\"http://ws.cmctos.com.my/ctosnet/response\">\n  <enq_report id=\"BB-5469-20260408104636\" report_type=\"CTOS\" title=\"CTOS ENQUIRY\">\n    <header>\n      <user id=\"shor_uat\">shor_uat</user>\n      <company id=\"SHORUAT\">Shoraka Suyula Platform Sdn Bhd.</company>\n      <account>SHORUAT</account>\n      <tel/>\n      <fax/>\n      <enq_date>2026-04-08</enq_date>\n      <enq_time>10:46:36</enq_time>\n      <enq_status code=\"1\">SUCCESS</enq_status>\n    </header>\n    <summary>\n      <enq_sum ptype=\"C\" pcode=\"24\" seq=\"1\">\n        <name>AeroNova Solutions Sdn. Bhd.</name>\n        <ic_lcno>202501889900</ic_lcno>\n        <nic_brno/>\n        <stat>6000</stat>\n        <dd_index>0000</dd_index>\n        <fico_index score=\"0\">\n          <fico_factor code=\"7\">Score fail to generate because the gross revenue is more than 50 million.</fico_factor>\n          <fico_factor code=\"\"/>\n          <fico_factor code=\"\"/>\n          <fico_factor code=\"\"/>\n        </fico_index>\n        <mphone_nos/>\n        <ref_no>202501889900</ref_no>\n        <dist_code/>\n        <purpose code=\"200\"/>\n        <include_ctos>1</include_ctos>\n        <include_trex>1</include_trex>\n        <include_ccris sum=\"\">1</include_ccris>\n        <include_dcheq>0</include_dcheq>\n        <include_fico>1</include_fico>\n        <include_sfi>0</include_sfi>\n        <include_ssm_retention>0</include_ssm_retention>\n        <include_etr_plus>2</include_etr_plus>\n        <enq_status code=\"1\">SUCCESS</enq_status>\n        <enq_code code=\"11\">CTOS SME FICO Report</enq_code>\n      </enq_sum>\n    </summary>\n    <enquiry seq=\"1\">\n      <section_summary>\n        <ctos>\n          <bankruptcy status=\"0\"/>\n          <legal total=\"0\" value=\"0\"/>\n          <legal_personal_capacity total=\"0\" value=\"0\"/>\n          <legal_non_personal_capacity total=\"0\" value=\"0\"/>\n          <related_parties>\n            <bankruptcy status=\"0\"/>\n            <legal total=\"0\" value=\"0\"/>\n            <legal_personal_capacity total=\"0\" value=\"0\"/>\n            <legal_non_personal_capacity total=\"0\" value=\"0\"/>\n          </related_parties>\n        </ctos>\n        <tr>\n          <trex_ref negative=\"0\" positive=\"0\"/>\n          <related_parties>\n            <trex_ref negative=\"0\" positive=\"0\"/>\n          </related_parties>\n        </tr>\n        <ccris>\n          <application total=\"0\" approved=\"0\" pending=\"0\"/>\n          <facility total=\"0\" arrears=\"0\" value=\"0\"/>\n          <special_attention accounts=\"0\"/>\n          <related_parties>\n            <application total=\"0\" approved=\"0\" pending=\"0\"/>\n            <facility total=\"0\" value=\"0.00\" arrears=\"0\"/>\n            <special_attention accounts=\"0\"/>\n          </related_parties>\n        </ccris>\n        <dcheqs entity=\"0\" related_parties=\"0\"/>\n      </section_summary>\n      <section_a data=\"true\" title=\"SECTION A - COMPANIES COMMISSION OF MALAYSIA (CCM) INFORMATION\">\n        <record rpttype=\"CE\" seq=\"1\">\n          <name match=\"1\">AeroNova Solutions Sdn. Bhd.</name>\n          <additional_registration_no>8765432</additional_registration_no>\n          <ic_lcno>202501889900</ic_lcno>\n          <lc_checksum>D</lc_checksum>\n          <addr/>\n          <addr1>Unit 14, Menara UOA, Jalan Bangsar, 59100 Kuala Lumpur, Malaysia</addr1>\n          <addr_breakdown/>\n          <ccris_addresses/>\n          <source>SSM</source>\n          <previous_cpo_date/>\n          <cpo_date>30-11-2019</cpo_date>\n          <register_date>10-11-2020</register_date>\n          <comp_category code=\"S\">LIMITED BY SHARES</comp_category>\n          <comp_type code=\"R\">PRIVATE LIMITED</comp_type>\n          <status>EXISTING</status>\n          <type_of_business>Food and Beverage</type_of_business>\n          <remark>AMBANK TEST DATA DO NOT CHANGE</remark>\n          <capital>800000</capital>\n          <paid_up>800000</paid_up>\n          <directors seq=\"1\">\n            <director seq=\"1\">\n              <name>Ahmad Danish Bin Kamarudin</name>\n              <alias/>\n              <ic_lcno/>\n              <nic_brno>910605140622</nic_brno>\n              <position>DO</position>\n              <addr>No. 88, Jalan Pudu, 55100 Kuala Lumpur, Malaysia</addr>\n              <appoint>01-07-2018</appoint>\n              <resign_date/>\n              <equity>0</equity>\n              <equity_percentage>0.00</equity_percentage>\n              <remark>DIRECTOR</remark>\n              <party_type>I</party_type>\n            </director>\n            <director seq=\"2\">\n              <name>Lim Shu Wei</name>\n              <alias/>\n              <ic_lcno/>\n              <nic_brno>980329140755</nic_brno>\n              <position>DO</position>\n              <addr>No. 88, Jalan Pudu, 55100 Kuala Lumpur, Malaysia</addr>\n              <appoint>01-07-2018</appoint>\n              <resign_date/>\n              <equity>0</equity>\n              <equity_percentage>0.00</equity_percentage>\n              <remark>DIRECTOR</remark>\n              <party_type>I</party_type>\n            </director>\n            <director seq=\"3\">\n              <name>Lim Zi Xuan</name>\n              <alias/>\n              <ic_lcno/>\n              <nic_brno>071104140927</nic_brno>\n              <position>DO</position>\n              <addr>LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK</addr>\n              <appoint>01-07-2018</appoint>\n              <resign_date/>\n              <equity>0</equity>\n              <equity_percentage>0.00</equity_percentage>\n              <remark>DIRECTOR</remark>\n              <party_type>I</party_type>\n            </director>\n            <director seq=\"4\">\n              <name>Zenith Edge Holdings Sdn. Bhd.</name>\n              <alias/>\n              <additional_registration_no>202001334455</additional_registration_no>\n              <ic_lcno>8123456E</ic_lcno>\n              <nic_brno/>\n              <position>SO</position>\n              <addr>No. 33, Jalan Kuching, 51200 Kuala Lumpur, Malaysia</addr>\n              <appoint/>\n              <resign_date/>\n              <equity>800000</equity>\n              <equity_percentage>100.00</equity_percentage>\n              <remark/>\n              <party_type>C</party_type>\n              <brn_ssm>8123456E</brn_ssm>\n            </director>\n          </directors>\n          <secretaries/>\n          <previous_names name=\"\" change_date=\"\"/>\n          <charges>\n            <charge seq=\"1\"/>\n          </charges>\n          <sme_financial_score/>\n          <accounts auditor_name=\"UHY\">\n            <account seq=\"1\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2024</pldd>\n              <bsdd>2024-06-30</bsdd>\n              <tabledt>26-11-2024</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth>0.0</turnover_growth>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n            <account seq=\"2\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2023</pldd>\n              <bsdd>2023-06-30</bsdd>\n              <tabledt>26-11-2023</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth>0.0</turnover_growth>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n            <account seq=\"3\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2022</pldd>\n              <bsdd>2022-06-30</bsdd>\n              <tabledt>26-11-2022</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth>0.0</turnover_growth>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n            <account seq=\"4\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2022</pldd>\n              <bsdd>2022-06-30</bsdd>\n              <tabledt>26-11-2022</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth>0.0</turnover_growth>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n            <account seq=\"5\">\n              <conac>true</conac>\n              <unqrep>true</unqrep>\n              <auditor_name>UHY</auditor_name>\n              <auditor_address>SUITE 11.05, LEVEL 11, THE GARDENS SOUTH TOWER, MID VALLEY CITY, LINGKARAN SYED PUTRA, 59200, KUALA LUMPUR, WILAYAH PERSEKUTUAN</auditor_address>\n              <exempted>false</exempted>\n              <pldd>30-06-2021</pldd>\n              <bsdd>2021-06-30</bsdd>\n              <tabledt>26-11-2021</tabledt>\n              <bsfatot>0.00</bsfatot>\n              <othass>0.00</othass>\n              <bscatot>2109152381.00</bscatot>\n              <bsclbank>2056177549.00</bsclbank>\n              <totass>4165329930.00</totass>\n              <curlib>1592807689.00</curlib>\n              <bsslltd>817697089.00</bsslltd>\n              <bsclstd>0.00</bsclstd>\n              <totlib>2410504778.00</totlib>\n              <bsqpuc>922887304.00</bsqpuc>\n              <bsqres>5922877.00</bsqres>\n              <bsqupro>672930446.00</bsqupro>\n              <networth>1754825152.00</networth>\n              <bsqmint>153084525.00</bsqmint>\n              <tot>4165329930.00</tot>\n              <turnover>1723857391.00</turnover>\n              <plnpbt>216927247.00</plnpbt>\n              <plnpat>137514515.00</plnpat>\n              <plminin>-8975580.00</plminin>\n              <plnetdiv>-35059118.00</plnetdiv>\n              <plyear>128538935.00</plyear>\n              <turnover_growth/>\n              <profit_margin>12.6</profit_margin>\n              <return_on_equity>8.6</return_on_equity>\n              <currat>1.32</currat>\n              <workcap>516344692.00</workcap>\n              <gear>1.5</gear>\n              <dividen_pay_out>-0.3</dividen_pay_out>\n              <dividen_per_share/>\n              <new_form>0</new_form>\n            </account>\n          </accounts>\n          <capital_details>\n            <auth_capital/>\n            <paidup_capital>800000</paidup_capital>\n            <paidup_ord_amount>800000.00</paidup_ord_amount>\n            <paidup_ordA_amount>0.00</paidup_ordA_amount>\n            <paidup_ordB_amount>0.00</paidup_ordB_amount>\n            <paidup_ord_divided>0</paidup_ord_divided>\n            <paidup_ordA_divided>0</paidup_ordA_divided>\n            <paidup_ordB_divided>0</paidup_ordB_divided>\n            <paidup_ord_nominal>100</paidup_ord_nominal>\n            <paidup_pre_amount>0.00</paidup_pre_amount>\n            <paidup_preA_amount>0.00</paidup_preA_amount>\n            <paidup_preB_amount>0.00</paidup_preB_amount>\n            <paidup_pre_divided>0</paidup_pre_divided>\n            <paidup_preA_divided>0</paidup_preA_divided>\n            <paidup_preB_divided>0</paidup_preB_divided>\n            <paidup_pre_nominal>0</paidup_pre_nominal>\n            <paidup_oth_amount>0.00</paidup_oth_amount>\n            <paidup_othA_amount>0.00</paidup_othA_amount>\n            <paidup_othB_amount>0.00</paidup_othB_amount>\n            <paidup_oth_divided>0</paidup_oth_divided>\n            <paidup_othA_divided>0</paidup_othA_divided>\n            <paidup_othB_divided>0</paidup_othB_divided>\n            <paidup_oth_nominal>0</paidup_oth_nominal>\n          </capital_details>\n          <brn_ssm>8765432D</brn_ssm>\n          <msic_ssms>\n            <msic_ssm code=\"56101 \" priority=\"1\">Restaurants and restaurant cum night clubs</msic_ssm>\n          </msic_ssms>\n        </record>\n      </section_a>\n      <section_b title=\"SECTION B - INTERNAL LIST\" data=\"true\">\n        <history seq=\"1\" rpttype=\"EH\" year=\"2026\">\n          <period month=\"1\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"2\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"3\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"4\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"5\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"6\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"7\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"8\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"9\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"10\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"11\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"12\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n        </history>\n        <history seq=\"2\" rpttype=\"EH\" year=\"2025\">\n          <period month=\"1\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"2\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"3\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"4\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"5\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"6\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"7\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"8\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"9\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"10\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"11\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n          <period month=\"12\">\n            <entity type=\"FI\" value=\"0\"/>\n            <entity type=\"NON-FI\" value=\"0\"/>\n            <entity type=\"LAWYER\" value=\"0\"/>\n          </period>\n        </history>\n      </section_b>\n      <section_c title=\"SECTION C - DIRECTORSHIPS AND BUSINESS INTERESTS\" data=\"false\"/>\n      <section_d title=\"SECTION D\" data=\"false\"/>\n      <section_d2 title=\"SECTION D2 - SUBJECT AS PLAINTIFF\" data=\"false\"/>\n      <section_ccris title=\"SECTION CCRIS\" data=\"false\"/>\n      <section_dcheqs title=\"\" data=\"false\"/>\n      <section_etr_plus title=\"ETR PLUS\" data=\"false\"/>\n      <section_e title=\"SECTION E - TRADE REFEREES\" data=\"false\"/>\n    </enquiry>\n  </enq_report>\n</report>",
+  "summary_json": {
+    "fico_score": 0,
+    "fico_factors": [
+      "Score fail to generate because the gross revenue is more than 50 million."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "has_history": false,
+      "raw_flag": 0
+    }
+  },
+  "person_json": null,
+  "company_json": {
+    "name": "AeroNova Solutions Sdn. Bhd.",
+    "registration_no": "8765432D",
+    "status": "EXISTING",
+    "business_type": "Food and Beverage",
+    "company_type": "PRIVATE LIMITED",
+    "company_category": "LIMITED BY SHARES",
+    "address": {
+      "full": "Unit 14, Menara UOA, Jalan Bangsar, 59100 Kuala Lumpur, Malaysia",
+      "line1": null,
+      "line2": null,
+      "city": null,
+      "state": null,
+      "postcode": null
+    },
+    "directors": [
+      {
+        "name": "Ahmad Danish Bin Kamarudin",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "910605140622",
+        "position": "DO",
+        "addr": "No. 88, Jalan Pudu, 55100 Kuala Lumpur, Malaysia",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 0,
+        "equity_percentage": 0,
+        "remark": "DIRECTOR",
+        "party_type": "I"
+      },
+      {
+        "name": "Lim Shu Wei",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "980329140755",
+        "position": "DO",
+        "addr": "No. 88, Jalan Pudu, 55100 Kuala Lumpur, Malaysia",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 0,
+        "equity_percentage": 0,
+        "remark": "DIRECTOR",
+        "party_type": "I"
+      },
+      {
+        "name": "Lim Zi Xuan",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "071104140927",
+        "position": "DO",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 0,
+        "equity_percentage": 0,
+        "remark": "DIRECTOR",
+        "party_type": "I"
+      },
+      {
+        "name": "Zenith Edge Holdings Sdn. Bhd.",
+        "alias": null,
+        "ic_lcno": "8123456E",
+        "nic_brno": null,
+        "position": "SO",
+        "addr": "No. 33, Jalan Kuching, 51200 Kuala Lumpur, Malaysia",
+        "appoint": null,
+        "resign_date": null,
+        "equity": 800000,
+        "equity_percentage": 100,
+        "remark": null,
+        "party_type": "C"
+      }
+    ]
+  },
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": null,
+      "total_outstanding": null
+    }
+  },
+  "financials_json": [
+    {
+      "reporting_year": 2024,
+      "financial_year_end_date": "30-06-2024",
+      "balance_sheet_date": "2024-06-30",
+      "balance_sheet": {
+        "fixed_assets": 0,
+        "other_assets": 0,
+        "current_assets": 2109152381,
+        "non_current_assets": 2056177549,
+        "total_assets": 4165329930,
+        "current_liabilities": 1592807689,
+        "long_term_liabilities": 817697089,
+        "non_current_liabilities": 0,
+        "total_liabilities": 2410504778,
+        "equity": 922887304
+      },
+      "profit_and_loss": {
+        "revenue": 1723857391,
+        "profit_before_tax": 216927247,
+        "profit_after_tax": 137514515,
+        "net_dividend": -35059118,
+        "profit_line_amount": 128538935
+      }
+    },
+    {
+      "reporting_year": 2023,
+      "financial_year_end_date": "30-06-2023",
+      "balance_sheet_date": "2023-06-30",
+      "balance_sheet": {
+        "fixed_assets": 0,
+        "other_assets": 0,
+        "current_assets": 2109152381,
+        "non_current_assets": 2056177549,
+        "total_assets": 4165329930,
+        "current_liabilities": 1592807689,
+        "long_term_liabilities": 817697089,
+        "non_current_liabilities": 0,
+        "total_liabilities": 2410504778,
+        "equity": 922887304
+      },
+      "profit_and_loss": {
+        "revenue": 1723857391,
+        "profit_before_tax": 216927247,
+        "profit_after_tax": 137514515,
+        "net_dividend": -35059118,
+        "profit_line_amount": 128538935
+      }
+    },
+    {
+      "reporting_year": 2022,
+      "financial_year_end_date": "30-06-2022",
+      "balance_sheet_date": "2022-06-30",
+      "balance_sheet": {
+        "fixed_assets": 0,
+        "other_assets": 0,
+        "current_assets": 2109152381,
+        "non_current_assets": 2056177549,
+        "total_assets": 4165329930,
+        "current_liabilities": 1592807689,
+        "long_term_liabilities": 817697089,
+        "non_current_liabilities": 0,
+        "total_liabilities": 2410504778,
+        "equity": 922887304
+      },
+      "profit_and_loss": {
+        "revenue": 1723857391,
+        "profit_before_tax": 216927247,
+        "profit_after_tax": 137514515,
+        "net_dividend": -35059118,
+        "profit_line_amount": 128538935
+      }
+    },
+    {
+      "reporting_year": 2021,
+      "financial_year_end_date": "30-06-2021",
+      "balance_sheet_date": "2021-06-30",
+      "balance_sheet": {
+        "fixed_assets": 0,
+        "other_assets": 0,
+        "current_assets": 2109152381,
+        "non_current_assets": 2056177549,
+        "total_assets": 4165329930,
+        "current_liabilities": 1592807689,
+        "long_term_liabilities": 817697089,
+        "non_current_liabilities": 0,
+        "total_liabilities": 2410504778,
+        "equity": 922887304
+      },
+      "profit_and_loss": {
+        "revenue": 1723857391,
+        "profit_before_tax": 216927247,
+        "profit_after_tax": 137514515,
+        "net_dividend": -35059118,
+        "profit_line_amount": 128538935
+      }
+    }
+  ]
+}

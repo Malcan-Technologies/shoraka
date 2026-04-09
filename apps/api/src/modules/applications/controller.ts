@@ -542,6 +542,25 @@ router.get("/:id/amendment-context", requireAuth, async function getAmendmentCon
   }
 });
 
+router.get(
+  "/:id/product-version-compare",
+  requireAuth,
+  async function getProductVersionCompare(req, res, next) {
+    try {
+      const { id } = applicationIdParamSchema.parse(req.params);
+      const userId = getUserId(req);
+      const data = await applicationService.getProductVersionCompareForApplication(id, userId);
+      res.json({
+        success: true,
+        data,
+        correlationId: res.locals.correlationId || "unknown",
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 router.get("/", requireAuth, async function listApplications(req, res, next) {
   try {
     const organizationId = req.query.organizationId as string | undefined;

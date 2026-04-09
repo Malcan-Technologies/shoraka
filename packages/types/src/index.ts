@@ -152,6 +152,27 @@ export type ReviewStepStatus =
   | "AMENDMENT_REQUESTED"
   | "WITHDRAWN";
 
+export type ApplicationProductVersionCompareOutcome =
+  | "NO_PRODUCT_ID"
+  | "PRODUCT_UNAVAILABLE"
+  | "COMPARE";
+
+/** Issuer version modal / guard: two user-facing cases plus null (no block). */
+export type IssuerProductBlockReason = "PRODUCT_UNAVAILABLE" | "PRODUCT_VERSION_CHANGED" | null;
+
+export interface ApplicationProductVersionCompare {
+  outcome: ApplicationProductVersionCompareOutcome;
+  compare_version?: number;
+}
+
+export type IssuerProductLiveCheckOutcome = "PRODUCT_UNAVAILABLE" | "COMPARE";
+
+export interface IssuerProductLiveCheck {
+  outcome: IssuerProductLiveCheckOutcome;
+  compare_version?: number;
+  resolved_product_id?: string;
+}
+
 export interface Application {
   id: string;
   issuer_organization_id: string;
