@@ -41,7 +41,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formSelectTriggerClassName } from "@/app/(application-flow)/applications/components/form-control";
-import { ChevronRightIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ChevronRightIcon, EyeIcon, TrashIcon } from "@heroicons/react/24/outline";
 
 /**
  * BUSINESS DETAILS STEP
@@ -378,6 +379,36 @@ const sectionWrapperClassName =
  */
 const formOuterClassName =
   "w-full max-w-[1200px] flex flex-col gap-12 md:gap-14 px-3";
+
+/** Tooltip surface for investor badge: neutral popover, not primary red. */
+const investorBadgeTooltipContentClassName =
+  "max-w-xs border border-border bg-popover px-3 py-2 text-sm font-normal normal-case leading-snug text-popover-foreground shadow-md";
+
+/**
+ * Investor visibility hint
+ *
+ * What: Inline muted badge beside section title; full detail on hover.
+ * Why: Fintech-style cue without a long sentence in the header row.
+ * Data: Presentational only; short label + tooltip copy are fixed UX text.
+ */
+function InvestorVisibilityBadge() {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex max-w-full shrink-0 cursor-help items-center gap-1 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-sm text-muted-foreground outline-none transition-colors hover:bg-muted hover:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <EyeIcon className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+          <span className="truncate">Visible to investors</span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top" sideOffset={6} className={investorBadgeTooltipContentClassName}>
+        Everything you enter here will be shown to investors.
+      </TooltipContent>
+    </Tooltip>
+  );
+}
 
 /**
  * Radio labels (use canonical form label styles)
@@ -932,8 +963,11 @@ export function BusinessDetailsStep({
         {/* ===================== ABOUT YOUR BUSINESS ===================== */}
         <section className={`${sectionWrapperClassName} space-y-5`}>
         <div>
-          <h3 className={sectionHeaderClassName}>About your business</h3>
-          <div className="border-b border-border mt-3 mb-6" />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h3 className={cn(sectionHeaderClassName, "shrink-0")}>About your business</h3>
+            <InvestorVisibilityBadge />
+          </div>
+          <div className="border-b border-border mt-4 mb-6" />
         </div>
 
         <div className={rowGridClassName}>
@@ -1011,8 +1045,11 @@ export function BusinessDetailsStep({
       {/* ===================== WHY ARE YOU RAISING FUNDS ===================== */}
       <section className={`${sectionWrapperClassName} space-y-5`}>
         <div>
-          <h3 className={sectionHeaderClassName}>Why are you raising funds?</h3>
-          <div className="border-b border-border mt-3 mb-6" />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h3 className={cn(sectionHeaderClassName, "shrink-0")}>Why are you raising funds?</h3>
+            <InvestorVisibilityBadge />
+          </div>
+          <div className="border-b border-border mt-4 mb-6" />
         </div>
 
         <div className={rowGridClassName}>
