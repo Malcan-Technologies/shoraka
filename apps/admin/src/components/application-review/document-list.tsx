@@ -8,6 +8,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
+  ArrowDownTrayIcon,
   ArrowTopRightOnSquareIcon,
   ChevronDownIcon,
   DocumentArrowDownIcon,
@@ -145,6 +146,7 @@ export interface DocumentListProps {
   reviewItems: { item_type: string; item_id: string; status: string }[];
   isReviewable: boolean;
   onViewDocument?: (s3Key: string) => void;
+  onDownloadDocument?: (s3Key: string, fileName?: string) => void;
   onApproveItem: (itemId: string) => Promise<void>;
   onRejectItem: (itemId: string) => void;
   onRequestAmendmentItem: (itemId: string) => void;
@@ -162,6 +164,7 @@ export function DocumentList({
   reviewItems,
   isReviewable,
   onViewDocument,
+  onDownloadDocument,
   onApproveItem,
   onRejectItem,
   onRequestAmendmentItem,
@@ -208,6 +211,8 @@ export function DocumentList({
                   const status = getItemStatus(key);
                   const canViewSingle = Boolean(s3Key && onViewDocument);
                   const canViewMultiple = Boolean(onViewDocument && files.length > 1);
+                  const canDownloadSingle = Boolean(s3Key && onDownloadDocument);
+                  const canDownloadMultiple = Boolean(onDownloadDocument && files.length > 1);
                   return (
                     <div
                       key={key}
@@ -255,6 +260,46 @@ export function DocumentList({
                                 >
                                   <span className="truncate min-w-0">{f.label}</span>
                                   <ArrowTopRightOnSquareIcon className="h-4 w-4 shrink-0" />
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                        {canDownloadSingle && !canDownloadMultiple && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="rounded-lg h-9 gap-1 border-0"
+                            onClick={() => onDownloadDocument?.(s3Key!, label)}
+                            disabled={isViewDocumentPending}
+                          >
+                            <ArrowDownTrayIcon className="h-4 w-4" />
+                            Download
+                          </Button>
+                        )}
+                        {canDownloadMultiple && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="rounded-lg h-9 gap-1 border-0"
+                                disabled={isViewDocumentPending}
+                              >
+                                <ArrowDownTrayIcon className="h-4 w-4" />
+                                Download
+                                <ChevronDownIcon className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="min-w-[220px]">
+                              {files.map((f, fileIndex) => (
+                                <DropdownMenuItem
+                                  key={`${f.s3Key}-${fileIndex}-download`}
+                                  onClick={() => onDownloadDocument?.(f.s3Key, f.label)}
+                                  className="flex items-center justify-between gap-3"
+                                >
+                                  <span className="truncate min-w-0">{f.label}</span>
+                                  <ArrowDownTrayIcon className="h-4 w-4 shrink-0" />
                                 </DropdownMenuItem>
                               ))}
                             </DropdownMenuContent>

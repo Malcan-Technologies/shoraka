@@ -198,6 +198,49 @@ export default function DynamicApplicationDetailPage() {
     [getAccessToken]
   );
 
+  const handleDownloadDocument = React.useCallback(
+    async (s3Key: string, fileName?: string) => {
+      try {
+        setViewDocumentPending(true);
+        const token = await getAccessToken();
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+        const response = await fetch(`${apiUrl}/v1/s3/download-url`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token && { Authorization: `Bearer ${token}` }),
+          },
+          body: JSON.stringify({ s3Key }),
+        });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error?.message || "Failed to get download URL");
+        const downloadUrl = result.data?.downloadUrl;
+        if (!downloadUrl) {
+          toast.error("Failed to download document");
+          return;
+        }
+        const fileResponse = await fetch(downloadUrl);
+        if (!fileResponse.ok) {
+          throw new Error("Failed to fetch file for download");
+        }
+        const blob = await fileResponse.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = objectUrl;
+        link.download = fileName?.trim() || "document.pdf";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(objectUrl);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to download document");
+      } finally {
+        setViewDocumentPending(false);
+      }
+    },
+    [getAccessToken]
+  );
+
   const handleViewSignedInvoiceOffer = React.useCallback(
     async (signedOfferLetterS3Key: string) => {
       if (!signedOfferLetterS3Key) {
@@ -880,6 +923,7 @@ export default function DynamicApplicationDetailPage() {
                               setNoteDialog({ open: true, action: "amend", section: s })
                             }
                             onViewDocument={handleViewDocument}
+                            onDownloadDocument={handleDownloadDocument}
                             onApproveItem={async (itemId, itemType) => {
                               setNoteDialog({
                                 open: true,

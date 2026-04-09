@@ -15,6 +15,7 @@ export interface DocumentsSectionProps {
   actionLockTooltip?: string;
   viewDocumentPending: boolean;
   onViewDocument: (s3Key: string) => void;
+  onDownloadDocument: (s3Key: string, fileName?: string) => void;
   onApproveItem: (itemId: string) => Promise<void>;
   onRejectItem: (itemId: string) => void;
   onRequestAmendmentItem: (itemId: string) => void;
@@ -32,6 +33,7 @@ export function DocumentsSection({
   actionLockTooltip,
   viewDocumentPending,
   onViewDocument,
+  onDownloadDocument,
   onApproveItem,
   onRejectItem,
   onRequestAmendmentItem,
@@ -58,6 +60,7 @@ export function DocumentsSection({
             reviewItems={reviewItems}
             isReviewable={!!isReviewable}
             onViewDocument={onViewDocument}
+            onDownloadDocument={onDownloadDocument}
             onApproveItem={onApproveItem}
             onRejectItem={onRejectItem}
             onRequestAmendmentItem={onRequestAmendmentItem}

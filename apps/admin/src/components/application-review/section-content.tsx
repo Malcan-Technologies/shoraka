@@ -86,6 +86,7 @@ export interface SectionContentProps {
   onRejectSection: (section: ReviewSectionId) => void;
   onRequestAmendmentSection: (section: ReviewSectionId) => void;
   onViewDocument: (s3Key: string) => void;
+  onDownloadDocument: (s3Key: string, fileName?: string) => void;
   onApproveItem: (itemId: string, itemType: "invoice" | "document") => Promise<void>;
   onRejectItem: (itemId: string, itemType: "invoice" | "document") => void;
   onRequestAmendmentItem: (itemId: string, itemType: "invoice" | "document") => void;
@@ -129,6 +130,7 @@ export function SectionContent({
   onRejectSection,
   onRequestAmendmentSection,
   onViewDocument,
+  onDownloadDocument,
   onApproveItem,
   onRejectItem,
   onRequestAmendmentItem,
@@ -226,6 +228,7 @@ export function SectionContent({
           actionLockTooltip={actionLockTooltip}
           viewDocumentPending={viewDocumentPending}
           onViewDocument={onViewDocument}
+          onDownloadDocument={onDownloadDocument}
           onApproveItem={(id) => onApproveItem(id, "document")}
           onRejectItem={(id) => onRejectItem(id, "document")}
           onRequestAmendmentItem={(id) => onRequestAmendmentItem(id, "document")}
