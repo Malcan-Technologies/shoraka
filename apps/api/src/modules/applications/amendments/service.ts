@@ -10,6 +10,7 @@ import { logger } from "../../../lib/logger";
 import { AppError } from "../../../lib/http/error-handler";
 import { ApplicationRepository } from "../repository";
 import { assertRequiredSupportingDocumentsPresent } from "../supporting-docs-workflow";
+import { buildApplicationRevisionSnapshot } from "../revision-snapshot";
 
 export interface AmendmentAllowedSections {
   allowedSections: Set<string>;
@@ -187,27 +188,22 @@ export async function resubmitApplication(
     });
 
     if (appFullCurrent) {
-      const snapshot = {
-        product: {
-          id: (appFullCurrent as any).financing_type?.product_id ?? null,
-          version: (appFullCurrent as any).product_version ?? null,
-        },
-        application: {
-          financing_type: appFullCurrent.financing_type,
-          financing_structure: appFullCurrent.financing_structure,
-          company_details: appFullCurrent.company_details,
-          business_details: appFullCurrent.business_details,
-          financial_statements: appFullCurrent.financial_statements,
-          supporting_documents: appFullCurrent.supporting_documents,
-          declarations: appFullCurrent.declarations,
-          review_and_submit: appFullCurrent.review_and_submit,
-          last_completed_step: appFullCurrent.last_completed_step,
-          contract_id: appFullCurrent.contract_id,
-        },
-        contract: appFullCurrent.contract ?? null,
-        invoices: appFullCurrent.invoices ?? [],
-        issuer_organization: appFullCurrent.issuer_organization ?? null,
-      };
+      const snapshot = buildApplicationRevisionSnapshot({
+        financing_type: appFullCurrent.financing_type,
+        product_version: appFullCurrent.product_version,
+        financing_structure: appFullCurrent.financing_structure,
+        company_details: appFullCurrent.company_details,
+        business_details: appFullCurrent.business_details,
+        financial_statements: appFullCurrent.financial_statements,
+        supporting_documents: appFullCurrent.supporting_documents,
+        declarations: appFullCurrent.declarations,
+        review_and_submit: appFullCurrent.review_and_submit,
+        last_completed_step: appFullCurrent.last_completed_step,
+        contract_id: appFullCurrent.contract_id,
+        contract: appFullCurrent.contract,
+        invoices: appFullCurrent.invoices,
+        issuer_organization: appFullCurrent.issuer_organization,
+      });
 
       await (tx as any).applicationRevision.create({
         data: {

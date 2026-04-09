@@ -21,6 +21,7 @@ import {
   fileNameToSupportingDocTypeToken,
   getSupportingDocAllowedTypesFromProductWorkflow,
 } from "./supporting-docs-workflow";
+import { buildApplicationRevisionSnapshot } from "./revision-snapshot";
 import { deleteS3Object } from "../../lib/s3/client";
 import { logger } from "../../lib/logger";
 import {
@@ -1110,25 +1111,25 @@ export class ApplicationService {
       }
       const appFull = await prisma.application.findUnique({
         where: { id },
-        include: { contract: true, invoices: true },
+        include: { contract: true, invoices: true, issuer_organization: true },
       });
       if (appFull) {
-        const snapshot = {
-          application: {
-            financing_type: appFull.financing_type,
-            financing_structure: appFull.financing_structure,
-            company_details: appFull.company_details,
-            business_details: appFull.business_details,
-            financial_statements: appFull.financial_statements,
-            supporting_documents: appFull.supporting_documents,
-            declarations: appFull.declarations,
-            review_and_submit: appFull.review_and_submit,
-            last_completed_step: appFull.last_completed_step,
-            contract_id: appFull.contract_id,
-          },
-          contract: appFull.contract ?? null,
-          invoices: appFull.invoices ?? [],
-        };
+        const snapshot = buildApplicationRevisionSnapshot({
+          financing_type: appFull.financing_type,
+          product_version: appFull.product_version,
+          financing_structure: appFull.financing_structure,
+          company_details: appFull.company_details,
+          business_details: appFull.business_details,
+          financial_statements: appFull.financial_statements,
+          supporting_documents: appFull.supporting_documents,
+          declarations: appFull.declarations,
+          review_and_submit: appFull.review_and_submit,
+          last_completed_step: appFull.last_completed_step,
+          contract_id: appFull.contract_id,
+          contract: appFull.contract,
+          invoices: appFull.invoices,
+          issuer_organization: appFull.issuer_organization,
+        });
         await (prisma as any).applicationRevision.create({
           data: {
             application_id: id,
