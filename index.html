@@ -216,10 +216,6 @@
       padding-top: 12px;
     }
 
-    .required {
-      color: #b91c1c;
-    }
-
     input[type="text"],
     textarea,
     select {
@@ -282,15 +278,15 @@
       accent-color: #8a0304;
     }
 
-    .guarantor-section-title-row {
+    .guarantor-section-header {
       display: flex;
       flex-wrap: wrap;
       justify-content: space-between;
-      align-items: center;
-      gap: 12px 16px;
+      align-items: flex-end;
+      gap: 12px 20px;
     }
 
-    .guarantor-section-title-row .section-title {
+    .guarantor-section-header .section-title {
       margin: 0;
     }
 
@@ -328,7 +324,7 @@
     .guarantor-list {
       display: flex;
       flex-direction: column;
-      gap: 18px;
+      gap: 24px;
     }
 
     .guarantor-card {
@@ -522,7 +518,7 @@
         padding-top: 0;
       }
 
-      .guarantor-section-title-row .btn-primary {
+      .guarantor-section-header .btn-primary {
         width: 100%;
       }
 
@@ -625,7 +621,7 @@
           </section>
 
           <section class="section">
-            <div class="guarantor-section-title-row">
+            <div class="guarantor-section-header">
               <h2 class="section-title">Guarantor details</h2>
               <button type="button" class="btn btn-primary">+ Add guarantor</button>
             </div>
@@ -652,7 +648,7 @@
                 <div class="guarantor-card-body">
                   <div class="field-stack">
                     <div class="field-group">
-                      <label>Guarantor Type <span class="required">*</span></label>
+                      <label>Guarantor Type</label>
                       <select>
                         <option selected>Individual</option>
                         <option>Company</option>
@@ -661,22 +657,22 @@
 
                     <div class="name-row">
                       <div class="field-group">
-                        <label>First name <span class="required">*</span></label>
+                        <label>First name</label>
                         <input type="text" placeholder="e.g. John" value="John" />
                       </div>
                       <div class="field-group">
-                        <label>Last name <span class="required">*</span></label>
+                        <label>Last name</label>
                         <input type="text" placeholder="e.g. Doe" value="Doe" />
                       </div>
                     </div>
 
                     <div class="field-group">
-                      <label>IC Number <span class="required">*</span></label>
+                      <label>IC Number</label>
                       <input type="text" placeholder="e.g. 901212-10-1234" value="901212-10-1234" />
                     </div>
 
                     <div class="field-group">
-                      <label>Relationship <span class="required">*</span></label>
+                      <label>Relationship</label>
                       <select>
                         <option selected>Family members of director</option>
                         <option>Director / shareholder</option>
@@ -707,7 +703,7 @@
                 <div class="guarantor-card-body">
                   <div class="field-stack">
                     <div class="field-group">
-                      <label>Guarantor Type <span class="required">*</span></label>
+                      <label>Guarantor Type</label>
                       <select>
                         <option>Individual</option>
                         <option selected>Company</option>
@@ -715,17 +711,17 @@
                     </div>
 
                     <div class="field-group">
-                      <label>Company name <span class="required">*</span></label>
+                      <label>Company name</label>
                       <input type="text" placeholder="e.g. ABC Holdings Sdn Bhd" value="ABC Holdings Sdn Bhd" />
                     </div>
 
                     <div class="field-group">
-                      <label>SSM number <span class="required">*</span></label>
+                      <label>SSM number</label>
                       <input type="text" placeholder="e.g. 1234567-X123456" value="1234567-X" />
                     </div>
 
                     <div class="field-group">
-                      <label>Relationship <span class="required">*</span></label>
+                      <label>Relationship</label>
                       <select>
                         <option selected>Parent company</option>
                         <option>Subsidiary</option>

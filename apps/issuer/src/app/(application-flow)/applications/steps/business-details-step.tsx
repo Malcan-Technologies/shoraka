@@ -545,7 +545,7 @@ function GuarantorCardFields({
 }: GuarantorCardFieldsProps) {
   const inputClassName = formInputClassName;
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <div className="space-y-2 w-full min-w-0">
         <Label className={formLabelClassName}>Guarantor type</Label>
         <Select
@@ -806,6 +806,7 @@ export function BusinessDetailsStep({
       }
     }
 
+    /* At least one guarantor; each row must be complete (applies to every added guarantor). */
     if (guarantors.length < 1) return false;
     for (const g of guarantors) {
       if (g.guarantorType === "individual") {
@@ -813,12 +814,18 @@ export function BusinessDetailsStep({
           !g.firstName.trim() ||
           !g.lastName.trim() ||
           !g.icNumber.trim() ||
-          !g.relationship
+          !g.relationship ||
+          !GUARANTOR_INDIVIDUAL_RELATIONSHIPS.includes(g.relationship as GuarantorIndividualRelationship)
         ) {
           return false;
         }
       } else {
-        if (!g.companyName.trim() || !g.ssmNumber.trim() || !g.relationship) {
+        if (
+          !g.companyName.trim() ||
+          !g.ssmNumber.trim() ||
+          !g.relationship ||
+          !GUARANTOR_COMPANY_RELATIONSHIPS.includes(g.relationship as GuarantorCompanyRelationship)
+        ) {
           return false;
         }
       }
@@ -1182,7 +1189,7 @@ export function BusinessDetailsStep({
       {/* ===================== GUARANTOR DETAILS ===================== */}
       <section className={`${sectionWrapperClassName} space-y-5`}>
         <div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
             <h3 className={sectionHeaderClassName}>Guarantor details</h3>
             <Button
               type="button"
@@ -1194,10 +1201,10 @@ export function BusinessDetailsStep({
               + Add guarantor
             </Button>
           </div>
-          <div className="border-b border-border mt-3 mb-4" />
+          <div className="border-b border-border mt-3 mb-6" />
         </div>
 
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-8 px-3">
           {guarantors.map((row, index) => {
             const removeButton = (
               <Button
