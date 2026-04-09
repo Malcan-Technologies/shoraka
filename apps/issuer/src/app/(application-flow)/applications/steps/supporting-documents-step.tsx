@@ -189,23 +189,19 @@ export function SupportingDocumentsStep({
     if (!config || typeof config !== "object") return [];
 
     return Object.entries(config)
-
-      // Only treat array values as document groups
-      .filter(([, value]) => Array.isArray(value))
-
-      // Convert each group into a UI category
+      .filter(([key, value]) => key !== "enabled_categories" && Array.isArray(value))
       .map(([groupKey, docs]) => ({
         groupKey,
         name: groupKey
           .replace(/_/g, " ")
           .replace(/\b\w/g, (c) => c.toUpperCase()),
 
-        // Convert documents into UI-friendly shape
         documents: (docs as any[]).map((doc) => ({
           title: doc?.name ?? "—",
           allowMultiple: doc?.allow_multiple === true,
           template: doc?.template,
           allowedTypes: resolveIssuerAllowedTypes(doc ?? {}),
+          required: doc?.required !== false,
         })),
       }));
   }, [stepConfig]);
@@ -555,7 +551,8 @@ export function SupportingDocumentsStep({
     if (categories.length === 0) return true;
     for (let categoryIndex = 0; categoryIndex < categories.length; categoryIndex++) {
       for (let documentIndex = 0; documentIndex < categories[categoryIndex].documents.length; documentIndex++) {
-        if (!hasDocumentFile(categoryIndex, documentIndex)) {
+        const docRequired = categories[categoryIndex].documents[documentIndex]?.required !== false;
+        if (docRequired && !hasDocumentFile(categoryIndex, documentIndex)) {
           return false;
         }
       }
@@ -725,6 +722,11 @@ export function SupportingDocumentsStep({
                         {/* Document title */}
                         <div className="text-[16px] leading-[22px] text-foreground">
                           {document.title}
+                          {document.required !== false ? (
+                            <span className="text-destructive"> *</span>
+                          ) : (
+                            <span className="text-muted-foreground font-normal"> (Optional)</span>
+                          )}
                         </div>
 
                         {/* Action column: template, amendment, upload — all aligned far right */}

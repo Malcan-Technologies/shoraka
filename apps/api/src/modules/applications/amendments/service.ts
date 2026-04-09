@@ -9,6 +9,7 @@ import { prisma } from "../../../lib/prisma";
 import { logger } from "../../../lib/logger";
 import { AppError } from "../../../lib/http/error-handler";
 import { ApplicationRepository } from "../repository";
+import { assertRequiredSupportingDocumentsPresent } from "../supporting-docs-workflow";
 
 export interface AmendmentAllowedSections {
   allowedSections: Set<string>;
@@ -141,6 +142,18 @@ export async function resubmitApplication(
       "MISSING_ACKNOWLEDGEMENTS",
       "All amendments must be acknowledged before resubmitting."
     );
+  }
+
+  const financingTypeResubmit = application.financing_type as { product_id?: string } | null | undefined;
+  const resubmitProductId = financingTypeResubmit?.product_id;
+  if (resubmitProductId) {
+    const resubmitProduct = await prisma.product.findUnique({ where: { id: resubmitProductId } });
+    if (resubmitProduct?.workflow) {
+      assertRequiredSupportingDocumentsPresent(
+        resubmitProduct.workflow as unknown[],
+        application.supporting_documents
+      );
+    }
   }
 
   const appFullCurrent = await prisma.application.findUnique({

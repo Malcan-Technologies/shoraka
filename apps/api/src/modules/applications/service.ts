@@ -17,6 +17,7 @@ import { AppError } from "../../lib/http/error-handler";
 import { Application, Prisma, ApplicationStatus as DbApplicationStatus, ProductStatus } from "@prisma/client";
 import { requestPresignedUploadUrl, deleteDocumentFromS3 } from "./documents/service";
 import {
+  assertRequiredSupportingDocumentsPresent,
   fileNameToSupportingDocTypeToken,
   getSupportingDocAllowedTypesFromProductWorkflow,
 } from "./supporting-docs-workflow";
@@ -1096,6 +1097,17 @@ export class ApplicationService {
 
     // Create revision on initial submit (DRAFT -> SUBMITTED)
     if (status === "SUBMITTED" && currentStatus === "DRAFT") {
+      const financingTypeSubmit = application.financing_type as { product_id?: string } | null | undefined;
+      const submitProductId = financingTypeSubmit?.product_id;
+      if (submitProductId) {
+        const submitProduct = await this.productRepository.findById(submitProductId);
+        if (submitProduct?.workflow) {
+          assertRequiredSupportingDocumentsPresent(
+            submitProduct.workflow,
+            application.supporting_documents
+          );
+        }
+      }
       const appFull = await prisma.application.findUnique({
         where: { id },
         include: { contract: true, invoices: true },

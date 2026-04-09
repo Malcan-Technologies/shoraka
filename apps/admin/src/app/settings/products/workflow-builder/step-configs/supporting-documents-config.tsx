@@ -39,9 +39,15 @@ type CategoryKey = (typeof CATEGORY_KEYS)[number];
 export interface SupportingDocItemShape {
   name: string;
   allow_multiple?: boolean;
+  /** Omitted or true → required (backward compatible); false → optional */
+  required?: boolean;
   /** Raw workflow values, e.g. ["pdf"], ["pdf","excel"]. Omitted or empty → treat as ["pdf"] at runtime */
   allowed_types?: string[];
   template?: { s3_key: string; file_name: string; file_size?: number };
+}
+
+function resolveRowRequired(row: { required?: boolean }): boolean {
+  return row.required !== false;
 }
 
 function formatFileSize(bytes: number): string {
@@ -94,9 +100,11 @@ function getCategoryList(config: unknown, key: CategoryKey): SupportingDocItemSh
     const fileName = (template?.file_name ?? template?.filename) as string | undefined;
     const at = row?.allowed_types;
     const allowed_types = Array.isArray(at) ? at.filter((x): x is string => typeof x === "string") : undefined;
+    const rq = row?.required;
     return {
       name: (row?.name as string) ?? "",
       allow_multiple: row?.allow_multiple === true,
+      ...(typeof rq === "boolean" ? { required: rq } : {}),
       ...(allowed_types !== undefined && allowed_types.length > 0 ? { allowed_types } : {}),
       template:
         template?.s3_key != null
@@ -469,6 +477,18 @@ function DocRow({
                 }}
               />
               PDF
+            </label>
+            <label className="flex cursor-pointer items-center gap-1.5">
+              <input
+                type="checkbox"
+                className="h-3.5 w-3.5 rounded border-input"
+                checked={resolveRowRequired(item)}
+                onChange={(e) => {
+                  console.log("Supporting doc row required toggled:", e.target.checked, "row:", index);
+                  onUpdate({ required: e.target.checked });
+                }}
+              />
+              Required
             </label>
             <label className="flex cursor-pointer items-center gap-1.5">
               <input
