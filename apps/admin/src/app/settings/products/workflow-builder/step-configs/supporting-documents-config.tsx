@@ -16,6 +16,15 @@ import {
 import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { useS3ViewUrl } from "../../../../../hooks/use-s3";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../../../../../components/ui/alert-dialog";
 
 const CATEGORY_KEYS = ["financial_docs", "legal_docs", "compliance_docs", "others"] as const;
 const CATEGORY_LABELS: Record<(typeof CATEGORY_KEYS)[number], string> = {
@@ -30,6 +39,8 @@ type CategoryKey = (typeof CATEGORY_KEYS)[number];
 export interface SupportingDocItemShape {
   name: string;
   allow_multiple?: boolean;
+  /** Raw workflow values, e.g. ["pdf"], ["pdf","excel"]. Omitted or empty → treat as ["pdf"] at runtime */
+  allowed_types?: string[];
   template?: { s3_key: string; file_name: string; file_size?: number };
 }
 
@@ -37,6 +48,40 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function resolveAllowedTypes(row: { allowed_types?: string[] }): string[] {
+  const raw = row.allowed_types;
+  if (!Array.isArray(raw) || raw.length === 0) return ["pdf"];
+  return raw.filter((x): x is string => typeof x === "string");
+}
+
+function normalizeAllowedTypesTokens(types: string[]): string[] {
+  const hasPdf = types.includes("pdf");
+  const hasExcel = types.includes("excel");
+  if (!hasPdf && !hasExcel) return ["pdf"];
+  const out: string[] = [];
+  if (hasPdf) out.push("pdf");
+  if (hasExcel) out.push("excel");
+  return out;
+}
+
+function buildAcceptFromAllowedTypes(types: string[]): string {
+  const parts: string[] = [];
+  if (types.includes("pdf")) parts.push(".pdf");
+  if (types.includes("excel")) {
+    parts.push(".xlsx", ".xls");
+  }
+  return parts.join(",");
+}
+
+function templateFileMatchesAllowedTypes(file: File, types: string[]): boolean {
+  const lower = file.name.toLowerCase();
+  const dot = lower.lastIndexOf(".");
+  const ext = dot >= 0 ? lower.slice(dot + 1) : "";
+  if (types.includes("pdf") && ext === "pdf") return true;
+  if (types.includes("excel") && (ext === "xlsx" || ext === "xls")) return true;
+  return false;
 }
 
 function getCategoryList(config: unknown, key: CategoryKey): SupportingDocItemShape[] {
@@ -47,9 +92,12 @@ function getCategoryList(config: unknown, key: CategoryKey): SupportingDocItemSh
     const row = item as Record<string, unknown> | undefined;
     const template = row?.template as { s3_key?: string; file_name?: string; filename?: string; file_size?: number } | undefined;
     const fileName = (template?.file_name ?? template?.filename) as string | undefined;
+    const at = row?.allowed_types;
+    const allowed_types = Array.isArray(at) ? at.filter((x): x is string => typeof x === "string") : undefined;
     return {
       name: (row?.name as string) ?? "",
       allow_multiple: row?.allow_multiple === true,
+      ...(allowed_types !== undefined && allowed_types.length > 0 ? { allowed_types } : {}),
       template:
         template?.s3_key != null
           ? {
@@ -96,7 +144,6 @@ function getConfig(config: unknown): Record<CategoryKey, SupportingDocItemShape[
   };
 }
 
-const TEMPLATE_ACCEPT = "application/pdf";
 const MAX_TEMPLATE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
 
 /** Optional PDF template per document row; uploaded in admin, shown as “Download template” on issuer supporting docs step. */
@@ -154,7 +201,7 @@ export function SupportingDocumentsConfig({
   const addCategory = (key: CategoryKey) => {
     if (enabledCategories.includes(key)) return;
     const nextEnabled = ensureOthersLast([...enabledCategories, key]);
-    const nextLists = { ...lists, [key]: [{ name: "", allow_multiple: false }] };
+    const nextLists = { ...lists, [key]: [{ name: "", allow_multiple: false, allowed_types: ["pdf"] }] };
     setLists(nextLists);
     setEnabledCategories(nextEnabled);
     persist(nextLists, nextEnabled);
@@ -169,7 +216,7 @@ export function SupportingDocumentsConfig({
   };
 
   const addDoc = (key: CategoryKey) => {
-    updateCategory(key, [...lists[key], { name: "", allow_multiple: false }]);
+    updateCategory(key, [...lists[key], { name: "", allow_multiple: false, allowed_types: ["pdf"] }]);
   };
 
   const updateDoc = (key: CategoryKey, index: number, updates: Partial<SupportingDocItemShape>) => {
@@ -191,8 +238,10 @@ export function SupportingDocumentsConfig({
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
-    if (file.type !== "application/pdf") {
-      toast.error("Only PDF files are allowed");
+    const types = resolveAllowedTypes(lists[key][index] ?? {});
+    console.log("Supporting doc template selected, allowed_types:", types, "file:", file.name);
+    if (!templateFileMatchesAllowedTypes(file, types)) {
+      toast.error("File type does not match allowed types for this document");
       return;
     }
     if (file.size > MAX_TEMPLATE_SIZE_BYTES) {
@@ -261,7 +310,6 @@ export function SupportingDocumentsConfig({
               onTemplateSelect={(index, e) => handleTemplateSelect(key, index, e)}
               onTemplateRemove={(index) => removeTemplate(key, index)}
               onRemoveCategory={() => removeCategory(key)}
-              templateAccept={TEMPLATE_ACCEPT}
               isUploadingTemplate={false}
             />
           ))}
@@ -283,7 +331,6 @@ function CategorySection({
   onTemplateSelect,
   onTemplateRemove,
   onRemoveCategory,
-  templateAccept,
   isUploadingTemplate,
 }: {
   categoryKey: CategoryKey;
@@ -297,7 +344,6 @@ function CategorySection({
   onTemplateSelect: (index: number, e: React.ChangeEvent<HTMLInputElement>) => void;
   onTemplateRemove: (index: number) => void;
   onRemoveCategory: () => void;
-  templateAccept: string;
   isUploadingTemplate: boolean;
 }) {
   return (
@@ -337,7 +383,6 @@ function CategorySection({
               onRemove={() => onRemove(index)}
               onTemplateSelect={(e) => onTemplateSelect(index, e)}
               onTemplateRemove={() => onTemplateRemove(index)}
-              templateAccept={templateAccept}
               isUploadingTemplate={isUploadingTemplate}
             />
           ))}
@@ -355,7 +400,6 @@ function DocRow({
   onRemove,
   onTemplateSelect,
   onTemplateRemove,
-  templateAccept,
   isUploadingTemplate,
 }: {
   item: SupportingDocItemShape;
@@ -365,10 +409,12 @@ function DocRow({
   onRemove: () => void;
   onTemplateSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onTemplateRemove: () => void;
-  templateAccept: string;
   isUploadingTemplate: boolean;
 }) {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [fileTypeErrorOpen, setFileTypeErrorOpen] = React.useState(false);
+  const resolvedTypes = resolveAllowedTypes(item);
+  const templateAccept = buildAcceptFromAllowedTypes(resolvedTypes);
   const s3Key = item.template?.s3_key ?? "";
   const { data: viewUrl, isLoading: viewUrlLoading } = useS3ViewUrl(s3Key || null);
   const hasTemplate = !!item.template;
@@ -402,6 +448,51 @@ function DocRow({
               <SelectItem value="multiple">Multiple files</SelectItem>
             </SelectContent>
           </Select>
+          <span className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
+            <label className="flex cursor-pointer items-center gap-1.5">
+              <input
+                type="checkbox"
+                className="h-3.5 w-3.5 rounded border-input"
+                checked={resolvedTypes.includes("pdf")}
+                onChange={() => {
+                  const cur = resolveAllowedTypes(item);
+                  if (cur.includes("pdf")) {
+                    if (cur.includes("excel")) {
+                      onUpdate({ allowed_types: ["excel"] });
+                    } else {
+                      console.log("Blocked clearing PDF: need at least one file type");
+                      setFileTypeErrorOpen(true);
+                    }
+                  } else {
+                    onUpdate({ allowed_types: normalizeAllowedTypesTokens([...cur, "pdf"]) });
+                  }
+                }}
+              />
+              PDF
+            </label>
+            <label className="flex cursor-pointer items-center gap-1.5">
+              <input
+                type="checkbox"
+                className="h-3.5 w-3.5 rounded border-input"
+                checked={resolvedTypes.includes("excel")}
+                onChange={() => {
+                  const cur = resolveAllowedTypes(item);
+                  if (cur.includes("excel")) {
+                    const next = cur.filter((t) => t !== "excel");
+                    if (next.length === 0) {
+                      console.log("Blocked clearing Excel: need at least one file type");
+                      setFileTypeErrorOpen(true);
+                      return;
+                    }
+                    onUpdate({ allowed_types: normalizeAllowedTypesTokens(next) });
+                  } else {
+                    onUpdate({ allowed_types: normalizeAllowedTypesTokens([...cur, "excel"]) });
+                  }
+                }}
+              />
+              Excel
+            </label>
+          </span>
           <Button
             type="button"
             variant="ghost"
@@ -413,6 +504,22 @@ function DocRow({
             <TrashIcon className="h-4 w-4" />
           </Button>
         </div>
+        <AlertDialog open={fileTypeErrorOpen} onOpenChange={setFileTypeErrorOpen}>
+          <AlertDialogContent className="rounded-xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle>File type required</AlertDialogTitle>
+              <AlertDialogDescription>
+                Select at least one file type: PDF and/or Excel. Issuers must be allowed to upload at least one
+                of these for this document.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogAction className="rounded-xl" onClick={() => setFileTypeErrorOpen(false)}>
+                OK
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         {OPTIONAL_TEMPLATE_ENABLED && (
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground leading-6 min-w-0">
             <Input

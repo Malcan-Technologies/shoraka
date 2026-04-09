@@ -16,6 +16,10 @@ import {
 import { AppError } from "../../lib/http/error-handler";
 import { Application, Prisma, ApplicationStatus as DbApplicationStatus, ProductStatus } from "@prisma/client";
 import { requestPresignedUploadUrl, deleteDocumentFromS3 } from "./documents/service";
+import {
+  fileNameToSupportingDocTypeToken,
+  getSupportingDocAllowedTypesFromProductWorkflow,
+} from "./supporting-docs-workflow";
 import { deleteS3Object } from "../../lib/s3/client";
 import { logger } from "../../lib/logger";
 import {
@@ -984,6 +988,8 @@ export class ApplicationService {
     contentType: string;
     fileSize: number;
     existingS3Key?: string;
+    supportingDocCategoryKey?: string;
+    supportingDocIndex?: number;
     userId: string;
   }): Promise<{ uploadUrl: string; s3Key: string; expiresIn: number }> {
     await this.verifyApplicationAccess(params.applicationId, params.userId);
@@ -996,6 +1002,43 @@ export class ApplicationService {
         throw new AppError(403, "AMENDMENT_LOCKED", "This section is locked during amendment review");
       }
     }
+
+    let allowedTypes: string[];
+    if (
+      params.supportingDocCategoryKey !== undefined &&
+      params.supportingDocIndex !== undefined
+    ) {
+      const ft = application?.financing_type as { product_id?: string } | null | undefined;
+      const productId = ft?.product_id;
+      if (!productId || typeof productId !== "string") {
+        throw new AppError(400, "VALIDATION_ERROR", "Application has no product for document upload");
+      }
+      const product = await this.productRepository.findById(productId);
+      if (!product) {
+        throw new AppError(400, "VALIDATION_ERROR", "Product not found");
+      }
+      allowedTypes = getSupportingDocAllowedTypesFromProductWorkflow(
+        product.workflow as unknown[],
+        params.supportingDocCategoryKey,
+        params.supportingDocIndex
+      );
+    } else {
+      allowedTypes = ["pdf"];
+    }
+
+    const token = fileNameToSupportingDocTypeToken(params.fileName);
+    if (!token || !allowedTypes.includes(token)) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invalid file type");
+    }
+
+    console.log(
+      "Application upload URL: fileName:",
+      params.fileName,
+      "token:",
+      token,
+      "allowedTypes:",
+      allowedTypes
+    );
 
     return requestPresignedUploadUrl({
       applicationId: params.applicationId,

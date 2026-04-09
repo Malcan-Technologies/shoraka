@@ -6,6 +6,7 @@
  */
 
 import { addMonths, isBefore, parseISO, startOfDay, isValid } from "date-fns";
+import { getStepKeyFromStepId } from "@cashsouk/types";
 import { AppError } from "../../lib/http/error-handler";
 
 function getStepId(step: unknown): string {
@@ -152,6 +153,43 @@ export function validateWorkflowFinancialConfig(workflow: unknown[]): void {
   }
 }
 
+function supportingDocRowHasValidAllowedTypes(row: unknown): boolean {
+  if (!row || typeof row !== "object") return true;
+  const at = (row as Record<string, unknown>).allowed_types;
+  if (at === undefined) return true;
+  if (!Array.isArray(at)) return false;
+  if (at.length === 0) return false;
+  return at.some((x) => x === "pdf" || x === "excel");
+}
+
+/**
+ * Each supporting-doc row with allowed_types set must list at least pdf or excel.
+ * Omitted allowed_types still defaults to pdf-only at runtime.
+ */
+export function validateSupportingDocumentsAllowedTypes(workflow: unknown[]): void {
+  if (!Array.isArray(workflow) || workflow.length === 0) return;
+  for (const step of workflow) {
+    const sid = (step as { id?: string })?.id ?? "";
+    if (getStepKeyFromStepId(sid) !== "supporting_documents") continue;
+    const config = (step as { config?: Record<string, unknown> }).config;
+    if (!config || typeof config !== "object") return;
+    for (const [key, value] of Object.entries(config)) {
+      if (key === "enabled_categories") continue;
+      if (!Array.isArray(value)) continue;
+      for (let i = 0; i < value.length; i++) {
+        if (!supportingDocRowHasValidAllowedTypes(value[i])) {
+          throw new AppError(
+            400,
+            "VALIDATION_ERROR",
+            `Supporting documents (${key}, row ${i + 1}): select at least one file type (PDF and/or Excel).`
+          );
+        }
+      }
+    }
+    return;
+  }
+}
+
 /**
  * Full validation before product create/update.
  */
@@ -163,6 +201,7 @@ export function validateFinancialConfig(params: {
   if (params.workflow && params.workflow.length > 0) {
     validateMandatoryWorkflowStepSet(params.workflow);
     validateWorkflowFinancialConfig(params.workflow);
+    validateSupportingDocumentsAllowedTypes(params.workflow);
   }
 }
 

@@ -16,6 +16,40 @@ import { FileDisplayBadge } from "@/app/(application-flow)/applications/componen
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+function resolveIssuerAllowedTypes(doc: { allowed_types?: unknown }): string[] {
+  const raw = doc?.allowed_types;
+  if (!Array.isArray(raw) || raw.length === 0) return ["pdf"];
+  return raw.filter((x): x is string => typeof x === "string");
+}
+
+function buildAcceptAttr(types: string[]): string {
+  const parts: string[] = [];
+  if (types.includes("pdf")) parts.push(".pdf");
+  if (types.includes("excel")) {
+    parts.push(".xlsx", ".xls");
+  }
+  return parts.join(",");
+}
+
+function issuerFileMatchesAllowedTypes(file: File, types: string[]): boolean {
+  const lower = file.name.toLowerCase();
+  const dot = lower.lastIndexOf(".");
+  const ext = dot >= 0 ? lower.slice(dot + 1) : "";
+  if (types.includes("pdf") && ext === "pdf") return true;
+  if (types.includes("excel") && (ext === "xlsx" || ext === "xls")) return true;
+  return false;
+}
+
+function parseSlotKey(key: string): { categoryIndex: number; documentIndex: number } | null {
+  const i = key.lastIndexOf("-");
+  if (i <= 0) return null;
+  const a = Number(key.slice(0, i));
+  const b = Number(key.slice(i + 1));
+  if (!Number.isInteger(a) || !Number.isInteger(b) || a < 0 || b < 0) return null;
+  return { categoryIndex: a, documentIndex: b };
+}
+
 type UploadMode = "single" | "multiple";
 type UploadRecord = {
   name: string;
@@ -171,6 +205,7 @@ export function SupportingDocumentsStep({
           title: doc?.name ?? "—",
           allowMultiple: doc?.allow_multiple === true,
           template: doc?.template,
+          allowedTypes: resolveIssuerAllowedTypes(doc ?? {}),
         })),
       }));
   }, [stepConfig]);
@@ -334,9 +369,11 @@ export function SupportingDocumentsStep({
     if (selected.length === 0) return;
     event.target.value = "";
 
+    const types = categories?.[categoryIndex]?.documents?.[documentIndex]?.allowedTypes ?? ["pdf"];
     for (const file of selected) {
-      if (file.type !== "application/pdf") {
-        toast.error("Please select a PDF file");
+      if (!issuerFileMatchesAllowedTypes(file, types)) {
+        console.log("Rejected file for allowedTypes:", types, "name:", file.name);
+        toast.error("File type not allowed for this document");
         return;
       }
       if (file.size > 5 * 1024 * 1024) {
@@ -399,6 +436,15 @@ export function SupportingDocumentsStep({
           uploaded_at: string;
         }[] = [];
 
+        const slot = parseSlotKey(key);
+        if (!slot) {
+          throw new Error("Invalid upload slot");
+        }
+        const slotCategory = categories[slot.categoryIndex];
+        if (!slotCategory) {
+          throw new Error("Invalid category for upload");
+        }
+
         for (const pending of pendingUploads) {
           const typedFile = pending.file;
           const urlResponse = await fetch(`${API_URL}/v1/applications/${applicationId}/upload-document-url`, {
@@ -409,14 +455,21 @@ export function SupportingDocumentsStep({
             },
             body: JSON.stringify({
               fileName: typedFile.name,
-              contentType: typedFile.type,
+              contentType: typedFile.type || "application/octet-stream",
               fileSize: typedFile.size,
+              supportingDocCategoryKey: slotCategory.groupKey,
+              supportingDocIndex: slot.documentIndex,
             }),
           });
 
           const urlResult = await urlResponse.json();
           if (!urlResult.success) {
-            throw new Error("Failed to get upload URL");
+            const msg =
+              typeof urlResult?.error?.message === "string"
+                ? urlResult.error.message
+                : "Failed to get upload URL";
+            console.log("Upload URL error:", msg, urlResult);
+            throw new Error(msg);
           }
 
           const { uploadUrl, s3Key } = urlResult.data;
@@ -486,7 +539,7 @@ export function SupportingDocumentsStep({
     }
 
     return dataToSave;
-  }, [applicationId, selectedFiles, uploadedFiles, getAccessToken, onDataChange, buildDataToSave]);
+  }, [applicationId, selectedFiles, uploadedFiles, getAccessToken, onDataChange, buildDataToSave, categories]);
 
   const uploadFilesRef = React.useRef(uploadFilesToS3);
   React.useEffect(() => {
@@ -644,6 +697,7 @@ export function SupportingDocumentsStep({
                     const templateS3Key = document.template?.s3_key;
                     const groupKey = (category as any).groupKey ?? Object.keys(stepConfig?.config || {})[categoryIndex] ?? "";
                     const slug = String(document.title ?? "doc").replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
+                    const acceptAttr = buildAcceptAttr(document.allowedTypes ?? ["pdf"]);
                     const rawKey = `supporting_documents:${groupKey}:${documentIndex}:${slug}`;
                     const rawKeyWithDoc = `supporting_documents:doc:${groupKey}:${documentIndex}:${slug}`;
                     const isItemFlagged =
@@ -771,7 +825,7 @@ export function SupportingDocumentsStep({
                                           <Input
                                             id={`file-${key}`}
                                             type="file"
-                                            accept="application/pdf"
+                                            accept={acceptAttr}
                                             multiple
                                             onChange={(e) =>
                                               handleFileChange(categoryIndex, documentIndex, e)
@@ -823,7 +877,7 @@ export function SupportingDocumentsStep({
                                     <Input
                                       id={`file-${key}`}
                                       type="file"
-                                      accept="application/pdf"
+                                      accept={acceptAttr}
                                       multiple={mode === "multiple"}
                                       onChange={(e) =>
                                         handleFileChange(categoryIndex, documentIndex, e)

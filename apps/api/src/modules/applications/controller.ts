@@ -172,12 +172,26 @@ async function cancelApplication(req: Request, res: Response, next: NextFunction
   }
 }
 
-const requestUploadUrlSchema = z.object({
-  fileName: z.string().min(1),
-  contentType: z.literal("application/pdf"),
-  fileSize: z.number().int().positive().max(5 * 1024 * 1024), // Max 5MB
-  existingS3Key: z.string().optional(),
-});
+const requestUploadUrlSchema = z
+  .object({
+    fileName: z.string().min(1),
+    contentType: z.string().min(1),
+    fileSize: z.number().int().positive().max(5 * 1024 * 1024), // Max 5MB
+    existingS3Key: z.string().optional(),
+    supportingDocCategoryKey: z.string().min(1).optional(),
+    supportingDocIndex: z.number().int().min(0).optional(),
+  })
+  .superRefine((data, ctx) => {
+    const hasKey = data.supportingDocCategoryKey !== undefined;
+    const hasIdx = data.supportingDocIndex !== undefined;
+    if (hasKey !== hasIdx) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "supportingDocCategoryKey and supportingDocIndex must be provided together",
+        path: hasKey ? ["supportingDocIndex"] : ["supportingDocCategoryKey"],
+      });
+    }
+  });
 
 /**
  * Request presigned URL for uploading application document
@@ -195,6 +209,8 @@ async function requestUploadUrl(req: Request, res: Response, next: NextFunction)
       contentType: input.contentType,
       fileSize: input.fileSize,
       existingS3Key: input.existingS3Key,
+      supportingDocCategoryKey: input.supportingDocCategoryKey,
+      supportingDocIndex: input.supportingDocIndex,
       userId,
     });
 
