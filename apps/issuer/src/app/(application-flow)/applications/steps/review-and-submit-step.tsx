@@ -816,7 +816,16 @@ export function ReviewAndSubmitStep({
                       <React.Fragment key={docIdx}>
                         <div className={labelClassName}>{doc.title}</div>
                         <div className={valueClassName}>
-                          {doc.file ? (
+                          {Array.isArray(doc.files) && doc.files.length > 0 ? (
+                            <div className="flex flex-col gap-2">
+                              {doc.files.map((file: any, fileIndex: number) => (
+                                <FileDisplayBadge
+                                  key={`${file?.s3_key ?? file?.file_name ?? "file"}-${fileIndex}`}
+                                  fileName={file.file_name}
+                                />
+                              ))}
+                            </div>
+                          ) : doc.file ? (
                             <FileDisplayBadge fileName={doc.file.file_name} />
                           ) : (
                             <span className="text-xs text-muted-foreground italic">Not provided</span>

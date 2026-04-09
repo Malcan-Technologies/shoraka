@@ -4526,7 +4526,8 @@ export class AdminService {
         const categoryKey = labelToKey[categoryLabel] ?? `cat_${catIndex}`;
         const docList = Array.isArray(cat?.documents) ? cat.documents : [];
         docList.forEach((d: Record<string, unknown>, docIndex: number) => {
-          const file = d?.file as { file_name?: string } | undefined;
+          const files = Array.isArray(d?.files) ? (d.files as Array<{ file_name?: string }>) : [];
+          const file = (d?.file as { file_name?: string } | undefined) ?? files[0];
           const label =
             String(d?.title ?? file?.file_name ?? d?.name ?? "").trim() || `Document ${docIndex + 1}`;
           const slug = label.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";

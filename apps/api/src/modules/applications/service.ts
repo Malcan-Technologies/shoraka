@@ -212,8 +212,16 @@ export class ApplicationService {
       if (!Array.isArray(docs)) continue;
       for (const doc of docs) {
         const file = (doc as Record<string, unknown>)?.file as Record<string, unknown> | undefined;
-        const key = file?.s3_key;
-        if (typeof key === "string" && key) keys.add(key);
+        const singleKey = file?.s3_key;
+        if (typeof singleKey === "string" && singleKey) keys.add(singleKey);
+
+        const files = (doc as Record<string, unknown>)?.files;
+        if (Array.isArray(files)) {
+          for (const f of files) {
+            const key = (f as Record<string, unknown>)?.s3_key;
+            if (typeof key === "string" && key) keys.add(key);
+          }
+        }
       }
     }
     return keys;

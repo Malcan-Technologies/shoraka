@@ -29,6 +29,7 @@ type CategoryKey = (typeof CATEGORY_KEYS)[number];
 
 export interface SupportingDocItemShape {
   name: string;
+  allow_multiple?: boolean;
   template?: { s3_key: string; file_name: string; file_size?: number };
 }
 
@@ -48,6 +49,7 @@ function getCategoryList(config: unknown, key: CategoryKey): SupportingDocItemSh
     const fileName = (template?.file_name ?? template?.filename) as string | undefined;
     return {
       name: (row?.name as string) ?? "",
+      allow_multiple: row?.allow_multiple === true,
       template:
         template?.s3_key != null
           ? {
@@ -152,7 +154,7 @@ export function SupportingDocumentsConfig({
   const addCategory = (key: CategoryKey) => {
     if (enabledCategories.includes(key)) return;
     const nextEnabled = ensureOthersLast([...enabledCategories, key]);
-    const nextLists = { ...lists, [key]: [{ name: "" }] };
+    const nextLists = { ...lists, [key]: [{ name: "", allow_multiple: false }] };
     setLists(nextLists);
     setEnabledCategories(nextEnabled);
     persist(nextLists, nextEnabled);
@@ -167,7 +169,7 @@ export function SupportingDocumentsConfig({
   };
 
   const addDoc = (key: CategoryKey) => {
-    updateCategory(key, [...lists[key], { name: "" }]);
+    updateCategory(key, [...lists[key], { name: "", allow_multiple: false }]);
   };
 
   const updateDoc = (key: CategoryKey, index: number, updates: Partial<SupportingDocItemShape>) => {
@@ -386,6 +388,20 @@ function DocRow({
             maxLength={200}
             className={cn(INPUT_CLASS, "h-8 min-w-0 flex-1")}
           />
+          <Select
+            value={item.allow_multiple ? "multiple" : "single"}
+            onValueChange={(value) =>
+              onUpdate({ allow_multiple: value === "multiple" })
+            }
+          >
+            <SelectTrigger className={cn(SELECT_TRIGGER_CLASS, "h-8 w-[170px] shrink-0")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="single">Single file</SelectItem>
+              <SelectItem value="multiple">Multiple files</SelectItem>
+            </SelectContent>
+          </Select>
           <Button
             type="button"
             variant="ghost"

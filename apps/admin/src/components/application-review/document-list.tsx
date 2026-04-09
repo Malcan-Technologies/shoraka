@@ -18,8 +18,15 @@ import {
 } from "@/app/settings/products/workflow-builder/product-form-helpers";
 import { ItemActionDropdown } from "./item-action-dropdown";
 import { ReviewStepStatusBadge } from "./review-step-status-badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
-type DocItem = { key: string; label: string; s3Key?: string };
+type DocFile = { label: string; s3Key: string };
+type DocItem = { key: string; label: string; s3Key?: string; files: DocFile[] };
 type CategoryGroup = { categoryKey: string; categoryLabel: string; items: DocItem[] };
 
 function buildCategoryGroups(documents: unknown): CategoryGroup[] {
@@ -34,6 +41,16 @@ function buildCategoryGroups(documents: unknown): CategoryGroup[] {
         key: `supporting_documents:others:${i}:${slug}`,
         label: name || `Document ${i + 1}`,
         s3Key: file?.s3_key ?? (d?.s3_key as string | undefined),
+        files:
+          typeof (file?.s3_key ?? (d?.s3_key as string | undefined)) === "string" &&
+          String(file?.s3_key ?? (d?.s3_key as string | undefined)).trim() !== ""
+            ? [
+                {
+                  label: name || `Document ${i + 1}`,
+                  s3Key: String(file?.s3_key ?? (d?.s3_key as string | undefined)),
+                },
+              ]
+            : [],
       };
     });
     return items.length > 0 ? [{ categoryKey: "others", categoryLabel: "Others", items }] : [];
@@ -52,15 +69,32 @@ function buildCategoryGroups(documents: unknown): CategoryGroup[] {
       const categoryKey = labelToKey[categoryLabel] ?? `cat_${catIndex}`;
       const docList = Array.isArray(cat?.documents) ? cat.documents : [];
       const items: DocItem[] = docList.map((d: Record<string, unknown>, docIndex: number) => {
-        const file = d?.file as { file_name?: string; s3_key?: string } | undefined;
+        const files = Array.isArray(d?.files) ? (d.files as Array<{ file_name?: string; s3_key?: string }>) : [];
+        const file = (d?.file as { file_name?: string; s3_key?: string } | undefined) ?? files[0];
+        const viewFiles = files
+          .filter((f) => typeof f?.s3_key === "string" && f.s3_key.trim() !== "")
+          .map((f, fileIndex) => ({
+            label: String(f.file_name ?? `File ${fileIndex + 1}`),
+            s3Key: String(f.s3_key),
+          }));
+        if (viewFiles.length === 0 && typeof file?.s3_key === "string" && file.s3_key.trim() !== "") {
+          viewFiles.push({
+            label: String(file.file_name ?? `File 1`),
+            s3Key: String(file.s3_key),
+          });
+        }
+        const fileCount = files.length > 0 ? files.length : file ? 1 : 0;
         const label =
           String(d?.title ?? file?.file_name ?? d?.name ?? "").trim() ||
           `Document ${docIndex + 1}`;
+        const labelWithCount =
+          fileCount > 1 ? `${label} (${fileCount} files)` : label;
         const slug = label.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
         return {
           key: `supporting_documents:${categoryKey}:${docIndex}:${slug}`,
-          label,
+          label: labelWithCount,
           s3Key: file?.s3_key ?? (d?.s3_key as string | undefined),
+          files: viewFiles,
         };
       });
       if (items.length > 0) {
@@ -83,6 +117,16 @@ function buildCategoryGroups(documents: unknown): CategoryGroup[] {
         key: `supporting_documents:${categoryKey}:${i}:${slug}`,
         label: name || `${categoryKey} ${i + 1}`,
         s3Key: file?.s3_key ?? (d?.s3_key as string | undefined),
+        files:
+          typeof (file?.s3_key ?? (d?.s3_key as string | undefined)) === "string" &&
+          String(file?.s3_key ?? (d?.s3_key as string | undefined)).trim() !== ""
+            ? [
+                {
+                  label: name || `${categoryKey} ${i + 1}`,
+                  s3Key: String(file?.s3_key ?? (d?.s3_key as string | undefined)),
+                },
+              ]
+            : [],
       };
     });
     if (items.length > 0) {
@@ -160,8 +204,10 @@ export function DocumentList({
             </CollapsibleTrigger>
             <CollapsibleContent>
               <div className="border-t pl-12 pr-4 py-3 space-y-3">
-                {items.map(({ key, label, s3Key }) => {
+                {items.map(({ key, label, s3Key, files }) => {
                   const status = getItemStatus(key);
+                  const canViewSingle = Boolean(s3Key && onViewDocument);
+                  const canViewMultiple = Boolean(onViewDocument && files.length > 1);
                   return (
                     <div
                       key={key}
@@ -174,17 +220,45 @@ export function DocumentList({
                         {status !== "PENDING" && (
                           <ReviewStepStatusBadge status={status} size="sm" />
                         )}
-                        {s3Key && onViewDocument && (
+                        {canViewSingle && !canViewMultiple && (
                           <Button
                             variant="outline"
                             size="sm"
                             className="rounded-lg h-9 gap-1 border-0"
-                            onClick={() => onViewDocument(s3Key)}
+                            onClick={() => onViewDocument?.(s3Key!)}
                             disabled={isViewDocumentPending}
                           >
                             <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                             View
                           </Button>
+                        )}
+                        {canViewMultiple && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="rounded-lg h-9 gap-1 border-0"
+                                disabled={isViewDocumentPending}
+                              >
+                                <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                                View
+                                <ChevronDownIcon className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="min-w-[220px]">
+                              {files.map((f, fileIndex) => (
+                                <DropdownMenuItem
+                                  key={`${f.s3Key}-${fileIndex}`}
+                                  onClick={() => onViewDocument?.(f.s3Key)}
+                                  className="flex items-center justify-between gap-3"
+                                >
+                                  <span className="truncate min-w-0">{f.label}</span>
+                                  <ArrowTopRightOnSquareIcon className="h-4 w-4 shrink-0" />
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         )}
                         {isReviewable && (
                           <ItemActionDropdown

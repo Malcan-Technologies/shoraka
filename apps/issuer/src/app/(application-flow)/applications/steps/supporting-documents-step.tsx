@@ -16,6 +16,22 @@ import { FileDisplayBadge } from "@/app/(application-flow)/applications/componen
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+type UploadMode = "single" | "multiple";
+type UploadRecord = {
+  name: string;
+  size?: number;
+  uploadedAt?: string;
+  s3_key?: string;
+  clientId?: string;
+};
+type PendingUpload = { file: File; clientId: string };
+
+const makeClientId = () => {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+};
 
 export function SupportingDocumentsStep({
   applicationId,
@@ -153,44 +169,88 @@ export function SupportingDocumentsStep({
         // Convert documents into UI-friendly shape
         documents: (docs as any[]).map((doc) => ({
           title: doc?.name ?? "—",
+          allowMultiple: doc?.allow_multiple === true,
           template: doc?.template,
         })),
       }));
   }, [stepConfig]);
 
 
-  const [uploadedFiles, setUploadedFiles] = React.useState<Record<string, { name: string; size?: number; uploadedAt?: string; s3_key?: string }>>({});
-  const [selectedFiles, setSelectedFiles] = React.useState<Record<string, File>>({});
+  const [uploadedFiles, setUploadedFiles] = React.useState<Record<string, UploadRecord[]>>({});
+  const [selectedFiles, setSelectedFiles] = React.useState<Record<string, PendingUpload[]>>({});
   const [expandedCategories, setExpandedCategories] = React.useState<Record<number, boolean>>({});
+  const [expandedFileLists, setExpandedFileLists] = React.useState<Record<string, boolean>>({});
   const [uploadingKeys, setUploadingKeys] = React.useState<Set<string>>(new Set());
-  const [documentCuids, setDocumentCuids] = React.useState<Record<string, string>>({});
-  const [lastS3Keys, setLastS3Keys] = React.useState<Record<string, string>>({});
-  const [initialUploadedFiles, setInitialUploadedFiles] = React.useState<Record<string, { name: string; size?: number; uploadedAt?: string; s3_key?: string }>>({});
+  const [initialUploadedFiles, setInitialUploadedFiles] = React.useState<Record<string, UploadRecord[]>>({});
+
+  const getUploadMode = React.useCallback(
+    (categoryIndex: number, documentIndex: number): UploadMode => {
+      const mode = categories?.[categoryIndex]?.documents?.[documentIndex]?.allowMultiple;
+      return mode ? "multiple" : "single";
+    },
+    [categories]
+  );
 
 
   /** Canonical file structure: file_name, file_size, s3_key, uploaded_at (ISO string). */
   const buildDataToSave = (
-    files: Record<string, { s3_key?: string; name?: string; size?: number; uploadedAt?: string }>,
-    uploadResults: Map<string, { s3_key: string; file_name: string; file_size: number; uploaded_at: string }> = new Map()
+    files: Record<string, UploadRecord[]>,
+    uploadResults: Map<
+      string,
+      { clientId: string; s3_key: string; file_name: string; file_size: number; uploaded_at: string }[]
+    > = new Map()
   ) => {
     return {
       categories: categories.map((category: any, categoryIndex: number) => ({
         name: category.name,
         documents: category.documents.map((document: any, documentIndex: number) => {
           const key = `${categoryIndex}-${documentIndex}`;
-          const uploadResult = uploadResults.get(key);
-          const existingFile = files[key];
-          const s3_key = uploadResult?.s3_key || existingFile?.s3_key;
-          const fileName = uploadResult?.file_name || existingFile?.name;
-          const fileSize = uploadResult?.file_size ?? existingFile?.size ?? 0;
-          const uploadedAt = uploadResult?.uploaded_at ?? existingFile?.uploadedAt ?? new Date().toISOString();
-          if (s3_key && fileName) {
+          const mode = getUploadMode(categoryIndex, documentIndex);
+          const existingFiles = files[key] ?? [];
+          const uploadedFromSave = uploadResults.get(key) ?? [];
+          const normalized = existingFiles
+            .map((f) => {
+              const uploadResult = uploadedFromSave.find((r) => r.clientId === f.clientId);
+              const s3_key = uploadResult?.s3_key ?? f.s3_key;
+              const fileName = uploadResult?.file_name ?? f.name;
+              if (!s3_key || !fileName) return null;
+              return {
+                file_name: fileName,
+                file_size: uploadResult?.file_size ?? f.size ?? 0,
+                s3_key,
+                uploaded_at:
+                  uploadResult?.uploaded_at ??
+                  f.uploadedAt ??
+                  new Date().toISOString(),
+              };
+            })
+            .filter(Boolean) as Array<{
+            file_name: string;
+            file_size: number;
+            s3_key: string;
+            uploaded_at: string;
+          }>;
+
+          const base = {
+            title: document.title,
+            allow_multiple: mode === "multiple",
+          } as Record<string, unknown>;
+
+          if (normalized.length === 0) {
+            return base;
+          }
+
+          if (mode === "multiple") {
             return {
-              title: document.title,
-              file: { file_name: fileName, file_size: fileSize, s3_key, uploaded_at: uploadedAt },
+              ...base,
+              files: normalized,
             };
           }
-          return { title: document.title };
+
+          return {
+            ...base,
+            file: normalized[0],
+          };
         }),
       })),
     };
@@ -225,9 +285,7 @@ export function SupportingDocumentsStep({
       return;
     }
 
-    const loadedFiles: Record<string, { name: string; size: number; uploadedAt: string; s3_key: string }> = {};
-    const loadedCuids: Record<string, string> = {};
-    const loadedS3Keys: Record<string, string> = {};
+    const loadedFiles: Record<string, UploadRecord[]> = {};
 
     data.categories.forEach((savedCategory: any) => {
       const categoryIndex = categories.findIndex(
@@ -240,14 +298,23 @@ export function SupportingDocumentsStep({
 
           const key = `${categoryIndex}-${documentIndex}`;
 
-          if (savedDocument.file?.s3_key && savedDocument.file?.file_name) {
-            const f = savedDocument.file;
-            loadedFiles[key] = {
+          const list = Array.isArray(savedDocument.files)
+            ? savedDocument.files
+            : savedDocument.file
+              ? [savedDocument.file]
+              : [];
+          const normalized = list
+            .filter(
+              (f: any) => typeof f?.s3_key === "string" && typeof f?.file_name === "string"
+            )
+            .map((f: any) => ({
               name: f.file_name,
               size: f.file_size ?? 0,
               uploadedAt: f.uploaded_at ?? new Date().toISOString(),
               s3_key: f.s3_key,
-            };
+            }));
+          if (normalized.length > 0) {
+            loadedFiles[key] = normalized;
           }
         }
       );
@@ -256,40 +323,58 @@ export function SupportingDocumentsStep({
 
     if (Object.keys(loadedFiles).length > 0) {
       setUploadedFiles(loadedFiles);
-      setDocumentCuids(loadedCuids);
-      setLastS3Keys(loadedS3Keys);
       setInitialUploadedFiles(loadedFiles);
     }
   }, [application, categories]);
 
   const handleFileChange = (categoryIndex: number, documentIndex: number, event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (file.type !== "application/pdf") {
-      toast.error("Please select a PDF file");
-      return;
-    }
-
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("File is too large (max 5MB)");
-      return;
-    }
-
     const key = `${categoryIndex}-${documentIndex}`;
-    const today = new Date().toISOString().split("T")[0];
+    const mode = getUploadMode(categoryIndex, documentIndex);
+    const selected = Array.from(event.target.files ?? []);
+    if (selected.length === 0) return;
+    event.target.value = "";
 
-    setSelectedFiles((prev: any) => ({ ...prev, [key]: file }));
-    setUploadedFiles((prev: any) => ({
-      ...prev,
-      [key]: {
-        name: file.name,
-        size: file.size,
-        uploadedAt: today,
-      },
+    for (const file of selected) {
+      if (file.type !== "application/pdf") {
+        toast.error("Please select a PDF file");
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("File is too large (max 5MB)");
+        return;
+      }
+    }
+
+    const today = new Date().toISOString().split("T")[0];
+    const pending = selected.map((file) => ({ file, clientId: makeClientId() }));
+    const previews: UploadRecord[] = pending.map(({ file, clientId }) => ({
+      name: file.name,
+      size: file.size,
+      uploadedAt: today,
+      clientId,
     }));
 
-    toast.success("File added");
+    setSelectedFiles((prev: any) => ({
+      ...prev,
+      [key]:
+        mode === "multiple"
+          ? [...(prev[key] ?? []), ...pending]
+          : pending,
+    }));
+    setUploadedFiles((prev: any) => {
+      const current = (prev[key] ?? []) as UploadRecord[];
+      return {
+        ...prev,
+        [key]:
+          mode === "multiple"
+            ? [...current, ...previews]
+            : previews,
+      };
+    });
+
+    toast.success(
+      selected.length > 1 ? `${selected.length} files added` : "File added"
+    );
   };
 
   const uploadFilesToS3 = React.useCallback(async () => {
@@ -297,82 +382,67 @@ export function SupportingDocumentsStep({
       return null;
     }
 
-    const uploadResults = new Map();
+    const uploadResults = new Map<
+      string,
+      { clientId: string; s3_key: string; file_name: string; file_size: number; uploaded_at: string }[]
+    >();
+    const token = await getAccessToken();
 
-    for (const [key, typedFile] of Object.entries(selectedFiles) as [string, File][]) {
+    for (const [key, pendingUploads] of Object.entries(selectedFiles) as [string, PendingUpload[]][]) {
       try {
         setUploadingKeys((prev) => new Set(prev).add(key));
+        const savedUploads: {
+          clientId: string;
+          s3_key: string;
+          file_name: string;
+          file_size: number;
+          uploaded_at: string;
+        }[] = [];
 
-        const existingS3Key = uploadedFiles[key]?.s3_key || lastS3Keys[key];
+        for (const pending of pendingUploads) {
+          const typedFile = pending.file;
+          const urlResponse = await fetch(`${API_URL}/v1/applications/${applicationId}/upload-document-url`, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              fileName: typedFile.name,
+              contentType: typedFile.type,
+              fileSize: typedFile.size,
+            }),
+          });
 
-        const token = await getAccessToken();
-
-        const urlResponse = await fetch(`${API_URL}/v1/applications/${applicationId}/upload-document-url`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            fileName: typedFile.name,
-            contentType: typedFile.type,
-            fileSize: typedFile.size,
-            existingS3Key: existingS3Key || undefined,
-          }),
-        });
-
-        const urlResult = await urlResponse.json();
-        if (!urlResult.success) {
-          throw new Error("Failed to get upload URL");
-        }
-
-        const { uploadUrl, s3Key } = urlResult.data;
-
-        const uploadResponse = await fetch(uploadUrl, {
-          method: "PUT",
-          body: typedFile,
-          headers: {
-            "Content-Type": typedFile.type,
-          },
-        });
-
-        if (!uploadResponse.ok) {
-          throw new Error("Failed to upload file");
-        }
-
-        if (existingS3Key && existingS3Key !== s3Key) {
-          try {
-            const deleteResponse = await fetch(`${API_URL}/v1/applications/${applicationId}/document`, {
-              method: "DELETE",
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-              },
-              body: JSON.stringify({
-                s3Key: existingS3Key,
-              }),
-            });
-
-            if (!deleteResponse.ok) {
-              // Non-fatal: upload succeeded
-            }
-          } catch {
-            // Non-fatal: continue with new file
+          const urlResult = await urlResponse.json();
+          if (!urlResult.success) {
+            throw new Error("Failed to get upload URL");
           }
+
+          const { uploadUrl, s3Key } = urlResult.data;
+
+          const uploadResponse = await fetch(uploadUrl, {
+            method: "PUT",
+            body: typedFile,
+            headers: {
+              "Content-Type": typedFile.type,
+            },
+          });
+
+          if (!uploadResponse.ok) {
+            throw new Error("Failed to upload file");
+          }
+
+          savedUploads.push({
+            clientId: pending.clientId,
+            s3_key: s3Key,
+            file_name: typedFile.name,
+            file_size: typedFile.size,
+            uploaded_at: new Date().toISOString(),
+          });
         }
 
-        uploadResults.set(key, {
-          s3_key: s3Key,
-          file_name: typedFile.name,
-          file_size: typedFile.size,
-          uploaded_at: new Date().toISOString(),
-        });
-
-        const cuidMatch = s3Key.match(/v\d+-(\d{4}-\d{2}-\d{2})-([^.]+)\./);
-        if (cuidMatch) {
-          setDocumentCuids((prev: any) => ({ ...prev, [key]: cuidMatch[2] }));
-          setLastS3Keys((prev: any) => ({ ...prev, [key]: s3Key }));
-        }
+        uploadResults.set(key, savedUploads);
       } catch (error) {
         throw error;
       } finally {
@@ -386,23 +456,21 @@ export function SupportingDocumentsStep({
 
     setSelectedFiles({});
 
-    const updatedFiles: Record<string, { name: string; size?: number; uploadedAt?: string; s3_key?: string }> = { ...uploadedFiles };
-    uploadResults.forEach((result, key) => {
-      if (updatedFiles[key]) {
-        updatedFiles[key] = {
-          ...updatedFiles[key],
-          s3_key: result.s3_key,
-          size: result.file_size,
-          uploadedAt: result.uploaded_at,
+    const updatedFiles: Record<string, UploadRecord[]> = { ...uploadedFiles };
+    uploadResults.forEach((results, key) => {
+      const current = [...(updatedFiles[key] ?? [])];
+      const normalized = current.map((f) => {
+        const uploaded = results.find((r) => r.clientId === f.clientId);
+        if (!uploaded) return f;
+        return {
+          ...f,
+          name: uploaded.file_name,
+          size: uploaded.file_size,
+          uploadedAt: uploaded.uploaded_at,
+          s3_key: uploaded.s3_key,
         };
-      } else {
-        updatedFiles[key] = {
-          name: result.file_name,
-          size: result.file_size,
-          uploadedAt: result.uploaded_at,
-          s3_key: result.s3_key,
-        };
-      }
+      });
+      updatedFiles[key] = normalized;
     });
 
     setUploadedFiles(updatedFiles);
@@ -418,23 +486,23 @@ export function SupportingDocumentsStep({
     }
 
     return dataToSave;
-  }, [applicationId, selectedFiles, categories, uploadedFiles, documentCuids, lastS3Keys, getAccessToken, onDataChange]);
+  }, [applicationId, selectedFiles, uploadedFiles, getAccessToken, onDataChange, buildDataToSave]);
 
   const uploadFilesRef = React.useRef(uploadFilesToS3);
   React.useEffect(() => {
     uploadFilesRef.current = uploadFilesToS3;
   }, [uploadFilesToS3]);
 
-  const isDocumentUploaded = (categoryIndex: number, documentIndex: number) => {
+  const hasDocumentFile = (categoryIndex: number, documentIndex: number) => {
     const key = `${categoryIndex}-${documentIndex}`;
-    return key in uploadedFiles;
+    return (uploadedFiles[key] ?? []).length > 0;
   };
 
   const areAllFilesUploaded = React.useMemo(() => {
     if (categories.length === 0) return true;
     for (let categoryIndex = 0; categoryIndex < categories.length; categoryIndex++) {
       for (let documentIndex = 0; documentIndex < categories[categoryIndex].documents.length; documentIndex++) {
-        if (!isDocumentUploaded(categoryIndex, documentIndex)) {
+        if (!hasDocumentFile(categoryIndex, documentIndex)) {
           return false;
         }
       }
@@ -445,7 +513,14 @@ export function SupportingDocumentsStep({
   const hasRemovedFiles = React.useMemo(() => {
     const initialKeys = Object.keys(initialUploadedFiles);
     const currentKeys = Object.keys(uploadedFiles);
-    return initialKeys.some((key) => !currentKeys.includes(key));
+    if (initialKeys.some((key) => !currentKeys.includes(key))) {
+      return true;
+    }
+    return Object.keys(uploadedFiles).some((key) => {
+      const initialCount = (initialUploadedFiles[key] ?? []).filter((f) => f.s3_key).length;
+      const currentCount = (uploadedFiles[key] ?? []).filter((f) => f.s3_key).length;
+      return currentCount < initialCount;
+    });
   }, [uploadedFiles, initialUploadedFiles]);
 
   React.useEffect(() => {
@@ -464,44 +539,40 @@ export function SupportingDocumentsStep({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFiles, hasRemovedFiles, uploadFilesToS3, areAllFilesUploaded, uploadedFiles, categories, applicationId]);
 
-  const handleRemoveFile = (categoryIndex: number, documentIndex: number) => {
+  const handleRemoveFile = (categoryIndex: number, documentIndex: number, fileIndex: number) => {
     const key = `${categoryIndex}-${documentIndex}`;
-
-    // Save the S3 key before removing, so we can delete it on next upload
-    const currentFile = uploadedFiles[key];
-    if (currentFile?.s3_key) {
-      const s3Key = currentFile.s3_key;
-      setLastS3Keys((prev) => ({ ...prev, [key]: s3Key }));
-    }
 
     setUploadedFiles((prev: any) => {
       const newFiles = { ...prev };
-      delete newFiles[key];
+      const nextList = [...(newFiles[key] ?? [])];
+      nextList.splice(fileIndex, 1);
+      if (nextList.length === 0) {
+        delete newFiles[key];
+      } else {
+        newFiles[key] = nextList;
+      }
       return newFiles;
     });
     setSelectedFiles((prev: any) => {
       const newFiles = { ...prev };
-      delete newFiles[key];
+      const nextList = [...(newFiles[key] ?? [])];
+      const fileToRemove = (uploadedFiles[key] ?? [])[fileIndex];
+      if (fileToRemove?.clientId) {
+        const pendingIndex = nextList.findIndex(
+          (f: PendingUpload) => f.clientId === fileToRemove.clientId
+        );
+        if (pendingIndex >= 0) {
+          nextList.splice(pendingIndex, 1);
+        }
+      }
+      if (nextList.length === 0) {
+        delete newFiles[key];
+      } else {
+        newFiles[key] = nextList;
+      }
       return newFiles;
     });
   };
-
-  const getCategoryStatus = (categoryIndex: number) => {
-    const category = categories[categoryIndex];
-    if (!category) return { uploadedCount: 0, totalCount: 0 };
-
-    let uploadedCount = 0;
-    const totalCount = category.documents.length;
-
-    category.documents.forEach((_: any, documentIndex: number) => {
-      if (isDocumentUploaded(categoryIndex, documentIndex)) {
-        uploadedCount++;
-      }
-    });
-
-    return { uploadedCount, totalCount };
-  };
-
 
   if (categories.length === 0) {
     return (
@@ -519,7 +590,6 @@ export function SupportingDocumentsStep({
       ) : (
         <>
           {categories.map((category: any, categoryIndex: number) => {
-        const status = getCategoryStatus(categoryIndex);
         const isExpanded = expandedCategories[categoryIndex] ?? true;
 
         return (
@@ -547,10 +617,7 @@ export function SupportingDocumentsStep({
                     </h2>
                   </div>
 
-                  {/* Right side: file counter */}
-                  <span className="text-sm text-muted-foreground whitespace-nowrap">
-                    {status.uploadedCount}/{status.totalCount} files required
-                  </span>
+                  <span />
                 </button>
               </div>
 
@@ -563,12 +630,17 @@ export function SupportingDocumentsStep({
                 {category.documents.map(
                   (document: any, documentIndex: number) => {
                     const key = `${categoryIndex}-${documentIndex}`;
-                    const isUploaded = isDocumentUploaded(
+                    const mode = getUploadMode(categoryIndex, documentIndex);
+                    const isUploaded = hasDocumentFile(
                       categoryIndex,
                       documentIndex
                     );
                     const fileIsUploading = uploadingKeys.has(key);
-                    const file = uploadedFiles[key];
+                    const fileList = uploadedFiles[key] ?? [];
+                    const hasFiles = fileList.length > 0;
+                    const showAllFiles = expandedFileLists[key] ?? false;
+                    const visibleFiles = showAllFiles ? fileList : fileList.slice(0, 1);
+                    const hiddenFileCount = Math.max(fileList.length - visibleFiles.length, 0);
                     const templateS3Key = document.template?.s3_key;
                     const groupKey = (category as any).groupKey ?? Object.keys(stepConfig?.config || {})[categoryIndex] ?? "";
                     const slug = String(document.title ?? "doc").replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
@@ -641,44 +713,99 @@ export function SupportingDocumentsStep({
                               </div>
                             ) : null}
                             <div className="shrink-0">
-                                {isUploaded && file && !fileIsUploading ? (
-                                  isItemFlagged ? (
-                                    <div className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 min-h-9">
-                                      <span title={file.name} className="text-sm font-medium truncate min-w-0">
-                                        {file.name}
-                                      </span>
-                                      {isEditable && (
+                                {hasFiles && !fileIsUploading ? (
+                                  <div className="flex flex-col items-end gap-2">
+                                    {visibleFiles.map((file, fileIndex) => {
+                                      const originalIndex = showAllFiles ? fileIndex : fileList.indexOf(file);
+                                      return (
+                                      isItemFlagged ? (
+                                        <div
+                                          key={file.clientId ?? `${file.name}-${fileIndex}`}
+                                          className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 min-h-9"
+                                        >
+                                          <span title={file.name} className="text-sm font-medium truncate min-w-0">
+                                            {file.name}
+                                          </span>
+                                          {isEditable && (
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                handleRemoveFile(categoryIndex, documentIndex, originalIndex)
+                                              }
+                                              className="text-muted-foreground hover:text-foreground shrink-0"
+                                            >
+                                              <XMarkIcon className="h-3.5 w-3.5" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <FileDisplayBadge
+                                          key={file.clientId ?? `${file.name}-${fileIndex}`}
+                                          fileName={file.name}
+                                          truncate
+                                          trailing={
+                                            isEditable ? (
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  handleRemoveFile(categoryIndex, documentIndex, originalIndex)
+                                                }
+                                                className="text-muted-foreground hover:text-foreground shrink-0"
+                                              >
+                                                <XMarkIcon className="h-3.5 w-3.5" />
+                                              </button>
+                                            ) : undefined
+                                          }
+                                        />
+                                      )
+                                    );
+                                    })}
+                                    <div className="inline-flex items-center gap-3">
+                                      {mode === "multiple" && isEditable && (
+                                        <label
+                                          htmlFor={`file-${key}`}
+                                          className="inline-flex items-center gap-1.5 text-[14px] font-medium text-primary whitespace-nowrap cursor-pointer hover:opacity-80 h-6"
+                                        >
+                                          <CloudArrowUpIcon className="h-4 w-4 shrink-0" />
+                                          <span>Add files</span>
+                                          <Input
+                                            id={`file-${key}`}
+                                            type="file"
+                                            accept="application/pdf"
+                                            multiple
+                                            onChange={(e) =>
+                                              handleFileChange(categoryIndex, documentIndex, e)
+                                            }
+                                            className="hidden"
+                                            disabled={fileIsUploading || !isEditable}
+                                          />
+                                        </label>
+                                      )}
+                                      {hiddenFileCount > 0 && (
                                         <button
                                           type="button"
                                           onClick={() =>
-                                            handleRemoveFile(categoryIndex, documentIndex)
+                                            setExpandedFileLists((prev) => ({ ...prev, [key]: true }))
                                           }
-                                          className="text-muted-foreground hover:text-foreground shrink-0"
+                                          className="text-xs text-muted-foreground hover:text-foreground"
                                         >
-                                          <XMarkIcon className="h-3.5 w-3.5" />
+                                          +{hiddenFileCount} more
+                                        </button>
+                                      )}
+                                      {showAllFiles && fileList.length > 1 && (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setExpandedFileLists((prev) => ({ ...prev, [key]: false }))
+                                          }
+                                          className="text-xs text-muted-foreground hover:text-foreground"
+                                        >
+                                          Show less
                                         </button>
                                       )}
                                     </div>
-                                  ) : (
-                                    <FileDisplayBadge
-                                      fileName={file.name}
-                                      truncate
-                                      trailing={
-                                        isEditable ? (
-                                          <button
-                                            type="button"
-                                            onClick={() =>
-                                              handleRemoveFile(categoryIndex, documentIndex)
-                                            }
-                                            className="text-muted-foreground hover:text-foreground shrink-0"
-                                          >
-                                            <XMarkIcon className="h-3.5 w-3.5" />
-                                          </button>
-                                        ) : undefined
-                                      }
-                                    />
-                                  )
-                                ) : !isEditable ? (
+                                  </div>
+                                ) : !isEditable && !isUploaded ? (
                                   <span className="text-[14px] text-muted-foreground">—</span>
                                 ) : (
                                   <label
@@ -687,12 +814,17 @@ export function SupportingDocumentsStep({
                                   >
                                     <CloudArrowUpIcon className="h-4 w-4 shrink-0" />
                                     <span className="truncate">
-                                      {fileIsUploading ? "Uploading…" : "Upload file"}
+                                      {fileIsUploading
+                                        ? "Uploading…"
+                                        : mode === "multiple"
+                                          ? "Upload files"
+                                          : "Upload file"}
                                     </span>
                                     <Input
                                       id={`file-${key}`}
                                       type="file"
                                       accept="application/pdf"
+                                      multiple={mode === "multiple"}
                                       onChange={(e) =>
                                         handleFileChange(categoryIndex, documentIndex, e)
                                       }
