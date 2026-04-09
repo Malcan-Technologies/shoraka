@@ -191,6 +191,7 @@ export async function resubmitApplication(
       const snapshot = buildApplicationRevisionSnapshot({
         financing_type: appFullCurrent.financing_type,
         product_version: appFullCurrent.product_version,
+        amendment_acknowledged_workflow_ids: appFullCurrent.amendment_acknowledged_workflow_ids,
         financing_structure: appFullCurrent.financing_structure,
         company_details: appFullCurrent.company_details,
         business_details: appFullCurrent.business_details,

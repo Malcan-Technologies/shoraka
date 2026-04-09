@@ -7,6 +7,8 @@ import type { Prisma } from "@prisma/client";
 export type BuildApplicationRevisionSnapshotInput = {
   financing_type: Prisma.JsonValue | null;
   product_version: number | null | undefined;
+  /** Frozen at submit/resubmit; live row clears on resubmit — kept here for audit/timeline. */
+  amendment_acknowledged_workflow_ids?: string[] | null;
   financing_structure: Prisma.JsonValue | null;
   company_details: Prisma.JsonValue | null;
   business_details: Prisma.JsonValue | null;
@@ -26,12 +28,17 @@ export function buildApplicationRevisionSnapshot(
 ): Prisma.InputJsonValue {
   const ft = appFull.financing_type as { product_id?: string } | null | undefined;
   const invoices = Array.isArray(appFull.invoices) ? appFull.invoices : [];
+  const ackRaw = appFull.amendment_acknowledged_workflow_ids;
+  const amendment_acknowledged_workflow_ids = Array.isArray(ackRaw)
+    ? ackRaw.filter((id): id is string => typeof id === "string")
+    : [];
 
   return {
     product: {
       id: ft?.product_id ?? null,
       version: appFull.product_version ?? null,
     },
+    amendment_acknowledged_workflow_ids,
     application: {
       financing_type: appFull.financing_type,
       financing_structure: appFull.financing_structure,

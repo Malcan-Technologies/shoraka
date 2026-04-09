@@ -1117,6 +1117,7 @@ export class ApplicationService {
         const snapshot = buildApplicationRevisionSnapshot({
           financing_type: appFull.financing_type,
           product_version: appFull.product_version,
+          amendment_acknowledged_workflow_ids: appFull.amendment_acknowledged_workflow_ids,
           financing_structure: appFull.financing_structure,
           company_details: appFull.company_details,
           business_details: appFull.business_details,
