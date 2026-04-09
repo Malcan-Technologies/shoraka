@@ -2,6 +2,7 @@ import { prisma } from "../../lib/prisma";
 import {
   Notification,
   NotificationType,
+  NotificationPortalTarget,
   UserNotificationPreference,
   Prisma,
 } from "@prisma/client";
@@ -45,7 +46,15 @@ export class NotificationRepository {
     const baseWhere: Prisma.NotificationWhereInput = {
       user_id: userId,
       send_to_platform: true,
-      ...(filters.category && { notification_type: { category: filters.category } }),
+      ...(filters.portalTarget && {
+        notification_type: {
+          ...(filters.category ? { category: filters.category } : {}),
+          portal_targets: { has: filters.portalTarget },
+        },
+      }),
+      ...(!filters.portalTarget && filters.category
+        ? { notification_type: { category: filters.category } }
+        : {}),
       ...(filters.priority && { priority: filters.priority }),
       ...(filters.startDate && filters.endDate && {
         created_at: {
@@ -127,11 +136,23 @@ export class NotificationRepository {
    * Get unread count for a user
    */
   async countUnread(userId: string): Promise<number> {
+    return this.countUnreadByPortal(userId);
+  }
+
+  async countUnreadByPortal(
+    userId: string,
+    portalTarget?: NotificationPortalTarget
+  ): Promise<number> {
     return prisma.notification.count({
       where: {
         user_id: userId,
         send_to_platform: true,
         read_at: null,
+        ...(portalTarget && {
+          notification_type: {
+            portal_targets: { has: portalTarget },
+          },
+        }),
         OR: [
           { expires_at: null },
           { expires_at: { gt: new Date() } },

@@ -748,6 +748,7 @@ model NotificationType {
   description       String?
   category          NotificationCategory
   default_priority  NotificationPriority         @default(INFO)
+  portal_targets    NotificationPortalTarget[]   @default([INVESTOR, ISSUER])
   enabled_platform  Boolean                      @default(true)
   enabled_email     Boolean                      @default(true)
   user_configurable Boolean                      @default(true)
@@ -1029,4 +1030,9 @@ enum NotificationPriority {
   INFO
   WARNING
   CRITICAL
+}
+
+enum NotificationPortalTarget {
+  INVESTOR
+  ISSUER
 }

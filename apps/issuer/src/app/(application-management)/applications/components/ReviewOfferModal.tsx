@@ -71,8 +71,10 @@ export function ReviewOfferModal({
 
   const [downloading, setDownloading] = React.useState(false);
   const [acceptSigningLoading, setAcceptSigningLoading] = React.useState(false);
+  const [acceptOverrideLoading, setAcceptOverrideLoading] = React.useState(false);
   const [rejectionReason, setRejectionReason] = React.useState("");
   const [isRejectMode, setIsRejectMode] = React.useState(false);
+  const isSigningOverrideEnabled = process.env.NODE_ENV !== "production";
 
   const contractDetails = (contractRecord as { contract_details?: Record<string, unknown> } | null)
     ?.contract_details;
@@ -214,8 +216,42 @@ export function ReviewOfferModal({
     }
   };
 
+  const handleAcceptOverride = async () => {
+    setAcceptOverrideLoading(true);
+    try {
+      if (type === "contract") {
+        const res = await apiClient.acceptContractOffer(applicationId, { skipSigning: true });
+        if (!res.success) {
+          const err = res as ApiError;
+          throw new Error(err.error?.message ?? "Failed to accept contract offer");
+        }
+      } else {
+        if (!invoice?.id) return;
+        const res = await apiClient.acceptInvoiceOffer(applicationId, invoice.id, {
+          skipSigning: true,
+        });
+        if (!res.success) {
+          const err = res as ApiError;
+          throw new Error(err.error?.message ?? "Failed to accept invoice offer");
+        }
+      }
+
+      toast.success("Offer accepted (signing skipped)");
+      onClose();
+    } catch (e) {
+      toast.error("Could not accept offer without signing", {
+        description: e instanceof Error ? e.message : "Unknown error",
+      });
+    } finally {
+      setAcceptOverrideLoading(false);
+    }
+  };
+
   const isPending =
-    acceptSigningLoading || rejectContract.isPending || rejectInvoice.isPending;
+    acceptSigningLoading ||
+    acceptOverrideLoading ||
+    rejectContract.isPending ||
+    rejectInvoice.isPending;
 
   const canDownload =
     type === "contract" || (type === "invoice" && !!invoice?.id);
@@ -312,6 +348,17 @@ export function ReviewOfferModal({
                 Accept and sign offer
               </Button>
             </div>
+            {isSigningOverrideEnabled && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAcceptOverride}
+                disabled={isPending}
+                className="mt-3 h-9 rounded-xl border-dashed border-amber-300 text-amber-700 hover:bg-amber-50"
+              >
+                Accept without signing (local override)
+              </Button>
+            )}
 
             {isRejectMode && (
               <div className="mt-6 space-y-3">

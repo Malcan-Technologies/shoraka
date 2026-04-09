@@ -1,4 +1,9 @@
-import { Notification, Prisma, NotificationType } from "@prisma/client";
+import {
+  Notification,
+  Prisma,
+  NotificationType,
+  NotificationPortalTarget,
+} from "@prisma/client";
 import { NotificationRepository } from "./repository";
 import { NotificationGroupRepository } from "./group-repository";
 import { CreateNotificationParams, NotificationFilters, PaginatedNotifications } from "./types";
@@ -18,6 +23,13 @@ export class NotificationService {
   constructor() {
     this.repository = new NotificationRepository();
     this.groupRepository = new NotificationGroupRepository();
+  }
+
+  private getCurrentPortalTarget(): NotificationPortalTarget | undefined {
+    const portal = PortalContext.get();
+    if (portal === "investor") return NotificationPortalTarget.INVESTOR;
+    if (portal === "issuer") return NotificationPortalTarget.ISSUER;
+    return undefined;
   }
 
   /**
@@ -140,8 +152,13 @@ export class NotificationService {
     userId: string,
     filters: NotificationFilters
   ): Promise<PaginatedNotifications> {
-    const [items, total] = await this.repository.findManyByUserId(userId, filters);
-    const unreadCount = await this.repository.countUnread(userId);
+    const portalTarget = this.getCurrentPortalTarget();
+    const scopedFilters = {
+      ...filters,
+      portalTarget,
+    };
+    const [items, total] = await this.repository.findManyByUserId(userId, scopedFilters);
+    const unreadCount = await this.repository.countUnreadByPortal(userId, portalTarget);
 
     const currentPortal = PortalContext.get();
 
@@ -178,7 +195,8 @@ export class NotificationService {
    * Get unread count for badge
    */
   async getUnreadCount(userId: string): Promise<number> {
-    return this.repository.countUnread(userId);
+    const portalTarget = this.getCurrentPortalTarget();
+    return this.repository.countUnreadByPortal(userId, portalTarget);
   }
 
   /**
@@ -225,7 +243,16 @@ export class NotificationService {
    * Get user preferences
    */
   async getUserPreferences(userId: string) {
-    const allTypes = await prisma.notificationType.findMany();
+    const portalTarget = this.getCurrentPortalTarget();
+    const allTypes = await prisma.notificationType.findMany({
+      where: portalTarget
+        ? {
+            portal_targets: {
+              has: portalTarget,
+            },
+          }
+        : undefined,
+    });
     const userPrefs = await this.repository.findUserPreferences(userId);
 
     return allTypes.map((type) => {

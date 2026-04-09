@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { NotificationCategory, NotificationPriority } from '@prisma/client';
+import { NotificationCategory, NotificationPortalTarget, NotificationPriority } from '@prisma/client';
 
 export const CreateNotificationSchema = z.object({
   userId: z.string(),
@@ -30,6 +30,7 @@ export const UpdatePreferenceSchema = z.object({
 export const UpdateNotificationTypeSchema = z.object({
   enabled_platform: z.boolean().optional(),
   enabled_email: z.boolean().optional(),
+  portal_targets: z.array(z.nativeEnum(NotificationPortalTarget)).min(1).optional(),
   user_configurable: z.boolean().optional(),
   default_priority: z.nativeEnum(NotificationPriority).optional(),
   retention_days: z.number().int().min(0).nullable().optional(),

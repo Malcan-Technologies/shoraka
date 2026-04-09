@@ -10,7 +10,6 @@ import { getReviewStatusPresentation } from "./status-presentation";
 
 export interface ReviewSummaryCardProps {
   sections: { section: string; status: string }[];
-  reviewItems: { item_type: string; item_id: string; status: string }[];
 }
 
 export function ReviewSummaryCard({ sections }: ReviewSummaryCardProps) {

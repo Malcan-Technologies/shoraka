@@ -79,40 +79,6 @@ export function useRejectReviewSection() {
   });
 }
 
-export function useRequestAmendmentReviewSection() {
-  const { getAccessToken } = useAuthToken();
-  const queryClient = useQueryClient();
-  const apiClient = createApiClient(API_URL, getAccessToken);
-
-  return useMutation({
-    mutationFn: async ({
-      applicationId,
-      section,
-      remark,
-    }: {
-      applicationId: string;
-      section: string;
-      remark: string;
-    }) => {
-      const response = await apiClient.requestAmendmentReviewSection(applicationId, section, remark);
-      if (!response.success) {
-        throw new Error((response as ApiError).error?.message ?? "Failed to request amendment");
-      }
-      return response.data;
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
-      queryClient.invalidateQueries({
-        queryKey: pendingAmendmentKeys.list(variables.applicationId),
-      });
-      queryClient.invalidateQueries({
-        queryKey: applicationLogsKeys.list(variables.applicationId),
-      });
-    },
-  });
-}
-
 export function useAddSectionComment() {
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
@@ -251,47 +217,6 @@ export function useRejectReviewItem() {
       });
       await queryClient.refetchQueries({
         queryKey: ["admin", "applications", variables.applicationId],
-      });
-    },
-  });
-}
-
-export function useRequestAmendmentReviewItem() {
-  const { getAccessToken } = useAuthToken();
-  const queryClient = useQueryClient();
-  const apiClient = createApiClient(API_URL, getAccessToken);
-
-  return useMutation({
-    mutationFn: async ({
-      applicationId,
-      itemType,
-      itemId,
-      remark,
-    }: {
-      applicationId: string;
-      itemType: "invoice" | "document";
-      itemId: string;
-      remark: string;
-    }) => {
-      const response = await apiClient.requestAmendmentReviewItem(
-        applicationId,
-        itemType,
-        itemId,
-        remark
-      );
-      if (!response.success) {
-        throw new Error((response as ApiError).error?.message ?? "Failed to request amendment");
-      }
-      return response.data;
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
-      queryClient.invalidateQueries({
-        queryKey: pendingAmendmentKeys.list(variables.applicationId),
-      });
-      queryClient.invalidateQueries({
-        queryKey: applicationLogsKeys.list(variables.applicationId),
       });
     },
   });
@@ -472,46 +397,6 @@ export function useListPendingAmendments(applicationId: string) {
       return response.data ?? [];
     },
     enabled: !!applicationId,
-  });
-}
-
-export function useUpdatePendingAmendment() {
-  const { getAccessToken } = useAuthToken();
-  const queryClient = useQueryClient();
-  const apiClient = createApiClient(API_URL, getAccessToken);
-
-  return useMutation({
-    mutationFn: async ({
-      applicationId,
-      scope,
-      scopeKey,
-      remark,
-    }: {
-      applicationId: string;
-      scope: string;
-      scopeKey: string;
-      remark: string;
-    }) => {
-      const response = await apiClient.updatePendingAmendment(
-        applicationId,
-        scope,
-        scopeKey,
-        remark
-      );
-      if (!response.success) {
-        throw new Error(
-          (response as ApiError).error?.message ?? "Failed to update pending amendment"
-        );
-      }
-      return response.data;
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: pendingAmendmentKeys.list(variables.applicationId),
-      });
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
-    },
   });
 }
 

@@ -19,6 +19,7 @@ Step-by-step guides for common tasks:
 - **[Database Workflow](./guides/database-workflow.md)** - Working with Prisma
 - **[Authentication](./guides/authentication.md)** - Auth implementation (planned)
 - **[Environment Variables](./guides/environment-variables.md)** - Configuration reference
+- **[Notification Testing Guide](./guides/notifications/notification-testing-guide.md)** - Notification trigger map and test steps
 
 ### 📋 Application Flow
 

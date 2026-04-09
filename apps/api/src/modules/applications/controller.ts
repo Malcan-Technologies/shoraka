@@ -26,6 +26,12 @@ function getUserId(req: Request): string {
   return req.user.user_id;
 }
 
+function isDevSigningBypassRequested(req: Request): boolean {
+  if (process.env.NODE_ENV === "production") return false;
+  const parsed = z.object({ skipSigning: z.boolean().optional() }).safeParse(req.body ?? {});
+  return parsed.success && parsed.data.skipSigning === true;
+}
+
 
 /**
  * Create a new application
@@ -387,7 +393,9 @@ export function createApplicationRouter(): Router {
       try {
         const { id } = applicationIdParamSchema.parse(req.params);
         const userId = getUserId(req);
-        if (readSigningCloudConfigFromEnv()) {
+        // Dev/local-only escape hatch so QA can accept without external webhook/signing flow.
+        const skipSigning = isDevSigningBypassRequested(req);
+        if (readSigningCloudConfigFromEnv() && !skipSigning) {
           throw new AppError(
             400,
             "USE_SIGNING_FLOW",
@@ -424,7 +432,9 @@ export function createApplicationRouter(): Router {
         const { id } = applicationIdParamSchema.parse(req.params);
         const invoiceId = z.string().cuid().parse(req.params.invoiceId);
         const userId = getUserId(req);
-        if (readSigningCloudConfigFromEnv()) {
+        // Dev/local-only escape hatch so QA can accept without external webhook/signing flow.
+        const skipSigning = isDevSigningBypassRequested(req);
+        if (readSigningCloudConfigFromEnv() && !skipSigning) {
           throw new AppError(
             400,
             "USE_SIGNING_FLOW",

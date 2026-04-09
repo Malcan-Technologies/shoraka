@@ -926,6 +926,7 @@ export interface ExportProductLogsParams extends Omit<GetProductLogsParams, "pag
 // Notifications (Admin)
 export type AdminNotificationCategory = "AUTHENTICATION" | "SYSTEM" | "MARKETING" | "ANNOUNCEMENT";
 export type AdminNotificationPriority = "INFO" | "WARNING" | "CRITICAL";
+export type AdminNotificationPortalTarget = "INVESTOR" | "ISSUER";
 
 export interface AdminNotificationType {
   id: string;
@@ -933,6 +934,7 @@ export interface AdminNotificationType {
   description: string | null;
   category: AdminNotificationCategory;
   default_priority: AdminNotificationPriority;
+  portal_targets: AdminNotificationPortalTarget[];
   enabled_platform: boolean;
   enabled_email: boolean;
   user_configurable: boolean;
@@ -1000,6 +1002,7 @@ export interface AdminSendNotificationPayload {
 export interface AdminUpdateNotificationTypePayload {
   enabled_platform?: boolean;
   enabled_email?: boolean;
+  portal_targets?: AdminNotificationPortalTarget[];
 }
 
 export interface AdminSeedTypesResponse {

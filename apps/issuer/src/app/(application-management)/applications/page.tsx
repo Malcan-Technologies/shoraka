@@ -149,7 +149,18 @@ function ApplicationCard({
   isCancelApplicationPending?: boolean;
   isWithdrawInvoicePending?: boolean;
 }) {
-  const [expanded, setExpanded] = React.useState(application.status === "offer_sent");
+  const hasInvoiceOfferReceived = React.useMemo(
+    () => application.invoices.some((invoice) => invoice.status === "OFFER_SENT"),
+    [application.invoices]
+  );
+  const shouldStartExpanded = application.status === "offer_sent" || hasInvoiceOfferReceived;
+  const [expanded, setExpanded] = React.useState(shouldStartExpanded);
+
+  React.useEffect(() => {
+    if (shouldStartExpanded) {
+      setExpanded(true);
+    }
+  }, [shouldStartExpanded]);
 
   const { cardStatus } = application;
   const isDraft = application.status === "draft";

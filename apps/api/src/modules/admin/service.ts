@@ -41,7 +41,12 @@ import type {
 import { RegTankRepository, OnboardingApplicationRecord } from "../regtank/repository";
 import { RegTankAPIClient } from "../regtank/api-client";
 import { NotificationService } from "../notification/service";
-import { NotificationTypeIds } from "../notification/registry";
+import {
+  NotificationPayloads,
+  NotificationTypeId,
+  NotificationTypeIds,
+} from "../notification/registry";
+import { getIssuerRecipientUserIdsForApplication } from "../notification/application-recipients";
 import { getRegTankConfig } from "../../config/regtank";
 import type { OnboardingApprovalStatus, OnboardingApplicationResponse } from "@cashsouk/types";
 import {
@@ -91,6 +96,25 @@ export class AdminService {
     this.regTankApiClient = new RegTankAPIClient();
     this.notificationService = new NotificationService();
     this.productRepository = new ProductRepository();
+  }
+
+  private async sendIssuerNotification<T extends NotificationTypeId>(
+    applicationId: string,
+    typeId: T,
+    payload: NotificationPayloads[T],
+    idempotencySuffix: string
+  ) {
+    const recipientUserIds = await getIssuerRecipientUserIdsForApplication(applicationId);
+    await Promise.all(
+      recipientUserIds.map((userId) =>
+        this.notificationService.sendTyped(
+          userId,
+          typeId,
+          payload,
+          `app:${applicationId}:notif:${String(typeId)}:user:${userId}:${idempotencySuffix}`
+        )
+      )
+    );
   }
 
   /**
@@ -4244,6 +4268,26 @@ export class AdminService {
       });
     }
 
+    if (status === ApplicationStatus.APPROVED || status === ApplicationStatus.REJECTED) {
+      try {
+        const typeId =
+          status === ApplicationStatus.APPROVED
+            ? NotificationTypeIds.APPLICATION_APPROVED
+            : NotificationTypeIds.APPLICATION_REJECTED;
+        await this.sendIssuerNotification(
+          id,
+          typeId,
+          { applicationId: id },
+          `${status.toLowerCase()}`
+        );
+      } catch (notificationError) {
+        logger.error(
+          { error: notificationError, applicationId: id, status },
+          "Failed to send issuer application status notification"
+        );
+      }
+    }
+
     logger.info(
       { applicationId: id, newStatus: status },
       "AR financing application status updated by admin"
@@ -4871,6 +4915,24 @@ export class AdminService {
       deviceInfo: logContext?.deviceInfo ?? undefined,
     });
 
+    try {
+      await this.sendIssuerNotification(
+        applicationId,
+        NotificationTypeIds.CONTRACT_OFFER_SENT,
+        {
+          applicationId,
+          offeredFacility,
+          expiresAt,
+        },
+        `contract-offer-sent:${contractOfferMeta.previousVersion + 1}`
+      );
+    } catch (notificationError) {
+      logger.error(
+        { error: notificationError, applicationId, contractId },
+        "Failed to send contract offer notification to issuer"
+      );
+    }
+
     return repository.getApplicationById(applicationId);
   }
 
@@ -5134,6 +5196,26 @@ export class AdminService {
       deviceInfo: logContext?.deviceInfo ?? undefined,
     });
 
+    try {
+      await this.sendIssuerNotification(
+        applicationId,
+        NotificationTypeIds.INVOICE_OFFER_SENT,
+        {
+          applicationId,
+          invoiceId,
+          invoiceNumber: invoiceOfferMeta.invoiceNumber,
+          offeredAmount,
+          expiresAt,
+        },
+        `invoice-offer-sent:${invoiceId}:${invoiceOfferMeta.previousVersion + 1}`
+      );
+    } catch (notificationError) {
+      logger.error(
+        { error: notificationError, applicationId, invoiceId },
+        "Failed to send invoice offer notification to issuer"
+      );
+    }
+
     let nextApp = await repository.getApplicationById(applicationId);
     if (nextApp) {
       await this.syncInvoiceDetailsSectionFromItems(
@@ -5383,6 +5465,22 @@ export class AdminService {
         userAgent: logContext?.userAgent ?? undefined,
         deviceInfo: logContext?.deviceInfo ?? undefined,
       });
+      try {
+        await this.sendIssuerNotification(
+          applicationId,
+          NotificationTypeIds.OFFER_RETRACTED_OR_RESET,
+          {
+            applicationId,
+            offerType: "contract",
+          },
+          `contract-offer-retracted:${section}`
+        );
+      } catch (notificationError) {
+        logger.error(
+          { error: notificationError, applicationId, section },
+          "Failed to send contract offer retracted/reset notification to issuer"
+        );
+      }
     }
     await this.logReviewActivity(
       applicationId,
@@ -5482,6 +5580,26 @@ export class AdminService {
         userAgent: logContext?.userAgent ?? undefined,
         deviceInfo: logContext?.deviceInfo ?? undefined,
       });
+      try {
+        const invoiceNumber = itemId.startsWith("invoice_details:")
+          ? itemId.split(":").slice(2).join(":") || null
+          : null;
+        await this.sendIssuerNotification(
+          applicationId,
+          NotificationTypeIds.OFFER_RETRACTED_OR_RESET,
+          {
+            applicationId,
+            offerType: "invoice",
+            invoiceNumber,
+          },
+          `invoice-offer-retracted:${itemId}`
+        );
+      } catch (notificationError) {
+        logger.error(
+          { error: notificationError, applicationId, itemId },
+          "Failed to send invoice offer retracted/reset notification to issuer"
+        );
+      }
     }
     if (!options?.skipItemActivityLog) {
       await this.logReviewActivity(
@@ -6417,6 +6535,23 @@ export class AdminService {
       userAgent: logContext?.userAgent ?? undefined,
       deviceInfo: logContext?.deviceInfo ?? undefined,
     });
+
+    try {
+      await this.sendIssuerNotification(
+        applicationId,
+        NotificationTypeIds.APPLICATION_AMENDMENTS_REQUESTED,
+        {
+          applicationId,
+          amendmentCount: pending.length,
+        },
+        `amendments-submitted:${application.review_cycle ?? 1}:${pending.length}`
+      );
+    } catch (notificationError) {
+      logger.error(
+        { error: notificationError, applicationId },
+        "Failed to send amendment submitted notification to issuer"
+      );
+    }
 
     logger.info({ applicationId, count: pending.length, reviewerUserId }, "Pending amendments submitted");
     return repository.getApplicationById(applicationId);
