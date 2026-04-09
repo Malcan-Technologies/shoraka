@@ -429,18 +429,18 @@ function DocRow({
   const showPending = !hasTemplate && !!pendingFile;
 
   return (
-    <li className="flex gap-2 py-2.5 px-0 min-w-0 sm:gap-3">
-      <span className="flex h-8 w-6 shrink-0 items-center justify-center text-sm font-medium text-muted-foreground tabular-nums">
+    <li className="flex gap-2 py-3 px-0 min-w-0 sm:gap-3">
+      <span className="flex h-8 w-6 shrink-0 items-start justify-center pt-1.5 text-sm font-medium text-muted-foreground tabular-nums">
         {index + 1}
       </span>
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <div className="flex items-center gap-2 min-w-0">
+      <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
           <Input
             value={item.name}
             onChange={(e) => onUpdate({ name: e.target.value })}
             placeholder="Document name"
             maxLength={200}
-            className={cn(INPUT_CLASS, "h-8 min-w-0 flex-1")}
+            className={cn(INPUT_CLASS, "h-8 min-w-0 flex-1 basis-[160px]")}
           />
           <Select
             value={item.allow_multiple ? "multiple" : "single"}
@@ -456,63 +456,6 @@ function DocRow({
               <SelectItem value="multiple">Multiple files</SelectItem>
             </SelectContent>
           </Select>
-          <span className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
-            <label className="flex cursor-pointer items-center gap-1.5">
-              <input
-                type="checkbox"
-                className="h-3.5 w-3.5 rounded border-input"
-                checked={resolvedTypes.includes("pdf")}
-                onChange={() => {
-                  const cur = resolveAllowedTypes(item);
-                  if (cur.includes("pdf")) {
-                    if (cur.includes("excel")) {
-                      onUpdate({ allowed_types: ["excel"] });
-                    } else {
-                      console.log("Blocked clearing PDF: need at least one file type");
-                      setFileTypeErrorOpen(true);
-                    }
-                  } else {
-                    onUpdate({ allowed_types: normalizeAllowedTypesTokens([...cur, "pdf"]) });
-                  }
-                }}
-              />
-              PDF
-            </label>
-            <label className="flex cursor-pointer items-center gap-1.5">
-              <input
-                type="checkbox"
-                className="h-3.5 w-3.5 rounded border-input"
-                checked={resolveRowRequired(item)}
-                onChange={(e) => {
-                  console.log("Supporting doc row required toggled:", e.target.checked, "row:", index);
-                  onUpdate({ required: e.target.checked });
-                }}
-              />
-              Required
-            </label>
-            <label className="flex cursor-pointer items-center gap-1.5">
-              <input
-                type="checkbox"
-                className="h-3.5 w-3.5 rounded border-input"
-                checked={resolvedTypes.includes("excel")}
-                onChange={() => {
-                  const cur = resolveAllowedTypes(item);
-                  if (cur.includes("excel")) {
-                    const next = cur.filter((t) => t !== "excel");
-                    if (next.length === 0) {
-                      console.log("Blocked clearing Excel: need at least one file type");
-                      setFileTypeErrorOpen(true);
-                      return;
-                    }
-                    onUpdate({ allowed_types: normalizeAllowedTypesTokens(next) });
-                  } else {
-                    onUpdate({ allowed_types: normalizeAllowedTypesTokens([...cur, "excel"]) });
-                  }
-                }}
-              />
-              Excel
-            </label>
-          </span>
           <Button
             type="button"
             variant="ghost"
@@ -523,6 +466,73 @@ function DocRow({
           >
             <TrashIcon className="h-4 w-4" />
           </Button>
+        </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-8 sm:gap-y-2 pl-0.5">
+          <fieldset className="m-0 min-w-0 flex-none border-0 p-0">
+            <legend className="mb-1.5 block text-xs font-medium text-muted-foreground">Allowed file types</legend>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-foreground">
+              <label className="flex cursor-pointer select-none items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 shrink-0 rounded border-input accent-primary"
+                  checked={resolvedTypes.includes("pdf")}
+                  onChange={() => {
+                    const cur = resolveAllowedTypes(item);
+                    if (cur.includes("pdf")) {
+                      if (cur.includes("excel")) {
+                        onUpdate({ allowed_types: ["excel"] });
+                      } else {
+                        console.log("Blocked clearing PDF: need at least one file type");
+                        setFileTypeErrorOpen(true);
+                      }
+                    } else {
+                      onUpdate({ allowed_types: normalizeAllowedTypesTokens([...cur, "pdf"]) });
+                    }
+                  }}
+                />
+                PDF
+              </label>
+              <label className="flex cursor-pointer select-none items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 shrink-0 rounded border-input accent-primary"
+                  checked={resolvedTypes.includes("excel")}
+                  onChange={() => {
+                    const cur = resolveAllowedTypes(item);
+                    if (cur.includes("excel")) {
+                      const next = cur.filter((t) => t !== "excel");
+                      if (next.length === 0) {
+                        console.log("Blocked clearing Excel: need at least one file type");
+                        setFileTypeErrorOpen(true);
+                        return;
+                      }
+                      onUpdate({ allowed_types: normalizeAllowedTypesTokens(next) });
+                    } else {
+                      onUpdate({ allowed_types: normalizeAllowedTypesTokens([...cur, "excel"]) });
+                    }
+                  }}
+                />
+                Excel
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset className="m-0 min-w-0 flex-none border-0 p-0 sm:border-l sm:border-border sm:pl-8">
+            <legend className="mb-1.5 block text-xs font-medium text-muted-foreground">Issuer</legend>
+            <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-foreground">
+              <input
+                type="checkbox"
+                className="h-4 w-4 shrink-0 rounded border-input accent-primary"
+                checked={resolveRowRequired(item)}
+                onChange={(e) => {
+                  console.log("Supporting doc row required toggled:", e.target.checked, "row:", index);
+                  onUpdate({ required: e.target.checked });
+                }}
+              />
+              Required to upload
+            </label>
+          </fieldset>
         </div>
         <AlertDialog open={fileTypeErrorOpen} onOpenChange={setFileTypeErrorOpen}>
           <AlertDialogContent className="rounded-xl">
