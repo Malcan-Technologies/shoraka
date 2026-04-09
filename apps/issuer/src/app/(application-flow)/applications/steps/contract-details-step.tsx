@@ -1391,7 +1391,15 @@ export function ContractDetailsStep({
                   </span>
                 </TooltipTrigger>
                 <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
-                  Related director/shareholder or having subsidiary/sister company or parent company relationship
+                  {`A related party is a customer that has a direct or indirect relationship with your company that may affect independent, arm's length transactions.
+
+This includes:
+• Common ownership
+• Common directors / management
+• Control relationship
+• Significant influence
+• Family relationship
+• Economic dependence`}
                 </TooltipContent>
               </Tooltip>
             </div>
