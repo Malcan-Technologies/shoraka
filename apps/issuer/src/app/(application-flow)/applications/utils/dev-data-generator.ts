@@ -3,6 +3,10 @@
 
 import { formatMoney } from "@cashsouk/ui";
 import { format, subDays, addDays } from "date-fns";
+import {
+  FINANCIAL_DEV_CASE_KEY,
+  pickRandomFinancialQuestionnaireDevCase,
+} from "../steps/financial-statements-step";
 
 function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -90,6 +94,7 @@ export function generateFinancialData(): Record<string, unknown> {
     plnpat: formatMoney(plnpat),
     plnetdiv: formatMoney(randomDecimal(10000, Math.abs(plyear) * 0.5)),
     plyear: formatMoney(plyear),
+    [FINANCIAL_DEV_CASE_KEY]: pickRandomFinancialQuestionnaireDevCase(),
   };
 }
 

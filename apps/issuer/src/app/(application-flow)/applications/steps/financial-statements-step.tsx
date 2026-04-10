@@ -48,11 +48,23 @@ import { parse, isValid as isValidDate, startOfDay, format, subMonths } from "da
 import { toast } from "sonner";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 
+/** CTOS-style questionnaire outcomes (see getExpectedUnauditedYearsFromQuestionnaire). Dev-only. */
+export type FinancialQuestionnaireDevCase = "A" | "B" | "C" | "D";
+
+const FINANCIAL_DEV_CASES: FinancialQuestionnaireDevCase[] = ["A", "B", "C", "D"];
+
+export function pickRandomFinancialQuestionnaireDevCase(): FinancialQuestionnaireDevCase {
+  return FINANCIAL_DEV_CASES[Math.floor(Math.random() * FINANCIAL_DEV_CASES.length)]!;
+}
+
+/** Dev auto-fill payload key — read by financial step effect; not sent to API. */
+export const FINANCIAL_DEV_CASE_KEY = "__financial_dev_case";
+
 /**
  * Mock data for dev Auto Fill. All 15 fields.
  * - pldd: four-digit financial year; bsdd: date string.
  * - turnover: >= 0; plnpbt, plnpat, plyear: may be negative; plnetdiv: positive.
- * - Decimals randomized (2 dp) to match MoneyInput.
+ * - Random A–D: one tab [Y], two tabs [Y,Y+1], Case C (no figures), one tab [Y+1].
  */
 export function generateMockData(): Record<string, unknown> {
   const today = new Date();
@@ -76,7 +88,31 @@ export function generateMockData(): Record<string, unknown> {
     plnpat: formatMoney(plnpat),
     plnetdiv: formatMoney(50000.77),
     plyear: formatMoney(plyear),
+    [FINANCIAL_DEV_CASE_KEY]: pickRandomFinancialQuestionnaireDevCase(),
   };
+}
+
+function devCaseToQuestionnaireFlags(
+  c: FinancialQuestionnaireDevCase
+): { submitted: boolean; nextYear: boolean } {
+  switch (c) {
+    case "A":
+      return { submitted: false, nextYear: false };
+    case "B":
+      return { submitted: false, nextYear: true };
+    case "C":
+      return { submitted: true, nextYear: false };
+    case "D":
+      return { submitted: true, nextYear: true };
+  }
+}
+
+/** Clone per-year block with a new pldd year key (dev auto-fill multi-year). */
+function clonePayloadForFinancialYear(
+  base: FinancialStatementsPayload,
+  yearKey: string
+): FinancialStatementsPayload {
+  return { ...base, pldd: yearKey };
 }
 
 /* ================================================================
@@ -707,6 +743,9 @@ export function FinancialStatementsStep({
         : devTools?.autoFillDataMap?.["financial_statements"];
     if (!raw) return;
     const mock = raw as Partial<FinancialStatementsPayload> & Record<string, unknown>;
+    const rawCase = mock[FINANCIAL_DEV_CASE_KEY];
+    const devCase: FinancialQuestionnaireDevCase =
+      rawCase === "A" || rawCase === "B" || rawCase === "C" || rawCase === "D" ? rawCase : "A";
     const yStr =
       mock.pldd != null && String(mock.pldd).trim()
         ? normalizePlddFromSaved(mock.pldd)
@@ -717,15 +756,32 @@ export function FinancialStatementsStep({
         (merged as unknown as Record<string, unknown>)[k] = String(mock[k]);
       }
     }
+    const { submitted, nextYear } = devCaseToQuestionnaireFlags(devCase);
     setFyeInput(yStr);
-    setQSubmitted(false);
-    setQNextYear(false);
-    setFormsByYear({ [yStr]: merged });
+    setQSubmitted(submitted);
+    setQNextYear(nextYear);
+
+    const Y = parseInt(yStr, 10);
+    if (devCase === "A") {
+      setFormsByYear({ [yStr]: clonePayloadForFinancialYear(merged, yStr) });
+    } else if (devCase === "B") {
+      const y2 = String(Y + 1);
+      setFormsByYear({
+        [yStr]: clonePayloadForFinancialYear(merged, yStr),
+        [y2]: clonePayloadForFinancialYear(merged, y2),
+      });
+    } else if (devCase === "C") {
+      setFormsByYear({});
+    } else {
+      const yNext = String(Y + 1);
+      setFormsByYear({ [yNext]: clonePayloadForFinancialYear(merged, yNext) });
+    }
+
     if (devTools) {
       if (devTools.autoFillData?.stepKey === "financial_statements") devTools.clearAutoFill();
       else devTools.clearAutoFillForStep("financial_statements");
     }
-    console.log("Financial dev auto-fill applied for year:", yStr);
+    console.log("Financial dev auto-fill: case", devCase, "latest FY", yStr, "submitted", submitted, "nextYear", nextYear);
   }, [devTools]);
 
   const buildV2ApiPayloadInner = React.useCallback(() => {
