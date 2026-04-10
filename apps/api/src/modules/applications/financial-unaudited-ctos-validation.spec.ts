@@ -3,7 +3,9 @@ import {
   getLatestThreeCtosYears,
   validateUnauditedColumn,
   getExpectedUnauditedYearsFromQuestionnaire,
+  normalizeFinancialStatementsQuestionnaire,
 } from "@cashsouk/types";
+import { financialStatementsV2Schema } from "./schemas";
 
 describe("financial-unaudited-ctos-validation", () => {
   describe("getCtosLatestYear", () => {
@@ -86,29 +88,69 @@ describe("financial-unaudited-ctos-validation", () => {
     it("Case A", () => {
       expect(
         getExpectedUnauditedYearsFromQuestionnaire({
-          financial_year_end_year: 2025,
-          latest_year_submitted: false,
-          has_next_financial_year_data: false,
+          latest_financial_year: 2025,
+          submitted_this_financial_year: false,
+          has_data_for_next_financial_year: false,
         })
       ).toEqual([2025]);
     });
     it("Case D", () => {
       expect(
         getExpectedUnauditedYearsFromQuestionnaire({
-          financial_year_end_year: 2025,
-          latest_year_submitted: true,
-          has_next_financial_year_data: true,
+          latest_financial_year: 2025,
+          submitted_this_financial_year: true,
+          has_data_for_next_financial_year: true,
         })
       ).toEqual([2026]);
     });
     it("Case C empty", () => {
       expect(
         getExpectedUnauditedYearsFromQuestionnaire({
-          financial_year_end_year: 2025,
+          latest_financial_year: 2025,
+          submitted_this_financial_year: true,
+          has_data_for_next_financial_year: false,
+        })
+      ).toEqual([]);
+    });
+  });
+
+  describe("normalizeFinancialStatementsQuestionnaire", () => {
+    it("maps legacy questionnaire keys", () => {
+      expect(
+        normalizeFinancialStatementsQuestionnaire({
+          financial_year_end_year: 2024,
           latest_year_submitted: true,
           has_next_financial_year_data: false,
         })
-      ).toEqual([]);
+      ).toEqual({
+        latest_financial_year: 2024,
+        submitted_this_financial_year: true,
+        has_data_for_next_financial_year: false,
+      });
+    });
+  });
+
+  describe("financialStatementsV2Schema questionnaire preprocess", () => {
+    it("accepts legacy questionnaire keys in v2 payload", () => {
+      const parsed = financialStatementsV2Schema.safeParse({
+        questionnaire: {
+          financial_year_end_year: 2025,
+          latest_year_submitted: false,
+          has_next_financial_year_data: true,
+        },
+        unaudited_by_year: {
+          "2025": { pldd: "2025", bsdd: "31/12/2025" },
+          "2026": { pldd: "2026", bsdd: "31/12/2026" },
+        },
+      });
+      expect(parsed.success).toBe(true);
+      if (parsed.success) {
+        expect(parsed.data.questionnaire).toEqual({
+          latest_financial_year: 2025,
+          submitted_this_financial_year: false,
+          has_data_for_next_financial_year: true,
+        });
+      }
     });
   });
 });

@@ -31,8 +31,10 @@ import {
   getCtosLatestYear,
   getLatestThreeCtosYears,
   validateUnauditedColumn,
+  normalizeFinancialStatementsQuestionnaire,
   type ColumnComputedMetrics,
   type FinancialStatementsInput,
+  type FinancialStatementsQuestionnaire,
 } from "@cashsouk/types";
 import { toast } from "sonner";
 import {
@@ -103,12 +105,6 @@ export function parseFinancialStatements(raw: unknown): Record<string, unknown> 
   return obj;
 }
 
-type StoredQuestionnaire = {
-  financial_year_end_year: number;
-  latest_year_submitted: boolean;
-  has_next_financial_year_data: boolean;
-};
-
 function normalizePlddToYearString(val: unknown): string {
   if (val === undefined || val === null) return "";
   const s = String(val).trim();
@@ -122,23 +118,24 @@ function normalizePlddToYearString(val: unknown): string {
 }
 
 export function extractQuestionnaireAndUnaudited(financialRaw: unknown): {
-  questionnaire: StoredQuestionnaire | null;
+  questionnaire: FinancialStatementsQuestionnaire | null;
   unauditedByYear: Record<string, Record<string, unknown>>;
 } {
   if (!financialRaw || typeof financialRaw !== "object") {
     return { questionnaire: null, unauditedByYear: {} };
   }
   const obj = financialRaw as Record<string, unknown>;
-  const q = obj.questionnaire as StoredQuestionnaire | undefined;
+  const qRaw = obj.questionnaire;
   const byYear = obj.unaudited_by_year as Record<string, Record<string, unknown>> | undefined;
   if (
-    q &&
-    typeof q === "object" &&
+    qRaw &&
+    typeof qRaw === "object" &&
     byYear &&
     typeof byYear === "object" &&
     !Array.isArray(byYear)
   ) {
-    return { questionnaire: q, unauditedByYear: byYear };
+    const questionnaire = normalizeFinancialStatementsQuestionnaire(qRaw);
+    return { questionnaire, unauditedByYear: byYear };
   }
   const flat = parseFinancialStatements(financialRaw);
   const yStr = normalizePlddToYearString(flat.pldd);
@@ -155,9 +152,9 @@ export function extractQuestionnaireAndUnaudited(financialRaw: unknown): {
   const y = parseInt(yStr, 10);
   return {
     questionnaire: {
-      financial_year_end_year: y,
-      latest_year_submitted: false,
-      has_next_financial_year_data: false,
+      latest_financial_year: y,
+      submitted_this_financial_year: false,
+      has_data_for_next_financial_year: false,
     },
     unauditedByYear: { [yStr]: flat as Record<string, unknown> },
   };
@@ -586,8 +583,8 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
         ? validateUnauditedColumn({
             ctosLatestYear,
             unauditedYear: year,
-            latestYearSubmitted: questionnaire.latest_year_submitted,
-            financialYearEndYear: questionnaire.financial_year_end_year,
+            latestYearSubmitted: questionnaire.submitted_this_financial_year,
+            financialYearEndYear: questionnaire.latest_financial_year,
           })
         : {
             status: "PENDING" as const,

@@ -8,6 +8,56 @@
 
 export type UnauditedColumnValidationStatus = "VALID" | "PENDING" | "INVALID";
 
+/** Stored under `financial_statements.questionnaire` (v2). Legacy keys are normalized on read. */
+export type FinancialStatementsQuestionnaire = {
+  latest_financial_year: number;
+  submitted_this_financial_year: boolean;
+  has_data_for_next_financial_year: boolean;
+};
+
+/**
+ * Map legacy questionnaire keys to the current shape. Prefer new keys when both exist.
+ * INPUT: raw `questionnaire` object from JSON
+ * OUTPUT: object with only new keys, or null if `raw` is not a plain object
+ */
+export function normalizeFinancialStatementsQuestionnaire(
+  raw: unknown
+): FinancialStatementsQuestionnaire | null {
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const o = raw as Record<string, unknown>;
+  const latest_financial_year = o.latest_financial_year ?? o.financial_year_end_year;
+  const submitted_this_financial_year =
+    o.submitted_this_financial_year ?? o.latest_year_submitted;
+  const has_data_for_next_financial_year =
+    o.has_data_for_next_financial_year ?? o.has_next_financial_year_data;
+  if (
+    typeof latest_financial_year !== "number" ||
+    !Number.isFinite(latest_financial_year) ||
+    typeof submitted_this_financial_year !== "boolean" ||
+    typeof has_data_for_next_financial_year !== "boolean"
+  ) {
+    return null;
+  }
+  return {
+    latest_financial_year,
+    submitted_this_financial_year,
+    has_data_for_next_financial_year,
+  };
+}
+
+/** For Zod/API: merge legacy keys into new keys before validation. */
+export function preprocessFinancialStatementsQuestionnairePayload(raw: unknown): unknown {
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const o = raw as Record<string, unknown>;
+  return {
+    latest_financial_year: o.latest_financial_year ?? o.financial_year_end_year,
+    submitted_this_financial_year:
+      o.submitted_this_financial_year ?? o.latest_year_submitted,
+    has_data_for_next_financial_year:
+      o.has_data_for_next_financial_year ?? o.has_next_financial_year_data,
+  };
+}
+
 export interface ValidateUnauditedColumnInput {
   ctosLatestYear: number | null;
   unauditedYear: number;
@@ -107,16 +157,12 @@ export function validateUnauditedColumn(
 
 /**
  * Expected unaudited year keys from questionnaire (Cases A–D).
- * Y = financial_year_end_year.
+ * Y = latest_financial_year (latest financial year end).
  */
-export function getExpectedUnauditedYearsFromQuestionnaire(q: {
-  financial_year_end_year: number;
-  latest_year_submitted: boolean;
-  has_next_financial_year_data: boolean;
-}): number[] {
-  const Y = q.financial_year_end_year;
-  if (!q.latest_year_submitted && !q.has_next_financial_year_data) return [Y];
-  if (!q.latest_year_submitted && q.has_next_financial_year_data) return [Y, Y + 1];
-  if (q.latest_year_submitted && !q.has_next_financial_year_data) return [];
+export function getExpectedUnauditedYearsFromQuestionnaire(q: FinancialStatementsQuestionnaire): number[] {
+  const Y = q.latest_financial_year;
+  if (!q.submitted_this_financial_year && !q.has_data_for_next_financial_year) return [Y];
+  if (!q.submitted_this_financial_year && q.has_data_for_next_financial_year) return [Y, Y + 1];
+  if (q.submitted_this_financial_year && !q.has_data_for_next_financial_year) return [];
   return [Y + 1];
 }

@@ -34,7 +34,12 @@ import {
 import { MoneyInput } from "@cashsouk/ui";
 import { parseMoney, formatMoney } from "@cashsouk/ui";
 import { FinancialStatementsSkeleton } from "@/app/(application-flow)/applications/components/financial-statements-skeleton";
-import { FINANCIAL_FIELD_LABELS, getExpectedUnauditedYearsFromQuestionnaire } from "@cashsouk/types";
+import {
+  FINANCIAL_FIELD_LABELS,
+  getExpectedUnauditedYearsFromQuestionnaire,
+  normalizeFinancialStatementsQuestionnaire,
+  type FinancialStatementsQuestionnaire,
+} from "@cashsouk/types";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
@@ -230,15 +235,8 @@ function toApiPayload(form: FinancialStatementsPayload): Record<string, unknown>
   return out;
 }
 
-/** Stored v2 shape matches API / DB */
-export type FinancialQuestionnaire = {
-  financial_year_end_year: number;
-  latest_year_submitted: boolean;
-  has_next_financial_year_data: boolean;
-};
-
 function isV2FinancialSaved(saved: unknown): saved is {
-  questionnaire: FinancialQuestionnaire;
+  questionnaire: unknown;
   unaudited_by_year: Record<string, Record<string, unknown>>;
 } {
   if (!saved || typeof saved !== "object") return false;
@@ -494,9 +492,12 @@ function emptyQuestionnaireBlock(yearKey: string): FinancialStatementsPayload {
 }
 
 function buildV2ApiPayload(
-  q: FinancialQuestionnaire,
+  q: FinancialStatementsQuestionnaire,
   forms: Record<string, FinancialStatementsPayload>
-): { questionnaire: FinancialQuestionnaire; unaudited_by_year: Record<string, Record<string, unknown>> } {
+): {
+  questionnaire: FinancialStatementsQuestionnaire;
+  unaudited_by_year: Record<string, Record<string, unknown>>;
+} {
   const expected = getExpectedUnauditedYearsFromQuestionnaire(q);
   const unaudited_by_year: Record<string, Record<string, unknown>> = {};
   for (const y of expected) {
@@ -597,19 +598,31 @@ export function FinancialStatementsStep({
     const saved = (application as unknown as Record<string, unknown>)?.financial_statements;
 
     if (isV2FinancialSaved(saved)) {
-      const q = saved.questionnaire;
-      setFyeInput(String(q.financial_year_end_year));
-      setQSubmitted(q.latest_year_submitted);
-      setQNextYear(q.has_next_financial_year_data);
+      const qNorm = normalizeFinancialStatementsQuestionnaire(saved.questionnaire);
       const map: Record<string, FinancialStatementsPayload> = {};
       for (const [k, v] of Object.entries(saved.unaudited_by_year)) {
         map[k] = fromSaved(v);
         map[k].pldd = k;
       }
       setFormsByYear(map);
-      const built = buildV2ApiPayload(q, map);
-      initialPayloadRef.current = JSON.stringify(built);
-      console.log("Financial step loaded v2; years in payload:", Object.keys(saved.unaudited_by_year));
+      if (qNorm) {
+        setFyeInput(String(qNorm.latest_financial_year));
+        setQSubmitted(qNorm.submitted_this_financial_year);
+        setQNextYear(qNorm.has_data_for_next_financial_year);
+        const built = buildV2ApiPayload(qNorm, map);
+        initialPayloadRef.current = JSON.stringify(built);
+        console.log("Financial step loaded v2; years in payload:", Object.keys(saved.unaudited_by_year));
+      } else {
+        initialPayloadRef.current = JSON.stringify({
+          questionnaire: {
+            latest_financial_year: 0,
+            submitted_this_financial_year: false,
+            has_data_for_next_financial_year: false,
+          },
+          unaudited_by_year: map,
+        });
+        console.log("Financial step v2 payload missing valid questionnaire; forms only");
+      }
     } else {
       const flat = fromSaved(saved);
       if (legacyHasAnyInput(flat) && normalizePlddFromSaved(flat.pldd)) {
@@ -618,19 +631,19 @@ export function FinancialStatementsStep({
         setQSubmitted(false);
         setQNextYear(false);
         setFormsByYear({ [y]: { ...flat, pldd: y } });
-        const qLegacy: FinancialQuestionnaire = {
-          financial_year_end_year: parseInt(y, 10),
-          latest_year_submitted: false,
-          has_next_financial_year_data: false,
+        const qLegacy: FinancialStatementsQuestionnaire = {
+          latest_financial_year: parseInt(y, 10),
+          submitted_this_financial_year: false,
+          has_data_for_next_financial_year: false,
         };
         initialPayloadRef.current = JSON.stringify(buildV2ApiPayload(qLegacy, { [y]: { ...flat, pldd: y } }));
         console.log("Financial step loaded legacy flat as single year:", y);
       } else {
         initialPayloadRef.current = JSON.stringify({
           questionnaire: {
-            financial_year_end_year: 0,
-            latest_year_submitted: false,
-            has_next_financial_year_data: false,
+            latest_financial_year: 0,
+            submitted_this_financial_year: false,
+            has_data_for_next_financial_year: false,
           },
           unaudited_by_year: {},
         });
@@ -640,13 +653,13 @@ export function FinancialStatementsStep({
     setIsInitialized(true);
   }, [application, isInitialized]);
 
-  const questionnaireDto = React.useMemo((): FinancialQuestionnaire | null => {
+  const questionnaireDto = React.useMemo((): FinancialStatementsQuestionnaire | null => {
     if (!isValidFinancialYear(fyeInput)) return null;
     if (qSubmitted === null || qNextYear === null) return null;
     return {
-      financial_year_end_year: parseInt(fyeInput, 10),
-      latest_year_submitted: qSubmitted,
-      has_next_financial_year_data: qNextYear,
+      latest_financial_year: parseInt(fyeInput, 10),
+      submitted_this_financial_year: qSubmitted,
+      has_data_for_next_financial_year: qNextYear,
     };
   }, [fyeInput, qSubmitted, qNextYear]);
 
@@ -711,7 +724,7 @@ export function FinancialStatementsStep({
   const hasPendingChanges = React.useMemo(() => {
     if (!isInitialized) return false;
     type InitialPayloadShape = {
-      questionnaire?: FinancialQuestionnaire;
+      questionnaire?: unknown;
       unaudited_by_year?: Record<string, unknown>;
     };
     let initialParsed: InitialPayloadShape | null = null;
@@ -722,13 +735,9 @@ export function FinancialStatementsStep({
     }
 
     if (!questionnaireDto) {
-      const initQ = initialParsed?.questionnaire;
+      const initQNorm = normalizeFinancialStatementsQuestionnaire(initialParsed?.questionnaire);
       const initHasRealQ =
-        initQ != null &&
-        typeof initQ.financial_year_end_year === "number" &&
-        initQ.financial_year_end_year > 0 &&
-        typeof initQ.latest_year_submitted === "boolean" &&
-        typeof initQ.has_next_financial_year_data === "boolean";
+        initQNorm != null && initQNorm.latest_financial_year > 0;
 
       if (!initHasRealQ) {
         const touched =
@@ -739,9 +748,9 @@ export function FinancialStatementsStep({
 
       const same =
         isValidFinancialYear(fyeInput) &&
-        parseInt(fyeInput, 10) === initQ.financial_year_end_year &&
-        qSubmitted === initQ.latest_year_submitted &&
-        qNextYear === initQ.has_next_financial_year_data;
+        parseInt(fyeInput, 10) === initQNorm.latest_financial_year &&
+        qSubmitted === initQNorm.submitted_this_financial_year &&
+        qNextYear === initQNorm.has_data_for_next_financial_year;
       const pending = !same;
       console.log("Financial step pending (questionnaire vs loaded):", pending);
       return pending;
@@ -1005,12 +1014,12 @@ export function FinancialStatementsStep({
             </div>
 
             <div className="space-y-2">
-              <Label className={labelClassName}>Has This Year Been Submitted?</Label>
+              <Label className={labelClassName}>Have You Submitted This Financial Year?</Label>
             </div>
             <div className="flex h-11 w-full min-w-0 items-center">
               <FinancialYesNoRadioGroup
                 name="financial-statements-q-submitted"
-                aria-label="Has This Year Been Submitted?"
+                aria-label="Have You Submitted This Financial Year?"
                 value={qSubmitted === null ? "" : qSubmitted ? "yes" : "no"}
                 onValueChange={(v) => setQSubmitted(v === "yes")}
                 disabled={readOnly}
