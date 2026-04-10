@@ -19,6 +19,7 @@ import {
 import { Skeleton } from "@cashsouk/ui";
 import { useProducts } from "@/hooks/use-products";
 import { useResubmitComparison } from "@/hooks/use-resubmit-comparison";
+import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
 import {
   ApplicationReviewTabs,
   ApplicationReviewTabContent,
@@ -69,6 +70,9 @@ export function ResubmitComparisonModal({
     () => getReviewTabDescriptorsFromWorkflow(product?.workflow as unknown[] | undefined),
     [product?.workflow]
   );
+
+  const { viewDocumentPending, handleViewDocument, handleDownloadDocument } =
+    useAdminS3DocumentViewDownload();
 
   const supportingDocumentsStepConfig = React.useMemo(() => {
     const cfg = getSupportingDocumentsStepConfig(product?.workflow as unknown[] | undefined);
@@ -213,12 +217,12 @@ export function ResubmitComparisonModal({
                         isReviewable={false}
                         approveSectionPending={false}
                         approveItemPending={false}
-                        viewDocumentPending={false}
+                        viewDocumentPending={viewDocumentPending}
                         onApproveSection={noop}
                         onRejectSection={noop}
                         onRequestAmendmentSection={noop}
-                        onViewDocument={noop}
-                        onDownloadDocument={noop}
+                        onViewDocument={handleViewDocument}
+                        onDownloadDocument={handleDownloadDocument}
                         onDownloadAllDocuments={noopAsync}
                         onApproveItem={async () => {}}
                         onRejectItem={noop}

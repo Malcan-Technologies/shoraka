@@ -10,6 +10,7 @@ import { Skeleton } from "@cashsouk/ui";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { useApplicationDetail } from "@/hooks/use-application-detail";
+import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
 import { useUpdateApplicationStatus } from "@/hooks/use-update-application-status";
 import {
   useApproveReviewSection,
@@ -170,79 +171,9 @@ export default function DynamicApplicationDetailPage() {
   ];
   const isReviewable = !!app && REVIEWABLE_STATUSES.includes(app.status);
   const { getAccessToken } = useAuthToken();
-  const [viewDocumentPending, setViewDocumentPending] = React.useState(false);
+  const { viewDocumentPending, handleViewDocument, handleDownloadDocument } =
+    useAdminS3DocumentViewDownload();
   const [downloadAllDocumentsPending, setDownloadAllDocumentsPending] = React.useState(false);
-
-  const handleViewDocument = React.useCallback(
-    async (s3Key: string) => {
-      try {
-        setViewDocumentPending(true);
-        const token = await getAccessToken();
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-        const response = await fetch(`${apiUrl}/v1/s3/view-url`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token && { Authorization: `Bearer ${token}` }),
-          },
-          body: JSON.stringify({ s3Key }),
-        });
-        const result = await response.json();
-        if (!result.success) throw new Error(result.error?.message || "Failed to get view URL");
-        const viewUrl = result.data?.viewUrl;
-        if (viewUrl) window.open(viewUrl, "_blank", "noopener,noreferrer");
-        else toast.error("Failed to open document");
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to open document");
-      } finally {
-        setViewDocumentPending(false);
-      }
-    },
-    [getAccessToken]
-  );
-
-  const handleDownloadDocument = React.useCallback(
-    async (s3Key: string, fileName?: string) => {
-      try {
-        setViewDocumentPending(true);
-        const token = await getAccessToken();
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-        const response = await fetch(`${apiUrl}/v1/s3/download-url`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token && { Authorization: `Bearer ${token}` }),
-          },
-          body: JSON.stringify({ s3Key }),
-        });
-        const result = await response.json();
-        if (!result.success) throw new Error(result.error?.message || "Failed to get download URL");
-        const downloadUrl = result.data?.downloadUrl;
-        if (!downloadUrl) {
-          toast.error("Failed to download document");
-          return;
-        }
-        const fileResponse = await fetch(downloadUrl);
-        if (!fileResponse.ok) {
-          throw new Error("Failed to fetch file for download");
-        }
-        const blob = await fileResponse.blob();
-        const objectUrl = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = objectUrl;
-        link.download = fileName?.trim() || "document.pdf";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(objectUrl);
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to download document");
-      } finally {
-        setViewDocumentPending(false);
-      }
-    },
-    [getAccessToken]
-  );
 
   const handleDownloadAllDocuments = React.useCallback(
     async (files: { s3Key: string; fileName: string; category: string; field: string }[]) => {
