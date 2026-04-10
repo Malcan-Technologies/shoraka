@@ -36,6 +36,7 @@ import {
   ReviewSummaryCard,
   RecentActivityCard,
   AmendmentReviewModal,
+  getSectionRejectCommonReasons,
   type ReviewSectionId,
 } from "@/components/application-review";
 import { useProducts } from "@/hooks/use-products";
@@ -620,6 +621,14 @@ export default function DynamicApplicationDetailPage() {
     : noteDialog?.action === "reject"
       ? "Reject"
       : "Add to List";
+  const noteDialogCommonReasons =
+    noteDialog && noteDialog.action === "reject"
+      ? "section" in noteDialog
+        ? getSectionRejectCommonReasons(noteDialog.section)
+        : noteDialog.itemType === "invoice"
+          ? getSectionRejectCommonReasons("invoice_details")
+          : []
+      : [];
   const noteDialogPending =
     approveSection.isPending ||
     approveItem.isPending ||
@@ -1161,6 +1170,7 @@ export default function DynamicApplicationDetailPage() {
         submitLabel={noteDialogSubmitLabel}
         variant={noteDialog?.action === "reject" ? "destructive" : "default"}
         optional={noteDialog?.action === "approve"}
+        commonReasons={noteDialogCommonReasons}
         onConfirm={handleNoteDialogConfirm}
         isPending={noteDialogPending}
       />
