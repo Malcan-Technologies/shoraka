@@ -2,7 +2,6 @@
  * Guide: docs/guides/application-flow/financial-statements-step.md — Financial statements step schema and field mappings
  */
 
-import { preprocessFinancialStatementsQuestionnairePayload } from "@cashsouk/types";
 import { z } from "zod";
 
 /**
@@ -132,17 +131,12 @@ export const financialStatementsInputSchema = z.object({
 
 export type FinancialStatementsStoredData = z.infer<typeof financialStatementsInputSchema>;
 
-/** Q1–Q3 before per-year grids; Y = latest_financial_year; accepts legacy keys via preprocess. */
-const financialStatementsQuestionnaireInnerSchema = z.object({
-  latest_financial_year: z.number().int().min(1900).max(2100),
+/** Q1–Q3 before per-year grids; Y = latest_financial_year. */
+export const financialStatementsQuestionnaireSchema = z.object({
+  latest_financial_year: z.number().int(),
   submitted_this_financial_year: z.boolean(),
   has_data_for_next_financial_year: z.boolean(),
 });
-
-export const financialStatementsQuestionnaireSchema = z.preprocess(
-  preprocessFinancialStatementsQuestionnairePayload,
-  financialStatementsQuestionnaireInnerSchema
-);
 
 export const financialStatementsV2Schema = z.object({
   questionnaire: financialStatementsQuestionnaireSchema,

@@ -30,7 +30,6 @@ import {
   fieldTooltipTriggerClassName,
   fieldTooltipTriggerInputClassName,
   fieldTooltipLabelGap,
-  withFieldError,
 } from "@/app/(application-flow)/applications/components/form-control";
 import { MoneyInput } from "@cashsouk/ui";
 import { parseMoney, formatMoney } from "@cashsouk/ui";
@@ -148,10 +147,6 @@ function toNum(v: unknown): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
-/** Match API `financialStatementsQuestionnaireInnerSchema` (1900–2100). */
-const MIN_FINANCIAL_YEAR = 1900;
-const MAX_FINANCIAL_YEAR = 2100;
-
 /** Load pldd as a four-digit year. Migrates legacy full-date values from JSON. */
 function normalizePlddFromSaved(val: unknown): string {
   if (val === undefined || val === null) return "";
@@ -177,11 +172,9 @@ function normalizePlddForApi(s: string): string {
   return normalizePlddFromSaved(t);
 }
 
-function isValidFinancialYear(s: string): boolean {
-  const t = s.trim();
-  if (!/^\d{4}$/.test(t)) return false;
-  const y = parseInt(t, 10);
-  return y >= MIN_FINANCIAL_YEAR && y <= MAX_FINANCIAL_YEAR;
+/** Questionnaire year and per-row `pldd` year: exactly four digits (no range check). */
+function isFourDigitYearString(s: string): boolean {
+  return /^\d{4}$/.test(s.trim());
 }
 
 function fromSaved(saved: unknown): FinancialStatementsPayload {
@@ -538,7 +531,7 @@ function yearFormIsValid(form: FinancialStatementsPayload): boolean {
     "plyear",
   ];
   const hasValue = (v: unknown) => String(v ?? "").trim() !== "";
-  if (!hasValue(form.pldd) || !isValidFinancialYear(form.pldd ?? "")) return false;
+  if (!hasValue(form.pldd) || !isFourDigitYearString(String(form.pldd ?? ""))) return false;
   if (!hasValue(form.bsdd)) return false;
   const d = parseDateLocal(form.bsdd ?? "");
   if (d && startOfDay(d) > startOfDay(new Date())) return false;
@@ -564,7 +557,7 @@ function yearFormValidForButton(form: FinancialStatementsPayload): boolean {
     "plyear",
   ];
   const hasValue = (v: unknown) => String(v ?? "").trim() !== "";
-  if (!hasValue(form.pldd) || !isValidFinancialYear(form.pldd ?? "")) return false;
+  if (!hasValue(form.pldd) || !isFourDigitYearString(String(form.pldd ?? ""))) return false;
   if (!hasValue(form.bsdd)) return false;
   if (!moneyFields.every((k) => hasValue(form[k]))) return false;
   if (parseMoney(form.turnover ?? "") < 0) return false;
@@ -653,7 +646,7 @@ export function FinancialStatementsStep({
   }, [application, isInitialized]);
 
   const questionnaireDto = React.useMemo((): FinancialStatementsQuestionnaire | null => {
-    if (!isValidFinancialYear(fyeInput)) return null;
+    if (!isFourDigitYearString(fyeInput)) return null;
     if (qSubmitted === null || qNextYear === null) return null;
     return {
       latest_financial_year: parseInt(fyeInput, 10),
@@ -746,7 +739,7 @@ export function FinancialStatementsStep({
       }
 
       const same =
-        isValidFinancialYear(fyeInput) &&
+        isFourDigitYearString(fyeInput) &&
         parseInt(fyeInput, 10) === initQNorm.latest_financial_year &&
         qSubmitted === initQNorm.submitted_this_financial_year &&
         qNextYear === initQNorm.has_data_for_next_financial_year;
@@ -787,7 +780,7 @@ export function FinancialStatementsStep({
   }, [yearsToShow, formsByYear]);
 
   const questionsAnswered =
-    isValidFinancialYear(fyeInput) && qSubmitted !== null && qNextYear !== null;
+    isFourDigitYearString(fyeInput) && qSubmitted !== null && qNextYear !== null;
 
   const isValidForButton = caseCInfoOnly
     ? questionsAnswered
@@ -796,9 +789,7 @@ export function FinancialStatementsStep({
   const saveFunction = React.useCallback(async () => {
     setHasSubmitted(true);
     if (!questionnaireDto) {
-      toast.error(
-        `Please answer all three questions, including a latest financial year between ${MIN_FINANCIAL_YEAR} and ${MAX_FINANCIAL_YEAR}.`
-      );
+      toast.error("Please answer all three questions, including a 4-digit latest financial year.");
       throw new Error("VALIDATION_REQUIRED");
     }
     if (caseCInfoOnly) {
@@ -982,10 +973,6 @@ export function FinancialStatementsStep({
     return <FinancialStatementsSkeleton />;
   }
 
-  const fyeTrim = fyeInput.trim();
-  const fyeInputInvalid = fyeTrim.length === 4 && !isValidFinancialYear(fyeTrim);
-  const fyeDescribedBy = fyeInputInvalid ? "fye-year-hint fye-year-error" : "fye-year-hint";
-
   return (
     <>
       <div className={formOuterClassName}>
@@ -1008,20 +995,14 @@ export function FinancialStatementsStep({
                 onChange={(e) => setFyeInput(e.target.value.replace(/\D/g, "").slice(0, 4))}
                 disabled={readOnly}
                 placeholder="eg. 2025"
-                className={withFieldError(inputClassName, fyeInputInvalid)}
+                className={inputClassName}
                 inputMode="numeric"
                 maxLength={4}
-                aria-invalid={fyeInputInvalid}
-                aria-describedby={fyeDescribedBy}
+                aria-describedby="fye-year-hint"
               />
               <p id="fye-year-hint" className="text-xs text-muted-foreground">
-                4 digits ({MIN_FINANCIAL_YEAR}–{MAX_FINANCIAL_YEAR})
+                4 digits
               </p>
-              {fyeInputInvalid ? (
-                <p id="fye-year-error" className="text-xs text-destructive" role="alert">
-                  Enter a year between {MIN_FINANCIAL_YEAR} and {MAX_FINANCIAL_YEAR}.
-                </p>
-              ) : null}
             </div>
 
             <div className="space-y-2">

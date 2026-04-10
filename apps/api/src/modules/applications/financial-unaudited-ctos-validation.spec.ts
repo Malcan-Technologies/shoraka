@@ -115,12 +115,21 @@ describe("financial-unaudited-ctos-validation", () => {
   });
 
   describe("normalizeFinancialStatementsQuestionnaire", () => {
-    it("maps legacy questionnaire keys", () => {
+    it("returns null for legacy questionnaire keys", () => {
       expect(
         normalizeFinancialStatementsQuestionnaire({
           financial_year_end_year: 2024,
           latest_year_submitted: true,
           has_next_financial_year_data: false,
+        })
+      ).toBeNull();
+    });
+    it("parses current questionnaire keys", () => {
+      expect(
+        normalizeFinancialStatementsQuestionnaire({
+          latest_financial_year: 2024,
+          submitted_this_financial_year: true,
+          has_data_for_next_financial_year: false,
         })
       ).toEqual({
         latest_financial_year: 2024,
@@ -130,13 +139,27 @@ describe("financial-unaudited-ctos-validation", () => {
     });
   });
 
-  describe("financialStatementsV2Schema questionnaire preprocess", () => {
-    it("accepts legacy questionnaire keys in v2 payload", () => {
+  describe("financialStatementsV2Schema", () => {
+    it("rejects legacy questionnaire keys", () => {
       const parsed = financialStatementsV2Schema.safeParse({
         questionnaire: {
           financial_year_end_year: 2025,
           latest_year_submitted: false,
           has_next_financial_year_data: true,
+        },
+        unaudited_by_year: {
+          "2025": { pldd: "2025", bsdd: "31/12/2025" },
+          "2026": { pldd: "2026", bsdd: "31/12/2026" },
+        },
+      });
+      expect(parsed.success).toBe(false);
+    });
+    it("accepts current questionnaire keys", () => {
+      const parsed = financialStatementsV2Schema.safeParse({
+        questionnaire: {
+          latest_financial_year: 2025,
+          submitted_this_financial_year: false,
+          has_data_for_next_financial_year: true,
         },
         unaudited_by_year: {
           "2025": { pldd: "2025", bsdd: "31/12/2025" },

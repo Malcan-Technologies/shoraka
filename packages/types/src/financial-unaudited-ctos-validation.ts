@@ -8,7 +8,7 @@
 
 export type UnauditedColumnValidationStatus = "VALID" | "PENDING" | "INVALID";
 
-/** Stored under `financial_statements.questionnaire` (v2). Legacy keys are normalized on read. */
+/** Stored under `financial_statements.questionnaire` (v2). */
 export type FinancialStatementsQuestionnaire = {
   latest_financial_year: number;
   submitted_this_financial_year: boolean;
@@ -16,20 +16,18 @@ export type FinancialStatementsQuestionnaire = {
 };
 
 /**
- * Map legacy questionnaire keys to the current shape. Prefer new keys when both exist.
+ * Parse stored questionnaire JSON (current keys only).
  * INPUT: raw `questionnaire` object from JSON
- * OUTPUT: object with only new keys, or null if `raw` is not a plain object
+ * OUTPUT: typed object or null if missing or wrong shape
  */
 export function normalizeFinancialStatementsQuestionnaire(
   raw: unknown
 ): FinancialStatementsQuestionnaire | null {
   if (raw == null || typeof raw !== "object" || Array.isArray(raw)) return null;
   const o = raw as Record<string, unknown>;
-  const latest_financial_year = o.latest_financial_year ?? o.financial_year_end_year;
-  const submitted_this_financial_year =
-    o.submitted_this_financial_year ?? o.latest_year_submitted;
-  const has_data_for_next_financial_year =
-    o.has_data_for_next_financial_year ?? o.has_next_financial_year_data;
+  const latest_financial_year = o.latest_financial_year;
+  const submitted_this_financial_year = o.submitted_this_financial_year;
+  const has_data_for_next_financial_year = o.has_data_for_next_financial_year;
   if (
     typeof latest_financial_year !== "number" ||
     !Number.isFinite(latest_financial_year) ||
@@ -42,19 +40,6 @@ export function normalizeFinancialStatementsQuestionnaire(
     latest_financial_year,
     submitted_this_financial_year,
     has_data_for_next_financial_year,
-  };
-}
-
-/** For Zod/API: merge legacy keys into new keys before validation. */
-export function preprocessFinancialStatementsQuestionnairePayload(raw: unknown): unknown {
-  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) return raw;
-  const o = raw as Record<string, unknown>;
-  return {
-    latest_financial_year: o.latest_financial_year ?? o.financial_year_end_year,
-    submitted_this_financial_year:
-      o.submitted_this_financial_year ?? o.latest_year_submitted,
-    has_data_for_next_financial_year:
-      o.has_data_for_next_financial_year ?? o.has_next_financial_year_data,
   };
 }
 
