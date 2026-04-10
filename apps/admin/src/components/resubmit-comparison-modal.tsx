@@ -26,10 +26,15 @@ import {
 import { SectionContent } from "@/components/application-review/section-content";
 import {
   getReviewTabDescriptorsFromWorkflow,
+  type ReviewSectionId,
 } from "@/components/application-review/review-registry";
 import { revisionSnapshotToReviewApp } from "@/lib/revision-snapshot-to-review-app";
 import { getSupportingDocumentsStepConfig } from "@/components/application-review/supporting-documents-admin-meta";
-import { buildResubmitChangedPathSet, resubmitPathIsChanged } from "@/lib/resubmit-comparison-paths";
+import {
+  buildResubmitChangedPathSet,
+  resubmitPathIsChanged,
+} from "@/lib/resubmit-comparison-paths";
+import { reviewSectionHasResubmitChanges } from "@/lib/review-section-has-resubmit-changes";
 import type { ResubmitFieldChangeItem } from "@/components/application-revision-diff-panel";
 import { CheckIcon, XMarkIcon } from "@heroicons/react/24/outline";
 
@@ -40,6 +45,8 @@ export interface ResubmitComparisonModalProps {
   productKey: string | null;
   reviewCycle: number | null;
   fieldChanges?: ResubmitFieldChangeItem[];
+  /** From application detail — aligns tab status dots with main review page (e.g. green when approved). */
+  reviewTabSections?: { section: string; status: string }[];
 }
 
 export function ResubmitComparisonModal({
@@ -49,6 +56,7 @@ export function ResubmitComparisonModal({
   productKey,
   reviewCycle,
   fieldChanges,
+  reviewTabSections,
 }: ResubmitComparisonModalProps) {
   const { data, isLoading, error, isError } = useResubmitComparison(applicationId, reviewCycle, open);
   const { data: productsData } = useProducts({ page: 1, pageSize: 100 });
@@ -72,6 +80,21 @@ export function ResubmitComparisonModal({
     (path: string) => resubmitPathIsChanged(path, changedPaths),
     [changedPaths]
   );
+
+  const resubmitTabHasChanges = React.useCallback(
+    (section: ReviewSectionId) => reviewSectionHasResubmitChanges(section, fieldChanges),
+    [fieldChanges]
+  );
+
+  const tabStripSections = React.useMemo(() => {
+    const statusBySection = new Map(
+      (reviewTabSections ?? []).map((s) => [s.section, s.status])
+    );
+    return tabDescriptors.map((t) => ({
+      section: t.reviewSection,
+      status: statusBySection.get(t.reviewSection) ?? "PENDING",
+    }));
+  }, [reviewTabSections, tabDescriptors]);
 
   const beforeApp = React.useMemo(() => {
     if (!data?.previous_snapshot || !applicationId) return null;
@@ -164,11 +187,9 @@ export function ResubmitComparisonModal({
                   </div>
                 </div>
                 <ApplicationReviewTabs
-                  sections={tabDescriptors.map((t) => ({
-                    section: t.reviewSection,
-                    status: "PENDING",
-                  }))}
+                  sections={tabStripSections}
                   tabDescriptors={tabDescriptors}
+                  resubmitTabHasChanges={resubmitTabHasChanges}
                 >
                   {tabDescriptors.map((descriptor) => (
                     <ApplicationReviewTabContent key={descriptor.id} value={descriptor.id}>

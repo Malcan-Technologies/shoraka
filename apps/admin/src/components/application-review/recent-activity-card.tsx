@@ -7,6 +7,8 @@ import AdminActivityTimeline from "@/components/admin-activity-timeline";
 import { formatRemarkAsBullets } from "@/lib/utils";
 
 export interface RecentActivityCardProps {
+  /** Same shape as main review tabs — drives status dots in resubmit comparison modal. */
+  reviewTabSections?: { section: string; status: string }[];
   events: {
     event_type: string;
     scope_key: string | null;
@@ -23,6 +25,7 @@ export interface RecentActivityCardProps {
 }
 
 export function RecentActivityCard({
+  reviewTabSections,
   events,
   remarks,
   applicationId,
@@ -65,6 +68,7 @@ export function RecentActivityCard({
       <AdminActivityTimeline
         applicationId={applicationId}
         productKey={productKey}
+        reviewTabSections={reviewTabSections}
         sectionLabelOverrides={sectionLabelOverrides}
       />
     );

@@ -1122,6 +1122,7 @@ export default function DynamicApplicationDetailPage() {
                   <ReviewSummaryCard sections={reviewSections} />
 
                   <RecentActivityCard
+                    reviewTabSections={reviewSections}
                     events={
                       (app.application_review_events as {
                         event_type: string;

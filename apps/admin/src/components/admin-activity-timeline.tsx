@@ -132,6 +132,8 @@ interface AdminActivityTimelineProps {
   applicationId: string | null;
   /** Product id (same as route `productKey`) for workflow tabs in resubmit comparison modal. */
   productKey?: string | null;
+  /** Section review statuses from application detail — same dots as main review tabs in comparison modal. */
+  reviewTabSections?: { section: string; status: string }[];
   /** Override section labels for display (e.g. contract_details → "Customer" for invoice_only). */
   sectionLabelOverrides?: Record<string, string>;
 }
@@ -326,6 +328,7 @@ function TimelineSkeleton() {
 export function AdminActivityTimeline({
   applicationId,
   productKey,
+  reviewTabSections,
   sectionLabelOverrides,
 }: AdminActivityTimelineProps) {
   /**
@@ -669,6 +672,7 @@ export function AdminActivityTimeline({
       productKey={productKey ?? null}
       reviewCycle={comparisonContext?.reviewCycle ?? null}
       fieldChanges={comparisonContext?.fieldChanges}
+      reviewTabSections={reviewTabSections}
     />
     </>
   );

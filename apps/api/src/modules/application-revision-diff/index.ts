@@ -173,13 +173,18 @@ function pathToSectionKey(path: string): string {
   ) {
     return first;
   }
-  if (path.startsWith("contract")) return "contract";
-  if (path.startsWith("invoices")) return "invoices";
+  /** Application workflow step — must come before snapshot `contract.*` matching. */
+  if (path.startsWith("contract_details")) return "contract_details";
+  if (path === "contract" || path.startsWith("contract.") || path.startsWith("contract[")) {
+    return "contract";
+  }
+  if (path === "invoices" || path.startsWith("invoices[")) return "invoices";
   return first || "unknown";
 }
 
 function sectionLabelForKey(sectionKey: string): string {
   if (sectionKey === "contract") return "Contract";
+  if (sectionKey === "contract_details") return "Contract details";
   if (sectionKey === "invoices") return "Invoices";
   const k = sectionKey as (typeof APPLICATION_JSON_KEYS)[number];
   return SECTION_LABELS[k] ?? sectionKey;
@@ -316,6 +321,7 @@ export function summarizeResubmitSnapshotDiff(
   for (const k of APPLICATION_JSON_KEYS) {
     sectionOrder.set(k, ord++);
   }
+  sectionOrder.set("contract_details", 95);
   sectionOrder.set("contract", 100);
   sectionOrder.set("invoices", 101);
 
