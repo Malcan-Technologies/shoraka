@@ -1140,6 +1140,7 @@ export default function DynamicApplicationDetailPage() {
                       }[]) ?? []
                     }
                     applicationId={applicationId}
+                    productKey={productKey}
                     sectionLabelOverrides={isInvoiceOnly ? { contract_details: "Customer" } : undefined}
                   />
                 </div>

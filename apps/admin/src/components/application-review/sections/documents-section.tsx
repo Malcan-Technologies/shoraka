@@ -7,6 +7,7 @@ import { reviewCardTitleClass, reviewEmptyStateClass } from "../review-section-s
 import { DocumentList } from "../document-list";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
 import { Button } from "@/components/ui/button";
+import { ComparisonFieldRow } from "../comparison-field-row";
 
 type SupportingDocFile = {
   s3Key: string;
@@ -15,7 +16,7 @@ type SupportingDocFile = {
   field: string;
 };
 
-function collectSupportingDocumentFiles(input: unknown): SupportingDocFile[] {
+export function collectSupportingDocumentFiles(input: unknown): SupportingDocFile[] {
   if (!input || typeof input !== "object") return [];
   const raw = (input as Record<string, unknown>)?.supporting_documents ?? input;
   const files: SupportingDocFile[] = [];
@@ -111,6 +112,11 @@ export interface DocumentsSectionProps {
   onResetItemToPending?: (itemId: string) => void;
   comments: SectionCommentItem[];
   onAddComment?: (comment: string) => Promise<void> | void;
+  sectionComparison?: {
+    beforeDocs: unknown;
+    afterDocs: unknown;
+    isPathChanged: (path: string) => boolean;
+  };
 }
 
 export function DocumentsSection({
@@ -131,7 +137,56 @@ export function DocumentsSection({
   onResetItemToPending,
   comments,
   onAddComment,
+  sectionComparison,
 }: DocumentsSectionProps) {
+  if (sectionComparison) {
+    console.log("DocumentsSection comparison mode");
+    const { beforeDocs, afterDocs, isPathChanged } = sectionComparison;
+    const beforeFiles = collectSupportingDocumentFiles(beforeDocs);
+    const afterFiles = collectSupportingDocumentFiles(afterDocs);
+    const keySet = new Set<string>();
+    for (const f of beforeFiles) keySet.add(`${f.category}\t${f.field}`);
+    for (const f of afterFiles) keySet.add(`${f.category}\t${f.field}`);
+    const keys = Array.from(keySet).sort();
+    return (
+      <Card className="rounded-2xl">
+        <CardHeader className="pb-3">
+          <div className="flex items-center gap-2">
+            <DocumentTextIcon className="h-5 w-5 text-primary" />
+            <CardTitle className={reviewCardTitleClass}>Supporting Documents</CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {keys.length === 0 ? (
+            <p className={reviewEmptyStateClass}>No supporting documents in these snapshots.</p>
+          ) : (
+            <div className="space-y-2">
+              {keys.map((k) => {
+                const [category, field] = k.split("\t");
+                const b =
+                  beforeFiles.find((f) => f.category === category && f.field === field)?.fileName ??
+                  "—";
+                const a =
+                  afterFiles.find((f) => f.category === category && f.field === field)?.fileName ??
+                  "—";
+                return (
+                  <ComparisonFieldRow
+                    key={k}
+                    label={`${category} — ${field}`}
+                    before={b}
+                    after={a}
+                    changed={isPathChanged("supporting_documents")}
+                  />
+                );
+              })}
+            </div>
+          )}
+          <SectionComments comments={comments} onSubmitComment={onAddComment} />
+        </CardContent>
+      </Card>
+    );
+  }
+
   const downloadableFiles = React.useMemo(
     () => collectSupportingDocumentFiles(supportingDocuments),
     [supportingDocuments]

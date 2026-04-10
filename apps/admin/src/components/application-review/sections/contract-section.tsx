@@ -31,6 +31,7 @@ import {
   formatFileSize,
 } from "../review-section-styles";
 import type { ReviewSectionId } from "../section-types";
+import { ComparisonFieldRow } from "../comparison-field-row";
 
 interface FileDoc {
   s3_key?: string;
@@ -63,6 +64,19 @@ export interface ContractSectionProps {
   onViewSignedContractOffer?: () => void | Promise<void>;
   signedContractOfferLetterAvailable?: boolean;
   viewSignedOfferLetterPending?: boolean;
+  sectionComparison?: {
+    before: {
+      contractDetails: unknown;
+      customerDetails: unknown;
+      offerDetails: unknown;
+    };
+    after: {
+      contractDetails: unknown;
+      customerDetails: unknown;
+      offerDetails: unknown;
+    };
+    isPathChanged: (path: string) => boolean;
+  };
 }
 
 export function ContractSection({
@@ -88,7 +102,173 @@ export function ContractSection({
   onAddComment,
   onViewSignedContractOffer,
   signedContractOfferLetterAvailable,
+  sectionComparison,
 }: ContractSectionProps) {
+  if (sectionComparison) {
+    console.log("ContractSection comparison mode");
+    const { before, after, isPathChanged } = sectionComparison;
+    const bCd = before.contractDetails as Record<string, unknown> | null | undefined;
+    const aCd = after.contractDetails as Record<string, unknown> | null | undefined;
+    const bCust = before.customerDetails as Record<string, unknown> | null | undefined;
+    const aCust = after.customerDetails as Record<string, unknown> | null | undefined;
+    const bOffer = before.offerDetails as Record<string, unknown> | null | undefined;
+    const aOffer = after.offerDetails as Record<string, unknown> | null | undefined;
+    const rf = (cd: typeof bCd) => (cd ? resolveRequestedFacility(cd) : 0);
+    const of = (o: typeof bOffer) => resolveOfferedFacility(o);
+    const yn = (v: unknown) =>
+      v === true ? "Yes" : v === false ? "No" : REVIEW_EMPTY_LABEL;
+    return (
+      <ReviewSectionCard title="Contract Details" icon={DocumentTextIcon} section={section} isReviewable={false}>
+        <ReviewFieldBlock title="Offer to Issuer">
+          <div className="space-y-2">
+            <ComparisonFieldRow
+              label="Requested Facility"
+              before={rf(bCd) > 0 ? formatCurrency(rf(bCd)) : REVIEW_EMPTY_LABEL}
+              after={rf(aCd) > 0 ? formatCurrency(rf(aCd)) : REVIEW_EMPTY_LABEL}
+              changed={isPathChanged("contract")}
+            />
+            <ComparisonFieldRow
+              label="Persisted offered facility"
+              before={of(bOffer) > 0 ? formatCurrency(of(bOffer)) : REVIEW_EMPTY_LABEL}
+              after={of(aOffer) > 0 ? formatCurrency(of(aOffer)) : REVIEW_EMPTY_LABEL}
+              changed={isPathChanged("contract")}
+            />
+          </div>
+        </ReviewFieldBlock>
+        {(bCd || aCd) && (
+          <ReviewFieldBlock title="Contract Details">
+            <div className="space-y-2">
+              <ComparisonFieldRow
+                label="Contract Title"
+                before={formatReviewValue(bCd?.title)}
+                after={formatReviewValue(aCd?.title)}
+                changed={isPathChanged("contract")}
+              />
+              <ComparisonFieldRow
+                label="Contract Description"
+                before={formatReviewValue(bCd?.description)}
+                after={formatReviewValue(aCd?.description)}
+                changed={isPathChanged("contract")}
+                multiline
+              />
+              <ComparisonFieldRow
+                label="Contract Number"
+                before={formatReviewValue(bCd?.number)}
+                after={formatReviewValue(aCd?.number)}
+                changed={isPathChanged("contract")}
+              />
+              <ComparisonFieldRow
+                label="Contract Value"
+                before={
+                  typeof bCd?.value === "number" ? formatCurrency(bCd.value) : formatReviewValue(bCd?.value)
+                }
+                after={
+                  typeof aCd?.value === "number" ? formatCurrency(aCd.value) : formatReviewValue(aCd?.value)
+                }
+                changed={isPathChanged("contract")}
+              />
+              <ComparisonFieldRow
+                label="Contract Financing"
+                before={
+                  typeof bCd?.financing === "number"
+                    ? formatCurrency(bCd.financing)
+                    : formatReviewValue(bCd?.financing)
+                }
+                after={
+                  typeof aCd?.financing === "number"
+                    ? formatCurrency(aCd.financing)
+                    : formatReviewValue(aCd?.financing)
+                }
+                changed={isPathChanged("contract")}
+              />
+              <ComparisonFieldRow
+                label="Contract Start Date"
+                before={formatReviewDate(bCd?.start_date as string)}
+                after={formatReviewDate(aCd?.start_date as string)}
+                changed={isPathChanged("contract")}
+              />
+              <ComparisonFieldRow
+                label="Contract End Date"
+                before={formatReviewDate(bCd?.end_date as string)}
+                after={formatReviewDate(aCd?.end_date as string)}
+                changed={isPathChanged("contract")}
+              />
+            </div>
+          </ReviewFieldBlock>
+        )}
+        {(bCust || aCust) && (
+          <ReviewFieldBlock title="Customer Details">
+            <div className="space-y-2">
+              <ComparisonFieldRow
+                label="Customer Name"
+                before={formatReviewValue(bCust?.name)}
+                after={formatReviewValue(aCust?.name)}
+                changed={isPathChanged("contract")}
+              />
+              <ComparisonFieldRow
+                label="Customer Entity Type"
+                before={formatReviewValue(bCust?.entity_type)}
+                after={formatReviewValue(aCust?.entity_type)}
+                changed={isPathChanged("contract")}
+              />
+              <ComparisonFieldRow
+                label="Customer SSM Number"
+                before={formatReviewValue(bCust?.ssm_number)}
+                after={formatReviewValue(aCust?.ssm_number)}
+                changed={isPathChanged("contract")}
+              />
+              <ComparisonFieldRow
+                label="Customer Country"
+                before={formatReviewValue(bCust?.country)}
+                after={formatReviewValue(aCust?.country)}
+                changed={isPathChanged("contract")}
+              />
+              <ComparisonFieldRow
+                label="Is Customer Related to Issuer?"
+                before={yn(bCust?.is_related_party)}
+                after={yn(aCust?.is_related_party)}
+                changed={isPathChanged("contract")}
+              />
+            </div>
+          </ReviewFieldBlock>
+        )}
+        <ReviewFieldBlock title="Evidence">
+          <div className="space-y-2">
+            <ComparisonFieldRow
+              label="Contract Document"
+              before={
+                (bCd?.document as FileDoc | undefined)?.file_name
+                  ? String((bCd?.document as FileDoc).file_name)
+                  : REVIEW_EMPTY_LABEL
+              }
+              after={
+                (aCd?.document as FileDoc | undefined)?.file_name
+                  ? String((aCd?.document as FileDoc).file_name)
+                  : REVIEW_EMPTY_LABEL
+              }
+              changed={isPathChanged("contract")}
+            />
+            <ComparisonFieldRow
+              label="Customer Consent"
+              before={
+                (bCust?.document as FileDoc | undefined)?.file_name
+                  ? String((bCust?.document as FileDoc).file_name)
+                  : REVIEW_EMPTY_LABEL
+              }
+              after={
+                (aCust?.document as FileDoc | undefined)?.file_name
+                  ? String((aCust?.document as FileDoc).file_name)
+                  : REVIEW_EMPTY_LABEL
+              }
+              changed={isPathChanged("contract")}
+            />
+          </div>
+        </ReviewFieldBlock>
+        <SectionComments comments={comments} onSubmitComment={onAddComment} />
+      </ReviewSectionCard>
+    );
+  }
+
   const cd = contractDetails as Record<string, unknown> | null | undefined;
   const offer = offerDetails as Record<string, unknown> | null | undefined;
   const cust = customerDetails as Record<string, unknown> | null | undefined;

@@ -16,11 +16,19 @@ export interface RecentActivityCardProps {
   }[];
   remarks: { scope_key: string; action_type: string; remark: string; created_at: string }[];
   applicationId?: string | null;
+  /** Product id for resubmit comparison modal workflow tabs. */
+  productKey?: string | null;
   /** Override section labels for timeline display (e.g. contract_details → "Customer" for invoice_only). */
   sectionLabelOverrides?: Record<string, string>;
 }
 
-export function RecentActivityCard({ events, remarks, applicationId, sectionLabelOverrides }: RecentActivityCardProps) {
+export function RecentActivityCard({
+  events,
+  remarks,
+  applicationId,
+  productKey,
+  sectionLabelOverrides,
+}: RecentActivityCardProps) {
   const recentActivity = React.useMemo(() => {
     const combined: {
       type: string;
@@ -56,6 +64,7 @@ export function RecentActivityCard({ events, remarks, applicationId, sectionLabe
     return (
       <AdminActivityTimeline
         applicationId={applicationId}
+        productKey={productKey}
         sectionLabelOverrides={sectionLabelOverrides}
       />
     );

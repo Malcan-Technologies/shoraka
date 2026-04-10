@@ -27,6 +27,7 @@ import {
   reviewEmptyStateClass,
   REVIEW_EMPTY_LABEL,
 } from "../review-section-styles";
+import { ComparisonFieldRow } from "../comparison-field-row";
 import type { ReviewSectionId } from "../section-types";
 import {
   GUARANTOR_COMPANY_RELATIONSHIP_LABELS,
@@ -35,9 +36,17 @@ import {
   type GuarantorIndividualRelationship,
 } from "@cashsouk/types";
 
+export type BusinessSectionComparisonProps = {
+  beforeDetails: unknown;
+  afterDetails: unknown;
+  isPathChanged: (path: string) => boolean;
+};
+
 export interface BusinessSectionProps {
   businessDetails: unknown;
   section: ReviewSectionId;
+  /** When set, renders read-only before/after grid and hides review actions. */
+  sectionComparison?: BusinessSectionComparisonProps;
   isReviewable: boolean;
   approvePending: boolean;
   isActionLocked?: boolean;
@@ -137,7 +146,7 @@ function parseGuarantors(raw: unknown): GuarantorReviewRow[] {
   return rows;
 }
 
-function parseBusinessDetails(raw: unknown): BusinessDetailsView | null {
+export function parseBusinessDetails(raw: unknown): BusinessDetailsView | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
   const a = (r.about_your_business ?? r.aboutYourBusiness) as Record<string, unknown> | undefined;
@@ -217,7 +226,242 @@ export function BusinessSection({
   viewDocumentPending = false,
   comments,
   onAddComment,
+  sectionComparison,
 }: BusinessSectionProps) {
+  if (sectionComparison) {
+    console.log("BusinessSection comparison mode");
+    const vb = parseBusinessDetails(sectionComparison.beforeDetails);
+    const va = parseBusinessDetails(sectionComparison.afterDetails);
+    const { isPathChanged } = sectionComparison;
+    const yn = (v: boolean | null) =>
+      v === true ? "Yes" : v === false ? "No" : REVIEW_EMPTY_LABEL;
+    const money = (n: number | null) => (n != null ? formatCurrency(n) : REVIEW_EMPTY_LABEL);
+    const docsLabel = (docs: { fileName: string }[]) =>
+      docs.length === 0 ? REVIEW_EMPTY_LABEL : docs.map((d) => d.fileName).join(", ");
+
+    if (!vb && !va) {
+      return (
+        <ReviewSectionCard
+          title="Business & Guarantor Details"
+          icon={DocumentTextIcon}
+          section={section}
+          isReviewable={false}
+        >
+          <p className={reviewEmptyStateClass}>No business details in these snapshots.</p>
+        </ReviewSectionCard>
+      );
+    }
+
+    const b = vb ?? va!;
+    const a = va ?? vb!;
+    const showP2PBefore = b.whyRaisingFunds.raisingOnOtherP2P === true;
+    const showP2PAfter = a.whyRaisingFunds.raisingOnOtherP2P === true;
+
+    return (
+      <ReviewSectionCard
+        title="Business & Guarantor Details"
+        icon={DocumentTextIcon}
+        section={section}
+        isReviewable={false}
+      >
+        <ReviewFieldBlock title="About Your Business">
+          <div className="space-y-2">
+            <ComparisonFieldRow
+              label="What Does Your Company Do?"
+              before={b.about.whatDoesCompanyDo}
+              after={a.about.whatDoesCompanyDo}
+              changed={isPathChanged("business_details")}
+              multiline
+            />
+            <ComparisonFieldRow
+              label="Who Are Your Main Customers?"
+              before={b.about.mainCustomers}
+              after={a.about.mainCustomers}
+              changed={isPathChanged("business_details")}
+              multiline
+            />
+            <ComparisonFieldRow
+              label="Does Any Single Customer Make Up More Than 50% of Your Revenue?"
+              before={yn(vb?.about.singleCustomerOver50Revenue ?? null)}
+              after={yn(va?.about.singleCustomerOver50Revenue ?? null)}
+              changed={isPathChanged("business_details")}
+            />
+            <ComparisonFieldRow
+              label="Which Accounting Software Does the Issuer Use?"
+              before={b.whyRaisingFunds.accountingSoftware}
+              after={a.whyRaisingFunds.accountingSoftware}
+              changed={isPathChanged("business_details")}
+            />
+          </div>
+        </ReviewFieldBlock>
+
+        <ReviewFieldBlock title="Why Are You Raising Funds?">
+          <div className="space-y-2">
+            <ComparisonFieldRow
+              label="What Is This Financing For?"
+              before={b.whyRaisingFunds.financingFor}
+              after={a.whyRaisingFunds.financingFor}
+              changed={isPathChanged("business_details")}
+              multiline
+            />
+            <ComparisonFieldRow
+              label="How Will the Funds Be Used?"
+              before={b.whyRaisingFunds.howFundsUsed}
+              after={a.whyRaisingFunds.howFundsUsed}
+              changed={isPathChanged("business_details")}
+              multiline
+            />
+            <ComparisonFieldRow
+              label="Tell Us About Your Business Plan"
+              before={b.whyRaisingFunds.businessPlan}
+              after={a.whyRaisingFunds.businessPlan}
+              changed={isPathChanged("business_details")}
+              multiline
+            />
+            <ComparisonFieldRow
+              label="Are There Any Risks That May Delay Repayment of Your Invoices?"
+              before={b.whyRaisingFunds.risksDelayRepayment}
+              after={a.whyRaisingFunds.risksDelayRepayment}
+              changed={isPathChanged("business_details")}
+              multiline
+            />
+            <ComparisonFieldRow
+              label="If Payment Is Delayed, What Is Your Backup Plan?"
+              before={b.whyRaisingFunds.backupPlan}
+              after={a.whyRaisingFunds.backupPlan}
+              changed={isPathChanged("business_details")}
+              multiline
+            />
+            <ComparisonFieldRow
+              label="Relevant Supporting Documents for This Section"
+              before={docsLabel(b.whyRaisingFunds.supportingDocuments)}
+              after={docsLabel(a.whyRaisingFunds.supportingDocuments)}
+              changed={isPathChanged("business_details")}
+            />
+            <ComparisonFieldRow
+              label="Are You Currently Raising/Applying Funds on Any Other P2P Platforms?"
+              before={yn(vb?.whyRaisingFunds.raisingOnOtherP2P ?? null)}
+              after={yn(va?.whyRaisingFunds.raisingOnOtherP2P ?? null)}
+              changed={isPathChanged("business_details")}
+            />
+            {showP2PBefore || showP2PAfter ? (
+              <>
+                <ComparisonFieldRow
+                  label="Name of Platform"
+                  before={b.whyRaisingFunds.platformName}
+                  after={a.whyRaisingFunds.platformName}
+                  changed={isPathChanged("business_details")}
+                />
+                <ComparisonFieldRow
+                  label="Amount Raised"
+                  before={money(vb?.whyRaisingFunds.amountRaised ?? null)}
+                  after={money(va?.whyRaisingFunds.amountRaised ?? null)}
+                  changed={isPathChanged("business_details")}
+                />
+                <ComparisonFieldRow
+                  label="Have the same invoices been used to apply for funding in the aforementioned platform?"
+                  before={yn(vb?.whyRaisingFunds.sameInvoiceUsed ?? null)}
+                  after={yn(va?.whyRaisingFunds.sameInvoiceUsed ?? null)}
+                  changed={isPathChanged("business_details")}
+                />
+              </>
+            ) : null}
+          </div>
+        </ReviewFieldBlock>
+
+        {(b.guarantors.length > 0 || a.guarantors.length > 0) && (
+          <ReviewFieldBlock title="Guarantor details">
+            <div className="space-y-4">
+              {Array.from({
+                length: Math.max(b.guarantors.length, a.guarantors.length),
+              }).map((_, idx) => {
+                const gB = b.guarantors[idx];
+                const gA = a.guarantors[idx];
+                const kind = gB?.kind ?? gA?.kind;
+                const changed =
+                  isPathChanged("business_details") ||
+                  isPathChanged(`business_details.guarantors[${idx}]`);
+                return (
+                  <div
+                    key={idx}
+                    className="rounded-lg border border-border bg-muted/20 p-3 space-y-2"
+                  >
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      Guarantor {idx + 1}
+                      {kind ? ` · ${kind === "individual" ? "Individual" : "Company"}` : ""}
+                    </p>
+                    {kind === "individual" ? (
+                      <div className="space-y-2">
+                        <ComparisonFieldRow
+                          label="First name"
+                          before={gB?.kind === "individual" ? gB.firstName : "—"}
+                          after={gA?.kind === "individual" ? gA.firstName : "—"}
+                          changed={changed}
+                        />
+                        <ComparisonFieldRow
+                          label="Last name"
+                          before={gB?.kind === "individual" ? gB.lastName : "—"}
+                          after={gA?.kind === "individual" ? gA.lastName : "—"}
+                          changed={changed}
+                        />
+                        <ComparisonFieldRow
+                          label="IC number"
+                          before={gB?.kind === "individual" ? gB.icNumber : "—"}
+                          after={gA?.kind === "individual" ? gA.icNumber : "—"}
+                          changed={changed}
+                        />
+                        <ComparisonFieldRow
+                          label="Relationship"
+                          before={gB?.kind === "individual" ? gB.relationshipLabel : "—"}
+                          after={gA?.kind === "individual" ? gA.relationshipLabel : "—"}
+                          changed={changed}
+                        />
+                      </div>
+                    ) : null}
+                    {kind === "company" ? (
+                      <div className="space-y-2">
+                        <ComparisonFieldRow
+                          label="Company name"
+                          before={gB?.kind === "company" ? gB.companyName : "—"}
+                          after={gA?.kind === "company" ? gA.companyName : "—"}
+                          changed={changed}
+                          multiline
+                        />
+                        <ComparisonFieldRow
+                          label="SSM number"
+                          before={gB?.kind === "company" ? gB.ssmNumber : "—"}
+                          after={gA?.kind === "company" ? gA.ssmNumber : "—"}
+                          changed={changed}
+                        />
+                        <ComparisonFieldRow
+                          label="Relationship"
+                          before={gB?.kind === "company" ? gB.relationshipLabel : "—"}
+                          after={gA?.kind === "company" ? gA.relationshipLabel : "—"}
+                          changed={changed}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          </ReviewFieldBlock>
+        )}
+
+        <ReviewFieldBlock title="Declarations">
+          <ComparisonFieldRow
+            label="Issuer declaration confirmed"
+            before={vb?.declarationConfirmed ? "Confirmed" : "Not confirmed"}
+            after={va?.declarationConfirmed ? "Confirmed" : "Not confirmed"}
+            changed={isPathChanged("declarations")}
+          />
+        </ReviewFieldBlock>
+
+        <SectionComments comments={comments} onSubmitComment={onAddComment} />
+      </ReviewSectionCard>
+    );
+  }
+
   const view = parseBusinessDetails(businessDetails);
   const showP2PFields = view?.whyRaisingFunds.raisingOnOtherP2P === true;
   const supportingFiles = view?.whyRaisingFunds.supportingDocuments ?? [];

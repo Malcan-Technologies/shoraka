@@ -83,7 +83,7 @@ function toNum(v: unknown): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
-function parseFinancialStatements(raw: unknown): Record<string, unknown> {
+export function parseFinancialStatements(raw: unknown): Record<string, unknown> {
   if (!raw || typeof raw !== "object") return {};
   const obj = raw as Record<string, unknown>;
   const nested = obj.input as Record<string, unknown> | undefined;
@@ -128,7 +128,7 @@ function financialRecordToInput(fs: Record<string, unknown>): FinancialStatement
   };
 }
 
-interface DirectorShareholderRow {
+export interface DirectorShareholderRow {
   id: string;
   name: string;
   role: string;
@@ -394,7 +394,7 @@ function rowsFromKycOnly(
   return rows;
 }
 
-function extractDirectorShareholders(
+export function extractDirectorShareholders(
   issuerOrg: {
     corporate_entities?: unknown;
     director_kyc_status?: unknown;

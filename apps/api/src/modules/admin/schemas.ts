@@ -379,3 +379,9 @@ export const createCtosSubjectReportSchema = z.object({
 });
 
 export type CreateCtosSubjectReportInput = z.infer<typeof createCtosSubjectReportSchema>;
+
+export const resubmitComparisonQuerySchema = z.object({
+  reviewCycle: z.coerce.number().int().min(2, "reviewCycle must be at least 2"),
+});
+
+export type ResubmitComparisonQuery = z.infer<typeof resubmitComparisonQuerySchema>;

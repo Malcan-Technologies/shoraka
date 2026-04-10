@@ -42,6 +42,7 @@ import {
   addPendingAmendmentSchema,
   updatePendingAmendmentSchema,
   createCtosSubjectReportSchema,
+  resubmitComparisonQuerySchema,
 } from "./schemas";
 import { prisma } from "../../lib/prisma";
 import {
@@ -1989,6 +1990,29 @@ router.get(
       const { id } = req.params;
       const result = await adminService.getApplicationDetail(id);
 
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  "/applications/:id/resubmit-comparison",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    console.log("[admin] resubmit-comparison request", {
+      applicationId: req.params.id,
+      query: req.query,
+    });
+    try {
+      const { id } = req.params;
+      const { reviewCycle } = resubmitComparisonQuerySchema.parse(req.query);
+      const result = await adminService.getResubmitComparisonSnapshots(id, reviewCycle);
       res.json({
         success: true,
         data: result,

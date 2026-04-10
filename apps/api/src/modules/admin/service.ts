@@ -4106,6 +4106,57 @@ export class AdminService {
     };
   }
 
+  /**
+   * Full JSON snapshots for before/after resubmit comparison (admin).
+   * `reviewCycle` is the cycle stored on APPLICATION_RESUBMITTED logs (the new cycle after resubmit).
+   */
+  async getResubmitComparisonSnapshots(applicationId: string, nextReviewCycle: number) {
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: { id: true },
+    });
+    if (!application) {
+      throw new AppError(404, "NOT_FOUND", "Application not found");
+    }
+
+    const prevCycle = nextReviewCycle - 1;
+
+    const [nextRev, prevRev] = await Promise.all([
+      prisma.applicationRevision.findFirst({
+        where: { application_id: applicationId, review_cycle: nextReviewCycle },
+      }),
+      prisma.applicationRevision.findFirst({
+        where: { application_id: applicationId, review_cycle: prevCycle },
+      }),
+    ]);
+
+    if (!nextRev) {
+      throw new AppError(
+        404,
+        "NOT_FOUND",
+        "Revision snapshot not found for this review cycle"
+      );
+    }
+    if (!prevRev) {
+      throw new AppError(404, "NOT_FOUND", "Previous revision snapshot not found");
+    }
+
+    console.log("[admin] getResubmitComparisonSnapshots", {
+      applicationId,
+      previous_review_cycle: prevCycle,
+      next_review_cycle: nextReviewCycle,
+    });
+
+    return {
+      previous_review_cycle: prevCycle,
+      next_review_cycle: nextReviewCycle,
+      previous_snapshot: prevRev.snapshot as Prisma.JsonValue,
+      next_snapshot: nextRev.snapshot as Prisma.JsonValue,
+      previous_submitted_at: prevRev.submitted_at.toISOString(),
+      next_submitted_at: nextRev.submitted_at.toISOString(),
+    };
+  }
+
   private assertSignedOfferLetterS3KeyFromJson(offerSigning: unknown): string {
     if (!offerSigning || typeof offerSigning !== "object" || Array.isArray(offerSigning)) {
       throw new AppError(400, "INVALID_STATE", "No signed offer letter on file");

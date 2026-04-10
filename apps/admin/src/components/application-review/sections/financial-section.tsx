@@ -5,18 +5,21 @@ import { ApplicationFinancialReviewContent } from "@/components/application-fina
 import { ReviewSectionCard } from "../review-section-card";
 import type { ReviewSectionId } from "../section-types";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
+import { ApplicationFinancialReviewComparison } from "@/components/application-financial-review-comparison";
+
+export type FinancialSectionAppSlice = {
+  issuer_organization?: {
+    corporate_entities?: unknown;
+    director_kyc_status?: unknown;
+    director_aml_status?: unknown;
+  } | null;
+  financial_statements?: unknown;
+};
 
 export interface FinancialSectionProps {
   applicationId: string;
   applicationCreatedAt: string;
-  app: {
-    issuer_organization?: {
-      corporate_entities?: unknown;
-      director_kyc_status?: unknown;
-      director_aml_status?: unknown;
-    } | null;
-    financial_statements?: unknown;
-  };
+  app: FinancialSectionAppSlice;
   section: ReviewSectionId;
   isReviewable: boolean;
   approvePending: boolean;
@@ -29,6 +32,11 @@ export interface FinancialSectionProps {
   onRequestAmendment: (section: ReviewSectionId) => void;
   comments: SectionCommentItem[];
   onAddComment?: (comment: string) => Promise<void> | void;
+  sectionComparison?: {
+    beforeApp: FinancialSectionAppSlice;
+    afterApp: FinancialSectionAppSlice;
+    isPathChanged: (path: string) => boolean;
+  };
 }
 
 export function FinancialSection({
@@ -47,7 +55,22 @@ export function FinancialSection({
   onRequestAmendment,
   comments,
   onAddComment,
+  sectionComparison,
 }: FinancialSectionProps) {
+  if (sectionComparison) {
+    console.log("FinancialSection comparison mode");
+    return (
+      <ReviewSectionCard title="Financial" icon={BanknotesIcon} section={section} isReviewable={false}>
+        <ApplicationFinancialReviewComparison
+          beforeApp={sectionComparison.beforeApp}
+          afterApp={sectionComparison.afterApp}
+          isPathChanged={sectionComparison.isPathChanged}
+        />
+        <SectionComments comments={comments} onSubmitComment={onAddComment} />
+      </ReviewSectionCard>
+    );
+  }
+
   return (
     <ReviewSectionCard
       title="Financial"

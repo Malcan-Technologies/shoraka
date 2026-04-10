@@ -34,42 +34,56 @@ export interface PendingAmendmentItem {
   item_id: string | null;
 }
 
+export type ReviewApplicationView = {
+  id?: string;
+  created_at?: string;
+  business_details?: unknown;
+  supporting_documents?: unknown;
+  financing_type?: unknown;
+  financing_structure?: unknown;
+  company_details?: unknown;
+  declarations?: unknown;
+  financial_statements?: unknown;
+  review_and_submit?: unknown;
+  contract?: {
+    contract_details?: unknown;
+    customer_details?: unknown;
+    status?: string;
+    invoices?: { id: string; application_id: string; details?: unknown; status?: string; offer_details?: unknown }[];
+  } | null;
+  invoices?: {
+    id: string;
+    details?: unknown;
+    status?: string;
+    offer_details?: unknown;
+    offer_signing?: unknown;
+    application_id?: string;
+  }[];
+  application_review_items?: unknown;
+  application_review_remarks?: unknown;
+  issuer_organization_id?: string;
+  issuer_organization?: {
+    id?: string;
+    name?: string | null;
+    corporate_entities?: unknown;
+    corporate_onboarding_data?: Record<string, unknown> | null;
+    corporateOnboardingData?: Record<string, unknown> | null;
+    bank_account_details?: Record<string, unknown> | null;
+    bankAccountDetails?: Record<string, unknown> | null;
+    director_kyc_status?: unknown;
+    director_aml_status?: unknown;
+  } | null;
+};
+
+export type SectionContentComparison = {
+  beforeApp: ReviewApplicationView;
+  afterApp: ReviewApplicationView;
+  isPathChanged: (path: string) => boolean;
+};
+
 export interface SectionContentProps {
   descriptor: ReviewTabDescriptor;
-  app: {
-    id?: string;
-    created_at?: string;
-    business_details?: unknown;
-    supporting_documents?: unknown;
-    financing_type?: unknown;
-    financing_structure?: unknown;
-    company_details?: unknown;
-    declarations?: unknown;
-    contract?: {
-      contract_details?: unknown;
-      customer_details?: unknown;
-      status?: string;
-    } | null;
-    invoices?: {
-      id: string;
-      details?: unknown;
-      status?: string;
-      offer_details?: unknown;
-      offer_signing?: unknown;
-    }[];
-    application_review_items?: unknown;
-    application_review_remarks?: unknown;
-    issuer_organization?: {
-      name?: string | null;
-      corporate_entities?: unknown;
-      corporate_onboarding_data?: Record<string, unknown> | null;
-      corporateOnboardingData?: Record<string, unknown> | null;
-      bank_account_details?: Record<string, unknown> | null;
-      bankAccountDetails?: Record<string, unknown> | null;
-      director_kyc_status?: unknown;
-      director_aml_status?: unknown;
-    } | null;
-  };
+  app: ReviewApplicationView;
   isReviewable: boolean;
   approveSectionPending: boolean;
   approveItemPending: boolean;
@@ -114,6 +128,8 @@ export interface SectionContentProps {
   onViewSignedInvoiceOffer?: (signedOfferLetterS3Key: string) => void | Promise<void>;
   onViewSignedContractOffer?: () => void | Promise<void>;
   viewSignedOfferLetterPending?: boolean;
+  /** When set, sections render read-only before/after comparison grids. */
+  sectionComparison?: SectionContentComparison;
 }
 
 /** Renders section content by descriptor. Single place to map descriptor → component. */
@@ -151,6 +167,7 @@ export function SectionContent({
   onViewSignedInvoiceOffer,
   onViewSignedContractOffer,
   viewSignedOfferLetterPending,
+  sectionComparison,
 }: SectionContentProps) {
   const reviewItems =
     (app.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? [];
@@ -183,6 +200,15 @@ export function SectionContent({
           onRequestAmendment={onRequestAmendmentSection}
           comments={sectionComments}
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
+          sectionComparison={
+            sectionComparison
+              ? {
+                  beforeApp: sectionComparison.beforeApp,
+                  afterApp: sectionComparison.afterApp,
+                  isPathChanged: sectionComparison.isPathChanged,
+                }
+              : undefined
+          }
         />
       );
     case "business_details":
@@ -204,6 +230,15 @@ export function SectionContent({
           viewDocumentPending={viewDocumentPending}
           comments={sectionComments}
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
+          sectionComparison={
+            sectionComparison
+              ? {
+                  beforeDetails: sectionComparison.beforeApp.business_details,
+                  afterDetails: sectionComparison.afterApp.business_details,
+                  isPathChanged: sectionComparison.isPathChanged,
+                }
+              : undefined
+          }
         />
       );
     case "company_details":
@@ -222,6 +257,15 @@ export function SectionContent({
           onRequestAmendment={onRequestAmendmentSection}
           comments={sectionComments}
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
+          sectionComparison={
+            sectionComparison
+              ? {
+                  beforeApp: sectionComparison.beforeApp,
+                  afterApp: sectionComparison.afterApp,
+                  isPathChanged: sectionComparison.isPathChanged,
+                }
+              : undefined
+          }
         />
       );
     case "supporting_documents":
@@ -244,6 +288,15 @@ export function SectionContent({
           onResetItemToPending={onResetItemToPending ? (id) => onResetItemToPending(id, "document") : undefined}
           comments={sectionComments}
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
+          sectionComparison={
+            sectionComparison
+              ? {
+                  beforeDocs: sectionComparison.beforeApp.supporting_documents,
+                  afterDocs: sectionComparison.afterApp.supporting_documents,
+                  isPathChanged: sectionComparison.isPathChanged,
+                }
+              : undefined
+          }
         />
       );
     case "contract_details": {
@@ -267,6 +320,15 @@ export function SectionContent({
             viewDocumentPending={viewDocumentPending}
             comments={sectionComments}
             onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
+            sectionComparison={
+              sectionComparison
+                ? {
+                    beforeCustomer: sectionComparison.beforeApp.contract?.customer_details,
+                    afterCustomer: sectionComparison.afterApp.contract?.customer_details,
+                    isPathChanged: sectionComparison.isPathChanged,
+                  }
+                : undefined
+            }
           />
         );
       }
@@ -297,6 +359,25 @@ export function SectionContent({
             (app.contract as { offer_signing?: unknown } | null | undefined)?.offer_signing
           )}
           viewSignedOfferLetterPending={viewSignedOfferLetterPending}
+          sectionComparison={
+            sectionComparison
+              ? {
+                  before: {
+                    contractDetails: sectionComparison.beforeApp.contract?.contract_details,
+                    customerDetails: sectionComparison.beforeApp.contract?.customer_details,
+                    offerDetails: (sectionComparison.beforeApp.contract as { offer_details?: unknown } | null)
+                      ?.offer_details,
+                  },
+                  after: {
+                    contractDetails: sectionComparison.afterApp.contract?.contract_details,
+                    customerDetails: sectionComparison.afterApp.contract?.customer_details,
+                    offerDetails: (sectionComparison.afterApp.contract as { offer_details?: unknown } | null)
+                      ?.offer_details,
+                  },
+                  isPathChanged: sectionComparison.isPathChanged,
+                }
+              : undefined
+          }
         />
       );
     }
@@ -356,6 +437,29 @@ export function SectionContent({
           offerExpiryDays={offerExpiryDays}
           minMonthsReviewToMaturityForOffer={minMonthsReviewToMaturityForOffer}
           onViewSignedInvoiceOffer={onViewSignedInvoiceOffer}
+          sectionComparison={
+            sectionComparison
+              ? (() => {
+                  const bApp = sectionComparison.beforeApp;
+                  const aApp = sectionComparison.afterApp;
+                  const bContract = bApp.contract as typeof contract | null | undefined;
+                  const aContract = aApp.contract as typeof contract | null | undefined;
+                  const bOther =
+                    applicationId && bContract?.invoices?.length
+                      ? bContract.invoices.filter((inv) => inv.application_id !== applicationId)
+                      : [];
+                  const aOther =
+                    applicationId && aContract?.invoices?.length
+                      ? aContract.invoices.filter((inv) => inv.application_id !== applicationId)
+                      : [];
+                  return {
+                    beforeInvoices: [...(bApp.invoices ?? []), ...bOther],
+                    afterInvoices: [...(aApp.invoices ?? []), ...aOther],
+                    isPathChanged: sectionComparison.isPathChanged,
+                  };
+                })()
+              : undefined
+          }
         />
       );
     }

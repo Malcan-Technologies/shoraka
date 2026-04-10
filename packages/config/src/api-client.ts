@@ -383,6 +383,25 @@ export class ApiClient {
     return this.get<any>(`/v1/admin/applications/${id}`);
   }
 
+  async getAdminApplicationResubmitComparison(
+    applicationId: string,
+    reviewCycle: number
+  ): Promise<
+    ApiResponse<{
+      previous_review_cycle: number;
+      next_review_cycle: number;
+      previous_snapshot: unknown;
+      next_snapshot: unknown;
+      previous_submitted_at: string;
+      next_submitted_at: string;
+    }> | ApiError
+  > {
+    const q = new URLSearchParams({ reviewCycle: String(reviewCycle) });
+    return this.get(
+      `/v1/admin/applications/${encodeURIComponent(applicationId)}/resubmit-comparison?${q.toString()}`
+    );
+  }
+
   async listAdminApplicationCtosReports(
     applicationId: string
   ): Promise<ApiResponse<AdminCtosReportListItem[]> | ApiError> {

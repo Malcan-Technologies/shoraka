@@ -17,6 +17,7 @@ import {
   formatFileSize,
 } from "../review-section-styles";
 import type { ReviewSectionId } from "../section-types";
+import { ComparisonFieldRow } from "../comparison-field-row";
 
 interface FileDoc {
   s3_key?: string;
@@ -40,6 +41,11 @@ export interface CustomerSectionProps {
   viewDocumentPending?: boolean;
   comments: SectionCommentItem[];
   onAddComment?: (comment: string) => Promise<void> | void;
+  sectionComparison?: {
+    beforeCustomer: unknown;
+    afterCustomer: unknown;
+    isPathChanged: (path: string) => boolean;
+  };
 }
 
 export function CustomerSection({
@@ -58,7 +64,74 @@ export function CustomerSection({
   viewDocumentPending,
   comments,
   onAddComment,
+  sectionComparison,
 }: CustomerSectionProps) {
+  if (sectionComparison) {
+    console.log("CustomerSection comparison mode");
+    const { beforeCustomer, afterCustomer, isPathChanged } = sectionComparison;
+    const b = beforeCustomer as Record<string, unknown> | null | undefined;
+    const a = afterCustomer as Record<string, unknown> | null | undefined;
+    const yn = (v: unknown) =>
+      v === true ? "Yes" : v === false ? "No" : REVIEW_EMPTY_LABEL;
+    const bDoc = b?.document as FileDoc | undefined;
+    const aDoc = a?.document as FileDoc | undefined;
+    return (
+      <ReviewSectionCard title="Customer" icon={DocumentTextIcon} section={section} isReviewable={false}>
+        <ReviewFieldBlock title="Customer Details">
+          <div className="space-y-2">
+            <ComparisonFieldRow
+              label="Customer Name"
+              before={formatReviewValue(b?.name)}
+              after={formatReviewValue(a?.name)}
+              changed={isPathChanged("contract")}
+            />
+            <ComparisonFieldRow
+              label="Customer Entity Type"
+              before={formatReviewValue(b?.entity_type)}
+              after={formatReviewValue(a?.entity_type)}
+              changed={isPathChanged("contract")}
+            />
+            <ComparisonFieldRow
+              label="Customer SSM Number"
+              before={formatReviewValue(b?.ssm_number)}
+              after={formatReviewValue(a?.ssm_number)}
+              changed={isPathChanged("contract")}
+            />
+            <ComparisonFieldRow
+              label="Customer Country"
+              before={formatReviewValue(b?.country)}
+              after={formatReviewValue(a?.country)}
+              changed={isPathChanged("contract")}
+            />
+            <ComparisonFieldRow
+              label="Is Customer Related to Issuer?"
+              before={yn(b?.is_related_party)}
+              after={yn(a?.is_related_party)}
+              changed={isPathChanged("contract")}
+            />
+          </div>
+        </ReviewFieldBlock>
+        <ReviewFieldBlock title="Evidence">
+          <ComparisonFieldRow
+            label="Customer Consent"
+            before={
+              bDoc?.file_name
+                ? `${bDoc.file_name}${bDoc.file_size ? ` (${formatFileSize(bDoc.file_size)})` : ""}`
+                : REVIEW_EMPTY_LABEL
+            }
+            after={
+              aDoc?.file_name
+                ? `${aDoc.file_name}${aDoc.file_size ? ` (${formatFileSize(aDoc.file_size)})` : ""}`
+                : REVIEW_EMPTY_LABEL
+            }
+            changed={isPathChanged("contract")}
+          />
+        </ReviewFieldBlock>
+        <SectionComments comments={comments} onSubmitComment={onAddComment} />
+      </ReviewSectionCard>
+    );
+  }
+
   const cust = customerDetails as Record<string, unknown> | null | undefined;
   const customerDoc = cust?.document as FileDoc | undefined;
   const hasData = !!cust;
