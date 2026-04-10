@@ -25,16 +25,22 @@ export const reviewValueClass =
 export const reviewValueClassTextArea =
   "min-h-[60px] w-full rounded-lg border border-input bg-muted/50 px-3 py-2 text-sm text-muted-foreground flex items-start";
 
-/** Resubmit comparison value surface — same token as document file chips (border-border/80 bg-muted/35). */
-export const comparisonCellSurfaceClass =
-  "min-h-[40px] w-full rounded-lg border border-border/80 bg-muted/35 px-3 py-2 text-sm break-words flex items-center";
+/**
+ * Resubmit comparison field shell (border/background only).
+ * Before column: add text-muted-foreground. After column: add text-foreground.
+ */
+export const comparisonCellSurfaceShellClass =
+  "min-h-[36px] w-full rounded-lg border border-input bg-muted/50 px-3 py-2 text-sm break-words flex items-center";
 
-export const comparisonCellSurfaceMultilineClass =
-  "min-h-[72px] w-full rounded-lg border border-border/80 bg-muted/35 px-3 py-2 text-sm break-words whitespace-pre-wrap text-foreground";
+export const comparisonCellSurfaceMultilineShellClass =
+  "min-h-[60px] w-full rounded-lg border border-input bg-muted/50 px-3 py-2 text-sm break-words whitespace-pre-wrap flex items-start";
 
-/** File chip row in comparison (icon + text, top-aligned). */
-export const comparisonFileChipRowClass =
-  "flex items-start gap-2 rounded-lg border border-border/80 bg-muted/35 px-3 py-2 text-sm break-words w-full";
+/**
+ * File chip row in comparison — same border/radius/padding/tint as comparisonCellSurfaceShellClass,
+ * with items-start + gap for icon + multi-line filenames. Used everywhere document pairs render (all tabs + supporting docs modal).
+ */
+export const comparisonFileChipRowShellClass =
+  "min-h-[36px] w-full rounded-lg border border-input bg-muted/50 px-3 py-2 text-sm break-words flex items-start gap-2";
 
 /**
  * When earlier ≠ later: Before uses status-rejected (red tint); After uses status-action (yellow–amber).

@@ -28,6 +28,7 @@ import {
   getReviewTabDescriptorsFromWorkflow,
 } from "@/components/application-review/review-registry";
 import { revisionSnapshotToReviewApp } from "@/lib/revision-snapshot-to-review-app";
+import { getSupportingDocumentsStepConfig } from "@/components/application-review/supporting-documents-admin-meta";
 import { buildResubmitChangedPathSet, resubmitPathIsChanged } from "@/lib/resubmit-comparison-paths";
 import type { ResubmitFieldChangeItem } from "@/components/application-revision-diff-panel";
 import { CheckIcon, XMarkIcon } from "@heroicons/react/24/outline";
@@ -59,6 +60,12 @@ export function ResubmitComparisonModal({
     () => getReviewTabDescriptorsFromWorkflow(product?.workflow as unknown[] | undefined),
     [product?.workflow]
   );
+
+  const supportingDocumentsStepConfig = React.useMemo(() => {
+    const cfg = getSupportingDocumentsStepConfig(product?.workflow as unknown[] | undefined);
+    console.log("Resubmit modal supporting documents workflow hints:", cfg ? "found" : "none");
+    return cfg;
+  }, [product?.workflow]);
 
   const changedPaths = React.useMemo(() => buildResubmitChangedPathSet(fieldChanges), [fieldChanges]);
   const isPathChanged = React.useCallback(
@@ -187,6 +194,7 @@ export function ResubmitComparisonModal({
                         onApproveItem={async () => {}}
                         onRejectItem={noop}
                         onRequestAmendmentItem={noop}
+                        supportingDocumentsStepConfig={supportingDocumentsStepConfig}
                       />
                     </ApplicationReviewTabContent>
                   ))}

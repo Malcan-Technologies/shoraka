@@ -26,7 +26,7 @@ import {
   reviewRowGridClass,
   reviewEmptyStateClass,
   REVIEW_EMPTY_LABEL,
-  comparisonCellSurfaceClass,
+  comparisonCellSurfaceShellClass,
   comparisonSurfaceChangedAfterClass,
   comparisonSurfaceChangedBeforeClass,
   comparisonSplitAfterColClass,
@@ -240,12 +240,19 @@ function ComparisonDeclarationRow({
 }) {
   const valuesDiffer = beforeConfirmed !== afterConfirmed;
   const Cell = ({ confirmed, side }: { confirmed: boolean; side: "before" | "after" }) => {
-    const base = comparisonCellSurfaceClass;
+    const shell = comparisonCellSurfaceShellClass;
     const changedHighlight =
       valuesDiffer &&
       (side === "before" ? comparisonSurfaceChangedBeforeClass : comparisonSurfaceChangedAfterClass);
     return (
-      <div className={cn(base, "items-start", changedHighlight)}>
+      <div
+        className={cn(
+          shell,
+          "items-start",
+          side === "before" ? "text-muted-foreground" : "text-foreground",
+          changedHighlight
+        )}
+      >
         <div className="w-full rounded-lg border border-input bg-background p-3">
           <div className="flex items-start gap-3">
             <div
@@ -270,7 +277,14 @@ function ComparisonDeclarationRow({
                 </svg>
               ) : null}
             </div>
-            <span className="text-sm text-foreground">{DECLARATION_TEXT}</span>
+            <span
+              className={cn(
+                "text-sm",
+                side === "before" ? "text-muted-foreground" : "text-foreground"
+              )}
+            >
+              {DECLARATION_TEXT}
+            </span>
           </div>
         </div>
       </div>

@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * SECTION: Maps review tab descriptor to section UI
+ * WHY: Single switch routes financial, documents, contract, etc.
+ * INPUT: descriptor, application view, handlers, optional comparison snapshots
+ * OUTPUT: The correct section component tree
+ * WHERE USED: Admin application detail tabs, resubmit comparison modal
+ */
+
 import {
   resolveApprovedFacility,
   resolveRequestedFacility,
@@ -132,6 +140,8 @@ export interface SectionContentProps {
   sectionComparison?: SectionContentComparison;
   /** When true (e.g. resubmit comparison modal), section comment thread is hidden. */
   hideSectionComments?: boolean;
+  /** supporting_documents workflow config — only applied when sectionComparison is set (resubmit modal). */
+  supportingDocumentsStepConfig?: Record<string, unknown> | null;
 }
 
 /** Renders section content by descriptor. Single place to map descriptor → component. */
@@ -171,6 +181,7 @@ export function SectionContent({
   viewSignedOfferLetterPending,
   sectionComparison,
   hideSectionComments = false,
+  supportingDocumentsStepConfig = null,
 }: SectionContentProps) {
   const reviewItems =
     (app.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? [];
@@ -304,6 +315,9 @@ export function SectionContent({
               : undefined
           }
           hideSectionComments={hideSectionComments}
+          supportingDocumentsStepConfig={
+            sectionComparison ? supportingDocumentsStepConfig ?? null : null
+          }
         />
       );
     case "contract_details": {

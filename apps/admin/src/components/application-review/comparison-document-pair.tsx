@@ -4,8 +4,8 @@
  * SECTION: Before/after file comparison UI
  * WHY: One pattern for supporting docs, consent PDFs, contract uploads, invoice docs, business attachments.
  * INPUT: title, chip lists (s3Key + label), optional path highlight from field_changes
- * OUTPUT: Same chip + two-column layout as supporting-documents comparison
- * WHERE USED: Documents, Customer, Contract, Invoice, Business comparison modes
+ * OUTPUT: Same chip + two-column layout everywhere; changed rows use comparisonSurfaceChanged* like ComparisonFieldRow.
+ * WHERE USED: SupportingDocumentsComparisonLayout; Invoice "Document"; Business supporting docs; Contract / Customer evidence.
  */
 
 import * as React from "react";
@@ -26,8 +26,10 @@ import { SUPPORTING_DOC_CATEGORY_KEYS } from "@/app/settings/products/workflow-b
 import { cn } from "@/lib/utils";
 import {
   reviewEmptyStateClass,
+  reviewLabelClass,
   formatFileSize,
-  comparisonFileChipRowClass,
+  comparisonCellSurfaceShellClass,
+  comparisonFileChipRowShellClass,
   comparisonSurfaceChangedAfterClass,
   comparisonSurfaceChangedBeforeClass,
   comparisonSplitAfterColClass,
@@ -35,6 +37,8 @@ import {
   comparisonSplitRowGridClass,
 } from "./review-section-styles";
 import { buildCategoryGroups, type DocFile } from "./document-list";
+import { SupportingDocRequirementBadges } from "./supporting-doc-requirement-badges";
+import type { SupportingDocRowRequirementMeta } from "./supporting-documents-admin-meta";
 
 export type ComparisonFileChip = {
   s3Key: string;
@@ -53,6 +57,8 @@ export function ComparisonFileChipList({
   files,
   emptyLabel,
   strikeLabels,
+  column = "before",
+  accentChanged = false,
   onViewDocument,
   onDownloadDocument,
   viewDocumentPending,
@@ -61,12 +67,22 @@ export function ComparisonFileChipList({
   emptyLabel: string;
   /** When true, primary line uses strikethrough (e.g. superseded before column). */
   strikeLabels?: boolean;
+  /** Before: muted like retired submission. After: primary text (full contrast). */
+  column?: "before" | "after";
+  /** When lists differ: same ring + tint as comparison fields (before/after surface tokens). */
+  accentChanged?: boolean;
   onViewDocument?: (s3Key: string) => void;
   onDownloadDocument?: (s3Key: string, fileName?: string) => void;
   viewDocumentPending?: boolean;
 }) {
+  const tone = column === "before" ? "text-muted-foreground" : "text-foreground";
+  const changedHighlight =
+    accentChanged &&
+    (column === "before" ? comparisonSurfaceChangedBeforeClass : comparisonSurfaceChangedAfterClass);
   if (files.length === 0) {
-    return <p className="text-sm text-muted-foreground">{emptyLabel}</p>;
+    return (
+      <div className={cn(comparisonCellSurfaceShellClass, tone, changedHighlight)}>{emptyLabel}</div>
+    );
   }
   return (
     <ul className="space-y-2">
@@ -78,7 +94,9 @@ export function ComparisonFileChipList({
           <li
             key={`${f.s3Key}-${idx}`}
             className={cn(
-              comparisonFileChipRowClass,
+              comparisonFileChipRowShellClass,
+              changedHighlight,
+              tone,
               (showView || showDownload) &&
                 "flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
             )}
@@ -88,7 +106,7 @@ export function ComparisonFileChipList({
               <span className="min-w-0 flex-1">
                 <span
                   className={cn(
-                    "block break-all text-sm text-foreground",
+                    "block break-all text-sm",
                     strikeLabels &&
                       "line-through decoration-muted-foreground/80 decoration-1 [text-decoration-skip-ink:none]"
                   )}
@@ -147,6 +165,7 @@ export function ComparisonFileChipList({
 
 export function ComparisonDocumentTitleRow({
   title,
+  requirementMeta,
   beforeFiles,
   afterFiles,
   markChanged,
@@ -155,6 +174,8 @@ export function ComparisonDocumentTitleRow({
   viewDocumentPending,
 }: {
   title: string;
+  /** From product workflow — badge row under title */
+  requirementMeta?: SupportingDocRowRequirementMeta;
   beforeFiles: ComparisonFileChip[];
   afterFiles: ComparisonFileChip[];
   /** Included in aria-label when set or when file lists differ. */
@@ -168,38 +189,40 @@ export function ComparisonDocumentTitleRow({
   const noisy = filesDiffer || !!markChanged;
   /** Only content diff avoids marking every row when a parent path is flagged. */
   const colHighlight = filesDiffer;
+  const ariaTitle = requirementMeta
+    ? `${title}. ${requirementMeta.required ? "Required" : "Optional"}. ${requirementMeta.multiple ? "Multiple files" : "Single file"}.`
+    : title;
   return (
     <div
       className="py-2 space-y-3"
       role="group"
-      aria-label={noisy ? `${title}, files changed` : title}
+      aria-label={noisy ? `${ariaTitle}, files changed` : ariaTitle}
     >
-      <p className="text-sm font-medium text-foreground">{title}</p>
+      <div>
+        <p className={reviewLabelClass}>{title}</p>
+        {requirementMeta ? (
+          <SupportingDocRequirementBadges meta={requirementMeta} size="compact" className="mt-1" />
+        ) : null}
+      </div>
       <div className={comparisonSplitRowGridClass}>
-        <div
-          className={cn(
-            comparisonSplitBeforeColClass,
-            colHighlight && cn(comparisonSurfaceChangedBeforeClass, "rounded-none p-2")
-          )}
-        >
+        <div className={comparisonSplitBeforeColClass}>
           <ComparisonFileChipList
             files={beforeFiles}
             emptyLabel="—"
             strikeLabels={filesDiffer && beforeFiles.length > 0}
+            column="before"
+            accentChanged={colHighlight}
             onViewDocument={onViewDocument}
             onDownloadDocument={onDownloadDocument}
             viewDocumentPending={viewDocumentPending}
           />
         </div>
-        <div
-          className={cn(
-            comparisonSplitAfterColClass,
-            colHighlight && cn(comparisonSurfaceChangedAfterClass, "rounded-none p-2")
-          )}
-        >
+        <div className={comparisonSplitAfterColClass}>
           <ComparisonFileChipList
             files={afterFiles}
             emptyLabel="—"
+            column="after"
+            accentChanged={colHighlight}
             onViewDocument={onViewDocument}
             onDownloadDocument={onDownloadDocument}
             viewDocumentPending={viewDocumentPending}
@@ -249,18 +272,26 @@ function docFilesToChips(files: DocFile[]): ComparisonFileChip[] {
 export function SupportingDocumentsComparisonLayout({
   beforeDocs,
   afterDocs,
+  supportingDocumentsStepConfig,
   onViewDocument,
   onDownloadDocument,
   viewDocumentPending,
 }: {
   beforeDocs: unknown;
   afterDocs: unknown;
+  supportingDocumentsStepConfig?: Record<string, unknown> | null;
   onViewDocument?: (s3Key: string) => void;
   onDownloadDocument?: (s3Key: string, fileName?: string) => void;
   viewDocumentPending?: boolean;
 }) {
-  const beforeGroups = React.useMemo(() => buildCategoryGroups(beforeDocs), [beforeDocs]);
-  const afterGroups = React.useMemo(() => buildCategoryGroups(afterDocs), [afterDocs]);
+  const beforeGroups = React.useMemo(
+    () => buildCategoryGroups(beforeDocs, supportingDocumentsStepConfig),
+    [beforeDocs, supportingDocumentsStepConfig]
+  );
+  const afterGroups = React.useMemo(
+    () => buildCategoryGroups(afterDocs, supportingDocumentsStepConfig),
+    [afterDocs, supportingDocumentsStepConfig]
+  );
   const beforeByKey = React.useMemo(
     () => new Map(beforeGroups.map((g) => [g.categoryKey, g])),
     [beforeGroups]
@@ -312,12 +343,14 @@ export function SupportingDocumentsComparisonLayout({
                     const bi = bItems[i];
                     const ai = aItems[i];
                     const title = bi?.label ?? ai?.label ?? `Document ${i + 1}`;
+                    const requirementMeta = bi?.requirementMeta ?? ai?.requirementMeta;
                     const beforeChips = docFilesToChips(bi?.files ?? []);
                     const afterChips = docFilesToChips(ai?.files ?? []);
                     return (
                       <ComparisonDocumentTitleRow
                         key={`${String(categoryKey)}-${i}-${bi?.key ?? ""}-${ai?.key ?? ""}`}
                         title={title}
+                        requirementMeta={requirementMeta}
                         beforeFiles={beforeChips}
                         afterFiles={afterChips}
                         onViewDocument={onViewDocument}

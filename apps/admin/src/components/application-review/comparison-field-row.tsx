@@ -12,13 +12,14 @@ import { YesNoRadioDisplay } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
 import {
   REVIEW_EMPTY_LABEL,
-  comparisonCellSurfaceClass,
-  comparisonCellSurfaceMultilineClass,
+  comparisonCellSurfaceMultilineShellClass,
+  comparisonCellSurfaceShellClass,
   comparisonSurfaceChangedAfterClass,
   comparisonSurfaceChangedBeforeClass,
   comparisonSplitAfterColClass,
   comparisonSplitBeforeColClass,
   comparisonSplitRowGridClass,
+  reviewLabelClass,
 } from "./review-section-styles";
 
 function valueLooksEmpty(value: string): boolean {
@@ -59,14 +60,21 @@ export function ComparisonYesNoRadioRow({
   const valuesDiffer = beforeValue !== afterValue;
 
   const Cell = ({ value, side }: { value: boolean | null; side: "before" | "after" }) => {
-    const base = comparisonCellSurfaceClass;
+    const shell = comparisonCellSurfaceShellClass;
     const changedHighlight =
       valuesDiffer &&
       (side === "before" ? comparisonSurfaceChangedBeforeClass : comparisonSurfaceChangedAfterClass);
     return (
-      <div className={cn(base, "items-start justify-start", changedHighlight)}>
+      <div
+        className={cn(
+          shell,
+          "items-start justify-start",
+          side === "before" ? "text-muted-foreground" : "text-foreground",
+          changedHighlight
+        )}
+      >
         <span className={yesNoRadioScaleClass}>
-          <YesNoRadioDisplay value={value} />
+          <YesNoRadioDisplay value={value} comparisonMuted={side === "before"} />
         </span>
       </div>
     );
@@ -80,7 +88,7 @@ export function ComparisonYesNoRadioRow({
         valuesDiffer || changed ? `${label}, values differ between revisions` : label
       }
     >
-      <p className="text-sm font-medium text-foreground">{label}</p>
+      <p className={reviewLabelClass}>{label}</p>
       <div className={comparisonSplitRowGridClass}>
         <div className={comparisonSplitBeforeColClass}>
           <Cell value={beforeValue} side="before" />
@@ -109,18 +117,17 @@ export function ComparisonFieldRow({
   const valuesDiffer = normalizedForCompare(before) !== normalizedForCompare(after);
 
   const Cell = ({ value, side }: { value: string; side: "before" | "after" }) => {
-    const muted = valueLooksEmpty(value);
-    const base = multiline ? comparisonCellSurfaceMultilineClass : comparisonCellSurfaceClass;
+    const shell = multiline ? comparisonCellSurfaceMultilineShellClass : comparisonCellSurfaceShellClass;
     const strikeThrough =
       side === "before" && valuesDiffer && !valueLooksEmpty(value);
     const changedHighlight =
       valuesDiffer &&
       (side === "before" ? comparisonSurfaceChangedBeforeClass : comparisonSurfaceChangedAfterClass);
+    const tone = side === "before" ? "text-muted-foreground" : "text-foreground";
     return (
-      <div className={cn(base, changedHighlight)}>
+      <div className={cn(shell, tone, changedHighlight)}>
         <span
           className={cn(
-            muted ? "text-muted-foreground" : "text-foreground",
             strikeThrough &&
               "line-through decoration-muted-foreground/80 decoration-1 [text-decoration-skip-ink:none]"
           )}
@@ -139,7 +146,7 @@ export function ComparisonFieldRow({
         valuesDiffer || changed ? `${label}, values differ between revisions` : label
       }
     >
-      <p className="text-sm font-medium text-foreground">{label}</p>
+      <p className={reviewLabelClass}>{label}</p>
       <div className={comparisonSplitRowGridClass}>
         <div className={comparisonSplitBeforeColClass}>
           <Cell value={before} side="before" />

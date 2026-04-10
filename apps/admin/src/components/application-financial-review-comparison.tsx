@@ -264,6 +264,7 @@ export function ApplicationFinancialReviewComparison({
                       <TableCell
                         className={cn(
                           applicationTableCellClass,
+                          "text-muted-foreground",
                           rowDiffers && cn(comparisonSurfaceChangedBeforeClass, "rounded-none")
                         )}
                       >
@@ -272,6 +273,7 @@ export function ApplicationFinancialReviewComparison({
                       <TableCell
                         className={cn(
                           applicationTableCellClass,
+                          "text-foreground",
                           rowDiffers && cn(comparisonSurfaceChangedAfterClass, "rounded-none")
                         )}
                       >

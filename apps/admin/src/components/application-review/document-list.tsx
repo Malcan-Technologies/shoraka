@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * SECTION: Supporting documents list for admin review
+ * WHY: Group uploads by workflow category; show review actions per document slot.
+ * INPUT: supporting_documents payload; optional workflow step config for requirement hints
+ * OUTPUT: Collapsible categories with file rows and optional captions
+ * WHERE USED: DocumentsSection, SupportingDocumentsComparisonLayout (via buildCategoryGroups)
+ */
+
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +34,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { formatFileSize } from "./review-section-styles";
+import {
+  supportingDocRowRequirementMeta,
+  type SupportingDocRowRequirementMeta,
+} from "./supporting-documents-admin-meta";
+import { SupportingDocRequirementBadges } from "./supporting-doc-requirement-badges";
 
 function formattedFileSize(row: Record<string, unknown> | undefined): string | undefined {
   if (!row) return undefined;
@@ -41,11 +54,16 @@ export type DocItem = {
   s3Key?: string;
   downloadFileName?: string;
   files: DocFile[];
+  /** From product workflow — shown as badges */
+  requirementMeta?: SupportingDocRowRequirementMeta;
 };
 export type CategoryGroup = { categoryKey: string; categoryLabel: string; items: DocItem[] };
 
 /** Same grouping as the live review document list (categories + item keys). */
-export function buildCategoryGroups(documents: unknown): CategoryGroup[] {
+export function buildCategoryGroups(
+  documents: unknown,
+  supportingDocumentsStepConfig?: Record<string, unknown> | null
+): CategoryGroup[] {
   if (typeof documents !== "object") return [];
   const raw = (documents as Record<string, unknown>)?.supporting_documents ?? documents;
   if (Array.isArray(raw)) {
@@ -53,7 +71,7 @@ export function buildCategoryGroups(documents: unknown): CategoryGroup[] {
       const file = d?.file as { s3_key?: string } | undefined;
       const name = String(d?.name ?? d?.title ?? "document");
       const slug = name.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
-      return {
+      const base: DocItem = {
         key: `supporting_documents:others:${i}:${slug}`,
         label: name || `Document ${i + 1}`,
         s3Key: file?.s3_key ?? (d?.s3_key as string | undefined),
@@ -73,6 +91,8 @@ export function buildCategoryGroups(documents: unknown): CategoryGroup[] {
               ]
             : [],
       };
+      const meta = supportingDocRowRequirementMeta(supportingDocumentsStepConfig, "others", i);
+      return meta ? { ...base, requirementMeta: meta } : base;
     });
     return items.length > 0 ? [{ categoryKey: "others", categoryLabel: "Others", items }] : [];
   }
@@ -121,7 +141,7 @@ export function buildCategoryGroups(documents: unknown): CategoryGroup[] {
         const labelWithCount =
           fileCount > 1 ? `${label} (${fileCount} files)` : label;
         const slug = label.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
-        return {
+        const base: DocItem = {
           key: `supporting_documents:${categoryKey}:${docIndex}:${slug}`,
           label: labelWithCount,
           s3Key: file?.s3_key ?? (d?.s3_key as string | undefined),
@@ -131,6 +151,12 @@ export function buildCategoryGroups(documents: unknown): CategoryGroup[] {
               : undefined,
           files: viewFiles,
         };
+        const meta = supportingDocRowRequirementMeta(
+          supportingDocumentsStepConfig,
+          categoryKey,
+          docIndex
+        );
+        return meta ? { ...base, requirementMeta: meta } : base;
       });
       if (items.length > 0) {
         groups.push({ categoryKey, categoryLabel, items });
@@ -153,7 +179,7 @@ export function buildCategoryGroups(documents: unknown): CategoryGroup[] {
       } | undefined;
       const name = String(d?.name ?? d?.title ?? "doc");
       const slug = name.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
-      return {
+      const base: DocItem = {
         key: `supporting_documents:${categoryKey}:${i}:${slug}`,
         label: name || `${categoryKey} ${i + 1}`,
         s3Key: file?.s3_key ?? (d?.s3_key as string | undefined),
@@ -171,6 +197,8 @@ export function buildCategoryGroups(documents: unknown): CategoryGroup[] {
               ]
             : [],
       };
+      const meta = supportingDocRowRequirementMeta(supportingDocumentsStepConfig, categoryKey, i);
+      return meta ? { ...base, requirementMeta: meta } : base;
     });
     if (items.length > 0) {
       groups.push({
@@ -199,6 +227,8 @@ export interface DocumentListProps {
   actionLockTooltip?: string;
   /** When any document was rejected, hide approve/reject/amendment on all rows (reset still allowed where applicable). */
   lockItemPrimaryReviewActions?: boolean;
+  /** Product supporting_documents step config (for Required/Optional + Single/Multiple hints). */
+  supportingDocumentsStepConfig?: Record<string, unknown> | null;
 }
 
 export function DocumentList({
@@ -216,8 +246,12 @@ export function DocumentList({
   isActionLocked,
   actionLockTooltip,
   lockItemPrimaryReviewActions = false,
+  supportingDocumentsStepConfig = null,
 }: DocumentListProps) {
-  const categoryGroups = React.useMemo(() => buildCategoryGroups(documents), [documents]);
+  const categoryGroups = React.useMemo(
+    () => buildCategoryGroups(documents, supportingDocumentsStepConfig),
+    [documents, supportingDocumentsStepConfig]
+  );
 
   const getItemStatus = (key: string) => {
     return reviewItems.find((r) => r.item_id === key)?.status ?? "PENDING";
@@ -249,7 +283,7 @@ export function DocumentList({
             </CollapsibleTrigger>
             <CollapsibleContent>
               <div className="border-t pl-12 pr-4 py-3 space-y-3">
-                {items.map(({ key, label, s3Key, downloadFileName, files }) => {
+                {items.map(({ key, label, s3Key, downloadFileName, files, requirementMeta }) => {
                   const status = getItemStatus(key);
                   const canViewSingle = Boolean(s3Key && onViewDocument);
                   const canViewMultiple = Boolean(onViewDocument && files.length > 1);
@@ -262,6 +296,9 @@ export function DocumentList({
                     >
                       <div className="min-w-0 flex-1">
                         <span className="text-sm text-foreground">{label}</span>
+                        {requirementMeta ? (
+                          <SupportingDocRequirementBadges meta={requirementMeta} />
+                        ) : null}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         {status !== "PENDING" && (

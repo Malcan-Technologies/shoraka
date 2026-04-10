@@ -126,6 +126,11 @@ export interface DocumentsSectionProps {
     isPathChanged: (path: string) => boolean;
   };
   hideSectionComments?: boolean;
+  /**
+   * Product supporting_documents step config — used only in sectionComparison (resubmit modal).
+   * Live review list intentionally does not show workflow requirement badges.
+   */
+  supportingDocumentsStepConfig?: Record<string, unknown> | null;
 }
 
 export function DocumentsSection({
@@ -148,6 +153,7 @@ export function DocumentsSection({
   onAddComment,
   sectionComparison,
   hideSectionComments = false,
+  supportingDocumentsStepConfig = null,
 }: DocumentsSectionProps) {
   if (sectionComparison) {
     const { beforeDocs, afterDocs } = sectionComparison;
@@ -163,6 +169,7 @@ export function DocumentsSection({
           <SupportingDocumentsComparisonLayout
             beforeDocs={beforeDocs}
             afterDocs={afterDocs}
+            supportingDocumentsStepConfig={supportingDocumentsStepConfig}
             onViewDocument={onViewDocument}
             onDownloadDocument={onDownloadDocument}
             viewDocumentPending={viewDocumentPending}
