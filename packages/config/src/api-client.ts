@@ -394,6 +394,13 @@ export class ApiClient {
       next_snapshot: unknown;
       previous_submitted_at: string;
       next_submitted_at: string;
+      amendment_remarks?: Array<{
+        scope: string;
+        scope_key: string;
+        remark: string;
+        author_user_id: string;
+        submitted_at: string | null;
+      }>;
     }> | ApiError
   > {
     const q = new URLSearchParams({ reviewCycle: String(reviewCycle) });

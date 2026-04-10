@@ -22,6 +22,8 @@ import {
   DocumentTextIcon,
 } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { AmendmentRemarkReadbackPanel } from "@/components/amendment-remark-readback";
 import { SUPPORTING_DOC_CATEGORY_KEYS } from "@/app/settings/products/workflow-builder/product-form-helpers";
 import { cn } from "@/lib/utils";
 import {
@@ -39,6 +41,7 @@ import {
 import { buildCategoryGroups, type DocFile } from "./document-list";
 import { SupportingDocRequirementBadges } from "./supporting-doc-requirement-badges";
 import type { SupportingDocRowRequirementMeta } from "./supporting-documents-admin-meta";
+import { documentAmendmentScopeMatchesRow } from "@/lib/document-amendment-scope-match";
 
 export type ComparisonFileChip = {
   s3Key: string;
@@ -169,6 +172,7 @@ export function ComparisonDocumentTitleRow({
   beforeFiles,
   afterFiles,
   markChanged,
+  amendmentNotes,
   onViewDocument,
   onDownloadDocument,
   viewDocumentPending,
@@ -180,6 +184,8 @@ export function ComparisonDocumentTitleRow({
   afterFiles: ComparisonFileChip[];
   /** Included in aria-label when set or when file lists differ. */
   markChanged?: boolean;
+  /** Per-document REQUEST_AMENDMENT text (resubmit comparison). */
+  amendmentNotes?: Array<{ remark: string }>;
   onViewDocument?: (s3Key: string) => void;
   onDownloadDocument?: (s3Key: string, fileName?: string) => void;
   viewDocumentPending?: boolean;
@@ -192,16 +198,47 @@ export function ComparisonDocumentTitleRow({
   const ariaTitle = requirementMeta
     ? `${title}. ${requirementMeta.required ? "Required" : "Optional"}. ${requirementMeta.multiple ? "Multiple files" : "Single file"}.`
     : title;
+  const hasAmendmentNotes = amendmentNotes != null && amendmentNotes.length > 0;
+  const remarkTextsForIssuerPanel = React.useMemo(
+    () => (amendmentNotes ?? []).map((n) => n.remark),
+    [amendmentNotes]
+  );
+
   return (
     <div
       className="py-2 space-y-3"
       role="group"
       aria-label={noisy ? `${ariaTitle}, files changed` : ariaTitle}
     >
-      <div>
-        <p className={reviewLabelClass}>{title}</p>
-        {requirementMeta ? (
-          <SupportingDocRequirementBadges meta={requirementMeta} size="compact" className="mt-1" />
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className={reviewLabelClass}>{title}</p>
+          {requirementMeta ? (
+            <SupportingDocRequirementBadges meta={requirementMeta} size="compact" className="mt-1" />
+          ) : null}
+        </div>
+        {hasAmendmentNotes ? (
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 shrink-0 px-2 text-xs"
+                aria-label={`Remark for ${title}`}
+              >
+                Remark
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="w-[min(22rem,calc(100vw-2rem))] max-h-[min(26rem,75vh)] overflow-y-auto border-border p-3"
+              align="end"
+              side="bottom"
+              sideOffset={8}
+            >
+              <AmendmentRemarkReadbackPanel remarkTexts={remarkTextsForIssuerPanel} />
+            </PopoverContent>
+          </Popover>
         ) : null}
       </div>
       <div className={comparisonSplitRowGridClass}>
@@ -273,6 +310,7 @@ export function SupportingDocumentsComparisonLayout({
   beforeDocs,
   afterDocs,
   supportingDocumentsStepConfig,
+  amendmentRemarks,
   onViewDocument,
   onDownloadDocument,
   viewDocumentPending,
@@ -280,6 +318,8 @@ export function SupportingDocumentsComparisonLayout({
   beforeDocs: unknown;
   afterDocs: unknown;
   supportingDocumentsStepConfig?: Record<string, unknown> | null;
+  /** Item-level supporting_documents amendment text, matched to each row by scope_key. */
+  amendmentRemarks?: Array<{ scope: string; scope_key: string; remark: string }>;
   onViewDocument?: (s3Key: string) => void;
   onDownloadDocument?: (s3Key: string, fileName?: string) => void;
   viewDocumentPending?: boolean;
@@ -346,6 +386,14 @@ export function SupportingDocumentsComparisonLayout({
                     const requirementMeta = bi?.requirementMeta ?? ai?.requirementMeta;
                     const beforeChips = docFilesToChips(bi?.files ?? []);
                     const afterChips = docFilesToChips(ai?.files ?? []);
+                    const docKey = bi?.key ?? ai?.key ?? "";
+                    const rowAmendmentNotes =
+                      amendmentRemarks?.filter(
+                        (r) =>
+                          r.scope === "item" &&
+                          r.scope_key.startsWith("supporting_documents:") &&
+                          documentAmendmentScopeMatchesRow(r.scope_key, docKey)
+                      ).map((r) => ({ remark: r.remark })) ?? [];
                     return (
                       <ComparisonDocumentTitleRow
                         key={`${String(categoryKey)}-${i}-${bi?.key ?? ""}-${ai?.key ?? ""}`}
@@ -353,6 +401,7 @@ export function SupportingDocumentsComparisonLayout({
                         requirementMeta={requirementMeta}
                         beforeFiles={beforeChips}
                         afterFiles={afterChips}
+                        amendmentNotes={rowAmendmentNotes.length > 0 ? rowAmendmentNotes : undefined}
                         onViewDocument={onViewDocument}
                         onDownloadDocument={onDownloadDocument}
                         viewDocumentPending={viewDocumentPending}

@@ -29,6 +29,7 @@ import {
   type ReviewSectionId,
 } from "@/components/application-review/review-registry";
 import { revisionSnapshotToReviewApp } from "@/lib/revision-snapshot-to-review-app";
+import { ResubmitTabAmendmentNotesBar } from "@/components/resubmit-tab-amendment-notes";
 import { getSupportingDocumentsStepConfig } from "@/components/application-review/supporting-documents-admin-meta";
 import {
   buildResubmitChangedPathSet,
@@ -108,6 +109,8 @@ export function ResubmitComparisonModal({
 
   const noopAsync = React.useCallback(async () => {}, []);
   const noop = React.useCallback(() => {}, []);
+
+  const amendmentRemarks = data?.amendment_remarks;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -193,6 +196,10 @@ export function ResubmitComparisonModal({
                 >
                   {tabDescriptors.map((descriptor) => (
                     <ApplicationReviewTabContent key={descriptor.id} value={descriptor.id}>
+                      <ResubmitTabAmendmentNotesBar
+                        reviewSection={descriptor.reviewSection}
+                        remarks={amendmentRemarks}
+                      />
                       <SectionContent
                         descriptor={descriptor}
                         app={afterApp}
@@ -201,6 +208,7 @@ export function ResubmitComparisonModal({
                           afterApp,
                           isPathChanged,
                         }}
+                        resubmitAmendmentRemarks={amendmentRemarks}
                         hideSectionComments
                         isReviewable={false}
                         approveSectionPending={false}

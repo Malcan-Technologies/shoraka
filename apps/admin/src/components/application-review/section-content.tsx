@@ -142,6 +142,8 @@ export interface SectionContentProps {
   hideSectionComments?: boolean;
   /** supporting_documents workflow config — only applied when sectionComparison is set (resubmit modal). */
   supportingDocumentsStepConfig?: Record<string, unknown> | null;
+  /** Stored amendment remarks for resubmit comparison (modal only). */
+  resubmitAmendmentRemarks?: Array<{ scope: string; scope_key: string; remark: string }>;
 }
 
 /** Renders section content by descriptor. Single place to map descriptor → component. */
@@ -182,6 +184,7 @@ export function SectionContent({
   sectionComparison,
   hideSectionComments = false,
   supportingDocumentsStepConfig = null,
+  resubmitAmendmentRemarks,
 }: SectionContentProps) {
   const reviewItems =
     (app.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? [];
@@ -311,6 +314,7 @@ export function SectionContent({
                   beforeDocs: sectionComparison.beforeApp.supporting_documents,
                   afterDocs: sectionComparison.afterApp.supporting_documents,
                   isPathChanged: sectionComparison.isPathChanged,
+                  amendmentRemarks: resubmitAmendmentRemarks,
                 }
               : undefined
           }

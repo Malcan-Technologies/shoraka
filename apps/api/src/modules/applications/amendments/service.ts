@@ -243,6 +243,13 @@ export async function resubmitApplication(
 
   const logMetadata: Record<string, unknown> = {
     portal: "ISSUER",
+    amendment_remarks: remarks.map((r) => ({
+      scope: r.scope,
+      scope_key: r.scope_key,
+      remark: r.remark,
+      author_user_id: r.author_user_id,
+      submitted_at: r.submitted_at?.toISOString() ?? null,
+    })),
   };
   if (resubmitChangeSummary) {
     logMetadata.resubmit_changes = {

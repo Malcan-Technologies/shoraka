@@ -124,6 +124,7 @@ export interface DocumentsSectionProps {
     beforeDocs: unknown;
     afterDocs: unknown;
     isPathChanged: (path: string) => boolean;
+    amendmentRemarks?: Array<{ scope: string; scope_key: string; remark: string }>;
   };
   hideSectionComments?: boolean;
   /**
@@ -156,7 +157,7 @@ export function DocumentsSection({
   supportingDocumentsStepConfig = null,
 }: DocumentsSectionProps) {
   if (sectionComparison) {
-    const { beforeDocs, afterDocs } = sectionComparison;
+    const { beforeDocs, afterDocs, amendmentRemarks } = sectionComparison;
     return (
       <Card className="rounded-2xl">
         <CardHeader className="pb-3">
@@ -170,6 +171,7 @@ export function DocumentsSection({
             beforeDocs={beforeDocs}
             afterDocs={afterDocs}
             supportingDocumentsStepConfig={supportingDocumentsStepConfig}
+            amendmentRemarks={amendmentRemarks}
             onViewDocument={onViewDocument}
             onDownloadDocument={onDownloadDocument}
             viewDocumentPending={viewDocumentPending}

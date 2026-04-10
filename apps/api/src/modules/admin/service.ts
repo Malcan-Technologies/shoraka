@@ -78,6 +78,18 @@ import { computeSupportingDocumentsSectionStatus } from "../applications/support
 import { computeInvoiceDetailsSectionStatus } from "../applications/invoice-details-section-status";
 import { assertMaturityForSendInvoiceOffer } from "../products/validate-financial-config";
 
+type ResubmitComparisonAmendmentRemark = {
+  scope: string;
+  scope_key: string;
+  remark: string;
+  author_user_id: string;
+  submitted_at: string | null;
+};
+
+function isPlainObjectRecord(v: unknown): v is Record<string, unknown> {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
 export class AdminService {
   private repository: AdminRepository;
   private regTankRepository: RegTankRepository;
@@ -4147,6 +4159,43 @@ export class AdminService {
       next_review_cycle: nextReviewCycle,
     });
 
+    const resubmitLog = await prisma.applicationLog.findFirst({
+      where: {
+        application_id: applicationId,
+        event_type: "APPLICATION_RESUBMITTED",
+        review_cycle: nextReviewCycle,
+      },
+      orderBy: { created_at: "desc" },
+      select: { metadata: true },
+    });
+
+    const meta = resubmitLog?.metadata;
+    let amendment_remarks: ResubmitComparisonAmendmentRemark[] | undefined;
+    if (isPlainObjectRecord(meta)) {
+      const raw = meta.amendment_remarks;
+      if (Array.isArray(raw)) {
+        const parsed: ResubmitComparisonAmendmentRemark[] = [];
+        for (const item of raw) {
+          if (!isPlainObjectRecord(item)) continue;
+          const remark = typeof item.remark === "string" ? item.remark : "";
+          if (remark.length === 0) continue;
+          parsed.push({
+            scope: typeof item.scope === "string" ? item.scope : "",
+            scope_key: typeof item.scope_key === "string" ? item.scope_key : "",
+            remark,
+            author_user_id: typeof item.author_user_id === "string" ? item.author_user_id : "",
+            submitted_at:
+              item.submitted_at === null
+                ? null
+                : typeof item.submitted_at === "string"
+                  ? item.submitted_at
+                  : null,
+          });
+        }
+        amendment_remarks = parsed.length > 0 ? parsed : undefined;
+      }
+    }
+
     return {
       previous_review_cycle: prevCycle,
       next_review_cycle: nextReviewCycle,
@@ -4154,6 +4203,7 @@ export class AdminService {
       next_snapshot: nextRev.snapshot as Prisma.JsonValue,
       previous_submitted_at: prevRev.submitted_at.toISOString(),
       next_submitted_at: nextRev.submitted_at.toISOString(),
+      amendment_remarks,
     };
   }
 
