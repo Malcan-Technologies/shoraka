@@ -32,6 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 import {
   applicationTableHeaderBgClass,
   applicationTableHeaderClass,
@@ -234,8 +235,8 @@ export function ApplicationFinancialReviewComparison({
               <TableHeader className={applicationTableHeaderBgClass}>
                 <TableRow className="hover:bg-transparent border-b border-border">
                   <TableHead className={applicationTableHeaderClass}>Role / name</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>Earlier</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>Later</TableHead>
+                  <TableHead className={applicationTableHeaderClass}>Before</TableHead>
+                  <TableHead className={applicationTableHeaderClass}>After</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -246,20 +247,25 @@ export function ApplicationFinancialReviewComparison({
                     isPathChanged("issuer_organization") ||
                     (br && isPathChanged(`issuer_organization.corporate_entities.directors[${i}]`)) ||
                     (ar && isPathChanged(`issuer_organization.corporate_entities.directors[${i}]`));
+                  const bText = br ? directorSummary(br) : "—";
+                  const aText = ar ? directorSummary(ar) : "—";
+                  const rowDiffers = bText !== aText;
                   return (
-                    <TableRow key={i} className={applicationTableRowClass}>
+                    <TableRow
+                      key={i}
+                      className={cn(
+                        applicationTableRowClass,
+                        rowDiffers && "bg-accent/[0.1] ring-1 ring-accent/30 ring-inset"
+                      )}
+                    >
                       <TableCell className={`${applicationTableCellClass} font-medium`}>
                         {`Row ${i + 1}`}
-                        {changed ? (
+                        {(changed || rowDiffers) ? (
                           <span className="ml-2 text-xs text-muted-foreground font-normal">Changed</span>
                         ) : null}
                       </TableCell>
-                      <TableCell className={applicationTableCellClass}>
-                        {br ? directorSummary(br) : "—"}
-                      </TableCell>
-                      <TableCell className={applicationTableCellClass}>
-                        {ar ? directorSummary(ar) : "—"}
-                      </TableCell>
+                      <TableCell className={applicationTableCellClass}>{bText}</TableCell>
+                      <TableCell className={applicationTableCellClass}>{aText}</TableCell>
                     </TableRow>
                   );
                 })}

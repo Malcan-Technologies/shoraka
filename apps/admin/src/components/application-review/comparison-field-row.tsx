@@ -2,24 +2,27 @@
 
 /**
  * SECTION: Question-style field in resubmit comparison
- * WHY: Same two-column grid and value surface as document comparison; column meaning is explained once in the modal.
+ * WHY: Two-column grid with optional change highlight when values differ.
  * INPUT: label, before/after strings, multiline flag
- * OUTPUT: Label on top, two columns, muted rounded cell per value
+ * OUTPUT: Label on top, earlier/later cells; ring + tint when content differs
  * WHERE USED: All section comparison modes that use text fields
  */
 
+import { cn } from "@/lib/utils";
 import {
   REVIEW_EMPTY_LABEL,
   comparisonCellSurfaceClass,
   comparisonCellSurfaceMultilineClass,
+  comparisonSurfaceChangedClass,
 } from "./review-section-styles";
 
 function valueLooksEmpty(value: string): boolean {
-  return (
-    value === REVIEW_EMPTY_LABEL ||
-    value === "—" ||
-    value.trim() === ""
-  );
+  return value === REVIEW_EMPTY_LABEL || value === "—" || value.trim() === "";
+}
+
+function normalizedForCompare(value: string): string {
+  if (valueLooksEmpty(value)) return "";
+  return value.trim();
 }
 
 export function ComparisonFieldRow({
@@ -35,17 +38,13 @@ export function ComparisonFieldRow({
   changed: boolean;
   multiline?: boolean;
 }) {
+  const valuesDiffer = normalizedForCompare(before) !== normalizedForCompare(after);
+
   const Cell = ({ value }: { value: string }) => {
     const muted = valueLooksEmpty(value);
-    if (multiline) {
-      return (
-        <div className={comparisonCellSurfaceMultilineClass}>
-          <span className={muted ? "text-muted-foreground" : undefined}>{value}</span>
-        </div>
-      );
-    }
+    const base = multiline ? comparisonCellSurfaceMultilineClass : comparisonCellSurfaceClass;
     return (
-      <div className={comparisonCellSurfaceClass}>
+      <div className={cn(base, valuesDiffer && comparisonSurfaceChangedClass)}>
         <span className={muted ? "text-muted-foreground" : "text-foreground"}>{value}</span>
       </div>
     );
@@ -55,7 +54,9 @@ export function ComparisonFieldRow({
     <div
       className="py-2 space-y-3"
       role="row"
-      aria-label={changed ? `${label}, highlighted in change list` : label}
+      aria-label={
+        valuesDiffer || changed ? `${label}, values differ between revisions` : label
+      }
     >
       <p className="text-sm font-medium text-foreground">{label}</p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-0">

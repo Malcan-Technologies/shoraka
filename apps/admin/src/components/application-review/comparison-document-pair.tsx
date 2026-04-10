@@ -20,7 +20,13 @@ import {
   DocumentTextIcon,
 } from "@heroicons/react/24/outline";
 import { SUPPORTING_DOC_CATEGORY_KEYS } from "@/app/settings/products/workflow-builder/product-form-helpers";
-import { reviewEmptyStateClass, formatFileSize, comparisonFileChipRowClass } from "./review-section-styles";
+import { cn } from "@/lib/utils";
+import {
+  reviewEmptyStateClass,
+  formatFileSize,
+  comparisonFileChipRowClass,
+  comparisonSurfaceChangedClass,
+} from "./review-section-styles";
 import { buildCategoryGroups, type DocFile } from "./document-list";
 
 export type ComparisonFileChip = {
@@ -78,6 +84,8 @@ export function ComparisonDocumentTitleRow({
   const filesDiffer =
     comparisonFileChipsSignature(beforeFiles) !== comparisonFileChipsSignature(afterFiles);
   const noisy = filesDiffer || !!markChanged;
+  /** Only content diff avoids marking every row when a parent path is flagged. */
+  const colHighlight = filesDiffer;
   return (
     <div
       className="py-2 space-y-3"
@@ -86,10 +94,20 @@ export function ComparisonDocumentTitleRow({
     >
       <p className="text-sm font-medium text-foreground">{title}</p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-0">
-        <div className="md:pr-4 md:border-r md:border-border min-w-0">
+        <div
+          className={cn(
+            "md:pr-4 md:border-r md:border-border min-w-0 rounded-lg",
+            colHighlight && cn(comparisonSurfaceChangedClass, "p-2")
+          )}
+        >
           <ComparisonFileChipList files={beforeFiles} emptyLabel="—" />
         </div>
-        <div className="md:pl-4 min-w-0 pt-4 md:pt-0">
+        <div
+          className={cn(
+            "md:pl-4 min-w-0 pt-4 md:pt-0 rounded-lg",
+            colHighlight && cn(comparisonSurfaceChangedClass, "p-2")
+          )}
+        >
           <ComparisonFileChipList files={afterFiles} emptyLabel="—" />
         </div>
       </div>

@@ -104,6 +104,26 @@ export function ResubmitComparisonModal({
           </DialogDescription>
         </DialogHeader>
 
+        {!isLoading && !isError && beforeApp && afterApp && tabDescriptors.length > 0 ? (
+          <div
+            className="shrink-0 grid grid-cols-2 gap-0 border-b border-border bg-muted/25 px-6 py-2.5 text-center sm:text-start"
+            role="presentation"
+          >
+            <div className="min-w-0 pr-2 text-xs font-semibold uppercase tracking-wide text-foreground sm:border-r sm:border-border/80 sm:pr-4">
+              Before
+              <span className="mt-0.5 block text-[11px] font-normal normal-case text-muted-foreground">
+                Earlier snapshot
+              </span>
+            </div>
+            <div className="min-w-0 pl-2 sm:pl-4 text-xs font-semibold uppercase tracking-wide text-foreground">
+              After
+              <span className="mt-0.5 block text-[11px] font-normal normal-case text-muted-foreground">
+                Later snapshot
+              </span>
+            </div>
+          </div>
+        ) : null}
+
         <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 pt-4">
           {isLoading && (
             <div className="space-y-4">

@@ -36,6 +36,9 @@ export const comparisonCellSurfaceMultilineClass =
 export const comparisonFileChipRowClass =
   "flex items-start gap-2 rounded-lg border border-border/80 bg-muted/35 px-3 py-2 text-sm break-words w-full";
 
+/** When earlier ≠ later in resubmit comparison (subtle ring + tint). */
+export const comparisonSurfaceChangedClass = "ring-2 ring-accent/45 bg-accent/[0.12]";
+
 /** Row grid: items-center so label vertically aligns with input center (h-11). Matches application flow gap-x-6 gap-y-4. */
 const ROW_GRID_BASE =
   "grid grid-cols-1 sm:grid-cols-[220px_1fr] gap-x-6 gap-y-4 mt-4 w-full items-center";
