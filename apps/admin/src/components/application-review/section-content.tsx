@@ -203,7 +203,6 @@ export function SectionContent({
       return (
         <FinancialSection
           applicationId={app.id ?? ""}
-          applicationCreatedAt={app.created_at ?? new Date().toISOString()}
           app={app}
           section={section}
           isReviewable={isReviewable}

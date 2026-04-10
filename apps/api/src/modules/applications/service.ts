@@ -12,6 +12,7 @@ import {
   UpdateApplicationStepInput,
   businessDetailsDataSchema,
   financialStatementsInputSchema,
+  financialStatementsV2Schema,
 } from "./schemas";
 import { AppError } from "../../lib/http/error-handler";
 import { Application, Prisma, ApplicationStatus as DbApplicationStatus, ProductStatus } from "@prisma/client";
@@ -41,7 +42,13 @@ import {
   type InvoiceOfferDetails,
 } from "./offer-letter-pdf";
 import { computeContractFacilitySnapshot } from "../../lib/contract-facility";
-import { ApplicationStatus, ContractStatus, InvoiceStatus, WithdrawReason } from "@cashsouk/types";
+import {
+  ApplicationStatus,
+  ContractStatus,
+  InvoiceStatus,
+  WithdrawReason,
+  getExpectedUnauditedYearsFromQuestionnaire,
+} from "@cashsouk/types";
 import { computeApplicationStatus } from "./lifecycle";
 import * as crypto from "crypto";
 import type { Readable } from "stream";
@@ -121,6 +128,104 @@ function mergeOfferSigningSigned(
     signed_offer_letter_s3_key: signedOfferLetterS3Key,
     signed_file_sha256: signedFileSha256,
     completed_at: nowIso,
+  } as Prisma.InputJsonValue;
+}
+
+function financialToNum(v: unknown): number {
+  if (typeof v === "number" && !Number.isNaN(v)) return v;
+  const n = Number(String(v).replace(/,/g, ""));
+  return Number.isNaN(n) ? 0 : n;
+}
+
+function parseBsddDateFinancial(s: string): Date | null {
+  if (!s?.trim()) return null;
+  const t = s.trim();
+  let year: number;
+  let month: number;
+  let day: number;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
+    year = parseInt(t.slice(0, 4), 10);
+    month = parseInt(t.slice(5, 7), 10) - 1;
+    day = parseInt(t.slice(8, 10), 10);
+  } else {
+    const parts = t.split("/");
+    if (parts.length !== 3) return null;
+    day = parseInt(parts[0], 10);
+    month = parseInt(parts[1], 10) - 1;
+    year = parseInt(parts[2], 10);
+  }
+  if (Number.isNaN(day) || Number.isNaN(month) || Number.isNaN(year) || month < 0 || month > 11) return null;
+  const d = new Date(year, month, day);
+  if (d.getFullYear() !== year || d.getMonth() !== month || d.getDate() !== day) return null;
+  return d;
+}
+
+/** Business rules shared by legacy flat and v2 per-year blocks. */
+function validateFinancialYearBlockOrThrow(raw: {
+  pldd?: string;
+  bsdd?: string;
+  bsfatot?: unknown;
+  othass?: unknown;
+  bscatot?: unknown;
+  bsclbank?: unknown;
+  curlib?: unknown;
+  bsslltd?: unknown;
+  bsclstd?: unknown;
+  bsqpuc?: unknown;
+  turnover?: unknown;
+  plnpbt?: unknown;
+  plnpat?: unknown;
+  plnetdiv?: unknown;
+  plyear?: unknown;
+}): void {
+  const nonNegativeFields: { key: keyof typeof raw; label: string }[] = [
+    { key: "turnover", label: "Turnover" },
+    { key: "bsfatot", label: "Fixed assets" },
+    { key: "othass", label: "Other assets" },
+    { key: "bscatot", label: "Current assets" },
+    { key: "bsclbank", label: "Non-current assets" },
+    { key: "curlib", label: "Current liability" },
+    { key: "bsslltd", label: "Long-term liability" },
+    { key: "bsclstd", label: "Non-current liability" },
+    { key: "bsqpuc", label: "Paid-up capital" },
+    { key: "plnetdiv", label: "Net dividend" },
+  ];
+  for (const { key, label } of nonNegativeFields) {
+    const val = financialToNum(raw[key]);
+    if (val < 0) {
+      throw new AppError(400, "VALIDATION_ERROR", `${label} cannot be negative`);
+    }
+  }
+
+  const bsddDate = parseBsddDateFinancial(String(raw.bsdd ?? ""));
+  if (bsddDate) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (bsddDate > today) {
+      throw new AppError(400, "VALIDATION_ERROR", "Financial data date cannot be in the future.");
+    }
+  }
+}
+
+function normalizeFinancialYearBlock(
+  raw: Record<string, unknown>
+): Prisma.InputJsonValue {
+  return {
+    pldd: String(raw.pldd ?? ""),
+    bsdd: String(raw.bsdd ?? ""),
+    bsfatot: financialToNum(raw.bsfatot),
+    othass: financialToNum(raw.othass),
+    bscatot: financialToNum(raw.bscatot),
+    bsclbank: financialToNum(raw.bsclbank),
+    curlib: financialToNum(raw.curlib),
+    bsslltd: financialToNum(raw.bsslltd),
+    bsclstd: financialToNum(raw.bsclstd),
+    bsqpuc: financialToNum(raw.bsqpuc),
+    turnover: financialToNum(raw.turnover),
+    plnpbt: financialToNum(raw.plnpbt),
+    plnpat: financialToNum(raw.plnpat),
+    plnetdiv: financialToNum(raw.plnetdiv),
+    plyear: financialToNum(raw.plyear),
   } as Prisma.InputJsonValue;
 }
 
@@ -619,87 +724,58 @@ export class ApplicationService {
     }
 
     if (fieldName === "financial_statements") {
-      const result = financialStatementsInputSchema.safeParse(input.data);
-      if (!result.success) {
-        const message = result.error.errors.map((e) => e.message).join("; ");
-        throw new AppError(400, "VALIDATION_ERROR", message);
-      }
-      const raw = result.data;
-      const toNum = (v: unknown) => {
-        if (typeof v === "number" && !Number.isNaN(v)) return v;
-        const n = Number(String(v).replace(/,/g, ""));
-        return Number.isNaN(n) ? 0 : n;
-      };
+      const payload = input.data as Record<string, unknown>;
+      const isV2 =
+        payload &&
+        typeof payload === "object" &&
+        payload.questionnaire != null &&
+        typeof payload.questionnaire === "object";
 
-      const nonNegativeFields: { key: keyof typeof raw; label: string }[] = [
-        { key: "turnover", label: "Turnover" },
-        { key: "bsfatot", label: "Fixed assets" },
-        { key: "othass", label: "Other assets" },
-        { key: "bscatot", label: "Current assets" },
-        { key: "bsclbank", label: "Non-current assets" },
-        { key: "curlib", label: "Current liability" },
-        { key: "bsslltd", label: "Long-term liability" },
-        { key: "bsclstd", label: "Non-current liability" },
-        { key: "bsqpuc", label: "Paid-up capital" },
-        { key: "plnetdiv", label: "Net dividend" },
-      ];
-      for (const { key, label } of nonNegativeFields) {
-        const val = toNum(raw[key]);
-        if (val < 0) {
-          throw new AppError(400, "VALIDATION_ERROR", `${label} cannot be negative`);
+      if (isV2) {
+        const v2 = financialStatementsV2Schema.safeParse(payload);
+        if (!v2.success) {
+          const message = v2.error.errors.map((e) => e.message).join("; ");
+          throw new AppError(400, "VALIDATION_ERROR", message);
         }
-      }
-
-      /** Parse bsdd date string (ISO yyyy-MM-dd or d/M/yyyy) to local midnight Date or null. */
-      const parseBsddDate = (s: string): Date | null => {
-        if (!s?.trim()) return null;
-        const t = s.trim();
-        let year: number;
-        let month: number;
-        let day: number;
-        if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
-          year = parseInt(t.slice(0, 4), 10);
-          month = parseInt(t.slice(5, 7), 10) - 1;
-          day = parseInt(t.slice(8, 10), 10);
-        } else {
-          const parts = t.split("/");
-          if (parts.length !== 3) return null;
-          day = parseInt(parts[0], 10);
-          month = parseInt(parts[1], 10) - 1;
-          year = parseInt(parts[2], 10);
+        const { questionnaire, unaudited_by_year } = v2.data;
+        const expectedYears = getExpectedUnauditedYearsFromQuestionnaire(questionnaire);
+        const actualKeys = Object.keys(unaudited_by_year).sort();
+        const expectedStr = expectedYears.map((y) => String(y)).sort();
+        if (actualKeys.length !== expectedStr.length || actualKeys.some((k, i) => k !== expectedStr[i])) {
+          throw new AppError(
+            400,
+            "VALIDATION_ERROR",
+            `Unaudited years must match questionnaire: expected ${expectedStr.join(", ") || "(none)"}`
+          );
         }
-        if (Number.isNaN(day) || Number.isNaN(month) || Number.isNaN(year) || month < 0 || month > 11) return null;
-        const d = new Date(year, month, day);
-        if (d.getFullYear() !== year || d.getMonth() !== month || d.getDate() !== day) return null;
-        return d;
-      };
 
-      const bsddDate = parseBsddDate(String(raw.bsdd ?? ""));
-      if (bsddDate) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        if (bsddDate > today) {
-          throw new AppError(400, "VALIDATION_ERROR", "Financial data date cannot be in the future.");
+        const normalizedByYear: Record<string, Prisma.InputJsonValue> = {};
+        for (const y of expectedYears) {
+          const key = String(y);
+          const blockResult = financialStatementsInputSchema.safeParse(unaudited_by_year[key]);
+          if (!blockResult.success) {
+            const message = blockResult.error.errors.map((e) => e.message).join("; ");
+            throw new AppError(400, "VALIDATION_ERROR", `${key}: ${message}`);
+          }
+          const block = { ...blockResult.data, pldd: String(y) };
+          validateFinancialYearBlockOrThrow(block);
+          normalizedByYear[key] = normalizeFinancialYearBlock(block as Record<string, unknown>);
         }
-      }
 
-      dataToStore = {
-        pldd: String(raw.pldd ?? ""),
-        bsdd: String(raw.bsdd ?? ""),
-        bsfatot: toNum(raw.bsfatot),
-        othass: toNum(raw.othass),
-        bscatot: toNum(raw.bscatot),
-        bsclbank: toNum(raw.bsclbank),
-        curlib: toNum(raw.curlib),
-        bsslltd: toNum(raw.bsslltd),
-        bsclstd: toNum(raw.bsclstd),
-        bsqpuc: toNum(raw.bsqpuc),
-        turnover: toNum(raw.turnover),
-        plnpbt: toNum(raw.plnpbt),
-        plnpat: toNum(raw.plnpat),
-        plnetdiv: toNum(raw.plnetdiv),
-        plyear: toNum(raw.plyear),
-      } as Prisma.InputJsonValue;
+        dataToStore = {
+          questionnaire,
+          unaudited_by_year: normalizedByYear,
+        } as Prisma.InputJsonValue;
+      } else {
+        const result = financialStatementsInputSchema.safeParse(input.data);
+        if (!result.success) {
+          const message = result.error.errors.map((e) => e.message).join("; ");
+          throw new AppError(400, "VALIDATION_ERROR", message);
+        }
+        const raw = result.data;
+        validateFinancialYearBlockOrThrow(raw);
+        dataToStore = normalizeFinancialYearBlock(raw as Record<string, unknown>);
+      }
     }
 
     /** financing_type stores only product_id; product_version lives in application.product_version column. */

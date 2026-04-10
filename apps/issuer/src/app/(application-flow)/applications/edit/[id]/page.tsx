@@ -1075,6 +1075,9 @@ function EditApplicationPageBody() {
               // stored directly on the `supporting_documents` column. Avoid wrapping
               // it a second time (which caused `supporting_documents.supporting_documents`).
               dataToSave = returnedData as Record<string, unknown>;
+            } else if (currentStepKey === "financial_statements") {
+              console.log("Saving financial step: using payload from saveFunction only");
+              dataToSave = returnedData as Record<string, unknown>;
             } else if (
               currentStepKey === "invoice_details" &&
               (returnedData as Record<string, unknown>)?.supporting_documents

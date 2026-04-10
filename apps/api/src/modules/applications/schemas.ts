@@ -131,6 +131,20 @@ export const financialStatementsInputSchema = z.object({
 
 export type FinancialStatementsStoredData = z.infer<typeof financialStatementsInputSchema>;
 
+/** Q1–Q3 before per-year grids; Y = financial_year_end_year; Q3 = data for next FY after Y. */
+export const financialStatementsQuestionnaireSchema = z.object({
+  financial_year_end_year: z.number().int().min(1900).max(2100),
+  latest_year_submitted: z.boolean(),
+  has_next_financial_year_data: z.boolean(),
+});
+
+export const financialStatementsV2Schema = z.object({
+  questionnaire: financialStatementsQuestionnaireSchema,
+  unaudited_by_year: z.record(z.string(), financialStatementsInputSchema),
+});
+
+export type FinancialStatementsV2Stored = z.infer<typeof financialStatementsV2Schema>;
+
 export type CreateApplicationInput = z.infer<typeof createApplicationSchema>;
 export type UpdateApplicationStepInput = z.infer<typeof updateApplicationStepSchema>;
 export type BusinessDetailsData = z.infer<typeof businessDetailsDataSchema>;

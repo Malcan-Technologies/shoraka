@@ -34,8 +34,9 @@ import {
 import { MoneyInput } from "@cashsouk/ui";
 import { parseMoney, formatMoney } from "@cashsouk/ui";
 import { FinancialStatementsSkeleton } from "@/app/(application-flow)/applications/components/financial-statements-skeleton";
-import { FINANCIAL_FIELD_LABELS } from "@cashsouk/types";
+import { FINANCIAL_FIELD_LABELS, getExpectedUnauditedYearsFromQuestionnaire } from "@cashsouk/types";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
 import { parse, isValid as isValidDate, startOfDay, format, subMonths } from "date-fns";
 import { toast } from "sonner";
@@ -229,6 +230,37 @@ function toApiPayload(form: FinancialStatementsPayload): Record<string, unknown>
   return out;
 }
 
+/** Stored v2 shape matches API / DB */
+export type FinancialQuestionnaire = {
+  financial_year_end_year: number;
+  latest_year_submitted: boolean;
+  has_next_financial_year_data: boolean;
+};
+
+function isV2FinancialSaved(saved: unknown): saved is {
+  questionnaire: FinancialQuestionnaire;
+  unaudited_by_year: Record<string, Record<string, unknown>>;
+} {
+  if (!saved || typeof saved !== "object") return false;
+  const o = saved as Record<string, unknown>;
+  return (
+    o.questionnaire != null &&
+    typeof o.questionnaire === "object" &&
+    o.unaudited_by_year != null &&
+    typeof o.unaudited_by_year === "object" &&
+    !Array.isArray(o.unaudited_by_year)
+  );
+}
+
+function legacyHasAnyInput(data: FinancialStatementsPayload): boolean {
+  const keys = Object.keys(DEFAULT_PAYLOAD) as (keyof FinancialStatementsPayload)[];
+  for (const k of keys) {
+    if (k === "pldd" && normalizePlddFromSaved(data.pldd)) return true;
+    if (k !== "pldd" && String(data[k] ?? "").trim() !== "") return true;
+  }
+  return false;
+}
+
 /* ================================================================
    LAYOUT & STYLING
    ================================================================ */
@@ -238,8 +270,115 @@ const labelClassName = cn(formLabelClassName, "font-normal");
 const inputClassName = formInputClassName;
 const rowGridClassName =
   "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-8 mt-5 w-full max-w-[1200px] items-start px-3";
+/** Right column for yes/no rows — matches business-details-step (radios align with multi-line labels). */
+const radioGridControlClassName = "self-center w-full min-w-0";
 const sectionWrapperClassName = "w-full max-w-[1200px]";
 const formOuterClassName = "w-full max-w-[1200px] flex flex-col gap-12 md:gap-14 px-3";
+
+/* ================================================================
+   CUSTOM RADIO (same pattern as business-details-step)
+   ================================================================ */
+
+const radioSelectedLabel = formLabelClassName;
+const radioUnselectedLabel = formLabelClassName.replace(
+  "text-foreground",
+  "text-muted-foreground"
+);
+
+function FinancialCustomRadio({
+  name,
+  value,
+  checked,
+  onChange,
+  label,
+  disabled,
+}: {
+  name: string;
+  value: string;
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+  disabled?: boolean;
+}) {
+  return (
+    <label className={cn("flex items-center gap-2", disabled ? "cursor-not-allowed" : "cursor-pointer")}>
+      <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
+        <input
+          type="radio"
+          name={name}
+          value={value}
+          checked={checked}
+          onChange={onChange}
+          disabled={disabled}
+          className="sr-only"
+          aria-hidden
+        />
+        <span
+          className={cn(
+            "pointer-events-none relative block h-5 w-5 shrink-0 rounded-full",
+            checked
+              ? disabled
+                ? "bg-muted border-2 border-muted-foreground/50"
+                : "bg-primary"
+              : "border-2 border-muted-foreground/50 bg-muted/30"
+          )}
+          aria-hidden
+        >
+          {checked && (
+            <span
+              className={cn(
+                "absolute inset-1 rounded-full",
+                disabled ? "bg-muted-foreground/60" : "bg-white"
+              )}
+              aria-hidden
+            />
+          )}
+          {!checked && (
+            <span className="absolute inset-1.5 rounded-full bg-muted-foreground/40" aria-hidden />
+          )}
+        </span>
+      </span>
+      <span className={checked ? radioSelectedLabel : radioUnselectedLabel}>{label}</span>
+    </label>
+  );
+}
+
+type YesNoChoice = "yes" | "no" | "";
+
+function FinancialYesNoRadioGroup({
+  name,
+  value,
+  onValueChange,
+  disabled,
+  "aria-label": ariaLabel,
+}: {
+  name: string;
+  value: YesNoChoice;
+  onValueChange: (v: "yes" | "no") => void;
+  disabled?: boolean;
+  "aria-label": string;
+}) {
+  return (
+    <div className="flex flex-wrap gap-6 items-center" role="radiogroup" aria-label={ariaLabel}>
+      <FinancialCustomRadio
+        name={name}
+        value="yes"
+        checked={value === "yes"}
+        onChange={() => !disabled && onValueChange("yes")}
+        label="Yes"
+        disabled={disabled}
+      />
+      <FinancialCustomRadio
+        name={name}
+        value="no"
+        checked={value === "no"}
+        onChange={() => !disabled && onValueChange("no")}
+        label="No"
+        disabled={disabled}
+      />
+    </div>
+  );
+}
 
 /* ================================================================
    MONEY FIELD ROW
@@ -334,6 +473,88 @@ interface FinancialStatementsStepProps {
   readOnly?: boolean;
 }
 
+function emptyQuestionnaireBlock(yearKey: string): FinancialStatementsPayload {
+  return { ...DEFAULT_PAYLOAD, pldd: yearKey };
+}
+
+function buildV2ApiPayload(
+  q: FinancialQuestionnaire,
+  forms: Record<string, FinancialStatementsPayload>
+): { questionnaire: FinancialQuestionnaire; unaudited_by_year: Record<string, Record<string, unknown>> } {
+  const expected = getExpectedUnauditedYearsFromQuestionnaire(q);
+  const unaudited_by_year: Record<string, Record<string, unknown>> = {};
+  for (const y of expected) {
+    const k = String(y);
+    const form = forms[k] ?? emptyQuestionnaireBlock(k);
+    unaudited_by_year[k] = toApiPayload({ ...form, pldd: k });
+  }
+  return { questionnaire: q, unaudited_by_year };
+}
+
+function parseDateLocal(s: string): Date | null {
+  if (!s?.trim()) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const d = new Date(s);
+    return isValidDate(d) ? d : null;
+  }
+  try {
+    const parsed = parse(s, "d/M/yyyy", new Date());
+    return isValidDate(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function yearFormIsValid(form: FinancialStatementsPayload): boolean {
+  const moneyFields: (keyof FinancialStatementsPayload)[] = [
+    "bsfatot",
+    "othass",
+    "bscatot",
+    "bsclbank",
+    "curlib",
+    "bsslltd",
+    "bsclstd",
+    "bsqpuc",
+    "turnover",
+    "plnpbt",
+    "plnpat",
+    "plnetdiv",
+    "plyear",
+  ];
+  const hasValue = (v: unknown) => String(v ?? "").trim() !== "";
+  if (!hasValue(form.pldd) || !isValidFinancialYear(form.pldd ?? "")) return false;
+  if (!hasValue(form.bsdd)) return false;
+  const d = parseDateLocal(form.bsdd ?? "");
+  if (d && startOfDay(d) > startOfDay(new Date())) return false;
+  if (!moneyFields.every((k) => hasValue(form[k]))) return false;
+  if (parseMoney(form.turnover ?? "") < 0) return false;
+  return true;
+}
+
+function yearFormValidForButton(form: FinancialStatementsPayload): boolean {
+  const moneyFields: (keyof FinancialStatementsPayload)[] = [
+    "bsfatot",
+    "othass",
+    "bscatot",
+    "bsclbank",
+    "curlib",
+    "bsslltd",
+    "bsclstd",
+    "bsqpuc",
+    "turnover",
+    "plnpbt",
+    "plnpat",
+    "plnetdiv",
+    "plyear",
+  ];
+  const hasValue = (v: unknown) => String(v ?? "").trim() !== "";
+  if (!hasValue(form.pldd) || !isValidFinancialYear(form.pldd ?? "")) return false;
+  if (!hasValue(form.bsdd)) return false;
+  if (!moneyFields.every((k) => hasValue(form[k]))) return false;
+  if (parseMoney(form.turnover ?? "") < 0) return false;
+  return true;
+}
+
 export function FinancialStatementsStep({
   applicationId,
   onDataChange,
@@ -341,7 +562,11 @@ export function FinancialStatementsStep({
 }: FinancialStatementsStepProps) {
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   const devTools = useDevTools();
-  const [form, setForm] = React.useState<FinancialStatementsPayload>(DEFAULT_PAYLOAD);
+
+  const [fyeInput, setFyeInput] = React.useState("");
+  const [qSubmitted, setQSubmitted] = React.useState<boolean | null>(null);
+  const [qNextYear, setQNextYear] = React.useState<boolean | null>(null);
+  const [formsByYear, setFormsByYear] = React.useState<Record<string, FinancialStatementsPayload>>({});
   const [isInitialized, setIsInitialized] = React.useState(false);
   const [hasSubmitted, setHasSubmitted] = React.useState(false);
   const initialPayloadRef = React.useRef<string>("");
@@ -354,120 +579,376 @@ export function FinancialStatementsStep({
   React.useEffect(() => {
     if (application === undefined || isInitialized) return;
     const saved = (application as unknown as Record<string, unknown>)?.financial_statements;
-    const initial = fromSaved(saved);
-    setForm(initial);
-    initialPayloadRef.current = JSON.stringify(toApiPayload(initial));
+
+    if (isV2FinancialSaved(saved)) {
+      const q = saved.questionnaire;
+      setFyeInput(String(q.financial_year_end_year));
+      setQSubmitted(q.latest_year_submitted);
+      setQNextYear(q.has_next_financial_year_data);
+      const map: Record<string, FinancialStatementsPayload> = {};
+      for (const [k, v] of Object.entries(saved.unaudited_by_year)) {
+        map[k] = fromSaved(v);
+        map[k].pldd = k;
+      }
+      setFormsByYear(map);
+      const built = buildV2ApiPayload(q, map);
+      initialPayloadRef.current = JSON.stringify(built);
+      console.log("Financial step loaded v2; years in payload:", Object.keys(saved.unaudited_by_year));
+    } else {
+      const flat = fromSaved(saved);
+      if (legacyHasAnyInput(flat) && normalizePlddFromSaved(flat.pldd)) {
+        const y = normalizePlddFromSaved(flat.pldd);
+        setFyeInput(y);
+        setQSubmitted(false);
+        setQNextYear(false);
+        setFormsByYear({ [y]: { ...flat, pldd: y } });
+        const qLegacy: FinancialQuestionnaire = {
+          financial_year_end_year: parseInt(y, 10),
+          latest_year_submitted: false,
+          has_next_financial_year_data: false,
+        };
+        initialPayloadRef.current = JSON.stringify(buildV2ApiPayload(qLegacy, { [y]: { ...flat, pldd: y } }));
+        console.log("Financial step loaded legacy flat as single year:", y);
+      } else {
+        initialPayloadRef.current = JSON.stringify({
+          questionnaire: {
+            financial_year_end_year: 0,
+            latest_year_submitted: false,
+            has_next_financial_year_data: false,
+          },
+          unaudited_by_year: {},
+        });
+        console.log("Financial step empty — start questionnaire");
+      }
+    }
     setIsInitialized(true);
   }, [application, isInitialized]);
 
-  /** Apply dev-tools Auto Fill when requested (single step or Fill Entire Application). */
+  const questionnaireDto = React.useMemo((): FinancialQuestionnaire | null => {
+    if (!isValidFinancialYear(fyeInput)) return null;
+    if (qSubmitted === null || qNextYear === null) return null;
+    return {
+      financial_year_end_year: parseInt(fyeInput, 10),
+      latest_year_submitted: qSubmitted,
+      has_next_financial_year_data: qNextYear,
+    };
+  }, [fyeInput, qSubmitted, qNextYear]);
+
+  const yearsToShow = React.useMemo(() => {
+    if (!questionnaireDto) return [] as number[];
+    const years = getExpectedUnauditedYearsFromQuestionnaire(questionnaireDto);
+    console.log("Years to show on issuer form:", years);
+    return years;
+  }, [questionnaireDto]);
+
+  React.useEffect(() => {
+    if (yearsToShow.length === 0) return;
+    setFormsByYear((prev) => {
+      const next = { ...prev };
+      for (const y of yearsToShow) {
+        const k = String(y);
+        if (!next[k]) next[k] = emptyQuestionnaireBlock(k);
+        else next[k] = { ...next[k], pldd: k };
+      }
+      for (const key of Object.keys(next)) {
+        if (!yearsToShow.includes(parseInt(key, 10))) delete next[key];
+      }
+      return next;
+    });
+  }, [yearsToShow]);
+
   React.useEffect(() => {
     const raw =
       devTools?.autoFillData?.stepKey === "financial_statements"
         ? devTools.autoFillData.data
         : devTools?.autoFillDataMap?.["financial_statements"];
     if (!raw) return;
-    const data = raw as Partial<FinancialStatementsPayload>;
-    const merged = { ...DEFAULT_PAYLOAD };
+    const mock = raw as Partial<FinancialStatementsPayload> & Record<string, unknown>;
+    const yStr =
+      mock.pldd != null && String(mock.pldd).trim()
+        ? normalizePlddFromSaved(mock.pldd)
+        : String(subMonths(new Date(), 6).getFullYear());
+    const merged: FinancialStatementsPayload = { ...DEFAULT_PAYLOAD, pldd: yStr };
     for (const k of Object.keys(DEFAULT_PAYLOAD) as (keyof FinancialStatementsPayload)[]) {
-      if (data[k] !== undefined && data[k] !== null) {
-        (merged as Record<string, unknown>)[k] = String(data[k]);
+      if (mock[k] !== undefined && mock[k] !== null) {
+        (merged as unknown as Record<string, unknown>)[k] = String(mock[k]);
       }
     }
-    setForm(merged);
+    setFyeInput(yStr);
+    setQSubmitted(false);
+    setQNextYear(false);
+    setFormsByYear({ [yStr]: merged });
     if (devTools) {
       if (devTools.autoFillData?.stepKey === "financial_statements") devTools.clearAutoFill();
       else devTools.clearAutoFillForStep("financial_statements");
     }
+    console.log("Financial dev auto-fill applied for year:", yStr);
   }, [devTools]);
 
-  const handleFieldChange = React.useCallback(
-    (field: keyof FinancialStatementsPayload, value: string) => {
-      setForm((prev) => ({ ...prev, [field]: value }));
-    },
-    []
-  );
-
-  const apiPayload = React.useMemo(() => toApiPayload(form), [form]);
+  const buildV2ApiPayloadInner = React.useCallback(() => {
+    if (!questionnaireDto) {
+      throw new Error("INVALID_QUESTIONNAIRE");
+    }
+    return buildV2ApiPayload(questionnaireDto, formsByYear);
+  }, [questionnaireDto, formsByYear]);
 
   const hasPendingChanges = React.useMemo(() => {
     if (!isInitialized) return false;
-    return JSON.stringify(apiPayload) !== initialPayloadRef.current;
-  }, [apiPayload, isInitialized]);
-
-  const hasValue = (v: unknown) => String(v ?? "").trim() !== "";
-
-  /** Parse date string (ISO or d/M/yyyy) to Date or null. */
-  const parseDate = (s: string): Date | null => {
-    if (!s?.trim()) return null;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-      const d = new Date(s);
-      return isValidDate(d) ? d : null;
-    }
+    type InitialPayloadShape = {
+      questionnaire?: FinancialQuestionnaire;
+      unaudited_by_year?: Record<string, unknown>;
+    };
+    let initialParsed: InitialPayloadShape | null = null;
     try {
-      const parsed = parse(s, "d/M/yyyy", new Date());
-      return isValidDate(parsed) ? parsed : null;
+      initialParsed = JSON.parse(initialPayloadRef.current) as InitialPayloadShape;
     } catch {
-      return null;
+      initialParsed = null;
     }
-  };
 
-  /** bsdd cannot be in the future. */
-  const bsddIsFuture = React.useMemo(() => {
-    const d = parseDate(form.bsdd ?? "");
-    if (!d) return false;
-    return startOfDay(d) > startOfDay(new Date());
-  }, [form.bsdd]);
+    if (!questionnaireDto) {
+      const initQ = initialParsed?.questionnaire;
+      const initHasRealQ =
+        initQ != null &&
+        typeof initQ.financial_year_end_year === "number" &&
+        initQ.financial_year_end_year > 0 &&
+        typeof initQ.latest_year_submitted === "boolean" &&
+        typeof initQ.has_next_financial_year_data === "boolean";
 
-  /** Full validation: all fields, financial year four digits, turnover >= 0, bsdd not in future. Used by saveFunction. */
-  const isValid = React.useMemo(() => {
-    const moneyFields: (keyof FinancialStatementsPayload)[] = [
-      "bsfatot", "othass", "bscatot", "bsclbank", "curlib", "bsslltd", "bsclstd", "bsqpuc",
-      "turnover", "plnpbt", "plnpat", "plnetdiv", "plyear",
-    ];
-    if (!hasValue(form.pldd) || !isValidFinancialYear(form.pldd ?? "")) return false;
-    if (!hasValue(form.bsdd)) return false;
-    if (bsddIsFuture) return false;
-    if (!moneyFields.every((k) => hasValue(form[k]))) return false;
-    const turnoverNum = parseMoney(form.turnover ?? "");
-    if (turnoverNum < 0) return false;
-    return true;
-  }, [form, bsddIsFuture]);
+      if (!initHasRealQ) {
+        const touched =
+          fyeInput.trim() !== "" || qSubmitted !== null || qNextYear !== null;
+        console.log("Financial step pending (questionnaire draft):", touched);
+        return touched;
+      }
 
-  /** For Save button: exclude bsdd future check so user can click Save and see validation error. */
-  const isValidForButton = React.useMemo(() => {
-    const moneyFields: (keyof FinancialStatementsPayload)[] = [
-      "bsfatot", "othass", "bscatot", "bsclbank", "curlib", "bsslltd", "bsclstd", "bsqpuc",
-      "turnover", "plnpbt", "plnpat", "plnetdiv", "plyear",
-    ];
-    if (!hasValue(form.pldd) || !isValidFinancialYear(form.pldd ?? "")) return false;
-    if (!hasValue(form.bsdd)) return false;
-    if (!moneyFields.every((k) => hasValue(form[k]))) return false;
-    const turnoverNum = parseMoney(form.turnover ?? "");
-    if (turnoverNum < 0) return false;
-    return true;
-  }, [form]);
+      const same =
+        isValidFinancialYear(fyeInput) &&
+        parseInt(fyeInput, 10) === initQ.financial_year_end_year &&
+        qSubmitted === initQ.latest_year_submitted &&
+        qNextYear === initQ.has_next_financial_year_data;
+      const pending = !same;
+      console.log("Financial step pending (questionnaire vs loaded):", pending);
+      return pending;
+    }
 
-  /** Runs when parent calls save on Save and Continue. Sets hasSubmitted and throws if invalid. */
+    try {
+      const now = JSON.stringify(buildV2ApiPayloadInner());
+      const pendingFull = now !== initialPayloadRef.current;
+      console.log("Financial step pending (v2 payload):", pendingFull);
+      return pendingFull;
+    } catch {
+      return true;
+    }
+  }, [
+    isInitialized,
+    questionnaireDto,
+    buildV2ApiPayloadInner,
+    fyeInput,
+    qSubmitted,
+    qNextYear,
+  ]);
+
+  const caseCInfoOnly = Boolean(questionnaireDto && yearsToShow.length === 0);
+
+  const allYearFormsValid = React.useMemo(() => {
+    if (yearsToShow.length === 0) return true;
+    return yearsToShow.every((y) => yearFormIsValid(formsByYear[String(y)] ?? emptyQuestionnaireBlock(String(y))));
+  }, [yearsToShow, formsByYear]);
+
+  const allYearFormsButtonOk = React.useMemo(() => {
+    if (yearsToShow.length === 0) return true;
+    return yearsToShow.every((y) =>
+      yearFormValidForButton(formsByYear[String(y)] ?? emptyQuestionnaireBlock(String(y)))
+    );
+  }, [yearsToShow, formsByYear]);
+
+  const questionsAnswered =
+    isValidFinancialYear(fyeInput) && qSubmitted !== null && qNextYear !== null;
+
+  const isValidForButton = caseCInfoOnly
+    ? questionsAnswered
+    : questionsAnswered && allYearFormsButtonOk;
+
   const saveFunction = React.useCallback(async () => {
     setHasSubmitted(true);
-    if (!isValid) {
+    if (!questionnaireDto) {
+      toast.error("Please answer all three questions, including a valid 4-digit latest financial year");
+      throw new Error("VALIDATION_REQUIRED");
+    }
+    if (caseCInfoOnly) {
+      const payload = {
+        questionnaire: questionnaireDto,
+        unaudited_by_year: {} as Record<string, Record<string, unknown>>,
+      };
+      console.log("Saving financial Case C (no unaudited rows):", payload.questionnaire);
+      return payload;
+    }
+    if (!allYearFormsValid) {
       toast.error("Please fix the highlighted fields");
       throw new Error("VALIDATION_REQUIRED");
     }
-  }, [isValid]);
+    const payload = buildV2ApiPayload(questionnaireDto, formsByYear);
+    console.log("Saving financial v2 payload keys:", Object.keys(payload.unaudited_by_year));
+    return payload;
+  }, [questionnaireDto, caseCInfoOnly, allYearFormsValid, formsByYear]);
 
   React.useEffect(() => {
     if (!onDataChangeRef.current || !isInitialized) return;
     onDataChangeRef.current({
-      ...apiPayload,
       hasPendingChanges,
       isValid: isValidForButton,
       saveFunction,
     });
-  }, [apiPayload, hasPendingChanges, isValidForButton, isInitialized, saveFunction]);
+  }, [hasPendingChanges, isValidForButton, isInitialized, saveFunction]);
+
+  const updateFormYear = React.useCallback((yearKey: string, field: keyof FinancialStatementsPayload, value: string) => {
+    setFormsByYear((prev) => ({
+      ...prev,
+      [yearKey]: { ...(prev[yearKey] ?? emptyQuestionnaireBlock(yearKey)), [field]: value, pldd: yearKey },
+    }));
+  }, []);
 
   const getLabel = (key: keyof FinancialStatementsPayload) => FINANCIAL_FIELD_LABELS[key] ?? key;
+
+  const renderYearBlock = (year: number) => {
+    const yearKey = String(year);
+    const form = formsByYear[yearKey] ?? emptyQuestionnaireBlock(yearKey);
+    const bsddParsed = parseDateLocal(form.bsdd ?? "");
+    const bsddFuture =
+      bsddParsed != null && startOfDay(bsddParsed) > startOfDay(new Date());
+
+    return (
+      <div key={yearKey} className="space-y-8 border border-border rounded-xl p-4 md:p-6">
+        <h3 className={sectionHeaderClassName}>Financial year {yearKey}</h3>
+        <div className={rowGridClassName}>
+          <Label className={labelClassName}>Financial year (auto)</Label>
+          <Input value={yearKey} disabled className={cn(inputClassName, formInputDisabledClassName)} />
+          <div className={cn("flex items-center", fieldTooltipLabelGap)}>
+            <Label className={labelClassName}>
+              {getLabel("bsdd")}
+            </Label>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className={fieldTooltipTriggerClassName}>
+                  <InformationCircleIcon className="h-4 w-4" />
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
+                {FINANCIAL_DATA_UNTIL_TOOLTIP}
+              </TooltipContent>
+            </Tooltip>
+          </div>
+          <div className="flex flex-col gap-1">
+            <DateInput
+              value={form.bsdd}
+              onChange={(v) => updateFormYear(yearKey, "bsdd", v)}
+              disabled={readOnly}
+              className={cn(inputClassName, readOnly && formInputDisabledClassName)}
+              placeholder="Enter date"
+              isInvalid={hasSubmitted && bsddFuture}
+            />
+            {hasSubmitted && bsddFuture && (
+              <p className="text-xs text-destructive">Financial data date cannot be in the future.</p>
+            )}
+          </div>
+        </div>
+        <section className={`${sectionWrapperClassName} space-y-5`}>
+          <h4 className="text-sm font-semibold text-foreground">Assets</h4>
+          <div className={rowGridClassName}>
+            {(["bsfatot", "othass", "bscatot", "bsclbank"] as const).map((key) => (
+              <MoneyFieldRow
+                key={`${yearKey}-${key}`}
+                id={`${yearKey}-${key}`}
+                label={getLabel(key)}
+                value={form[key] ?? ""}
+                onValueChange={(v) => updateFormYear(yearKey, key, v)}
+                readOnly={readOnly}
+              />
+            ))}
+          </div>
+        </section>
+        <section className={`${sectionWrapperClassName} space-y-5`}>
+          <h4 className="text-sm font-semibold text-foreground">Liabilities</h4>
+          <div className={rowGridClassName}>
+            {(["curlib", "bsslltd", "bsclstd"] as const).map((key) => (
+              <MoneyFieldRow
+                key={`${yearKey}-${key}`}
+                id={`${yearKey}-${key}`}
+                label={getLabel(key)}
+                value={form[key] ?? ""}
+                onValueChange={(v) => updateFormYear(yearKey, key, v)}
+                readOnly={readOnly}
+              />
+            ))}
+          </div>
+        </section>
+        <section className={`${sectionWrapperClassName} space-y-5`}>
+          <h4 className="text-sm font-semibold text-foreground">Equity</h4>
+          <div className={rowGridClassName}>
+            <MoneyFieldRow
+              id={`${yearKey}-bsqpuc`}
+              label={getLabel("bsqpuc")}
+              value={form.bsqpuc ?? ""}
+              onValueChange={(v) => updateFormYear(yearKey, "bsqpuc", v)}
+              readOnly={readOnly}
+            />
+          </div>
+        </section>
+        <section className={`${sectionWrapperClassName} space-y-5`}>
+          <h4 className="text-sm font-semibold text-foreground">Profit and Loss</h4>
+          <div className={rowGridClassName}>
+            <MoneyFieldRow
+              id={`${yearKey}-turnover`}
+              label={getLabel("turnover")}
+              value={form.turnover ?? ""}
+              onValueChange={(v) => updateFormYear(yearKey, "turnover", v)}
+              readOnly={readOnly}
+              hasError={hasSubmitted && String(form.turnover).trim() !== "" && parseMoney(form.turnover ?? "") < 0}
+              errorMessage={
+                hasSubmitted && String(form.turnover).trim() !== "" && parseMoney(form.turnover ?? "") < 0
+                  ? "Turnover must be 0 or greater"
+                  : undefined
+              }
+            />
+            <MoneyFieldRow
+              id={`${yearKey}-plnpbt`}
+              label={getLabel("plnpbt")}
+              value={form.plnpbt ?? ""}
+              onValueChange={(v) => updateFormYear(yearKey, "plnpbt", v)}
+              readOnly={readOnly}
+              allowNegative
+              showNegativeTooltip
+            />
+            <MoneyFieldRow
+              id={`${yearKey}-plnpat`}
+              label={getLabel("plnpat")}
+              value={form.plnpat ?? ""}
+              onValueChange={(v) => updateFormYear(yearKey, "plnpat", v)}
+              readOnly={readOnly}
+              allowNegative
+              showNegativeTooltip
+            />
+            <MoneyFieldRow
+              id={`${yearKey}-plnetdiv`}
+              label={getLabel("plnetdiv")}
+              value={form.plnetdiv ?? ""}
+              onValueChange={(v) => updateFormYear(yearKey, "plnetdiv", v)}
+              readOnly={readOnly}
+            />
+            <MoneyFieldRow
+              id={`${yearKey}-plyear`}
+              label={getLabel("plyear")}
+              value={form.plyear ?? ""}
+              onValueChange={(v) => updateFormYear(yearKey, "plyear", v)}
+              readOnly={readOnly}
+              allowNegative
+              showNegativeTooltip
+            />
+          </div>
+        </section>
+      </div>
+    );
+  };
 
   if (isLoadingApp || !isInitialized || devTools?.showSkeletonDebug) {
     return <FinancialStatementsSkeleton />;
@@ -476,184 +957,109 @@ export function FinancialStatementsStep({
   return (
     <>
       <div className={formOuterClassName}>
-        {/* ===================== FINANCIAL YEAR ===================== */}
         <section className={`${sectionWrapperClassName} space-y-5`}>
           <div>
-            <h3 className={sectionHeaderClassName}>Financial Year</h3>
-            <div className="border-b border-border mt-3 mb-6" />
+            <h3 className={sectionHeaderClassName}>Before the numbers</h3>
+            <p className="text-sm text-muted-foreground mt-1">Three yes/no or year answers. You can edit before save.</p>
+            <div className="border-b border-border mt-4 mb-6" />
           </div>
+
           <div className={rowGridClassName}>
-            <Label htmlFor="pldd" className={labelClassName}>
-              {getLabel("pldd")}
-            </Label>
-            <div className="flex flex-col gap-1">
+            <div className="space-y-2">
+              <Label htmlFor="fye-year" className={labelClassName}>
+                Latest financial year (year end)
+              </Label>
+            </div>
+            <div className="flex min-w-0 flex-col gap-1">
               <Input
-                id="pldd"
-                value={form.pldd}
-                onChange={(e) =>
-                  handleFieldChange("pldd", e.target.value.replace(/\D/g, "").slice(0, 4))
-                }
+                id="fye-year"
+                value={fyeInput}
+                onChange={(e) => setFyeInput(e.target.value.replace(/\D/g, "").slice(0, 4))}
                 disabled={readOnly}
+                placeholder="e.g. 2025"
+                className={inputClassName}
                 inputMode="numeric"
                 maxLength={4}
-                placeholder="e.g. 2024"
-                className={cn(
-                  inputClassName,
-                  readOnly && formInputDisabledClassName,
-                  hasSubmitted &&
-                    (!hasValue(form.pldd) || !isValidFinancialYear(form.pldd ?? "")) &&
-                    "border-destructive focus-visible:border-2 focus-visible:border-destructive"
-                )}
-                aria-invalid={hasSubmitted && (!hasValue(form.pldd) || !isValidFinancialYear(form.pldd ?? ""))}
+                aria-describedby="fye-year-hint"
               />
-              {hasSubmitted && !hasValue(form.pldd) && (
-                <p className="text-xs text-destructive">Financial year is required.</p>
-              )}
-              {hasSubmitted && hasValue(form.pldd) && !isValidFinancialYear(form.pldd ?? "") && (
-                <p className="text-xs text-destructive">
-                  {`Enter a valid year (${MIN_FINANCIAL_YEAR}–${maxFinancialYear()}).`}
-                </p>
-              )}
+              <p id="fye-year-hint" className="text-xs text-muted-foreground">
+                Four digits only.
+              </p>
             </div>
-            <div className={cn("flex items-center", fieldTooltipLabelGap)}>
-              <Label htmlFor="bsdd" className={labelClassName}>
-                {getLabel("bsdd")}
-              </Label>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className={fieldTooltipTriggerClassName}>
-                    <InformationCircleIcon className="h-4 w-4" />
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
-                  {FINANCIAL_DATA_UNTIL_TOOLTIP}
-                </TooltipContent>
-              </Tooltip>
+
+            <div className="space-y-2">
+              <Label className={labelClassName}>Already submitted?</Label>
             </div>
-            <div className="flex flex-col gap-1">
-              <DateInput
-                value={form.bsdd}
-                onChange={(v) => handleFieldChange("bsdd", v)}
+            <div className={radioGridControlClassName}>
+              <FinancialYesNoRadioGroup
+                name="financial-statements-q-submitted"
+                aria-label="Has this financial year been submitted?"
+                value={qSubmitted === null ? "" : qSubmitted ? "yes" : "no"}
+                onValueChange={(v) => setQSubmitted(v === "yes")}
                 disabled={readOnly}
-                className={cn(inputClassName, readOnly && formInputDisabledClassName)}
-                placeholder="Enter date"
-                isInvalid={hasSubmitted && bsddIsFuture}
               />
-              {hasSubmitted && bsddIsFuture && (
-                <p className="text-xs text-destructive">Financial data date cannot be in the future.</p>
-              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label className={labelClassName}>Any current-year figures?</Label>
+            </div>
+            <div className={radioGridControlClassName}>
+              <FinancialYesNoRadioGroup
+                name="financial-statements-q-next-year"
+                aria-label="Do you have any data for the current financial year?"
+                value={qNextYear === null ? "" : qNextYear ? "yes" : "no"}
+                onValueChange={(v) => setQNextYear(v === "yes")}
+                disabled={readOnly}
+              />
             </div>
           </div>
         </section>
 
-        {/* ===================== ASSETS ===================== */}
-        <section className={`${sectionWrapperClassName} space-y-5`}>
-          <div>
-            <h3 className={sectionHeaderClassName}>Assets</h3>
-            <div className="border-b border-border mt-3 mb-6" />
+        <section className={`${sectionWrapperClassName} w-full space-y-4`}>
+          <div className="px-3">
+            <h3 className={sectionHeaderClassName}>Financial details</h3>
+            <div className="border-b border-border mt-3 mb-2" />
           </div>
-          <div className={rowGridClassName}>
-            {(["bsfatot", "othass", "bscatot", "bsclbank"] as const).map((key) => (
-              <MoneyFieldRow
-                key={key}
-                id={key}
-                label={getLabel(key)}
-                value={form[key] ?? ""}
-                onValueChange={(v) => handleFieldChange(key, v)}
-                readOnly={readOnly}
-              />
-            ))}
-          </div>
-        </section>
 
-        {/* ===================== LIABILITIES ===================== */}
-        <section className={`${sectionWrapperClassName} space-y-5`}>
-          <div>
-            <h3 className={sectionHeaderClassName}>Liabilities</h3>
-            <div className="border-b border-border mt-3 mb-6" />
-          </div>
-          <div className={rowGridClassName}>
-            {(["curlib", "bsslltd", "bsclstd"] as const).map((key) => (
-              <MoneyFieldRow
-                key={key}
-                id={key}
-                label={getLabel(key)}
-                value={form[key] ?? ""}
-                onValueChange={(v) => handleFieldChange(key, v)}
-                readOnly={readOnly}
-              />
-            ))}
-          </div>
-        </section>
+          {!questionnaireDto ? (
+            <div className="mx-3 rounded-xl border border-dashed border-border bg-muted/20 px-4 py-10 text-center">
+              <p className="text-sm text-muted-foreground">Complete the three answers above — then enter amounts here.</p>
+            </div>
+          ) : null}
 
-        {/* ===================== EQUITY ===================== */}
-        <section className={`${sectionWrapperClassName} space-y-5`}>
-          <div>
-            <h3 className={sectionHeaderClassName}>Equity</h3>
-            <div className="border-b border-border mt-3 mb-6" />
-          </div>
-          <div className={rowGridClassName}>
-            <MoneyFieldRow
-              id="bsqpuc"
-              label={getLabel("bsqpuc")}
-              value={form.bsqpuc ?? ""}
-              onValueChange={(v) => handleFieldChange("bsqpuc", v)}
-              readOnly={readOnly}
-            />
-          </div>
-        </section>
+          {questionnaireDto && caseCInfoOnly ? (
+            <div className="mx-3 rounded-xl border border-border bg-muted/30 p-6 text-sm text-foreground">
+              <p>Latest year is already submitted. No figures needed in this step.</p>
+            </div>
+          ) : null}
 
-        {/* ===================== PROFIT AND LOSS ===================== */}
-        <section className={`${sectionWrapperClassName} space-y-5`}>
-          <div>
-            <h3 className={sectionHeaderClassName}>Profit and Loss</h3>
-            <div className="border-b border-border mt-3 mb-6" />
-          </div>
-          <div className={rowGridClassName}>
-            <MoneyFieldRow
-              id="turnover"
-              label={getLabel("turnover")}
-              value={form.turnover ?? ""}
-              onValueChange={(v) => handleFieldChange("turnover", v)}
-              readOnly={readOnly}
-              hasError={hasSubmitted && hasValue(form.turnover) && parseMoney(form.turnover ?? "") < 0}
-              errorMessage={hasSubmitted && hasValue(form.turnover) && parseMoney(form.turnover ?? "") < 0 ? "Turnover must be 0 or greater" : undefined}
-            />
-            <MoneyFieldRow
-              id="plnpbt"
-              label={getLabel("plnpbt")}
-              value={form.plnpbt ?? ""}
-              onValueChange={(v) => handleFieldChange("plnpbt", v)}
-              readOnly={readOnly}
-              allowNegative
-              showNegativeTooltip
-            />
-            <MoneyFieldRow
-              id="plnpat"
-              label={getLabel("plnpat")}
-              value={form.plnpat ?? ""}
-              onValueChange={(v) => handleFieldChange("plnpat", v)}
-              readOnly={readOnly}
-              allowNegative
-              showNegativeTooltip
-            />
-            <MoneyFieldRow
-              id="plnetdiv"
-              label={getLabel("plnetdiv")}
-              value={form.plnetdiv ?? ""}
-              onValueChange={(v) => handleFieldChange("plnetdiv", v)}
-              readOnly={readOnly}
-            />
-            <MoneyFieldRow
-              id="plyear"
-              label={getLabel("plyear")}
-              value={form.plyear ?? ""}
-              onValueChange={(v) => handleFieldChange("plyear", v)}
-              readOnly={readOnly}
-              allowNegative
-              showNegativeTooltip
-            />
-          </div>
+          {questionnaireDto && !caseCInfoOnly && yearsToShow.length === 1 ? (
+            <div className="px-3">{renderYearBlock(yearsToShow[0])}</div>
+          ) : null}
+
+          {questionnaireDto && !caseCInfoOnly && yearsToShow.length > 1 ? (
+            <div className="w-full max-w-[1200px] space-y-3 px-3">
+              <p className="text-sm text-muted-foreground">One tab per financial year.</p>
+              <Tabs
+                key={yearsToShow.join("-")}
+                defaultValue={String(yearsToShow[0])}
+                className="w-full"
+              >
+                <TabsList className="mb-4 h-auto w-full flex-wrap justify-start gap-1 bg-muted p-1 sm:w-auto">
+                  {yearsToShow.map((y) => (
+                    <TabsTrigger key={y} value={String(y)} className="min-w-[5.5rem]">
+                      FY {y}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+                {yearsToShow.map((y) => (
+                  <TabsContent key={y} value={String(y)} className="mt-0 focus-visible:outline-none">
+                    {renderYearBlock(y)}
+                  </TabsContent>
+                ))}
+              </Tabs>
+            </div>
+          ) : null}
         </section>
       </div>
     </>

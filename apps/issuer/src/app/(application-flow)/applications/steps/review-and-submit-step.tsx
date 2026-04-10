@@ -754,6 +754,66 @@ export function ReviewAndSubmitStep({
               <FinancialStatementsSkeleton />
             ) : (() => {
               const raw = (application as any)?.financial_statements;
+              if (raw && typeof raw === "object" && raw.questionnaire != null && raw.unaudited_by_year != null) {
+                const q = raw.questionnaire as {
+                  financial_year_end_year: number;
+                  latest_year_submitted: boolean;
+                  has_next_financial_year_data: boolean;
+                };
+                const by = raw.unaudited_by_year as Record<string, Record<string, unknown>>;
+                const years = Object.keys(by).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+                console.log("Review step: financial v2, years:", years);
+                const keys = Object.keys(FINANCIAL_FIELD_LABELS);
+                if (years.length === 0) {
+                  return (
+                    <div className="text-sm text-muted-foreground px-3 space-y-2">
+                      <p>
+                        Financial year end (questionnaire): {q.financial_year_end_year}. Latest year submitted:{" "}
+                        {q.latest_year_submitted ? "Yes" : "No"}. Next year data:{" "}
+                        {q.has_next_financial_year_data ? "Yes" : "No"}.
+                      </p>
+                      <p>No unaudited figures in this step (information-only).</p>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="space-y-8">
+                    <div className="text-sm text-muted-foreground px-3">
+                      FY end year {q.financial_year_end_year}; latest year submitted:{" "}
+                      {q.latest_year_submitted ? "Yes" : "No"}; data for year after:{" "}
+                      {q.has_next_financial_year_data ? "Yes" : "No"}.
+                    </div>
+                    {years.map((y) => {
+                      const flat = (by[y] && typeof by[y] === "object" ? by[y] : {}) as Record<string, unknown>;
+                      return (
+                        <div key={y} className="space-y-3">
+                          <h4 className="text-sm font-semibold text-foreground px-3">Financial year {y}</h4>
+                          <div className={sectionGridClassName}>
+                            {keys.map((key) => {
+                              const label = FINANCIAL_FIELD_LABELS[key];
+                              const val = flat[key];
+                              const display =
+                                val == null || val === ""
+                                  ? "N/A"
+                                  : key === "pldd"
+                                    ? financialYearEndDisplay(val)
+                                    : key === "bsdd"
+                                      ? String(val)
+                                      : renderMoney(Number(String(val).replace(/,/g, "")));
+                              return (
+                                <React.Fragment key={`${y}-${key}`}>
+                                  <div className={labelClassName}>{label}</div>
+                                  <div className={valueClassName}>{display}</div>
+                                </React.Fragment>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              }
               const data = raw && typeof raw === "object" && "input" in raw ? raw.input : raw;
               const flat = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
               const keys = Object.keys(FINANCIAL_FIELD_LABELS);

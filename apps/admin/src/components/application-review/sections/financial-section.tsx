@@ -18,7 +18,6 @@ export type FinancialSectionAppSlice = {
 
 export interface FinancialSectionProps {
   applicationId: string;
-  applicationCreatedAt: string;
   app: FinancialSectionAppSlice;
   section: ReviewSectionId;
   isReviewable: boolean;
@@ -42,7 +41,6 @@ export interface FinancialSectionProps {
 
 export function FinancialSection({
   applicationId,
-  applicationCreatedAt,
   app,
   section,
   isReviewable,
@@ -89,11 +87,7 @@ export function FinancialSection({
       onReject={onReject}
       onRequestAmendment={onRequestAmendment}
     >
-      <ApplicationFinancialReviewContent
-        applicationId={applicationId}
-        applicationCreatedAt={applicationCreatedAt}
-        app={app}
-      />
+      <ApplicationFinancialReviewContent applicationId={applicationId} app={app} />
       {!hideSectionComments ? (
         <SectionComments comments={comments} onSubmitComment={onAddComment} />
       ) : null}

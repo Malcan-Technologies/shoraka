@@ -28,6 +28,9 @@ import {
   computeColumnMetrics,
   computeTurnoverGrowth,
   financialFormToBsPl,
+  getCtosLatestYear,
+  getLatestThreeCtosYears,
+  validateUnauditedColumn,
   type ColumnComputedMetrics,
   type FinancialStatementsInput,
 } from "@cashsouk/types";
@@ -86,10 +89,95 @@ function toNum(v: unknown): number {
 export function parseFinancialStatements(raw: unknown): Record<string, unknown> {
   if (!raw || typeof raw !== "object") return {};
   const obj = raw as Record<string, unknown>;
+  if (
+    obj.questionnaire != null &&
+    typeof obj.questionnaire === "object" &&
+    obj.unaudited_by_year != null &&
+    typeof obj.unaudited_by_year === "object" &&
+    !Array.isArray(obj.unaudited_by_year)
+  ) {
+    return {};
+  }
   const nested = obj.input as Record<string, unknown> | undefined;
   if (nested && typeof nested === "object") return nested as Record<string, unknown>;
   return obj;
 }
+
+type StoredQuestionnaire = {
+  financial_year_end_year: number;
+  latest_year_submitted: boolean;
+  has_next_financial_year_data: boolean;
+};
+
+function normalizePlddToYearString(val: unknown): string {
+  if (val === undefined || val === null) return "";
+  const s = String(val).trim();
+  if (s === "") return "";
+  if (/^\d{4}$/.test(s)) return s;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 4);
+  const asDate = new Date(s);
+  if (!Number.isNaN(asDate.getTime())) return String(asDate.getFullYear());
+  const m = s.match(/\b(19|20)\d{2}\b/);
+  return m ? m[0] : "";
+}
+
+export function extractQuestionnaireAndUnaudited(financialRaw: unknown): {
+  questionnaire: StoredQuestionnaire | null;
+  unauditedByYear: Record<string, Record<string, unknown>>;
+} {
+  if (!financialRaw || typeof financialRaw !== "object") {
+    return { questionnaire: null, unauditedByYear: {} };
+  }
+  const obj = financialRaw as Record<string, unknown>;
+  const q = obj.questionnaire as StoredQuestionnaire | undefined;
+  const byYear = obj.unaudited_by_year as Record<string, Record<string, unknown>> | undefined;
+  if (
+    q &&
+    typeof q === "object" &&
+    byYear &&
+    typeof byYear === "object" &&
+    !Array.isArray(byYear)
+  ) {
+    return { questionnaire: q, unauditedByYear: byYear };
+  }
+  const flat = parseFinancialStatements(financialRaw);
+  const yStr = normalizePlddToYearString(flat.pldd);
+  const hasOther =
+    yStr &&
+    Object.keys(flat).some((k) => {
+      if (k === "pldd") return false;
+      const v = flat[k];
+      return v != null && String(v).trim() !== "";
+    });
+  if (!yStr || !hasOther) {
+    return { questionnaire: null, unauditedByYear: {} };
+  }
+  const y = parseInt(yStr, 10);
+  return {
+    questionnaire: {
+      financial_year_end_year: y,
+      latest_year_submitted: false,
+      has_next_financial_year_data: false,
+    },
+    unauditedByYear: { [yStr]: flat as Record<string, unknown> },
+  };
+}
+
+export function firstUnauditedYearFinancialBlock(raw: unknown): Record<string, unknown> {
+  const { unauditedByYear } = extractQuestionnaireAndUnaudited(raw);
+  const years = Object.keys(unauditedByYear).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+  if (years.length === 0) return {};
+  const block = unauditedByYear[years[0]];
+  return block && typeof block === "object" ? (block as Record<string, unknown>) : {};
+}
+
+type ColumnSpec =
+  | { kind: "ctos"; year: number }
+  | {
+      kind: "unaudited";
+      year: number;
+      validation: ReturnType<typeof validateUnauditedColumn>;
+    };
 
 function ctosFinToFs(r: CtosFinRow): Record<string, unknown> {
   const bs = r.balance_sheet;
@@ -423,7 +511,6 @@ export function extractDirectorShareholders(
 
 interface ApplicationFinancialReviewContentProps {
   applicationId: string;
-  applicationCreatedAt: string;
   app: {
     issuer_organization?: {
       corporate_entities?: unknown;
@@ -434,11 +521,7 @@ interface ApplicationFinancialReviewContentProps {
   };
 }
 
-export function ApplicationFinancialReviewContent({
-  applicationId,
-  applicationCreatedAt,
-  app,
-}: ApplicationFinancialReviewContentProps) {
+export function ApplicationFinancialReviewContent({ applicationId, app }: ApplicationFinancialReviewContentProps) {
   const { getAccessToken } = useAuthToken();
   const { data: ctosList, isLoading: ctosLoading } = useAdminApplicationCtosReports(applicationId);
   const createCtos = useCreateAdminApplicationCtosReport(applicationId);
@@ -459,11 +542,11 @@ export function ApplicationFinancialReviewContent({
     return m;
   }, [ctosSubjectList]);
 
-  const parsedFs = React.useMemo(() => parseFinancialStatements(app.financial_statements), [app.financial_statements]);
-  const hasIssuerFinancialData = Object.keys(parsedFs).length > 0;
-
-  const baseYear = React.useMemo(() => new Date(applicationCreatedAt).getUTCFullYear(), [applicationCreatedAt]);
-  const colYears = React.useMemo(() => [baseYear - 3, baseYear - 2, baseYear - 1, baseYear], [baseYear]);
+  const { questionnaire, unauditedByYear } = React.useMemo(
+    () => extractQuestionnaireAndUnaudited(app.financial_statements),
+    [app.financial_statements]
+  );
+  const hasIssuerFinancialData = Object.keys(unauditedByYear).length > 0;
 
   const latestCtos = ctosList?.[0];
 
@@ -481,33 +564,58 @@ export function ApplicationFinancialReviewContent({
     return m;
   }, [financialRows]);
 
-  const columnCtosActive = React.useMemo(
-    () => [
-      Boolean(latestCtos && byYear.get(colYears[0])),
-      Boolean(latestCtos && byYear.get(colYears[1])),
-      Boolean(latestCtos && byYear.get(colYears[2])),
-      true,
-    ],
-    [latestCtos, byYear, colYears]
+  const ctosLatestYear = React.useMemo(() => getCtosLatestYear(financialRows), [financialRows]);
+
+  const ctosColumnYears = React.useMemo(() => getLatestThreeCtosYears(financialRows), [financialRows]);
+
+  const unauditedYearsSorted = React.useMemo(
+    () =>
+      Object.keys(unauditedByYear)
+        .map((k) => parseInt(k, 10))
+        .filter((n) => Number.isFinite(n))
+        .sort((a, b) => a - b),
+    [unauditedByYear]
   );
 
+  const columns = React.useMemo((): ColumnSpec[] => {
+    const ctos = ctosColumnYears.map((year) => ({ kind: "ctos" as const, year }));
+    const un = unauditedYearsSorted.map((year) => ({
+      kind: "unaudited" as const,
+      year,
+      validation: questionnaire
+        ? validateUnauditedColumn({
+            ctosLatestYear,
+            unauditedYear: year,
+            latestYearSubmitted: questionnaire.latest_year_submitted,
+            financialYearEndYear: questionnaire.financial_year_end_year,
+          })
+        : {
+            status: "PENDING" as const,
+            reason: "No questionnaire on file",
+          },
+    }));
+    console.log("Admin financial review columns (CTOS years, unaudited years):", ctosColumnYears, unauditedYearsSorted);
+    return [...ctos, ...un];
+  }, [ctosColumnYears, unauditedYearsSorted, questionnaire, ctosLatestYear]);
+
   const turnovers = React.useMemo(() => {
-    return colYears.map((y, idx) => {
-      if (idx < 3) {
-        const row = byYear.get(y);
-        return { year: y, turnover: row?.profit_and_loss.revenue ?? null };
+    return columns.map((spec) => {
+      if (spec.kind === "ctos") {
+        const row = byYear.get(spec.year);
+        return { year: spec.year, turnover: row?.profit_and_loss.revenue ?? null };
       }
-      const rawT = parsedFs.turnover;
+      const fs = unauditedByYear[String(spec.year)];
+      const rawT = fs?.turnover;
       const t =
         rawT != null && rawT !== "" && String(rawT).trim() !== ""
           ? toNum(rawT)
           : null;
-      return { year: y, turnover: hasIssuerFinancialData ? t : null };
+      return { year: spec.year, turnover: hasIssuerFinancialData ? t : null };
     });
-  }, [colYears, byYear, parsedFs, hasIssuerFinancialData]);
+  }, [columns, byYear, unauditedByYear, hasIssuerFinancialData]);
 
   const columnMetrics = React.useMemo((): (ColumnComputedMetrics | null)[] => {
-    return colYears.map((y, idx) => {
+    return columns.map((spec, idx) => {
       const g =
         idx === 0
           ? null
@@ -518,9 +626,9 @@ export function ApplicationFinancialReviewContent({
               priorTurnover: turnovers[idx - 1].turnover,
             });
 
-      if (idx < 3) {
-        if (!columnCtosActive[idx]) return null;
-        const row = byYear.get(y)!;
+      if (spec.kind === "ctos") {
+        const row = byYear.get(spec.year);
+        if (!row) return null;
         const { bs, pl } = financialFormToBsPl({
           bsfatot: row.balance_sheet.fixed_assets ?? 0,
           othass: row.balance_sheet.other_assets ?? 0,
@@ -541,31 +649,43 @@ export function ApplicationFinancialReviewContent({
       }
 
       if (!hasIssuerFinancialData) return null;
-      const input = financialRecordToInput(parsedFs);
+      const fs = unauditedByYear[String(spec.year)];
+      if (!fs) return null;
+      const input = financialRecordToInput(fs as Record<string, unknown>);
       const { bs, pl } = financialFormToBsPl(input);
       return computeColumnMetrics(bs, pl, g);
     });
-  }, [colYears, byYear, columnCtosActive, turnovers, hasIssuerFinancialData, parsedFs]);
+  }, [columns, byYear, turnovers, hasIssuerFinancialData, unauditedByYear]);
 
   const getFsCol = React.useCallback(
     (idx: number): Record<string, unknown> | null => {
-      if (idx < 3) {
-        if (!columnCtosActive[idx]) return null;
-        const row = byYear.get(colYears[idx]);
+      const spec = columns[idx];
+      if (!spec) return null;
+      if (spec.kind === "ctos") {
+        const row = byYear.get(spec.year);
         return row ? ctosFinToFs(row) : null;
       }
-      return parsedFs;
+      const fs = unauditedByYear[String(spec.year)];
+      return (fs && typeof fs === "object" ? fs : null) as Record<string, unknown> | null;
     },
-    [columnCtosActive, byYear, colYears, parsedFs]
+    [columns, byYear, unauditedByYear]
+  );
+
+  const ctosColumnMissing = React.useCallback(
+    (colIdx: number) => {
+      const spec = columns[colIdx];
+      return spec?.kind === "ctos" && !byYear.get(spec.year);
+    },
+    [columns, byYear]
   );
 
   const formatCell = (
     colIdx: number,
-    naAllowed: boolean,
+    _naAllowed: boolean,
     valueMissing: boolean,
     fmt: () => string
   ): string => {
-    if (colIdx < 3 && !columnCtosActive[colIdx]) return naAllowed ? "N/A" : "N/A";
+    if (ctosColumnMissing(colIdx)) return "N/A";
     if (valueMissing) return "—";
     return fmt();
   };
@@ -696,7 +816,7 @@ export function ApplicationFinancialReviewContent({
           formatCurrency(toNum(fs!.bsclbank), { decimals: 0 })
         );
       case "totass": {
-        if (colIdx < 3 && !columnCtosActive[colIdx]) return "N/A";
+        if (ctosColumnMissing(colIdx)) return "N/A";
         if (!computed) return "—";
         const n = computed.totass;
         return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
@@ -714,13 +834,13 @@ export function ApplicationFinancialReviewContent({
           formatCurrency(toNum(fs!.bsclstd), { decimals: 0 })
         );
       case "totlib": {
-        if (colIdx < 3 && !columnCtosActive[colIdx]) return "N/A";
+        if (ctosColumnMissing(colIdx)) return "N/A";
         if (!computed) return "—";
         const n = computed.totlib;
         return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
       }
       case "networth": {
-        if (colIdx < 3 && !columnCtosActive[colIdx]) return "N/A";
+        if (ctosColumnMissing(colIdx)) return "N/A";
         if (!computed) return "—";
         const n = computed.networth;
         return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
@@ -750,27 +870,27 @@ export function ApplicationFinancialReviewContent({
           formatCurrency(toNum(fs!.plyear), { decimals: 0 })
         );
       case "turnover_growth": {
-        if (colIdx < 3 && !columnCtosActive[colIdx]) return "N/A";
+        if (ctosColumnMissing(colIdx)) return "N/A";
         if (!computed || computed.turnover_growth == null) return "—";
         return formatNumber(computed.turnover_growth * 100, 2) + "%";
       }
       case "profit_margin": {
-        if (colIdx < 3 && !columnCtosActive[colIdx]) return "N/A";
+        if (ctosColumnMissing(colIdx)) return "N/A";
         if (!computed || computed.profit_margin == null) return "—";
         return formatNumber(computed.profit_margin * 100, 2) + "%";
       }
       case "return_of_equity": {
-        if (colIdx < 3 && !columnCtosActive[colIdx]) return "N/A";
+        if (ctosColumnMissing(colIdx)) return "N/A";
         if (!computed || computed.return_of_equity == null) return "—";
         return formatNumber(computed.return_of_equity * 100, 2) + "%";
       }
       case "currat": {
-        if (colIdx < 3 && !columnCtosActive[colIdx]) return "N/A";
+        if (ctosColumnMissing(colIdx)) return "N/A";
         if (!computed || computed.currat == null) return "—";
         return formatNumber(computed.currat, 2);
       }
       case "workcap": {
-        if (colIdx < 3 && !columnCtosActive[colIdx]) return "N/A";
+        if (ctosColumnMissing(colIdx)) return "N/A";
         if (!computed) return "—";
         return formatCurrency(computed.workcap, { decimals: 0 });
       }
@@ -807,40 +927,66 @@ export function ApplicationFinancialReviewContent({
           </Button>
         </div>
         <div className={applicationTableWrapperClass}>
-          <Table className="table-fixed text-sm">
-            <TableHeader className={applicationTableHeaderBgClass}>
-              <TableRow className="hover:bg-transparent border-b border-border">
-                <TableHead className="text-sm font-semibold text-foreground px-3 py-2 w-[22%] min-w-[140px] border-r border-border">
-                  Financial Item
-                </TableHead>
-                {colYears.map((y, i) => (
-                  <TableHead
-                    key={y}
-                    className={`text-sm font-semibold text-foreground px-3 py-2 ${i < 3 ? "w-[19.5%] border-r border-border" : "w-[19.5%] text-right tabular-nums"}`}
-                  >
-                    {i === 3 ? `${y} (Unaudited)` : String(y)}
+          {columns.length === 0 ? (
+            <p className="text-sm text-muted-foreground px-3 py-4">
+              No CTOS year columns yet (fetch a report). Issuer has not provided unaudited columns for this
+              application.
+            </p>
+          ) : (
+            <Table className="table-fixed text-sm">
+              <TableHeader className={applicationTableHeaderBgClass}>
+                <TableRow className="hover:bg-transparent border-b border-border">
+                  <TableHead className="text-sm font-semibold text-foreground px-3 py-2 w-[22%] min-w-[140px] border-r border-border">
+                    Financial Item
                   </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rowLabels.map((row) => (
-                <TableRow key={row.id} className="border-b border-border last:border-b-0 odd:bg-muted/40 hover:bg-muted">
-                  <TableCell className="text-sm px-3 py-2 border-r border-border font-medium">{row.label}</TableCell>
-                  {[0, 1, 2, 3].map((ci) => (
-                    <TableCell
-                      key={ci}
-                      className={`text-sm px-3 py-2 text-left ${ci < 3 ? "border-r border-border" : "text-right tabular-nums"} ${
-                        renderRowCell(row.id, ci) === "N/A" ? "text-muted-foreground" : ""
+                  {columns.map((spec, i) => (
+                    <TableHead
+                      key={`${spec.kind}-${spec.year}-${i}`}
+                      className={`text-sm font-semibold text-foreground px-3 py-2 ${
+                        spec.kind === "ctos" ? "w-[16%] border-r border-border" : "w-[16%] text-right tabular-nums"
                       }`}
                     >
-                      {renderRowCell(row.id, ci)}
-                    </TableCell>
+                      <div className={spec.kind === "unaudited" ? "flex flex-col gap-1 items-end" : ""}>
+                        <span>{spec.kind === "ctos" ? String(spec.year) : `${spec.year} (Unaudited)`}</span>
+                        {spec.kind === "unaudited" ? (
+                          <Badge
+                            variant="outline"
+                            title={spec.validation.reason}
+                            className={
+                              spec.validation.status === "VALID"
+                                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-800 text-[10px] font-semibold uppercase"
+                                : spec.validation.status === "PENDING"
+                                  ? "border-amber-500/40 bg-amber-500/10 text-amber-900 text-[10px] font-semibold uppercase"
+                                  : "border-destructive/40 bg-destructive/10 text-destructive text-[10px] font-semibold uppercase"
+                            }
+                          >
+                            {spec.validation.status}
+                          </Badge>
+                        ) : null}
+                      </div>
+                    </TableHead>
                   ))}
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {rowLabels.map((row) => (
+                  <TableRow key={row.id} className="border-b border-border last:border-b-0 odd:bg-muted/40 hover:bg-muted">
+                    <TableCell className="text-sm px-3 py-2 border-r border-border font-medium">{row.label}</TableCell>
+                    {columns.map((spec, ci) => (
+                      <TableCell
+                        key={`${spec.kind}-${spec.year}-${ci}`}
+                        className={`text-sm px-3 py-2 text-left ${
+                          spec.kind === "ctos" ? "border-r border-border" : "text-right tabular-nums"
+                        } ${renderRowCell(row.id, ci) === "N/A" ? "text-muted-foreground" : ""}`}
+                      >
+                        {renderRowCell(row.id, ci)}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </div>
         {fetchedLabel ? (
           <p className="text-xs text-muted-foreground mt-2">Last CTOS fetch: {fetchedLabel}</p>

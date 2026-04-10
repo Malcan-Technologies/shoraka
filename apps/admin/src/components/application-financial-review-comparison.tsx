@@ -24,7 +24,7 @@ import {
   reviewEmptyStateClass,
 } from "@/components/application-review/review-section-styles";
 import {
-  parseFinancialStatements,
+  firstUnauditedYearFinancialBlock,
   extractDirectorShareholders,
   type DirectorShareholderRow,
 } from "@/components/application-financial-review-content";
@@ -181,11 +181,11 @@ export function ApplicationFinancialReviewComparison({
   isPathChanged: (path: string) => boolean;
 }) {
   const beforeFs = React.useMemo(
-    () => parseFinancialStatements(beforeApp.financial_statements),
+    () => firstUnauditedYearFinancialBlock(beforeApp.financial_statements),
     [beforeApp.financial_statements]
   );
   const afterFs = React.useMemo(
-    () => parseFinancialStatements(afterApp.financial_statements),
+    () => firstUnauditedYearFinancialBlock(afterApp.financial_statements),
     [afterApp.financial_statements]
   );
   const beforeDir = React.useMemo(

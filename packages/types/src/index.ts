@@ -343,6 +343,7 @@ export * from "./application-steps";
 export * from "./financial-calculator";
 export * from "./financial-field-labels";
 export * from "./ctos-report-table-math";
+export * from "./financial-unaudited-ctos-validation";
 export * from "./review-scope";
 export * from "./guarantors";
 export * from "./resubmit-path-utils";
