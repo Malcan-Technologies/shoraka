@@ -16,6 +16,12 @@ describe("ApplicationLogAdapter", () => {
     expect(adapter.buildDescription("APPLICATION_REJECTED", { remark: "Invalid docs" })).toBe(
       "Application rejected"
     );
+    expect(
+      adapter.buildDescription("APPLICATION_RESUBMITTED", {
+        resubmit_changes: { activity_summary: "Changes: Supporting documents" },
+      })
+    ).toBe("Changes: Supporting documents");
+    expect(adapter.buildDescription("APPLICATION_RESUBMITTED", {})).toBe("Resubmitted the application");
   });
 
   it("transforms record to unified activity", () => {

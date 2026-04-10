@@ -142,7 +142,13 @@ export class ApplicationLogAdapter implements AuditLogAdapter<ApplicationLog> {
     return unified as UnifiedActivity;
   }
 
-  buildDescription(eventType: string, _metadata?: Record<string, unknown>): string {
+  buildDescription(eventType: string, metadata?: Record<string, unknown>): string {
+    if (eventType === ApplicationLogEventType.APPLICATION_RESUBMITTED && metadata?.resubmit_changes) {
+      const rc = metadata.resubmit_changes as { activity_summary?: string };
+      if (typeof rc.activity_summary === "string" && rc.activity_summary.length > 0) {
+        return rc.activity_summary;
+      }
+    }
     const labels: Record<string, string> = {
       [ApplicationLogEventType.APPLICATION_CREATED]: "Created an application",
       [ApplicationLogEventType.APPLICATION_SUBMITTED]: "Submitted the application",

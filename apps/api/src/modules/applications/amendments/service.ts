@@ -11,6 +11,7 @@ import { AppError } from "../../../lib/http/error-handler";
 import { ApplicationRepository } from "../repository";
 import { assertRequiredSupportingDocumentsPresent } from "../supporting-docs-workflow";
 import { buildApplicationRevisionSnapshot } from "../revision-snapshot";
+import { summarizeResubmitSnapshotDiff } from "../resubmit-snapshot-diff";
 
 export interface AmendmentAllowedSections {
   allowedSections: Set<string>;
@@ -165,6 +166,35 @@ export async function resubmitApplication(
   const previousCycle = (application as any).review_cycle ?? 1;
   const newCycle = previousCycle + 1;
 
+  const prevRevision = await prisma.applicationRevision.findFirst({
+    where: { application_id: applicationId, review_cycle: previousCycle },
+  });
+
+  const nextSnapshot = appFullCurrent
+    ? buildApplicationRevisionSnapshot({
+        financing_type: appFullCurrent.financing_type,
+        product_version: appFullCurrent.product_version,
+        amendment_acknowledged_workflow_ids: appFullCurrent.amendment_acknowledged_workflow_ids,
+        financing_structure: appFullCurrent.financing_structure,
+        company_details: appFullCurrent.company_details,
+        business_details: appFullCurrent.business_details,
+        financial_statements: appFullCurrent.financial_statements,
+        supporting_documents: appFullCurrent.supporting_documents,
+        declarations: appFullCurrent.declarations,
+        review_and_submit: appFullCurrent.review_and_submit,
+        last_completed_step: appFullCurrent.last_completed_step,
+        contract_id: appFullCurrent.contract_id,
+        contract: appFullCurrent.contract,
+        invoices: appFullCurrent.invoices,
+        issuer_organization: appFullCurrent.issuer_organization,
+      })
+    : null;
+
+  const resubmitChangeSummary =
+    prevRevision?.snapshot && nextSnapshot
+      ? summarizeResubmitSnapshotDiff(prevRevision.snapshot, nextSnapshot)
+      : null;
+
   await prisma.$transaction(async (tx) => {
     await tx.applicationReviewRemark.deleteMany({
       where: {
@@ -187,30 +217,12 @@ export async function resubmitApplication(
       } as any,
     });
 
-    if (appFullCurrent) {
-      const snapshot = buildApplicationRevisionSnapshot({
-        financing_type: appFullCurrent.financing_type,
-        product_version: appFullCurrent.product_version,
-        amendment_acknowledged_workflow_ids: appFullCurrent.amendment_acknowledged_workflow_ids,
-        financing_structure: appFullCurrent.financing_structure,
-        company_details: appFullCurrent.company_details,
-        business_details: appFullCurrent.business_details,
-        financial_statements: appFullCurrent.financial_statements,
-        supporting_documents: appFullCurrent.supporting_documents,
-        declarations: appFullCurrent.declarations,
-        review_and_submit: appFullCurrent.review_and_submit,
-        last_completed_step: appFullCurrent.last_completed_step,
-        contract_id: appFullCurrent.contract_id,
-        contract: appFullCurrent.contract,
-        invoices: appFullCurrent.invoices,
-        issuer_organization: appFullCurrent.issuer_organization,
-      });
-
+    if (appFullCurrent && nextSnapshot) {
       await (tx as any).applicationRevision.create({
         data: {
           application_id: applicationId,
           review_cycle: newCycle,
-          snapshot,
+          snapshot: nextSnapshot,
           submitted_at: new Date(),
         },
       });
@@ -229,12 +241,28 @@ export async function resubmitApplication(
 
   logger.info({ applicationId }, "Application resubmitted: cleared amendment flags, created revision");
 
+  const logMetadata: Record<string, unknown> = {
+    portal: "ISSUER",
+  };
+  if (resubmitChangeSummary) {
+    logMetadata.resubmit_changes = {
+      section_keys: resubmitChangeSummary.changedSectionKeys,
+      section_labels: resubmitChangeSummary.changedSectionLabels,
+      contract_updated: resubmitChangeSummary.contractChanged,
+      invoices_updated: resubmitChangeSummary.invoicesChanged,
+      activity_summary: resubmitChangeSummary.activitySummary,
+      field_changes: resubmitChangeSummary.field_changes,
+    };
+  }
+
   await prisma.applicationLog.create({
     data: {
       user_id: userId,
       application_id: applicationId,
       event_type: "APPLICATION_RESUBMITTED",
       review_cycle: newCycle,
+      portal: "ISSUER",
+      metadata: logMetadata,
       created_at: new Date(),
     } as any,
   });

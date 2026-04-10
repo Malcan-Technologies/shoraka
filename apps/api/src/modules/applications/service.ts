@@ -494,9 +494,16 @@ export class ApplicationService {
     return logs.map((log) => {
       const meta = (log.metadata as Record<string, unknown>) ?? {};
       const actorName = log.user_id ? actorNameMap.get(log.user_id) ?? null : null;
+      const mergedMeta = actorName ? { ...meta, actorName } : meta;
+      let activity: string | undefined;
+      const resubmitChanges = mergedMeta.resubmit_changes as { activity_summary?: string } | undefined;
+      if (log.event_type === "APPLICATION_RESUBMITTED" && resubmitChanges?.activity_summary) {
+        activity = resubmitChanges.activity_summary;
+      }
       return {
         ...log,
-        metadata: actorName ? { ...meta, actorName } : meta,
+        metadata: mergedMeta,
+        ...(activity ? { activity } : {}),
       };
     });
   }
