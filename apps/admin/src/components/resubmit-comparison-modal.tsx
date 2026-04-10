@@ -98,7 +98,7 @@ export function ResubmitComparisonModal({
             {reviewCycle != null ? ` · Review cycle ${reviewCycle}` : null}
             {data?.previous_review_cycle != null && data?.next_review_cycle != null ? (
               <span className="block text-xs text-muted-foreground mt-1">
-                Comparing cycle {data.previous_review_cycle} (before) to {data.next_review_cycle} (after)
+                Cycles {data.previous_review_cycle} → {data.next_review_cycle} · Left = older · Right = newer
               </span>
             ) : null}
           </DialogDescription>

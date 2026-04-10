@@ -234,8 +234,8 @@ export function ApplicationFinancialReviewComparison({
               <TableHeader className={applicationTableHeaderBgClass}>
                 <TableRow className="hover:bg-transparent border-b border-border">
                   <TableHead className={applicationTableHeaderClass}>Role / name</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>Before</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>After</TableHead>
+                  <TableHead className={applicationTableHeaderClass}>Earlier</TableHead>
+                  <TableHead className={applicationTableHeaderClass}>Later</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

@@ -2,7 +2,7 @@
 
 /**
  * SECTION: Question-style field in resubmit comparison
- * WHY: Same Before | After grid and value surface as document comparison (no left accent bar).
+ * WHY: Same two-column grid and value surface as document comparison; column meaning is explained once in the modal.
  * INPUT: label, before/after strings, multiline flag
  * OUTPUT: Label on top, two columns, muted rounded cell per value
  * WHERE USED: All section comparison modes that use text fields
@@ -59,12 +59,10 @@ export function ComparisonFieldRow({
     >
       <p className="text-sm font-medium text-foreground">{label}</p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-0">
-        <div className="md:pr-4 md:border-r md:border-border space-y-2 min-w-0">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Before</p>
+        <div className="md:pr-4 md:border-r md:border-border min-w-0">
           <Cell value={before} />
         </div>
-        <div className="md:pl-4 space-y-2 min-w-0 pt-4 md:pt-0">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">After</p>
+        <div className="md:pl-4 min-w-0 pt-4 md:pt-0">
           <Cell value={after} />
         </div>
       </div>

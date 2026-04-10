@@ -86,12 +86,10 @@ export function ComparisonDocumentTitleRow({
     >
       <p className="text-sm font-medium text-foreground">{title}</p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-0">
-        <div className="md:pr-4 md:border-r md:border-border space-y-2 min-w-0">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Before</p>
+        <div className="md:pr-4 md:border-r md:border-border min-w-0">
           <ComparisonFileChipList files={beforeFiles} emptyLabel="—" />
         </div>
-        <div className="md:pl-4 space-y-2 min-w-0 pt-4 md:pt-0">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">After</p>
+        <div className="md:pl-4 min-w-0 pt-4 md:pt-0">
           <ComparisonFileChipList files={afterFiles} emptyLabel="—" />
         </div>
       </div>
