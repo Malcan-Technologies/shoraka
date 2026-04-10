@@ -8,6 +8,7 @@
  * WHERE USED: All section comparison modes that use text fields
  */
 
+import { YesNoRadioDisplay } from "@cashsouk/ui";
 import { cn } from "@/lib/utils";
 import {
   REVIEW_EMPTY_LABEL,
@@ -27,6 +28,69 @@ function valueLooksEmpty(value: string): boolean {
 function normalizedForCompare(value: string): string {
   if (valueLooksEmpty(value)) return "";
   return value.trim();
+}
+
+const yesNoRadioScaleClass = "inline-block scale-[0.88] origin-left";
+
+/**
+ * SECTION: Yes/No comparison row
+ * WHY: Matches issuer/admin Yes–No radios instead of plain "Yes"/"No" text.
+ * INPUT: label, before/after tri-bool, changed flag from field_changes
+ * OUTPUT: Same grid as ComparisonFieldRow with YesNoRadioDisplay per column
+ * WHERE USED: Business, contract, customer comparison when a field is yes/no
+ */
+export function unknownToTriBool(v: unknown): boolean | null {
+  if (v === true || v === "yes") return true;
+  if (v === false || v === "no") return false;
+  return null;
+}
+
+export function ComparisonYesNoRadioRow({
+  label,
+  beforeValue,
+  afterValue,
+  changed,
+}: {
+  label: string;
+  beforeValue: boolean | null;
+  afterValue: boolean | null;
+  changed: boolean;
+}) {
+  const valuesDiffer = beforeValue !== afterValue;
+
+  const Cell = ({ value, side }: { value: boolean | null; side: "before" | "after" }) => {
+    const base = comparisonCellSurfaceClass;
+    const changedHighlight =
+      valuesDiffer &&
+      (side === "before" ? comparisonSurfaceChangedBeforeClass : comparisonSurfaceChangedAfterClass);
+    return (
+      <div className={cn(base, "items-start justify-start", changedHighlight)}>
+        <span className={yesNoRadioScaleClass}>
+          <YesNoRadioDisplay value={value} />
+        </span>
+      </div>
+    );
+  };
+
+  return (
+    <div
+      className="py-2 space-y-3"
+      role="row"
+      aria-label={
+        valuesDiffer || changed ? `${label}, values differ between revisions` : label
+      }
+    >
+      <p className="text-sm font-medium text-foreground">{label}</p>
+      <div className={comparisonSplitRowGridClass}>
+        <div className={comparisonSplitBeforeColClass}>
+          <Cell value={beforeValue} side="before" />
+        </div>
+        <div className={comparisonSplitAfterColClass}>
+          <Cell value={afterValue} side="after" />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function ComparisonFieldRow({

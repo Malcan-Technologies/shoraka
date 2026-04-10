@@ -180,7 +180,6 @@ export function ApplicationFinancialReviewComparison({
   afterApp: typeof beforeApp;
   isPathChanged: (path: string) => boolean;
 }) {
-  console.log("ApplicationFinancialReviewComparison mount");
   const beforeFs = React.useMemo(
     () => parseFinancialStatements(beforeApp.financial_statements),
     [beforeApp.financial_statements]
@@ -202,10 +201,10 @@ export function ApplicationFinancialReviewComparison({
 
   return (
     <>
-      <ReviewFieldBlock title="Issuer financial submission (comparison)">
+      <ReviewFieldBlock title="CTOS report">
         <p className="text-xs text-muted-foreground mb-3">
-          CTOS columns are not stored in revision snapshots. Use the main Financial tab for audited-year
-          CTOS data.
+          Only values from the application snapshot are shown here (like the unaudited / issuer column on
+          the main tab). Fetched CTOS year columns are not stored in revision snapshots.
         </p>
         <div className="space-y-2">
           {ROW_LABELS.map((row) => {
@@ -230,7 +229,7 @@ export function ApplicationFinancialReviewComparison({
         </div>
       </ReviewFieldBlock>
 
-      <ReviewFieldBlock title="Director & Shareholders (snapshot)">
+      <ReviewFieldBlock title="Director & Shareholders">
         {maxLen === 0 ? (
           <p className={reviewEmptyStateClass}>No director or shareholder data in these snapshots.</p>
         ) : (

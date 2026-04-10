@@ -19,6 +19,6 @@ test.describe("Resubmit comparison modal", () => {
     await openBtn.click();
 
     await expect(page.getByRole("dialog")).toBeVisible();
-    await expect(page.getByText("Application resubmitted — compare revisions")).toBeVisible();
+    await expect(page.getByText("What changed in this application")).toBeVisible();
   });
 });

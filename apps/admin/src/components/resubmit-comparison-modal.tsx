@@ -83,17 +83,13 @@ export function ResubmitComparisonModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] w-full max-h-[90vh] flex flex-col overflow-hidden rounded-2xl p-0 gap-0 border border-border bg-background shadow-lg">
         <DialogHeader className="space-y-1 shrink-0 border-b border-border/80 px-6 pb-1.5 pt-6">
-          <DialogTitle className="text-[17px] leading-7">
-            Application resubmitted — compare revisions
-          </DialogTitle>
+          <DialogTitle className="text-[17px] leading-7">What changed in this application</DialogTitle>
           <DialogDescription className="text-sm">
             {applicationId ? `Application ${applicationId}` : "Application"}
-            {reviewCycle != null ? ` · Review cycle ${reviewCycle}` : null}
-            {data?.previous_review_cycle != null && data?.next_review_cycle != null ? (
-              <span className="mt-0.5 block text-xs text-muted-foreground">
-                Cycles {data.previous_review_cycle} → {data.next_review_cycle} · Left = older · Right = newer
-              </span>
-            ) : null}
+            <span className="mt-0.5 block text-xs text-muted-foreground">
+              Left: their old answers. Right: their new answers. This window is read only. You cannot
+              change anything here.
+            </span>
           </DialogDescription>
         </DialogHeader>
 
@@ -124,7 +120,7 @@ export function ResubmitComparisonModal({
                       />
                       <span
                         className="relative z-10 mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-status-rejected-text/40 bg-background text-status-rejected-text"
-                        title="Superseded revision"
+                        title="Older version"
                       >
                         <XMarkIcon className="h-4 w-4" aria-hidden />
                       </span>
@@ -133,7 +129,7 @@ export function ResubmitComparisonModal({
                           Before
                         </p>
                         <p className="mt-0.5 text-[11px] font-normal leading-snug text-muted-foreground">
-                          Earlier snapshot
+                          Before resubmit
                         </p>
                       </div>
                     </div>
@@ -145,7 +141,7 @@ export function ResubmitComparisonModal({
                       />
                       <span
                         className="relative z-10 mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-status-action-text/40 bg-background text-status-action-text"
-                        title="Current revision"
+                        title="Newer version"
                       >
                         <CheckIcon className="h-4 w-4" aria-hidden />
                       </span>
@@ -154,7 +150,7 @@ export function ResubmitComparisonModal({
                           After
                         </p>
                         <p className="mt-0.5 text-[11px] font-normal leading-snug text-muted-foreground">
-                          Later snapshot
+                          After resubmit
                         </p>
                       </div>
                     </div>

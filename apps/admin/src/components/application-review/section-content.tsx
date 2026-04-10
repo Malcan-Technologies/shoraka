@@ -324,6 +324,7 @@ export function SectionContent({
             onReject={onRejectSection}
             onRequestAmendment={onRequestAmendmentSection}
             onViewDocument={onViewDocument}
+            onDownloadDocument={onDownloadDocument}
             viewDocumentPending={viewDocumentPending}
             comments={sectionComments}
             onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
@@ -359,6 +360,7 @@ export function SectionContent({
           onSendOffer={onSendContractOffer}
           isSendOfferPending={sendContractOfferPending}
           onViewDocument={onViewDocument}
+          onDownloadDocument={onDownloadDocument}
           viewDocumentPending={viewDocumentPending}
           comments={sectionComments}
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
@@ -433,6 +435,7 @@ export function SectionContent({
           isActionLocked={isActionLocked}
           actionLockTooltip={actionLockTooltip}
           onViewDocument={onViewDocument}
+          onDownloadDocument={onDownloadDocument}
           viewDocumentPending={viewDocumentPending}
           invoiceRatioLimits={invoiceRatioLimits}
           onApproveItem={(id) => onApproveItem(id, "invoice")}

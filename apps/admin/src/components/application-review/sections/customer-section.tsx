@@ -17,7 +17,7 @@ import {
   formatFileSize,
 } from "../review-section-styles";
 import type { ReviewSectionId } from "../section-types";
-import { ComparisonFieldRow } from "../comparison-field-row";
+import { ComparisonFieldRow, ComparisonYesNoRadioRow, unknownToTriBool } from "../comparison-field-row";
 import {
   ComparisonDocumentTitleRow,
   fileDocToComparisonChips,
@@ -42,6 +42,7 @@ export interface CustomerSectionProps {
   onReject: (section: ReviewSectionId) => void;
   onRequestAmendment: (section: ReviewSectionId) => void;
   onViewDocument?: (s3Key: string) => void;
+  onDownloadDocument?: (s3Key: string, fileName?: string) => void;
   viewDocumentPending?: boolean;
   comments: SectionCommentItem[];
   onAddComment?: (comment: string) => Promise<void> | void;
@@ -66,6 +67,7 @@ export function CustomerSection({
   onReject,
   onRequestAmendment,
   onViewDocument,
+  onDownloadDocument,
   viewDocumentPending,
   comments,
   onAddComment,
@@ -76,8 +78,6 @@ export function CustomerSection({
     const { beforeCustomer, afterCustomer, isPathChanged } = sectionComparison;
     const b = beforeCustomer as Record<string, unknown> | null | undefined;
     const a = afterCustomer as Record<string, unknown> | null | undefined;
-    const yn = (v: unknown) =>
-      v === true ? "Yes" : v === false ? "No" : REVIEW_EMPTY_LABEL;
     const bDoc = b?.document as FileDoc | undefined;
     const aDoc = a?.document as FileDoc | undefined;
     return (
@@ -108,20 +108,23 @@ export function CustomerSection({
               after={formatReviewValue(a?.country)}
               changed={isPathChanged("contract")}
             />
-            <ComparisonFieldRow
+            <ComparisonYesNoRadioRow
               label="Is Customer Related to Issuer?"
-              before={yn(b?.is_related_party)}
-              after={yn(a?.is_related_party)}
+              beforeValue={unknownToTriBool(b?.is_related_party)}
+              afterValue={unknownToTriBool(a?.is_related_party)}
               changed={isPathChanged("contract")}
             />
           </div>
         </ReviewFieldBlock>
         <ReviewFieldBlock title="Evidence">
           <ComparisonDocumentTitleRow
-            title="Customer consent"
+            title="Customer Consent"
             beforeFiles={fileDocToComparisonChips(bDoc)}
             afterFiles={fileDocToComparisonChips(aDoc)}
             markChanged={isPathChanged("contract")}
+            onViewDocument={onViewDocument}
+            onDownloadDocument={onDownloadDocument}
+            viewDocumentPending={viewDocumentPending}
           />
         </ReviewFieldBlock>
         {!hideSectionComments ? (

@@ -15,10 +15,13 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
+  ArrowDownTrayIcon,
+  ArrowTopRightOnSquareIcon,
   ChevronDownIcon,
   DocumentArrowDownIcon,
   DocumentTextIcon,
 } from "@heroicons/react/24/outline";
+import { Button } from "@/components/ui/button";
 import { SUPPORTING_DOC_CATEGORY_KEYS } from "@/app/settings/products/workflow-builder/product-form-helpers";
 import { cn } from "@/lib/utils";
 import {
@@ -50,44 +53,94 @@ export function ComparisonFileChipList({
   files,
   emptyLabel,
   strikeLabels,
+  onViewDocument,
+  onDownloadDocument,
+  viewDocumentPending,
 }: {
   files: ComparisonFileChip[];
   emptyLabel: string;
   /** When true, primary line uses strikethrough (e.g. superseded before column). */
   strikeLabels?: boolean;
+  onViewDocument?: (s3Key: string) => void;
+  onDownloadDocument?: (s3Key: string, fileName?: string) => void;
+  viewDocumentPending?: boolean;
 }) {
   if (files.length === 0) {
     return <p className="text-sm text-muted-foreground">{emptyLabel}</p>;
   }
   return (
     <ul className="space-y-2">
-      {files.map((f, idx) => (
-        <li key={`${f.s3Key}-${idx}`} className={comparisonFileChipRowClass}>
-          <DocumentTextIcon className="h-4 w-4 shrink-0 text-muted-foreground mt-0.5" />
-          <span className="min-w-0 flex-1">
-            <span
-              className={cn(
-                "text-sm text-foreground break-all block",
-                strikeLabels &&
-                  "line-through decoration-muted-foreground/80 decoration-1 [text-decoration-skip-ink:none]"
-              )}
-            >
-              {f.label || f.s3Key}
-            </span>
-            {f.secondary ? (
-              <span
-                className={cn(
-                  "text-xs text-muted-foreground block mt-0.5",
-                  strikeLabels &&
-                    "line-through decoration-muted-foreground/70 decoration-1 [text-decoration-skip-ink:none]"
-                )}
-              >
-                {f.secondary}
+      {files.map((f, idx) => {
+        const hasKey = Boolean(f.s3Key?.trim());
+        const showView = Boolean(hasKey && onViewDocument);
+        const showDownload = Boolean(hasKey && onDownloadDocument);
+        return (
+          <li
+            key={`${f.s3Key}-${idx}`}
+            className={cn(
+              comparisonFileChipRowClass,
+              (showView || showDownload) &&
+                "flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+            )}
+          >
+            <div className="flex min-w-0 flex-1 items-start gap-2">
+              <DocumentTextIcon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1">
+                <span
+                  className={cn(
+                    "block break-all text-sm text-foreground",
+                    strikeLabels &&
+                      "line-through decoration-muted-foreground/80 decoration-1 [text-decoration-skip-ink:none]"
+                  )}
+                >
+                  {f.label || f.s3Key}
+                </span>
+                {f.secondary ? (
+                  <span
+                    className={cn(
+                      "mt-0.5 block text-xs text-muted-foreground",
+                      strikeLabels &&
+                        "line-through decoration-muted-foreground/70 decoration-1 [text-decoration-skip-ink:none]"
+                    )}
+                  >
+                    {f.secondary}
+                  </span>
+                ) : null}
               </span>
+            </div>
+            {showView || showDownload ? (
+              <div className="flex shrink-0 flex-wrap gap-1 sm:justify-end">
+                {showView ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9 gap-1 rounded-lg border-0"
+                    disabled={viewDocumentPending}
+                    onClick={() => onViewDocument?.(f.s3Key)}
+                  >
+                    <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                    View
+                  </Button>
+                ) : null}
+                {showDownload ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-9 gap-1 rounded-lg border-0"
+                    disabled={viewDocumentPending}
+                    onClick={() => onDownloadDocument?.(f.s3Key, f.label)}
+                  >
+                    <ArrowDownTrayIcon className="h-4 w-4" />
+                    Download
+                  </Button>
+                ) : null}
+              </div>
             ) : null}
-          </span>
-        </li>
-      ))}
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -97,12 +150,18 @@ export function ComparisonDocumentTitleRow({
   beforeFiles,
   afterFiles,
   markChanged,
+  onViewDocument,
+  onDownloadDocument,
+  viewDocumentPending,
 }: {
   title: string;
   beforeFiles: ComparisonFileChip[];
   afterFiles: ComparisonFileChip[];
   /** Included in aria-label when set or when file lists differ. */
   markChanged?: boolean;
+  onViewDocument?: (s3Key: string) => void;
+  onDownloadDocument?: (s3Key: string, fileName?: string) => void;
+  viewDocumentPending?: boolean;
 }) {
   const filesDiffer =
     comparisonFileChipsSignature(beforeFiles) !== comparisonFileChipsSignature(afterFiles);
@@ -127,6 +186,9 @@ export function ComparisonDocumentTitleRow({
             files={beforeFiles}
             emptyLabel="—"
             strikeLabels={filesDiffer && beforeFiles.length > 0}
+            onViewDocument={onViewDocument}
+            onDownloadDocument={onDownloadDocument}
+            viewDocumentPending={viewDocumentPending}
           />
         </div>
         <div
@@ -135,7 +197,13 @@ export function ComparisonDocumentTitleRow({
             colHighlight && cn(comparisonSurfaceChangedAfterClass, "rounded-none p-2")
           )}
         >
-          <ComparisonFileChipList files={afterFiles} emptyLabel="—" />
+          <ComparisonFileChipList
+            files={afterFiles}
+            emptyLabel="—"
+            onViewDocument={onViewDocument}
+            onDownloadDocument={onDownloadDocument}
+            viewDocumentPending={viewDocumentPending}
+          />
         </div>
       </div>
     </div>
@@ -181,9 +249,15 @@ function docFilesToChips(files: DocFile[]): ComparisonFileChip[] {
 export function SupportingDocumentsComparisonLayout({
   beforeDocs,
   afterDocs,
+  onViewDocument,
+  onDownloadDocument,
+  viewDocumentPending,
 }: {
   beforeDocs: unknown;
   afterDocs: unknown;
+  onViewDocument?: (s3Key: string) => void;
+  onDownloadDocument?: (s3Key: string, fileName?: string) => void;
+  viewDocumentPending?: boolean;
 }) {
   const beforeGroups = React.useMemo(() => buildCategoryGroups(beforeDocs), [beforeDocs]);
   const afterGroups = React.useMemo(() => buildCategoryGroups(afterDocs), [afterDocs]);
@@ -246,6 +320,9 @@ export function SupportingDocumentsComparisonLayout({
                         title={title}
                         beforeFiles={beforeChips}
                         afterFiles={afterChips}
+                        onViewDocument={onViewDocument}
+                        onDownloadDocument={onDownloadDocument}
+                        viewDocumentPending={viewDocumentPending}
                       />
                     );
                   })}

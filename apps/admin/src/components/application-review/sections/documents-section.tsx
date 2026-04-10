@@ -160,7 +160,13 @@ export function DocumentsSection({
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <SupportingDocumentsComparisonLayout beforeDocs={beforeDocs} afterDocs={afterDocs} />
+          <SupportingDocumentsComparisonLayout
+            beforeDocs={beforeDocs}
+            afterDocs={afterDocs}
+            onViewDocument={onViewDocument}
+            onDownloadDocument={onDownloadDocument}
+            viewDocumentPending={viewDocumentPending}
+          />
           {!hideSectionComments ? (
             <SectionComments comments={comments} onSubmitComment={onAddComment} />
           ) : null}

@@ -26,8 +26,13 @@ import {
   reviewRowGridClass,
   reviewEmptyStateClass,
   REVIEW_EMPTY_LABEL,
+  comparisonCellSurfaceClass,
+  comparisonSurfaceChangedAfterClass,
+  comparisonSurfaceChangedBeforeClass,
+  comparisonSplitAfterColClass,
+  comparisonSplitBeforeColClass,
+  comparisonSplitRowGridClass,
 } from "../review-section-styles";
-import { ComparisonFieldRow } from "../comparison-field-row";
 import {
   ComparisonDocumentTitleRow,
   businessSupportingDocsToChips,
@@ -39,6 +44,11 @@ import {
   type GuarantorCompanyRelationship,
   type GuarantorIndividualRelationship,
 } from "@cashsouk/types";
+import { cn } from "@/lib/utils";
+import {
+  ComparisonFieldRow,
+  ComparisonYesNoRadioRow,
+} from "../comparison-field-row";
 
 export type BusinessSectionComparisonProps = {
   beforeDetails: unknown;
@@ -215,6 +225,79 @@ export function parseBusinessDetails(raw: unknown): BusinessDetailsView | null {
   };
 }
 
+/**
+ * SECTION: Declaration side-by-side in resubmit comparison
+ * WHY: Same checkbox + statement as live review, not "Confirmed" text.
+ */
+function ComparisonDeclarationRow({
+  beforeConfirmed,
+  afterConfirmed,
+  changed,
+}: {
+  beforeConfirmed: boolean;
+  afterConfirmed: boolean;
+  changed: boolean;
+}) {
+  const valuesDiffer = beforeConfirmed !== afterConfirmed;
+  const Cell = ({ confirmed, side }: { confirmed: boolean; side: "before" | "after" }) => {
+    const base = comparisonCellSurfaceClass;
+    const changedHighlight =
+      valuesDiffer &&
+      (side === "before" ? comparisonSurfaceChangedBeforeClass : comparisonSurfaceChangedAfterClass);
+    return (
+      <div className={cn(base, "items-start", changedHighlight)}>
+        <div className="w-full rounded-lg border border-input bg-background p-3">
+          <div className="flex items-start gap-3">
+            <div
+              className={cn(
+                "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+                confirmed ? "border-primary bg-primary" : "border-muted-foreground"
+              )}
+              aria-hidden
+            >
+              {confirmed ? (
+                <svg
+                  className="h-2.5 w-2.5 text-primary-foreground"
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <path d="M2 6l3 3 5-6" />
+                </svg>
+              ) : null}
+            </div>
+            <span className="text-sm text-foreground">{DECLARATION_TEXT}</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+  return (
+    <div
+      className="py-2 space-y-3"
+      role="group"
+      aria-label={
+        valuesDiffer || changed
+          ? "Declarations, confirmation differs between revisions"
+          : "Declarations"
+      }
+    >
+      <div className={comparisonSplitRowGridClass}>
+        <div className={comparisonSplitBeforeColClass}>
+          <Cell confirmed={beforeConfirmed} side="before" />
+        </div>
+        <div className={comparisonSplitAfterColClass}>
+          <Cell confirmed={afterConfirmed} side="after" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const yesNoScaleWrapper = "inline-block scale-[0.88] origin-left";
 
 export function BusinessSection({
@@ -241,8 +324,6 @@ export function BusinessSection({
     const vb = parseBusinessDetails(sectionComparison.beforeDetails);
     const va = parseBusinessDetails(sectionComparison.afterDetails);
     const { isPathChanged } = sectionComparison;
-    const yn = (v: boolean | null) =>
-      v === true ? "Yes" : v === false ? "No" : REVIEW_EMPTY_LABEL;
     const money = (n: number | null) => (n != null ? formatCurrency(n) : REVIEW_EMPTY_LABEL);
     if (!vb && !va) {
       return (
@@ -285,10 +366,10 @@ export function BusinessSection({
               changed={isPathChanged("business_details")}
               multiline
             />
-            <ComparisonFieldRow
+            <ComparisonYesNoRadioRow
               label="Does Any Single Customer Make Up More Than 50% of Your Revenue?"
-              before={yn(vb?.about.singleCustomerOver50Revenue ?? null)}
-              after={yn(va?.about.singleCustomerOver50Revenue ?? null)}
+              beforeValue={vb?.about.singleCustomerOver50Revenue ?? null}
+              afterValue={va?.about.singleCustomerOver50Revenue ?? null}
               changed={isPathChanged("business_details")}
             />
             <ComparisonFieldRow
@@ -338,15 +419,18 @@ export function BusinessSection({
               multiline
             />
             <ComparisonDocumentTitleRow
-              title="Relevant supporting documents for this section"
+              title="Relevant Supporting Documents for This Section"
               beforeFiles={businessSupportingDocsToChips(vb?.whyRaisingFunds?.supportingDocuments ?? [])}
               afterFiles={businessSupportingDocsToChips(va?.whyRaisingFunds?.supportingDocuments ?? [])}
               markChanged={isPathChanged("business_details")}
+              onViewDocument={onViewDocument}
+              onDownloadDocument={onDownloadDocument}
+              viewDocumentPending={viewDocumentPending}
             />
-            <ComparisonFieldRow
+            <ComparisonYesNoRadioRow
               label="Are You Currently Raising/Applying Funds on Any Other P2P Platforms?"
-              before={yn(vb?.whyRaisingFunds.raisingOnOtherP2P ?? null)}
-              after={yn(va?.whyRaisingFunds.raisingOnOtherP2P ?? null)}
+              beforeValue={vb?.whyRaisingFunds.raisingOnOtherP2P ?? null}
+              afterValue={va?.whyRaisingFunds.raisingOnOtherP2P ?? null}
               changed={isPathChanged("business_details")}
             />
             {showP2PBefore || showP2PAfter ? (
@@ -363,10 +447,10 @@ export function BusinessSection({
                   after={money(va?.whyRaisingFunds.amountRaised ?? null)}
                   changed={isPathChanged("business_details")}
                 />
-                <ComparisonFieldRow
+                <ComparisonYesNoRadioRow
                   label="Have the same invoices been used to apply for funding in the aforementioned platform?"
-                  before={yn(vb?.whyRaisingFunds.sameInvoiceUsed ?? null)}
-                  after={yn(va?.whyRaisingFunds.sameInvoiceUsed ?? null)}
+                  beforeValue={vb?.whyRaisingFunds.sameInvoiceUsed ?? null}
+                  afterValue={va?.whyRaisingFunds.sameInvoiceUsed ?? null}
                   changed={isPathChanged("business_details")}
                 />
               </>
@@ -454,10 +538,9 @@ export function BusinessSection({
         )}
 
         <ReviewFieldBlock title="Declarations">
-          <ComparisonFieldRow
-            label="Issuer declaration confirmed"
-            before={vb?.declarationConfirmed ? "Confirmed" : "Not confirmed"}
-            after={va?.declarationConfirmed ? "Confirmed" : "Not confirmed"}
+          <ComparisonDeclarationRow
+            beforeConfirmed={vb?.declarationConfirmed ?? false}
+            afterConfirmed={va?.declarationConfirmed ?? false}
             changed={isPathChanged("declarations")}
           />
         </ReviewFieldBlock>

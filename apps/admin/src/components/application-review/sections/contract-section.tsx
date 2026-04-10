@@ -31,7 +31,7 @@ import {
   formatFileSize,
 } from "../review-section-styles";
 import type { ReviewSectionId } from "../section-types";
-import { ComparisonFieldRow } from "../comparison-field-row";
+import { ComparisonFieldRow, ComparisonYesNoRadioRow, unknownToTriBool } from "../comparison-field-row";
 import {
   ComparisonDocumentTitleRow,
   fileDocToComparisonChips,
@@ -62,6 +62,7 @@ export interface ContractSectionProps {
   onSendOffer?: (payload: { offeredFacility: number }) => Promise<void>;
   isSendOfferPending?: boolean;
   onViewDocument?: (s3Key: string) => void;
+  onDownloadDocument?: (s3Key: string, fileName?: string) => void;
   viewDocumentPending?: boolean;
   comments: SectionCommentItem[];
   onAddComment?: (comment: string) => Promise<void> | void;
@@ -102,6 +103,7 @@ export function ContractSection({
   onSendOffer,
   isSendOfferPending,
   onViewDocument,
+  onDownloadDocument,
   viewDocumentPending,
   comments,
   onAddComment,
@@ -120,8 +122,6 @@ export function ContractSection({
     const aOffer = after.offerDetails as Record<string, unknown> | null | undefined;
     const rf = (cd: typeof bCd) => (cd ? resolveRequestedFacility(cd) : 0);
     const of = (o: typeof bOffer) => resolveOfferedFacility(o);
-    const yn = (v: unknown) =>
-      v === true ? "Yes" : v === false ? "No" : REVIEW_EMPTY_LABEL;
     return (
       <ReviewSectionCard title="Contract Details" icon={DocumentTextIcon} section={section} isReviewable={false}>
         <ReviewFieldBlock title="Offer to Issuer">
@@ -133,7 +133,7 @@ export function ContractSection({
               changed={isPathChanged("contract")}
             />
             <ComparisonFieldRow
-              label="Persisted offered facility"
+              label="Offered Facility"
               before={of(bOffer) > 0 ? formatCurrency(of(bOffer)) : REVIEW_EMPTY_LABEL}
               after={of(aOffer) > 0 ? formatCurrency(of(aOffer)) : REVIEW_EMPTY_LABEL}
               changed={isPathChanged("contract")}
@@ -228,10 +228,10 @@ export function ContractSection({
                 after={formatReviewValue(aCust?.country)}
                 changed={isPathChanged("contract")}
               />
-              <ComparisonFieldRow
+              <ComparisonYesNoRadioRow
                 label="Is Customer Related to Issuer?"
-                before={yn(bCust?.is_related_party)}
-                after={yn(aCust?.is_related_party)}
+                beforeValue={unknownToTriBool(bCust?.is_related_party)}
+                afterValue={unknownToTriBool(aCust?.is_related_party)}
                 changed={isPathChanged("contract")}
               />
             </div>
@@ -240,16 +240,22 @@ export function ContractSection({
         <ReviewFieldBlock title="Evidence">
           <div className="space-y-6">
             <ComparisonDocumentTitleRow
-              title="Contract document"
+              title="Contract Document"
               beforeFiles={fileDocToComparisonChips(bCd?.document as FileDoc | undefined)}
               afterFiles={fileDocToComparisonChips(aCd?.document as FileDoc | undefined)}
               markChanged={isPathChanged("contract")}
+              onViewDocument={onViewDocument}
+              onDownloadDocument={onDownloadDocument}
+              viewDocumentPending={viewDocumentPending}
             />
             <ComparisonDocumentTitleRow
-              title="Customer consent"
+              title="Customer Consent"
               beforeFiles={fileDocToComparisonChips(bCust?.document as FileDoc | undefined)}
               afterFiles={fileDocToComparisonChips(aCust?.document as FileDoc | undefined)}
               markChanged={isPathChanged("contract")}
+              onViewDocument={onViewDocument}
+              onDownloadDocument={onDownloadDocument}
+              viewDocumentPending={viewDocumentPending}
             />
           </div>
         </ReviewFieldBlock>

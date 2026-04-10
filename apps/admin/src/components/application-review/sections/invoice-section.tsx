@@ -36,6 +36,7 @@ export interface InvoiceSectionProps {
   isActionLocked?: boolean;
   actionLockTooltip?: string;
   onViewDocument: (s3Key: string) => void;
+  onDownloadDocument: (s3Key: string, fileName?: string) => void;
   viewDocumentPending: boolean;
   invoiceRatioLimits?: { min: number; max: number };
   offerExpiryDays?: number | null;
@@ -76,6 +77,33 @@ function invoiceDetailString(inv: { details?: unknown }, key: string): string {
   return String(v);
 }
 
+/** Same precedence as invoice review list: maturity_date, else due_date. */
+function invoiceMaturityString(inv: { details?: unknown } | undefined): string {
+  if (!inv) return "—";
+  const d = inv.details as Record<string, unknown> | null | undefined;
+  if (!d) return "—";
+  const raw =
+    d.maturity_date ??
+    d.maturityDate ??
+    d.due_date ??
+    d.dueDate;
+  if (raw == null || raw === "") return REVIEW_EMPTY_LABEL;
+  return String(raw);
+}
+
+/** Match invoice list: ratio with % suffix when numeric. */
+function invoiceFinancingRatioDisplay(inv: { details?: unknown } | undefined): string {
+  if (!inv) return "—";
+  const d = inv.details as Record<string, unknown> | null | undefined;
+  if (!d) return "—";
+  const v = d.financing_ratio_percent ?? d.financingRatioPercent;
+  if (v == null || v === "") return REVIEW_EMPTY_LABEL;
+  if (typeof v === "number" && Number.isFinite(v)) return `${v}%`;
+  const n = Number(String(v).replace(/,/g, ""));
+  if (Number.isFinite(n)) return `${n}%`;
+  return String(v);
+}
+
 export function InvoiceSection({
   invoices,
   readOnlyInvoiceIds,
@@ -86,6 +114,7 @@ export function InvoiceSection({
   isActionLocked,
   actionLockTooltip,
   onViewDocument,
+  onDownloadDocument,
   viewDocumentPending,
   invoiceRatioLimits,
   offerExpiryDays,
@@ -129,7 +158,7 @@ export function InvoiceSection({
                 <ReviewFieldBlock key={id} title={`Invoice ${invoiceDetailString(bInv ?? aInv!, "number") !== REVIEW_EMPTY_LABEL ? invoiceDetailString(bInv ?? aInv!, "number") : id}`}>
                   <div className="space-y-2">
                     <ComparisonFieldRow
-                      label="Invoice value"
+                      label="Invoice Value"
                       before={
                         bInv
                           ? (() => {
@@ -151,34 +180,31 @@ export function InvoiceSection({
                       changed={changed}
                     />
                     <ComparisonFieldRow
-                      label="Due date"
-                      before={bInv ? invoiceDetailString(bInv, "due_date") : "—"}
-                      after={aInv ? invoiceDetailString(aInv, "due_date") : "—"}
+                      label="Maturity Date"
+                      before={bInv ? invoiceMaturityString(bInv) : "—"}
+                      after={aInv ? invoiceMaturityString(aInv) : "—"}
                       changed={changed}
                     />
                     <ComparisonFieldRow
-                      label="Maturity date"
-                      before={bInv ? invoiceDetailString(bInv, "maturity_date") : "—"}
-                      after={aInv ? invoiceDetailString(aInv, "maturity_date") : "—"}
+                      label="Financing Ratio"
+                      before={bInv ? invoiceFinancingRatioDisplay(bInv) : "—"}
+                      after={aInv ? invoiceFinancingRatioDisplay(aInv) : "—"}
                       changed={changed}
                     />
                     <ComparisonFieldRow
-                      label="Financing ratio %"
-                      before={bInv ? invoiceDetailString(bInv, "financing_ratio_percent") : "—"}
-                      after={aInv ? invoiceDetailString(aInv, "financing_ratio_percent") : "—"}
-                      changed={changed}
-                    />
-                    <ComparisonFieldRow
-                      label="Offered amount (persisted)"
+                      label="Financing Amount"
                       before={bOffAmt > 0 ? formatCurrency(bOffAmt) : REVIEW_EMPTY_LABEL}
                       after={aOffAmt > 0 ? formatCurrency(aOffAmt) : REVIEW_EMPTY_LABEL}
                       changed={changed}
                     />
                     <ComparisonDocumentTitleRow
-                      title="Invoice document"
+                      title="Document"
                       beforeFiles={bInv ? invoiceDetailsDocumentChips(bInv.details) : []}
                       afterFiles={aInv ? invoiceDetailsDocumentChips(aInv.details) : []}
                       markChanged={changed}
+                      onViewDocument={onViewDocument}
+                      onDownloadDocument={onDownloadDocument}
+                      viewDocumentPending={viewDocumentPending}
                     />
                   </div>
                 </ReviewFieldBlock>
