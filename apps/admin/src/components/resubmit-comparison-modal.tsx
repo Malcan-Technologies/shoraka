@@ -30,6 +30,7 @@ import {
 import { revisionSnapshotToReviewApp } from "@/lib/revision-snapshot-to-review-app";
 import { buildResubmitChangedPathSet, resubmitPathIsChanged } from "@/lib/resubmit-comparison-paths";
 import type { ResubmitFieldChangeItem } from "@/components/application-revision-diff-panel";
+import { CheckIcon, XMarkIcon } from "@heroicons/react/24/outline";
 
 export interface ResubmitComparisonModalProps {
   open: boolean;
@@ -75,21 +76,13 @@ export function ResubmitComparisonModal({
     return revisionSnapshotToReviewApp(applicationId, data.next_snapshot as Record<string, unknown>);
   }, [data?.next_snapshot, applicationId]);
 
-  console.log("ResubmitComparisonModal state:", {
-    open,
-    applicationId,
-    reviewCycle,
-    hasData: !!data,
-    tabCount: tabDescriptors.length,
-  });
-
   const noopAsync = React.useCallback(async () => {}, []);
   const noop = React.useCallback(() => {}, []);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] w-full max-h-[90vh] flex flex-col overflow-hidden rounded-2xl p-0 gap-0 border border-border bg-background shadow-lg">
-        <DialogHeader className="px-6 pt-6 pb-2 shrink-0 border-b border-border/80 space-y-1">
+        <DialogHeader className="space-y-1 shrink-0 border-b border-border/80 px-6 pb-1.5 pt-6">
           <DialogTitle className="text-[17px] leading-7">
             Application resubmitted — compare revisions
           </DialogTitle>
@@ -97,86 +90,113 @@ export function ResubmitComparisonModal({
             {applicationId ? `Application ${applicationId}` : "Application"}
             {reviewCycle != null ? ` · Review cycle ${reviewCycle}` : null}
             {data?.previous_review_cycle != null && data?.next_review_cycle != null ? (
-              <span className="block text-xs text-muted-foreground mt-1">
+              <span className="mt-0.5 block text-xs text-muted-foreground">
                 Cycles {data.previous_review_cycle} → {data.next_review_cycle} · Left = older · Right = newer
               </span>
             ) : null}
           </DialogDescription>
         </DialogHeader>
 
-        {!isLoading && !isError && beforeApp && afterApp && tabDescriptors.length > 0 ? (
-          <div
-            className="shrink-0 grid grid-cols-2 gap-0 border-b border-border bg-muted/25 px-6 py-2.5 text-center sm:text-start"
-            role="presentation"
-          >
-            <div className="min-w-0 pr-2 text-xs font-semibold uppercase tracking-wide text-foreground sm:border-r sm:border-border/80 sm:pr-4">
-              Before
-              <span className="mt-0.5 block text-[11px] font-normal normal-case text-muted-foreground">
-                Earlier snapshot
-              </span>
-            </div>
-            <div className="min-w-0 pl-2 sm:pl-4 text-xs font-semibold uppercase tracking-wide text-foreground">
-              After
-              <span className="mt-0.5 block text-[11px] font-normal normal-case text-muted-foreground">
-                Later snapshot
-              </span>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 pb-6 pt-4">
-          {isLoading && (
-            <div className="space-y-4">
-              <Skeleton className="h-10 w-full rounded-xl" />
-              <Skeleton className="h-64 w-full rounded-xl" />
-            </div>
-          )}
-          {isError && (
-            <p className="text-sm text-destructive" role="alert">
-              {error instanceof Error ? error.message : "Failed to load comparison"}
-            </p>
-          )}
-          {!isLoading &&
-            !isError &&
-            beforeApp &&
-            afterApp &&
-            tabDescriptors.length > 0 && (
-              <ApplicationReviewTabs
-                sections={tabDescriptors.map((t) => ({
-                  section: t.reviewSection,
-                  status: "PENDING",
-                }))}
-                tabDescriptors={tabDescriptors}
-              >
-                {tabDescriptors.map((descriptor) => (
-                  <ApplicationReviewTabContent key={descriptor.id} value={descriptor.id}>
-                    <SectionContent
-                      descriptor={descriptor}
-                      app={afterApp}
-                      sectionComparison={{
-                        beforeApp,
-                        afterApp,
-                        isPathChanged,
-                      }}
-                      hideSectionComments
-                      isReviewable={false}
-                      approveSectionPending={false}
-                      approveItemPending={false}
-                      viewDocumentPending={false}
-                      onApproveSection={noop}
-                      onRejectSection={noop}
-                      onRequestAmendmentSection={noop}
-                      onViewDocument={noop}
-                      onDownloadDocument={noop}
-                      onDownloadAllDocuments={noopAsync}
-                      onApproveItem={async () => {}}
-                      onRejectItem={noop}
-                      onRequestAmendmentItem={noop}
-                    />
-                  </ApplicationReviewTabContent>
-                ))}
-              </ApplicationReviewTabs>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pb-6 pt-0 [scrollbar-gutter:stable]">
+            {isLoading && (
+              <div className="space-y-4">
+                <Skeleton className="h-10 w-full rounded-xl" />
+                <Skeleton className="h-64 w-full rounded-xl" />
+              </div>
             )}
+            {isError && (
+              <p className="text-sm text-destructive" role="alert">
+                {error instanceof Error ? error.message : "Failed to load comparison"}
+              </p>
+            )}
+            {!isLoading && !isError && beforeApp && afterApp && tabDescriptors.length > 0 ? (
+              <>
+                <div
+                  className="sticky top-0 z-20 -mx-6 mb-2 isolate overflow-hidden border border-border bg-background"
+                  role="presentation"
+                >
+                  <div className="grid w-full grid-cols-2 items-stretch gap-0">
+                    <div className="relative flex min-h-[3.25rem] h-full items-start justify-center gap-2 overflow-hidden border-r border-border px-4 py-2.5 text-center sm:justify-start">
+                      <span aria-hidden className="pointer-events-none absolute inset-0 size-full bg-muted" />
+                      <span
+                        aria-hidden
+                        className="pointer-events-none absolute inset-0 size-full bg-status-rejected-bg dark:bg-status-rejected-text/22"
+                      />
+                      <span
+                        className="relative z-10 mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-status-rejected-text/40 bg-background text-status-rejected-text"
+                        title="Superseded revision"
+                      >
+                        <XMarkIcon className="h-4 w-4" aria-hidden />
+                      </span>
+                      <div className="relative z-10 min-w-0 text-start">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-status-rejected-text">
+                          Before
+                        </p>
+                        <p className="mt-0.5 text-[11px] font-normal leading-snug text-muted-foreground">
+                          Earlier snapshot
+                        </p>
+                      </div>
+                    </div>
+                    <div className="relative flex min-h-[3.25rem] h-full items-start justify-center gap-2 overflow-hidden px-4 py-2.5 text-center sm:justify-start">
+                      <span aria-hidden className="pointer-events-none absolute inset-0 size-full bg-muted" />
+                      <span
+                        aria-hidden
+                        className="pointer-events-none absolute inset-0 size-full bg-status-action-bg dark:bg-status-action-text/26"
+                      />
+                      <span
+                        className="relative z-10 mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-status-action-text/40 bg-background text-status-action-text"
+                        title="Current revision"
+                      >
+                        <CheckIcon className="h-4 w-4" aria-hidden />
+                      </span>
+                      <div className="relative z-10 min-w-0 text-start">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-status-action-text">
+                          After
+                        </p>
+                        <p className="mt-0.5 text-[11px] font-normal leading-snug text-muted-foreground">
+                          Later snapshot
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <ApplicationReviewTabs
+                  sections={tabDescriptors.map((t) => ({
+                    section: t.reviewSection,
+                    status: "PENDING",
+                  }))}
+                  tabDescriptors={tabDescriptors}
+                >
+                  {tabDescriptors.map((descriptor) => (
+                    <ApplicationReviewTabContent key={descriptor.id} value={descriptor.id}>
+                      <SectionContent
+                        descriptor={descriptor}
+                        app={afterApp}
+                        sectionComparison={{
+                          beforeApp,
+                          afterApp,
+                          isPathChanged,
+                        }}
+                        hideSectionComments
+                        isReviewable={false}
+                        approveSectionPending={false}
+                        approveItemPending={false}
+                        viewDocumentPending={false}
+                        onApproveSection={noop}
+                        onRejectSection={noop}
+                        onRequestAmendmentSection={noop}
+                        onViewDocument={noop}
+                        onDownloadDocument={noop}
+                        onDownloadAllDocuments={noopAsync}
+                        onApproveItem={async () => {}}
+                        onRejectItem={noop}
+                        onRequestAmendmentItem={noop}
+                      />
+                    </ApplicationReviewTabContent>
+                  ))}
+                </ApplicationReviewTabs>
+              </>
+            ) : null}
         </div>
       </DialogContent>
     </Dialog>

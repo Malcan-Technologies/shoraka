@@ -13,7 +13,11 @@ import {
   REVIEW_EMPTY_LABEL,
   comparisonCellSurfaceClass,
   comparisonCellSurfaceMultilineClass,
-  comparisonSurfaceChangedClass,
+  comparisonSurfaceChangedAfterClass,
+  comparisonSurfaceChangedBeforeClass,
+  comparisonSplitAfterColClass,
+  comparisonSplitBeforeColClass,
+  comparisonSplitRowGridClass,
 } from "./review-section-styles";
 
 function valueLooksEmpty(value: string): boolean {
@@ -40,12 +44,25 @@ export function ComparisonFieldRow({
 }) {
   const valuesDiffer = normalizedForCompare(before) !== normalizedForCompare(after);
 
-  const Cell = ({ value }: { value: string }) => {
+  const Cell = ({ value, side }: { value: string; side: "before" | "after" }) => {
     const muted = valueLooksEmpty(value);
     const base = multiline ? comparisonCellSurfaceMultilineClass : comparisonCellSurfaceClass;
+    const strikeThrough =
+      side === "before" && valuesDiffer && !valueLooksEmpty(value);
+    const changedHighlight =
+      valuesDiffer &&
+      (side === "before" ? comparisonSurfaceChangedBeforeClass : comparisonSurfaceChangedAfterClass);
     return (
-      <div className={cn(base, valuesDiffer && comparisonSurfaceChangedClass)}>
-        <span className={muted ? "text-muted-foreground" : "text-foreground"}>{value}</span>
+      <div className={cn(base, changedHighlight)}>
+        <span
+          className={cn(
+            muted ? "text-muted-foreground" : "text-foreground",
+            strikeThrough &&
+              "line-through decoration-muted-foreground/80 decoration-1 [text-decoration-skip-ink:none]"
+          )}
+        >
+          {value}
+        </span>
       </div>
     );
   };
@@ -59,12 +76,12 @@ export function ComparisonFieldRow({
       }
     >
       <p className="text-sm font-medium text-foreground">{label}</p>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-0">
-        <div className="md:pr-4 md:border-r md:border-border min-w-0">
-          <Cell value={before} />
+      <div className={comparisonSplitRowGridClass}>
+        <div className={comparisonSplitBeforeColClass}>
+          <Cell value={before} side="before" />
         </div>
-        <div className="md:pl-4 min-w-0 pt-4 md:pt-0">
-          <Cell value={after} />
+        <div className={comparisonSplitAfterColClass}>
+          <Cell value={after} side="after" />
         </div>
       </div>
     </div>

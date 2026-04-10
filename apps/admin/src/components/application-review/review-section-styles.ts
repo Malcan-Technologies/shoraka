@@ -36,8 +36,25 @@ export const comparisonCellSurfaceMultilineClass =
 export const comparisonFileChipRowClass =
   "flex items-start gap-2 rounded-lg border border-border/80 bg-muted/35 px-3 py-2 text-sm break-words w-full";
 
-/** When earlier ≠ later in resubmit comparison (subtle ring + tint). */
-export const comparisonSurfaceChangedClass = "ring-2 ring-accent/45 bg-accent/[0.12]";
+/**
+ * When earlier ≠ later: Before uses status-rejected (red tint); After uses status-action (yellow–amber).
+ * Tokens match packages/config status-badges GROUP.rejected / GROUP.action.
+ */
+export const comparisonSurfaceChangedBeforeClass =
+  "ring-2 ring-status-rejected-text/30 bg-status-rejected-bg dark:ring-red-400/35 dark:bg-red-950/45";
+
+export const comparisonSurfaceChangedAfterClass =
+  "ring-2 ring-status-action-text/30 bg-status-action-bg dark:ring-amber-400/35 dark:bg-amber-950/45";
+
+/**
+ * Before | After comparison columns — shared gutter with modal scrollbar-gutter: stable.
+ * Vertical rule on md+; stacked on small screens.
+ */
+export const comparisonSplitRowGridClass = "grid grid-cols-1 gap-0 md:grid-cols-2";
+/** No column tint — only vertical rule; sticky bar in modal carries Before/After fills. */
+export const comparisonSplitBeforeColClass =
+  "min-w-0 border-b border-border py-3 md:border-b-0 md:border-r md:border-border md:py-0 md:pr-6";
+export const comparisonSplitAfterColClass = "min-w-0 py-3 md:py-0 md:pl-6";
 
 /** Row grid: items-center so label vertically aligns with input center (h-11). Matches application flow gap-x-6 gap-y-4. */
 const ROW_GRID_BASE =

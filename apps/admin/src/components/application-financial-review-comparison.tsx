@@ -18,7 +18,11 @@ import {
 } from "@cashsouk/types";
 import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
 import { ComparisonFieldRow } from "@/components/application-review/comparison-field-row";
-import { reviewEmptyStateClass } from "@/components/application-review/review-section-styles";
+import {
+  comparisonSurfaceChangedAfterClass,
+  comparisonSurfaceChangedBeforeClass,
+  reviewEmptyStateClass,
+} from "@/components/application-review/review-section-styles";
 import {
   parseFinancialStatements,
   extractDirectorShareholders,
@@ -251,21 +255,29 @@ export function ApplicationFinancialReviewComparison({
                   const aText = ar ? directorSummary(ar) : "—";
                   const rowDiffers = bText !== aText;
                   return (
-                    <TableRow
-                      key={i}
-                      className={cn(
-                        applicationTableRowClass,
-                        rowDiffers && "bg-accent/[0.1] ring-1 ring-accent/30 ring-inset"
-                      )}
-                    >
+                    <TableRow key={i} className={applicationTableRowClass}>
                       <TableCell className={`${applicationTableCellClass} font-medium`}>
                         {`Row ${i + 1}`}
                         {(changed || rowDiffers) ? (
                           <span className="ml-2 text-xs text-muted-foreground font-normal">Changed</span>
                         ) : null}
                       </TableCell>
-                      <TableCell className={applicationTableCellClass}>{bText}</TableCell>
-                      <TableCell className={applicationTableCellClass}>{aText}</TableCell>
+                      <TableCell
+                        className={cn(
+                          applicationTableCellClass,
+                          rowDiffers && cn(comparisonSurfaceChangedBeforeClass, "rounded-none")
+                        )}
+                      >
+                        {bText}
+                      </TableCell>
+                      <TableCell
+                        className={cn(
+                          applicationTableCellClass,
+                          rowDiffers && cn(comparisonSurfaceChangedAfterClass, "rounded-none")
+                        )}
+                      >
+                        {aText}
+                      </TableCell>
                     </TableRow>
                   );
                 })}

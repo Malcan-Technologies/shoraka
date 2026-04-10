@@ -25,7 +25,11 @@ import {
   reviewEmptyStateClass,
   formatFileSize,
   comparisonFileChipRowClass,
-  comparisonSurfaceChangedClass,
+  comparisonSurfaceChangedAfterClass,
+  comparisonSurfaceChangedBeforeClass,
+  comparisonSplitAfterColClass,
+  comparisonSplitBeforeColClass,
+  comparisonSplitRowGridClass,
 } from "./review-section-styles";
 import { buildCategoryGroups, type DocFile } from "./document-list";
 
@@ -45,9 +49,12 @@ export function comparisonFileChipsSignature(files: ComparisonFileChip[]): strin
 export function ComparisonFileChipList({
   files,
   emptyLabel,
+  strikeLabels,
 }: {
   files: ComparisonFileChip[];
   emptyLabel: string;
+  /** When true, primary line uses strikethrough (e.g. superseded before column). */
+  strikeLabels?: boolean;
 }) {
   if (files.length === 0) {
     return <p className="text-sm text-muted-foreground">{emptyLabel}</p>;
@@ -58,9 +65,25 @@ export function ComparisonFileChipList({
         <li key={`${f.s3Key}-${idx}`} className={comparisonFileChipRowClass}>
           <DocumentTextIcon className="h-4 w-4 shrink-0 text-muted-foreground mt-0.5" />
           <span className="min-w-0 flex-1">
-            <span className="text-sm text-foreground break-all block">{f.label || f.s3Key}</span>
+            <span
+              className={cn(
+                "text-sm text-foreground break-all block",
+                strikeLabels &&
+                  "line-through decoration-muted-foreground/80 decoration-1 [text-decoration-skip-ink:none]"
+              )}
+            >
+              {f.label || f.s3Key}
+            </span>
             {f.secondary ? (
-              <span className="text-xs text-muted-foreground block mt-0.5">{f.secondary}</span>
+              <span
+                className={cn(
+                  "text-xs text-muted-foreground block mt-0.5",
+                  strikeLabels &&
+                    "line-through decoration-muted-foreground/70 decoration-1 [text-decoration-skip-ink:none]"
+                )}
+              >
+                {f.secondary}
+              </span>
             ) : null}
           </span>
         </li>
@@ -93,19 +116,23 @@ export function ComparisonDocumentTitleRow({
       aria-label={noisy ? `${title}, files changed` : title}
     >
       <p className="text-sm font-medium text-foreground">{title}</p>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-0">
+      <div className={comparisonSplitRowGridClass}>
         <div
           className={cn(
-            "md:pr-4 md:border-r md:border-border min-w-0 rounded-lg",
-            colHighlight && cn(comparisonSurfaceChangedClass, "p-2")
+            comparisonSplitBeforeColClass,
+            colHighlight && cn(comparisonSurfaceChangedBeforeClass, "rounded-none p-2")
           )}
         >
-          <ComparisonFileChipList files={beforeFiles} emptyLabel="—" />
+          <ComparisonFileChipList
+            files={beforeFiles}
+            emptyLabel="—"
+            strikeLabels={filesDiffer && beforeFiles.length > 0}
+          />
         </div>
         <div
           className={cn(
-            "md:pl-4 min-w-0 pt-4 md:pt-0 rounded-lg",
-            colHighlight && cn(comparisonSurfaceChangedClass, "p-2")
+            comparisonSplitAfterColClass,
+            colHighlight && cn(comparisonSurfaceChangedAfterClass, "rounded-none p-2")
           )}
         >
           <ComparisonFileChipList files={afterFiles} emptyLabel="—" />
