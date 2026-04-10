@@ -721,7 +721,14 @@ export function FinancialStatementsStep({
   }, [questionnaireDto]);
 
   React.useEffect(() => {
-    if (yearsToShow.length === 0) return;
+    if (!questionnaireDto) return;
+
+    if (yearsToShow.length === 0) {
+      setFormsByYear({});
+      console.log("Financial step: Case C (no unaudited years) — cleared in-memory year forms");
+      return;
+    }
+
     setFormsByYear((prev) => {
       const next = { ...prev };
       for (const y of yearsToShow) {
@@ -734,7 +741,7 @@ export function FinancialStatementsStep({
       }
       return next;
     });
-  }, [yearsToShow]);
+  }, [yearsToShow, questionnaireDto]);
 
   React.useEffect(() => {
     const raw =
