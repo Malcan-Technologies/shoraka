@@ -67,6 +67,36 @@ const makeClientId = () => {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 };
 
+function collectS3KeysBySlot(files: Record<string, UploadRecord[]>): Map<string, Set<string>> {
+  const result = new Map<string, Set<string>>();
+  for (const [slot, list] of Object.entries(files)) {
+    const keys = new Set<string>();
+    for (const item of list) {
+      const key = item.s3_key?.trim();
+      if (key) keys.add(key);
+    }
+    result.set(slot, keys);
+  }
+  return result;
+}
+
+function computeRemovedS3Keys(
+  initialFiles: Record<string, UploadRecord[]>,
+  currentFiles: Record<string, UploadRecord[]>
+): string[] {
+  const initialBySlot = collectS3KeysBySlot(initialFiles);
+  const currentBySlot = collectS3KeysBySlot(currentFiles);
+  const removed = new Set<string>();
+
+  for (const [slot, initialKeys] of initialBySlot.entries()) {
+    const currentKeys = currentBySlot.get(slot) ?? new Set<string>();
+    for (const key of initialKeys) {
+      if (!currentKeys.has(key)) removed.add(key);
+    }
+  }
+  return Array.from(removed);
+}
+
 export function SupportingDocumentsStep({
   applicationId,
   stepConfig,
@@ -297,6 +327,9 @@ export function SupportingDocumentsStep({
 
   React.useEffect(() => {
     if (!application?.supporting_documents || categories.length === 0) {
+      setUploadedFiles({});
+      setSelectedFiles({});
+      setInitialUploadedFiles({});
       return;
     }
 
@@ -352,10 +385,9 @@ export function SupportingDocumentsStep({
     });
 
 
-    if (Object.keys(loadedFiles).length > 0) {
-      setUploadedFiles(loadedFiles);
-      setInitialUploadedFiles(loadedFiles);
-    }
+    setUploadedFiles(loadedFiles);
+    setSelectedFiles({});
+    setInitialUploadedFiles(loadedFiles);
   }, [application, categories]);
 
   const handleFileChange = (categoryIndex: number, documentIndex: number, event: React.ChangeEvent<HTMLInputElement>) => {
@@ -411,9 +443,7 @@ export function SupportingDocumentsStep({
   };
 
   const uploadFilesToS3 = React.useCallback(async () => {
-    if (!applicationId || Object.keys(selectedFiles).length === 0) {
-      return null;
-    }
+    if (!applicationId) return null;
 
     const uploadResults = new Map<
       string,
@@ -422,6 +452,7 @@ export function SupportingDocumentsStep({
     const token = await getAccessToken();
 
     for (const [key, pendingUploads] of Object.entries(selectedFiles) as [string, PendingUpload[]][]) {
+      if (pendingUploads.length === 0) continue;
       try {
         setUploadingKeys((prev) => new Set(prev).add(key));
         const savedUploads: {
@@ -492,8 +523,6 @@ export function SupportingDocumentsStep({
         }
 
         uploadResults.set(key, savedUploads);
-      } catch (error) {
-        throw error;
       } finally {
         setUploadingKeys((prev) => {
           const next = new Set(prev);
@@ -502,8 +531,6 @@ export function SupportingDocumentsStep({
         });
       }
     }
-
-    setSelectedFiles({});
 
     const updatedFiles: Record<string, UploadRecord[]> = { ...uploadedFiles };
     uploadResults.forEach((results, key) => {
@@ -522,6 +549,27 @@ export function SupportingDocumentsStep({
       updatedFiles[key] = normalized;
     });
 
+    const removedS3Keys = computeRemovedS3Keys(initialUploadedFiles, updatedFiles);
+    for (const s3Key of removedS3Keys) {
+      const response = await fetch(`${API_URL}/v1/applications/${applicationId}/document`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ s3Key }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok || !result?.success) {
+        const message =
+          typeof result?.error?.message === "string"
+            ? result.error.message
+            : "Failed to delete removed document from storage";
+        throw new Error(message);
+      }
+    }
+
+    setSelectedFiles({});
     setUploadedFiles(updatedFiles);
     setInitialUploadedFiles(updatedFiles);
 
@@ -535,7 +583,16 @@ export function SupportingDocumentsStep({
     }
 
     return dataToSave;
-  }, [applicationId, selectedFiles, uploadedFiles, getAccessToken, onDataChange, buildDataToSave, categories]);
+  }, [
+    applicationId,
+    selectedFiles,
+    uploadedFiles,
+    initialUploadedFiles,
+    getAccessToken,
+    onDataChange,
+    buildDataToSave,
+    categories,
+  ]);
 
   const uploadFilesRef = React.useRef(uploadFilesToS3);
   React.useEffect(() => {
@@ -717,22 +774,87 @@ export function SupportingDocumentsStep({
                     return (
                       <div
                         key={documentIndex}
-                        className="col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6 items-start"
+                        className="col-span-2 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,22rem)_auto] gap-x-3 gap-y-2 items-start"
                       >
-                        {/* Document title */}
-                        <div className="text-[16px] leading-[22px] text-foreground">
-                          {document.title}
-                          {document.required !== false ? (
-                            <span className="text-destructive"> *</span>
-                          ) : (
-                            <span className="text-muted-foreground font-normal"> (Optional)</span>
-                          )}
+                        <div className="min-w-0 space-y-2">
+                          <div className="text-[16px] leading-[22px] text-foreground">
+                            {document.title}
+                            {document.required !== false ? (
+                              <span className="text-destructive"> *</span>
+                            ) : (
+                              <span className="text-muted-foreground font-normal"> (Optional)</span>
+                            )}
+                          </div>
+
+                          {isItemFlagged && itemRemark ? (
+                            <div className="inline-flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 max-w-[24rem]">
+                              <ExclamationTriangleIcon className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                              <p className="text-sm text-foreground leading-snug">
+                                {itemRemark.split("\n")[0]}
+                              </p>
+                            </div>
+                          ) : null}
                         </div>
 
-                        {/* Action column: template, amendment, upload — all aligned far right */}
+                        <div className="min-w-0 sm:justify-self-end">
+                          {hasFiles && !fileIsUploading ? (
+                            <div className="flex flex-col gap-2">
+                              {visibleFiles.map((file, fileIndex) => {
+                                const originalIndex = showAllFiles ? fileIndex : fileList.indexOf(file);
+                                return isItemFlagged ? (
+                                  <div
+                                    key={file.clientId ?? `${file.name}-${fileIndex}`}
+                                    className="flex w-full max-w-[22rem] items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 min-h-9"
+                                  >
+                                    <span
+                                      title={file.name}
+                                      className="text-sm font-medium truncate min-w-0 flex-1"
+                                    >
+                                      {file.name}
+                                    </span>
+                                    {isEditable && (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handleRemoveFile(categoryIndex, documentIndex, originalIndex)
+                                        }
+                                        className="text-muted-foreground hover:text-foreground shrink-0"
+                                      >
+                                        <XMarkIcon className="h-3.5 w-3.5" />
+                                      </button>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <FileDisplayBadge
+                                    key={file.clientId ?? `${file.name}-${fileIndex}`}
+                                    fileName={file.name}
+                                    truncate
+                                    className="w-full max-w-[22rem]"
+                                    trailing={
+                                      isEditable ? (
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            handleRemoveFile(categoryIndex, documentIndex, originalIndex)
+                                          }
+                                          className="text-muted-foreground hover:text-foreground shrink-0"
+                                        >
+                                          <XMarkIcon className="h-3.5 w-3.5" />
+                                        </button>
+                                      ) : undefined
+                                    }
+                                  />
+                                );
+                              })}
+                            </div>
+                          ) : !isEditable && !isUploaded ? (
+                            <span className="text-[14px] text-muted-foreground">—</span>
+                          ) : null}
+                        </div>
+
                         <div
                           className={cn(
-                            "flex flex-col items-end gap-2",
+                            "flex flex-col items-start gap-1.5 pt-0.5 shrink-0",
                             !isEditable && "pointer-events-none opacity-60 cursor-not-allowed"
                           )}
                         >
@@ -761,136 +883,78 @@ export function SupportingDocumentsStep({
                               <span>Download template</span>
                             </button>
                           )}
-                          <div className="flex flex-row items-center gap-3 justify-end">
-                            {isItemFlagged && itemRemark ? (
-                              <div className="inline-flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 max-w-[240px]">
-                                <ExclamationTriangleIcon className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                                <p className="text-sm text-foreground leading-snug">{itemRemark.split("\n")[0]}</p>
-                              </div>
-                            ) : null}
-                            <div className="shrink-0">
-                                {hasFiles && !fileIsUploading ? (
-                                  <div className="flex flex-col items-end gap-2">
-                                    {visibleFiles.map((file, fileIndex) => {
-                                      const originalIndex = showAllFiles ? fileIndex : fileList.indexOf(file);
-                                      return (
-                                      isItemFlagged ? (
-                                        <div
-                                          key={file.clientId ?? `${file.name}-${fileIndex}`}
-                                          className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 min-h-9"
-                                        >
-                                          <span title={file.name} className="text-sm font-medium truncate min-w-0">
-                                            {file.name}
-                                          </span>
-                                          {isEditable && (
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                handleRemoveFile(categoryIndex, documentIndex, originalIndex)
-                                              }
-                                              className="text-muted-foreground hover:text-foreground shrink-0"
-                                            >
-                                              <XMarkIcon className="h-3.5 w-3.5" />
-                                            </button>
-                                          )}
-                                        </div>
-                                      ) : (
-                                        <FileDisplayBadge
-                                          key={file.clientId ?? `${file.name}-${fileIndex}`}
-                                          fileName={file.name}
-                                          truncate
-                                          trailing={
-                                            isEditable ? (
-                                              <button
-                                                type="button"
-                                                onClick={() =>
-                                                  handleRemoveFile(categoryIndex, documentIndex, originalIndex)
-                                                }
-                                                className="text-muted-foreground hover:text-foreground shrink-0"
-                                              >
-                                                <XMarkIcon className="h-3.5 w-3.5" />
-                                              </button>
-                                            ) : undefined
-                                          }
-                                        />
-                                      )
-                                    );
-                                    })}
-                                    <div className="inline-flex items-center gap-3">
-                                      {mode === "multiple" && isEditable && (
-                                        <label
-                                          htmlFor={`file-${key}`}
-                                          className="inline-flex items-center gap-1.5 text-[14px] font-medium text-primary whitespace-nowrap cursor-pointer hover:opacity-80 h-6"
-                                        >
-                                          <CloudArrowUpIcon className="h-4 w-4 shrink-0" />
-                                          <span>Add files</span>
-                                          <Input
-                                            id={`file-${key}`}
-                                            type="file"
-                                            accept={acceptAttr}
-                                            multiple
-                                            onChange={(e) =>
-                                              handleFileChange(categoryIndex, documentIndex, e)
-                                            }
-                                            className="hidden"
-                                            disabled={fileIsUploading || !isEditable}
-                                          />
-                                        </label>
-                                      )}
-                                      {hiddenFileCount > 0 && (
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            setExpandedFileLists((prev) => ({ ...prev, [key]: true }))
-                                          }
-                                          className="text-xs text-muted-foreground hover:text-foreground"
-                                        >
-                                          +{hiddenFileCount} more
-                                        </button>
-                                      )}
-                                      {showAllFiles && fileList.length > 1 && (
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            setExpandedFileLists((prev) => ({ ...prev, [key]: false }))
-                                          }
-                                          className="text-xs text-muted-foreground hover:text-foreground"
-                                        >
-                                          Show less
-                                        </button>
-                                      )}
-                                    </div>
-                                  </div>
-                                ) : !isEditable && !isUploaded ? (
-                                  <span className="text-[14px] text-muted-foreground">—</span>
-                                ) : (
-                                  <label
-                                    htmlFor={isEditable ? `file-${key}` : undefined}
-                                    className="inline-flex items-center gap-1.5 text-[14px] font-medium text-primary whitespace-nowrap w-full cursor-pointer hover:opacity-80 h-6"
-                                  >
-                                    <CloudArrowUpIcon className="h-4 w-4 shrink-0" />
-                                    <span className="truncate">
-                                      {fileIsUploading
-                                        ? "Uploading…"
-                                        : mode === "multiple"
-                                          ? "Upload files"
-                                          : "Upload file"}
-                                    </span>
-                                    <Input
-                                      id={`file-${key}`}
-                                      type="file"
-                                      accept={acceptAttr}
-                                      multiple={mode === "multiple"}
-                                      onChange={(e) =>
-                                        handleFileChange(categoryIndex, documentIndex, e)
-                                      }
-                                      className="hidden"
-                                      disabled={fileIsUploading || !isEditable}
-                                    />
-                                  </label>
-                                )}
-                            </div>
-                          </div>
+
+                          {hasFiles && !fileIsUploading ? (
+                            <>
+                              {mode === "multiple" && isEditable && (
+                                <label
+                                  htmlFor={`file-${key}`}
+                                  className="inline-flex items-center gap-1.5 text-[14px] font-medium text-primary whitespace-nowrap cursor-pointer hover:opacity-80 h-6"
+                                >
+                                  <CloudArrowUpIcon className="h-4 w-4 shrink-0" />
+                                  <span>Add files</span>
+                                  <Input
+                                    id={`file-${key}`}
+                                    type="file"
+                                    accept={acceptAttr}
+                                    multiple
+                                    onChange={(e) =>
+                                      handleFileChange(categoryIndex, documentIndex, e)
+                                    }
+                                    className="hidden"
+                                    disabled={fileIsUploading || !isEditable}
+                                  />
+                                </label>
+                              )}
+                              {hiddenFileCount > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setExpandedFileLists((prev) => ({ ...prev, [key]: true }))
+                                  }
+                                  className="text-xs text-muted-foreground hover:text-foreground"
+                                >
+                                  +{hiddenFileCount} more
+                                </button>
+                              )}
+                              {showAllFiles && fileList.length > 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setExpandedFileLists((prev) => ({ ...prev, [key]: false }))
+                                  }
+                                  className="text-xs text-muted-foreground hover:text-foreground"
+                                >
+                                  Show less
+                                </button>
+                              )}
+                            </>
+                          ) : !isEditable && !isUploaded ? null : (
+                            <label
+                              htmlFor={isEditable ? `file-${key}` : undefined}
+                              className="inline-flex items-center gap-1.5 text-[14px] font-medium text-primary whitespace-nowrap cursor-pointer hover:opacity-80 h-6"
+                            >
+                              <CloudArrowUpIcon className="h-4 w-4 shrink-0" />
+                              <span>
+                                {fileIsUploading
+                                  ? "Uploading…"
+                                  : mode === "multiple"
+                                    ? "Upload files"
+                                    : "Upload file"}
+                              </span>
+                              <Input
+                                id={`file-${key}`}
+                                type="file"
+                                accept={acceptAttr}
+                                multiple={mode === "multiple"}
+                                onChange={(e) =>
+                                  handleFileChange(categoryIndex, documentIndex, e)
+                                }
+                                className="hidden"
+                                disabled={fileIsUploading || !isEditable}
+                              />
+                            </label>
+                          )}
                         </div>
                       </div>
                     );
