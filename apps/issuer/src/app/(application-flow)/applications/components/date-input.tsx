@@ -4,6 +4,10 @@ import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  formInputAutofillChromeFix,
+  formInputAutofillMutedChromeFix,
+} from "@/app/(application-flow)/applications/components/form-control";
 import { CalendarPopover } from "./calendar-popover";
 import { parse, isValid, format, parseISO } from "date-fns";
 
@@ -122,6 +126,7 @@ export function DateInput({
             className={cn(
               "bg-transparent outline-none flex-1 placeholder:text-muted-foreground",
               preset.input,
+              disabled ? formInputAutofillMutedChromeFix : formInputAutofillChromeFix,
               // reserve space for right icon
               size === "compact" ? "pr-8" : "pr-10",
               inputClassName

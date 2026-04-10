@@ -17,11 +17,23 @@ import { cn } from "@/lib/utils";
 export const formLabelClassName =
   "text-sm md:text-base leading-6 text-foreground";
 
-export const formInputClassName =
-  "h-11 w-full rounded-xl border border-input bg-background px-4 text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary";
+/** Chrome/Safari autofill uses a blue-tinted fill; map to design tokens (BRANDING / shadcn surfaces). */
+export const formInputAutofillChromeFix =
+  "[&:-webkit-autofill]:shadow-[inset_0_0_0_1000px_hsl(var(--background))] [&:-webkit-autofill]:[-webkit-text-fill-color:hsl(var(--foreground))]";
 
-export const formTextareaClassName =
-  "w-full rounded-xl border border-input bg-background px-4 py-3 text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary";
+/** Same as autofill fix when the control uses muted surface (disabled / read-only). */
+export const formInputAutofillMutedChromeFix =
+  "[&:-webkit-autofill]:shadow-[inset_0_0_0_1000px_hsl(var(--muted))] [&:-webkit-autofill]:[-webkit-text-fill-color:hsl(var(--foreground))]";
+
+export const formInputClassName = cn(
+  "h-11 w-full rounded-xl border border-input bg-background px-4 text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+  formInputAutofillChromeFix
+);
+
+export const formTextareaClassName = cn(
+  "w-full rounded-xl border border-input bg-background px-4 py-3 text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
+  formInputAutofillChromeFix
+);
 
 export const formSelectTriggerClassName =
   "h-11 w-full rounded-xl border border-input bg-background text-foreground focus:outline-none focus:ring-0 focus:border-primary focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary";
@@ -32,8 +44,10 @@ export const formSelectTriggerClassName =
  * Why: Locked amendment steps must show fields as locked without washing out the page.
  * Use: Add to Input/Textarea/Select className when disabled={true}.
  */
-export const formInputDisabledClassName =
-  "bg-muted text-foreground opacity-100 cursor-not-allowed disabled:opacity-100 disabled:bg-muted border-border";
+export const formInputDisabledClassName = cn(
+  "bg-muted text-foreground opacity-100 cursor-not-allowed disabled:opacity-100 disabled:bg-muted border-border",
+  formInputAutofillMutedChromeFix
+);
 
 /** Helpers
  *

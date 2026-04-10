@@ -967,7 +967,7 @@ export function FinancialStatementsStep({
           <div className={rowGridClassName}>
             <div className="space-y-2">
               <Label htmlFor="fye-year" className={labelClassName}>
-                Latest financial year (year end)
+                What is your latest financial year?
               </Label>
             </div>
             <div className="flex min-w-0 flex-col gap-1">
@@ -976,7 +976,7 @@ export function FinancialStatementsStep({
                 value={fyeInput}
                 onChange={(e) => setFyeInput(e.target.value.replace(/\D/g, "").slice(0, 4))}
                 disabled={readOnly}
-                placeholder="e.g. 2025"
+                placeholder="2025"
                 className={inputClassName}
                 inputMode="numeric"
                 maxLength={4}
@@ -988,12 +988,12 @@ export function FinancialStatementsStep({
             </div>
 
             <div className="space-y-2">
-              <Label className={labelClassName}>Already submitted?</Label>
+              <Label className={labelClassName}>Has this year been submitted?</Label>
             </div>
             <div className={radioGridControlClassName}>
               <FinancialYesNoRadioGroup
                 name="financial-statements-q-submitted"
-                aria-label="Has this financial year been submitted?"
+                aria-label="Has this year been submitted?"
                 value={qSubmitted === null ? "" : qSubmitted ? "yes" : "no"}
                 onValueChange={(v) => setQSubmitted(v === "yes")}
                 disabled={readOnly}
@@ -1001,12 +1001,12 @@ export function FinancialStatementsStep({
             </div>
 
             <div className="space-y-2">
-              <Label className={labelClassName}>Any current-year figures?</Label>
+              <Label className={labelClassName}>Do you have data for the next financial year?</Label>
             </div>
             <div className={radioGridControlClassName}>
               <FinancialYesNoRadioGroup
                 name="financial-statements-q-next-year"
-                aria-label="Do you have any data for the current financial year?"
+                aria-label="Do you have data for the next financial year?"
                 value={qNextYear === null ? "" : qNextYear ? "yes" : "no"}
                 onValueChange={(v) => setQNextYear(v === "yes")}
                 disabled={readOnly}
