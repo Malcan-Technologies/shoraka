@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useContract } from "@/hooks/use-contracts";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import { useRejectContractOffer, useRejectInvoiceOffer } from "@/hooks/use-applications";
+import { useAcceptInvoiceOffer, useRejectContractOffer, useRejectInvoiceOffer } from "@/hooks/use-applications";
 import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
 import { ArrowDownTrayIcon, CheckIcon, CheckCircleIcon } from "@heroicons/react/24/solid";
@@ -26,6 +26,7 @@ type ReviewOfferModalProps = {
   applicationId: string;
   contractId?: string;
   invoice?: NormalizedInvoice | null;
+  requiresInvoiceSigning?: boolean;
   onClose: () => void;
 };
 
@@ -44,6 +45,7 @@ export function ReviewOfferModal({
   applicationId,
   contractId,
   invoice,
+  requiresInvoiceSigning = true,
   onClose,
 }: ReviewOfferModalProps) {
   const { getAccessToken } = useAuthToken();
@@ -58,6 +60,7 @@ export function ReviewOfferModal({
 
   const rejectContract = useRejectContractOffer();
   const rejectInvoice = useRejectInvoiceOffer();
+  const acceptInvoice = useAcceptInvoiceOffer();
 
   const offerDetails =
     type === "contract"
@@ -198,6 +201,12 @@ export function ReviewOfferModal({
         );
       }
       if (!invoice?.id) return;
+      if (!requiresInvoiceSigning) {
+        await acceptInvoice.mutateAsync({ applicationId, invoiceId: invoice.id });
+        toast.success("Offer accepted");
+        onClose();
+        return;
+      }
       const res = await apiClient.startInvoiceOfferSigning(applicationId, invoice.id);
       if (res.success && res.data?.signingUrl) {
         window.location.assign(res.data.signingUrl);
@@ -250,6 +259,7 @@ export function ReviewOfferModal({
   const isPending =
     acceptSigningLoading ||
     acceptOverrideLoading ||
+    acceptInvoice.isPending ||
     rejectContract.isPending ||
     rejectInvoice.isPending;
 
@@ -345,7 +355,7 @@ export function ReviewOfferModal({
                 disabled={isPending}
                 className="h-12 rounded-xl bg-green-600 hover:bg-green-700 text-white shadow-sm"
               >
-                Accept and sign offer
+                {type === "invoice" && !requiresInvoiceSigning ? "Accept offer" : "Accept and sign offer"}
               </Button>
             </div>
             {isSigningOverrideEnabled && (

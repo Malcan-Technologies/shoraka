@@ -569,6 +569,10 @@ function EditApplicationPageBody() {
       const pending = pendingNavRef.current;
       isNavigatingRef.current = true;
       try {
+        setHasUnsavedChanges(false);
+        stepDataRef.current = null;
+        stepDataStepKeyRef.current = null;
+
         if (path === "__BACK__") {
           pendingNavRef.current = null;
           const didNavigate = await navigateWithVersionCheck("/", "replace");

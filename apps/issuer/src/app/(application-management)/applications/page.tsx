@@ -425,22 +425,32 @@ export default function ApplicationsPage() {
   const [selectedApplicationId, setSelectedApplicationId] = React.useState<string | null>(null);
   const [selectedContractId, setSelectedContractId] = React.useState<string | null>(null);
   const [selectedInvoice, setSelectedInvoice] = React.useState<NormalizedInvoice | null>(null);
+  const [selectedInvoiceRequiresSigning, setSelectedInvoiceRequiresSigning] = React.useState(true);
 
   const openReviewContractOffer = React.useCallback((applicationId: string, contractId: string) => {
     setOfferType("contract");
     setSelectedApplicationId(applicationId);
     setSelectedContractId(contractId);
     setSelectedInvoice(null);
+    setSelectedInvoiceRequiresSigning(true);
     setReviewModalOpen(true);
   }, []);
 
-  const openReviewInvoiceOffer = React.useCallback((applicationId: string, invoice: NormalizedInvoice) => {
-    setOfferType("invoice");
-    setSelectedApplicationId(applicationId);
-    setSelectedContractId(null);
-    setSelectedInvoice(invoice);
-    setReviewModalOpen(true);
-  }, []);
+  const openReviewInvoiceOffer = React.useCallback(
+    (applicationId: string, invoice: NormalizedInvoice) => {
+      const application = applications.find((app) => app.id === applicationId) ?? null;
+      const hasLinkedContract = Boolean(application?.contractId);
+      const contractStatus = String(application?.contractStatus ?? "").toUpperCase();
+      const isLinkedContractAccepted = hasLinkedContract && contractStatus === "APPROVED";
+      setOfferType("invoice");
+      setSelectedApplicationId(applicationId);
+      setSelectedContractId(null);
+      setSelectedInvoice(invoice);
+      setSelectedInvoiceRequiresSigning(!isLinkedContractAccepted);
+      setReviewModalOpen(true);
+    },
+    [applications]
+  );
 
   const handleWithdrawApplicationClick = React.useCallback((applicationId: string) => {
     if (withdrawDialogScheduledRef.current) return;
@@ -1136,6 +1146,7 @@ export default function ApplicationsPage() {
           applicationId={selectedApplicationId}
           contractId={offerType === "contract" ? selectedContractId ?? undefined : undefined}
           invoice={offerType === "invoice" ? selectedInvoice ?? undefined : undefined}
+          requiresInvoiceSigning={offerType === "invoice" ? selectedInvoiceRequiresSigning : true}
           onClose={() => setReviewModalOpen(false)}
         />
       )}

@@ -98,6 +98,8 @@ interface WhyRaisingFunds {
   }>;
 }
 
+type WhySupportingDocument = WhyRaisingFunds["supportingDocuments"][number];
+
 interface GuarantorIndividualRow {
   guarantorType: "individual";
   firstName: string;
@@ -833,6 +835,9 @@ export function BusinessDetailsStep({
   const [pendingSupportingDocuments, setPendingSupportingDocuments] = React.useState<
     Array<{ file: File; client_id: string }>
   >([]);
+  const [initialWhySupportingDocuments, setInitialWhySupportingDocuments] = React.useState<
+    WhySupportingDocument[]
+  >([]);
   /** Collapsible guarantor cards; index 0 defaults open until user toggles. */
   const [guarantorPanelOpen, setGuarantorPanelOpen] = React.useState<Record<number, boolean>>({});
 
@@ -939,6 +944,7 @@ export function BusinessDetailsStep({
     setDeclarationConfirmed(initial.declarationConfirmed);
     setGuarantors(initial.guarantors);
     setPendingSupportingDocuments([]);
+    setInitialWhySupportingDocuments(initial.whyRaisingFunds.supportingDocuments);
     initialPayloadRef.current = JSON.stringify(toSnakePayload(initial));
     setIsInitialized(true);
   }, [application, isInitialized]);
@@ -968,6 +974,7 @@ export function BusinessDetailsStep({
     setDeclarationConfirmed(initial.declarationConfirmed);
     setGuarantors(initial.guarantors);
     setPendingSupportingDocuments([]);
+    setInitialWhySupportingDocuments(initial.whyRaisingFunds.supportingDocuments);
     initialPayloadRef.current = JSON.stringify(toSnakePayload(initial));
     if (devTools) {
       if (devTools.autoFillData?.stepKey === "business_details") devTools.clearAutoFill();
@@ -991,6 +998,22 @@ export function BusinessDetailsStep({
     if (!isInitialized) return false;
     return JSON.stringify(snakePayload) !== initialPayloadRef.current || pendingSupportingDocuments.length > 0;
   }, [snakePayload, isInitialized, pendingSupportingDocuments.length]);
+  const hasRemovedSupportingDocuments = React.useMemo(() => {
+    const initialKeys = new Set(
+      initialWhySupportingDocuments
+        .map((doc) => doc.s3_key?.trim())
+        .filter((key): key is string => Boolean(key))
+    );
+    const currentKeys = new Set(
+      whyRaisingFunds.supportingDocuments
+        .map((doc) => doc.s3_key?.trim())
+        .filter((key): key is string => Boolean(key))
+    );
+    for (const key of initialKeys) {
+      if (!currentKeys.has(key)) return true;
+    }
+    return false;
+  }, [initialWhySupportingDocuments, whyRaisingFunds.supportingDocuments]);
 
   React.useEffect(() => {
     if (!onDataChangeRef.current || !isInitialized) return;
@@ -1006,7 +1029,9 @@ export function BusinessDetailsStep({
       hasPendingChanges,
       isValid: validateBusinessDetails(),
       saveFunction:
-        pendingSupportingDocuments.length > 0 ? uploadWhySectionSupportingDocuments : undefined,
+        pendingSupportingDocuments.length > 0 || hasRemovedSupportingDocuments
+          ? uploadWhySectionSupportingDocuments
+          : undefined,
     });
   }, [
     snakePayload,
@@ -1014,6 +1039,7 @@ export function BusinessDetailsStep({
     declarationConfirmed,
     isInitialized,
     pendingSupportingDocuments.length,
+    hasRemovedSupportingDocuments,
     validateBusinessDetails,
   ]);
 
@@ -1034,10 +1060,6 @@ export function BusinessDetailsStep({
   };
 
   async function uploadWhySectionSupportingDocuments() {
-    if (pendingSupportingDocuments.length === 0) {
-      return snakePayload;
-    }
-
     const token = await getAccessToken();
     if (!token) {
       throw new Error("Authentication required to upload supporting documents.");
@@ -1048,49 +1070,51 @@ export function BusinessDetailsStep({
       { s3_key: string; file_name: string; file_size: number; uploaded_at: string }
     >();
 
-    for (const pending of pendingSupportingDocuments) {
-      const presignRes = await fetch(`${API_URL}/v1/applications/${applicationId}/upload-document-url`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          fileName: pending.file.name,
-          contentType: pending.file.type || "application/octet-stream",
-          fileSize: pending.file.size,
-        }),
-      });
+    if (pendingSupportingDocuments.length > 0) {
+      for (const pending of pendingSupportingDocuments) {
+        const presignRes = await fetch(`${API_URL}/v1/applications/${applicationId}/upload-document-url`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            fileName: pending.file.name,
+            contentType: pending.file.type || "application/octet-stream",
+            fileSize: pending.file.size,
+          }),
+        });
 
-      if (!presignRes.ok) {
-        throw new Error(`Failed to prepare upload for ${pending.file.name}`);
+        if (!presignRes.ok) {
+          throw new Error(`Failed to prepare upload for ${pending.file.name}`);
+        }
+
+        const presignJson = await presignRes.json();
+        const uploadUrl = String(presignJson?.data?.uploadUrl ?? "");
+        const s3Key = String(presignJson?.data?.s3Key ?? "");
+        if (!uploadUrl || !s3Key) {
+          throw new Error(`Invalid upload response for ${pending.file.name}`);
+        }
+
+        const putRes = await fetch(uploadUrl, {
+          method: "PUT",
+          headers: {
+            "Content-Type": pending.file.type || "application/octet-stream",
+          },
+          body: pending.file,
+        });
+
+        if (!putRes.ok) {
+          throw new Error(`Failed to upload ${pending.file.name}`);
+        }
+
+        uploadedByClientId.set(pending.client_id, {
+          s3_key: s3Key,
+          file_name: pending.file.name,
+          file_size: pending.file.size,
+          uploaded_at: new Date().toISOString(),
+        });
       }
-
-      const presignJson = await presignRes.json();
-      const uploadUrl = String(presignJson?.data?.uploadUrl ?? "");
-      const s3Key = String(presignJson?.data?.s3Key ?? "");
-      if (!uploadUrl || !s3Key) {
-        throw new Error(`Invalid upload response for ${pending.file.name}`);
-      }
-
-      const putRes = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: {
-          "Content-Type": pending.file.type || "application/octet-stream",
-        },
-        body: pending.file,
-      });
-
-      if (!putRes.ok) {
-        throw new Error(`Failed to upload ${pending.file.name}`);
-      }
-
-      uploadedByClientId.set(pending.client_id, {
-        s3_key: s3Key,
-        file_name: pending.file.name,
-        file_size: pending.file.size,
-        uploaded_at: new Date().toISOString(),
-      });
     }
 
     const nextWhyRaisingFunds: WhyRaisingFunds = {
@@ -1107,15 +1131,48 @@ export function BusinessDetailsStep({
       }),
     };
 
+    const previousKeys = new Set(
+      initialWhySupportingDocuments
+        .map((doc) => doc.s3_key?.trim())
+        .filter((key): key is string => Boolean(key))
+    );
+    const nextKeys = new Set(
+      nextWhyRaisingFunds.supportingDocuments
+        .map((doc) => doc.s3_key?.trim())
+        .filter((key): key is string => Boolean(key))
+    );
+    const keysToDelete = Array.from(previousKeys).filter((key) => !nextKeys.has(key));
+    for (const s3Key of keysToDelete) {
+      const deleteRes = await fetch(`${API_URL}/v1/applications/${applicationId}/document`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ s3Key }),
+      });
+      const deleteJson = await deleteRes.json().catch(() => null);
+      if (!deleteRes.ok || !deleteJson?.success) {
+        throw new Error(
+          typeof deleteJson?.error?.message === "string"
+            ? deleteJson.error.message
+            : "Failed to delete removed document from storage."
+        );
+      }
+    }
+
     setWhyRaisingFunds(nextWhyRaisingFunds);
     setPendingSupportingDocuments([]);
+    setInitialWhySupportingDocuments(nextWhyRaisingFunds.supportingDocuments);
 
-    return toSnakePayload({
+    const nextPayload = toSnakePayload({
       aboutYourBusiness,
       whyRaisingFunds: nextWhyRaisingFunds,
       declarationConfirmed,
       guarantors,
     });
+    initialPayloadRef.current = JSON.stringify(nextPayload);
+    return nextPayload;
   }
 
   const handleWhySectionSupportingDocumentsSelected = (e: React.ChangeEvent<HTMLInputElement>) => {

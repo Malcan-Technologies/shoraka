@@ -57,6 +57,12 @@ export function ItemActionDropdown({
   onViewSignedOffer,
   noActionsTooltip,
 }: ItemActionDropdownProps) {
+  const normalizedStatus = status.toUpperCase();
+  const canApprove = showApprove && normalizedStatus !== "APPROVED";
+  const canReject = showReject && normalizedStatus !== "REJECTED";
+  const canRequestAmendment =
+    showRequestAmendment && normalizedStatus !== "AMENDMENT_REQUESTED";
+
   if (viewSignedOfferOnly && onViewSignedOffer) {
     return (
       <DropdownMenu>
@@ -111,9 +117,9 @@ export function ItemActionDropdown({
   const showResetOption = !!(onResetToPending && status !== "PENDING");
   const hasAnyMenuItem =
     !!onViewSignedOffer ||
-    showApprove ||
-    showReject ||
-    showRequestAmendment ||
+    canApprove ||
+    canReject ||
+    canRequestAmendment ||
     showResetOption;
   if (!hasAnyMenuItem) {
     const emptyTooltip = noActionsTooltip ?? "No actions available for this item right now.";
@@ -158,7 +164,7 @@ export function ItemActionDropdown({
             <DropdownMenuSeparator />
           </>
         )}
-        {showApprove && (
+        {canApprove && (
           <DropdownMenuItem
             className="rounded-lg"
             onClick={() => onApprove(itemId)}
@@ -167,7 +173,7 @@ export function ItemActionDropdown({
             Approve
           </DropdownMenuItem>
         )}
-        {showReject && (
+        {canReject && (
           <DropdownMenuItem
             className="rounded-lg"
             onClick={() => onReject(itemId)}
@@ -176,7 +182,7 @@ export function ItemActionDropdown({
             Reject
           </DropdownMenuItem>
         )}
-        {showRequestAmendment && (
+        {canRequestAmendment && (
           <DropdownMenuItem
             className="rounded-lg"
             onClick={() => onRequestAmendment(itemId)}
