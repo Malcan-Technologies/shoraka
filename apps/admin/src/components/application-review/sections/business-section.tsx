@@ -28,6 +28,10 @@ import {
   REVIEW_EMPTY_LABEL,
 } from "../review-section-styles";
 import { ComparisonFieldRow } from "../comparison-field-row";
+import {
+  ComparisonDocumentTitleRow,
+  businessSupportingDocsToChips,
+} from "../comparison-document-pair";
 import type { ReviewSectionId } from "../section-types";
 import {
   GUARANTOR_COMPANY_RELATIONSHIP_LABELS,
@@ -61,6 +65,7 @@ export interface BusinessSectionProps {
   viewDocumentPending?: boolean;
   comments: SectionCommentItem[];
   onAddComment?: (comment: string) => Promise<void> | void;
+  hideSectionComments?: boolean;
 }
 
 const DECLARATION_TEXT =
@@ -227,18 +232,15 @@ export function BusinessSection({
   comments,
   onAddComment,
   sectionComparison,
+  hideSectionComments = false,
 }: BusinessSectionProps) {
   if (sectionComparison) {
-    console.log("BusinessSection comparison mode");
     const vb = parseBusinessDetails(sectionComparison.beforeDetails);
     const va = parseBusinessDetails(sectionComparison.afterDetails);
     const { isPathChanged } = sectionComparison;
     const yn = (v: boolean | null) =>
       v === true ? "Yes" : v === false ? "No" : REVIEW_EMPTY_LABEL;
     const money = (n: number | null) => (n != null ? formatCurrency(n) : REVIEW_EMPTY_LABEL);
-    const docsLabel = (docs: { fileName: string }[]) =>
-      docs.length === 0 ? REVIEW_EMPTY_LABEL : docs.map((d) => d.fileName).join(", ");
-
     if (!vb && !va) {
       return (
         <ReviewSectionCard
@@ -332,11 +334,11 @@ export function BusinessSection({
               changed={isPathChanged("business_details")}
               multiline
             />
-            <ComparisonFieldRow
-              label="Relevant Supporting Documents for This Section"
-              before={docsLabel(b.whyRaisingFunds.supportingDocuments)}
-              after={docsLabel(a.whyRaisingFunds.supportingDocuments)}
-              changed={isPathChanged("business_details")}
+            <ComparisonDocumentTitleRow
+              title="Relevant supporting documents for this section"
+              beforeFiles={businessSupportingDocsToChips(vb?.whyRaisingFunds?.supportingDocuments ?? [])}
+              afterFiles={businessSupportingDocsToChips(va?.whyRaisingFunds?.supportingDocuments ?? [])}
+              markChanged={isPathChanged("business_details")}
             />
             <ComparisonFieldRow
               label="Are You Currently Raising/Applying Funds on Any Other P2P Platforms?"
@@ -457,7 +459,9 @@ export function BusinessSection({
           />
         </ReviewFieldBlock>
 
-        <SectionComments comments={comments} onSubmitComment={onAddComment} />
+        {!hideSectionComments ? (
+          <SectionComments comments={comments} onSubmitComment={onAddComment} />
+        ) : null}
       </ReviewSectionCard>
     );
   }
@@ -714,7 +718,9 @@ export function BusinessSection({
       ) : (
         <p className={reviewEmptyStateClass}>No business details submitted.</p>
       )}
-      <SectionComments comments={comments} onSubmitComment={onAddComment} />
+      {!hideSectionComments ? (
+        <SectionComments comments={comments} onSubmitComment={onAddComment} />
+      ) : null}
     </ReviewSectionCard>
   );
 }

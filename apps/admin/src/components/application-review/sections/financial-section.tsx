@@ -37,6 +37,7 @@ export interface FinancialSectionProps {
     afterApp: FinancialSectionAppSlice;
     isPathChanged: (path: string) => boolean;
   };
+  hideSectionComments?: boolean;
 }
 
 export function FinancialSection({
@@ -56,9 +57,9 @@ export function FinancialSection({
   comments,
   onAddComment,
   sectionComparison,
+  hideSectionComments = false,
 }: FinancialSectionProps) {
   if (sectionComparison) {
-    console.log("FinancialSection comparison mode");
     return (
       <ReviewSectionCard title="Financial" icon={BanknotesIcon} section={section} isReviewable={false}>
         <ApplicationFinancialReviewComparison
@@ -66,7 +67,9 @@ export function FinancialSection({
           afterApp={sectionComparison.afterApp}
           isPathChanged={sectionComparison.isPathChanged}
         />
-        <SectionComments comments={comments} onSubmitComment={onAddComment} />
+        {!hideSectionComments ? (
+          <SectionComments comments={comments} onSubmitComment={onAddComment} />
+        ) : null}
       </ReviewSectionCard>
     );
   }
@@ -91,7 +94,9 @@ export function FinancialSection({
         applicationCreatedAt={applicationCreatedAt}
         app={app}
       />
-      <SectionComments comments={comments} onSubmitComment={onAddComment} />
+      {!hideSectionComments ? (
+        <SectionComments comments={comments} onSubmitComment={onAddComment} />
+      ) : null}
     </ReviewSectionCard>
   );
 }

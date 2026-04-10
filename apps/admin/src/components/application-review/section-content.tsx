@@ -130,6 +130,8 @@ export interface SectionContentProps {
   viewSignedOfferLetterPending?: boolean;
   /** When set, sections render read-only before/after comparison grids. */
   sectionComparison?: SectionContentComparison;
+  /** When true (e.g. resubmit comparison modal), section comment thread is hidden. */
+  hideSectionComments?: boolean;
 }
 
 /** Renders section content by descriptor. Single place to map descriptor → component. */
@@ -168,6 +170,7 @@ export function SectionContent({
   onViewSignedContractOffer,
   viewSignedOfferLetterPending,
   sectionComparison,
+  hideSectionComments = false,
 }: SectionContentProps) {
   const reviewItems =
     (app.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? [];
@@ -209,6 +212,7 @@ export function SectionContent({
                 }
               : undefined
           }
+          hideSectionComments={hideSectionComments}
         />
       );
     case "business_details":
@@ -239,6 +243,7 @@ export function SectionContent({
                 }
               : undefined
           }
+          hideSectionComments={hideSectionComments}
         />
       );
     case "company_details":
@@ -266,6 +271,7 @@ export function SectionContent({
                 }
               : undefined
           }
+          hideSectionComments={hideSectionComments}
         />
       );
     case "supporting_documents":
@@ -297,6 +303,7 @@ export function SectionContent({
                 }
               : undefined
           }
+          hideSectionComments={hideSectionComments}
         />
       );
     case "contract_details": {
@@ -329,6 +336,7 @@ export function SectionContent({
                   }
                 : undefined
             }
+            hideSectionComments={hideSectionComments}
           />
         );
       }
@@ -378,6 +386,7 @@ export function SectionContent({
                 }
               : undefined
           }
+          hideSectionComments={hideSectionComments}
         />
       );
     }
@@ -460,6 +469,7 @@ export function SectionContent({
                 })()
               : undefined
           }
+          hideSectionComments={hideSectionComments}
         />
       );
     }

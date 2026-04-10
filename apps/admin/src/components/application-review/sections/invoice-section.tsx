@@ -8,6 +8,10 @@ import { ContractFacilitySummary } from "../contract-facility-summary";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
 import { ReviewFieldBlock } from "../review-field-block";
 import { ComparisonFieldRow } from "../comparison-field-row";
+import {
+  ComparisonDocumentTitleRow,
+  fileDocToComparisonChips,
+} from "../comparison-document-pair";
 import { formatCurrency, resolveOfferedAmount } from "@cashsouk/config";
 
 export interface InvoiceSectionProps {
@@ -55,6 +59,13 @@ export interface InvoiceSectionProps {
     afterInvoices: InvoiceSectionProps["invoices"];
     isPathChanged: (path: string) => boolean;
   };
+  hideSectionComments?: boolean;
+}
+
+function invoiceDetailsDocumentChips(details: unknown) {
+  const d = details as Record<string, unknown> | null | undefined;
+  const doc = d?.document as { s3_key?: string; file_name?: string; file_size?: number } | undefined;
+  return fileDocToComparisonChips(doc);
 }
 
 function invoiceDetailString(inv: { details?: unknown }, key: string): string {
@@ -89,9 +100,9 @@ export function InvoiceSection({
   onAddComment,
   onViewSignedInvoiceOffer,
   sectionComparison,
+  hideSectionComments = false,
 }: InvoiceSectionProps) {
   if (sectionComparison) {
-    console.log("InvoiceSection comparison mode");
     const { beforeInvoices, afterInvoices, isPathChanged } = sectionComparison;
     const byId = (arr: typeof beforeInvoices) =>
       new Map(arr.map((inv) => [inv.id, inv] as const));
@@ -163,35 +174,11 @@ export function InvoiceSection({
                       after={aOffAmt > 0 ? formatCurrency(aOffAmt) : REVIEW_EMPTY_LABEL}
                       changed={changed}
                     />
-                    <ComparisonFieldRow
-                      label="Invoice document"
-                      before={
-                        ((bInv?.details as Record<string, unknown> | undefined)?.document as Record<
-                          string,
-                          unknown
-                        > | undefined)?.file_name
-                          ? String(
-                              ((bInv?.details as Record<string, unknown>)?.document as Record<
-                                string,
-                                unknown
-                              >).file_name
-                            )
-                          : "—"
-                      }
-                      after={
-                        ((aInv?.details as Record<string, unknown> | undefined)?.document as Record<
-                          string,
-                          unknown
-                        > | undefined)?.file_name
-                          ? String(
-                              ((aInv?.details as Record<string, unknown>)?.document as Record<
-                                string,
-                                unknown
-                              >).file_name
-                            )
-                          : "—"
-                      }
-                      changed={changed}
+                    <ComparisonDocumentTitleRow
+                      title="Invoice document"
+                      beforeFiles={bInv ? invoiceDetailsDocumentChips(bInv.details) : []}
+                      afterFiles={aInv ? invoiceDetailsDocumentChips(aInv.details) : []}
+                      markChanged={changed}
                     />
                   </div>
                 </ReviewFieldBlock>
@@ -199,7 +186,9 @@ export function InvoiceSection({
             })}
           </div>
         )}
-        <SectionComments comments={comments} onSubmitComment={onAddComment} />
+        {!hideSectionComments ? (
+          <SectionComments comments={comments} onSubmitComment={onAddComment} />
+        ) : null}
       </ReviewSectionCard>
     );
   }
@@ -238,7 +227,9 @@ export function InvoiceSection({
       ) : (
         <p className={reviewEmptyStateClass}>No invoices submitted.</p>
       )}
-      <SectionComments comments={comments} onSubmitComment={onAddComment} />
+      {!hideSectionComments ? (
+        <SectionComments comments={comments} onSubmitComment={onAddComment} />
+      ) : null}
     </ReviewSectionCard>
   );
 }

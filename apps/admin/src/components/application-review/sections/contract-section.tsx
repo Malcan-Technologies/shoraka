@@ -32,6 +32,10 @@ import {
 } from "../review-section-styles";
 import type { ReviewSectionId } from "../section-types";
 import { ComparisonFieldRow } from "../comparison-field-row";
+import {
+  ComparisonDocumentTitleRow,
+  fileDocToComparisonChips,
+} from "../comparison-document-pair";
 
 interface FileDoc {
   s3_key?: string;
@@ -77,6 +81,7 @@ export interface ContractSectionProps {
     };
     isPathChanged: (path: string) => boolean;
   };
+  hideSectionComments?: boolean;
 }
 
 export function ContractSection({
@@ -103,9 +108,9 @@ export function ContractSection({
   onViewSignedContractOffer,
   signedContractOfferLetterAvailable,
   sectionComparison,
+  hideSectionComments = false,
 }: ContractSectionProps) {
   if (sectionComparison) {
-    console.log("ContractSection comparison mode");
     const { before, after, isPathChanged } = sectionComparison;
     const bCd = before.contractDetails as Record<string, unknown> | null | undefined;
     const aCd = after.contractDetails as Record<string, unknown> | null | undefined;
@@ -233,38 +238,24 @@ export function ContractSection({
           </ReviewFieldBlock>
         )}
         <ReviewFieldBlock title="Evidence">
-          <div className="space-y-2">
-            <ComparisonFieldRow
-              label="Contract Document"
-              before={
-                (bCd?.document as FileDoc | undefined)?.file_name
-                  ? String((bCd?.document as FileDoc).file_name)
-                  : REVIEW_EMPTY_LABEL
-              }
-              after={
-                (aCd?.document as FileDoc | undefined)?.file_name
-                  ? String((aCd?.document as FileDoc).file_name)
-                  : REVIEW_EMPTY_LABEL
-              }
-              changed={isPathChanged("contract")}
+          <div className="space-y-6">
+            <ComparisonDocumentTitleRow
+              title="Contract document"
+              beforeFiles={fileDocToComparisonChips(bCd?.document as FileDoc | undefined)}
+              afterFiles={fileDocToComparisonChips(aCd?.document as FileDoc | undefined)}
+              markChanged={isPathChanged("contract")}
             />
-            <ComparisonFieldRow
-              label="Customer Consent"
-              before={
-                (bCust?.document as FileDoc | undefined)?.file_name
-                  ? String((bCust?.document as FileDoc).file_name)
-                  : REVIEW_EMPTY_LABEL
-              }
-              after={
-                (aCust?.document as FileDoc | undefined)?.file_name
-                  ? String((aCust?.document as FileDoc).file_name)
-                  : REVIEW_EMPTY_LABEL
-              }
-              changed={isPathChanged("contract")}
+            <ComparisonDocumentTitleRow
+              title="Customer consent"
+              beforeFiles={fileDocToComparisonChips(bCust?.document as FileDoc | undefined)}
+              afterFiles={fileDocToComparisonChips(aCust?.document as FileDoc | undefined)}
+              markChanged={isPathChanged("contract")}
             />
           </div>
         </ReviewFieldBlock>
-        <SectionComments comments={comments} onSubmitComment={onAddComment} />
+        {!hideSectionComments ? (
+          <SectionComments comments={comments} onSubmitComment={onAddComment} />
+        ) : null}
       </ReviewSectionCard>
     );
   }
@@ -569,7 +560,9 @@ export function ContractSection({
       ) : (
         <p className={reviewEmptyStateClass}>No contract details submitted.</p>
       )}
-      <SectionComments comments={comments} onSubmitComment={onAddComment} />
+      {!hideSectionComments ? (
+        <SectionComments comments={comments} onSubmitComment={onAddComment} />
+      ) : null}
 
       <Dialog open={contractOfferConfirmOpen} onOpenChange={setContractOfferConfirmOpen}>
         <DialogContent className="rounded-2xl sm:max-w-md">

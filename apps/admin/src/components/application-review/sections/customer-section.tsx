@@ -18,6 +18,10 @@ import {
 } from "../review-section-styles";
 import type { ReviewSectionId } from "../section-types";
 import { ComparisonFieldRow } from "../comparison-field-row";
+import {
+  ComparisonDocumentTitleRow,
+  fileDocToComparisonChips,
+} from "../comparison-document-pair";
 
 interface FileDoc {
   s3_key?: string;
@@ -46,6 +50,7 @@ export interface CustomerSectionProps {
     afterCustomer: unknown;
     isPathChanged: (path: string) => boolean;
   };
+  hideSectionComments?: boolean;
 }
 
 export function CustomerSection({
@@ -65,9 +70,9 @@ export function CustomerSection({
   comments,
   onAddComment,
   sectionComparison,
+  hideSectionComments = false,
 }: CustomerSectionProps) {
   if (sectionComparison) {
-    console.log("CustomerSection comparison mode");
     const { beforeCustomer, afterCustomer, isPathChanged } = sectionComparison;
     const b = beforeCustomer as Record<string, unknown> | null | undefined;
     const a = afterCustomer as Record<string, unknown> | null | undefined;
@@ -112,22 +117,16 @@ export function CustomerSection({
           </div>
         </ReviewFieldBlock>
         <ReviewFieldBlock title="Evidence">
-          <ComparisonFieldRow
-            label="Customer Consent"
-            before={
-              bDoc?.file_name
-                ? `${bDoc.file_name}${bDoc.file_size ? ` (${formatFileSize(bDoc.file_size)})` : ""}`
-                : REVIEW_EMPTY_LABEL
-            }
-            after={
-              aDoc?.file_name
-                ? `${aDoc.file_name}${aDoc.file_size ? ` (${formatFileSize(aDoc.file_size)})` : ""}`
-                : REVIEW_EMPTY_LABEL
-            }
-            changed={isPathChanged("contract")}
+          <ComparisonDocumentTitleRow
+            title="Customer consent"
+            beforeFiles={fileDocToComparisonChips(bDoc)}
+            afterFiles={fileDocToComparisonChips(aDoc)}
+            markChanged={isPathChanged("contract")}
           />
         </ReviewFieldBlock>
-        <SectionComments comments={comments} onSubmitComment={onAddComment} />
+        {!hideSectionComments ? (
+          <SectionComments comments={comments} onSubmitComment={onAddComment} />
+        ) : null}
       </ReviewSectionCard>
     );
   }
@@ -212,7 +211,9 @@ export function CustomerSection({
       ) : (
         <p className={reviewEmptyStateClass}>No customer details submitted.</p>
       )}
-      <SectionComments comments={comments} onSubmitComment={onAddComment} />
+      {!hideSectionComments ? (
+        <SectionComments comments={comments} onSubmitComment={onAddComment} />
+      ) : null}
     </ReviewSectionCard>
   );
 }

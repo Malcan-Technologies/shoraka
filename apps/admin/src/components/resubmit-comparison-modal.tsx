@@ -138,6 +138,7 @@ export function ResubmitComparisonModal({
                         afterApp,
                         isPathChanged,
                       }}
+                      hideSectionComments
                       isReviewable={false}
                       approveSectionPending={false}
                       approveItemPending={false}

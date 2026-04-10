@@ -66,6 +66,7 @@ export interface CompanySectionProps {
     afterApp: CompanySectionProps["app"];
     isPathChanged: (path: string) => boolean;
   };
+  hideSectionComments?: boolean;
 }
 
 function companyDisplayFromSnapshot(app: CompanySectionProps["app"]) {
@@ -140,9 +141,9 @@ export function CompanySection({
   comments,
   onAddComment,
   sectionComparison,
+  hideSectionComments = false,
 }: CompanySectionProps) {
   if (sectionComparison) {
-    console.log("CompanySection comparison mode");
     const { beforeApp, afterApp, isPathChanged } = sectionComparison;
     const b = companyDisplayFromSnapshot(beforeApp);
     const a = companyDisplayFromSnapshot(afterApp);
@@ -249,7 +250,9 @@ export function CompanySection({
             />
           </div>
         </ReviewFieldBlock>
-        <SectionComments comments={comments} onSubmitComment={onAddComment} />
+        {!hideSectionComments ? (
+          <SectionComments comments={comments} onSubmitComment={onAddComment} />
+        ) : null}
       </ReviewSectionCard>
     );
   }
@@ -379,7 +382,9 @@ export function CompanySection({
         </div>
       </ReviewFieldBlock>
 
-      <SectionComments comments={comments} onSubmitComment={onAddComment} />
+      {!hideSectionComments ? (
+        <SectionComments comments={comments} onSubmitComment={onAddComment} />
+      ) : null}
     </ReviewSectionCard>
   );
 }
