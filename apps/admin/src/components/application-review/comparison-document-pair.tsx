@@ -20,8 +20,7 @@ import {
   DocumentTextIcon,
 } from "@heroicons/react/24/outline";
 import { SUPPORTING_DOC_CATEGORY_KEYS } from "@/app/settings/products/workflow-builder/product-form-helpers";
-import { cn } from "@/lib/utils";
-import { reviewEmptyStateClass, formatFileSize } from "./review-section-styles";
+import { reviewEmptyStateClass, formatFileSize, comparisonFileChipRowClass } from "./review-section-styles";
 import { buildCategoryGroups, type DocFile } from "./document-list";
 
 export type ComparisonFileChip = {
@@ -50,10 +49,7 @@ export function ComparisonFileChipList({
   return (
     <ul className="space-y-2">
       {files.map((f, idx) => (
-        <li
-          key={`${f.s3Key}-${idx}`}
-          className="flex items-start gap-2 rounded-lg border border-border/80 bg-muted/35 px-3 py-2"
-        >
+        <li key={`${f.s3Key}-${idx}`} className={comparisonFileChipRowClass}>
           <DocumentTextIcon className="h-4 w-4 shrink-0 text-muted-foreground mt-0.5" />
           <span className="min-w-0 flex-1">
             <span className="text-sm text-foreground break-all block">{f.label || f.s3Key}</span>
@@ -76,19 +72,19 @@ export function ComparisonDocumentTitleRow({
   title: string;
   beforeFiles: ComparisonFileChip[];
   afterFiles: ComparisonFileChip[];
-  /** If true, row is highlighted even when file lists match (e.g. parent section in field_changes). */
+  /** Included in aria-label when set or when file lists differ. */
   markChanged?: boolean;
 }) {
-  const byContent =
+  const filesDiffer =
     comparisonFileChipsSignature(beforeFiles) !== comparisonFileChipsSignature(afterFiles);
-  const rowChanged = byContent || !!markChanged;
+  const noisy = filesDiffer || !!markChanged;
   return (
     <div
-      className={cn(rowChanged && "border-l-4 border-l-accent pl-3 -ml-1 rounded-r-md")}
+      className="py-2 space-y-3"
       role="group"
-      aria-label={title}
+      aria-label={noisy ? `${title}, files changed` : title}
     >
-      <p className="text-sm font-medium text-foreground mb-3">{title}</p>
+      <p className="text-sm font-medium text-foreground">{title}</p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-0">
         <div className="md:pr-4 md:border-r md:border-border space-y-2 min-w-0">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Before</p>

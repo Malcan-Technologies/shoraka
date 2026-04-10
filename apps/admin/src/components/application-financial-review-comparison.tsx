@@ -251,7 +251,7 @@ export function ApplicationFinancialReviewComparison({
                       <TableCell className={`${applicationTableCellClass} font-medium`}>
                         {`Row ${i + 1}`}
                         {changed ? (
-                          <span className="ml-2 text-xs text-accent font-normal">Changed</span>
+                          <span className="ml-2 text-xs text-muted-foreground font-normal">Changed</span>
                         ) : null}
                       </TableCell>
                       <TableCell className={applicationTableCellClass}>

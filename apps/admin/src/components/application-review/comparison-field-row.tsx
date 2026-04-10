@@ -1,16 +1,26 @@
 "use client";
 
 /**
- * SECTION: Three-column before / label / after row for resubmit comparison
- * WHY: Matches admin review typography with centered question labels per plan.
- * INPUT: label text, before/after nodes, changed flag
- * OUTPUT: Grid row with highlight when `changed`
- * WHERE USED: Section comparison modes
+ * SECTION: Question-style field in resubmit comparison
+ * WHY: Same Before | After grid and value surface as document comparison (no left accent bar).
+ * INPUT: label, before/after strings, multiline flag
+ * OUTPUT: Label on top, two columns, muted rounded cell per value
+ * WHERE USED: All section comparison modes that use text fields
  */
 
-import { cn } from "@/lib/utils";
-import { ReviewValue } from "./review-value";
-import { reviewLabelClass, reviewValueClass } from "./review-section-styles";
+import {
+  REVIEW_EMPTY_LABEL,
+  comparisonCellSurfaceClass,
+  comparisonCellSurfaceMultilineClass,
+} from "./review-section-styles";
+
+function valueLooksEmpty(value: string): boolean {
+  return (
+    value === REVIEW_EMPTY_LABEL ||
+    value === "—" ||
+    value.trim() === ""
+  );
+}
 
 export function ComparisonFieldRow({
   label,
@@ -25,41 +35,38 @@ export function ComparisonFieldRow({
   changed: boolean;
   multiline?: boolean;
 }) {
+  const Cell = ({ value }: { value: string }) => {
+    const muted = valueLooksEmpty(value);
+    if (multiline) {
+      return (
+        <div className={comparisonCellSurfaceMultilineClass}>
+          <span className={muted ? "text-muted-foreground" : undefined}>{value}</span>
+        </div>
+      );
+    }
+    return (
+      <div className={comparisonCellSurfaceClass}>
+        <span className={muted ? "text-muted-foreground" : "text-foreground"}>{value}</span>
+      </div>
+    );
+  };
+
   return (
     <div
-      className={cn(
-        "grid grid-cols-1 gap-3 py-3 md:grid-cols-[1fr_minmax(200px,280px)_1fr] md:gap-x-6 md:gap-y-4 md:items-start",
-        changed && "border-l-4 border-l-accent pl-3 -ml-0.5"
-      )}
+      className="py-2 space-y-3"
       role="row"
-      aria-label={changed ? `${label}, changed` : label}
+      aria-label={changed ? `${label}, highlighted in change list` : label}
     >
-      <div className="order-1 md:order-none min-w-0">
-        <p className="text-xs font-medium text-muted-foreground md:hidden mb-1.5">Before</p>
-        {multiline ? (
-          <ReviewValue value={before} multiline />
-        ) : (
-          <div className={reviewValueClass}>{before}</div>
-        )}
-      </div>
-      <div
-        className={cn(
-          reviewLabelClass,
-          "text-[17px] leading-7 font-medium order-2 md:order-none md:text-center md:self-center px-1"
-        )}
-      >
-        {label}
-        {changed ? (
-          <span className="sr-only"> — changed</span>
-        ) : null}
-      </div>
-      <div className="order-3 md:order-none min-w-0">
-        <p className="text-xs font-medium text-muted-foreground md:hidden mb-1.5">After</p>
-        {multiline ? (
-          <ReviewValue value={after} multiline />
-        ) : (
-          <div className={reviewValueClass}>{after}</div>
-        )}
+      <p className="text-sm font-medium text-foreground">{label}</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-0">
+        <div className="md:pr-4 md:border-r md:border-border space-y-2 min-w-0">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Before</p>
+          <Cell value={before} />
+        </div>
+        <div className="md:pl-4 space-y-2 min-w-0 pt-4 md:pt-0">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">After</p>
+          <Cell value={after} />
+        </div>
       </div>
     </div>
   );
