@@ -25,8 +25,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { formatFileSize } from "./review-section-styles";
 
-export type DocFile = { label: string; s3Key: string };
+function formattedFileSize(row: Record<string, unknown> | undefined): string | undefined {
+  if (!row) return undefined;
+  const raw = row.file_size ?? row.fileSize;
+  if (typeof raw !== "number" || !Number.isFinite(raw) || raw <= 0) return undefined;
+  return formatFileSize(raw);
+}
+
+export type DocFile = { label: string; s3Key: string; secondary?: string };
 export type DocItem = {
   key: string;
   label: string;
@@ -60,6 +68,7 @@ export function buildCategoryGroups(documents: unknown): CategoryGroup[] {
                 {
                   label: name || `Document ${i + 1}`,
                   s3Key: String(file?.s3_key ?? (d?.s3_key as string | undefined)),
+                  secondary: formattedFileSize(file as Record<string, unknown>),
                 },
               ]
             : [],
@@ -81,18 +90,28 @@ export function buildCategoryGroups(documents: unknown): CategoryGroup[] {
       const categoryKey = labelToKey[categoryLabel] ?? `cat_${catIndex}`;
       const docList = Array.isArray(cat?.documents) ? cat.documents : [];
       const items: DocItem[] = docList.map((d: Record<string, unknown>, docIndex: number) => {
-        const files = Array.isArray(d?.files) ? (d.files as Array<{ file_name?: string; s3_key?: string }>) : [];
-        const file = (d?.file as { file_name?: string; s3_key?: string } | undefined) ?? files[0];
+        const files = Array.isArray(d?.files)
+          ? (d.files as Array<{ file_name?: string; s3_key?: string; file_size?: number; fileSize?: number }>)
+          : [];
+        const file =
+          (d?.file as {
+            file_name?: string;
+            s3_key?: string;
+            file_size?: number;
+            fileSize?: number;
+          } | undefined) ?? files[0];
         const viewFiles = files
           .filter((f) => typeof f?.s3_key === "string" && f.s3_key.trim() !== "")
           .map((f, fileIndex) => ({
             label: String(f.file_name ?? `File ${fileIndex + 1}`),
             s3Key: String(f.s3_key),
+            secondary: formattedFileSize(f as Record<string, unknown>),
           }));
         if (viewFiles.length === 0 && typeof file?.s3_key === "string" && file.s3_key.trim() !== "") {
           viewFiles.push({
             label: String(file.file_name ?? `File 1`),
             s3Key: String(file.s3_key),
+            secondary: formattedFileSize(file as Record<string, unknown>),
           });
         }
         const fileCount = files.length > 0 ? files.length : file ? 1 : 0;
@@ -126,7 +145,12 @@ export function buildCategoryGroups(documents: unknown): CategoryGroup[] {
     if (val == null) continue;
     const arr = Array.isArray(val) ? val : [val];
     const items: DocItem[] = arr.map((d: Record<string, unknown>, i: number) => {
-      const file = d?.file as { s3_key?: string } | undefined;
+      const file = d?.file as {
+        s3_key?: string;
+        file_name?: string;
+        file_size?: number;
+        fileSize?: number;
+      } | undefined;
       const name = String(d?.name ?? d?.title ?? "doc");
       const slug = name.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
       return {
@@ -134,9 +158,7 @@ export function buildCategoryGroups(documents: unknown): CategoryGroup[] {
         label: name || `${categoryKey} ${i + 1}`,
         s3Key: file?.s3_key ?? (d?.s3_key as string | undefined),
         downloadFileName:
-          typeof (d?.file as { file_name?: string } | undefined)?.file_name === "string"
-            ? (d?.file as { file_name?: string }).file_name
-            : undefined,
+          typeof file?.file_name === "string" ? file.file_name : undefined,
         files:
           typeof (file?.s3_key ?? (d?.s3_key as string | undefined)) === "string" &&
           String(file?.s3_key ?? (d?.s3_key as string | undefined)).trim() !== ""
@@ -144,6 +166,7 @@ export function buildCategoryGroups(documents: unknown): CategoryGroup[] {
                 {
                   label: name || `${categoryKey} ${i + 1}`,
                   s3Key: String(file?.s3_key ?? (d?.s3_key as string | undefined)),
+                  secondary: formattedFileSize(file as Record<string, unknown>),
                 },
               ]
             : [],

@@ -115,16 +115,22 @@ export function fileDocToComparisonChips(doc: {
 }
 
 export function businessSupportingDocsToChips(
-  docs: Array<{ s3Key: string; fileName: string }>
+  docs: Array<{ s3Key: string; fileName: string; fileSize?: number }>
 ): ComparisonFileChip[] {
   return docs.map((d) => ({
     s3Key: d.s3Key,
     label: d.fileName,
+    secondary:
+      typeof d.fileSize === "number" && d.fileSize > 0 ? formatFileSize(d.fileSize) : undefined,
   }));
 }
 
 function docFilesToChips(files: DocFile[]): ComparisonFileChip[] {
-  return files.map((f) => ({ s3Key: f.s3Key, label: f.label }));
+  return files.map((f) => ({
+    s3Key: f.s3Key,
+    label: f.label,
+    secondary: f.secondary,
+  }));
 }
 
 export function SupportingDocumentsComparisonLayout({

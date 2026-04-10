@@ -104,7 +104,7 @@ interface BusinessDetailsView {
     amountRaised: number | null;
     sameInvoiceUsed: boolean | null;
     accountingSoftware: string;
-    supportingDocuments: Array<{ s3Key: string; fileName: string }>;
+    supportingDocuments: Array<{ s3Key: string; fileName: string; fileSize?: number }>;
   };
   declarationConfirmed: boolean;
   guarantors: GuarantorReviewRow[];
@@ -174,9 +174,12 @@ export function parseBusinessDetails(raw: unknown): BusinessDetailsView | null {
           if (!s3Key) return null;
           const fileName =
             reviewStr(row.file_name ?? row.fileName) || `Supporting Document ${index + 1}.pdf`;
-          return { s3Key, fileName };
+          const sz = row.file_size ?? row.fileSize;
+          const fileSize =
+            typeof sz === "number" && Number.isFinite(sz) && sz > 0 ? sz : undefined;
+          return { s3Key, fileName, ...(fileSize != null ? { fileSize } : {}) };
         })
-        .filter((d): d is { s3Key: string; fileName: string } => Boolean(d))
+        .filter((d): d is { s3Key: string; fileName: string; fileSize?: number } => Boolean(d))
     : [];
 
   const num = (v: unknown): number | null => {
