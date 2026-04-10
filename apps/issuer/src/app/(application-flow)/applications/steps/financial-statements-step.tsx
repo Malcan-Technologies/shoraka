@@ -30,6 +30,7 @@ import {
   fieldTooltipTriggerClassName,
   fieldTooltipTriggerInputClassName,
   fieldTooltipLabelGap,
+  withFieldError,
 } from "@/app/(application-flow)/applications/components/form-control";
 import { MoneyInput } from "@cashsouk/ui";
 import { parseMoney, formatMoney } from "@cashsouk/ui";
@@ -514,53 +515,73 @@ function parseDateLocal(s: string): Date | null {
   }
 }
 
-function yearFormIsValid(form: FinancialStatementsPayload): boolean {
-  const moneyFields: (keyof FinancialStatementsPayload)[] = [
-    "bsfatot",
-    "othass",
-    "bscatot",
-    "bsclbank",
-    "curlib",
-    "bsslltd",
-    "bsclstd",
-    "bsqpuc",
-    "turnover",
-    "plnpbt",
-    "plnpat",
-    "plnetdiv",
-    "plyear",
-  ];
+const YEAR_MONEY_FIELDS: (keyof FinancialStatementsPayload)[] = [
+  "bsfatot",
+  "othass",
+  "bscatot",
+  "bsclbank",
+  "curlib",
+  "bsslltd",
+  "bsclstd",
+  "bsqpuc",
+  "turnover",
+  "plnpbt",
+  "plnpat",
+  "plnetdiv",
+  "plyear",
+];
+
+type YearBlockFieldErrors = {
+  bsdd?: string;
+  pldd?: string;
+  money: Partial<Record<keyof FinancialStatementsPayload, string>>;
+};
+
+function getYearBlockFieldErrors(form: FinancialStatementsPayload): YearBlockFieldErrors {
   const hasValue = (v: unknown) => String(v ?? "").trim() !== "";
-  if (!hasValue(form.pldd) || !isFourDigitYearString(String(form.pldd ?? ""))) return false;
-  if (!hasValue(form.bsdd)) return false;
-  const d = parseDateLocal(form.bsdd ?? "");
-  if (d && startOfDay(d) > startOfDay(new Date())) return false;
-  if (!moneyFields.every((k) => hasValue(form[k]))) return false;
-  if (parseMoney(form.turnover ?? "") < 0) return false;
+  const money: Partial<Record<keyof FinancialStatementsPayload, string>> = {};
+  let bsdd: string | undefined;
+  let pldd: string | undefined;
+
+  if (!hasValue(form.pldd) || !isFourDigitYearString(String(form.pldd ?? ""))) {
+    pldd = "Required";
+  }
+  if (!hasValue(form.bsdd)) {
+    bsdd = "Required";
+  } else {
+    const d = parseDateLocal(form.bsdd ?? "");
+    if (!d) {
+      bsdd = "Invalid date";
+    } else if (startOfDay(d) > startOfDay(new Date())) {
+      bsdd = "Financial data date cannot be in the future.";
+    }
+  }
+  for (const k of YEAR_MONEY_FIELDS) {
+    if (!hasValue(form[k])) {
+      money[k] = "Required";
+    }
+  }
+  if (hasValue(form.turnover) && parseMoney(form.turnover ?? "") < 0) {
+    money.turnover = "Turnover must be 0 or greater";
+  }
+  return { bsdd, pldd, money };
+}
+
+function yearFormIsValid(form: FinancialStatementsPayload): boolean {
+  const e = getYearBlockFieldErrors(form);
+  if (e.bsdd || e.pldd) return false;
+  if (Object.keys(e.money).length > 0) return false;
   return true;
 }
 
-function yearFormValidForButton(form: FinancialStatementsPayload): boolean {
-  const moneyFields: (keyof FinancialStatementsPayload)[] = [
-    "bsfatot",
-    "othass",
-    "bscatot",
-    "bsclbank",
-    "curlib",
-    "bsslltd",
-    "bsclstd",
-    "bsqpuc",
-    "turnover",
-    "plnpbt",
-    "plnpat",
-    "plnetdiv",
-    "plyear",
-  ];
+/** Same idea as contract-details Save gate: filled + parseable date (future allowed); strict rules on submit only. */
+function yearFormFilledForSaveButton(form: FinancialStatementsPayload): boolean {
   const hasValue = (v: unknown) => String(v ?? "").trim() !== "";
   if (!hasValue(form.pldd) || !isFourDigitYearString(String(form.pldd ?? ""))) return false;
-  if (!hasValue(form.bsdd)) return false;
-  if (!moneyFields.every((k) => hasValue(form[k]))) return false;
-  if (parseMoney(form.turnover ?? "") < 0) return false;
+  if (!hasValue(form.bsdd) || parseDateLocal(form.bsdd ?? "") == null) return false;
+  for (const k of YEAR_MONEY_FIELDS) {
+    if (!hasValue(form[k])) return false;
+  }
   return true;
 }
 
@@ -578,6 +599,7 @@ export function FinancialStatementsStep({
   const [formsByYear, setFormsByYear] = React.useState<Record<string, FinancialStatementsPayload>>({});
   const [isInitialized, setIsInitialized] = React.useState(false);
   const [hasSubmitted, setHasSubmitted] = React.useState(false);
+  const [activeYearTab, setActiveYearTab] = React.useState("");
   const initialPayloadRef = React.useRef<string>("");
 
   const onDataChangeRef = React.useRef(onDataChange);
@@ -767,29 +789,48 @@ export function FinancialStatementsStep({
 
   const caseCInfoOnly = Boolean(questionnaireDto && yearsToShow.length === 0);
 
+  /** Full validation: used by saveFunction and inline errors after submit (future date, turnover sign, etc.). */
   const allYearFormsValid = React.useMemo(() => {
     if (yearsToShow.length === 0) return true;
     return yearsToShow.every((y) => yearFormIsValid(formsByYear[String(y)] ?? emptyQuestionnaireBlock(String(y))));
   }, [yearsToShow, formsByYear]);
 
-  const allYearFormsButtonOk = React.useMemo(() => {
+  /** Save gate only: like contract-details — required values + parseable bsdd; no future-date or turnover checks. */
+  const allYearFormsFilled = React.useMemo(() => {
     if (yearsToShow.length === 0) return true;
     return yearsToShow.every((y) =>
-      yearFormValidForButton(formsByYear[String(y)] ?? emptyQuestionnaireBlock(String(y)))
+      yearFormFilledForSaveButton(formsByYear[String(y)] ?? emptyQuestionnaireBlock(String(y)))
     );
   }, [yearsToShow, formsByYear]);
 
   const questionsAnswered =
     isFourDigitYearString(fyeInput) && qSubmitted !== null && qNextYear !== null;
 
-  const isValidForButton = caseCInfoOnly
-    ? questionsAnswered
-    : questionsAnswered && allYearFormsButtonOk;
+  /** Save enabled when questionnaire + all year rows are “filled”; submit applies strict validation. */
+  const isValidForButton = readOnly || (caseCInfoOnly ? questionsAnswered : questionsAnswered && allYearFormsFilled);
+
+  React.useEffect(() => {
+    if (yearsToShow.length <= 1) return;
+    setActiveYearTab((prev) => {
+      const ids = yearsToShow.map(String);
+      if (prev && ids.includes(prev)) return prev;
+      return ids[0] ?? "";
+    });
+  }, [yearsToShow]);
+
+  React.useEffect(() => {
+    setHasSubmitted(false);
+  }, [fyeInput, qSubmitted, qNextYear, formsByYear]);
 
   const saveFunction = React.useCallback(async () => {
     setHasSubmitted(true);
     if (!questionnaireDto) {
-      toast.error("Please answer all three questions, including a 4-digit latest financial year.");
+      console.log("Financial save blocked: questionnaire incomplete", {
+        fyeInput,
+        qSubmitted,
+        qNextYear,
+      });
+      toast.error("Please fix the highlighted fields");
       throw new Error("VALIDATION_REQUIRED");
     }
     if (caseCInfoOnly) {
@@ -801,13 +842,21 @@ export function FinancialStatementsStep({
       return payload;
     }
     if (!allYearFormsValid) {
+      const firstBad = yearsToShow.find(
+        (y) => !yearFormIsValid(formsByYear[String(y)] ?? emptyQuestionnaireBlock(String(y)))
+      );
+      if (firstBad != null) {
+        setActiveYearTab(String(firstBad));
+        console.log("Financial save blocked: switching to first invalid year tab", firstBad);
+      }
+      console.log("Financial save blocked: year forms invalid", { yearsToShow });
       toast.error("Please fix the highlighted fields");
       throw new Error("VALIDATION_REQUIRED");
     }
     const payload = buildV2ApiPayload(questionnaireDto, formsByYear);
     console.log("Saving financial v2 payload keys:", Object.keys(payload.unaudited_by_year));
     return payload;
-  }, [questionnaireDto, caseCInfoOnly, allYearFormsValid, formsByYear]);
+  }, [questionnaireDto, caseCInfoOnly, allYearFormsValid, formsByYear, fyeInput, qSubmitted, qNextYear]);
 
   React.useEffect(() => {
     if (!onDataChangeRef.current || !isInitialized) return;
@@ -827,12 +876,26 @@ export function FinancialStatementsStep({
 
   const getLabel = (key: keyof FinancialStatementsPayload) => FINANCIAL_FIELD_LABELS[key] ?? key;
 
+  const showOverviewErrors = hasSubmitted && !readOnly;
+  const fyeFieldError = showOverviewErrors
+    ? fyeInput.trim() === ""
+      ? "Required"
+      : !isFourDigitYearString(fyeInput)
+        ? "Enter a 4-digit year"
+        : undefined
+    : undefined;
+  const qSubmittedFieldError =
+    showOverviewErrors && qSubmitted === null ? "Please select Yes or No" : undefined;
+  const qNextYearFieldError =
+    showOverviewErrors && qNextYear === null ? "Please select Yes or No" : undefined;
+
   const renderYearBlock = (year: number) => {
     const yearKey = String(year);
     const form = formsByYear[yearKey] ?? emptyQuestionnaireBlock(yearKey);
-    const bsddParsed = parseDateLocal(form.bsdd ?? "");
-    const bsddFuture =
-      bsddParsed != null && startOfDay(bsddParsed) > startOfDay(new Date());
+    const showYearFieldErrors = hasSubmitted && !readOnly;
+    const yearErrors: YearBlockFieldErrors = showYearFieldErrors
+      ? getYearBlockFieldErrors(form)
+      : { bsdd: undefined, pldd: undefined, money: {} };
 
     return (
       <div key={yearKey} className="space-y-3 border border-border rounded-xl p-4 md:p-6">
@@ -840,7 +903,12 @@ export function FinancialStatementsStep({
           <h4 className={subsectionHeadingClassName}>Reporting Period</h4>
           <div className={rowGridBaseClassName}>
             <Label className={labelClassName}>Financial Year</Label>
-            <Input value={yearKey} disabled className={cn(inputClassName, formInputDisabledClassName)} />
+            <div className="flex min-w-0 flex-col gap-1">
+              <Input value={yearKey} disabled className={cn(inputClassName, formInputDisabledClassName)} />
+              {yearErrors.pldd ? (
+                <p className="text-xs text-destructive">{yearErrors.pldd}</p>
+              ) : null}
+            </div>
             <div className={cn("flex items-center", fieldTooltipLabelGap)}>
               <Label className={labelClassName}>
                 {getLabel("bsdd")}
@@ -863,11 +931,11 @@ export function FinancialStatementsStep({
                 disabled={readOnly}
                 className={cn(inputClassName, readOnly && formInputDisabledClassName)}
                 placeholder="eg. 31/12/2025"
-                isInvalid={hasSubmitted && bsddFuture}
+                isInvalid={Boolean(yearErrors.bsdd)}
               />
-              {hasSubmitted && bsddFuture && (
-                <p className="text-xs text-destructive">Financial data date cannot be in the future.</p>
-              )}
+              {yearErrors.bsdd ? (
+                <p className="text-xs text-destructive">{yearErrors.bsdd}</p>
+              ) : null}
             </div>
           </div>
         </section>
@@ -882,6 +950,8 @@ export function FinancialStatementsStep({
                 value={form[key] ?? ""}
                 onValueChange={(v) => updateFormYear(yearKey, key, v)}
                 readOnly={readOnly}
+                hasError={Boolean(yearErrors.money[key])}
+                errorMessage={yearErrors.money[key]}
               />
             ))}
           </div>
@@ -897,6 +967,8 @@ export function FinancialStatementsStep({
                 value={form[key] ?? ""}
                 onValueChange={(v) => updateFormYear(yearKey, key, v)}
                 readOnly={readOnly}
+                hasError={Boolean(yearErrors.money[key])}
+                errorMessage={yearErrors.money[key]}
               />
             ))}
           </div>
@@ -910,6 +982,8 @@ export function FinancialStatementsStep({
               value={form.bsqpuc ?? ""}
               onValueChange={(v) => updateFormYear(yearKey, "bsqpuc", v)}
               readOnly={readOnly}
+              hasError={Boolean(yearErrors.money.bsqpuc)}
+              errorMessage={yearErrors.money.bsqpuc}
             />
           </div>
         </section>
@@ -922,12 +996,8 @@ export function FinancialStatementsStep({
               value={form.turnover ?? ""}
               onValueChange={(v) => updateFormYear(yearKey, "turnover", v)}
               readOnly={readOnly}
-              hasError={hasSubmitted && String(form.turnover).trim() !== "" && parseMoney(form.turnover ?? "") < 0}
-              errorMessage={
-                hasSubmitted && String(form.turnover).trim() !== "" && parseMoney(form.turnover ?? "") < 0
-                  ? "Turnover must be 0 or greater"
-                  : undefined
-              }
+              hasError={Boolean(yearErrors.money.turnover)}
+              errorMessage={yearErrors.money.turnover}
             />
             <MoneyFieldRow
               id={`${yearKey}-plnpbt`}
@@ -937,6 +1007,8 @@ export function FinancialStatementsStep({
               readOnly={readOnly}
               allowNegative
               showNegativeTooltip
+              hasError={Boolean(yearErrors.money.plnpbt)}
+              errorMessage={yearErrors.money.plnpbt}
             />
             <MoneyFieldRow
               id={`${yearKey}-plnpat`}
@@ -946,6 +1018,8 @@ export function FinancialStatementsStep({
               readOnly={readOnly}
               allowNegative
               showNegativeTooltip
+              hasError={Boolean(yearErrors.money.plnpat)}
+              errorMessage={yearErrors.money.plnpat}
             />
             <MoneyFieldRow
               id={`${yearKey}-plnetdiv`}
@@ -953,6 +1027,8 @@ export function FinancialStatementsStep({
               value={form.plnetdiv ?? ""}
               onValueChange={(v) => updateFormYear(yearKey, "plnetdiv", v)}
               readOnly={readOnly}
+              hasError={Boolean(yearErrors.money.plnetdiv)}
+              errorMessage={yearErrors.money.plnetdiv}
             />
             <MoneyFieldRow
               id={`${yearKey}-plyear`}
@@ -962,6 +1038,8 @@ export function FinancialStatementsStep({
               readOnly={readOnly}
               allowNegative
               showNegativeTooltip
+              hasError={Boolean(yearErrors.money.plyear)}
+              errorMessage={yearErrors.money.plyear}
             />
           </div>
         </section>
@@ -995,40 +1073,56 @@ export function FinancialStatementsStep({
                 onChange={(e) => setFyeInput(e.target.value.replace(/\D/g, "").slice(0, 4))}
                 disabled={readOnly}
                 placeholder="eg. 2025"
-                className={inputClassName}
+                className={withFieldError(inputClassName, Boolean(fyeFieldError))}
                 inputMode="numeric"
                 maxLength={4}
-                aria-describedby="fye-year-hint"
+                aria-describedby={fyeFieldError ? "fye-year-error" : "fye-year-hint"}
               />
-              <p id="fye-year-hint" className="text-xs text-muted-foreground">
-                4 digits
-              </p>
+              {fyeFieldError ? (
+                <p id="fye-year-error" className="text-xs text-destructive">
+                  {fyeFieldError}
+                </p>
+              ) : (
+                <p id="fye-year-hint" className="text-xs text-muted-foreground">
+                  4 digits
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
               <Label className={labelClassName}>Have You Submitted This Financial Year?</Label>
             </div>
-            <div className="flex h-11 w-full min-w-0 items-center">
-              <FinancialYesNoRadioGroup
-                name="financial-statements-q-submitted"
-                aria-label="Have You Submitted This Financial Year?"
-                value={qSubmitted === null ? "" : qSubmitted ? "yes" : "no"}
-                onValueChange={(v) => setQSubmitted(v === "yes")}
-                disabled={readOnly}
-              />
+            <div className="flex min-w-0 w-full flex-col gap-1">
+              <div className="flex h-11 w-full min-w-0 items-center">
+                <FinancialYesNoRadioGroup
+                  name="financial-statements-q-submitted"
+                  aria-label="Have You Submitted This Financial Year?"
+                  value={qSubmitted === null ? "" : qSubmitted ? "yes" : "no"}
+                  onValueChange={(v) => setQSubmitted(v === "yes")}
+                  disabled={readOnly}
+                />
+              </div>
+              {qSubmittedFieldError ? (
+                <p className="text-xs text-destructive">{qSubmittedFieldError}</p>
+              ) : null}
             </div>
 
             <div className="space-y-2">
               <Label className={labelClassName}>Do You Have Data for the Next Financial Year?</Label>
             </div>
-            <div className="flex h-11 w-full min-w-0 items-center">
-              <FinancialYesNoRadioGroup
-                name="financial-statements-q-next-year"
-                aria-label="Do You Have Data for the Next Financial Year?"
-                value={qNextYear === null ? "" : qNextYear ? "yes" : "no"}
-                onValueChange={(v) => setQNextYear(v === "yes")}
-                disabled={readOnly}
-              />
+            <div className="flex min-w-0 w-full flex-col gap-1">
+              <div className="flex h-11 w-full min-w-0 items-center">
+                <FinancialYesNoRadioGroup
+                  name="financial-statements-q-next-year"
+                  aria-label="Do You Have Data for the Next Financial Year?"
+                  value={qNextYear === null ? "" : qNextYear ? "yes" : "no"}
+                  onValueChange={(v) => setQNextYear(v === "yes")}
+                  disabled={readOnly}
+                />
+              </div>
+              {qNextYearFieldError ? (
+                <p className="text-xs text-destructive">{qNextYearFieldError}</p>
+              ) : null}
             </div>
           </div>
         </section>
@@ -1067,7 +1161,8 @@ export function FinancialStatementsStep({
             <div className="w-full max-w-[1200px]">
               <Tabs
                 key={yearsToShow.join("-")}
-                defaultValue={String(yearsToShow[0])}
+                value={activeYearTab || String(yearsToShow[0])}
+                onValueChange={setActiveYearTab}
                 className="w-full"
               >
                 <TabsList className="mb-4 h-auto w-full flex-wrap justify-start gap-1 bg-muted p-1 sm:w-auto">
