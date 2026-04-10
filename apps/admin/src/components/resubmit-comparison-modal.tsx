@@ -88,8 +88,8 @@ export function ResubmitComparisonModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] w-full max-h-[90vh] flex flex-col overflow-hidden rounded-2xl p-0 gap-0">
-        <DialogHeader className="px-6 pt-6 pb-2 shrink-0 border-b border-border space-y-1">
+      <DialogContent className="max-w-[95vw] w-full max-h-[90vh] flex flex-col overflow-hidden rounded-2xl p-0 gap-0 border border-border bg-background shadow-lg">
+        <DialogHeader className="px-6 pt-6 pb-2 shrink-0 border-b border-border/80 space-y-1">
           <DialogTitle className="text-[17px] leading-7">
             Application resubmitted — compare revisions
           </DialogTitle>

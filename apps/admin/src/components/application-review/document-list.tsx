@@ -26,17 +26,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-type DocFile = { label: string; s3Key: string };
-type DocItem = {
+export type DocFile = { label: string; s3Key: string };
+export type DocItem = {
   key: string;
   label: string;
   s3Key?: string;
   downloadFileName?: string;
   files: DocFile[];
 };
-type CategoryGroup = { categoryKey: string; categoryLabel: string; items: DocItem[] };
+export type CategoryGroup = { categoryKey: string; categoryLabel: string; items: DocItem[] };
 
-function buildCategoryGroups(documents: unknown): CategoryGroup[] {
+/** Same grouping as the live review document list (categories + item keys). */
+export function buildCategoryGroups(documents: unknown): CategoryGroup[] {
   if (typeof documents !== "object") return [];
   const raw = (documents as Record<string, unknown>)?.supporting_documents ?? documents;
   if (Array.isArray(raw)) {
