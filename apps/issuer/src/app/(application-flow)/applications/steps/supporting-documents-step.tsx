@@ -829,6 +829,7 @@ export function SupportingDocumentsStep({
                                     key={file.clientId ?? `${file.name}-${fileIndex}`}
                                     fileName={file.name}
                                     truncate
+                                    maxChars={30}
                                     className="w-full max-w-[22rem]"
                                     trailing={
                                       isEditable ? (

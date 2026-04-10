@@ -13,6 +13,7 @@ export function FileDisplayBadge({
   trailing,
   size = "default",
   truncate = true,
+  maxChars,
 }: {
   fileName: string;
   className?: string;
@@ -20,6 +21,8 @@ export function FileDisplayBadge({
   size?: "default" | "sm" | "xs";
   /** When false, filename expands to show full (for supporting docs, legal docs). Tables use truncate. */
   truncate?: boolean;
+  /** Optional hard text cap before CSS truncation (e.g. 40 chars). */
+  maxChars?: number;
 }) {
   const textClass =
     size === "xs" ? "text-[10px]" : size === "sm" ? "text-xs" : "text-[14px]";
@@ -29,6 +32,11 @@ export function FileDisplayBadge({
   const gapClass = size === "xs" ? "gap-1.5" : "gap-2";
   const padClass = size === "xs" ? "px-1.5 py-[1px]" : "px-2 py-[2px]";
 
+  const displayedFileName =
+    truncate && typeof maxChars === "number" && maxChars > 0 && fileName.length > maxChars
+      ? `${fileName.slice(0, Math.max(0, maxChars - 1))}…`
+      : fileName;
+
   return (
     <div
       title={fileName}
@@ -37,7 +45,9 @@ export function FileDisplayBadge({
       <div className={`${boxSize} rounded-sm bg-foreground flex items-center justify-center shrink-0`}>
         <CheckIconSolid className={`${iconSize} text-background`} />
       </div>
-      <span className={`${textClass} font-medium ${truncate ? "truncate min-w-0" : ""}`}>{fileName}</span>
+      <span className={`${textClass} font-medium ${truncate ? "truncate min-w-0" : ""}`}>
+        {displayedFileName}
+      </span>
       {trailing}
     </div>
   );
