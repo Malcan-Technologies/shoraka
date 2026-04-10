@@ -267,13 +267,28 @@ function legacyHasAnyInput(data: FinancialStatementsPayload): boolean {
 
 const sectionHeaderClassName = "text-base font-semibold text-foreground";
 const labelClassName = cn(formLabelClassName, "font-normal");
+const subsectionHeadingClassName = "text-sm font-semibold text-foreground";
 const inputClassName = formInputClassName;
-const rowGridClassName =
-  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-8 mt-5 w-full max-w-[1200px] items-start px-3";
-/** Right column for yes/no rows — matches business-details-step (radios align with multi-line labels). */
-const radioGridControlClassName = "self-center w-full min-w-0";
+/** Label + field columns — same horizontal/vertical gaps as company-details / contract-details. */
+const rowGridBaseClassName =
+  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-6 gap-y-4 w-full max-w-[1200px] items-center px-3";
+/** First grid under a section header (adds top offset like other steps). */
+const rowGridClassName = cn(rowGridBaseClassName, "mt-4");
 const sectionWrapperClassName = "w-full max-w-[1200px]";
-const formOuterClassName = "w-full max-w-[1200px] flex flex-col gap-12 md:gap-14 px-3";
+/** Same outer rhythm as company-details / contract-details steps. */
+const formOuterClassName = "w-full max-w-[1200px] space-y-10 px-3";
+
+/** Empty / info states under Financial Details — same shell as declarations-step boxes (border-border bg-background). */
+const financialDetailsMessagePanelClassName =
+  "rounded-xl border border-border bg-background p-4 sm:p-5 w-full max-w-[1200px]";
+
+/** Big centered helper box: same layout for “complete answers” and “already submitted” messages. */
+const financialDetailsCenteredMessageBoxClassName = cn(
+  financialDetailsMessagePanelClassName,
+  "flex min-h-[140px] items-center justify-center"
+);
+const financialDetailsCenteredMessageTextClassName =
+  "text-center text-sm leading-6 text-muted-foreground px-2 max-w-md";
 
 /* ================================================================
    CUSTOM RADIO (same pattern as business-details-step)
@@ -385,7 +400,8 @@ function FinancialYesNoRadioGroup({
    ================================================================ */
 
 const NEGATIVE_TOOLTIP_TEXT = "Negative values allowed for losses\nExample: -5000";
-const FINANCIAL_DATA_UNTIL_TOOLTIP = "The latest date your financial numbers are updated to (management accounts)";
+const FINANCIAL_DATA_UNTIL_TOOLTIP =
+  "Latest date your figures are updated to (e.g. management accounts).";
 
 function MoneyFieldRow({
   id,
@@ -412,7 +428,7 @@ function MoneyFieldRow({
     <MoneyInput
       value={value}
       onValueChange={onValueChange}
-      placeholder="0.00"
+      placeholder="eg. 0.00"
       prefix="RM"
       allowNegative={allowNegative}
       inputClassName={cn(
@@ -818,43 +834,45 @@ export function FinancialStatementsStep({
       bsddParsed != null && startOfDay(bsddParsed) > startOfDay(new Date());
 
     return (
-      <div key={yearKey} className="space-y-8 border border-border rounded-xl p-4 md:p-6">
-        <h3 className={sectionHeaderClassName}>Financial year {yearKey}</h3>
-        <div className={rowGridClassName}>
-          <Label className={labelClassName}>Financial year (auto)</Label>
-          <Input value={yearKey} disabled className={cn(inputClassName, formInputDisabledClassName)} />
-          <div className={cn("flex items-center", fieldTooltipLabelGap)}>
-            <Label className={labelClassName}>
-              {getLabel("bsdd")}
-            </Label>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className={fieldTooltipTriggerClassName}>
-                  <InformationCircleIcon className="h-4 w-4" />
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
-                {FINANCIAL_DATA_UNTIL_TOOLTIP}
-              </TooltipContent>
-            </Tooltip>
+      <div key={yearKey} className="space-y-3 border border-border rounded-xl p-4 md:p-6">
+        <section className={`${sectionWrapperClassName} space-y-3`}>
+          <h4 className={subsectionHeadingClassName}>Reporting Period</h4>
+          <div className={rowGridBaseClassName}>
+            <Label className={labelClassName}>Financial Year</Label>
+            <Input value={yearKey} disabled className={cn(inputClassName, formInputDisabledClassName)} />
+            <div className={cn("flex items-center", fieldTooltipLabelGap)}>
+              <Label className={labelClassName}>
+                {getLabel("bsdd")}
+              </Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className={fieldTooltipTriggerClassName}>
+                    <InformationCircleIcon className="h-4 w-4" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
+                  {FINANCIAL_DATA_UNTIL_TOOLTIP}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+            <div className="flex flex-col gap-1">
+              <DateInput
+                value={form.bsdd}
+                onChange={(v) => updateFormYear(yearKey, "bsdd", v)}
+                disabled={readOnly}
+                className={cn(inputClassName, readOnly && formInputDisabledClassName)}
+                placeholder="eg. 31/12/2025"
+                isInvalid={hasSubmitted && bsddFuture}
+              />
+              {hasSubmitted && bsddFuture && (
+                <p className="text-xs text-destructive">Financial data date cannot be in the future.</p>
+              )}
+            </div>
           </div>
-          <div className="flex flex-col gap-1">
-            <DateInput
-              value={form.bsdd}
-              onChange={(v) => updateFormYear(yearKey, "bsdd", v)}
-              disabled={readOnly}
-              className={cn(inputClassName, readOnly && formInputDisabledClassName)}
-              placeholder="Enter date"
-              isInvalid={hasSubmitted && bsddFuture}
-            />
-            {hasSubmitted && bsddFuture && (
-              <p className="text-xs text-destructive">Financial data date cannot be in the future.</p>
-            )}
-          </div>
-        </div>
-        <section className={`${sectionWrapperClassName} space-y-5`}>
-          <h4 className="text-sm font-semibold text-foreground">Assets</h4>
-          <div className={rowGridClassName}>
+        </section>
+        <section className={`${sectionWrapperClassName} space-y-3`}>
+          <h4 className={subsectionHeadingClassName}>Assets</h4>
+          <div className={rowGridBaseClassName}>
             {(["bsfatot", "othass", "bscatot", "bsclbank"] as const).map((key) => (
               <MoneyFieldRow
                 key={`${yearKey}-${key}`}
@@ -867,9 +885,9 @@ export function FinancialStatementsStep({
             ))}
           </div>
         </section>
-        <section className={`${sectionWrapperClassName} space-y-5`}>
-          <h4 className="text-sm font-semibold text-foreground">Liabilities</h4>
-          <div className={rowGridClassName}>
+        <section className={`${sectionWrapperClassName} space-y-3`}>
+          <h4 className={subsectionHeadingClassName}>Liabilities</h4>
+          <div className={rowGridBaseClassName}>
             {(["curlib", "bsslltd", "bsclstd"] as const).map((key) => (
               <MoneyFieldRow
                 key={`${yearKey}-${key}`}
@@ -882,9 +900,9 @@ export function FinancialStatementsStep({
             ))}
           </div>
         </section>
-        <section className={`${sectionWrapperClassName} space-y-5`}>
-          <h4 className="text-sm font-semibold text-foreground">Equity</h4>
-          <div className={rowGridClassName}>
+        <section className={`${sectionWrapperClassName} space-y-3`}>
+          <h4 className={subsectionHeadingClassName}>Equity</h4>
+          <div className={rowGridBaseClassName}>
             <MoneyFieldRow
               id={`${yearKey}-bsqpuc`}
               label={getLabel("bsqpuc")}
@@ -894,9 +912,9 @@ export function FinancialStatementsStep({
             />
           </div>
         </section>
-        <section className={`${sectionWrapperClassName} space-y-5`}>
-          <h4 className="text-sm font-semibold text-foreground">Profit and Loss</h4>
-          <div className={rowGridClassName}>
+        <section className={`${sectionWrapperClassName} space-y-3`}>
+          <h4 className={subsectionHeadingClassName}>Profit and Loss</h4>
+          <div className={rowGridBaseClassName}>
             <MoneyFieldRow
               id={`${yearKey}-turnover`}
               label={getLabel("turnover")}
@@ -957,17 +975,16 @@ export function FinancialStatementsStep({
   return (
     <>
       <div className={formOuterClassName}>
-        <section className={`${sectionWrapperClassName} space-y-5`}>
+        <section className={`${sectionWrapperClassName} space-y-3`}>
           <div>
-            <h3 className={sectionHeaderClassName}>Before the numbers</h3>
-            <p className="text-sm text-muted-foreground mt-1">Three yes/no or year answers. You can edit before save.</p>
-            <div className="border-b border-border mt-4 mb-6" />
+            <h3 className={sectionHeaderClassName}>Financial Overview</h3>
+            <div className="border-b border-border mt-2 mb-4" />
           </div>
 
           <div className={rowGridClassName}>
             <div className="space-y-2">
               <Label htmlFor="fye-year" className={labelClassName}>
-                What is your latest financial year?
+                What Is Your Latest Financial Year?
               </Label>
             </div>
             <div className="flex min-w-0 flex-col gap-1">
@@ -976,24 +993,24 @@ export function FinancialStatementsStep({
                 value={fyeInput}
                 onChange={(e) => setFyeInput(e.target.value.replace(/\D/g, "").slice(0, 4))}
                 disabled={readOnly}
-                placeholder="2025"
+                placeholder="eg. 2025"
                 className={inputClassName}
                 inputMode="numeric"
                 maxLength={4}
                 aria-describedby="fye-year-hint"
               />
               <p id="fye-year-hint" className="text-xs text-muted-foreground">
-                Four digits only.
+                4 digits
               </p>
             </div>
 
             <div className="space-y-2">
-              <Label className={labelClassName}>Has this year been submitted?</Label>
+              <Label className={labelClassName}>Has This Year Been Submitted?</Label>
             </div>
-            <div className={radioGridControlClassName}>
+            <div className="flex h-11 w-full min-w-0 items-center">
               <FinancialYesNoRadioGroup
                 name="financial-statements-q-submitted"
-                aria-label="Has this year been submitted?"
+                aria-label="Has This Year Been Submitted?"
                 value={qSubmitted === null ? "" : qSubmitted ? "yes" : "no"}
                 onValueChange={(v) => setQSubmitted(v === "yes")}
                 disabled={readOnly}
@@ -1001,12 +1018,12 @@ export function FinancialStatementsStep({
             </div>
 
             <div className="space-y-2">
-              <Label className={labelClassName}>Do you have data for the next financial year?</Label>
+              <Label className={labelClassName}>Do You Have Data for the Next Financial Year?</Label>
             </div>
-            <div className={radioGridControlClassName}>
+            <div className="flex h-11 w-full min-w-0 items-center">
               <FinancialYesNoRadioGroup
                 name="financial-statements-q-next-year"
-                aria-label="Do you have data for the next financial year?"
+                aria-label="Do You Have Data for the Next Financial Year?"
                 value={qNextYear === null ? "" : qNextYear ? "yes" : "no"}
                 onValueChange={(v) => setQNextYear(v === "yes")}
                 disabled={readOnly}
@@ -1015,31 +1032,38 @@ export function FinancialStatementsStep({
           </div>
         </section>
 
-        <section className={`${sectionWrapperClassName} w-full space-y-4`}>
+        <section className={`${sectionWrapperClassName} w-full space-y-3`}>
           <div className="px-3">
-            <h3 className={sectionHeaderClassName}>Financial details</h3>
-            <div className="border-b border-border mt-3 mb-2" />
+            <h3 className={sectionHeaderClassName}>
+              Financial Details{" "}
+              <span className="font-normal text-muted-foreground">(Unaudited)</span>
+            </h3>
+            <div className="border-b border-border mt-2 mb-4" />
           </div>
 
+          <div className="space-y-4 px-3">
           {!questionnaireDto ? (
-            <div className="mx-3 rounded-xl border border-dashed border-border bg-muted/20 px-4 py-10 text-center">
-              <p className="text-sm text-muted-foreground">Complete the three answers above — then enter amounts here.</p>
+            <div className={financialDetailsCenteredMessageBoxClassName}>
+              <p className={financialDetailsCenteredMessageTextClassName}>
+                Complete the three answers above, then enter amounts here
+              </p>
             </div>
           ) : null}
 
           {questionnaireDto && caseCInfoOnly ? (
-            <div className="mx-3 rounded-xl border border-border bg-muted/30 p-6 text-sm text-foreground">
-              <p>Latest year is already submitted. No figures needed in this step.</p>
+            <div className={financialDetailsCenteredMessageBoxClassName}>
+              <p className={financialDetailsCenteredMessageTextClassName}>
+                Latest year is already submitted. No figures needed in this step
+              </p>
             </div>
           ) : null}
 
           {questionnaireDto && !caseCInfoOnly && yearsToShow.length === 1 ? (
-            <div className="px-3">{renderYearBlock(yearsToShow[0])}</div>
+            <div>{renderYearBlock(yearsToShow[0])}</div>
           ) : null}
 
           {questionnaireDto && !caseCInfoOnly && yearsToShow.length > 1 ? (
-            <div className="w-full max-w-[1200px] space-y-3 px-3">
-              <p className="text-sm text-muted-foreground">One tab per financial year.</p>
+            <div className="w-full max-w-[1200px]">
               <Tabs
                 key={yearsToShow.join("-")}
                 defaultValue={String(yearsToShow[0])}
@@ -1047,8 +1071,8 @@ export function FinancialStatementsStep({
               >
                 <TabsList className="mb-4 h-auto w-full flex-wrap justify-start gap-1 bg-muted p-1 sm:w-auto">
                   {yearsToShow.map((y) => (
-                    <TabsTrigger key={y} value={String(y)} className="min-w-[5.5rem]">
-                      FY {y}
+                    <TabsTrigger key={y} value={String(y)} className="min-w-[4.5rem]">
+                      {y}
                     </TabsTrigger>
                   ))}
                 </TabsList>
@@ -1060,6 +1084,7 @@ export function FinancialStatementsStep({
               </Tabs>
             </div>
           ) : null}
+          </div>
         </section>
       </div>
     </>

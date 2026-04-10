@@ -16,16 +16,16 @@ import * as React from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 
-const formOuterClassName = "w-full max-w-[1200px] flex flex-col gap-10 px-3";
+const formOuterClassName = "w-full max-w-[1200px] space-y-10 px-3";
 const sectionWrapperClassName = "w-full max-w-[1200px]";
 const rowGridClassName =
-  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 w-full max-w-[1200px] items-start px-3";
+  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-6 gap-y-4 mt-4 w-full max-w-[1200px] items-center px-3";
 
 export function FinancialStatementsSkeleton() {
   return (
     <div className={`${formOuterClassName} mt-1`}>
       {/* Financial Year */}
-      <section className={`${sectionWrapperClassName} space-y-5`}>
+      <section className={`${sectionWrapperClassName} space-y-4`}>
         <div>
           <Skeleton className="h-6 w-[140px]" />
           <div className="mt-2 h-px bg-border" />
