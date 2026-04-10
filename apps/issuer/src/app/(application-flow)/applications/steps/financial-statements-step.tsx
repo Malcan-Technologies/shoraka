@@ -30,6 +30,7 @@ import {
   fieldTooltipTriggerClassName,
   fieldTooltipTriggerInputClassName,
   fieldTooltipLabelGap,
+  withFieldError,
 } from "@/app/(application-flow)/applications/components/form-control";
 import { MoneyInput } from "@cashsouk/ui";
 import { parseMoney, formatMoney } from "@cashsouk/ui";
@@ -147,11 +148,9 @@ function toNum(v: unknown): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
+/** Match API `financialStatementsQuestionnaireInnerSchema` (1900–2100). */
 const MIN_FINANCIAL_YEAR = 1900;
-
-function maxFinancialYear(): number {
-  return new Date().getFullYear() + 1;
-}
+const MAX_FINANCIAL_YEAR = 2100;
 
 /** Load pldd as a four-digit year. Migrates legacy full-date values from JSON. */
 function normalizePlddFromSaved(val: unknown): string {
@@ -182,7 +181,7 @@ function isValidFinancialYear(s: string): boolean {
   const t = s.trim();
   if (!/^\d{4}$/.test(t)) return false;
   const y = parseInt(t, 10);
-  return y >= MIN_FINANCIAL_YEAR && y <= maxFinancialYear();
+  return y >= MIN_FINANCIAL_YEAR && y <= MAX_FINANCIAL_YEAR;
 }
 
 function fromSaved(saved: unknown): FinancialStatementsPayload {
@@ -797,7 +796,9 @@ export function FinancialStatementsStep({
   const saveFunction = React.useCallback(async () => {
     setHasSubmitted(true);
     if (!questionnaireDto) {
-      toast.error("Please answer all three questions, including a valid 4-digit latest financial year");
+      toast.error(
+        `Please answer all three questions, including a latest financial year between ${MIN_FINANCIAL_YEAR} and ${MAX_FINANCIAL_YEAR}.`
+      );
       throw new Error("VALIDATION_REQUIRED");
     }
     if (caseCInfoOnly) {
@@ -981,6 +982,10 @@ export function FinancialStatementsStep({
     return <FinancialStatementsSkeleton />;
   }
 
+  const fyeTrim = fyeInput.trim();
+  const fyeInputInvalid = fyeTrim.length === 4 && !isValidFinancialYear(fyeTrim);
+  const fyeDescribedBy = fyeInputInvalid ? "fye-year-hint fye-year-error" : "fye-year-hint";
+
   return (
     <>
       <div className={formOuterClassName}>
@@ -1003,14 +1008,20 @@ export function FinancialStatementsStep({
                 onChange={(e) => setFyeInput(e.target.value.replace(/\D/g, "").slice(0, 4))}
                 disabled={readOnly}
                 placeholder="eg. 2025"
-                className={inputClassName}
+                className={withFieldError(inputClassName, fyeInputInvalid)}
                 inputMode="numeric"
                 maxLength={4}
-                aria-describedby="fye-year-hint"
+                aria-invalid={fyeInputInvalid}
+                aria-describedby={fyeDescribedBy}
               />
               <p id="fye-year-hint" className="text-xs text-muted-foreground">
-                4 digits
+                4 digits ({MIN_FINANCIAL_YEAR}–{MAX_FINANCIAL_YEAR})
               </p>
+              {fyeInputInvalid ? (
+                <p id="fye-year-error" className="text-xs text-destructive" role="alert">
+                  Enter a year between {MIN_FINANCIAL_YEAR} and {MAX_FINANCIAL_YEAR}.
+                </p>
+              ) : null}
             </div>
 
             <div className="space-y-2">
