@@ -1,9 +1,7 @@
 /**
- * SECTION: Resubmit snapshot diff
- * WHY: Admin timeline shows what the issuer changed between submissions (paths + before/after values).
- * INPUT: Two revision snapshots (previous vs next).
- * OUTPUT: Section list, per-field paths, serialized previous_value / next_value for UI.
- * WHERE USED: amendments resubmit flow → APPLICATION_RESUBMITTED metadata; admin activity timeline.
+ * Application revision snapshot diff (resubmit / audit).
+ * Single module for comparing two snapshots: paths, section labels, before/after values.
+ * Used by amendments resubmit → APPLICATION_RESUBMITTED metadata; admin UI reads that metadata.
  */
 
 const MAX_FIELD_PATHS = 80;
@@ -35,14 +33,12 @@ const SECTION_LABELS: Record<(typeof APPLICATION_JSON_KEYS)[number], string> = {
   contract_id: "Linked contract",
 };
 
-/** Prisma-managed timestamps — differ on every touch; not user "contract page" edits. */
 const VOLATILE_SNAPSHOT_KEYS = new Set(["created_at", "updated_at"]);
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === "object" && !Array.isArray(v);
 }
 
-/** Normalize for stable JSON compare (sorted keys; Date → ISO string). */
 function normalizeForCompare(v: unknown): unknown {
   if (v instanceof Date) return v.toISOString();
   if (v === null || typeof v !== "object") return v;
@@ -68,7 +64,6 @@ function getSnapshotApplication(snapshot: unknown): Record<string, unknown> | nu
   return app;
 }
 
-/** Drop volatile keys recursively on contract/invoice plain objects (shallow recurse). */
 function stripVolatileTimestamps(value: unknown): unknown {
   if (value instanceof Date) return value.toISOString();
   if (Array.isArray(value)) return value.map(stripVolatileTimestamps);
@@ -148,7 +143,6 @@ function serializeSnapshotValue(value: unknown): string {
   }
 }
 
-/** Last path segment as a short label (e.g. authorized_rep_ic → "Authorized Rep IC"). */
 function fieldLabelFromPath(path: string): string {
   const segments = path.split(/\.|\[|\]/).filter((s) => s.length > 0);
   const nonIndex = segments.filter((s) => !/^\d+$/.test(s));
@@ -245,7 +239,6 @@ export function summarizeResubmitSnapshotDiff(
     equalAfterStrippingVolatile: contractEqualAfterStrip,
   });
 
-  let contractChanged = !contractEqualAfterStrip;
   if (!contractEqualAfterStrip) {
     const contractLeaves: FieldChangeLeaf[] = [];
     collectFieldChangeLeaves(
@@ -281,7 +274,6 @@ export function summarizeResubmitSnapshotDiff(
     equalAfterStrippingVolatile: invoicesEqualAfterStrip,
   });
 
-  let invoicesChanged = !invoicesEqualAfterStrip;
   if (!invoicesEqualAfterStrip) {
     const prevById = new Map<string, unknown>();
     const nextById = new Map<string, unknown>();
@@ -332,8 +324,8 @@ export function summarizeResubmitSnapshotDiff(
   );
   const changedSectionLabels = changedSectionKeys.map(sectionLabelForKey);
 
-  contractChanged = field_changes.some((f) => f.section_key === "contract");
-  invoicesChanged = field_changes.some((f) => f.section_key === "invoices");
+  const contractChanged = field_changes.some((f) => f.section_key === "contract");
+  const invoicesChanged = field_changes.some((f) => f.section_key === "invoices");
 
   const uniqueLabels = [...new Set(changedSectionLabels)];
   const activitySummary =

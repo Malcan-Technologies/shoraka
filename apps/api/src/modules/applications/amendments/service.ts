@@ -11,7 +11,7 @@ import { AppError } from "../../../lib/http/error-handler";
 import { ApplicationRepository } from "../repository";
 import { assertRequiredSupportingDocumentsPresent } from "../supporting-docs-workflow";
 import { buildApplicationRevisionSnapshot } from "../revision-snapshot";
-import { summarizeResubmitSnapshotDiff } from "../resubmit-snapshot-diff";
+import { summarizeResubmitSnapshotDiff } from "../../application-revision-diff";
 
 export interface AmendmentAllowedSections {
   allowedSections: Set<string>;

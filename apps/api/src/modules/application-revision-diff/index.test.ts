@@ -1,4 +1,4 @@
-import { summarizeResubmitSnapshotDiff } from "./resubmit-snapshot-diff";
+import { summarizeResubmitSnapshotDiff } from "./index";
 
 describe("summarizeResubmitSnapshotDiff", () => {
   const baseApp = {
