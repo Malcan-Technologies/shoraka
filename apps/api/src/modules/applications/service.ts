@@ -16,6 +16,7 @@ import {
 import { AppError } from "../../lib/http/error-handler";
 import { Application, Prisma, ApplicationStatus as DbApplicationStatus, ProductStatus } from "@prisma/client";
 import { requestPresignedUploadUrl, deleteDocumentFromS3 } from "./documents/service";
+import { shouldPreserveApplicationDocumentsInS3 } from "./amendment-preserve-s3";
 import {
   assertRequiredSupportingDocumentsPresent,
   fileNameToSupportingDocTypeToken,
@@ -1069,9 +1070,19 @@ export class ApplicationService {
 
     if ((application as any).status === "AMENDMENT_REQUESTED") {
       const { allowedSections } = await getAmendmentAllowedSections(applicationId);
-      if (!allowedSections.has("supporting_documents")) {
+      const canRemoveAppUploadedFile =
+        allowedSections.has("supporting_documents") || allowedSections.has("business_details");
+      if (!canRemoveAppUploadedFile) {
         throw new AppError(403, "AMENDMENT_LOCKED", "This section is locked during amendment review");
       }
+    }
+
+    if (shouldPreserveApplicationDocumentsInS3((application as { status?: string })?.status)) {
+      logger.info(
+        { applicationId, s3Key },
+        "Skipped application document S3 delete: AMENDMENT_REQUESTED (preserve for compare/audit)"
+      );
+      return;
     }
 
     await deleteDocumentFromS3(s3Key);
