@@ -14,7 +14,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Table,
   TableBody,
@@ -120,7 +119,7 @@ function financialSummaryStatusToneClass(statusLabel: string): string {
   return "border-border bg-muted/50 text-muted-foreground";
 }
 
-/** Copy for legend and tooltips (single source). One-line definition of what the status is. */
+/** Copy for Financial Summary status legend (single source). */
 const FINANCIAL_SUMMARY_STATUS_EXPLANATIONS: Record<string, string> = {
   "Not fetched": "CTOS has not been retrieved for this application.",
   "No record found": "CTOS has no financial records on file for this organization.",
@@ -132,34 +131,19 @@ const FINANCIAL_SUMMARY_STATUS_EXPLANATIONS: Record<string, string> = {
   Invalid: "This unaudited year is outside the allowed range relative to the latest CTOS year.",
 };
 
-function getFinancialSummaryStatusExplanation(statusLabel: string): string {
-  return FINANCIAL_SUMMARY_STATUS_EXPLANATIONS[statusLabel] ?? "Definition of this status label.";
-}
-
 function FinancialSummaryStatusBadge({ statusLabel }: { statusLabel: string }) {
-  const main = getFinancialSummaryStatusExplanation(statusLabel);
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="inline-flex max-w-full cursor-help">
-          <Badge
-            variant="outline"
-            className={cn(
-              "shrink-0 font-semibold text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
-              financialSummaryStatusToneClass(statusLabel)
-            )}
-          >
-            {statusLabel}
-          </Badge>
-        </span>
-      </TooltipTrigger>
-      <TooltipContent
-        side="top"
-        className="max-w-sm p-3 text-left text-xs font-normal leading-relaxed text-primary-foreground"
+    <span className="inline-flex max-w-full">
+      <Badge
+        variant="outline"
+        className={cn(
+          "shrink-0 font-semibold text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
+          financialSummaryStatusToneClass(statusLabel)
+        )}
       >
-        <p className="m-0">{main}</p>
-      </TooltipContent>
-    </Tooltip>
+        {statusLabel}
+      </Badge>
+    </span>
   );
 }
 
@@ -1821,9 +1805,8 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
           CTOS reporting years compared with issuer unaudited columns.
         </p>
         <div className={applicationTableWrapperClass}>
-          <TooltipProvider delayDuration={250}>
-            <Collapsible open={financialSummaryLegendOpen} onOpenChange={setFinancialSummaryLegendOpen}>
-              <div className="border-b border-border bg-muted/15">
+          <Collapsible open={financialSummaryLegendOpen} onOpenChange={setFinancialSummaryLegendOpen}>
+            <div className="border-b border-border bg-muted/15">
               <CollapsibleTrigger asChild>
                 <button
                   type="button"
@@ -1874,8 +1857,8 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                 </div>
               </CollapsibleContent>
             </div>
-            </Collapsible>
-            <div className="overflow-x-auto">
+          </Collapsible>
+          <div className="overflow-x-auto">
             <Table className="table-fixed w-full min-w-[760px] text-[15px]">
               <TableHeader className={cn(applicationTableHeaderBgClass, "[&_tr]:border-b-border")}>
                 <TableRow className="hover:bg-transparent border-b border-border">
@@ -1992,8 +1975,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                 ))}
               </TableBody>
             </Table>
-            </div>
-          </TooltipProvider>
+          </div>
         </div>
       </ReviewFieldBlock>
 
@@ -2133,32 +2115,33 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                       const canViewSubject = Boolean(subjectSnap?.has_report_html);
                       const checksOpen = Boolean(directorCtosChecksExpanded[row.id]);
                       const detailId = `director-ctos-checks-${row.id}`;
+                      const toggleDirectorCtosChecksRow = () => {
+                        setDirectorCtosChecksExpanded((prev) => ({
+                          ...prev,
+                          [row.id]: !prev[row.id],
+                        }));
+                      };
                       return (
                         <React.Fragment key={row.id}>
-                          <TableRow className={applicationTableRowClass}>
+                          <TableRow
+                            className={cn(applicationTableRowClass, "cursor-pointer")}
+                            aria-expanded={checksOpen}
+                            aria-controls={detailId}
+                            onClick={(e) => {
+                              const t = e.target as HTMLElement;
+                              if (t.closest("button, a")) return;
+                              toggleDirectorCtosChecksRow();
+                            }}
+                          >
                             <TableCell className={`${applicationTableCellClass} w-10 px-2 align-middle`}>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:text-foreground"
-                                aria-expanded={checksOpen}
-                                aria-controls={detailId}
-                                aria-label={
-                                  checksOpen ? "Hide Name, Role, and Ownership checks" : "Show Name, Role, and Ownership checks"
-                                }
-                                onClick={() =>
-                                  setDirectorCtosChecksExpanded((prev) => ({
-                                    ...prev,
-                                    [row.id]: !prev[row.id],
-                                  }))
-                                }
+                              <span
+                                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground"
+                                aria-hidden
                               >
                                 <ChevronRightIcon
                                   className={cn("h-4 w-4 transition-transform duration-200", checksOpen && "rotate-90")}
-                                  aria-hidden
                                 />
-                              </Button>
+                              </span>
                             </TableCell>
                             <TableCell className={`${applicationTableCellClass} font-medium`}>
                               {row.issuerName === HEADER_PLACEHOLDER ? (
