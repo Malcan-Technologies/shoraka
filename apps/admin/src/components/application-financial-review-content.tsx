@@ -612,6 +612,48 @@ function normalizeIcSsmKey(raw: string | null | undefined): string | null {
 }
 
 /**
+ * SECTION: CTOS subject report map / request key
+ * WHY: DB stores canonical IC/SSM (see ctos-report-service); list keys normalized; fallback EOD/COD for legacy rows
+ * INPUT: icOrSsm, subjectRef
+ * OUTPUT: lookup key or null
+ * WHERE USED: subjectReportByRef get, Get report payload
+ */
+function ctosSubjectReportLookupKey(
+  icOrSsm: string | null | undefined,
+  subjectRef: string | null | undefined
+): string | null {
+  const fromIc = normalizeIcSsmKey(icOrSsm);
+  if (fromIc) return fromIc;
+  const s = String(subjectRef ?? "")
+    .trim()
+    .replace(/\s+/g, "");
+  return s ? s.toLowerCase() : null;
+}
+
+function lookupSubjectReportSnap(
+  m: Map<string, { id: string; has_report_html: boolean; fetched_at: string }>,
+  icOrSsm: string | null | undefined,
+  subjectRef: string | null | undefined
+): { id: string; has_report_html: boolean; fetched_at: string } | undefined {
+  const kIc = normalizeIcSsmKey(icOrSsm);
+  if (kIc) {
+    const hit = m.get(kIc);
+    if (hit) return hit;
+  }
+  const kRef = String(subjectRef ?? "")
+    .trim()
+    .replace(/\s+/g, "")
+    .toLowerCase();
+  if (kRef) return m.get(kRef);
+  return undefined;
+}
+
+/** Value sent as POST subjectRef: prefer government ID / business number; else RegTank EOD/COD (normalized). */
+function ctosSubjectRefForRequest(row: DirectorShareholderRow): string | null {
+  return ctosSubjectReportLookupKey(row.icOrSsm, row.subjectRef);
+}
+
+/**
  * SECTION: Merge issuer rows by IC/SSM for CTOS compare (Option A)
  * WHY: corporate_entities can list same person twice (Director + Shareholder); CTOS usually has one row (e.g. DS)
  * INPUT: DirectorShareholderRow[]
@@ -1607,7 +1649,9 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
     const m = new Map<string, { id: string; has_report_html: boolean; fetched_at: string }>();
     for (const r of ctosSubjectList ?? []) {
       const ref = r.subject_ref;
-      if (ref) m.set(ref, { id: r.id, has_report_html: Boolean(r.has_report_html), fetched_at: r.fetched_at });
+      if (!ref) continue;
+      const k = ref.trim().replace(/\s+/g, "").toLowerCase();
+      m.set(k, { id: r.id, has_report_html: Boolean(r.has_report_html), fetched_at: r.fetched_at });
     }
     return m;
   }, [ctosSubjectList]);
@@ -1907,11 +1951,11 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
   };
 
   const onGetSubjectCtos = (row: DirectorShareholderRow) => {
-    if (!row.subjectRef || !row.subjectKind) return;
-    console.log("Fetching CTOS subject report:", row.subjectRef, row.subjectKind);
+    const subjectRef = ctosSubjectRefForRequest(row);
+    if (!subjectRef || !row.subjectKind) return;
     const t = toast.loading("Fetching CTOS report…");
     createSubjectCtos.mutate(
-      { subjectRef: row.subjectRef, subjectKind: row.subjectKind },
+      { subjectRef, subjectKind: row.subjectKind },
       {
         onSuccess: () => {
           toast.dismiss(t);
@@ -2381,7 +2425,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                     {directorShareholders.map((row) => {
                       const isApproved =
                         row.verificationStatus === "APPROVED" || row.verificationStatus === "Approved";
-                      const subjectSnap = row.subjectRef ? subjectReportByRef.get(row.subjectRef) : undefined;
+                      const subjectSnap = lookupSubjectReportSnap(subjectReportByRef, row.icOrSsm, row.subjectRef);
                       const canViewSubject = Boolean(subjectSnap?.has_report_html);
                       return (
                         <TableRow key={row.id} className={applicationTableRowClass}>
@@ -2407,7 +2451,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                           </TableCell>
                           <TableCell className={applicationTableCellClass}>
                             {subjectLastFetchDisplay({
-                              subjectRef: row.subjectRef,
+                              subjectRef: ctosSubjectReportLookupKey(row.icOrSsm, row.subjectRef),
                               snap: subjectSnap,
                             })}
                           </TableCell>
@@ -2417,7 +2461,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                               size="sm"
                               className="rounded-lg h-8 text-xs"
                               disabled={
-                                !row.subjectRef ||
+                                !ctosSubjectRefForRequest(row) ||
                                 !canViewSubject ||
                                 ctosSubjectLoading ||
                                 !subjectSnap?.id
@@ -2433,7 +2477,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                               size="sm"
                               className="rounded-lg h-8 text-xs"
                               disabled={
-                                !row.subjectRef ||
+                                !ctosSubjectRefForRequest(row) ||
                                 !row.subjectKind ||
                                 createSubjectCtos.isPending ||
                                 ctosSubjectLoading
@@ -2474,10 +2518,9 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                       const profileRow = row.profileRowId
                         ? directorShareholders.find((r) => r.id === row.profileRowId)
                         : undefined;
-                      const subjectSnap =
-                        profileRow?.subjectRef != null
-                          ? subjectReportByRef.get(profileRow.subjectRef)
-                          : undefined;
+                      const subjectSnap = profileRow
+                        ? lookupSubjectReportSnap(subjectReportByRef, profileRow.icOrSsm, profileRow.subjectRef)
+                        : undefined;
                       const canViewSubject = Boolean(subjectSnap?.has_report_html);
                       const checksOpen = Boolean(directorCtosChecksExpanded[row.id]);
                       const detailId = `director-ctos-checks-${row.id}`;
@@ -2529,7 +2572,10 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                             <TableCell className={applicationTableCellClass}>
                               {profileRow ? (
                                 subjectLastFetchDisplay({
-                                  subjectRef: profileRow.subjectRef,
+                                  subjectRef: ctosSubjectReportLookupKey(
+                                    profileRow.icOrSsm,
+                                    profileRow.subjectRef
+                                  ),
                                   snap: subjectSnap,
                                 })
                               ) : (
@@ -2542,7 +2588,8 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                                 size="sm"
                                 className="rounded-lg h-8 text-xs"
                                 disabled={
-                                  !profileRow?.subjectRef ||
+                                  !profileRow ||
+                                  !ctosSubjectRefForRequest(profileRow) ||
                                   !canViewSubject ||
                                   ctosSubjectLoading ||
                                   !subjectSnap?.id
@@ -2558,7 +2605,8 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                                 size="sm"
                                 className="rounded-lg h-8 text-xs"
                                 disabled={
-                                  !profileRow?.subjectRef ||
+                                  !profileRow ||
+                                  !ctosSubjectRefForRequest(profileRow) ||
                                   !profileRow.subjectKind ||
                                   createSubjectCtos.isPending ||
                                   ctosSubjectLoading

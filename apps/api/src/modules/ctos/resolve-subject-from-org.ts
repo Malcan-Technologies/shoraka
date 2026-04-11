@@ -1,7 +1,7 @@
 /**
  * SECTION: Map CTOS subject_ref to enquiry fields from issuer org JSON
  * WHY: Admin sends RegTank ids only; server loads IC/SSM and name from stored onboarding
- * INPUT: corporate_entities / director_kyc_status JSON; subjectRef; INDIVIDUAL vs CORPORATE
+ * INPUT: corporate_entities / director_kyc_status JSON; subjectRef (EOD/COD or government ID / business number); kind
  * OUTPUT: displayName + id number for CTOS batch XML, or null if not found / incomplete
  * WHERE USED: ctos-report-service subject fetch
  */
@@ -17,8 +17,19 @@ function norm(s: unknown): string {
   return String(s ?? "").trim();
 }
 
+/** Canonical key for IC / SSM / stored subject_ref (spaces stripped, lowercase). */
+export function normalizeCtosSubjectRefKey(s: unknown): string {
+  return norm(s).replace(/\s+/g, "").toLowerCase();
+}
+
 function refEq(a: string, b: string): boolean {
   return norm(a).toLowerCase() === norm(b).toLowerCase();
+}
+
+function idKeyEq(a: unknown, b: unknown): boolean {
+  const ka = normalizeCtosSubjectRefKey(a);
+  const kb = normalizeCtosSubjectRefKey(b);
+  return ka.length > 0 && ka === kb;
 }
 
 function formContentArray(p: Record<string, unknown>): Array<{ fieldName?: string; fieldValue?: string }> {
@@ -93,6 +104,11 @@ export function resolveCtosSubjectFromOrgJson(
       if (!idNumber) return null;
       return { displayName, idNumber };
     }
+    for (const corp of corps) {
+      const idNumber = corpBusinessNumber(corp);
+      if (!idNumber || !idKeyEq(idNumber, ref)) continue;
+      return { displayName: corpBusinessName(corp), idNumber };
+    }
     return null;
   }
 
@@ -112,6 +128,18 @@ export function resolveCtosSubjectFromOrgJson(
     if (!refEq(norm(p.eodRequestId), ref)) continue;
     const idNumber = norm(p.governmentIdNumber);
     if (!idNumber) return null;
+    return { displayName: norm(p.name) || "Unknown", idNumber };
+  }
+
+  for (const p of [...ceDirectors, ...ceShareholders]) {
+    const idNumber = govIdFromCorpPerson(p);
+    if (!idNumber || !idKeyEq(idNumber, ref)) continue;
+    return { displayName: nameFromCorpPerson(p), idNumber };
+  }
+
+  for (const p of [...kycDirs, ...kycIndSh]) {
+    const idNumber = norm(p.governmentIdNumber);
+    if (!idNumber || !idKeyEq(idNumber, ref)) continue;
     return { displayName: norm(p.name) || "Unknown", idNumber };
   }
 

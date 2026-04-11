@@ -15,7 +15,11 @@ import { callCtosSoap } from "./client";
 import { buildCtosEnquiryXml, buildCtosSubjectEnquiryXml } from "./enquiry-builder";
 import { parseCtosReportXml } from "./parser";
 import { renderCtosReportHtml } from "./render-html";
-import { resolveCtosSubjectFromOrgJson, type CtosSubjectKind } from "./resolve-subject-from-org";
+import {
+  normalizeCtosSubjectRefKey,
+  resolveCtosSubjectFromOrgJson,
+  type CtosSubjectKind,
+} from "./resolve-subject-from-org";
 
 const listSelect = {
   id: true,
@@ -210,10 +214,11 @@ export async function fetchAndInsertCtosSubjectReport(
   }
 
   const fetchedAt = new Date();
+  const subjectRefPersisted = normalizeCtosSubjectRefKey(resolved.idNumber);
   const row = await prisma.ctosReport.create({
     data: {
       issuer_organization_id: issuerOrganizationId,
-      subject_ref: input.subjectRef.trim(),
+      subject_ref: subjectRefPersisted,
       fetched_at: fetchedAt,
       raw_xml: parsed.raw_xml,
       report_html: reportHtml,
@@ -230,6 +235,13 @@ export async function fetchAndInsertCtosSubjectReport(
     },
   });
 
-  console.log("Inserted CTOS subject report row:", row.id, "subject_ref:", input.subjectRef, "org:", issuerOrganizationId);
+  console.log(
+    "Inserted CTOS subject report row:",
+    row.id,
+    "subject_ref:",
+    subjectRefPersisted,
+    "org:",
+    issuerOrganizationId
+  );
   return row;
 }
