@@ -1,479 +1,530 @@
 /**
- * =========================================================
- * CTOS DATA PARSER — DESIGN RULES & SCORING NOTES
- * =========================================================
- *
- * 🧠 CORE PRINCIPLE
- * This file ONLY parses and stores RAW CTOS data.
- * It MUST NOT contain business logic, scoring rules, or assumptions.
- *
- * Database = Source of truth (what CTOS actually returns)
- * Service layer = where all calculations and SoukScore logic happen
- *
- * ---------------------------------------------------------
- * ⚠️ IMPORTANT EDGE CASES (FOR SCORING LAYER, NOT HERE)
- * ---------------------------------------------------------
- *
- * 1. DISHONOURED CHEQUES (DCHEQ)
- * ---------------------------------------------------------
- * SoukScore requires:
- *   "Dishonored cheques (last 3 months)"
- *
- * CTOS provides:
- *   <dcheqs entity="X"/>  → total historical flag only (0/1)
- *
- * Limitation:
- *   - No timestamp
- *   - Cannot determine "last 3 months"
- *
- * Rule:
- *   - Store raw flag only
- *   - DO NOT infer recency
- *
- * Future scoring layer should:
- *   - Treat as "has cheque history"
- *   - Or enhance with external/bank data if available
- *
- * ---------------------------------------------------------
- * 2. MATERIAL LITIGATION (>10% OF NET ASSETS)
- * ---------------------------------------------------------
- * SoukScore requires:
- *   "Active material litigation (>10% of net assets)"
- *
- * Parser stores:
- *   - total legal amount
- *   - total assets
- *   - total liabilities
- *
- * Derived in scoring layer:
- *
- *   net_assets = total_assets - total_liabilities
- *   is_material =
- *     total_legal_amount / net_assets > 0.1
- *
- * DO NOT compute this inside parser.
- *
- * ---------------------------------------------------------
- * 3. CCRIS UTILISATION
- * ---------------------------------------------------------
- * SoukScore uses:
- *   utilisation = outstanding / approved_limit
- *
- * Parser stores:
- *   - total_outstanding
- *   - total_limit
- *
- * Scoring rule:
- *   if total_limit === 0 → utilisation = 0 (low risk)
- *
- * ---------------------------------------------------------
- * 4. FICO SCORE DEFAULT
- * ---------------------------------------------------------
- * SoukScore rule:
- *   "No Score = 60"
- *
- * Parser:
- *   - stores fico_score as null if missing
- *
- * Scoring layer:
- *   - substitute null → 60
- *
- * ---------------------------------------------------------
- * 5. FINANCIAL DATA AVAILABILITY
- * ---------------------------------------------------------
- * If <accounts> section is missing:
- *
- * Parser:
- *   - returns empty financials_json
- *
- * Scoring layer:
- *   - must treat as higher risk / incomplete data
- *
- * ---------------------------------------------------------
- * 6. METRICS & RATIOS (MOVED TO SERVICE LAYER)
- * ---------------------------------------------------------
- * The following MUST be calculated in service layer (NOT here):
- *
- *   - net_worth (total_assets - total_liabilities)
- *   - turnover_growth (requires cross-year comparison)
- *   - debt_ratio
- *   - gearing
- *   - asset_turnover
- *   - DSCR (not available from CTOS)
- *   - interest coverage (not available from CTOS)
- *   - any scoring / thresholds / grading
- *
- * ---------------------------------------------------------
- * 🚫 DO NOT ADD INTO THIS FILE
- * ---------------------------------------------------------
- * - Paymaster logic
- * - Invoice risk logic
- * - Behaviour scoring
- * - DSCR / interest coverage
- * - Any threshold-based classification
- * - Any cross-year calculations
- *
- * ---------------------------------------------------------
- * ✅ RESPONSIBILITY SPLIT
- * ---------------------------------------------------------
- *
- * Parser (this file):
- *   - Extract CTOS XML → JSON
- *   - Ensure null safety
- *   - Preserve raw data exactly
- *
- * Service Layer:
- *   - Compute ALL metrics (including net_worth)
- *   - Apply SoukScore rules
- *   - Perform cross-year calculations
- *
- * Frontend:
- *   - Display values
- *   - Show warnings / labels
- *
- * =========================================================
+ * Standalone CTOS test harness: XML → JSON for local verification only.
+ * Extract/coerce only; no scoring. One derived field: calendar year from pldd only;
+ * dedupe by that year (first <account> kept). Financial account uses CTOS tag allowlist only.
+ * Omitted by policy — not stored: tabledt, gear, bsqmint, plminin.
  */
 
-import fs from "fs"
-import axios from "axios"
-import jwt from "jsonwebtoken"
-import { v4 as uuidv4 } from "uuid"
-import { parseStringPromise } from "xml2js"
+import fs from "fs";
+import axios from "axios";
+import jwt from "jsonwebtoken";
+import { v4 as uuidv4 } from "uuid";
+import { parseStringPromise } from "xml2js";
 
-/**
- * SECTION: CTOS XML → JSON (duplicate of apps/api/src/modules/ctos/parser.ts)
- * WHY: Standalone test harness — no imports from ../modules or workspace packages.
- * INPUT: raw XML string from CTOS
- * OUTPUT: same shape as production parseCtosReportXml
- * WHERE USED: run() below only
- */
+/**21 numeric CTOS <account> tags (plus pldd/bsdd in dates; reporting_year from pldd). */
+const ACCOUNT_NUMERIC_CODENAMES = [
+  "bsfatot",
+  "othass",
+  "bscatot",
+  "bsclbank",
+  "totass",
+  "curlib",
+  "bsslltd",
+  "bsclstd",
+  "totlib",
+  "bsqpuc",
+  "turnover",
+  "plnpbt",
+  "plnpat",
+  "plnetdiv",
+  "plyear",
+  "networth",
+  "turnover_growth",
+  "profit_margin",
+  "return_on_equity",
+  "currat",
+  "workcap",
+] as const;
+
+const DEFAULT_BUSINESS_OWNER = {
+  ownerNic: "720330027845",
+  ownerName: "HAFIY HAMDAN",
+};
+
 function safeGet(obj: unknown, path: (string | number)[]): unknown {
-
   try {
-
-    const val = path.reduce(
-      (o, k) => (o as Record<string, unknown>)?.[k as string],
-      obj
-    )
-    return val === undefined || val === "" ? null : val
-
+    const val = path.reduce((o, k) => (o as Record<string, unknown>)?.[k as string], obj);
+    return val === undefined || val === "" ? null : val;
   } catch {
-
-    return null
-
+    return null;
   }
-
 }
 
 function toNumber(v: unknown): number | null {
-
-  if (v === null || v === undefined || v === "") return null
-  const n = Number(v)
-  return Number.isNaN(n) ? null : n
-
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isNaN(n) ? null : n;
 }
 
 function toBoolean(v: unknown): boolean | null {
-
-  if (v === null || v === undefined || v === "") return null
-  if (v === "1" || v === 1) return true
-  if (v === "0" || v === 0) return false
-  return null
-
+  if (v === null || v === undefined || v === "") return null;
+  if (v === "1" || v === 1) return true;
+  if (v === "0" || v === 0) return false;
+  return null;
 }
 
-function parseReportingYearFromCtosDates(
-  financialYearEnd: string | null,
-  balanceSheetDate: string | null
-): number | null {
+function firstArrayEl(x: unknown): unknown {
+  return Array.isArray(x) ? x[0] : undefined;
+}
 
-  for (const raw of [financialYearEnd, balanceSheetDate]) {
-
-    if (!raw || typeof raw !== "string") continue
-    const s = raw.trim()
-    const iso = s.match(/^(\d{4})-\d{2}-\d{2}$/)
-    if (iso) {
-
-      const y = Number(iso[1])
-      if (y >= 1900 && y <= 2100) return y
-
-    }
-    const dmy = s.match(/^(\d{2})-(\d{2})-(\d{4})$/)
-    if (dmy) {
-
-      const y = Number(dmy[3])
-      if (y >= 1900 && y <= 2100) return y
-
-    }
-
+function xmlText(node: unknown): string | null {
+  if (node === null || node === undefined || node === "") return null;
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) {
+    if (node.length === 0) return null;
+    return xmlText(node[0]);
   }
-  return null
+  if (typeof node === "object" && node !== null && "_" in node) {
+    const inner = (node as { _: unknown })._;
+    if (inner === null || inner === undefined || inner === "") return null;
+    return xmlText(inner);
+  }
+  return null;
+}
 
+function parseYearFromPldd(pldd: string | null): number | null {
+  if (!pldd || typeof pldd !== "string") return null;
+  const s = pldd.trim();
+  const iso = s.match(/^(\d{4})-\d{2}-\d{2}$/);
+  if (iso) {
+    const y = Number(iso[1]);
+    if (y >= 1900 && y <= 2100) return y;
+  }
+  const dmy = s.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (dmy) {
+    const y = Number(dmy[3]);
+    if (y >= 1900 && y <= 2100) return y;
+  }
+  return null;
+}
+
+function enqStatusMeta(node: unknown): { code: string | null; message: string | null } {
+  if (node == null) return { code: null, message: null };
+  if (typeof node === "string") return { code: null, message: node };
+  const o = node as { $?: { code?: string }; _?: string };
+  const message = o._ != null && o._ !== "" ? String(o._) : null;
+  return { code: o.$?.code ?? null, message };
+}
+
+function pickEnquiryError(
+  headerStatus: unknown,
+  enqSumStatus: unknown,
+  hasEnquiry: boolean
+): { code: string; message: string } | null {
+  const h = enqStatusMeta(headerStatus);
+  if (h.code != null && h.code !== "1") {
+    return { code: h.code, message: h.message ?? "" };
+  }
+  const s = enqStatusMeta(enqSumStatus);
+  if (s.code != null && s.code !== "1") {
+    return { code: s.code, message: s.message ?? "" };
+  }
+  if (!hasEnquiry) {
+    if (h.code === "1" && s.code === "1") return null;
+    if (h.code === "1" && s.code == null) return null;
+    if (s.code === "1" && h.code == null) return null;
+    return {
+      code: h.code ?? s.code ?? "unknown",
+      message: h.message ?? s.message ?? "No enquiry payload",
+    };
+  }
+  return null;
+}
+
+function flattenSectionRecords(sectionNode: Record<string, unknown> | undefined): unknown[] {
+  const rec = sectionNode?.record;
+  if (rec == null) return [];
+  return Array.isArray(rec) ? rec : [rec];
+}
+
+function parseMsicRows(companyNode: Record<string, unknown> | undefined) {
+  if (!companyNode) return [];
+  const raw = safeGet(companyNode, ["msic_ssms", 0, "msic_ssm"]);
+  const arr = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  return arr.map((row) => {
+    const x = row as Record<string, unknown>;
+    const attrs = x.$ as { code?: string; priority?: string } | undefined;
+    return {
+      code: attrs?.code ?? null,
+      priority: attrs?.priority ?? null,
+      description: xmlText(x._) ?? xmlText(safeGet(x, ["_", 0])),
+    };
+  });
+}
+
+function parsePartners(companyNode: Record<string, unknown> | undefined) {
+  if (!companyNode) return [];
+  const raw = safeGet(companyNode, ["partners", 0, "partner"]) || [];
+  const arr = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  return arr.map((p: unknown) => {
+    const x = p as Record<string, unknown>;
+    return {
+      name: xmlText(safeGet(x, ["name", 0])),
+      ic_lcno: xmlText(safeGet(x, ["ic_lcno", 0])),
+      nic_brno: xmlText(safeGet(x, ["nic_brno", 0])),
+      addr: xmlText(safeGet(x, ["addr", 0])),
+    };
+  });
+}
+
+function mapLegalRecord(r: unknown, sourceSection: "d" | "d2" | "d4") {
+  const x = r as Record<string, unknown>;
+  const attrs = x.$ as { rpttype?: string; status?: string } | undefined;
+  const cedNode = safeGet(x, ["cedcon", 0]) as Record<string, unknown> | undefined;
+  const cedcon = cedNode
+    ? {
+        name: xmlText(safeGet(cedNode, ["name", 0])),
+        add1: xmlText(safeGet(cedNode, ["add1", 0])),
+        add2: xmlText(safeGet(cedNode, ["add2", 0])),
+        add3: xmlText(safeGet(cedNode, ["add3", 0])),
+        add4: xmlText(safeGet(cedNode, ["add4", 0])),
+        tel: xmlText(safeGet(cedNode, ["tel", 0])),
+        ref: xmlText(safeGet(cedNode, ["ref", 0])),
+      }
+    : null;
+
+  const odRaw = safeGet(x, ["other_defendants", 0, "other_defendant"]) || [];
+  const odArr = Array.isArray(odRaw) ? odRaw : odRaw ? [odRaw] : [];
+  const other_defendants = odArr.map((od: unknown) => {
+    const o = od as Record<string, unknown>;
+    return {
+      name: xmlText(safeGet(o, ["name", 0])),
+      ic_lcno: xmlText(safeGet(o, ["ic_lcno", 0])),
+      nic_brno: xmlText(safeGet(o, ["nic_brno", 0])),
+    };
+  });
+
+  return {
+    source_section: sourceSection,
+    case_type: attrs?.rpttype ?? null,
+    title: xmlText(safeGet(x, ["title", 0])),
+    special_remark: xmlText(safeGet(x, ["special_remark", 0])),
+    name: xmlText(safeGet(x, ["name", 0])),
+    addr: xmlText(safeGet(x, ["addr", 0])),
+    case_no: xmlText(safeGet(x, ["case_no", 0])),
+    court_detail: xmlText(safeGet(x, ["court_detail", 0])),
+    hear_date: xmlText(safeGet(x, ["hear_date", 0])),
+    amount: toNumber(safeGet(x, ["amount", 0])),
+    remark1: xmlText(safeGet(x, ["remark1", 0])),
+    lawyer: xmlText(safeGet(x, ["lawyer", 0])),
+    settlement: xmlText(safeGet(x, ["settlement", 0])),
+    latest_status: xmlText(safeGet(x, ["latest_status", 0])),
+    subject_cmt: xmlText(safeGet(x, ["subject_cmt", 0])),
+    cra_cmt: xmlText(safeGet(x, ["cra_cmt", 0])),
+    status: attrs?.status ?? xmlText(safeGet(x, ["status", 0])),
+    action: {
+      date: xmlText(safeGet(x, ["action", 0, "date", 0])),
+      source_detail: xmlText(safeGet(x, ["action", 0, "source_detail", 0])),
+    },
+    cedcon,
+    other_defendants,
+    dates: {
+      action_date: xmlText(safeGet(x, ["action", 0, "date", 0])),
+      notice_date: xmlText(safeGet(x, ["notice", 0, "date", 0])),
+      petition_date: xmlText(safeGet(x, ["petition", 0, "date", 0])),
+      order_date: xmlText(safeGet(x, ["order", 0, "date", 0])),
+    },
+  };
+}
+
+function buildAccountCodenames(acc: Record<string, unknown>): Record<string, number | null> {
+  const account: Record<string, number | null> = {};
+  for (const key of ACCOUNT_NUMERIC_CODENAMES) {
+    account[key] = toNumber(safeGet(acc, [key, 0]));
+  }
+  return account;
+}
+
+function buildSummaryJsonSlice(
+  summary: Record<string, unknown> | undefined,
+  enqSum0: { $?: { ptype?: string }; fico_index?: unknown[] } | undefined,
+  dcheqFlag: number | null
+) {
+  const ficoIndexNode = enqSum0?.fico_index?.[0] ?? {};
+  const ficoObj = ficoIndexNode as { $?: { score?: string }; fico_factor?: unknown[] };
+  const ficoScore = toNumber(ficoObj?.$?.score);
+  const ficoFactors = (Array.isArray(ficoObj?.fico_factor) ? ficoObj.fico_factor : [])
+    .map((f: unknown) => (typeof f === "string" ? f : (f as { _?: string })?._))
+    .filter((f): f is string => Boolean(f));
+
+  return {
+    fico_score: ficoScore,
+    fico_factors: ficoFactors,
+    bankruptcy: toBoolean(safeGet(summary, ["ctos", 0, "bankruptcy", 0, "$", "status"])),
+    legal: {
+      total_cases: toNumber(safeGet(summary, ["ctos", 0, "legal", 0, "$", "total"])),
+      total_amount: toNumber(safeGet(summary, ["ctos", 0, "legal", 0, "$", "value"])),
+    },
+    ccris: {
+      applications: toNumber(safeGet(summary, ["ccris", 0, "application", 0, "$", "total"])),
+      approved: toNumber(safeGet(summary, ["ccris", 0, "application", 0, "$", "approved"])),
+      pending: toNumber(safeGet(summary, ["ccris", 0, "application", 0, "$", "pending"])),
+      arrears: toNumber(safeGet(summary, ["ccris", 0, "facility", 0, "$", "arrears"])),
+    },
+    dcheqs: {
+      raw_flag: dcheqFlag,
+    },
+  };
+}
+
+function escapeXml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function oneRecordBlock(typeCode: string, typeVal: string, icLc: string, nicBr: string, name: string, refNo: string) {
+  return `
+  <records>
+    <type code="${typeCode}">${typeVal}</type>
+    <ic_lc>${icLc}</ic_lc>
+    <nic_br>${nicBr}</nic_br>
+    <name>${name}</name>
+    <ref_no>${refNo}</ref_no>
+    <include_ctos>1</include_ctos>
+    <include_ccris>1</include_ccris>
+    <include_fico>1</include_fico>
+  </records>`;
 }
 
 async function parseCtosReportXmlLocal(xmlStr: string) {
+  const parsed = await parseStringPromise(xmlStr, { explicitArray: true });
+  const report0 = (parsed as { report?: { enq_report?: unknown[] } })?.report?.enq_report?.[0] as
+    | {
+        header?: unknown[];
+        summary?: unknown[];
+        enquiry?: unknown[];
+      }
+    | undefined;
 
-  const parsed = await parseStringPromise(xmlStr, { explicitArray: true })
-  const report = (parsed as { report?: { enq_report?: unknown[] } })?.report
-    ?.enq_report?.[0] as
-    | { enquiry?: unknown[]; summary?: unknown[] }
-    | undefined
-  const enquiry = (report?.enquiry?.[0] ?? {}) as Record<string, unknown>
+  const header0 = report0?.header?.[0] as Record<string, unknown> | undefined;
+  const headerStatus = firstArrayEl(header0?.enq_status);
 
-  const sumTop = report?.summary?.[0] as { enq_sum?: unknown[] } | undefined
+  const sumTop = report0?.summary?.[0] as { enq_sum?: unknown[] } | undefined;
   const enqSum0 = sumTop?.enq_sum?.[0] as
-    | { $?: { ptype?: string }; fico_index?: unknown[] }
-    | undefined
-  const isIndividual = enqSum0?.$?.ptype === "I"
+    | { $?: { ptype?: string; pcode?: string }; fico_index?: unknown[]; enq_status?: unknown[] }
+    | undefined;
 
-  const summary = (enquiry?.section_summary as unknown[] | undefined)?.[0] as
-    | Record<string, unknown>
-    | undefined
-  const sectionA = (enquiry?.section_a as unknown[] | undefined)?.[0] as
-    | Record<string, unknown>
-    | undefined
-  const sectionDNode = (enquiry?.section_d as unknown[] | undefined)?.[0] as
-    | Record<string, unknown>
-    | undefined
-  const sectionD2Node = (enquiry?.section_d2 as unknown[] | undefined)?.[0] as
-    | Record<string, unknown>
-    | undefined
-  const accountsNode = safeGet(sectionA, ["record", 0, "accounts", 0]) as
-    | Record<string, unknown>
-    | undefined
+  const enquiryList = report0?.enquiry;
+  const hasEnquiry = Array.isArray(enquiryList) && enquiryList.length > 0;
+  const enquiry = (hasEnquiry ? enquiryList![0] : {}) as Record<string, unknown>;
+
+  const enqSumStatus = firstArrayEl((enqSum0 as Record<string, unknown> | undefined)?.enq_status);
+
+  const isIndividual = enqSum0?.$?.ptype === "I";
+  const ptype = enqSum0?.$?.ptype ?? null;
+  const pcode = enqSum0?.$?.pcode ?? null;
+
+  const sumRec = enqSum0 as Record<string, unknown> | undefined;
+  const nameFromSum = xmlText(safeGet(sumRec ?? {}, ["name", 0]));
+  const icLcFromSum = xmlText(safeGet(sumRec ?? {}, ["ic_lcno", 0]));
+  const nicBrFromSum = xmlText(safeGet(sumRec ?? {}, ["nic_brno", 0]));
+
+  if (!hasEnquiry) {
+    const summarySlice = buildSummaryJsonSlice(undefined, enqSum0, null);
+    return {
+      raw_xml: xmlStr,
+      summary_json: {
+        ...summarySlice,
+        enquiry_error: pickEnquiryError(headerStatus, enqSumStatus, false),
+      },
+      person_json:
+        isIndividual
+          ? {
+              name: nameFromSum,
+              nic_brno: nicBrFromSum,
+              ic_lcno: icLcFromSum,
+              nationality: null,
+              birth_date: null,
+              addr: null,
+            }
+          : null,
+      company_json:
+        !isIndividual
+          ? {
+              ptype,
+              pcode,
+              name: nameFromSum,
+              brn_ssm: null,
+              ic_lcno: icLcFromSum,
+              nic_brno: nicBrFromSum,
+              additional_registration_no: null,
+              status: null,
+              type_of_business: null,
+              comp_type: null,
+              comp_category: null,
+              address: {
+                full: null,
+                line1: null,
+                line2: null,
+                city: null,
+                state: null,
+                postcode: null,
+              },
+              msic_ssms: [],
+              partners: [],
+              directors: [],
+            }
+          : null,
+      legal_json: { cases: [] },
+      ccris_json: {
+        summary: {
+          total_limit: null,
+          total_outstanding: null,
+        },
+      },
+      financials_json: [],
+    };
+  }
+
+  const summary = (enquiry.section_summary as unknown[] | undefined)?.[0] as Record<string, unknown> | undefined;
+  const sectionA = (enquiry.section_a as unknown[] | undefined)?.[0] as Record<string, unknown> | undefined;
+  const sectionDNode = (enquiry.section_d as unknown[] | undefined)?.[0] as Record<string, unknown> | undefined;
+  const sectionD2Node = (enquiry.section_d2 as unknown[] | undefined)?.[0] as Record<string, unknown> | undefined;
+  const sectionD4Node = (enquiry.section_d4 as unknown[] | undefined)?.[0] as Record<string, unknown> | undefined;
+
+  const accountsNode = safeGet(sectionA, ["record", 0, "accounts", 0]) as Record<string, unknown> | undefined;
   const accountsList = Array.isArray(accountsNode?.account)
     ? (accountsNode.account as unknown[])
     : accountsNode?.account
       ? [accountsNode.account]
-      : []
+      : [];
 
-  const ccris = (enquiry?.section_ccris as unknown[] | undefined)?.[0] as
-    | Record<string, unknown>
-    | undefined
+  const ccris = (enquiry.section_ccris as unknown[] | undefined)?.[0] as Record<string, unknown> | undefined;
 
   const companyNode = (safeGet(sectionA, ["record", 0]) ??
     safeGet(sectionA, ["company", 0]) ??
-    safeGet(sectionA, ["person", 0])) as Record<string, unknown> | undefined
+    safeGet(sectionA, ["person", 0])) as Record<string, unknown> | undefined;
 
   const address = {
     full:
-      (safeGet(companyNode, ["addr", 0, "_"]) ?? safeGet(companyNode, ["addr", 0])) ||
-      (safeGet(companyNode, ["addr1", 0, "_"]) ?? safeGet(companyNode, ["addr1", 0])) ||
-      null,
-    line1: safeGet(companyNode, ["addr_breakdown", 0, "addr1", 0]),
-    line2: safeGet(companyNode, ["addr_breakdown", 0, "addr2", 0]),
-    city: safeGet(companyNode, ["addr_breakdown", 0, "city", 0]),
-    state: safeGet(companyNode, ["addr_breakdown", 0, "state", 0]),
-    postcode: safeGet(companyNode, ["addr_breakdown", 0, "postcode", 0]),
-  }
+      xmlText(safeGet(companyNode, ["addr", 0, "_"])) ??
+      xmlText(safeGet(companyNode, ["addr", 0])) ??
+      xmlText(safeGet(companyNode, ["addr1", 0, "_"])) ??
+      xmlText(safeGet(companyNode, ["addr1", 0])),
+    line1: xmlText(safeGet(companyNode, ["addr_breakdown", 0, "addr1", 0])),
+    line2: xmlText(safeGet(companyNode, ["addr_breakdown", 0, "addr2", 0])),
+    city: xmlText(safeGet(companyNode, ["addr_breakdown", 0, "city", 0])),
+    state: xmlText(safeGet(companyNode, ["addr_breakdown", 0, "state", 0])),
+    postcode: xmlText(safeGet(companyNode, ["addr_breakdown", 0, "postcode", 0])),
+  };
 
-  const directorsRaw = safeGet(companyNode, ["directors", 0, "director"]) || []
-  const directorsArr = Array.isArray(directorsRaw)
-    ? directorsRaw
-    : directorsRaw
-      ? [directorsRaw]
-      : []
+  const directorsRaw = safeGet(companyNode, ["directors", 0, "director"]) || [];
+  const directorsArr = Array.isArray(directorsRaw) ? directorsRaw : directorsRaw ? [directorsRaw] : [];
 
   const directors = directorsArr.map((d: unknown) => {
-
-    const x = d as Record<string, unknown>
+    const x = d as Record<string, unknown>;
     return {
-      name: safeGet(x, ["name", 0]),
-      alias: safeGet(x, ["alias", 0]),
-      ic_lcno: safeGet(x, ["ic_lcno", 0]),
-      nic_brno: safeGet(x, ["nic_brno", 0]),
-      position: safeGet(x, ["position", 0]),
-      addr: safeGet(x, ["addr", 0]),
-      appoint: safeGet(x, ["appoint", 0]),
-      resign_date: safeGet(x, ["resign_date", 0]),
+      name: xmlText(safeGet(x, ["name", 0])),
+      alias: xmlText(safeGet(x, ["alias", 0])),
+      ic_lcno: xmlText(safeGet(x, ["ic_lcno", 0])),
+      nic_brno: xmlText(safeGet(x, ["nic_brno", 0])),
+      position: xmlText(safeGet(x, ["position", 0])),
+      addr: xmlText(safeGet(x, ["addr", 0])),
+      appoint: xmlText(safeGet(x, ["appoint", 0])),
+      resign_date: xmlText(safeGet(x, ["resign_date", 0])),
       equity: toNumber(safeGet(x, ["equity", 0])),
       equity_percentage: toNumber(safeGet(x, ["equity_percentage", 0])),
-      remark: safeGet(x, ["remark", 0]),
-      party_type: safeGet(x, ["party_type", 0]),
-    }
+      remark: xmlText(safeGet(x, ["remark", 0])),
+      party_type: xmlText(safeGet(x, ["party_type", 0])),
+    };
+  });
 
-  })
+  const msic_ssms = parseMsicRows(companyNode);
+  const partners = parsePartners(companyNode);
 
-  const seenYears = new Set<number>()
-  const accountsForFinancials: unknown[] = []
+  const seenYears = new Set<number>();
+  const accountsForFinancials: unknown[] = [];
   for (const acc of accountsList) {
-
-    const a = acc as Record<string, unknown>
-    const plddRaw = safeGet(a, ["pldd", 0])
-    const bsddRaw = safeGet(a, ["bsdd", 0])
-    const plddStr = plddRaw != null ? String(plddRaw) : null
-    const bsddStr = bsddRaw != null ? String(bsddRaw) : null
-    const year = parseReportingYearFromCtosDates(plddStr, bsddStr)
-    if (year === null) continue
-    if (seenYears.has(year)) continue
-    seenYears.add(year)
-    accountsForFinancials.push(acc)
-
+    const a = acc as Record<string, unknown>;
+    const plddRaw = safeGet(a, ["pldd", 0]);
+    const plddStr = plddRaw != null ? String(plddRaw) : null;
+    const year = parseYearFromPldd(plddStr);
+    if (year === null) continue;
+    if (seenYears.has(year)) continue;
+    seenYears.add(year);
+    accountsForFinancials.push(acc);
   }
 
   const financialsArray = isIndividual
     ? []
     : accountsForFinancials
-      .map((accounts: unknown) => {
-
-        const acc = accounts as Record<string, unknown>
-        const plddRaw = safeGet(acc, ["pldd", 0])
-        const bsddRaw = safeGet(acc, ["bsdd", 0])
-        const pldd = plddRaw != null ? String(plddRaw) : null
-        const bsdd = bsddRaw != null ? String(bsddRaw) : null
-        const reportingYear = parseReportingYearFromCtosDates(pldd, bsdd)
-
-        const plyearAmt = toNumber(safeGet(acc, ["plyear", 0]))
-
-        return {
-          reporting_year: reportingYear,
-          financial_year_end_date: pldd,
-          balance_sheet_date: bsdd,
-          balance_sheet: {
-            fixed_assets: toNumber(safeGet(acc, ["bsfatot", 0])),
-            other_assets: toNumber(safeGet(acc, ["othass", 0])),
-            current_assets: toNumber(safeGet(acc, ["bscatot", 0])),
-            non_current_assets: toNumber(safeGet(acc, ["bsclbank", 0])),
-            total_assets: toNumber(safeGet(acc, ["totass", 0])),
-            current_liabilities: toNumber(safeGet(acc, ["curlib", 0])),
-            long_term_liabilities: toNumber(safeGet(acc, ["bsslltd", 0])),
-            non_current_liabilities: toNumber(safeGet(acc, ["bsclstd", 0])),
-            total_liabilities: toNumber(safeGet(acc, ["totlib", 0])),
-            equity: toNumber(safeGet(acc, ["bsqpuc", 0])),
-          },
-          profit_and_loss: {
-            revenue: toNumber(safeGet(acc, ["turnover", 0])),
-            profit_before_tax: toNumber(safeGet(acc, ["plnpbt", 0])),
-            profit_after_tax: toNumber(safeGet(acc, ["plnpat", 0])),
-            net_dividend: toNumber(safeGet(acc, ["plnetdiv", 0])),
-            profit_line_amount: plyearAmt,
-          },
-        }
-
-      })
-      .filter((row) => row.reporting_year !== null)
+        .map((accounts: unknown) => {
+          const acc = accounts as Record<string, unknown>;
+          const pldd = xmlText(safeGet(acc, ["pldd", 0]));
+          const bsdd = xmlText(safeGet(acc, ["bsdd", 0]));
+          const reportingYear = parseYearFromPldd(pldd);
+          return {
+            reporting_year: reportingYear,
+            dates: { pldd, bsdd },
+            account: buildAccountCodenames(acc),
+          };
+        })
+        .filter((row) => row.reporting_year !== null);
 
   const totalLimit = toNumber(
     safeGet(ccris, ["summary", 0, "liabilities", 0, "borrower", 0, "$", "total_limit"])
-  )
-  const totalOutstanding = toNumber(
-    safeGet(ccris, ["summary", 0, "liabilities", 0, "borrower", 0, "_"])
-  )
+  );
+  const totalOutstanding = toNumber(safeGet(ccris, ["summary", 0, "liabilities", 0, "borrower", 0, "_"]));
 
-  const recordsD = sectionDNode?.record
-  const recordsD2 = sectionD2Node?.record
-  const flatD = recordsD == null ? [] : Array.isArray(recordsD) ? recordsD : [recordsD]
-  const flatD2 = recordsD2 == null ? [] : Array.isArray(recordsD2) ? recordsD2 : [recordsD2]
-  const sectionDRecords = [...flatD, ...flatD2]
-  const legalCases = sectionDRecords.map((r: unknown) => {
+  const legalCases = [
+    ...flattenSectionRecords(sectionDNode).map((r) => mapLegalRecord(r, "d")),
+    ...flattenSectionRecords(sectionD2Node).map((r) => mapLegalRecord(r, "d2")),
+    ...flattenSectionRecords(sectionD4Node).map((r) => mapLegalRecord(r, "d4")),
+  ];
 
-    const x = r as Record<string, unknown>
-    return {
-      title: safeGet(x, ["title", 0]),
-      case_type:
-        x?.$ && typeof x.$ === "object"
-          ? (x.$ as { rpttype?: string }).rpttype ?? null
-          : null,
-      status:
-        (x?.$ && typeof x.$ === "object" ? (x.$ as { status?: string }).status : null) ??
-        safeGet(x, ["status", 0]),
-      amount: toNumber(safeGet(x, ["amount", 0])),
-      dates: {
-        action_date: safeGet(x, ["action", 0, "date", 0]),
-        notice_date: safeGet(x, ["notice", 0, "date", 0]),
-        petition_date: safeGet(x, ["petition", 0, "date", 0]),
-        order_date: safeGet(x, ["order", 0, "date", 0]),
-      },
-    }
+  const dcheqRaw = safeGet(summary, ["dcheqs", 0, "$", "entity"]);
+  const dcheqFlag = toNumber(dcheqRaw);
 
-  })
+  const summarySlice = buildSummaryJsonSlice(summary, enqSum0, dcheqFlag);
 
-  const dcheqRaw = safeGet(summary, ["dcheqs", 0, "$", "entity"])
-  const dcheqFlag = toNumber(dcheqRaw)
-
-  const ficoIndexNode = enqSum0?.fico_index?.[0] ?? {}
-  const ficoObj = ficoIndexNode as { $?: { score?: string }; fico_factor?: unknown[] }
-  const ficoScore = toNumber(ficoObj?.$?.score)
-  const ficoFactors = (Array.isArray(ficoObj?.fico_factor) ? ficoObj.fico_factor : [])
-    .map((f: unknown) => (typeof f === "string" ? f : (f as { _?: string })?._))
-    .filter((f): f is string => Boolean(f))
-
-  console.log("Parsed CTOS XML, financial year rows:", financialsArray.length)
+  const finalEnquiryError = pickEnquiryError(headerStatus, enqSumStatus, true);
 
   return {
     raw_xml: xmlStr,
     summary_json: {
-      fico_score: ficoScore,
-      fico_factors: ficoFactors,
-      bankruptcy: toBoolean(safeGet(summary, ["ctos", 0, "bankruptcy", 0, "$", "status"])),
-      legal: {
-        total_cases: toNumber(safeGet(summary, ["ctos", 0, "legal", 0, "$", "total"])),
-        total_amount: toNumber(safeGet(summary, ["ctos", 0, "legal", 0, "$", "value"])),
-      },
-      ccris: {
-        applications: toNumber(safeGet(summary, ["ccris", 0, "application", 0, "$", "total"])),
-        approved: toNumber(safeGet(summary, ["ccris", 0, "application", 0, "$", "approved"])),
-        pending: toNumber(safeGet(summary, ["ccris", 0, "application", 0, "$", "pending"])),
-        arrears: toNumber(safeGet(summary, ["ccris", 0, "facility", 0, "$", "arrears"])),
-      },
-      dcheqs: {
-        has_history: dcheqFlag !== null ? dcheqFlag > 0 : null,
-        raw_flag: dcheqFlag,
-      },
+      ...summarySlice,
+      enquiry_error: finalEnquiryError,
     },
     person_json: isIndividual
       ? {
-        name: (() => {
-
-          const v = safeGet(companyNode, ["name", 0, "_"]) ?? safeGet(companyNode, ["name", 0])
-          return v == null ? null : String(v)
-
-        })(),
-        ic_no: (() => {
-
-          const v =
-            safeGet(companyNode, ["nic_brno", 0]) ?? safeGet(companyNode, ["ic_lcno", 0])
-          return v == null ? null : String(v)
-
-        })(),
-        nationality: (() => {
-
-          const v = safeGet(companyNode, ["nationality", 0])
-          return v == null ? null : String(v)
-
-        })(),
-        birth_date: (() => {
-
-          const v = safeGet(companyNode, ["birth_date", 0])
-          return v == null ? null : String(v)
-
-        })(),
-        address: (() => {
-
-          const v =
-            (safeGet(companyNode, ["addr", 0, "_"]) ?? safeGet(companyNode, ["addr", 0])) ||
-            (safeGet(companyNode, ["addr1", 0, "_"]) ?? safeGet(companyNode, ["addr1", 0])) ||
-            null
-          return v == null ? null : String(v)
-
-        })(),
-      }
+          name: xmlText(safeGet(companyNode, ["name", 0, "_"])) ?? xmlText(safeGet(companyNode, ["name", 0])),
+          nic_brno: xmlText(safeGet(companyNode, ["nic_brno", 0])),
+          ic_lcno: xmlText(safeGet(companyNode, ["ic_lcno", 0])),
+          nationality: xmlText(safeGet(companyNode, ["nationality", 0])),
+          birth_date: xmlText(safeGet(companyNode, ["birth_date", 0])),
+          addr:
+            xmlText(safeGet(companyNode, ["addr", 0, "_"])) ??
+            xmlText(safeGet(companyNode, ["addr", 0])) ??
+            xmlText(safeGet(companyNode, ["addr1", 0, "_"])) ??
+            xmlText(safeGet(companyNode, ["addr1", 0])),
+        }
       : null,
     company_json: isIndividual
       ? null
       : {
-        name: safeGet(companyNode, ["name", 0, "_"]) ?? safeGet(companyNode, ["name", 0]),
-        registration_no: safeGet(companyNode, ["brn_ssm", 0]) ?? safeGet(companyNode, ["ic_lcno", 0]),
-        status: safeGet(companyNode, ["status", 0]),
-        business_type: safeGet(companyNode, ["type_of_business", 0]),
-        company_type:
-          safeGet(companyNode, ["comp_type", 0, "_"]) ?? safeGet(companyNode, ["comp_type", 0]),
-        company_category:
-          safeGet(companyNode, ["comp_category", 0, "_"]) ??
-          safeGet(companyNode, ["comp_category", 0]),
-        address,
-        directors,
-      },
+          ptype,
+          pcode,
+          name: xmlText(safeGet(companyNode, ["name", 0, "_"])) ?? xmlText(safeGet(companyNode, ["name", 0])),
+          brn_ssm: xmlText(safeGet(companyNode, ["brn_ssm", 0])),
+          ic_lcno: xmlText(safeGet(companyNode, ["ic_lcno", 0])),
+          nic_brno: xmlText(safeGet(companyNode, ["nic_brno", 0])),
+          additional_registration_no: xmlText(safeGet(companyNode, ["additional_registration_no", 0])),
+          status: xmlText(safeGet(companyNode, ["status", 0])),
+          type_of_business: xmlText(safeGet(companyNode, ["type_of_business", 0])),
+          comp_type:
+            xmlText(safeGet(companyNode, ["comp_type", 0, "_"])) ??
+            xmlText(safeGet(companyNode, ["comp_type", 0])),
+          comp_category:
+            xmlText(safeGet(companyNode, ["comp_category", 0, "_"])) ??
+            xmlText(safeGet(companyNode, ["comp_category", 0])),
+          address,
+          msic_ssms,
+          partners,
+          directors,
+        },
     legal_json: { cases: legalCases },
     ccris_json: {
       summary: {
@@ -482,70 +533,47 @@ async function parseCtosReportXmlLocal(xmlStr: string) {
       },
     },
     financials_json: financialsArray,
-  }
-
+  };
 }
 
-/**
- * CONFIG
- */
+type TestRow =
+  | { kind: "company"; name: string; reg: string }
+  | { kind: "business"; name: string; reg: string; ownerNic?: string; ownerName?: string }
+  | { kind: "individual"; name: string; nic: string };
+
 const CONFIG = {
   clientId: "Shor_jwt",
   username: "shor_uat",
   password: "sMV524D_~49237(Sh",
-  tokenUrl:
-    "https://uat-sso.ctos.com.my/auth/realms/CTOSNET/protocol/openid-connect/token",
+  tokenUrl: "https://uat-sso.ctos.com.my/auth/realms/CTOSNET/protocol/openid-connect/token",
   soapUrl: "https://uat-integration.ctos.com.my/ctos_secure/Proxy",
   privateKeyPath: "./rsa-private.cer",
-
   companyCode: "SHORUAT",
   accountNo: "SHORUAT",
-  userId: "shor_uat"
-}
-
+  userId: "shor_uat",
+};
 
 /**
- * FULL SABRINA TEST CASES
+ * Business rows: CTOS requires a second record (11/I owner). Optional ownerNic/ownerName per row;
+ * otherwise DEFAULT_BUSINESS_OWNER (UAT placeholder — replace with real owner per entity when known).
  */
-const TEST_CASES = [
-
-  /**
-   * =========================
-   * COMPANIES (SDN BHD / BHD)
-   * =========================
-   */
-
-  // Existing
+const TEST_CASES: TestRow[] = [
   { kind: "company", name: "REDIAL ONE SDN BHD", reg: "200501525124" },
   { kind: "company", name: "GINSENGA CHICKEN RESTAURANTSA SDN BHD", reg: "200001020876" },
   { kind: "company", name: "SHINING SDN BHD", reg: "198501006938" },
   { kind: "company", name: "Harry SDN BHD", reg: "198601005678" },
-
-  // New (your list)
   { kind: "company", name: "BrightNova Solutions Sdn. Bhd.", reg: "202501234567" },
   { kind: "company", name: "Vertex Quantum Technologies Sdn. Bhd.", reg: "202501998877" },
   { kind: "company", name: "Orion Crest Holdings Sdn. Bhd.", reg: "202001556432" },
   { kind: "company", name: "QuantumEdge Solutions Sdn. Bhd.", reg: "202501447890" },
   { kind: "company", name: "ApexStar Holdings Sdn. Bhd.", reg: "202001223344" },
   { kind: "company", name: "AeroNova Solutions Sdn. Bhd.", reg: "202501889900" },
-
-  // Important CTOS test ones
   { kind: "company", name: "THE FOURSQUARE GOSPEL CHURCH BHD.", reg: "198401018032" },
   { kind: "company", name: "INTRALIGHT SDN BHD", reg: "201301000165" },
-
-  // Extra company table
   { kind: "company", name: "SIEW HUI CONSTRUCTION BERHAD", reg: "198401005456" },
   { kind: "company", name: "LUFFY'S CONSTRUCTION BERHAD", reg: "198401005123" },
   { kind: "company", name: "ZORO'S CONSTRUCTION BERHAD", reg: "198401005124" },
   { kind: "company", name: "ELEGANT RAY RAY (M) SDN. BHD.", reg: "199001010123" },
-
-
-
-  /**
-   * =========================
-   * BUSINESS (ENTERPRISE)
-   * =========================
-   */
 
   { kind: "business", name: "BLANC ENTERPRISE", reg: "190003594012" },
   { kind: "business", name: "DAHLIA RIZAL ENTERPRISE", reg: "190203155179" },
@@ -553,23 +581,10 @@ const TEST_CASES = [
   { kind: "business", name: "JAMES BOND ENTERPRISE", reg: "192403950452" },
   { kind: "business", name: "CASHMIRA ENTERPRISE", reg: "192803228303" },
   { kind: "business", name: "BATISTE ENTERPRISE", reg: "193003261657" },
-
-  // Extra from top list
   { kind: "business", name: "BINTANG MAJU SERVICES", reg: "190003274306" },
 
-
-
-  /**
-   * =========================
-   * INDIVIDUAL
-   * =========================
-   */
-
-  // From your list
   { kind: "individual", name: "SITI NORHALIZA BINTI ABDUL RAHMAD", nic: "881108085746" },
   { kind: "individual", name: "LEE CHOONG WEI", nic: "780120085849" },
-
-  // Existing batch
   { kind: "individual", name: "HAFIY HAMDAN", nic: "720330027845" },
   { kind: "individual", name: "CHEW MEI QI", nic: "741214265249" },
   { kind: "individual", name: "NG KEAT HAW", nic: "810324145789" },
@@ -579,16 +594,11 @@ const TEST_CASES = [
   { kind: "individual", name: "Wan Mohd Najib Azahari", nic: "771015087483" },
   { kind: "individual", name: "VIGNESH RAJ", nic: "800706217043" },
   { kind: "individual", name: "KIRAN CHANDRASEKAR", nic: "870227082659" },
-  { kind: "individual", name: "Siti Hajar Binti Mohd Zain", nic: "870515051120" }
+  { kind: "individual", name: "Siti Hajar Binti Mohd Zain", nic: "870515051120" },
+];
 
-]
-
-/**
- * AUTH
- */
 function generateJWT() {
-  const key = fs.readFileSync(CONFIG.privateKeyPath)
-
+  const key = fs.readFileSync(CONFIG.privateKeyPath);
   return jwt.sign(
     {
       jti: uuidv4(),
@@ -596,11 +606,11 @@ function generateJWT() {
       iss: CONFIG.clientId,
       aud: CONFIG.tokenUrl,
       iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + 300
+      exp: Math.floor(Date.now() / 1000) + 300,
     },
     key,
     { algorithm: "RS256" }
-  )
+  );
 }
 
 async function getToken() {
@@ -611,19 +621,14 @@ async function getToken() {
       client_id: CONFIG.clientId,
       username: CONFIG.username,
       password: CONFIG.password,
-      client_assertion_type:
-        "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
-      client_assertion: generateJWT()
+      client_assertion_type: "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+      client_assertion: generateJWT(),
     }),
     { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
-  )
-
-  return res.data.access_token
+  );
+  return res.data.access_token;
 }
 
-/**
- * SOAP
- */
 const wrapSoap = (inner: string) => `
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ws="http://ws.proxy.xml.ctos.com.my/">
   <soapenv:Body>
@@ -632,83 +637,78 @@ const wrapSoap = (inner: string) => `
     </ws:request>
   </soapenv:Body>
 </soapenv:Envelope>
-`
+`;
 
 async function callCTOS(xml: string) {
-  const token = await getToken()
-
+  const token = await getToken();
   const res = await axios.post(CONFIG.soapUrl, xml, {
     headers: {
       Authorization: `Bearer ${token}`,
-      "Content-Type": "text/xml"
-    }
-  })
-
-  const match = res.data.match(/<return>([\s\S]*?)<\/return>/)
-  if (!match?.[1]) throw new Error("Invalid CTOS response")
-
-  return Buffer.from(match[1], "base64").toString("utf-8")
+      "Content-Type": "text/xml",
+    },
+  });
+  const match = res.data.match(/<return>([\s\S]*?)<\/return>/);
+  if (!match?.[1]) throw new Error("Invalid CTOS response");
+  return Buffer.from(match[1], "base64").toString("utf-8");
 }
 
-/**
- * REQUEST
- */
-function buildXML(test: any) {
-  let typeCode = ""
-  let typeVal = ""
-  let ic = ""
-  let reg = ""
-
-  if (test.kind === "individual") {
-    typeCode = "11"
-    typeVal = "I"
-    reg = test.nic
-  } else if (test.kind === "business") {
-    typeCode = "21"
-    typeVal = "B"
-    reg = test.reg
-  } else {
-    typeCode = "24"
-    typeVal = "C"
-    ic = test.reg
+function buildXML(test: TestRow) {
+  if (test.kind === "business") {
+    const ownerNic = test.ownerNic ?? DEFAULT_BUSINESS_OWNER.ownerNic;
+    const ownerName = test.ownerName ?? DEFAULT_BUSINESS_OWNER.ownerName;
+    const bizName = escapeXml(test.name);
+    const bizReg = escapeXml(test.reg);
+    const oNic = escapeXml(ownerNic);
+    const oName = escapeXml(ownerName);
+    return `
+<batch no="REQ" output="0" xmlns="http://ws.cmctos.com.my/ctosnet/request">
+  <company_code>${CONFIG.companyCode}</company_code>
+  <account_no>${CONFIG.accountNo}</account_no>
+  <user_id>${CONFIG.userId}</user_id>
+  <record_total>2</record_total>${oneRecordBlock("21", "B", "", bizReg, bizName, bizReg)}${oneRecordBlock("11", "I", "", oNic, oName, oNic)}
+</batch>
+`;
   }
 
+  let typeCode = "";
+  let typeVal = "";
+  let ic = "";
+  let reg = "";
+  if (test.kind === "individual") {
+    typeCode = "11";
+    typeVal = "I";
+    reg = escapeXml(test.nic);
+  } else {
+    typeCode = "24";
+    typeVal = "C";
+    ic = escapeXml(test.reg);
+  }
+  const name = escapeXml(test.name);
+  const refNo = test.kind === "individual" ? reg : ic;
   return `
 <batch no="REQ" output="0" xmlns="http://ws.cmctos.com.my/ctosnet/request">
   <company_code>${CONFIG.companyCode}</company_code>
   <account_no>${CONFIG.accountNo}</account_no>
   <user_id>${CONFIG.userId}</user_id>
-
-  <record_total>1</record_total>
-  <records>
-    <type code="${typeCode}">${typeVal}</type>
-    <ic_lc>${ic}</ic_lc>
-    <nic_br>${reg}</nic_br>
-    <name>${test.name}</name>
-    <ref_no>${reg || ic}</ref_no>
-
-    <include_ctos>1</include_ctos>
-    <include_ccris>1</include_ccris>
-    <include_fico>1</include_fico>
-  </records>
+  <record_total>1</record_total>${oneRecordBlock(typeCode, typeVal, ic, reg, name, refNo)}
 </batch>
-`
+`;
 }
 
-/**
- * RUN — XML → JSON via local duplicate of modules/ctos/parser.ts (same shape as API/DB).
- */
 async function run() {
   for (const t of TEST_CASES) {
-    console.log("\n====", t.name)
-
-    const xml = buildXML(t)
-    const res = await callCTOS(wrapSoap(xml))
-    console.log("Parsing CTOS XML with local parser (ctos.new.ts copy of parser.ts)")
-    const parsed = await parseCtosReportXmlLocal(res)
-
-    console.log(JSON.stringify(parsed, null, 2))
+    const regOrNic = t.kind === "individual" ? t.nic : t.reg;
+    console.log("CTOS harness: case start, kind:", t.kind, "name:", t.name, "regOrNic:", regOrNic);
+    const xml = buildXML(t);
+    const res = await callCTOS(wrapSoap(xml));
+    console.log("CTOS harness: report XML length:", res.length);
+    const parsed = await parseCtosReportXmlLocal(res);
+    console.log("CTOS harness: enquiry_error:", parsed.summary_json.enquiry_error);
+    console.log("CTOS harness: fico_score:", parsed.summary_json.fico_score);
+    console.log("CTOS harness: financials rows:", parsed.financials_json.length);
+    console.log("CTOS harness: legal cases:", parsed.legal_json.cases.length);
+    console.log("CTOS harness: dcheqs raw_flag:", parsed.summary_json.dcheqs.raw_flag);
   }
 }
 
-run()
+run();
