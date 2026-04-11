@@ -773,11 +773,10 @@ async function run() {
     const res = await fetchReportXmlWithAutoEntityConfirm(t);
     console.log("CTOS harness: report XML length:", res.length);
     const parsed = await parseCtosReportXmlLocal(res);
-    console.log("CTOS harness: enquiry_error:", parsed.summary_json.enquiry_error);
-    console.log("CTOS harness: fico_score:", parsed.summary_json.fico_score);
-    console.log("CTOS harness: financials rows:", parsed.financials_json.length);
-    console.log("CTOS harness: legal cases:", parsed.legal_json.cases.length);
-    console.log("CTOS harness: dcheqs raw_flag:", parsed.summary_json.dcheqs.raw_flag);
+    console.log(
+      "CTOS harness: parsed JSON (raw_xml omitted):",
+      JSON.stringify(parsed, (k, v) => (k === "raw_xml" ? undefined : v), 2)
+    );
   }
 }
 

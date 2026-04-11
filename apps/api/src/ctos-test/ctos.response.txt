@@ -1,248 +1,4741 @@
 CTOS harness: case start, kind: company name: REDIAL ONE SDN BHD regOrNic: 200501525124
 CTOS harness: report XML length: 22187
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 0
-CTOS harness: financials rows: 4
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 0,
+    "fico_factors": [
+      "Score fail to generate because the gross revenue is more than 50 million."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": null,
+  "company_json": {
+    "ptype": "C",
+    "pcode": "24",
+    "name": "REDIAL ONE SDN BHD",
+    "brn_ssm": "2891E",
+    "ic_lcno": "200501525124",
+    "nic_brno": null,
+    "additional_registration_no": "0002891",
+    "status": "EXISTING",
+    "type_of_business": "IMPORT & EXPORT",
+    "comp_type": "PRIVATE LIMITED",
+    "comp_category": "LIMITED BY SHARES",
+    "address": {
+      "full": "2800 & 2801, JALAN TEKNOKRAT 28 CYBERJAYA 63000 SELANGOR",
+      "line1": null,
+      "line2": null,
+      "city": null,
+      "state": null,
+      "postcode": null
+    },
+    "msic_ssms": [
+      {
+        "code": "40799",
+        "priority": "1",
+        "description": null
+      }
+    ],
+    "partners": [],
+    "directors": [
+      {
+        "name": "MOHD SAIFUL BINTI HAMDAN",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "770504213100",
+        "position": "DO",
+        "addr": "C-22-01, VERTEX TOWER, CYBERSQUARE, 63000, CYBERJAYA, SELANGOR",
+        "appoint": "30-09-2016",
+        "resign_date": null,
+        "equity": 0,
+        "equity_percentage": 0,
+        "remark": "DIRECTOR",
+        "party_type": "I"
+      },
+      {
+        "name": "TOH BROTHERS ENTERPRISE SDN BHD",
+        "alias": null,
+        "ic_lcno": "18335Z",
+        "nic_brno": null,
+        "position": "SO",
+        "addr": null,
+        "appoint": null,
+        "resign_date": null,
+        "equity": 6000,
+        "equity_percentage": 33.33,
+        "remark": null,
+        "party_type": "C"
+      },
+      {
+        "name": "YAP SOO CHAN SONS SDN BHD",
+        "alias": null,
+        "ic_lcno": "144062Z",
+        "nic_brno": null,
+        "position": "SO",
+        "addr": null,
+        "appoint": null,
+        "resign_date": null,
+        "equity": 6000,
+        "equity_percentage": 33.33,
+        "remark": null,
+        "party_type": "C"
+      },
+      {
+        "name": "NGOOI PANG GAN SONS SDN BHD",
+        "alias": null,
+        "ic_lcno": "32898Z",
+        "nic_brno": null,
+        "position": "SO",
+        "addr": null,
+        "appoint": null,
+        "resign_date": null,
+        "equity": 6000,
+        "equity_percentage": 33.33,
+        "remark": null,
+        "party_type": "C"
+      }
+    ]
+  },
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": null,
+      "total_outstanding": null
+    }
+  },
+  "financials_json": [
+    {
+      "reporting_year": 2024,
+      "dates": {
+        "pldd": "30-06-2024",
+        "bsdd": "2024-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2023,
+      "dates": {
+        "pldd": "30-06-2023",
+        "bsdd": "2023-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2022,
+      "dates": {
+        "pldd": "30-06-2022",
+        "bsdd": "2022-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2021,
+      "dates": {
+        "pldd": "30-06-2021",
+        "bsdd": "2021-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": null,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    }
+  ]
+}
 CTOS harness: case start, kind: company name: GINSENGA CHICKEN RESTAURANTSA SDN BHD regOrNic: 200001020876
 CTOS harness: report XML length: 43032
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 372
-CTOS harness: financials rows: 4
-CTOS harness: legal cases: 1
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 372,
+    "fico_factors": [
+      "Lack of net worth information"
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": null,
+  "company_json": {
+    "ptype": "C",
+    "pcode": "24",
+    "name": "GINSENGA CHICKEN RESTAURANTSA SDN BHD",
+    "brn_ssm": "123456A",
+    "ic_lcno": "200001020876",
+    "nic_brno": null,
+    "additional_registration_no": "0123456",
+    "status": "EXISTING",
+    "type_of_business": "Creative, arts and entertainment activities",
+    "comp_type": "PRIVATE LIMITED",
+    "comp_category": "LIMITED BY SHARES",
+    "address": {
+      "full": "NO. 81A, JALAN HARMONIUM 35/1,  TAMAN DESA TEBRAU 81100 JOHOR BAHRU JOHOR MALAYSIA",
+      "line1": null,
+      "line2": null,
+      "city": null,
+      "state": null,
+      "postcode": null
+    },
+    "msic_ssms": [],
+    "partners": [],
+    "directors": [
+      {
+        "name": "ABU BAKAR SIDDIQ",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "750706081236",
+        "position": "SO",
+        "addr": "7, JALAN AKASIA 7, BANDAR BOTANIC, 41200 KLANG, Selangor",
+        "appoint": "02-08-2017",
+        "resign_date": null,
+        "equity": 60000,
+        "equity_percentage": 25,
+        "remark": "DIRECTOR SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "EXIN TAN",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "830112106782",
+        "position": "DS",
+        "addr": "NO. 26, JALAN LAWA 2 TAMAN PELANGI INDAH 81800 ULU TIRAM JOHOR MALAYSIA",
+        "appoint": "02-08-2022",
+        "resign_date": null,
+        "equity": 90000,
+        "equity_percentage": 37.5,
+        "remark": "DIRECTOR SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "HUI BEE",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "800110139023",
+        "position": "DS",
+        "addr": "NO. 209, JALAN GEMILANG 4 TAMAN GEMILANG 81000 KULAI JOHOR MALAYSIA",
+        "appoint": "02-08-2022",
+        "resign_date": null,
+        "equity": 90000,
+        "equity_percentage": 37.5,
+        "remark": "DIRECTOR SHAREHOLDER",
+        "party_type": "I"
+      }
+    ]
+  },
+  "legal_json": {
+    "cases": [
+      {
+        "source_section": "d2",
+        "case_type": "C1",
+        "title": "SUBJECT AS PLAINTIFF",
+        "special_remark": null,
+        "name": "GINSENGA CHICKEN RESTAURANTSA SDN BHD",
+        "addr": "TEST",
+        "case_no": null,
+        "court_detail": "SUBORDINATE COURT AMPANG",
+        "hear_date": "17-03-2021",
+        "amount": 1000,
+        "remark1": "TEST1/ALOR SETAR",
+        "lawyer": null,
+        "settlement": null,
+        "latest_status": null,
+        "subject_cmt": null,
+        "cra_cmt": null,
+        "status": "",
+        "action": {
+          "date": null,
+          "source_detail": null
+        },
+        "cedcon": null,
+        "other_defendants": [
+          {
+            "name": "TEST XYZ 17",
+            "ic_lcno": "329976",
+            "nic_brno": "199501000782"
+          }
+        ],
+        "dates": {
+          "action_date": null,
+          "notice_date": null,
+          "petition_date": "17-03-2021",
+          "order_date": "17-03-2021"
+        }
+      }
+    ]
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": 300000,
+      "total_outstanding": 0
+    }
+  },
+  "financials_json": [
+    {
+      "reporting_year": 2024,
+      "dates": {
+        "pldd": "30-06-2024",
+        "bsdd": "2024-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152,
+        "bsclbank": 2056177,
+        "totass": 4165329,
+        "curlib": 1592807,
+        "bsslltd": 817697,
+        "bsclstd": 0,
+        "totlib": 2410504,
+        "bsqpuc": 922887,
+        "turnover": 1723857,
+        "plnpbt": 216927,
+        "plnpat": 137514,
+        "plnetdiv": -35059,
+        "plyear": 128539,
+        "networth": 1754825,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516345
+      }
+    },
+    {
+      "reporting_year": 2023,
+      "dates": {
+        "pldd": "30-06-2023",
+        "bsdd": "2024-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152,
+        "bsclbank": 2056177,
+        "totass": 4165329,
+        "curlib": 1592807,
+        "bsslltd": 817697,
+        "bsclstd": 0,
+        "totlib": 2410504,
+        "bsqpuc": 922887,
+        "turnover": 1723857,
+        "plnpbt": 216927,
+        "plnpat": 137514,
+        "plnetdiv": -35059,
+        "plyear": 128539,
+        "networth": 1754825,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516345
+      }
+    },
+    {
+      "reporting_year": 2022,
+      "dates": {
+        "pldd": "30-06-2022",
+        "bsdd": "2024-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152,
+        "bsclbank": 2056177,
+        "totass": 4165329,
+        "curlib": 1592807,
+        "bsslltd": 817697,
+        "bsclstd": 0,
+        "totlib": 2410504,
+        "bsqpuc": 922887,
+        "turnover": 1723857,
+        "plnpbt": 216927,
+        "plnpat": 137514,
+        "plnetdiv": -35059,
+        "plyear": 128539,
+        "networth": 1754825,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516345
+      }
+    },
+    {
+      "reporting_year": 2021,
+      "dates": {
+        "pldd": "30-06-2021",
+        "bsdd": "2024-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152,
+        "bsclbank": 2056177,
+        "totass": 4165329,
+        "curlib": 1592807,
+        "bsslltd": 817697,
+        "bsclstd": 0,
+        "totlib": 2410504,
+        "bsqpuc": 922887,
+        "turnover": 1723857,
+        "plnpbt": 216927,
+        "plnpat": 137514,
+        "plnetdiv": -35059,
+        "plyear": 128539,
+        "networth": 1754825,
+        "turnover_growth": null,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516345
+      }
+    }
+  ]
+}
 CTOS harness: case start, kind: company name: SHINING SDN BHD regOrNic: 198501006938
 CTOS harness: report XML length: 21928
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 0
-CTOS harness: financials rows: 4
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 0,
+    "fico_factors": [
+      "Not sufficient credit bureau data and financial data."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": null,
+  "company_json": {
+    "ptype": "C",
+    "pcode": "24",
+    "name": "SHINING SDN BHD",
+    "brn_ssm": "139379P",
+    "ic_lcno": "198501006938",
+    "nic_brno": null,
+    "additional_registration_no": "0139379",
+    "status": "EXISTING",
+    "type_of_business": "Hospitality, leisure and energy",
+    "comp_type": "PRIVATE LIMITED",
+    "comp_category": "LIMITED BY SHARES",
+    "address": {
+      "full": "NO 986 JALAN DAMAI, 40000 SHAH ALAM, SELANGOR",
+      "line1": null,
+      "line2": null,
+      "city": null,
+      "state": null,
+      "postcode": null
+    },
+    "msic_ssms": [
+      {
+        "code": "55101",
+        "priority": "1",
+        "description": "Hotels and resort hotels"
+      }
+    ],
+    "partners": [],
+    "directors": [
+      {
+        "name": "RAVISUNDRAM A/L RAJESH",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "890703094413",
+        "position": "DS",
+        "addr": "NO 986 JALAN DAMAI, 40000 SHAH ALAM, SELANGOR",
+        "appoint": "30-11-2018",
+        "resign_date": null,
+        "equity": 400000,
+        "equity_percentage": 50,
+        "remark": "DIRECTOR SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "CHOW CHUA HIN",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "750713145513",
+        "position": "DS",
+        "addr": "NO 986 JALAN DAMAI, 40000 SHAH ALAM, SELANGOR",
+        "appoint": "30-11-2018",
+        "resign_date": null,
+        "equity": 400000,
+        "equity_percentage": 50,
+        "remark": "DIRECTOR SHAREHOLDER",
+        "party_type": "I"
+      }
+    ]
+  },
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": 0,
+      "total_outstanding": 0
+    }
+  },
+  "financials_json": [
+    {
+      "reporting_year": 2024,
+      "dates": {
+        "pldd": "30-06-2024",
+        "bsdd": "2024-06-30"
+      },
+      "account": {
+        "bsfatot": null,
+        "othass": null,
+        "bscatot": null,
+        "bsclbank": null,
+        "totass": null,
+        "curlib": null,
+        "bsslltd": null,
+        "bsclstd": null,
+        "totlib": null,
+        "bsqpuc": null,
+        "turnover": null,
+        "plnpbt": null,
+        "plnpat": null,
+        "plnetdiv": null,
+        "plyear": null,
+        "networth": null,
+        "turnover_growth": null,
+        "profit_margin": null,
+        "return_on_equity": null,
+        "currat": null,
+        "workcap": null
+      }
+    },
+    {
+      "reporting_year": 2023,
+      "dates": {
+        "pldd": "30-06-2023",
+        "bsdd": "2023-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2022,
+      "dates": {
+        "pldd": "30-06-2022",
+        "bsdd": "2022-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2021,
+      "dates": {
+        "pldd": "30-06-2021",
+        "bsdd": "2021-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": null,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    }
+  ]
+}
 CTOS harness: case start, kind: company name: Harry SDN BHD regOrNic: 198601005678
-CTOS harness: report XML length: 57395
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 0
-CTOS harness: financials rows: 4
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: report XML length: 57455
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 0,
+    "fico_factors": [
+      "Score fail to generate because the gross revenue is more than 50 million."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": null,
+  "company_json": {
+    "ptype": "C",
+    "pcode": "24",
+    "name": "Harry SDN BHD",
+    "brn_ssm": "153208W",
+    "ic_lcno": "198601005678",
+    "nic_brno": null,
+    "additional_registration_no": "0153208",
+    "status": "EXISTING",
+    "type_of_business": "Manufacturing",
+    "comp_type": "PUBLIC LIMITED",
+    "comp_category": "LIMITED BY SHARES",
+    "address": {
+      "full": "17, Lorong Meranti 5/2, Taman Meranti, 14000 Bukit Mertajam, Pulau Pinang",
+      "line1": null,
+      "line2": null,
+      "city": null,
+      "state": null,
+      "postcode": null
+    },
+    "msic_ssms": [
+      {
+        "code": "32909 ",
+        "priority": "1",
+        "description": "Other manufacturing n.e.c."
+      }
+    ],
+    "partners": [],
+    "directors": [
+      {
+        "name": "Aida Natasya binti Mohamad",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "950526108821",
+        "position": "DS",
+        "addr": "61, Jalan Bunga Melur, Taman Sentosa, 80100 Johor Bahru, Johor",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 800000,
+        "equity_percentage": 100,
+        "remark": "DIRECTOR SHAREHOLDER",
+        "party_type": "I"
+      }
+    ]
+  },
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": 63491556,
+      "total_outstanding": 97720
+    }
+  },
+  "financials_json": [
+    {
+      "reporting_year": 2024,
+      "dates": {
+        "pldd": "30-06-2024",
+        "bsdd": "2024-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2023,
+      "dates": {
+        "pldd": "30-06-2023",
+        "bsdd": "2023-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2022,
+      "dates": {
+        "pldd": "30-06-2022",
+        "bsdd": "2022-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2021,
+      "dates": {
+        "pldd": "30-06-2021",
+        "bsdd": "2021-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": null,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    }
+  ]
+}
 CTOS harness: case start, kind: company name: BrightNova Solutions Sdn. Bhd. regOrNic: 202501234567
 CTOS harness: report XML length: 22892
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 0
-CTOS harness: financials rows: 4
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 0,
+    "fico_factors": [
+      "Score fail to generate because the gross revenue is more than 50 million."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": null,
+  "company_json": {
+    "ptype": "C",
+    "pcode": "24",
+    "name": "BrightNova Solutions Sdn. Bhd.",
+    "brn_ssm": "5432198A",
+    "ic_lcno": "202501234567",
+    "nic_brno": null,
+    "additional_registration_no": "5432198",
+    "status": "EXISTING",
+    "type_of_business": "Food and Beverage",
+    "comp_type": "PRIVATE LIMITED",
+    "comp_category": "LIMITED BY SHARES",
+    "address": {
+      "full": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+      "line1": null,
+      "line2": null,
+      "city": null,
+      "state": null,
+      "postcode": null
+    },
+    "msic_ssms": [
+      {
+        "code": "56101 ",
+        "priority": "1",
+        "description": "Restaurants and restaurant cum night clubs"
+      }
+    ],
+    "partners": [],
+    "directors": [
+      {
+        "name": "Lim Wei Jian",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "881102140566",
+        "position": "DS",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 16000,
+        "equity_percentage": 2,
+        "remark": "DIRECTOR SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Siti Farhana Binti Halim",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "910304050722",
+        "position": "DS",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 16000,
+        "equity_percentage": 2,
+        "remark": "DIRECTOR SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Muhammad Arif Bin Zainal",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "900512140877",
+        "position": "SO",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 400000,
+        "equity_percentage": 50,
+        "remark": "SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Darren Yap Jun Hao",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "970821140455",
+        "position": "SO",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 48000,
+        "equity_percentage": 6,
+        "remark": "SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Stellar Apex Holdings Sdn. Bhd.",
+        "alias": null,
+        "ic_lcno": "7328154B",
+        "nic_brno": null,
+        "position": "SO",
+        "addr": "Lot 12, Jalan Melati 3, Taman Seri Indah, 43000 Kajang, Selangor",
+        "appoint": null,
+        "resign_date": null,
+        "equity": 320000,
+        "equity_percentage": 40,
+        "remark": null,
+        "party_type": "C"
+      }
+    ]
+  },
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": null,
+      "total_outstanding": null
+    }
+  },
+  "financials_json": [
+    {
+      "reporting_year": 2024,
+      "dates": {
+        "pldd": "30-06-2024",
+        "bsdd": "2024-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2023,
+      "dates": {
+        "pldd": "30-06-2023",
+        "bsdd": "2023-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2022,
+      "dates": {
+        "pldd": "30-06-2022",
+        "bsdd": "2022-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2021,
+      "dates": {
+        "pldd": "30-06-2021",
+        "bsdd": "2021-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": null,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    }
+  ]
+}
 CTOS harness: case start, kind: company name: Vertex Quantum Technologies Sdn. Bhd. regOrNic: 202501998877
 CTOS harness: report XML length: 24023
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 0
-CTOS harness: financials rows: 4
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 0,
+    "fico_factors": [
+      "Score fail to generate because the gross revenue is more than 50 million."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": null,
+  "company_json": {
+    "ptype": "C",
+    "pcode": "24",
+    "name": "Vertex Quantum Technologies Sdn. Bhd.",
+    "brn_ssm": "6549031C",
+    "ic_lcno": "202501998877",
+    "nic_brno": null,
+    "additional_registration_no": "6549031",
+    "status": "EXISTING",
+    "type_of_business": "Food and Beverage",
+    "comp_type": "PRIVATE LIMITED",
+    "comp_category": "LIMITED BY SHARES",
+    "address": {
+      "full": "Lot 45, Jalan Tun Razak, 50400 Kuala Lumpur, Malaysia",
+      "line1": null,
+      "line2": null,
+      "city": null,
+      "state": null,
+      "postcode": null
+    },
+    "msic_ssms": [
+      {
+        "code": "56101 ",
+        "priority": "1",
+        "description": "Restaurants and restaurant cum night clubs"
+      }
+    ],
+    "partners": [],
+    "directors": [
+      {
+        "name": "Darren Ong Wei Jian",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "910417140766",
+        "position": "DO",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 0,
+        "equity_percentage": 0,
+        "remark": "DIRECTOR",
+        "party_type": "I"
+      },
+      {
+        "name": "Kelvin Lee Jun Hua",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "990202140899",
+        "position": "DO",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 0,
+        "equity_percentage": 0,
+        "remark": "DIRECTOR",
+        "party_type": "I"
+      },
+      {
+        "name": "Siti Noraini Binti Azfar",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "960318050722",
+        "position": "DO",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 0,
+        "equity_percentage": 0,
+        "remark": "DIRECTOR",
+        "party_type": "I"
+      },
+      {
+        "name": "Nur Aina Farisha Binti Salleh",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "950829050688",
+        "position": "DS",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 80000,
+        "equity_percentage": 10,
+        "remark": "DIRECTOR SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Muhammad Haziq Bin Razman",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "930512140744",
+        "position": "SO",
+        "addr": "No. 88, Jalan Pudu, 55100 Kuala Lumpur, Malaysia",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 160000,
+        "equity_percentage": 20,
+        "remark": "SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Tan Li Wen",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "981203140522",
+        "position": "SO",
+        "addr": "Unit 7, Menara TH, Jalan Sultan Ismail, 50250 Kuala Lumpur, Malaysia",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 160000,
+        "equity_percentage": 20,
+        "remark": "SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Orion Crest Holdings Sdn. Bhd.",
+        "alias": null,
+        "ic_lcno": "8217649D",
+        "nic_brno": null,
+        "position": "SO",
+        "addr": "No. 22, Jalan Klang Lama, 58200 Kuala Lumpur, Malaysia",
+        "appoint": null,
+        "resign_date": null,
+        "equity": 400000,
+        "equity_percentage": 50,
+        "remark": null,
+        "party_type": "C"
+      }
+    ]
+  },
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": null,
+      "total_outstanding": null
+    }
+  },
+  "financials_json": [
+    {
+      "reporting_year": 2024,
+      "dates": {
+        "pldd": "30-06-2024",
+        "bsdd": "2024-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2023,
+      "dates": {
+        "pldd": "30-06-2023",
+        "bsdd": "2023-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2022,
+      "dates": {
+        "pldd": "30-06-2022",
+        "bsdd": "2022-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2021,
+      "dates": {
+        "pldd": "30-06-2021",
+        "bsdd": "2021-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": null,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    }
+  ]
+}
 CTOS harness: case start, kind: company name: Orion Crest Holdings Sdn. Bhd. regOrNic: 202001556432
 CTOS harness: report XML length: 21530
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 0
-CTOS harness: financials rows: 4
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 0,
+    "fico_factors": [
+      "Score fail to generate because the gross revenue is more than 50 million."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": null,
+  "company_json": {
+    "ptype": "C",
+    "pcode": "24",
+    "name": "Orion Crest Holdings Sdn. Bhd.",
+    "brn_ssm": "8217649D",
+    "ic_lcno": "202001556432",
+    "nic_brno": null,
+    "additional_registration_no": "8217649",
+    "status": "EXISTING",
+    "type_of_business": "Food and Beverage",
+    "comp_type": "PRIVATE LIMITED",
+    "comp_category": "LIMITED BY SHARES",
+    "address": {
+      "full": "No. 22, Jalan Klang Lama, 58200 Kuala Lumpur, Malaysia",
+      "line1": null,
+      "line2": null,
+      "city": null,
+      "state": null,
+      "postcode": null
+    },
+    "msic_ssms": [
+      {
+        "code": "56101 ",
+        "priority": "1",
+        "description": "Restaurants and restaurant cum night clubs"
+      }
+    ],
+    "partners": [],
+    "directors": [
+      {
+        "name": "Muhammad Faez Bin Rahim",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "920715140622",
+        "position": "SO",
+        "addr": "No. 88, Jalan Pudu, 55100 Kuala Lumpur, Malaysia",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 400000,
+        "equity_percentage": 50,
+        "remark": "SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Tan Yue Qi",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "981224140755",
+        "position": "SO",
+        "addr": "Unit 7, Menara TH, Jalan Sultan Ismail, 50250 Kuala Lumpur, Malaysia",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 400000,
+        "equity_percentage": 50,
+        "remark": "SHAREHOLDER",
+        "party_type": "I"
+      }
+    ]
+  },
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": null,
+      "total_outstanding": null
+    }
+  },
+  "financials_json": [
+    {
+      "reporting_year": 2024,
+      "dates": {
+        "pldd": "30-06-2024",
+        "bsdd": "2024-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2023,
+      "dates": {
+        "pldd": "30-06-2023",
+        "bsdd": "2023-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2022,
+      "dates": {
+        "pldd": "30-06-2022",
+        "bsdd": "2022-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2021,
+      "dates": {
+        "pldd": "30-06-2021",
+        "bsdd": "2021-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": null,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    }
+  ]
+}
 CTOS harness: case start, kind: company name: QuantumEdge Solutions Sdn. Bhd. regOrNic: 202501447890
 CTOS harness: report XML length: 24055
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 0
-CTOS harness: financials rows: 4
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 0,
+    "fico_factors": [
+      "Score fail to generate because the gross revenue is more than 50 million."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": null,
+  "company_json": {
+    "ptype": "C",
+    "pcode": "24",
+    "name": "QuantumEdge Solutions Sdn. Bhd.",
+    "brn_ssm": "6547893F",
+    "ic_lcno": "202501447890",
+    "nic_brno": null,
+    "additional_registration_no": "6547893",
+    "status": "EXISTING",
+    "type_of_business": "Food and Beverage",
+    "comp_type": "PRIVATE LIMITED",
+    "comp_category": "LIMITED BY SHARES",
+    "address": {
+      "full": "Block B, Jalan Ampang, 50450 Kuala Lumpur, Malaysia",
+      "line1": null,
+      "line2": null,
+      "city": null,
+      "state": null,
+      "postcode": null
+    },
+    "msic_ssms": [
+      {
+        "code": "56101 ",
+        "priority": "1",
+        "description": "Restaurants and restaurant cum night clubs"
+      }
+    ],
+    "partners": [],
+    "directors": [
+      {
+        "name": "Nur Aina Farisha Binti Salleh",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "950829050688",
+        "position": "DS",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 40000,
+        "equity_percentage": 5,
+        "remark": "DIRECTOR SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Darren Ong Wei Jian",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "910417140766",
+        "position": "DS",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 40000,
+        "equity_percentage": 5,
+        "remark": "DIRECTOR SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Kelvin Lee Jun Hua",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "990202140899",
+        "position": "DS",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 40000,
+        "equity_percentage": 5,
+        "remark": "DIRECTOR SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Siti Noraini Binti Azfar",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "960318050722",
+        "position": "DS",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 40000,
+        "equity_percentage": 5,
+        "remark": "DIRECTOR SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Muhammad Haziq Bin Razman",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "930512140744",
+        "position": "SO",
+        "addr": "No. 88, Jalan Pudu, 55100 Kuala Lumpur, Malaysia",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 160000,
+        "equity_percentage": 20,
+        "remark": "SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Tan Li Wen",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "981203140522",
+        "position": "SO",
+        "addr": "Unit 7, Menara TH, Jalan Sultan Ismail, 50250 Kuala Lumpur, Malaysia",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 80000,
+        "equity_percentage": 10,
+        "remark": "SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "ApexStar Holdings Sdn. Bhd.",
+        "alias": null,
+        "ic_lcno": "7321984G",
+        "nic_brno": null,
+        "position": "SO",
+        "addr": "No. 5, Jalan Tun Sambanthan, 50470 Kuala Lumpur, Malaysia",
+        "appoint": null,
+        "resign_date": null,
+        "equity": 400000,
+        "equity_percentage": 50,
+        "remark": null,
+        "party_type": "C"
+      }
+    ]
+  },
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": null,
+      "total_outstanding": null
+    }
+  },
+  "financials_json": [
+    {
+      "reporting_year": 2024,
+      "dates": {
+        "pldd": "30-06-2024",
+        "bsdd": "2024-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2023,
+      "dates": {
+        "pldd": "30-06-2023",
+        "bsdd": "2023-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2022,
+      "dates": {
+        "pldd": "30-06-2022",
+        "bsdd": "2022-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2021,
+      "dates": {
+        "pldd": "30-06-2021",
+        "bsdd": "2021-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": null,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    }
+  ]
+}
 CTOS harness: case start, kind: company name: ApexStar Holdings Sdn. Bhd. regOrNic: 202001223344
 CTOS harness: report XML length: 27704
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 0
-CTOS harness: financials rows: 4
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 0,
+    "fico_factors": [
+      "Score fail to generate because the gross revenue is more than 50 million."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": null,
+  "company_json": {
+    "ptype": "C",
+    "pcode": "24",
+    "name": "ApexStar Holdings Sdn. Bhd.",
+    "brn_ssm": "7321984G",
+    "ic_lcno": "202001223344",
+    "nic_brno": null,
+    "additional_registration_no": "7321984",
+    "status": "EXISTING",
+    "type_of_business": "Food and Beverage",
+    "comp_type": "PRIVATE LIMITED",
+    "comp_category": "LIMITED BY SHARES",
+    "address": {
+      "full": "No. 5, Jalan Tun Sambanthan, 50470 Kuala Lumpur, Malaysia",
+      "line1": null,
+      "line2": null,
+      "city": null,
+      "state": null,
+      "postcode": null
+    },
+    "msic_ssms": [
+      {
+        "code": "56101 ",
+        "priority": "1",
+        "description": "Restaurants and restaurant cum night clubs"
+      }
+    ],
+    "partners": [],
+    "directors": [
+      {
+        "name": "Muhammad Faiz Bin Rahim",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "920715140622",
+        "position": "SO",
+        "addr": "No. 88, Jalan Pudu, 55100 Kuala Lumpur, Malaysia",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 400000,
+        "equity_percentage": 50,
+        "remark": "SHAREHOLDER",
+        "party_type": "I"
+      },
+      {
+        "name": "Tan Yue Qi",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "981224140755",
+        "position": "SO",
+        "addr": "Unit 7, Menara TH, Jalan Sultan Ismail, 50250 Kuala Lumpur, Malaysia",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 400000,
+        "equity_percentage": 50,
+        "remark": "SHAREHOLDER",
+        "party_type": "I"
+      }
+    ]
+  },
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": 0,
+      "total_outstanding": 0
+    }
+  },
+  "financials_json": [
+    {
+      "reporting_year": 2024,
+      "dates": {
+        "pldd": "30-06-2024",
+        "bsdd": "2024-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2023,
+      "dates": {
+        "pldd": "30-06-2023",
+        "bsdd": "2023-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2022,
+      "dates": {
+        "pldd": "30-06-2022",
+        "bsdd": "2022-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2021,
+      "dates": {
+        "pldd": "30-06-2021",
+        "bsdd": "2021-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": null,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    }
+  ]
+}
 CTOS harness: case start, kind: company name: AeroNova Solutions Sdn. Bhd. regOrNic: 202501889900
 CTOS harness: report XML length: 22247
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 0
-CTOS harness: financials rows: 4
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 0,
+    "fico_factors": [
+      "Score fail to generate because the gross revenue is more than 50 million."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": null,
+  "company_json": {
+    "ptype": "C",
+    "pcode": "24",
+    "name": "AeroNova Solutions Sdn. Bhd.",
+    "brn_ssm": "8765432D",
+    "ic_lcno": "202501889900",
+    "nic_brno": null,
+    "additional_registration_no": "8765432",
+    "status": "EXISTING",
+    "type_of_business": "Food and Beverage",
+    "comp_type": "PRIVATE LIMITED",
+    "comp_category": "LIMITED BY SHARES",
+    "address": {
+      "full": "Unit 14, Menara UOA, Jalan Bangsar, 59100 Kuala Lumpur, Malaysia",
+      "line1": null,
+      "line2": null,
+      "city": null,
+      "state": null,
+      "postcode": null
+    },
+    "msic_ssms": [
+      {
+        "code": "56101 ",
+        "priority": "1",
+        "description": "Restaurants and restaurant cum night clubs"
+      }
+    ],
+    "partners": [],
+    "directors": [
+      {
+        "name": "Ahmad Danish Bin Kamarudin",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "910605140622",
+        "position": "DO",
+        "addr": "No. 88, Jalan Pudu, 55100 Kuala Lumpur, Malaysia",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 0,
+        "equity_percentage": 0,
+        "remark": "DIRECTOR",
+        "party_type": "I"
+      },
+      {
+        "name": "Lim Shu Wei",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "980329140755",
+        "position": "DO",
+        "addr": "No. 88, Jalan Pudu, 55100 Kuala Lumpur, Malaysia",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 0,
+        "equity_percentage": 0,
+        "remark": "DIRECTOR",
+        "party_type": "I"
+      },
+      {
+        "name": "Lim Zi Xuan",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "071104140927",
+        "position": "DO",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": "01-07-2018",
+        "resign_date": null,
+        "equity": 0,
+        "equity_percentage": 0,
+        "remark": "DIRECTOR",
+        "party_type": "I"
+      },
+      {
+        "name": "Zenith Edge Holdings Sdn. Bhd.",
+        "alias": null,
+        "ic_lcno": "8123456E",
+        "nic_brno": null,
+        "position": "SO",
+        "addr": "No. 33, Jalan Kuching, 51200 Kuala Lumpur, Malaysia",
+        "appoint": null,
+        "resign_date": null,
+        "equity": 800000,
+        "equity_percentage": 100,
+        "remark": null,
+        "party_type": "C"
+      }
+    ]
+  },
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": null,
+      "total_outstanding": null
+    }
+  },
+  "financials_json": [
+    {
+      "reporting_year": 2024,
+      "dates": {
+        "pldd": "30-06-2024",
+        "bsdd": "2024-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2023,
+      "dates": {
+        "pldd": "30-06-2023",
+        "bsdd": "2023-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2022,
+      "dates": {
+        "pldd": "30-06-2022",
+        "bsdd": "2022-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": 0,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    },
+    {
+      "reporting_year": 2021,
+      "dates": {
+        "pldd": "30-06-2021",
+        "bsdd": "2021-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 2109152381,
+        "bsclbank": 2056177549,
+        "totass": 4165329930,
+        "curlib": 1592807689,
+        "bsslltd": 817697089,
+        "bsclstd": 0,
+        "totlib": 2410504778,
+        "bsqpuc": 922887304,
+        "turnover": 1723857391,
+        "plnpbt": 216927247,
+        "plnpat": 137514515,
+        "plnetdiv": -35059118,
+        "plyear": 128538935,
+        "networth": 1754825152,
+        "turnover_growth": null,
+        "profit_margin": 12.6,
+        "return_on_equity": 8.6,
+        "currat": 1.32,
+        "workcap": 516344692
+      }
+    }
+  ]
+}
 CTOS harness: case start, kind: company name: THE FOURSQUARE GOSPEL CHURCH BHD. regOrNic: 198401018032
 CTOS harness: report XML length: 47035
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 271
-CTOS harness: financials rows: 1
-CTOS harness: legal cases: 1
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 271,
+    "fico_factors": [
+      "There is serious business delinquency on the accounts, business adverse record or collection filed on the credit report",
+      "Lack of recent business account information on the credit report",
+      "Serious delinquency or derogatory information on business accounts"
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": null,
+  "company_json": {
+    "ptype": "C",
+    "pcode": "24",
+    "name": "THE FOURSQUARE GOSPEL CHURCH BHD.",
+    "brn_ssm": "130586H",
+    "ic_lcno": "198401018032",
+    "nic_brno": null,
+    "additional_registration_no": "0130586",
+    "status": "EXISTING",
+    "type_of_business": "TO PROVIDE, CONDUCT AND ASSIST IN ESTABLISHING AND MAINTAINING CHURCHES.",
+    "comp_type": "PRIVATE LIMITED",
+    "comp_category": "LIMITED BY GUARANTEE",
+    "address": {
+      "full": "NO.16A, JALAN MEDAN,BENDAHARA SATU,31650 IPOH,PERAK",
+      "line1": "NO.16A, JALAN MEDAN",
+      "line2": "BENDAHARA SATU",
+      "city": "IPOH",
+      "state": "PERAK",
+      "postcode": "31650"
+    },
+    "msic_ssms": [
+      {
+        "code": "84129",
+        "priority": "1",
+        "description": "Other community and social affairs services"
+      }
+    ],
+    "partners": [],
+    "directors": [
+      {
+        "name": "HARI KRISHNAN A/L GOVINDANAIR",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "630615075495",
+        "position": "DO",
+        "addr": "11, JALAN 16, BROWN GARDEN, GELUGOR, PENANG, 11700 GELUGOR, PULAU PINANG",
+        "appoint": "01-12-2001",
+        "resign_date": null,
+        "equity": 0,
+        "equity_percentage": 0,
+        "remark": null,
+        "party_type": "I"
+      },
+      {
+        "name": "GRACE GOH AH FAH",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "590702086308",
+        "position": "DO",
+        "addr": "NO. 15, JALAN BATIK DUA, TAMAN SINFAR, MALAYSIA, 31650 IPOH, PERAK",
+        "appoint": "13-03-2012",
+        "resign_date": null,
+        "equity": 0,
+        "equity_percentage": 0,
+        "remark": null,
+        "party_type": "I"
+      },
+      {
+        "name": "KANG TIN YONG",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "S0084381D",
+        "position": "DO",
+        "addr": "NO 68, JALAN BRP 7/1B, BUKIT RAHMAN PUTRA, 47000 SUNGAI BULOH, SELANGOR",
+        "appoint": "18-03-2015",
+        "resign_date": null,
+        "equity": 0,
+        "equity_percentage": 0,
+        "remark": null,
+        "party_type": "I"
+      },
+      {
+        "name": "NAGULAN A/L SUBRAMANIAM",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "740729085461",
+        "position": "DO",
+        "addr": "NO.67, PERSIARAN RISHAH 5, TAMAN RISHAH, 30100 IPOH, PERAK",
+        "appoint": "18-03-2015",
+        "resign_date": null,
+        "equity": 0,
+        "equity_percentage": 0,
+        "remark": null,
+        "party_type": "I"
+      },
+      {
+        "name": "YEE NGAN FOONG",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "810201145359",
+        "position": "DO",
+        "addr": "12A, JALAN PH 1/5, PUCHONG HARTAMAS, 47100 PUCHONG, SELANGOR",
+        "appoint": "20-03-2018",
+        "resign_date": null,
+        "equity": 0,
+        "equity_percentage": 0,
+        "remark": null,
+        "party_type": "I"
+      },
+      {
+        "name": "JOEL LIEW FUI KANG",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "801105145901",
+        "position": "DO",
+        "addr": "31, JALAN PJU 10/16D, SUTERA DAMANSARA, DAMANSARA DAMAI, 47830 PETALING JAYA, SELANGOR",
+        "appoint": "20-03-2018",
+        "resign_date": null,
+        "equity": 0,
+        "equity_percentage": 0,
+        "remark": null,
+        "party_type": "I"
+      },
+      {
+        "name": "LIEW ZOO YEE",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "530206105835",
+        "position": "DO",
+        "addr": "89, LEBOH PERAJURIT 1, TAMAN KEMUNCAK, 31400 IPOH, PERAK",
+        "appoint": "20-03-2018",
+        "resign_date": null,
+        "equity": 0,
+        "equity_percentage": 0,
+        "remark": null,
+        "party_type": "I"
+      },
+      {
+        "name": "DIRECTOR SHAREHOLDER OTHER OFFICER",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "810201145390",
+        "position": "DS",
+        "addr": "12A, JALAN PH 1/5, PUCHONG HARTAMAS, 47100 PUCHONG, SELANGOR",
+        "appoint": "20-03-2018",
+        "resign_date": null,
+        "equity": 1000,
+        "equity_percentage": 100,
+        "remark": null,
+        "party_type": "I"
+      }
+    ]
+  },
+  "legal_json": {
+    "cases": [
+      {
+        "source_section": "d2",
+        "case_type": "C2",
+        "title": "SUBJECT AS PLAINTIFF",
+        "special_remark": "CIVIL SUIT - PARTY NAMED IN SUIT",
+        "name": "THE FOURSQUARE GOSPEL CHURCH BHD.",
+        "addr": null,
+        "case_no": "198401018032-D201",
+        "court_detail": "MAGISTRATE KUALA LUMPUR",
+        "hear_date": "05-10-2025",
+        "amount": 18000,
+        "remark1": "INC0305838-CR",
+        "lawyer": null,
+        "settlement": null,
+        "latest_status": null,
+        "subject_cmt": null,
+        "cra_cmt": null,
+        "status": "",
+        "action": {
+          "date": "15-10-2025",
+          "source_detail": "THE SUN 29-10-2025"
+        },
+        "cedcon": {
+          "name": "BANK KERJASAMA RAKYAT MALAYSIA BHD",
+          "add1": "JOHOR BAHRU BRANCH",
+          "add2": "PODIUM 2,UNIT 2B,MENARA ANSAR,",
+          "add3": "65,JLN TRUS,P O BOX 112,",
+          "add4": "80000 JOHOR BAHRU",
+          "tel": "07-2239169/2239170",
+          "ref": null
+        },
+        "other_defendants": [
+          {
+            "name": "CIMB BANK",
+            "ic_lcno": "099999",
+            "nic_brno": "198301005595"
+          }
+        ],
+        "dates": {
+          "action_date": "15-10-2025",
+          "notice_date": null,
+          "petition_date": null,
+          "order_date": null
+        }
+      }
+    ]
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": 1000000,
+      "total_outstanding": 0
+    }
+  },
+  "financials_json": [
+    {
+      "reporting_year": 2018,
+      "dates": {
+        "pldd": "31-12-2018",
+        "bsdd": "2018-12-31"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 253218,
+        "bsclbank": 248135,
+        "totass": 501353,
+        "curlib": 117631,
+        "bsslltd": 0,
+        "bsclstd": 0,
+        "totlib": 117631,
+        "bsqpuc": 0,
+        "turnover": 0,
+        "plnpbt": 0,
+        "plnpat": 0,
+        "plnetdiv": 0,
+        "plyear": 0,
+        "networth": 383722,
+        "turnover_growth": null,
+        "profit_margin": 0,
+        "return_on_equity": 0,
+        "currat": 2.15,
+        "workcap": 135587
+      }
+    }
+  ]
+}
 CTOS harness: case start, kind: company name: INTRALIGHT SDN BHD regOrNic: 201301000165
 CTOS harness: report XML length: 12467
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 0
-CTOS harness: financials rows: 0
-CTOS harness: legal cases: 2
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 0,
+    "fico_factors": [
+      "Score fail to generate because sme is under liquidation."
+    ],
+    "bankruptcy": true,
+    "legal": {
+      "total_cases": 1,
+      "total_amount": 18000
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": null,
+  "company_json": {
+    "ptype": "C",
+    "pcode": "24",
+    "name": "INTRALIGHT SDN BHD",
+    "brn_ssm": null,
+    "ic_lcno": "201301000165",
+    "nic_brno": null,
+    "additional_registration_no": "1030002",
+    "status": "EXISTING",
+    "type_of_business": null,
+    "comp_type": null,
+    "comp_category": null,
+    "address": {
+      "full": null,
+      "line1": null,
+      "line2": null,
+      "city": null,
+      "state": null,
+      "postcode": null
+    },
+    "msic_ssms": [],
+    "partners": [],
+    "directors": []
+  },
+  "legal_json": {
+    "cases": [
+      {
+        "source_section": "d",
+        "case_type": "C1",
+        "title": "COMPANIES WINDING-UP - ORDER ISSUED",
+        "special_remark": null,
+        "name": "2 REX SDN BHD",
+        "addr": null,
+        "case_no": "1030002R-D101",
+        "court_detail": "HIGH COURT KUALA LUMPUR",
+        "hear_date": "13-05-2016",
+        "amount": 800000,
+        "remark1": null,
+        "lawyer": null,
+        "settlement": null,
+        "latest_status": null,
+        "subject_cmt": null,
+        "cra_cmt": null,
+        "status": "1",
+        "action": {
+          "date": null,
+          "source_detail": null
+        },
+        "cedcon": null,
+        "other_defendants": [],
+        "dates": {
+          "action_date": null,
+          "notice_date": null,
+          "petition_date": "13-04-2016",
+          "order_date": "13-17-2016"
+        }
+      },
+      {
+        "source_section": "d",
+        "case_type": "C2",
+        "title": "SUMMONS - DIRECTED TO",
+        "special_remark": "CASE ONGOING",
+        "name": "2 REX SDN BHD",
+        "addr": null,
+        "case_no": "1030002R-D101",
+        "court_detail": "MAGISTRATE KUALA LUMPUR",
+        "hear_date": "05-11-2020",
+        "amount": 18000,
+        "remark1": null,
+        "lawyer": null,
+        "settlement": null,
+        "latest_status": null,
+        "subject_cmt": null,
+        "cra_cmt": null,
+        "status": "1",
+        "action": {
+          "date": "15-10-2020",
+          "source_detail": "THE SUN 29-10-2018"
+        },
+        "cedcon": {
+          "name": "BANK KERJASAMA RAKYAT MALAYSIA BHD",
+          "add1": "JOHOR BAHRU BRANCH",
+          "add2": "PODIUM 2,UNIT 2B,MENARA ANSAR,",
+          "add3": "65,JLN TRUS,P O BOX 112,",
+          "add4": "80000 JOHOR BAHRU",
+          "tel": "07-2239169/2239170",
+          "ref": null
+        },
+        "other_defendants": [],
+        "dates": {
+          "action_date": "15-10-2020",
+          "notice_date": null,
+          "petition_date": null,
+          "order_date": null
+        }
+      }
+    ]
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": null,
+      "total_outstanding": null
+    }
+  },
+  "financials_json": []
+}
 CTOS harness: case start, kind: company name: SIEW HUI CONSTRUCTION BERHAD regOrNic: 198401005456
 CTOS harness: report XML length: 22558
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 0
-CTOS harness: financials rows: 1
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 0,
+    "fico_factors": [
+      "Score fail to generate because the gross revenue is more than 50 million."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 1,
+      "approved": 0,
+      "pending": 1,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": null,
+  "company_json": {
+    "ptype": "C",
+    "pcode": "24",
+    "name": "SIEW HUI CONSTRUCTION BERHAD",
+    "brn_ssm": "118456K",
+    "ic_lcno": "198401005456",
+    "nic_brno": null,
+    "additional_registration_no": "0118456",
+    "status": "EXISTING",
+    "type_of_business": "PROPERTY DEVELOPMENT, INVESTMENT HOLDING AND TO CARRY ON THE BUSINESS OF BUILDING CONTRACTORS, BUILDERS, CIVIL ENGINEERS,\n                  REINFORCE CONCRETE SPECIALISTS, AND TO CONSTRUCT, EXECUTE, CARRY OUT, EQUIP, IMPROVE, WORK, DEVELOP, ADMINISTER, MANAGE OR\n                  CONTROL PUBLIC WORKS AND ALL OTHER WORKS OF CONVENIENCES OF PUBLIC UTILITY.",
+    "comp_type": "PRIVATE LIMITED",
+    "comp_category": "LIMITED BY SHARES",
+    "address": {
+      "full": "LOT 13-01A,LEVEL 13 (EAST WING),BERJAYA TIMES SQUARE,NO.1 JALAN IMBI,55100 KUALA LUMPUR,WILAYAH PERSEKUTUAN",
+      "line1": "LOT 13-01A,LEVEL 13 (EAST WING)",
+      "line2": "BERJAYA TIMES SQUARE",
+      "city": "KUALA LUMPUR",
+      "state": "WILAYAH PERSEKUTUAN",
+      "postcode": "55100"
+    },
+    "msic_ssms": [
+      {
+        "code": "40799",
+        "priority": "1",
+        "description": null
+      }
+    ],
+    "partners": [],
+    "directors": [
+      {
+        "name": "SYED ALI SHAHUL HAMEED",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "710410755059",
+        "position": "DO",
+        "addr": "46 JALAN PERMATA 1, TAMAN PERMATA, MALAYSIA, 53300 KUALA LUMPUR, WILAYAH PERSEKUTUAN",
+        "appoint": "13-08-2019",
+        "resign_date": null,
+        "equity": 0,
+        "equity_percentage": 0,
+        "remark": null,
+        "party_type": "I"
+      },
+      {
+        "name": "DATUK WIRA FARHASH WAFA SALVADOR J P",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "820705086435",
+        "position": "DS",
+        "addr": "43, JALAN DAMAI RASA 18, ALAM DAMAI, CHERAS MALAYSIA, 56000 KUALA LUMPUR, WILAYAH PERSEKUTUAN",
+        "appoint": "29-12-2022",
+        "resign_date": null,
+        "equity": 5690000,
+        "equity_percentage": 10,
+        "remark": null,
+        "party_type": "I"
+      },
+      {
+        "name": "BERJAYA LAND BHD",
+        "alias": null,
+        "ic_lcno": "201765A",
+        "nic_brno": null,
+        "position": "SO",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": null,
+        "resign_date": null,
+        "equity": 51210000,
+        "equity_percentage": 90,
+        "remark": null,
+        "party_type": "C"
+      }
+    ]
+  },
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": 0,
+      "total_outstanding": 0
+    }
+  },
+  "financials_json": [
+    {
+      "reporting_year": 2023,
+      "dates": {
+        "pldd": "30-06-2023",
+        "bsdd": "2023-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 70547632,
+        "bsclbank": 131002872,
+        "totass": 201550504,
+        "curlib": 110586404,
+        "bsslltd": 16933629,
+        "bsclstd": 0,
+        "totlib": 127520033,
+        "bsqpuc": 56900000,
+        "turnover": 143931838,
+        "plnpbt": 8166510,
+        "plnpat": 4691693,
+        "plnetdiv": 0,
+        "plyear": 4595722,
+        "networth": 74030471,
+        "turnover_growth": null,
+        "profit_margin": 5.7,
+        "return_on_equity": 6.6,
+        "currat": 0.64,
+        "workcap": -40038772
+      }
+    }
+  ]
+}
 CTOS harness: case start, kind: company name: LUFFY'S CONSTRUCTION BERHAD regOrNic: 198401005123
 CTOS harness: report XML length: 18382
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 0
-CTOS harness: financials rows: 1
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 0,
+    "fico_factors": [
+      "Score fail to generate because the gross revenue is more than 50 million."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": null,
+  "company_json": {
+    "ptype": "C",
+    "pcode": "24",
+    "name": "LUFFY'S CONSTRUCTION BERHAD",
+    "brn_ssm": "118123K",
+    "ic_lcno": "198401005123",
+    "nic_brno": null,
+    "additional_registration_no": "0118123",
+    "status": "EXISTING",
+    "type_of_business": "PROPERTY DEVELOPMENT, INVESTMENT HOLDING AND TO CARRY ON THE BUSINESS OF BUILDING CONTRACTORS, BUILDERS, CIVIL ENGINEERS,\n                  REINFORCE CONCRETE SPECIALISTS, AND TO CONSTRUCT, EXECUTE, CARRY OUT, EQUIP, IMPROVE, WORK, DEVELOP, ADMINISTER, MANAGE OR\n                  CONTROL PUBLIC WORKS AND ALL OTHER WORKS OF CONVENIENCES OF PUBLIC UTILITY.",
+    "comp_type": "PRIVATE LIMITED",
+    "comp_category": "LIMITED BY SHARES",
+    "address": {
+      "full": "LOT 13-01A,LEVEL 13 (EAST WING),BERJAYA TIMES SQUARE,NO.1 JALAN IMBI,55100 KUALA LUMPUR,WILAYAH PERSEKUTUAN",
+      "line1": "LOT 13-01A,LEVEL 13 (EAST WING)",
+      "line2": "BERJAYA TIMES SQUARE",
+      "city": "KUALA LUMPUR",
+      "state": "WILAYAH PERSEKUTUAN",
+      "postcode": "55100"
+    },
+    "msic_ssms": [
+      {
+        "code": "42209",
+        "priority": "1",
+        "description": "Construction of utility projects n.e.c."
+      },
+      {
+        "code": "42909",
+        "priority": "2",
+        "description": "Construction of other engineering projects n.e.c."
+      },
+      {
+        "code": "64200",
+        "priority": "3",
+        "description": "Activities of holding companies"
+      }
+    ],
+    "partners": [],
+    "directors": [
+      {
+        "name": "KAMARUL ZAKI BIN KAMARULL AZMAN",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "760228135625",
+        "position": "DO",
+        "addr": "26 JALAN BUKIT INDAH 1/9, TAMAN BUKIT INDAH, MALAYSIA, 68000 AMPANG, SELANGOR",
+        "appoint": "13-08-2019",
+        "resign_date": null,
+        "equity": 0,
+        "equity_percentage": 0,
+        "remark": null,
+        "party_type": "I"
+      },
+      {
+        "name": "SYED ALI SHAHUL HAMEED",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "710410755059",
+        "position": "DO",
+        "addr": "46 JALAN PERMATA 1, TAMAN PERMATA, MALAYSIA, 53300 KUALA LUMPUR, WILAYAH PERSEKUTUAN",
+        "appoint": "13-08-2019",
+        "resign_date": null,
+        "equity": 0,
+        "equity_percentage": 0,
+        "remark": null,
+        "party_type": "I"
+      },
+      {
+        "name": "DATUK WIRA FARHASH WAFA SALVADOR J P",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "820705086435",
+        "position": "DS",
+        "addr": "43, JALAN DAMAI RASA 18, ALAM DAMAI, CHERAS MALAYSIA, 56000 KUALA LUMPUR, WILAYAH PERSEKUTUAN",
+        "appoint": "29-12-2022",
+        "resign_date": null,
+        "equity": 5690000,
+        "equity_percentage": 99.82,
+        "remark": null,
+        "party_type": "I"
+      },
+      {
+        "name": "BERJAYA LAND BHD",
+        "alias": null,
+        "ic_lcno": "201765A",
+        "nic_brno": null,
+        "position": "SO",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": null,
+        "resign_date": null,
+        "equity": 10000,
+        "equity_percentage": 0.18,
+        "remark": null,
+        "party_type": "C"
+      }
+    ]
+  },
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": null,
+      "total_outstanding": null
+    }
+  },
+  "financials_json": [
+    {
+      "reporting_year": 2023,
+      "dates": {
+        "pldd": "30-06-2023",
+        "bsdd": "2023-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 70547632,
+        "bsclbank": 131002872,
+        "totass": 201550504,
+        "curlib": 110586404,
+        "bsslltd": 16933629,
+        "bsclstd": 0,
+        "totlib": 127520033,
+        "bsqpuc": 56900000,
+        "turnover": 143931838,
+        "plnpbt": 8166510,
+        "plnpat": 4691693,
+        "plnetdiv": 0,
+        "plyear": 4595722,
+        "networth": 74030471,
+        "turnover_growth": null,
+        "profit_margin": 5.7,
+        "return_on_equity": 6.6,
+        "currat": 0.64,
+        "workcap": -40038772
+      }
+    }
+  ]
+}
 CTOS harness: case start, kind: company name: ZORO'S CONSTRUCTION BERHAD regOrNic: 198401005124
-CTOS harness: report XML length: 18091
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 0
-CTOS harness: financials rows: 1
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: report XML length: 18089
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 0,
+    "fico_factors": [
+      "Score fail to generate because the gross revenue is more than 50 million."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": null,
+  "company_json": {
+    "ptype": "C",
+    "pcode": "24",
+    "name": "ZORO'S CONSTRUCTION BERHAD",
+    "brn_ssm": "118124K",
+    "ic_lcno": "198401005124",
+    "nic_brno": null,
+    "additional_registration_no": "0118124",
+    "status": "EXISTING",
+    "type_of_business": "PROPERTY DEVELOPMENT, INVESTMENT HOLDING AND TO CARRY ON THE BUSINESS OF BUILDING CONTRACTORS, BUILDERS, CIVIL ENGINEERS,\n                  REINFORCE CONCRETE SPECIALISTS, AND TO CONSTRUCT, EXECUTE, CARRY OUT, EQUIP, IMPROVE, WORK, DEVELOP, ADMINISTER, MANAGE OR\n                  CONTROL PUBLIC WORKS AND ALL OTHER WORKS OF CONVENIENCES OF PUBLIC UTILITY.",
+    "comp_type": "PRIVATE LIMITED",
+    "comp_category": "LIMITED BY SHARES",
+    "address": {
+      "full": "LOT 13-01A,LEVEL 13 (EAST WING),BERJAYA TIMES SQUARE,NO.1 JALAN IMBI,55100 KUALA LUMPUR,WILAYAH PERSEKUTUAN",
+      "line1": "LOT 13-01A,LEVEL 13 (EAST WING)",
+      "line2": "BERJAYA TIMES SQUARE",
+      "city": "KUALA LUMPUR",
+      "state": "WILAYAH PERSEKUTUAN",
+      "postcode": "55100"
+    },
+    "msic_ssms": [
+      {
+        "code": "42209",
+        "priority": "1",
+        "description": "Construction of utility projects n.e.c."
+      },
+      {
+        "code": "42909",
+        "priority": "2",
+        "description": "Construction of other engineering projects n.e.c."
+      },
+      {
+        "code": "64200",
+        "priority": "3",
+        "description": "Activities of holding companies"
+      }
+    ],
+    "partners": [],
+    "directors": [
+      {
+        "name": "KAMARUL ZAKI BIN KAMARULL AZMAN",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "760228135625",
+        "position": "DO",
+        "addr": "26 JALAN BUKIT INDAH 1/9, TAMAN BUKIT INDAH, MALAYSIA, 68000 AMPANG, SELANGOR",
+        "appoint": "13-08-2019",
+        "resign_date": null,
+        "equity": 0,
+        "equity_percentage": 0,
+        "remark": null,
+        "party_type": "I"
+      },
+      {
+        "name": "SYED ALI SHAHUL HAMEED",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "710410755059",
+        "position": "DO",
+        "addr": "46 JALAN PERMATA 1, TAMAN PERMATA, MALAYSIA, 53300 KUALA LUMPUR, WILAYAH PERSEKUTUAN",
+        "appoint": "13-08-2019",
+        "resign_date": null,
+        "equity": 0,
+        "equity_percentage": 0,
+        "remark": null,
+        "party_type": "I"
+      },
+      {
+        "name": "DATUK WIRA FARHASH WAFA SALVADOR J P",
+        "alias": null,
+        "ic_lcno": null,
+        "nic_brno": "820705086435",
+        "position": "DS",
+        "addr": "43, JALAN DAMAI RASA 18, ALAM DAMAI, CHERAS MALAYSIA, 56000 KUALA LUMPUR, WILAYAH PERSEKUTUAN",
+        "appoint": "29-12-2022",
+        "resign_date": null,
+        "equity": 5690000,
+        "equity_percentage": 99.82,
+        "remark": null,
+        "party_type": "I"
+      },
+      {
+        "name": "BERJAYA LAND BHD",
+        "alias": null,
+        "ic_lcno": "201765A",
+        "nic_brno": null,
+        "position": "SO",
+        "addr": "LOT 33 JALAN SATU TAMAN MERAK KAYANGAN 30508 IPOH PERAK",
+        "appoint": null,
+        "resign_date": null,
+        "equity": 10000,
+        "equity_percentage": 0.18,
+        "remark": null,
+        "party_type": "C"
+      }
+    ]
+  },
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": null,
+      "total_outstanding": null
+    }
+  },
+  "financials_json": [
+    {
+      "reporting_year": 2023,
+      "dates": {
+        "pldd": "30-06-2023",
+        "bsdd": "2023-06-30"
+      },
+      "account": {
+        "bsfatot": 0,
+        "othass": 0,
+        "bscatot": 70547632,
+        "bsclbank": 131002872,
+        "totass": 201550504,
+        "curlib": 110586404,
+        "bsslltd": 16933629,
+        "bsclstd": 0,
+        "totlib": 127520033,
+        "bsqpuc": 56900000,
+        "turnover": 143931838,
+        "plnpbt": 8166510,
+        "plnpat": 4691693,
+        "plnetdiv": 0,
+        "plyear": 4595722,
+        "networth": 74030471,
+        "turnover_growth": null,
+        "profit_margin": 5.7,
+        "return_on_equity": 6.6,
+        "currat": 0.64,
+        "workcap": -40038772
+      }
+    }
+  ]
+}
 CTOS harness: case start, kind: company name: ELEGANT RAY RAY (M) SDN. BHD. regOrNic: 199001010123
 CTOS harness: report XML length: 8490
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 0
-CTOS harness: financials rows: 0
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 0,
+    "fico_factors": [
+      "Not sufficient credit bureau data and financial data."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": null,
+  "company_json": {
+    "ptype": "C",
+    "pcode": "24",
+    "name": "INNOMOTOR CAR RENTAL & TOURS SDN BHD",
+    "brn_ssm": null,
+    "ic_lcno": "199001010123",
+    "nic_brno": null,
+    "additional_registration_no": "0201695",
+    "status": "EXISTING",
+    "type_of_business": null,
+    "comp_type": null,
+    "comp_category": null,
+    "address": {
+      "full": null,
+      "line1": null,
+      "line2": null,
+      "city": null,
+      "state": null,
+      "postcode": null
+    },
+    "msic_ssms": [],
+    "partners": [],
+    "directors": []
+  },
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": null,
+      "total_outstanding": null
+    }
+  },
+  "financials_json": []
+}
 CTOS harness: case start, kind: business name: BLANC ENTERPRISE regOrNic: 190003594012
 CTOS harness: report XML length: 47115
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: null
-CTOS harness: financials rows: 0
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": null,
+    "fico_factors": [],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": null,
+  "company_json": {
+    "ptype": "B",
+    "pcode": "21",
+    "name": "BLANC ENTERPRISE",
+    "brn_ssm": null,
+    "ic_lcno": null,
+    "nic_brno": null,
+    "additional_registration_no": "PG0231965D",
+    "status": "ACTIVE",
+    "type_of_business": null,
+    "comp_type": null,
+    "comp_category": null,
+    "address": {
+      "full": "G-L-10B, PUSAT KOMERSIAL SUNWAY MARKETPLACE,PERSIARAN MEDINI 6, SUNWAY ISKANDAR,BANDAR MEDINI ISKANDAR,79250 ISKANDAR PUTERI,JOHOR",
+      "line1": "G-L-10B, PUSAT KOMERSIAL SUNWAY MARKETPLACE,",
+      "line2": "PERSIARAN MEDINI 6, SUNWAY ISKANDAR,",
+      "city": "ISKANDAR PUTERI",
+      "state": "JOHOR",
+      "postcode": "79250"
+    },
+    "msic_ssms": [
+      {
+        "code": "47737",
+        "priority": "1",
+        "description": null
+      }
+    ],
+    "partners": [
+      {
+        "name": "MOHD FAIZAL",
+        "ic_lcno": null,
+        "nic_brno": null,
+        "addr": null
+      }
+    ],
+    "directors": []
+  },
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": 200000,
+      "total_outstanding": 455
+    }
+  },
+  "financials_json": []
+}
 CTOS harness: case start, kind: business name: DAHLIA RIZAL ENTERPRISE regOrNic: 190203155179
 CTOS harness: report XML length: 47459
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: null
-CTOS harness: financials rows: 0
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": null,
+    "fico_factors": [],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": null,
+  "company_json": {
+    "ptype": "B",
+    "pcode": "21",
+    "name": "DAHLIA RIZAL ENTERPRISE",
+    "brn_ssm": null,
+    "ic_lcno": null,
+    "nic_brno": null,
+    "additional_registration_no": "IP0356823W",
+    "status": "ACTIVE",
+    "type_of_business": null,
+    "comp_type": null,
+    "comp_category": null,
+    "address": {
+      "full": "241 KAMPUNG TENGAH,09200 BALING,KEDAH",
+      "line1": "241 KAMPUNG TENGAH",
+      "line2": null,
+      "city": "BALING",
+      "state": "KEDAH",
+      "postcode": "09200"
+    },
+    "msic_ssms": [
+      {
+        "code": "28260",
+        "priority": "1",
+        "description": "MANUFACTURE OF MACHINERY FOR TEXTILE, APPAREL AND LEATHER PRODUCTION"
+      },
+      {
+        "code": "46417",
+        "priority": "1",
+        "description": "WHOLESALE OF HABERDASHERY"
+      }
+    ],
+    "partners": [
+      {
+        "name": "GOH WEI MING",
+        "ic_lcno": null,
+        "nic_brno": null,
+        "addr": null
+      }
+    ],
+    "directors": []
+  },
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": 200000,
+      "total_outstanding": 23432
+    }
+  },
+  "financials_json": []
+}
 CTOS harness: case start, kind: business name: ALPHA MAJU ENTERPRISE regOrNic: 190403983543
 CTOS harness: report XML length: 34462
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: null
-CTOS harness: financials rows: 0
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": null,
+    "fico_factors": [],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": null,
+  "company_json": {
+    "ptype": "B",
+    "pcode": "21",
+    "name": "ALPHA MAJU ENTERPRISE",
+    "brn_ssm": null,
+    "ic_lcno": null,
+    "nic_brno": null,
+    "additional_registration_no": "OC1100001L",
+    "status": "ACTIVE",
+    "type_of_business": null,
+    "comp_type": null,
+    "comp_category": null,
+    "address": {
+      "full": "26, JALAN 9/6,TAMAN AIR MANIS,45200 SABAK BERNAM,SELANGOR",
+      "line1": "26, JALAN 9/6",
+      "line2": "TAMAN AIR MANIS",
+      "city": "SABAK BERNAM",
+      "state": "SELANGOR",
+      "postcode": "45200"
+    },
+    "msic_ssms": [
+      {
+        "code": "01262",
+        "priority": "1",
+        "description": "GROWING OF OIL PALM (SMALLHOLDINGS)"
+      }
+    ],
+    "partners": [
+      {
+        "name": "HASRUL AZMI",
+        "ic_lcno": null,
+        "nic_brno": null,
+        "addr": null
+      }
+    ],
+    "directors": []
+  },
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": null,
+      "total_outstanding": null
+    }
+  },
+  "financials_json": []
+}
 CTOS harness: case start, kind: business name: JAMES BOND ENTERPRISE regOrNic: 192403950452
 CTOS harness: report XML length: 56584
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: null
-CTOS harness: financials rows: 0
-CTOS harness: legal cases: 2
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": null,
+    "fico_factors": [],
+    "bankruptcy": true,
+    "legal": {
+      "total_cases": 1,
+      "total_amount": 18000
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": null,
+  "company_json": {
+    "ptype": "B",
+    "pcode": "21",
+    "name": "JAMES BOND ENTERPRISE",
+    "brn_ssm": null,
+    "ic_lcno": null,
+    "nic_brno": null,
+    "additional_registration_no": "RA0033536V",
+    "status": "ACTIVE",
+    "type_of_business": null,
+    "comp_type": null,
+    "comp_category": null,
+    "address": {
+      "full": "47, LEBUH FAIRUZ 1, TAMAN PERUSAHAAN RINGAN BAKAR ARANG,08000 SUNGAI PETANI,KEDAH",
+      "line1": "47, LEBUH FAIRUZ 1, TAMAN PERUSAHAAN RINGAN BAKAR ARANG",
+      "line2": null,
+      "city": "SUNGAI PETANI",
+      "state": "KEDAH",
+      "postcode": "08000"
+    },
+    "msic_ssms": [
+      {
+        "code": "46596",
+        "priority": "1",
+        "description": "WHOLESALE OF LIFT ESCALATORS, AIR-CONDITIONING, SECURITY AND FIRE FIGHTING EQUIPMENT"
+      }
+    ],
+    "partners": [
+      {
+        "name": "AIMAN HAKIM",
+        "ic_lcno": null,
+        "nic_brno": null,
+        "addr": null
+      },
+      {
+        "name": "KHOO ZHI RONG",
+        "ic_lcno": null,
+        "nic_brno": null,
+        "addr": null
+      }
+    ],
+    "directors": []
+  },
+  "legal_json": {
+    "cases": [
+      {
+        "source_section": "d",
+        "case_type": "I1",
+        "title": "BANKRUPTCY - NOTICE ISSUED",
+        "special_remark": "BANKRUPTCY NOTICE ISSUED",
+        "name": "JAMES BOND ENTERPRISE",
+        "addr": null,
+        "case_no": "192403950452-D101",
+        "court_detail": "HIGH COURT KUALA LUMPUR",
+        "hear_date": "20-01-2001",
+        "amount": 80000,
+        "remark1": null,
+        "lawyer": null,
+        "settlement": null,
+        "latest_status": null,
+        "subject_cmt": null,
+        "cra_cmt": null,
+        "status": "1",
+        "action": {
+          "date": null,
+          "source_detail": null
+        },
+        "cedcon": {
+          "name": "ABDUL RAHMAN & PARTNERS",
+          "add1": "WISMA DATO ABDUL RAHMAN 1918,",
+          "add2": "5-01,JLN PERMAS 9/1,",
+          "add3": "BDR BARU PERMAS JAYA,",
+          "add4": "81750 JOHOR BAHRU",
+          "tel": "07-3885257/F:3885466",
+          "ref": null
+        },
+        "other_defendants": [],
+        "dates": {
+          "action_date": null,
+          "notice_date": "11-11-2026",
+          "petition_date": "15-12-2025",
+          "order_date": null
+        }
+      },
+      {
+        "source_section": "d",
+        "case_type": "I2",
+        "title": "SUMMONS - DIRECTED TO",
+        "special_remark": "CASE ONGOING",
+        "name": "JAMES BOND ENTERPRISE",
+        "addr": "NO 8 JALAN USJ 111/1A , 47620, SUBANG JAYA, SELANGOR",
+        "case_no": "192403950452-D201",
+        "court_detail": "MAGISTRATE &  KUALA LUMPUR",
+        "hear_date": "20-06-2001",
+        "amount": 18000,
+        "remark1": null,
+        "lawyer": null,
+        "settlement": null,
+        "latest_status": null,
+        "subject_cmt": null,
+        "cra_cmt": null,
+        "status": "1",
+        "action": {
+          "date": "01-05-2025",
+          "source_detail": null
+        },
+        "cedcon": null,
+        "other_defendants": [],
+        "dates": {
+          "action_date": "01-05-2025",
+          "notice_date": null,
+          "petition_date": null,
+          "order_date": null
+        }
+      }
+    ]
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": 300000,
+      "total_outstanding": 435
+    }
+  },
+  "financials_json": []
+}
 CTOS harness: case start, kind: business name: CASHMIRA ENTERPRISE regOrNic: 192803228303
 CTOS harness: report XML length: 35667
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: null
-CTOS harness: financials rows: 0
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": null,
+    "fico_factors": [],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": null,
+  "company_json": {
+    "ptype": "B",
+    "pcode": "21",
+    "name": "CASHMIRA ENTERPRISE",
+    "brn_ssm": null,
+    "ic_lcno": null,
+    "nic_brno": null,
+    "additional_registration_no": "111105547J",
+    "status": "ACTIVE",
+    "type_of_business": null,
+    "comp_type": null,
+    "comp_category": null,
+    "address": {
+      "full": "NO. 13G, JALAN PP 2/4, TAMAN PUTRA PRIMA,47100 PUCHONG,SELANGOR",
+      "line1": "NO. 13G, JALAN PP 2/4, TAMAN PUTRA PRIMA",
+      "line2": null,
+      "city": "PUCHONG",
+      "state": "SELANGOR",
+      "postcode": "47100"
+    },
+    "msic_ssms": [
+      {
+        "code": "27101",
+        "priority": "1",
+        "description": "MANUFACTURE OF ELECTRIC MOTORS, GENERATORS AND TRANSFORMERS"
+      },
+      {
+        "code": "29300",
+        "priority": "1",
+        "description": "MANUFACTURE OF PARTS AND ACCESSORIES FOR MOTOR VEHICLES"
+      },
+      {
+        "code": "45300",
+        "priority": "1",
+        "description": "WHOLESALE AND RETAIL SALE OF ALL KINDS OF PARTS, COMPONENTS, SUPPLIES, TOOLS AND ACCESSORIES FOR MOTOR VEHICLES"
+      }
+    ],
+    "partners": [
+      {
+        "name": "GOH XIN RUI",
+        "ic_lcno": null,
+        "nic_brno": null,
+        "addr": null
+      },
+      {
+        "name": "PRIYA NAIR",
+        "ic_lcno": null,
+        "nic_brno": null,
+        "addr": null
+      }
+    ],
+    "directors": []
+  },
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": null,
+      "total_outstanding": null
+    }
+  },
+  "financials_json": []
+}
 CTOS harness: case start, kind: business name: BATISTE ENTERPRISE regOrNic: 193003261657
 CTOS harness: report XML length: 35605
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: null
-CTOS harness: financials rows: 0
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": null,
+    "fico_factors": [],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": null,
+  "company_json": {
+    "ptype": "B",
+    "pcode": "21",
+    "name": "BATISTE ENTERPRISE",
+    "brn_ssm": null,
+    "ic_lcno": null,
+    "nic_brno": null,
+    "additional_registration_no": "000008855B",
+    "status": "ACTIVE",
+    "type_of_business": null,
+    "comp_type": null,
+    "comp_category": null,
+    "address": {
+      "full": "G-04, TINGKAT BAWAH, KLUANG PARADE, NO. 2, JALAN SENTOL,86000 KLUANG,JOHOR",
+      "line1": "G-04, TINGKAT BAWAH, KLUANG PARADE, NO. 2, JALAN SENTOL",
+      "line2": null,
+      "city": "KLUANG",
+      "state": "JOHOR",
+      "postcode": "86000"
+    },
+    "msic_ssms": [
+      {
+        "code": "26701",
+        "priority": "1",
+        "description": "MANUFACTURE OF OPTICAL INSTRUMENTS AND EQUIPMENT"
+      },
+      {
+        "code": "47737",
+        "priority": "1",
+        "description": null
+      }
+    ],
+    "partners": [
+      {
+        "name": "SITI NABILA",
+        "ic_lcno": null,
+        "nic_brno": null,
+        "addr": null
+      },
+      {
+        "name": "SNEHA NAIR",
+        "ic_lcno": null,
+        "nic_brno": null,
+        "addr": null
+      }
+    ],
+    "directors": []
+  },
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": null,
+      "total_outstanding": null
+    }
+  },
+  "financials_json": []
+}
 CTOS harness: case start, kind: business name: BINTANG MAJU SERVICES regOrNic: 190003274306
 CTOS harness: report XML length: 65067
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: null
-CTOS harness: financials rows: 0
-CTOS harness: legal cases: 2
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": null,
+    "fico_factors": [],
+    "bankruptcy": true,
+    "legal": {
+      "total_cases": 1,
+      "total_amount": 18000
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": null,
+  "company_json": {
+    "ptype": "B",
+    "pcode": "21",
+    "name": "BINTANG MAJU SERVICES",
+    "brn_ssm": null,
+    "ic_lcno": null,
+    "nic_brno": null,
+    "additional_registration_no": "PG0077633T",
+    "status": "ACTIVE",
+    "type_of_business": null,
+    "comp_type": null,
+    "comp_category": null,
+    "address": {
+      "full": "C26 (G74-75) UMALL, TAMAN PULAI UTAMA, JALAN PULAI 20,81300 SKUDAI,JOHOR",
+      "line1": "C26 (G74-75) UMALL, TAMAN PULAI UTAMA, JALAN PULAI 20",
+      "line2": null,
+      "city": "SKUDAI",
+      "state": "JOHOR",
+      "postcode": "81300"
+    },
+    "msic_ssms": [
+      {
+        "code": "07295",
+        "priority": "1",
+        "description": "MINING OF GOLD"
+      },
+      {
+        "code": "47733",
+        "priority": "1",
+        "description": "RETAIL SALE OF JEWELLERY"
+      }
+    ],
+    "partners": [
+      {
+        "name": "CHEW MEI QI",
+        "ic_lcno": null,
+        "nic_brno": null,
+        "addr": null
+      },
+      {
+        "name": "WONG JIA XIN",
+        "ic_lcno": null,
+        "nic_brno": null,
+        "addr": null
+      }
+    ],
+    "directors": []
+  },
+  "legal_json": {
+    "cases": [
+      {
+        "source_section": "d",
+        "case_type": "I1",
+        "title": "BANKRUPTCY - NOTICE ISSUED",
+        "special_remark": "BANKRUPTCY NOTICE ISSUED",
+        "name": "BINTANG MAJU SERVICES",
+        "addr": null,
+        "case_no": "190003274306-D101",
+        "court_detail": "HIGH COURT KUALA LUMPUR",
+        "hear_date": "20-01-2001",
+        "amount": 80000,
+        "remark1": null,
+        "lawyer": null,
+        "settlement": null,
+        "latest_status": null,
+        "subject_cmt": null,
+        "cra_cmt": null,
+        "status": "1",
+        "action": {
+          "date": null,
+          "source_detail": null
+        },
+        "cedcon": {
+          "name": "ABDUL RAHMAN & PARTNERS",
+          "add1": "WISMA DATO ABDUL RAHMAN 1918,",
+          "add2": "5-01,JLN PERMAS 9/1,",
+          "add3": "BDR BARU PERMAS JAYA,",
+          "add4": "81750 JOHOR BAHRU",
+          "tel": "07-3885257/F:3885466",
+          "ref": null
+        },
+        "other_defendants": [],
+        "dates": {
+          "action_date": null,
+          "notice_date": "11-11-2026",
+          "petition_date": "15-12-2025",
+          "order_date": null
+        }
+      },
+      {
+        "source_section": "d",
+        "case_type": "I2",
+        "title": "SUMMONS - DIRECTED TO",
+        "special_remark": "CASE ONGOING",
+        "name": "BINTANG MAJU SERVICES",
+        "addr": "NO 8 JALAN USJ 111/1A , 47620, SUBANG JAYA, SELANGOR",
+        "case_no": "190003274306-D201",
+        "court_detail": "MAGISTRATE &  KUALA LUMPUR",
+        "hear_date": "20-06-2001",
+        "amount": 18000,
+        "remark1": null,
+        "lawyer": null,
+        "settlement": null,
+        "latest_status": null,
+        "subject_cmt": null,
+        "cra_cmt": null,
+        "status": "1",
+        "action": {
+          "date": "01-05-2025",
+          "source_detail": null
+        },
+        "cedcon": null,
+        "other_defendants": [],
+        "dates": {
+          "action_date": "01-05-2025",
+          "notice_date": null,
+          "petition_date": null,
+          "order_date": null
+        }
+      }
+    ]
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": 400000,
+      "total_outstanding": 38037
+    }
+  },
+  "financials_json": []
+}
 CTOS harness: case start, kind: individual name: SITI NORHALIZA BINTI ABDUL RAHMAD regOrNic: 881108085746
 CTOS harness: report XML length: 32454
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 721
-CTOS harness: financials rows: 0
-CTOS harness: legal cases: 2
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 721,
+    "fico_factors": [
+      "There is serious delinquency on the accounts, adverse record or collection filed on the credit report.",
+      "Time since derogatory adverse record or collection on the credit report is too short relative to the other applicants scored.",
+      "Too few accounts on the credit report are currently paid as agreed."
+    ],
+    "bankruptcy": true,
+    "legal": {
+      "total_cases": 1,
+      "total_amount": 80000
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": {
+    "name": "SITI NORHALIZA BINTI ABDUL RAHMAD",
+    "nic_brno": "881108085746",
+    "ic_lcno": null,
+    "nationality": "MALAYSIAN",
+    "birth_date": "08-11-1988",
+    "addr": "NO. 11 PERSIARAN TENGKU, 43300, SERI KEMBANGAN, SELANGOR"
+  },
+  "company_json": null,
+  "legal_json": {
+    "cases": [
+      {
+        "source_section": "d",
+        "case_type": "I1",
+        "title": "BANKRUPTCY NOTICE ISSUED",
+        "special_remark": "BANKRUPTCY NOTICE ISSUED",
+        "name": "SITI NORHALIZA BINTI ABDUL RAHMAD",
+        "addr": null,
+        "case_no": "881108085746-D101",
+        "court_detail": "HIGH COURT SHAH ALAM",
+        "hear_date": "20-05-2022",
+        "amount": 455604,
+        "remark1": null,
+        "lawyer": null,
+        "settlement": null,
+        "latest_status": null,
+        "subject_cmt": null,
+        "cra_cmt": null,
+        "status": "1",
+        "action": {
+          "date": null,
+          "source_detail": null
+        },
+        "cedcon": null,
+        "other_defendants": [],
+        "dates": {
+          "action_date": null,
+          "notice_date": "01-05-2022",
+          "petition_date": "01-02-2022",
+          "order_date": "02-10-2022"
+        }
+      },
+      {
+        "source_section": "d",
+        "case_type": "I2",
+        "title": "SUMMONS - DIRECTED TO",
+        "special_remark": "CASE ONGOING",
+        "name": "SITI NORHALIZA BINTI ABDUL RAHMAD",
+        "addr": "NO. 39, JLN 1/3H\", 47650, SUBANG JAYA, SELANGOR",
+        "case_no": "881108085746-D101",
+        "court_detail": "HIGH COURT KUALA LUMPUR",
+        "hear_date": "20-01-2005",
+        "amount": 80000,
+        "remark1": null,
+        "lawyer": null,
+        "settlement": null,
+        "latest_status": null,
+        "subject_cmt": null,
+        "cra_cmt": null,
+        "status": "1",
+        "action": {
+          "date": "05-03-2025",
+          "source_detail": null
+        },
+        "cedcon": null,
+        "other_defendants": [],
+        "dates": {
+          "action_date": "05-03-2025",
+          "notice_date": null,
+          "petition_date": null,
+          "order_date": null
+        }
+      }
+    ]
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": 300000,
+      "total_outstanding": 2333
+    }
+  },
+  "financials_json": []
+}
 CTOS harness: case start, kind: individual name: LEE CHOONG WEI regOrNic: 780120085849
 CTOS harness: report XML length: 18057
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 554
-CTOS harness: financials rows: 0
-CTOS harness: legal cases: 2
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 554,
+    "fico_factors": [
+      "There is serious delinquency on the accounts, adverse record or collection filed on the credit report.",
+      "Lack of recent account information on the credit report.",
+      "Time since derogatory adverse record or collection on the credit report is too short relative to the other applicants scored.",
+      "Too many recent enquiries on the credit report."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 1,
+      "total_amount": 18000
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": {
+    "name": "LEE CHOONG WEI",
+    "nic_brno": "780120085849",
+    "ic_lcno": null,
+    "nationality": "MALAYSIAN",
+    "birth_date": "20-01-1978",
+    "addr": "No. 11, 31 Jalan Tuaran Batu 5, 88450, Kota Kinabalu, Sabah"
+  },
+  "company_json": null,
+  "legal_json": {
+    "cases": [
+      {
+        "source_section": "d",
+        "case_type": "I2",
+        "title": "SUMMONS - DIRECTED TO",
+        "special_remark": "CASE ONGOING",
+        "name": "6 AMBK< > & ‘ “ AMBK< > & ‘ “ AMBK< > & ‘ “ NIAGA",
+        "addr": null,
+        "case_no": "4343402L-D2012",
+        "court_detail": "MAGISTRATE KUALA LUMPUR",
+        "hear_date": "20-06-2001",
+        "amount": 18000,
+        "remark1": null,
+        "lawyer": null,
+        "settlement": null,
+        "latest_status": null,
+        "subject_cmt": null,
+        "cra_cmt": null,
+        "status": "1",
+        "action": {
+          "date": "01-05-2024",
+          "source_detail": null
+        },
+        "cedcon": null,
+        "other_defendants": [],
+        "dates": {
+          "action_date": "01-05-2024",
+          "notice_date": null,
+          "petition_date": null,
+          "order_date": null
+        }
+      },
+      {
+        "source_section": "d2",
+        "case_type": "I2",
+        "title": "SUBJECT AS PLAINTIFF",
+        "special_remark": "CASE ONGOING",
+        "name": "ARII DAUD",
+        "addr": null,
+        "case_no": "4343402L-D2012",
+        "court_detail": "MAGISTRATE KUALA LUMPUR",
+        "hear_date": "20-06-2001",
+        "amount": 18000,
+        "remark1": null,
+        "lawyer": null,
+        "settlement": null,
+        "latest_status": null,
+        "subject_cmt": null,
+        "cra_cmt": null,
+        "status": "",
+        "action": {
+          "date": "01-05-2024",
+          "source_detail": null
+        },
+        "cedcon": null,
+        "other_defendants": [
+          {
+            "name": "6 AMBK< > & ‘ “ AMBK< > & ‘ “ AMBK< > & ‘ “ NIAGA",
+            "ic_lcno": null,
+            "nic_brno": "780120085849"
+          }
+        ],
+        "dates": {
+          "action_date": "01-05-2024",
+          "notice_date": null,
+          "petition_date": null,
+          "order_date": null
+        }
+      }
+    ]
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": 0,
+      "total_outstanding": 0
+    }
+  },
+  "financials_json": []
+}
 CTOS harness: case start, kind: individual name: HAFIY HAMDAN regOrNic: 720330027845
 CTOS harness: report XML length: 25973
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 832
-CTOS harness: financials rows: 0
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 832,
+    "fico_factors": [
+      "Lack of recent auto loan information on the credit report."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": {
+    "name": "HAFIY HAMDAN",
+    "nic_brno": "720330027845",
+    "ic_lcno": null,
+    "nationality": "MALAYSIA",
+    "birth_date": "20-04-1964",
+    "addr": null
+  },
+  "company_json": null,
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": 300000,
+      "total_outstanding": 12345
+    }
+  },
+  "financials_json": []
+}
 CTOS harness: case start, kind: individual name: CHEW MEI QI regOrNic: 741214265249
 CTOS harness: report XML length: 21150
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 832
-CTOS harness: financials rows: 0
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 832,
+    "fico_factors": [
+      "Lack of recent auto loan information on the credit report."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": {
+    "name": "CHEW MEI QI",
+    "nic_brno": "741214265249",
+    "ic_lcno": "A3054766",
+    "nationality": null,
+    "birth_date": "14-12-1974",
+    "addr": "NO. 1, JLN SONGKIT 9, TMN SENTOSA, 80150 JOHOR BAHRU, JOHOR, MALAYSIA"
+  },
+  "company_json": null,
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": 200000,
+      "total_outstanding": 10000
+    }
+  },
+  "financials_json": []
+}
 CTOS harness: case start, kind: individual name: NG KEAT HAW regOrNic: 810324145789
 CTOS harness: report XML length: 62772
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 832
-CTOS harness: financials rows: 0
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 832,
+    "fico_factors": [
+      "Lack of recent auto loan information on the credit report."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": {
+    "name": "NG KEAT HAW",
+    "nic_brno": "810324145789",
+    "ic_lcno": null,
+    "nationality": "MALAYSIAN",
+    "birth_date": "24-03-1981",
+    "addr": "LOT 44567,LORONG PAK MAHAT,KG KEMPADANG,26060 KUANTAN,PAHANG"
+  },
+  "company_json": null,
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": 300000,
+      "total_outstanding": 9013
+    }
+  },
+  "financials_json": []
+}
 CTOS harness: case start, kind: individual name: Jonathan Chan regOrNic: 820106017731
 CTOS harness: report XML length: 26775
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 832
-CTOS harness: financials rows: 0
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 832,
+    "fico_factors": [
+      "Lack of recent auto loan information on the credit report."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": {
+    "name": "Jonathan Chan",
+    "nic_brno": "820106017731",
+    "ic_lcno": null,
+    "nationality": null,
+    "birth_date": "06-01-1982",
+    "addr": "63 Jalan Cenderawasih, Taman Inderapura, Temerloh, Pahang, 28000"
+  },
+  "company_json": null,
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": 300000,
+      "total_outstanding": 3588
+    }
+  },
+  "financials_json": []
+}
 CTOS harness: case start, kind: individual name: WONG JIA XIN regOrNic: 661007322268
 CTOS harness: report XML length: 26828
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 817
-CTOS harness: financials rows: 0
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 817,
+    "fico_factors": [
+      "No recent revolving/charge balance reported on the credit report.",
+      "Lack of recent auto loan information on the credit report."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": {
+    "name": "WONG JIA XIN",
+    "nic_brno": "661007322268",
+    "ic_lcno": "A2314198",
+    "nationality": null,
+    "birth_date": "07-10-1966",
+    "addr": "NO. 1, JLN SONGKIT 9, TMN SENTOSA, 80150 JOHOR BAHRU, JOHOR, MALAYSIA"
+  },
+  "company_json": null,
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": 300000,
+      "total_outstanding": 900
+    }
+  },
+  "financials_json": []
+}
 CTOS harness: case start, kind: individual name: TAN CHONG MIN regOrNic: 750706081234
 CTOS harness: report XML length: 27219
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 817
-CTOS harness: financials rows: 0
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 817,
+    "fico_factors": [
+      "No recent revolving/charge balance reported on the credit report.",
+      "Lack of recent auto loan information on the credit report."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": {
+    "name": "TAN CHONG MIN",
+    "nic_brno": "750706081234",
+    "ic_lcno": null,
+    "nationality": null,
+    "birth_date": "06-07-1975",
+    "addr": "7, JALAN AKASIA 7, BANDAR BOTANIC, 41200 KLANG, Selangor"
+  },
+  "company_json": null,
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": 300000,
+      "total_outstanding": 0
+    }
+  },
+  "financials_json": []
+}
 CTOS harness: case start, kind: individual name: Wan Mohd Najib Azahari regOrNic: 771015087483
 CTOS harness: report XML length: 21733
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 817
-CTOS harness: financials rows: 0
-CTOS harness: legal cases: 1
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 817,
+    "fico_factors": [
+      "No recent revolving/charge balance reported on the credit report.",
+      "Lack of recent auto loan information on the credit report."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 1,
+      "total_amount": 180000
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": {
+    "name": "Wan Mohd Najib Azahari",
+    "nic_brno": "771015087483",
+    "ic_lcno": null,
+    "nationality": "MALAYSIA",
+    "birth_date": "20-04-1964",
+    "addr": null
+  },
+  "company_json": null,
+  "legal_json": {
+    "cases": [
+      {
+        "source_section": "d",
+        "case_type": "I2",
+        "title": "SUMMONS - DIRECTED TO",
+        "special_remark": "SETTLED",
+        "name": "Wan Mohd Najib Azahari",
+        "addr": "NO. 39, JLN 1/3H, 47650, SUBANG JAYA, SELANGOR",
+        "case_no": "771015087483-D101",
+        "court_detail": "HIGH COURT KUALA LUMPUR",
+        "hear_date": "05-01-2022",
+        "amount": 180000,
+        "remark1": null,
+        "lawyer": null,
+        "settlement": null,
+        "latest_status": null,
+        "subject_cmt": null,
+        "cra_cmt": null,
+        "status": "1",
+        "action": {
+          "date": "2021-10-05",
+          "source_detail": null
+        },
+        "cedcon": null,
+        "other_defendants": [],
+        "dates": {
+          "action_date": "2021-10-05",
+          "notice_date": null,
+          "petition_date": null,
+          "order_date": null
+        }
+      }
+    ]
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": 200000,
+      "total_outstanding": 0
+    }
+  },
+  "financials_json": []
+}
 CTOS harness: case start, kind: individual name: VIGNESH RAJ regOrNic: 800706217043
 CTOS harness: multiple entities; auto-picking first entity key: 212453 all: [ '212453', '140002' ]
 CTOS harness: report XML length: 21636
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 817
-CTOS harness: financials rows: 0
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 817,
+    "fico_factors": [
+      "No recent revolving/charge balance reported on the credit report.",
+      "Lack of recent auto loan information on the credit report."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": {
+    "name": "VIGNESH RAJ",
+    "nic_brno": "800706217043",
+    "ic_lcno": null,
+    "nationality": null,
+    "birth_date": "06-07-1980",
+    "addr": "LOT 194, PHASE II, LOW COST HOUSING KEPAYAN, MALAYSIA, 88200 KOTA KINABALU, SABAH"
+  },
+  "company_json": null,
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": 200000,
+      "total_outstanding": 2354
+    }
+  },
+  "financials_json": []
+}
 CTOS harness: case start, kind: individual name: KIRAN CHANDRASEKAR regOrNic: 870227082659
 CTOS harness: multiple entities; auto-picking first entity key: 4534342 all: [ '4534342', '140003' ]
 CTOS harness: report XML length: 21711
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 817
-CTOS harness: financials rows: 0
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 817,
+    "fico_factors": [
+      "No recent revolving/charge balance reported on the credit report.",
+      "Lack of recent auto loan information on the credit report."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": {
+    "name": "KIRAN CHANDRASEKAR",
+    "nic_brno": "870227082659",
+    "ic_lcno": null,
+    "nationality": null,
+    "birth_date": "27-02-1987",
+    "addr": "HOUSE NO. 26, LORONG 2B, TAMAN PENAMPANG, PHASE 2, JALAN LAMA, MALAYSIA, 88300 PENAMPANG, SABAH"
+  },
+  "company_json": null,
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": 200000,
+      "total_outstanding": 235467
+    }
+  },
+  "financials_json": []
+}
 CTOS harness: case start, kind: individual name: Siti Hajar Binti Mohd Zain regOrNic: 870515051120
 CTOS harness: multiple entities; auto-picking first entity key: 8927639 all: [ '8927639', '140004' ]
 CTOS harness: report XML length: 26868
-CTOS harness: enquiry_error: null
-CTOS harness: fico_score: 817
-CTOS harness: financials rows: 0
-CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: 0
+CTOS harness: parsed JSON (raw_xml omitted): {
+  "summary_json": {
+    "fico_score": 817,
+    "fico_factors": [
+      "No recent revolving/charge balance reported on the credit report.",
+      "Lack of recent auto loan information on the credit report."
+    ],
+    "bankruptcy": false,
+    "legal": {
+      "total_cases": 0,
+      "total_amount": 0
+    },
+    "ccris": {
+      "applications": 0,
+      "approved": 0,
+      "pending": 0,
+      "arrears": 0
+    },
+    "dcheqs": {
+      "raw_flag": 0
+    },
+    "enquiry_error": null
+  },
+  "person_json": {
+    "name": "Siti Hajar Binti Mohd Zain",
+    "nic_brno": "870515051120",
+    "ic_lcno": null,
+    "nationality": null,
+    "birth_date": "15-05-1987",
+    "addr": "11 Jalan Aman, Taman Sentral, Kajang, Selangor, 43000"
+  },
+  "company_json": null,
+  "legal_json": {
+    "cases": []
+  },
+  "ccris_json": {
+    "summary": {
+      "total_limit": 300000,
+      "total_outstanding": 677
+    }
+  },
+  "financials_json": []
+}
