@@ -1719,7 +1719,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
       case "turnover_growth": {
         if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
         if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "turnover_growth")) {
-          return formatNumber(toNum(fs.turnover_growth) * 100, 2) + "%";
+          return formatNumber(toNum(fs.turnover_growth), 2) + "%";
         }
         if (!computed || computed.turnover_growth == null) return "Cannot compute from available data";
         return formatNumber(computed.turnover_growth * 100, 2) + "%";
@@ -1727,7 +1727,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
       case "profit_margin": {
         if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
         if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "profit_margin")) {
-          return formatNumber(toNum(fs.profit_margin) * 100, 2) + "%";
+          return formatNumber(toNum(fs.profit_margin), 2) + "%";
         }
         if (!computed || computed.profit_margin == null) return "Cannot compute from available data";
         return formatNumber(computed.profit_margin * 100, 2) + "%";
@@ -1735,7 +1735,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
       case "return_of_equity": {
         if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
         if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "return_on_equity")) {
-          return formatNumber(toNum(fs.return_on_equity) * 100, 2) + "%";
+          return formatNumber(toNum(fs.return_on_equity), 2) + "%";
         }
         if (!computed || computed.return_of_equity == null) return "Cannot compute from available data";
         return formatNumber(computed.return_of_equity * 100, 2) + "%";

@@ -27,4 +27,9 @@ Implementations live in `packages/types/src/ctos-report-table-math.ts` and are w
 
 ## CTOS-supplied ratio fields
 
-When CTOS provides `profit_margin`, `return_on_equity`, `turnover_growth`, `currat`, or `workcap` on `account`, the UI shows those **before** recomputing. Values are treated as **decimal ratios** for margin / ROE / turnover growth (same as computed metrics), so `0.12` displays as 12%. If CTOS uses a different scale, normalize in the parser or adjust display logic.
+When CTOS provides `profit_margin`, `return_on_equity`, `turnover_growth`, `currat`, or `workcap` on `account`, the UI shows those **before** recomputing.
+
+- **`profit_margin`**, **`return_on_equity`**, **`turnover_growth`** in CTOS XML are **already percent-style numbers** (e.g. `12.6` means 12.6%). The admin appends `%` without multiplying by 100.
+- **Computed** fallbacks (from `computeProfitMargin`, etc.) use **decimal ratios** internally; those rows still use **× 100** before showing `%`.
+- **`currat`** is a plain ratio (e.g. `1.32`), not a percent.
+- **`workcap`** is a currency amount.
