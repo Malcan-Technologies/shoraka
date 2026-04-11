@@ -33,7 +33,12 @@ import {
 import { cn } from "@/lib/utils";
 import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
 import { reviewEmptyStateClass } from "@/components/application-review/review-section-styles";
-import { CheckCircleIcon, ChevronDownIcon, InformationCircleIcon } from "@heroicons/react/24/outline";
+import {
+  CheckCircleIcon,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  InformationCircleIcon,
+} from "@heroicons/react/24/outline";
 import { formatCurrency, formatNumber, useAuthToken } from "@cashsouk/config";
 import {
   FINANCIAL_FIELD_LABELS,
@@ -363,46 +368,105 @@ export interface DirectorShareholderRow {
 /** TEMP: set to false to use real issuer organization data. Remove when CTOS cross-check table is done. */
 const USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS = true;
 
+/**
+ * Mock issuer rows: order matches cross-check walk. Covers MATCH, each MISMATCH shape, NOT FOUND (no IC / missing in
+ * CTOS), and duplicate-key CTOS (second row → EXTRA IN CTOS).
+ */
 const MOCK_DIRECTOR_SHAREHOLDER_ROWS: DirectorShareholderRow[] = [
   {
-    id: "mock-ds-1",
-    name: "Ahmad bin Hassan",
+    id: "mock-ds-match-ind",
+    name: "Ideal Match Person",
     role: "Director",
-    ownership: null,
-    icOrSsm: "800808088888",
+    ownership: "12% ownership",
+    icOrSsm: "101010101010",
     verificationLabel: "KYC",
     verificationStatus: "APPROVED",
     subjectRef: null,
     subjectKind: "INDIVIDUAL",
   },
   {
-    id: "mock-ds-2",
-    name: "Sarah Lim Wei Ting",
-    role: "Director, Shareholder",
-    ownership: "40% ownership",
-    icOrSsm: "900909099999",
-    verificationLabel: "KYC",
-    verificationStatus: "Approved",
-    subjectRef: null,
-    subjectKind: "INDIVIDUAL",
-  },
-  {
-    id: "mock-ds-3",
-    name: "Pacific Ventures Sdn Bhd",
+    id: "mock-ds-match-corp",
+    name: "Ideal Corp Sdn Bhd",
     role: "Corporate Shareholder",
-    ownership: "25% ownership",
-    icOrSsm: "201901000123",
+    ownership: "8% ownership",
+    icOrSsm: "202020202020",
     verificationLabel: "KYB",
-    verificationStatus: "PENDING_REVIEW",
+    verificationStatus: "APPROVED",
     subjectRef: null,
     subjectKind: "CORPORATE",
   },
   {
-    id: "mock-ds-4",
-    name: "James Koh",
+    id: "mock-ds-mm-name",
+    name: "Correct Spelling Name",
+    role: "Director",
+    ownership: null,
+    icOrSsm: "303030303030",
+    verificationLabel: "KYC",
+    verificationStatus: "APPROVED",
+    subjectRef: null,
+    subjectKind: "INDIVIDUAL",
+  },
+  {
+    id: "mock-ds-mm-role",
+    name: "Same Name Four",
+    role: "Director",
+    ownership: null,
+    icOrSsm: "404040404040",
+    verificationLabel: "KYC",
+    verificationStatus: "APPROVED",
+    subjectRef: null,
+    subjectKind: "INDIVIDUAL",
+  },
+  {
+    id: "mock-ds-mm-own",
+    name: "Same Name Five",
+    role: "Director",
+    ownership: "10% ownership",
+    icOrSsm: "505050505050",
+    verificationLabel: "KYC",
+    verificationStatus: "APPROVED",
+    subjectRef: null,
+    subjectKind: "INDIVIDUAL",
+  },
+  {
+    id: "mock-ds-mm-multi",
+    name: "Many Issues Person",
+    role: "Director, Shareholder",
+    ownership: "50% ownership",
+    icOrSsm: "606060606060",
+    verificationLabel: "KYC",
+    verificationStatus: "APPROVED",
+    subjectRef: null,
+    subjectKind: "INDIVIDUAL",
+  },
+  {
+    id: "mock-ds-not-in-ctos",
+    name: "Nobody In Ctos List",
+    role: "Director",
+    ownership: null,
+    icOrSsm: "707070707070",
+    verificationLabel: "KYC",
+    verificationStatus: "APPROVED",
+    subjectRef: null,
+    subjectKind: "INDIVIDUAL",
+  },
+  {
+    id: "mock-ds-no-ic",
+    name: "Missing Id On Issuer",
     role: "Shareholder",
-    ownership: "15% ownership",
-    icOrSsm: "700707077777",
+    ownership: "5% ownership",
+    icOrSsm: null,
+    verificationLabel: "KYC",
+    verificationStatus: "PENDING_REVIEW",
+    subjectRef: null,
+    subjectKind: "INDIVIDUAL",
+  },
+  {
+    id: "mock-ds-dup-first",
+    name: "First Duplicate",
+    role: "Director",
+    ownership: null,
+    icOrSsm: "808080808080",
     verificationLabel: "KYC",
     verificationStatus: "APPROVED",
     subjectRef: null,
@@ -458,43 +522,79 @@ interface DirectorCtosComparisonTableRow {
  * OUTPUT: list with IC/SSM and display fields
  * WHERE USED: USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS comparison only
  */
+/**
+ * Mock CTOS org directors: paired ICs align with issuer mocks. Two rows share 808080808080 (second → EXTRA IN CTOS).
+ * One row has no nic/ic → NOT VERIFIABLE. One IC only on CTOS → EXTRA IN CTOS.
+ */
 const MOCK_CTOS_ORG_DIRECTOR_ROWS: CtosOrgDirectorRow[] = [
   {
     ic_lcno: null,
-    nic_brno: "800808088888",
-    name: "AHMAD BIN HASSAN",
+    nic_brno: "101010101010",
+    name: "IDEAL MATCH PERSON",
+    position: "Director",
+    equity_percentage: 12,
+    equity: null,
+  },
+  {
+    ic_lcno: "202020202020",
+    nic_brno: null,
+    name: "IDEAL CORP SDN BHD",
+    position: "Corporate Shareholder",
+    equity_percentage: 8,
+    equity: null,
+  },
+  {
+    ic_lcno: null,
+    nic_brno: "303030303030",
+    name: "WRONG SPELLING ON CTOS",
     position: "Director",
     equity_percentage: null,
     equity: null,
   },
   {
     ic_lcno: null,
-    nic_brno: "900909099999",
-    name: "LIM WEI TING SARAH",
-    position: "Director",
-    equity_percentage: 40,
+    nic_brno: "404040404040",
+    name: "SAME NAME FOUR",
+    position: "Shareholder",
+    equity_percentage: null,
     equity: null,
   },
   {
-    ic_lcno: "201901000123",
-    nic_brno: null,
-    name: "PACIFIC VENTURES SDN BHD",
-    position: "Corporate Shareholder",
+    ic_lcno: null,
+    nic_brno: "505050505050",
+    name: "SAME NAME FIVE",
+    position: "Director",
     equity_percentage: 25,
     equity: null,
   },
-   {
+  {
     ic_lcno: null,
-    nic_brno: "700707077777",
-    name: "KOH JAMES",
-    position: "Shareholder",
-    equity_percentage: 10,
+    nic_brno: "606060606060",
+    name: "MANY ISSUES PERSON",
+    position: "Director",
+    equity_percentage: 5,
     equity: null,
   },
   {
     ic_lcno: null,
-    nic_brno: "660606066666",
-    name: "EXTRA PERSON CTOS ONLY",
+    nic_brno: "808080808080",
+    name: "FIRST DUPLICATE",
+    position: "Director",
+    equity_percentage: null,
+    equity: null,
+  },
+  {
+    ic_lcno: null,
+    nic_brno: "808080808080",
+    name: "SECOND DUPLICATE EXTRA",
+    position: "Director",
+    equity_percentage: null,
+    equity: null,
+  },
+  {
+    ic_lcno: null,
+    nic_brno: "909090909090",
+    name: "EXTRA ONLY ON CTOS",
     position: "Director",
     equity_percentage: null,
     equity: null,
@@ -502,7 +602,7 @@ const MOCK_CTOS_ORG_DIRECTOR_ROWS: CtosOrgDirectorRow[] = [
   {
     ic_lcno: null,
     nic_brno: null,
-    name: "NO ID IN CTOS",
+    name: "NO ID IN CTOS ROW",
     position: "Director",
     equity_percentage: null,
     equity: null,
@@ -796,14 +896,6 @@ function directorCtosRowStatusDisplay(status: DirectorCtosRowStatus): React.Reac
     </Badge>
   );
 }
-
-const DIRECTOR_CTOS_STATUS_LEGEND: { status: DirectorCtosRowStatus; caption: string }[] = [
-  { status: "MATCH", caption: "Verified using IC / SSM" },
-  { status: "MISMATCH", caption: "Same person, but details differ" },
-  { status: "NOT VERIFIABLE", caption: "CTOS has no ID, cannot compare" },
-  { status: "NOT FOUND IN CTOS", caption: "Issuer record missing in CTOS" },
-  { status: "EXTRA IN CTOS", caption: "CTOS record missing in issuer" },
-];
 
 function formatCtosListFetchedAt(iso: string | null | undefined): string | null {
   if (!iso) return null;
@@ -1175,12 +1267,11 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
   const { data: ctosSubjectList, isLoading: ctosSubjectLoading } = useAdminApplicationCtosSubjectReports(applicationId);
   const createSubjectCtos = useCreateAdminApplicationCtosSubjectReport(applicationId);
   const [financialSummaryLegendOpen, setFinancialSummaryLegendOpen] = React.useState(false);
-  const [directorCtosLegendOpen, setDirectorCtosLegendOpen] = React.useState(false);
+  const [directorCtosChecksExpanded, setDirectorCtosChecksExpanded] = React.useState<Record<string, boolean>>({});
   const [orgCtosConfirmOpen, setOrgCtosConfirmOpen] = React.useState(false);
 
   const directorShareholders = React.useMemo(() => {
     if (USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS) {
-      console.log("Director and Shareholders: using mock rows for UI preview");
       return MOCK_DIRECTOR_SHAREHOLDER_ROWS;
     }
     return extractDirectorShareholders(app.issuer_organization);
@@ -1921,29 +2012,10 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
       </ReviewFieldBlock>
 
       <ReviewFieldBlock title="Director and Shareholders">
-        {USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS ? (
-          <p className="mb-3 rounded-md border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-950 dark:text-amber-100">
-            Preview only: issuer profile and CTOS cross-check rows are mock data. Set{" "}
-            <span className="font-mono">USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS</span> to <span className="font-mono">false</span>{" "}
-            in application-financial-review-content.tsx to use real issuer rows and organization CTOS{" "}
-            <span className="font-mono">company_json</span> for the cross-check table.
-          </p>
-        ) : null}
-        <p
-          className={cn(
-            "mb-3 max-w-3xl text-xs leading-relaxed text-muted-foreground",
-            !USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS && "-mt-1"
-          )}
-        >
-          The first table is issuer data from onboarding (ownership and KYC / KYB). CTOS does not provide KYC or KYB. The
-          second table compares issuer IDs to the latest organization CTOS <span className="font-mono">company_json</span>{" "}
-          directors list (IC / SSM only). Use <span className="font-medium text-foreground">Get report</span> on the first
-          table for subject-level HTML. Organization CTOS fetch and Financial Summary use the same organization snapshot.
-        </p>
         {directorShareholders.length > 0 ? (
           <div className="space-y-8">
             <div>
-              <h3 className="mb-2 text-sm font-semibold text-foreground">Issuer profile (KYC / KYB)</h3>
+              <h3 className="mb-2 text-sm font-semibold text-foreground">Issuer</h3>
               <div className={applicationTableWrapperClass}>
                 <Table className="text-[15px]">
                   <TableHeader className={applicationTableHeaderBgClass}>
@@ -2032,79 +2104,17 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
             </div>
 
             <div>
-              <h3 className="mb-1 text-sm font-semibold text-foreground">Organization CTOS (cross-check)</h3>
-              <p className="mb-3 max-w-3xl text-xs leading-relaxed text-muted-foreground">
-                Each row is one person or entity. Issuer and CTOS are linked only when both sides share the same{" "}
-                <span className="font-medium text-foreground">IC or SSM</span> (not by name). Data in the CTOS columns
-                comes from the latest organization report; subject fetch is per person below.
-              </p>
+              <h3 className="mb-2 text-sm font-semibold text-foreground">CTOS</h3>
               <div className={applicationTableWrapperClass}>
-                <Collapsible open={directorCtosLegendOpen} onOpenChange={setDirectorCtosLegendOpen}>
-                  <div className="border-b border-border bg-muted/15">
-                    <CollapsibleTrigger asChild>
-                      <button
-                        type="button"
-                        className={cn(
-                          "flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm transition-colors",
-                          "hover:bg-muted/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                        )}
-                      >
-                        <span className="flex min-w-0 items-center gap-2">
-                          <InformationCircleIcon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                          <span className="font-semibold text-foreground">Status meanings</span>
-                          <span className="hidden truncate text-xs font-normal text-muted-foreground sm:inline">
-                            What each label in the Status column means.
-                          </span>
-                        </span>
-                        <ChevronDownIcon
-                          className={cn(
-                            "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200",
-                            directorCtosLegendOpen && "rotate-180"
-                          )}
-                          aria-hidden
-                        />
-                      </button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <div className="border-t border-border/80 bg-gradient-to-br from-muted/30 via-card to-muted/10 px-4 pb-3 pt-2">
-                        <p className="m-0 mb-2 text-[11px] leading-relaxed text-muted-foreground">
-                          <span className="font-medium text-foreground">Name / Role / Ownership</span> columns compare fields
-                          only after an IC/SSM match. An em dash (—) means that check was not run.
-                        </p>
-                        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
-                          {DIRECTOR_CTOS_STATUS_LEGEND.map((item) => (
-                            <div
-                              key={item.status}
-                              className="flex gap-2 rounded-md border border-border/80 bg-card/90 p-2 shadow-sm"
-                            >
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  "h-fit shrink-0 font-semibold text-[11px] leading-tight px-2 py-0.5 rounded-md shadow-none",
-                                  directorCtosRowStatusBadgeClass(item.status)
-                                )}
-                              >
-                                {item.status}
-                              </Badge>
-                              <p className="m-0 min-w-0 text-[11px] leading-relaxed text-muted-foreground">
-                                {item.caption}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </CollapsibleContent>
-                  </div>
-                </Collapsible>
                 <div className="overflow-x-auto">
-                  <Table className="min-w-[960px] text-[15px]">
+                  <Table className="min-w-[720px] text-[15px]">
                   <TableHeader className={applicationTableHeaderBgClass}>
                     <TableRow className="hover:bg-transparent border-b border-border">
+                      <TableHead className={`${applicationTableHeaderClass} w-10 px-2`} aria-label="Expand field checks">
+                        <span className="sr-only">Expand</span>
+                      </TableHead>
                       <TableHead className={applicationTableHeaderClass}>Issuer Name</TableHead>
                       <TableHead className={applicationTableHeaderClass}>CTOS Name</TableHead>
-                      <TableHead className={applicationTableHeaderClass}>Name Check</TableHead>
-                      <TableHead className={applicationTableHeaderClass}>Role Check</TableHead>
-                      <TableHead className={applicationTableHeaderClass}>Ownership Check</TableHead>
                       <TableHead className={applicationTableHeaderClass}>Status</TableHead>
                       <TableHead className={applicationTableHeaderClass}>Last subject fetch</TableHead>
                       <TableHead className={applicationTableHeaderClass}>View report</TableHead>
@@ -2121,77 +2131,126 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                           ? subjectReportByRef.get(profileRow.subjectRef)
                           : undefined;
                       const canViewSubject = Boolean(subjectSnap?.has_report_html);
+                      const checksOpen = Boolean(directorCtosChecksExpanded[row.id]);
+                      const detailId = `director-ctos-checks-${row.id}`;
                       return (
-                        <TableRow key={row.id} className={applicationTableRowClass}>
-                          <TableCell className={`${applicationTableCellClass} font-medium`}>
-                            {row.issuerName === HEADER_PLACEHOLDER ? (
-                              <span className="text-muted-foreground">{HEADER_PLACEHOLDER}</span>
-                            ) : (
-                              row.issuerName
-                            )}
-                          </TableCell>
-                          <TableCell className={`${applicationTableCellClass} font-medium`}>
-                            {row.ctosName === HEADER_PLACEHOLDER ? (
-                              <span className="text-muted-foreground">{HEADER_PLACEHOLDER}</span>
-                            ) : (
-                              row.ctosName
-                            )}
-                          </TableCell>
-                          <TableCell className={applicationTableCellClass}>
-                            {directorCtosFieldCheckDisplay(row.nameCheckCell)}
-                          </TableCell>
-                          <TableCell className={applicationTableCellClass}>
-                            {directorCtosFieldCheckDisplay(row.roleCheckCell)}
-                          </TableCell>
-                          <TableCell className={applicationTableCellClass}>
-                            {directorCtosFieldCheckDisplay(row.ownershipCheckCell)}
-                          </TableCell>
-                          <TableCell className={applicationTableCellClass}>
-                            {directorCtosRowStatusDisplay(row.rowStatus)}
-                          </TableCell>
-                          <TableCell className={applicationTableCellClass}>
-                            {profileRow ? (
-                              subjectLastFetchDisplay({
-                                subjectRef: profileRow.subjectRef,
-                                snap: subjectSnap,
-                              })
-                            ) : (
-                              <span className="text-muted-foreground">{HEADER_PLACEHOLDER}</span>
-                            )}
-                          </TableCell>
-                          <TableCell className={applicationTableCellClass}>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="rounded-lg h-8 text-xs"
-                              disabled={
-                                !profileRow?.subjectRef ||
-                                !canViewSubject ||
-                                ctosSubjectLoading ||
-                                !subjectSnap?.id
-                              }
-                              onClick={() => void openSubjectHtmlReport(subjectSnap!.id)}
-                            >
-                              View report
-                            </Button>
-                          </TableCell>
-                          <TableCell className={applicationTableCellClass}>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="rounded-lg h-8 text-xs"
-                              disabled={
-                                !profileRow?.subjectRef ||
-                                !profileRow.subjectKind ||
-                                createSubjectCtos.isPending ||
-                                ctosSubjectLoading
-                              }
-                              onClick={() => profileRow && onGetSubjectCtos(profileRow)}
-                            >
-                              {createSubjectCtos.isPending ? "Fetching…" : "Get report"}
-                            </Button>
-                          </TableCell>
-                        </TableRow>
+                        <React.Fragment key={row.id}>
+                          <TableRow className={applicationTableRowClass}>
+                            <TableCell className={`${applicationTableCellClass} w-10 px-2 align-middle`}>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 shrink-0 rounded-lg text-muted-foreground hover:text-foreground"
+                                aria-expanded={checksOpen}
+                                aria-controls={detailId}
+                                aria-label={
+                                  checksOpen ? "Hide Name, Role, and Ownership checks" : "Show Name, Role, and Ownership checks"
+                                }
+                                onClick={() =>
+                                  setDirectorCtosChecksExpanded((prev) => ({
+                                    ...prev,
+                                    [row.id]: !prev[row.id],
+                                  }))
+                                }
+                              >
+                                <ChevronRightIcon
+                                  className={cn("h-4 w-4 transition-transform duration-200", checksOpen && "rotate-90")}
+                                  aria-hidden
+                                />
+                              </Button>
+                            </TableCell>
+                            <TableCell className={`${applicationTableCellClass} font-medium`}>
+                              {row.issuerName === HEADER_PLACEHOLDER ? (
+                                <span className="text-muted-foreground">{HEADER_PLACEHOLDER}</span>
+                              ) : (
+                                row.issuerName
+                              )}
+                            </TableCell>
+                            <TableCell className={`${applicationTableCellClass} font-medium`}>
+                              {row.ctosName === HEADER_PLACEHOLDER ? (
+                                <span className="text-muted-foreground">{HEADER_PLACEHOLDER}</span>
+                              ) : (
+                                row.ctosName
+                              )}
+                            </TableCell>
+                            <TableCell className={applicationTableCellClass}>
+                              {directorCtosRowStatusDisplay(row.rowStatus)}
+                            </TableCell>
+                            <TableCell className={applicationTableCellClass}>
+                              {profileRow ? (
+                                subjectLastFetchDisplay({
+                                  subjectRef: profileRow.subjectRef,
+                                  snap: subjectSnap,
+                                })
+                              ) : (
+                                <span className="text-muted-foreground">{HEADER_PLACEHOLDER}</span>
+                              )}
+                            </TableCell>
+                            <TableCell className={applicationTableCellClass}>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="rounded-lg h-8 text-xs"
+                                disabled={
+                                  !profileRow?.subjectRef ||
+                                  !canViewSubject ||
+                                  ctosSubjectLoading ||
+                                  !subjectSnap?.id
+                                }
+                                onClick={() => void openSubjectHtmlReport(subjectSnap!.id)}
+                              >
+                                View report
+                              </Button>
+                            </TableCell>
+                            <TableCell className={applicationTableCellClass}>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="rounded-lg h-8 text-xs"
+                                disabled={
+                                  !profileRow?.subjectRef ||
+                                  !profileRow.subjectKind ||
+                                  createSubjectCtos.isPending ||
+                                  ctosSubjectLoading
+                                }
+                                onClick={() => profileRow && onGetSubjectCtos(profileRow)}
+                              >
+                                {createSubjectCtos.isPending ? "Fetching…" : "Get report"}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                          {checksOpen ? (
+                            <TableRow className="border-b border-border bg-muted/20 hover:bg-muted/25">
+                              <TableCell
+                                id={detailId}
+                                colSpan={7}
+                                className={`${applicationTableCellClass} px-4 py-3`}
+                              >
+                                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                                  <div className="space-y-1">
+                                    <p className="m-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                      Name Check
+                                    </p>
+                                    <div>{directorCtosFieldCheckDisplay(row.nameCheckCell)}</div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <p className="m-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                      Role Check
+                                    </p>
+                                    <div>{directorCtosFieldCheckDisplay(row.roleCheckCell)}</div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <p className="m-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                                      Ownership Check
+                                    </p>
+                                    <div>{directorCtosFieldCheckDisplay(row.ownershipCheckCell)}</div>
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ) : null}
+                        </React.Fragment>
                       );
                     })}
                   </TableBody>
@@ -2202,9 +2261,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
           </div>
         ) : (
           <div className="rounded-xl border border-border bg-card min-h-[80px] flex items-center justify-center">
-            <p className={`${reviewEmptyStateClass} py-6`}>
-              No director or shareholder data available. Data is sourced from organization profile.
-            </p>
+            <p className={`${reviewEmptyStateClass} py-6`}>No director or shareholder data.</p>
           </div>
         )}
       </ReviewFieldBlock>
