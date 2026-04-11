@@ -476,6 +476,8 @@ interface CtosOrgDirectorRow {
   position: string | null;
   equity_percentage: number | null;
   equity: number | null;
+  /** ENQWS: I = individual, C = corporate (SSM-style id often in ic_lcno). */
+  party_type: string | null;
 }
 
 type DirectorCtosRowStatus =
@@ -522,6 +524,7 @@ const MOCK_CTOS_ORG_DIRECTOR_ROWS: CtosOrgDirectorRow[] = [
     position: "Director",
     equity_percentage: 12,
     equity: null,
+    party_type: "I",
   },
   {
     ic_lcno: "202020202020",
@@ -530,6 +533,7 @@ const MOCK_CTOS_ORG_DIRECTOR_ROWS: CtosOrgDirectorRow[] = [
     position: "Corporate Shareholder",
     equity_percentage: 8,
     equity: null,
+    party_type: "C",
   },
   {
     ic_lcno: null,
@@ -538,6 +542,7 @@ const MOCK_CTOS_ORG_DIRECTOR_ROWS: CtosOrgDirectorRow[] = [
     position: "Director",
     equity_percentage: null,
     equity: null,
+    party_type: "I",
   },
   {
     ic_lcno: null,
@@ -546,6 +551,7 @@ const MOCK_CTOS_ORG_DIRECTOR_ROWS: CtosOrgDirectorRow[] = [
     position: "Shareholder",
     equity_percentage: null,
     equity: null,
+    party_type: "I",
   },
   {
     ic_lcno: null,
@@ -554,6 +560,7 @@ const MOCK_CTOS_ORG_DIRECTOR_ROWS: CtosOrgDirectorRow[] = [
     position: "Director",
     equity_percentage: 25,
     equity: null,
+    party_type: "I",
   },
   {
     ic_lcno: null,
@@ -562,6 +569,7 @@ const MOCK_CTOS_ORG_DIRECTOR_ROWS: CtosOrgDirectorRow[] = [
     position: "Director",
     equity_percentage: 5,
     equity: null,
+    party_type: "I",
   },
   {
     ic_lcno: null,
@@ -570,6 +578,7 @@ const MOCK_CTOS_ORG_DIRECTOR_ROWS: CtosOrgDirectorRow[] = [
     position: "Director",
     equity_percentage: null,
     equity: null,
+    party_type: "I",
   },
   {
     ic_lcno: null,
@@ -578,6 +587,7 @@ const MOCK_CTOS_ORG_DIRECTOR_ROWS: CtosOrgDirectorRow[] = [
     position: "Director",
     equity_percentage: null,
     equity: null,
+    party_type: "I",
   },
   {
     ic_lcno: null,
@@ -586,6 +596,7 @@ const MOCK_CTOS_ORG_DIRECTOR_ROWS: CtosOrgDirectorRow[] = [
     position: "Director",
     equity_percentage: null,
     equity: null,
+    party_type: "I",
   },
   {
     ic_lcno: null,
@@ -594,6 +605,7 @@ const MOCK_CTOS_ORG_DIRECTOR_ROWS: CtosOrgDirectorRow[] = [
     position: "Director",
     equity_percentage: null,
     equity: null,
+    party_type: "I",
   },
 ];
 
@@ -846,6 +858,7 @@ function extractCtosOrgDirectorsFromCompanyJson(companyJson: unknown): CtosOrgDi
   const out: CtosOrgDirectorRow[] = [];
   for (const d of raw) {
     const x = d as Record<string, unknown>;
+    const ptRaw = x.party_type != null ? String(x.party_type).trim() : "";
     out.push({
       ic_lcno: x.ic_lcno != null ? String(x.ic_lcno) : null,
       nic_brno: x.nic_brno != null ? String(x.nic_brno) : null,
@@ -853,9 +866,81 @@ function extractCtosOrgDirectorsFromCompanyJson(companyJson: unknown): CtosOrgDi
       position: x.position != null ? String(x.position) : null,
       equity_percentage: typeof x.equity_percentage === "number" ? x.equity_percentage : null,
       equity: typeof x.equity === "number" ? x.equity : null,
+      party_type: ptRaw !== "" ? ptRaw : null,
     });
   }
   return out;
+}
+
+/**
+ * SECTION: Name key for matching issuer row to CTOS company_json.directors
+ * WHY: Same normalization as cross-check; one CTOS name per issuer line when IC missing
+ * INPUT: display name
+ * OUTPUT: lowercased single-spaced trim
+ * WHERE USED: enrichDirectorShareholderRowsFromOrgCtos
+ */
+function normalizeDirectorNameKeyForCtos(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function ctosOrgDirectorIsIndividual(r: CtosOrgDirectorRow): boolean {
+  if (r.party_type === "I") return true;
+  if (r.party_type === "C") return false;
+  const nic = (r.nic_brno ?? "").trim();
+  if (nic) return true;
+  return false;
+}
+
+function ctosOrgDirectorIsCorporate(r: CtosOrgDirectorRow): boolean {
+  if (r.party_type === "C") return true;
+  if (r.party_type === "I") return false;
+  const ic = (r.ic_lcno ?? "").trim();
+  const nic = (r.nic_brno ?? "").trim();
+  return Boolean(ic && !nic);
+}
+
+/**
+ * SECTION: Fill issuer IC/SSM from latest org CTOS directors
+ * WHY: CTOS stores nic_brno (individual) and ic_lcno (corporate SO) per ctos.response.txt; Get report needs a real id
+ * INPUT: merged issuer rows; company_json from latest org CtosReport
+ * OUTPUT: shallow copies with icOrSsm set when uniquely matched by name + kind
+ * WHERE USED: ApplicationFinancialReviewContent after merge, before tables
+ */
+function enrichDirectorShareholderRowsFromOrgCtos(
+  rows: DirectorShareholderRow[],
+  companyJson: unknown
+): DirectorShareholderRow[] {
+  if (!companyJson) return rows;
+  const ctosDirs = extractCtosOrgDirectorsFromCompanyJson(companyJson);
+  if (ctosDirs.length === 0) return rows;
+
+  let filled = 0;
+  const next = rows.map((row) => {
+    if (normalizeIcSsmKey(row.icOrSsm)) return row;
+    if (!row.subjectKind) return row;
+
+    const nameKey = normalizeDirectorNameKeyForCtos(row.name);
+    if (!nameKey || nameKey === "unknown") return row;
+
+    const candidates = ctosDirs.filter((d) => {
+      const dn = normalizeDirectorNameKeyForCtos(d.name ?? "");
+      if (dn !== nameKey) return false;
+      if (row.subjectKind === "INDIVIDUAL") return ctosOrgDirectorIsIndividual(d);
+      if (row.subjectKind === "CORPORATE") return ctosOrgDirectorIsCorporate(d);
+      return false;
+    });
+
+    if (candidates.length !== 1) return row;
+    const pid = primaryCtosIdFromDirectorRow(candidates[0]).trim();
+    if (!pid) return row;
+    filled += 1;
+    return { ...row, icOrSsm: pid };
+  });
+
+  if (filled > 0) {
+    console.log("Filled IC or SSM from org CTOS company_json for director rows:", filled);
+  }
+  return next;
 }
 
 /**
@@ -1486,13 +1571,25 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
 
   const latestCtos = ctosList?.[0];
 
+  /**
+   * SECTION: Issuer director rows with IC/SSM from org CTOS when missing on onboarding
+   * WHY: company_json.directors lists nic_brno / ic_lcno (see ctos.response.txt); Get report prefers real id over EOD
+   * INPUT: merged issuer rows + latest org report company_json
+   * OUTPUT: same rows, icOrSsm filled when name + subjectKind match one CTOS director
+   * WHERE USED: Issuer table + CTOS cross-check issuer column + Get report
+   */
+  const directorShareholdersForCtos = React.useMemo(() => {
+    if (USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS) return directorShareholdersMerged;
+    return enrichDirectorShareholderRowsFromOrgCtos(directorShareholdersMerged, latestCtos?.company_json);
+  }, [directorShareholdersMerged, latestCtos?.company_json]);
+
   const directorCtosComparisonTableRows = React.useMemo((): DirectorCtosComparisonTableRow[] => {
     const ctosOrgList = USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS
       ? MOCK_CTOS_ORG_DIRECTOR_ROWS
       : extractCtosOrgDirectorsFromCompanyJson(latestCtos?.company_json);
-    const { tableRows } = buildDirectorCtosComparison(directorShareholdersMerged, ctosOrgList);
+    const { tableRows } = buildDirectorCtosComparison(directorShareholdersForCtos, ctosOrgList);
     return tableRows;
-  }, [directorShareholdersMerged, latestCtos?.company_json]);
+  }, [directorShareholdersForCtos, latestCtos?.company_json]);
 
   const financialRows: CtosFinRow[] = React.useMemo(() => {
     const raw = latestCtos?.financials_json;
@@ -2221,7 +2318,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
       </ReviewFieldBlock>
 
       <ReviewFieldBlock title="Director and Shareholders">
-        {directorShareholdersMerged.length > 0 ? (
+        {directorShareholdersForCtos.length > 0 ? (
           <div className="space-y-8">
             <div>
               <h3 className="mb-2 text-sm font-semibold text-foreground">Issuer</h3>
@@ -2239,7 +2336,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {directorShareholdersMerged.map((row) => {
+                    {directorShareholdersForCtos.map((row) => {
                       const isApproved =
                         row.verificationStatus === "APPROVED" || row.verificationStatus === "Approved";
                       const subjectSnap = lookupSubjectReportSnap(subjectReportByRef, row.icOrSsm, row.subjectRef);
@@ -2333,7 +2430,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                   <TableBody>
                     {directorCtosComparisonTableRows.map((row) => {
                       const profileRow = row.profileRowId
-                        ? directorShareholders.find((r) => r.id === row.profileRowId)
+                        ? directorShareholdersForCtos.find((r) => r.id === row.profileRowId)
                         : undefined;
                       const subjectSnap = profileRow
                         ? lookupSubjectReportSnap(subjectReportByRef, profileRow.icOrSsm, profileRow.subjectRef)
