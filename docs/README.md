@@ -44,6 +44,7 @@ Plain-text guides for application status rules and log events:
 Admin portal and activity timeline:
 
 - **[Activity Timeline](./guides/admin/activity-timeline.md)** - Application log creation, remark at top-level, event labels/icons
+- **[CTOS financial summary display](./guides/admin/ctos-financial-summary-display.md)** - CTOS-first cells and fallback formulas in application review
 
 ### 🏗️ Architecture
 

@@ -310,6 +310,19 @@ function ctosFinToFs(r: CtosFinRow): Record<string, unknown> {
   };
 }
 
+/**
+ * SECTION: CTOS-first summary cells
+ * WHY: Prefer CTOS `account` values; see docs/guides/admin/ctos-financial-summary-display.md for fallback formulas.
+ * INPUT: Flat row from `ctosFinToFs`
+ * OUTPUT: Whether key has a finite numeric value (0 counts as present)
+ * WHERE USED: `renderRowCell` when column `kind === "ctos"`
+ */
+function ctosFlatNumericPresent(fs: Record<string, unknown>, key: string): boolean {
+  const v = fs[key];
+  if (v === null || v === undefined || v === "") return false;
+  return Number.isFinite(toNum(v));
+}
+
 function financialRecordToInput(fs: Record<string, unknown>): FinancialStatementsInput {
   return {
     bsfatot: toNum(fs.bsfatot),
@@ -1639,6 +1652,10 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
         );
       case "totass": {
         if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
+        if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "totass")) {
+          const raw = toNum(fs.totass);
+          return raw === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(raw, { decimals: 0 });
+        }
         if (!computed) return "Cannot compute from available data";
         const n = computed.totass;
         return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
@@ -1657,12 +1674,20 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
         );
       case "totlib": {
         if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
+        if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "totlib")) {
+          const raw = toNum(fs.totlib);
+          return raw === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(raw, { decimals: 0 });
+        }
         if (!computed) return "Cannot compute from available data";
         const n = computed.totlib;
         return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
       }
       case "networth": {
         if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
+        if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "networth")) {
+          const raw = toNum(fs.networth);
+          return raw === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(raw, { decimals: 0 });
+        }
         if (!computed) return "Cannot compute from available data";
         const n = computed.networth;
         return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
@@ -1693,26 +1718,41 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
         );
       case "turnover_growth": {
         if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
+        if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "turnover_growth")) {
+          return formatNumber(toNum(fs.turnover_growth) * 100, 2) + "%";
+        }
         if (!computed || computed.turnover_growth == null) return "Cannot compute from available data";
         return formatNumber(computed.turnover_growth * 100, 2) + "%";
       }
       case "profit_margin": {
         if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
+        if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "profit_margin")) {
+          return formatNumber(toNum(fs.profit_margin) * 100, 2) + "%";
+        }
         if (!computed || computed.profit_margin == null) return "Cannot compute from available data";
         return formatNumber(computed.profit_margin * 100, 2) + "%";
       }
       case "return_of_equity": {
         if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
+        if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "return_on_equity")) {
+          return formatNumber(toNum(fs.return_on_equity) * 100, 2) + "%";
+        }
         if (!computed || computed.return_of_equity == null) return "Cannot compute from available data";
         return formatNumber(computed.return_of_equity * 100, 2) + "%";
       }
       case "currat": {
         if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
+        if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "currat")) {
+          return formatNumber(toNum(fs.currat), 2);
+        }
         if (!computed || computed.currat == null) return "Cannot compute from available data";
         return formatNumber(computed.currat, 2);
       }
       case "workcap": {
         if (ctosColumnMissing(colIdx)) return "Missing in CTOS extract";
+        if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "workcap")) {
+          return formatCurrency(toNum(fs.workcap), { decimals: 0 });
+        }
         if (!computed) return "Cannot compute from available data";
         return formatCurrency(computed.workcap, { decimals: 0 });
       }
