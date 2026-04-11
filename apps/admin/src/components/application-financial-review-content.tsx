@@ -1,8 +1,18 @@
 "use client";
 
 import * as React from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -109,7 +119,7 @@ function financialSummaryStatusToneClass(statusLabel: string): string {
 /** Copy for legend and tooltips (single source). One-line definition of what the status is. */
 const FINANCIAL_SUMMARY_STATUS_EXPLANATIONS: Record<string, string> = {
   "Not fetched": "CTOS has not been retrieved for this application.",
-  "No record found": "CTOS has no financial records on file for this company.",
+  "No record found": "CTOS has no financial records on file for this organization.",
   Verified: "This column has official financial data from CTOS for the year shown.",
   "\u2014": "This CTOS column has no reporting year in this slot.",
   "Not provided": "This unaudited column has no data entered.",
@@ -649,6 +659,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
   const { data: ctosSubjectList, isLoading: ctosSubjectLoading } = useAdminApplicationCtosSubjectReports(applicationId);
   const createSubjectCtos = useCreateAdminApplicationCtosSubjectReport(applicationId);
   const [financialSummaryLegendOpen, setFinancialSummaryLegendOpen] = React.useState(false);
+  const [orgCtosConfirmOpen, setOrgCtosConfirmOpen] = React.useState(false);
 
   const directorShareholders = React.useMemo(
     () => extractDirectorShareholders(app.issuer_organization),
@@ -1122,46 +1133,65 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
 
   return (
     <>
-      <ReviewFieldBlock title="CTOS report">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="order-2 min-w-0 flex-1 space-y-1 text-xs leading-relaxed text-muted-foreground sm:order-1 sm:pt-1">
-            {ctosFetchState === "not_pulled" ? <p className="m-0">CTOS data not fetched yet.</p> : null}
-            {hadCtosUnauditedOverride ? <p className="m-0">Latest year already exists in CTOS.</p> : null}
-          </div>
-          <div className="order-1 flex w-full flex-col gap-2 sm:order-2 sm:w-auto sm:shrink-0 sm:items-end">
-            <p className="m-0 text-right text-xs text-muted-foreground tabular-nums">
-              {fetchedLabel ? (
-                <>
-                  <span className="font-medium text-foreground">Last CTOS fetch</span>
-                  <span className="text-muted-foreground"> · </span>
-                  {fetchedLabel}
-                </>
-              ) : (
-                <span>No CTOS snapshot on file yet.</span>
-              )}
-            </p>
-            <div className="flex flex-wrap justify-end gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="rounded-lg h-8 text-xs"
-                disabled={createCtos.isPending || ctosLoading}
-                onClick={onGetCtos}
-              >
-                {createCtos.isPending ? "Fetching…" : "Get CTOS report"}
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                className="rounded-lg h-8 text-xs"
-                disabled={!latestCtos?.has_report_html || ctosLoading}
-                onClick={() => void openFullReport()}
-              >
-                View full report
-              </Button>
+      <ReviewFieldBlock title="Organization CTOS">
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
+            <div className="min-w-0 flex-1 space-y-2">
+              <p className="m-0 max-w-3xl text-xs leading-relaxed text-muted-foreground">
+                <span className="font-medium text-foreground">Fetch latest CTOS report</span> asks CTOS for a{" "}
+                <span className="font-medium text-foreground">new</span> organization report.{" "}
+                <span className="font-medium text-foreground">Financial Summary</span> and{" "}
+                <span className="font-medium text-foreground">Director and Shareholders</span> show the organization data CTOS
+                returns. <span className="font-medium text-foreground">View latest report</span> only opens the HTML from the{" "}
+                <span className="font-medium text-foreground">last successful fetch</span>. It does not send a new request.
+              </p>
+              {ctosFetchState === "not_pulled" || hadCtosUnauditedOverride ? (
+                <div className="space-y-1 rounded-lg border border-border/70 bg-muted/25 px-3 py-2 text-xs text-muted-foreground">
+                  {ctosFetchState === "not_pulled" ? <p className="m-0">Organization CTOS has not been fetched for this application yet.</p> : null}
+                  {hadCtosUnauditedOverride ? <p className="m-0">Latest year already exists in CTOS.</p> : null}
+                </div>
+              ) : null}
+            </div>
+            <div className="flex shrink-0 flex-col gap-3 border-t border-border pt-4 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0 lg:items-end">
+              <p className="m-0 inline-flex max-w-full flex-wrap items-baseline justify-end gap-x-3 gap-y-1 text-right text-xs leading-relaxed">
+                {fetchedLabel ? (
+                  <>
+                    <span className="shrink-0 font-medium text-foreground">Last organization CTOS fetch</span>
+                    <span className="min-w-0 tabular-nums text-muted-foreground">{fetchedLabel}</span>
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">No organization CTOS snapshot yet.</span>
+                )}
+              </p>
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="rounded-lg h-8 px-3 text-xs"
+                  disabled={createCtos.isPending || ctosLoading}
+                  onClick={() => setOrgCtosConfirmOpen(true)}
+                >
+                  {createCtos.isPending ? "Fetching…" : "Fetch latest CTOS report"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-lg h-8 px-3 text-xs"
+                  disabled={!latestCtos?.has_report_html || ctosLoading}
+                  onClick={() => void openFullReport()}
+                >
+                  View latest report
+                </Button>
+              </div>
             </div>
           </div>
         </div>
+      </ReviewFieldBlock>
+
+      <ReviewFieldBlock title="Financial Summary">
+        <p className="-mt-1 mb-3 max-w-3xl text-xs leading-relaxed text-muted-foreground">
+          CTOS reporting years compared with issuer unaudited columns.
+        </p>
         <div className={applicationTableWrapperClass}>
           <TooltipProvider delayDuration={250}>
             <Collapsible open={financialSummaryLegendOpen} onOpenChange={setFinancialSummaryLegendOpen}>
@@ -1178,7 +1208,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                     <InformationCircleIcon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                     <span className="font-semibold text-foreground">Status meanings</span>
                     <span className="hidden truncate text-xs font-normal text-muted-foreground sm:inline">
-                      Definitions for each status label in the financial summary table.
+                      Definitions for each status label in the Financial Summary table.
                     </span>
                   </span>
                   <ChevronDownIcon
@@ -1353,7 +1383,11 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
         </div>
       </ReviewFieldBlock>
 
-      <ReviewFieldBlock title="Director & Shareholders">
+      <ReviewFieldBlock title="Director and Shareholders">
+        <p className="-mt-1 mb-3 max-w-3xl text-xs leading-relaxed text-muted-foreground">
+          Organization KYC and KYB. Use <span className="font-medium text-foreground">Get report</span> on a row for that
+          person&apos;s or entity&apos;s subject CTOS. Organization CTOS and Financial Summary cover organization-level CTOS.
+        </p>
         {directorShareholders.length > 0 ? (
           <div className={applicationTableWrapperClass}>
             <Table className="text-[15px]">
@@ -1468,6 +1502,32 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
           </div>
         </div>
       </ReviewFieldBlock>
+
+      <AlertDialog open={orgCtosConfirmOpen} onOpenChange={setOrgCtosConfirmOpen}>
+        <AlertDialogContent className="rounded-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Request a new report from CTOS?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This starts a new CTOS pull for this organization. Financial Summary and Director and Shareholders on this page
+              use organization data from CTOS.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-lg" disabled={createCtos.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className={cn(buttonVariants({ variant: "secondary" }), "rounded-lg")}
+              disabled={createCtos.isPending}
+              onClick={() => {
+                onGetCtos();
+              }}
+            >
+              Fetch latest CTOS report
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

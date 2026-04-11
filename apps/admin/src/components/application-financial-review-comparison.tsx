@@ -229,7 +229,7 @@ export function ApplicationFinancialReviewComparison({
         </div>
       </ReviewFieldBlock>
 
-      <ReviewFieldBlock title="Director & Shareholders">
+      <ReviewFieldBlock title="Director and Shareholders">
         {maxLen === 0 ? (
           <p className={reviewEmptyStateClass}>No director or shareholder data in these snapshots.</p>
         ) : (
