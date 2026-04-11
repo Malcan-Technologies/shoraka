@@ -41,6 +41,29 @@ const DEFAULT_BUSINESS_OWNER = {
   ownerName: "HAFIY HAMDAN",
 };
 
+/**
+ * Harness-only: what to print. Edit `mode` when debugging.
+ * - multiple_entities_only — only rows where enq_sum status is 2; full multi-entity dump (incl. raw XML).
+ * - all — every test row: case line, final raw_xml, parsed JSON (raw_xml omitted in JSON); if multi, extra multi-entity block + first_pass raw.
+ * - all_no_raw_xml — every row: case line, parsed JSON (no raw_xml); if multi, metadata only (no XML strings).
+ * - raw_xml_final_only — every row: one case line + final raw_xml only.
+ * - silent — no per-row logs; one line summary at end.
+ */
+type HarnessLogMode =
+  | "multiple_entities_only"
+  | "all"
+  | "all_no_raw_xml"
+  | "raw_xml_final_only"
+  | "silent";
+
+const HARNESS_LOG: { mode: HarnessLogMode } = {
+  mode: "all",
+};
+
+function stringifyParsedOmitRawXml(parsed: Awaited<ReturnType<typeof parseCtosReportXmlLocal>>): string {
+  return JSON.stringify(parsed, (k, v) => (k === "raw_xml" ? undefined : v), 2);
+}
+
 function safeGet(obj: unknown, path: (string | number)[]): unknown {
   try {
     const val = path.reduce((o, k) => (o as Record<string, unknown>)?.[k as string], obj);
@@ -821,43 +844,108 @@ function buildXML(test: TestRow, confirmEntityKey?: string | null) {
 `;
 }
 
-async function run() {
-  let multipleEntitiesCount = 0;
-  for (const t of TEST_CASES) {
-    const out = await fetchReportXmlWithAutoEntityConfirm(t);
-    if (!out.multipleEntities) continue;
-    multipleEntitiesCount += 1;
+type FetchOut = Awaited<ReturnType<typeof fetchReportXmlWithAutoEntityConfirm>>;
 
-    const regOrNic = t.kind === "individual" ? t.nic : t.reg;
-    console.log("\n========== CTOS harness: MULTIPLE ENTITIES (enq_sum status 2) ==========");
-    console.log("Case:", t.kind, "|", t.name, "| regOrNic:", regOrNic);
-    console.log(
-      "How it works: CTOS returns status 2 + <entities> with candidate <entity key=\"...\"> rows. This harness picks the first key and calls SOAP requestConfirm with <confirm_entity> on the business/sole record (see buildXML)."
-    );
-    console.log(
-      "enq_sum:",
-      out.multipleEntities.enqSumStatusCode,
-      "|",
-      out.multipleEntities.enqSumStatusMessage ?? ""
-    );
-    console.log("didRequestConfirm:", out.multipleEntities.didRequestConfirm);
-    console.log("pickedEntityKey:", out.multipleEntities.pickedEntityKey);
-    console.log("entityCandidates:", JSON.stringify(out.multipleEntities.entityCandidates, null, 2));
-    console.log("--- first_pass raw_xml (before requestConfirm) ---");
-    console.log(out.multipleEntities.firstPassXml);
+function logMultipleEntitiesFull(t: TestRow, out: FetchOut, opts?: { logFinalRawXml?: boolean }) {
+  const logFinal = opts?.logFinalRawXml !== false;
+  const regOrNic = t.kind === "individual" ? t.nic : t.reg;
+  const m = out.multipleEntities;
+  if (!m) return;
+  console.log("\n========== CTOS harness: MULTIPLE ENTITIES (enq_sum status 2) ==========");
+  console.log("Case:", t.kind, "|", t.name, "| regOrNic:", regOrNic);
+  console.log(
+    "How it works: CTOS returns status 2 + <entities> with candidate <entity key=\"...\"> rows. This harness picks the first key and calls SOAP requestConfirm with <confirm_entity> on the business/sole record (see buildXML)."
+  );
+  console.log("enq_sum:", m.enqSumStatusCode, "|", m.enqSumStatusMessage ?? "");
+  console.log("didRequestConfirm:", m.didRequestConfirm);
+  console.log("pickedEntityKey:", m.pickedEntityKey);
+  console.log("entityCandidates:", JSON.stringify(m.entityCandidates, null, 2));
+  console.log("--- first_pass raw_xml (before requestConfirm) ---");
+  console.log(m.firstPassXml);
+  if (logFinal) {
     console.log("--- final raw_xml (after requestConfirm if keys existed) ---");
     console.log(out.finalXml);
-    const parsed = await parseCtosReportXmlLocal(out.finalXml);
-    console.log("--- parsed JSON (raw_xml omitted) ---");
-    console.log(JSON.stringify(parsed, (k, v) => (k === "raw_xml" ? undefined : v), 2));
-    console.log("========== END MULTIPLE ENTITIES ==========\n");
   }
+}
+
+function logMultipleEntitiesMetaOnly(t: TestRow, out: FetchOut) {
+  const regOrNic = t.kind === "individual" ? t.nic : t.reg;
+  const m = out.multipleEntities;
+  if (!m) return;
+  console.log("CTOS harness: multiple_entities (no raw XML):", {
+    case: { kind: t.kind, name: t.name, regOrNic },
+    enqSumStatusCode: m.enqSumStatusCode,
+    enqSumStatusMessage: m.enqSumStatusMessage,
+    didRequestConfirm: m.didRequestConfirm,
+    pickedEntityKey: m.pickedEntityKey,
+    entityCandidates: m.entityCandidates,
+  });
+}
+
+async function run() {
+  const mode = HARNESS_LOG.mode;
+  let multipleEntitiesCount = 0;
+
+  for (const t of TEST_CASES) {
+    const out = await fetchReportXmlWithAutoEntityConfirm(t);
+    if (out.multipleEntities) multipleEntitiesCount += 1;
+
+    const regOrNic = t.kind === "individual" ? t.nic : t.reg;
+    if (mode === "silent") {
+      continue;
+    }
+
+    const parsed = await parseCtosReportXmlLocal(out.finalXml);
+
+    if (mode === "raw_xml_final_only") {
+      console.log("CTOS harness: case:", t.kind, "|", t.name, "| regOrNic:", regOrNic);
+      console.log("CTOS harness: raw_xml (final):", out.finalXml);
+      continue;
+    }
+
+    if (mode === "multiple_entities_only") {
+      if (!out.multipleEntities) continue;
+      logMultipleEntitiesFull(t, out);
+      console.log("--- parsed JSON (raw_xml omitted) ---");
+      console.log(stringifyParsedOmitRawXml(parsed));
+      console.log("========== END MULTIPLE ENTITIES ==========\n");
+      continue;
+    }
+
+    if (mode === "all_no_raw_xml") {
+      console.log("CTOS harness: case:", t.kind, "|", t.name, "| regOrNic:", regOrNic);
+      if (out.multipleEntities) logMultipleEntitiesMetaOnly(t, out);
+      console.log("CTOS harness: parsed JSON (raw_xml omitted):");
+      console.log(stringifyParsedOmitRawXml(parsed));
+      continue;
+    }
+
+    if (mode === "all") {
+      console.log("\n---------- CTOS harness: case ----------");
+      console.log(t.kind, "|", t.name, "| regOrNic:", regOrNic);
+      console.log("--- raw_xml (final) ---");
+      console.log(out.finalXml);
+      if (out.multipleEntities) {
+        logMultipleEntitiesFull(t, out, { logFinalRawXml: false });
+      }
+      console.log("--- parsed JSON (raw_xml omitted in JSON; see raw above) ---");
+      console.log(stringifyParsedOmitRawXml(parsed));
+      console.log("---------- end case ----------\n");
+    }
+  }
+
+  if (mode === "silent") {
+    console.log("CTOS harness: finished.", TEST_CASES.length, "rows (silent mode)");
+    return;
+  }
+
   console.log(
     "CTOS harness: finished. Rows with multiple entities (status 2):",
     multipleEntitiesCount,
     "of",
     TEST_CASES.length,
-    "(only those are logged above)"
+    "| log mode:",
+    mode
   );
 }
 
