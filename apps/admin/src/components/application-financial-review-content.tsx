@@ -28,7 +28,6 @@ import {
   applicationTableHeaderBgClass,
   applicationTableRowClass,
   applicationTableCellClass,
-  applicationTableCellMutedClass,
   applicationTableWrapperClass,
 } from "@/components/application-review/application-table-styles";
 import { cn } from "@/lib/utils";
@@ -359,6 +358,177 @@ export interface DirectorShareholderRow {
   subjectKind: "INDIVIDUAL" | "CORPORATE" | null;
 }
 
+/** TEMP: set to false to use real issuer organization data. Remove when CTOS cross-check table is done. */
+const USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS = true;
+
+const MOCK_DIRECTOR_SHAREHOLDER_ROWS: DirectorShareholderRow[] = [
+  {
+    id: "mock-ds-1",
+    name: "Ahmad bin Hassan",
+    role: "Director",
+    ownership: null,
+    verificationLabel: "KYC",
+    verificationStatus: "APPROVED",
+    subjectRef: null,
+    subjectKind: "INDIVIDUAL",
+  },
+  {
+    id: "mock-ds-2",
+    name: "Sarah Lim Wei Ting",
+    role: "Director, Shareholder",
+    ownership: "40% ownership",
+    verificationLabel: "KYC",
+    verificationStatus: "Approved",
+    subjectRef: null,
+    subjectKind: "INDIVIDUAL",
+  },
+  {
+    id: "mock-ds-3",
+    name: "Pacific Ventures Sdn Bhd",
+    role: "Corporate Shareholder",
+    ownership: "25% ownership",
+    verificationLabel: "KYB",
+    verificationStatus: "PENDING_REVIEW",
+    subjectRef: null,
+    subjectKind: "CORPORATE",
+  },
+  {
+    id: "mock-ds-4",
+    name: "James Koh",
+    role: "Shareholder",
+    ownership: "15% ownership",
+    verificationLabel: "KYC",
+    verificationStatus: "APPROVED",
+    subjectRef: null,
+    subjectKind: "INDIVIDUAL",
+  },
+];
+
+/**
+ * Per-field issuer vs CTOS comparison. `na` renders as an em dash (no badge). Mock rows set sample outcomes; live rows
+ * stay `na` until subject CTOS fields are parsed and rules run (see blurb under CTOS subject table).
+ */
+type CtosDimensionCheck = "match" | "review" | "mismatch" | "na";
+
+interface CtosDirectorShareholderCrossRow {
+  id: string;
+  /** Links to `DirectorShareholderRow.id` for subject CTOS actions. */
+  profileRowId: string;
+  ctosDisplayName: string | null;
+  ctosDisplayRole: string | null;
+  /** Shareholding as stated in subject CTOS extract, when available. */
+  ctosOwnership: string | null;
+  nameCheck: CtosDimensionCheck;
+  roleCheck: CtosDimensionCheck;
+  ownershipCheck: CtosDimensionCheck;
+  lastSubjectFetchLabel: string | null;
+}
+
+const MOCK_CTOS_DIRECTOR_CROSS_ROWS: CtosDirectorShareholderCrossRow[] = [
+  {
+    id: "ctos-x-1",
+    profileRowId: "mock-ds-1",
+    ctosDisplayName: "AHMAD BIN HASSAN",
+    ctosDisplayRole: "Director",
+    ctosOwnership: null,
+    nameCheck: "match",
+    roleCheck: "match",
+    ownershipCheck: "na",
+    lastSubjectFetchLabel: "Apr 10, 2026, 2:00 PM",
+  },
+  {
+    id: "ctos-x-2",
+    profileRowId: "mock-ds-2",
+    ctosDisplayName: "LIM WEI TING SARAH",
+    ctosDisplayRole: "Director",
+    ctosOwnership: "40% ownership",
+    nameCheck: "review",
+    roleCheck: "match",
+    ownershipCheck: "match",
+    lastSubjectFetchLabel: null,
+  },
+  {
+    id: "ctos-x-3",
+    profileRowId: "mock-ds-3",
+    ctosDisplayName: "PACIFIC VENTURES SDN BHD",
+    ctosDisplayRole: "Shareholder",
+    ctosOwnership: "25% ownership",
+    nameCheck: "match",
+    roleCheck: "match",
+    ownershipCheck: "match",
+    lastSubjectFetchLabel: "Apr 9, 2026, 11:15 AM",
+  },
+  {
+    id: "ctos-x-4",
+    profileRowId: "mock-ds-4",
+    ctosDisplayName: "KOH JAMES",
+    ctosDisplayRole: "Shareholder",
+    ctosOwnership: "10% ownership",
+    nameCheck: "match",
+    roleCheck: "match",
+    ownershipCheck: "mismatch",
+    lastSubjectFetchLabel: "Apr 8, 2026, 9:30 AM",
+  },
+];
+
+function dimensionCheckBadgeClass(c: CtosDimensionCheck): string {
+  if (c === "na") return "";
+  if (c === "match") {
+    return "border-emerald-500/35 bg-emerald-500/10 text-emerald-800 dark:text-emerald-100";
+  }
+  if (c === "review") {
+    return "border-amber-500/40 bg-amber-500/10 text-amber-950 dark:text-amber-100";
+  }
+  if (c === "mismatch") {
+    return "border-destructive/40 bg-destructive/10 text-destructive";
+  }
+  return "border-border bg-muted/50 text-muted-foreground";
+}
+
+function dimensionCheckLabel(c: CtosDimensionCheck): string {
+  if (c === "match") return "Match";
+  if (c === "review") return "Needs review";
+  if (c === "mismatch") return "Mismatch";
+  return "";
+}
+
+function dimensionCheckDisplay(check: CtosDimensionCheck): React.ReactNode {
+  if (check === "na") {
+    return <span className="text-muted-foreground">{HEADER_PLACEHOLDER}</span>;
+  }
+  return (
+    <Badge
+      variant="outline"
+      className={cn("font-semibold text-[11px] leading-tight", dimensionCheckBadgeClass(check))}
+    >
+      {dimensionCheckLabel(check)}
+    </Badge>
+  );
+}
+
+function formatCtosListFetchedAt(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  try {
+    return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  } catch {
+    return null;
+  }
+}
+
+function subjectLastFetchDisplay(params: {
+  subjectRef: string | null;
+  snap: { fetched_at: string } | undefined;
+}): React.ReactNode {
+  if (!params.subjectRef) {
+    return <span className="text-muted-foreground">{HEADER_PLACEHOLDER}</span>;
+  }
+  const formatted = params.snap?.fetched_at ? formatCtosListFetchedAt(params.snap.fetched_at) : null;
+  if (formatted) {
+    return <span className="tabular-nums text-muted-foreground">{formatted}</span>;
+  }
+  return <span className="text-muted-foreground">{HEADER_PLACEHOLDER}</span>;
+}
+
 function extractOwnershipFromRole(role: string | null | undefined): string | null {
   if (!role) return null;
   const match = role.match(/\((\d+)%\)/);
@@ -661,19 +831,43 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
   const [financialSummaryLegendOpen, setFinancialSummaryLegendOpen] = React.useState(false);
   const [orgCtosConfirmOpen, setOrgCtosConfirmOpen] = React.useState(false);
 
-  const directorShareholders = React.useMemo(
-    () => extractDirectorShareholders(app.issuer_organization),
-    [app.issuer_organization]
-  );
+  const directorShareholders = React.useMemo(() => {
+    if (USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS) {
+      console.log("Director and Shareholders: using mock rows for UI preview");
+      return MOCK_DIRECTOR_SHAREHOLDER_ROWS;
+    }
+    return extractDirectorShareholders(app.issuer_organization);
+  }, [app.issuer_organization]);
 
   const subjectReportByRef = React.useMemo(() => {
-    const m = new Map<string, { id: string; has_report_html: boolean }>();
+    const m = new Map<string, { id: string; has_report_html: boolean; fetched_at: string }>();
     for (const r of ctosSubjectList ?? []) {
       const ref = r.subject_ref;
-      if (ref) m.set(ref, { id: r.id, has_report_html: Boolean(r.has_report_html) });
+      if (ref) m.set(ref, { id: r.id, has_report_html: Boolean(r.has_report_html), fetched_at: r.fetched_at });
     }
     return m;
   }, [ctosSubjectList]);
+
+  const ctosDirectorCrossRows = React.useMemo((): CtosDirectorShareholderCrossRow[] => {
+    if (USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS) {
+      return MOCK_CTOS_DIRECTOR_CROSS_ROWS;
+    }
+    return directorShareholders.map((r) => {
+      const snap = r.subjectRef ? subjectReportByRef.get(r.subjectRef) : undefined;
+      const lastSubjectFetchLabel = snap?.fetched_at ? formatCtosListFetchedAt(snap.fetched_at) : null;
+      return {
+        id: `ctos-cross-${r.id}`,
+        profileRowId: r.id,
+        ctosDisplayName: null,
+        ctosDisplayRole: null,
+        ctosOwnership: null,
+        nameCheck: "na",
+        roleCheck: "na",
+        ownershipCheck: "na",
+        lastSubjectFetchLabel,
+      };
+    });
+  }, [directorShareholders, subjectReportByRef]);
 
   const { questionnaire, unauditedByYear } = React.useMemo(
     () => extractQuestionnaireAndUnaudited(app.financial_statements),
@@ -1384,90 +1578,229 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
       </ReviewFieldBlock>
 
       <ReviewFieldBlock title="Director and Shareholders">
-        <p className="-mt-1 mb-3 max-w-3xl text-xs leading-relaxed text-muted-foreground">
-          Organization KYC and KYB. Use <span className="font-medium text-foreground">Get report</span> on a row for that
-          person&apos;s or entity&apos;s subject CTOS. Organization CTOS and Financial Summary cover organization-level CTOS.
+        {USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS ? (
+          <p className="mb-3 rounded-md border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-950 dark:text-amber-100">
+            Preview only: issuer profile and CTOS cross-check rows are mock data. Set{" "}
+            <span className="font-mono">USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS</span> to <span className="font-mono">false</span>{" "}
+            in application-financial-review-content.tsx to use real issuer rows (CTOS cross-check will still show empty
+            until wired to API).
+          </p>
+        ) : null}
+        <p
+          className={cn(
+            "mb-3 max-w-3xl text-xs leading-relaxed text-muted-foreground",
+            !USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS && "-mt-1"
+          )}
+        >
+          The first table is issuer data from onboarding (ownership and KYC / KYB). CTOS does not provide KYC or KYB. The
+          second table is for subject CTOS names and roles so you can cross-check them against the profile. Use{" "}
+          <span className="font-medium text-foreground">Get report</span> on either table for the same person or entity.
+          Organization CTOS and Financial Summary cover organization-level CTOS.
         </p>
         {directorShareholders.length > 0 ? (
-          <div className={applicationTableWrapperClass}>
-            <Table className="text-[15px]">
-              <TableHeader className={applicationTableHeaderBgClass}>
-                <TableRow className="hover:bg-transparent border-b border-border">
-                  <TableHead className={applicationTableHeaderClass}>Role</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>Director</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>Ownership</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>KYC / KYB</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>Last Credit Report</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>Last Credit Score</TableHead>
-                  <TableHead className={`${applicationTableHeaderClass} w-[140px]`}>Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {directorShareholders.map((row) => {
-                  const isApproved =
-                    row.verificationStatus === "APPROVED" || row.verificationStatus === "Approved";
-                  const subjectSnap = row.subjectRef ? subjectReportByRef.get(row.subjectRef) : undefined;
-                  const canViewSubject = Boolean(subjectSnap?.has_report_html);
-                  return (
-                    <TableRow key={row.id} className={applicationTableRowClass}>
-                      <TableCell className={applicationTableCellClass}>{row.role}</TableCell>
-                      <TableCell className={`${applicationTableCellClass} font-medium`}>{row.name}</TableCell>
-                      <TableCell className={applicationTableCellClass}>{row.ownership ?? "—"}</TableCell>
-                      <TableCell className={applicationTableCellClass}>
-                        {row.verificationStatus ? (
-                          <Badge
-                            variant="outline"
-                            className={
-                              isApproved
-                                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700"
-                                : "border-amber-500/30 bg-amber-500/10 text-amber-700"
-                            }
-                          >
-                            <CheckCircleIcon className="h-3 w-3 mr-1 inline" />
-                            {row.verificationLabel}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className={applicationTableCellClass}>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="rounded-lg h-8 text-xs"
-                          disabled={
-                            !row.subjectRef ||
-                            !canViewSubject ||
-                            ctosSubjectLoading ||
-                            !subjectSnap?.id
-                          }
-                          onClick={() => void openSubjectHtmlReport(subjectSnap!.id)}
-                        >
-                          View report
-                        </Button>
-                      </TableCell>
-                      <TableCell className={applicationTableCellMutedClass}>—</TableCell>
-                      <TableCell className={applicationTableCellClass}>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="rounded-lg h-8 text-xs"
-                          disabled={
-                            !row.subjectRef ||
-                            !row.subjectKind ||
-                            createSubjectCtos.isPending ||
-                            ctosSubjectLoading
-                          }
-                          onClick={() => onGetSubjectCtos(row)}
-                        >
-                          {createSubjectCtos.isPending ? "Fetching…" : "Get report"}
-                        </Button>
-                      </TableCell>
+          <div className="space-y-8">
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-foreground">Issuer profile (KYC / KYB)</h3>
+              <div className={applicationTableWrapperClass}>
+                <Table className="text-[15px]">
+                  <TableHeader className={applicationTableHeaderBgClass}>
+                    <TableRow className="hover:bg-transparent border-b border-border">
+                      <TableHead className={applicationTableHeaderClass}>Name (issuer)</TableHead>
+                      <TableHead className={applicationTableHeaderClass}>Role</TableHead>
+                      <TableHead className={applicationTableHeaderClass}>Ownership</TableHead>
+                      <TableHead className={applicationTableHeaderClass}>KYC / KYB</TableHead>
+                      <TableHead className={applicationTableHeaderClass}>Last subject fetch</TableHead>
+                      <TableHead className={applicationTableHeaderClass}>View report</TableHead>
+                      <TableHead className={`${applicationTableHeaderClass} w-[140px]`}>Action</TableHead>
                     </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {directorShareholders.map((row) => {
+                      const isApproved =
+                        row.verificationStatus === "APPROVED" || row.verificationStatus === "Approved";
+                      const subjectSnap = row.subjectRef ? subjectReportByRef.get(row.subjectRef) : undefined;
+                      const canViewSubject = Boolean(subjectSnap?.has_report_html);
+                      return (
+                        <TableRow key={row.id} className={applicationTableRowClass}>
+                          <TableCell className={`${applicationTableCellClass} font-medium`}>{row.name}</TableCell>
+                          <TableCell className={applicationTableCellClass}>{row.role}</TableCell>
+                          <TableCell className={applicationTableCellClass}>{row.ownership ?? "—"}</TableCell>
+                          <TableCell className={applicationTableCellClass}>
+                            {row.verificationStatus ? (
+                              <Badge
+                                variant="outline"
+                                className={
+                                  isApproved
+                                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700"
+                                    : "border-amber-500/30 bg-amber-500/10 text-amber-700"
+                                }
+                              >
+                                <CheckCircleIcon className="h-3 w-3 mr-1 inline" />
+                                {row.verificationLabel}
+                              </Badge>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className={applicationTableCellClass}>
+                            {subjectLastFetchDisplay({
+                              subjectRef: row.subjectRef,
+                              snap: subjectSnap,
+                            })}
+                          </TableCell>
+                          <TableCell className={applicationTableCellClass}>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="rounded-lg h-8 text-xs"
+                              disabled={
+                                !row.subjectRef ||
+                                !canViewSubject ||
+                                ctosSubjectLoading ||
+                                !subjectSnap?.id
+                              }
+                              onClick={() => void openSubjectHtmlReport(subjectSnap!.id)}
+                            >
+                              View report
+                            </Button>
+                          </TableCell>
+                          <TableCell className={applicationTableCellClass}>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="rounded-lg h-8 text-xs"
+                              disabled={
+                                !row.subjectRef ||
+                                !row.subjectKind ||
+                                createSubjectCtos.isPending ||
+                                ctosSubjectLoading
+                              }
+                              onClick={() => onGetSubjectCtos(row)}
+                            >
+                              {createSubjectCtos.isPending ? "Fetching…" : "Get report"}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-foreground">CTOS subject (cross-check)</h3>
+              <p className="mb-2 max-w-3xl text-xs leading-relaxed text-muted-foreground">
+                Values here come from the subject CTOS report, not from KYC or KYB. Compare to{" "}
+                <span className="font-medium text-foreground">Issuer profile (KYC / KYB)</span> above.
+              </p>
+              <p className="mb-3 max-w-3xl text-xs leading-relaxed text-muted-foreground">
+                <span className="font-medium text-foreground">Internal logic (planned):</span>{" "}
+                <span className="font-medium text-foreground">Name check</span> compares issuer name to CTOS name with
+                normalized, order-insensitive tokens. <span className="font-medium text-foreground">Role check</span> compares
+                director / shareholder / corporate capacity. <span className="font-medium text-foreground">Ownership check</span>{" "}
+                runs only when both sides have a percent (same value = Match, rounding TBD).{" "}
+                <span className="font-medium text-foreground">Needs review</span> = incomplete or fuzzy name.{" "}
+                <span className="font-medium text-foreground">Mismatch</span> = clear conflict. A cell shows an em dash when
+                that dimension is not applicable or not computed yet. Mock rows demonstrate outcomes; live data fills after
+                CTOS parse.
+              </p>
+              <div className={applicationTableWrapperClass}>
+                <Table className="text-[15px]">
+                  <TableHeader className={applicationTableHeaderBgClass}>
+                    <TableRow className="hover:bg-transparent border-b border-border">
+                      <TableHead className={applicationTableHeaderClass}>Name (CTOS)</TableHead>
+                      <TableHead className={applicationTableHeaderClass}>Role (CTOS)</TableHead>
+                      <TableHead className={applicationTableHeaderClass}>Ownership (CTOS)</TableHead>
+                      <TableHead className={applicationTableHeaderClass}>Name check</TableHead>
+                      <TableHead className={applicationTableHeaderClass}>Role check</TableHead>
+                      <TableHead className={applicationTableHeaderClass}>Ownership check</TableHead>
+                      <TableHead className={applicationTableHeaderClass}>Last subject fetch</TableHead>
+                      <TableHead className={applicationTableHeaderClass}>View report</TableHead>
+                      <TableHead className={`${applicationTableHeaderClass} w-[140px]`}>Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {ctosDirectorCrossRows.map((cross) => {
+                      const profileRow = directorShareholders.find((r) => r.id === cross.profileRowId);
+                      const subjectSnap =
+                        profileRow?.subjectRef != null
+                          ? subjectReportByRef.get(profileRow.subjectRef)
+                          : undefined;
+                      const canViewSubject = Boolean(subjectSnap?.has_report_html);
+                      return (
+                        <TableRow key={cross.id} className={applicationTableRowClass}>
+                          <TableCell className={`${applicationTableCellClass} font-medium`}>
+                            {cross.ctosDisplayName ?? "—"}
+                          </TableCell>
+                          <TableCell className={applicationTableCellClass}>
+                            {cross.ctosDisplayRole ?? "—"}
+                          </TableCell>
+                          <TableCell className={applicationTableCellClass}>
+                            {cross.ctosOwnership ?? "—"}
+                          </TableCell>
+                          <TableCell className={applicationTableCellClass}>
+                            {dimensionCheckDisplay(cross.nameCheck)}
+                          </TableCell>
+                          <TableCell className={applicationTableCellClass}>
+                            {dimensionCheckDisplay(cross.roleCheck)}
+                          </TableCell>
+                          <TableCell className={applicationTableCellClass}>
+                            {dimensionCheckDisplay(cross.ownershipCheck)}
+                          </TableCell>
+                          <TableCell className={applicationTableCellClass}>
+                            {USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS ? (
+                              cross.lastSubjectFetchLabel ? (
+                                <span className="tabular-nums text-muted-foreground">{cross.lastSubjectFetchLabel}</span>
+                              ) : (
+                                <span className="text-muted-foreground">{HEADER_PLACEHOLDER}</span>
+                              )
+                            ) : (
+                              subjectLastFetchDisplay({
+                                subjectRef: profileRow?.subjectRef ?? null,
+                                snap: subjectSnap,
+                              })
+                            )}
+                          </TableCell>
+                          <TableCell className={applicationTableCellClass}>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="rounded-lg h-8 text-xs"
+                              disabled={
+                                !profileRow?.subjectRef ||
+                                !canViewSubject ||
+                                ctosSubjectLoading ||
+                                !subjectSnap?.id
+                              }
+                              onClick={() => void openSubjectHtmlReport(subjectSnap!.id)}
+                            >
+                              View report
+                            </Button>
+                          </TableCell>
+                          <TableCell className={applicationTableCellClass}>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="rounded-lg h-8 text-xs"
+                              disabled={
+                                !profileRow?.subjectRef ||
+                                !profileRow.subjectKind ||
+                                createSubjectCtos.isPending ||
+                                ctosSubjectLoading
+                              }
+                              onClick={() => profileRow && onGetSubjectCtos(profileRow)}
+                            >
+                              {createSubjectCtos.isPending ? "Fetching…" : "Get report"}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
           </div>
         ) : (
           <div className="rounded-xl border border-border bg-card min-h-[80px] flex items-center justify-center">
