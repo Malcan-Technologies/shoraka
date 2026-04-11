@@ -40,9 +40,6 @@ import {
   applicationTableWrapperClass,
 } from "@/components/application-review/application-table-styles";
 
-/** Matches Financial Summary table placeholder for empty year slots. */
-const HEADER_PLACEHOLDER = "\u2014";
-
 /**
  * TEMP: set true to preview unaudited before/after without real resubmit snapshots.
  * Set false before shipping.
@@ -418,29 +415,20 @@ export function ApplicationFinancialReviewComparison({
                     >
                       <span className="sr-only">Financial metric</span>
                     </TableHead>
-                    {unauditedSlots.map((slot, si) => {
-                      const by = slot.beforeYear ?? HEADER_PLACEHOLDER;
-                      const ay = slot.afterYear ?? HEADER_PLACEHOLDER;
-                      return (
-                        <TableHead
-                          key={`g-${si}`}
-                          colSpan={2}
-                          className={cn(
-                            applicationTableHeaderClass,
-                            "border-r border-border text-center last:border-r-0"
-                          )}
-                        >
-                          <span className="font-semibold text-foreground">
-                            Unaudited {unauditedSlots.length > 1 ? `(${si + 1} of 2)` : ""}
-                          </span>
-                          <div className="mt-1 text-xs font-normal tabular-nums leading-snug text-muted-foreground">
-                            {by}
-                            <span className="mx-1 text-border">·</span>
-                            {ay}
-                          </div>
-                        </TableHead>
-                      );
-                    })}
+                    {unauditedSlots.map((_, si) => (
+                      <TableHead
+                        key={`g-${si}`}
+                        colSpan={2}
+                        className={cn(
+                          applicationTableHeaderClass,
+                          "border-r border-border text-center last:border-r-0"
+                        )}
+                      >
+                        <span className="font-semibold text-foreground">
+                          Unaudited {unauditedSlots.length > 1 ? `(${si + 1} of 2)` : ""}
+                        </span>
+                      </TableHead>
+                    ))}
                   </TableRow>
                   <TableRow className="hover:bg-transparent border-b border-border">
                     {unauditedSlots.flatMap((_, si) => [
