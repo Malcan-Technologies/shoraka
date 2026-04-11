@@ -34,6 +34,6 @@ When CTOS provides `profit_margin`, `return_on_equity`, `turnover_growth`, `curr
 - **`currat`** is a plain ratio (e.g. `1.32`), not a percent.
 - **`workcap`** is a currency amount.
 
-## CTOS director / shareholder position (cross-check table)
+## CTOS director / shareholder position (role cross-check)
 
-Organization `company_json.directors[].position` uses ENQWS-style codes: **DO** Director Only, **SO** Shareholder Only, **DS** Director & Shareholder, **AD** Alternate Director, **AS** Alternate Director & Shareholder. The admin CTOS comparison table shows the code plus label and compares issuer role text to these codes (and common phrases like “Director” / “Shareholder”).
+Organization `company_json.directors[].position` uses ENQWS-style codes: **DO** Director Only, **SO** Shareholder Only, **DS** Director & Shareholder, **AD** Alternate Director, **AS** Alternate Director & Shareholder. The admin **Role check** (expand row on the CTOS comparison table) compares issuer role to this field using those codes and common phrases (e.g. “Director” / “Shareholder”); the grid layout is unchanged.
