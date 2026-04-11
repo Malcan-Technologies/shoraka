@@ -181,16 +181,13 @@ export function OrganizationIssuerCtosReportsCard({
                       )}
                     />
                     <DocumentTextIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <span className="text-sm font-semibold text-foreground leading-snug">CTOS report history</span>
+                    <span className="text-sm font-semibold text-foreground leading-snug">CTOS Report History</span>
                     {!ctosQuery.isLoading && orgCtosReports.length > 0 ? (
                       <Badge variant="secondary" className="text-[10px] h-5 px-1.5 shrink-0 tabular-nums">
                         {orgCtosReports.length}
                       </Badge>
                     ) : null}
                   </div>
-                  <span className="block text-xs text-muted-foreground mt-1 pl-6 pr-2">
-                    Company-level credit reports stored from CTOS
-                  </span>
                 </button>
               </CollapsibleTrigger>
               <Button
