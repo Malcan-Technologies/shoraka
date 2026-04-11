@@ -134,20 +134,6 @@ function appShareholdersFromKyc(directors: DirectorKycStatus[] | undefined): Dir
   return directors.filter((d) => /shareholder/i.test(d.role));
 }
 
-function shareholderPercentFromRole(role: string): string | null {
-  const m = /\(([^)]+)\)/.exec(role);
-  if (!m) return null;
-  const inner = m[1].trim();
-  if (!/\d/.test(inner)) return null;
-  if (inner.includes("%")) return inner.replace(/\s+/g, "");
-  return `${inner.replace(/\s+/g, "")}%`;
-}
-
-function appShareholderDisplayName(d: DirectorKycStatus): string {
-  const pct = shareholderPercentFromRole(d.role);
-  return pct ? `${d.name} (${pct})` : d.name;
-}
-
 function issuerCtosPersonNameAndIdMatch(d: DirectorKycStatus, ctosSide: CtosOrgDirectorParsed): boolean {
   const appId = normalizeIdKey(d.governmentIdNumber);
   const ctosId = normalizeIdKey(primaryCtosIdFromDirectorRow(ctosSide));
@@ -409,7 +395,7 @@ export function buildOnboardingCtosComparison(
     const appIdDisplay = displayIdFromApp(d.governmentIdNumber);
     if (!ready) {
       return {
-        appCell: appShareholderDisplayName(d),
+        appCell: d.name,
         ctosCell: null,
         match: false,
         appIdDisplay,
@@ -422,7 +408,7 @@ export function buildOnboardingCtosComparison(
     const ctosCell = ctosSide ? (ctosSide.name ?? "").trim() || "—" : null;
     const match = ctosSide != null && issuerCtosPersonNameAndIdMatch(d, ctosSide);
     const ctosIdDisplay = ctosSide ? displayIdFromCtosRow(ctosSide) : null;
-    return { appCell: appShareholderDisplayName(d), ctosCell, match, appIdDisplay, ctosIdDisplay };
+    return { appCell: d.name, ctosCell, match, appIdDisplay, ctosIdDisplay };
   });
 
   const directorsMatch =
