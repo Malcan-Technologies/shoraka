@@ -231,6 +231,10 @@ function EditApplicationPageBody() {
     review_cycle: number;
     remarks: any[];
   } | null>(null);
+  /** Idle: not amendment; loading: fetch in flight; done: context resolved (may be empty on error). */
+  const [amendmentContextStatus, setAmendmentContextStatus] = React.useState<
+    "idle" | "loading" | "done"
+  >("idle");
   const [devPreviewAmendment, setDevPreviewAmendment] = React.useState(false);
 
   /** Returns mock amendment context for DEV preview. Covers section, item, and tab-level remark types. */
@@ -251,16 +255,20 @@ function EditApplicationPageBody() {
     if (!application) return;
 
     if (devPreviewAmendment) {
+      setAmendmentContextStatus("done");
       setAmendmentContext(getMockAmendmentContext() as any);
       return;
     }
 
     if (application.status !== "AMENDMENT_REQUESTED") {
       setAmendmentContext(null);
+      setAmendmentContextStatus("idle");
       return;
     }
 
     let mounted = true;
+    setAmendmentContext(null);
+    setAmendmentContextStatus("loading");
     (async () => {
       try {
         const token = await getAccessToken();
@@ -269,10 +277,23 @@ function EditApplicationPageBody() {
         });
         const json = await resp.json();
         if (!mounted) return;
-        if (!json.success) return;
+        if (!json.success) {
+          setAmendmentContext({
+            review_cycle: (application as { review_cycle?: number }).review_cycle ?? 1,
+            remarks: [],
+          });
+          setAmendmentContextStatus("done");
+          return;
+        }
         setAmendmentContext({ review_cycle: json.data.review_cycle, remarks: json.data.remarks });
+        setAmendmentContextStatus("done");
       } catch {
-        // ignore network errors
+        if (!mounted) return;
+        setAmendmentContext({
+          review_cycle: (application as { review_cycle?: number }).review_cycle ?? 1,
+          remarks: [],
+        });
+        setAmendmentContextStatus("done");
       }
     })();
 
@@ -412,6 +433,42 @@ function EditApplicationPageBody() {
     }
     return productWorkflow;
   }, [productWorkflow, effectiveStructureType, isStructureResolved]);
+
+  /** Forward scan for next amendment step that is flagged and not yet acknowledged; else Review & Submit. */
+  const stepAcknowledgedForAmendmentNav = React.useCallback(
+    (key: string, extraAckedKeys: ReadonlySet<string>) => {
+      const acked = (k: string) =>
+        acknowledgedWorkflowIds.includes(k) || extraAckedKeys.has(k);
+      return acked(key) || (key === "financial_statements" && acked("financial"));
+    },
+    [acknowledgedWorkflowIds]
+  );
+
+  const getNextAmendmentStepNumber = React.useCallback(
+    (fromStep1Based: number, extraAckedKeys: readonly string[] = []) => {
+      const extra = new Set(extraAckedKeys);
+      const amendmentStepsToCheck = amendmentFlaggedStepKeys.filter(
+        (k) => k !== "review_and_submit"
+      );
+      const cur0 = fromStep1Based - 1;
+      for (let j = cur0 + 1; j < effectiveWorkflow.length; j++) {
+        const row = effectiveWorkflow[j] as Record<string, unknown>;
+        const key = getStepKeyFromStepId((row.id as string) || "") || "";
+        if (
+          amendmentStepsToCheck.includes(key) &&
+          !stepAcknowledgedForAmendmentNav(key, extra)
+        ) {
+          return j + 1;
+        }
+      }
+      const reviewIndex = effectiveWorkflow.findIndex(
+        (s: Record<string, unknown>) =>
+          (getStepKeyFromStepId((s.id as string) || "") || "") === "review_and_submit"
+      );
+      return reviewIndex >= 0 ? reviewIndex + 1 : effectiveWorkflow.length;
+    },
+    [effectiveWorkflow, amendmentFlaggedStepKeys, stepAcknowledgedForAmendmentNav]
+  );
 
   /* ================================================================
      BLOCK REASONS (PRODUCT DELETED/VERSION CHANGED)
@@ -633,14 +690,24 @@ function EditApplicationPageBody() {
 
       let targetStep: number;
       if (isAmendmentMode) {
-        if (!amendmentContext || effectiveWorkflow.length === 0) return;
+        if (
+          amendmentContextStatus !== "done" ||
+          !amendmentContext ||
+          effectiveWorkflow.length === 0 ||
+          !isStructureResolved
+        ) {
+          return;
+        }
         const amendmentStepsToCheck = amendmentFlaggedStepKeys.filter(
           (k) => k !== "review_and_submit"
         );
+        const stepAcknowledged = (key: string) =>
+          acknowledgedWorkflowIds.includes(key) ||
+          (key === "financial_statements" && acknowledgedWorkflowIds.includes("financial"));
         const firstUnack = effectiveWorkflow.findIndex(
           (s: Record<string, unknown>) => {
             const key = getStepKeyFromStepId((s.id as string) || "") || "";
-            return amendmentStepsToCheck.includes(key) && !acknowledgedWorkflowIds.includes(key);
+            return amendmentStepsToCheck.includes(key) && !stepAcknowledged(key);
           }
         );
         if (firstUnack >= 0) {
@@ -668,9 +735,11 @@ function EditApplicationPageBody() {
     wizardState,
     devPreviewAmendment,
     amendmentContext,
+    amendmentContextStatus,
     amendmentFlaggedStepKeys,
     acknowledgedWorkflowIds,
     effectiveWorkflow,
+    isStructureResolved,
     navigateWithVersionCheck,
   ]);
 
@@ -1013,7 +1082,7 @@ function EditApplicationPageBody() {
     try {
       // Locked step: navigate only, no save, no DB write, no toast
       if (isAmendmentModeEffective && !isStepFlagged) {
-        const nextStep = stepFromUrl + 1;
+        const nextStep = getNextAmendmentStepNumber(stepFromUrl);
         const didNav = await safeNavigate(`/applications/edit/${applicationId}?step=${nextStep}`, {
           leavingPage: false,
           forceSkipGuard: true,
@@ -1136,8 +1205,11 @@ function EditApplicationPageBody() {
 
       // No data case
       if (dataToSave === null) {
+        const navStep = isAmendmentModeEffective
+          ? getNextAmendmentStepNumber(stepFromUrl)
+          : stepFromUrl + 1;
         const didNav = await safeNavigate(
-          `/applications/edit/${applicationId}?step=${stepFromUrl + 1}`,
+          `/applications/edit/${applicationId}?step=${navStep}`,
           { leavingPage: false, forceSkipGuard: true }
         );
         if (didNav) {
@@ -1147,8 +1219,7 @@ function EditApplicationPageBody() {
         return;
       }
 
-      const nextStep = stepFromUrl + 1;
-
+      const linearNext = stepFromUrl + 1;
 
       /* ============================================================
          FINANCING STRUCTURE NO-CHANGE CASE
@@ -1158,7 +1229,10 @@ function EditApplicationPageBody() {
         // If step has been saved before, skip the save
         const hasBeenSavedBefore = (dataToSave as Record<string, unknown>)?.hasBeenSavedBefore as boolean | undefined;
         if (hasBeenSavedBefore) {
-          const ok = await safeNavigate(`/applications/edit/${applicationId}?step=${nextStep}`, {
+          const navStep = isAmendmentModeEffective
+            ? getNextAmendmentStepNumber(stepFromUrl)
+            : linearNext;
+          const ok = await safeNavigate(`/applications/edit/${applicationId}?step=${navStep}`, {
             leavingPage: false,
             forceSkipGuard: true,
           });
@@ -1178,7 +1252,7 @@ function EditApplicationPageBody() {
 
       const stepPayload = {
         stepId: currentStepId,
-        stepNumber: nextStep - 1,
+        stepNumber: stepFromUrl,
         data: dataToSave,
         ...(structureChanged && { forceRewindToStep: stepFromUrl }),
       };
@@ -1207,7 +1281,18 @@ function EditApplicationPageBody() {
         // ignore acknowledgement failures - backend enforcement remains authoritative
       }
 
-      const navigationStep = structureChanged ? stepFromUrl + 1 : nextStep;
+      const ackExtra: string[] = [];
+      if (isAmendmentModeEffective && isStepFlagged && currentStepKey) {
+        ackExtra.push(currentStepKey);
+        if (currentStepKey === "financial_statements") {
+          ackExtra.push("financial");
+        }
+      }
+      const navigationStep = structureChanged
+        ? stepFromUrl + 1
+        : isAmendmentModeEffective
+          ? getNextAmendmentStepNumber(stepFromUrl, ackExtra)
+          : linearNext;
       const didNav = await safeNavigate(
         `/applications/edit/${applicationId}?step=${navigationStep}`,
         { leavingPage: false, forceSkipGuard: true }
@@ -1221,7 +1306,7 @@ function EditApplicationPageBody() {
       if (wizardState && application?.status !== "AMENDMENT_REQUESTED") {
         setWizardState({
           lastCompletedStep: stepFromUrl,
-          allowedMaxStep: Math.max(wizardState.allowedMaxStep, nextStep),
+          allowedMaxStep: Math.max(wizardState.allowedMaxStep, linearNext),
         });
       }
 
@@ -1284,6 +1369,9 @@ function EditApplicationPageBody() {
     (!isLoading && Boolean(application) && effectiveWorkflow.length === 0);
 
   const hasStepQuery = searchParams.has("step");
+  const amendmentRouteReady =
+    !isAmendmentModeEffective ||
+    (amendmentContextStatus === "done" && isStructureResolved);
   const isStepRouteReady =
     !useBlockedFlowBackdrop &&
     hasStepQuery &&
@@ -1291,7 +1379,8 @@ function EditApplicationPageBody() {
     !isLoadingApp &&
     !isLoadingProducts &&
     effectiveWorkflow.length > 0 &&
-    wizardState !== null;
+    wizardState !== null &&
+    amendmentRouteReady;
 
   const showStepLoadingShell = !useBlockedFlowBackdrop && !isStepRouteReady;
   const devTools = useDevTools();
