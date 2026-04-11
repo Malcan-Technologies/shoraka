@@ -2562,14 +2562,6 @@ export class AdminService {
     const registrationNumber =
       org?.registration_number ?? basicInfo?.ssmRegistrationNumber ?? basicInfo?.ssmRegisterNumber ?? null;
 
-    const corporateBasicInfo =
-      record.organization_type === "COMPANY"
-        ? {
-            entityType: basicInfo?.entityType ?? null,
-            industry: basicInfo?.industry ?? null,
-          }
-        : undefined;
-
     return {
       id: record.id,
       userId: record.user.user_id,
@@ -2602,7 +2594,6 @@ export class AdminService {
       directorKycStatus,
       directorAmlStatus,
       corporateEntities,
-      corporateBasicInfo,
     };
   }
 

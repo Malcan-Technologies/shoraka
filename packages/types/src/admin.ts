@@ -723,11 +723,6 @@ export interface OnboardingApplicationResponse {
     shareholders?: Array<Record<string, unknown>>;
     corporateShareholders?: Array<Record<string, unknown>>;
   };
-  /** RegTank COD basic info (company onboarding only): industry + entity type from the form */
-  corporateBasicInfo?: {
-    entityType: string | null;
-    industry: string | null;
-  };
 }
 
 export interface GetOnboardingApplicationsParams extends PaginationParams {

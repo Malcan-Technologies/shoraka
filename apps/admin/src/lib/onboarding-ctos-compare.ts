@@ -1,11 +1,11 @@
 /**
  * SECTION: CTOS vs onboarding application comparison (admin)
- * WHY: SSM/CTOS verification step shows Application vs CTOS columns and checklist
- * INPUT: onboarding application + optional CTOS company_json
- * OUTPUT: row models and checklist flags for the verification panel
+ * WHY: SSM/CTOS verification compares application vs CTOS company_json
+ * INPUT: onboarding application + optional CTOS company_json + fetch state
+ * OUTPUT: name/SSM rows, director/shareholder rows, checklist
  * WHERE USED: SSMVerificationPanel
- * NOTE: Director/shareholder Application column uses corporate_entities first (same as financing review),
- * then director_kyc_status only when CE has no people rows.
+ * NOTE: Company name match = trim + lowercase + single spaces, then exact equality. SSM = digits only.
+ * Director/shareholder: match CTOS row by normalized IC/SSM key, then require same ID + same name (trim, case-insensitive).
  */
 
 import {
@@ -13,6 +13,9 @@ import {
   type DirectorKycStatus,
   type OnboardingApplicationResponse,
 } from "@cashsouk/types";
+
+/** Org-level CTOS list: nothing loaded / loaded but unusable / ready to compare. */
+export type OnboardingCtosOrgFetchState = "not_pulled" | "no_record" | "ready";
 
 interface CtosOrgDirectorParsed {
   ic_lcno: string | null;
@@ -33,10 +36,6 @@ export interface OnboardingVerificationRow {
 export interface OnboardingCtosComparison {
   companyName: OnboardingVerificationRow;
   registration: OnboardingVerificationRow;
-  /** Application industry vs CTOS `type_of_business` (CCM nature of business). */
-  industryActivity: OnboardingVerificationRow;
-  /** Application entity type vs CTOS `comp_type` / `comp_category` (SSM). */
-  entityType: OnboardingVerificationRow;
   directors: OnboardingVerificationRow[];
   shareholders: OnboardingVerificationRow[];
   checklist: { id: string; label: string; ok: boolean }[];
@@ -50,27 +49,19 @@ function normalizeIdKey(raw: string | null | undefined): string | null {
   return s.toLowerCase();
 }
 
-function stripCompanySuffixes(s: string): string {
-  return s
-    .replace(/\b(sdn\.?\s*bhd|sdn bhd|berhad|bhd)\b/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
+/** Trim, lowercase, collapse whitespace — for strict name equality. */
+function normalizeComparableLabel(s: string | null | undefined): string {
+  return String(s ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
 }
 
-function normalizeCompanyName(s: string): string {
-  return s.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-/** Loose name match: exact, substring, or after stripping legal suffixes */
-function namesLooselyMatchApplicationVsCtos(appName: string, ctosName: string | null | undefined): boolean {
-  const a = normalizeCompanyName(appName);
-  const c = normalizeCompanyName(ctosName ?? "");
+function namesStrictMatch(appLabel: string, ctosName: string | null | undefined): boolean {
+  const a = normalizeComparableLabel(appLabel === "—" ? "" : appLabel);
+  const c = normalizeComparableLabel(ctosName);
   if (!a || !c) return false;
-  if (a === c) return true;
-  if (c.includes(a) || a.includes(c)) return true;
-  const sa = stripCompanySuffixes(a);
-  const sc = stripCompanySuffixes(c);
-  return sc.includes(sa) || sa.includes(sc);
+  return a === c;
 }
 
 function registrationNumbersMatch(appReg: string | null | undefined, ctosReg: string | null | undefined): boolean {
@@ -97,16 +88,6 @@ function primaryCtosIdFromDirectorRow(r: CtosOrgDirectorParsed): string {
   const a = r.nic_brno != null ? String(r.nic_brno).trim() : "";
   const b = r.ic_lcno != null ? String(r.ic_lcno).trim() : "";
   return a || b;
-}
-
-function ownershipLabelFromCtos(r: CtosOrgDirectorParsed): string | null {
-  if (r.equity_percentage != null && !Number.isNaN(Number(r.equity_percentage))) {
-    return `${r.equity_percentage}%`;
-  }
-  if (r.equity != null && !Number.isNaN(Number(r.equity))) {
-    return `${r.equity}%`;
-  }
-  return null;
 }
 
 function extractCtosOrgDirectorsFromCompanyJson(companyJson: unknown): CtosOrgDirectorParsed[] {
@@ -152,68 +133,15 @@ function appShareholderDisplayName(d: DirectorKycStatus): string {
   return pct ? `${d.name} (${pct})` : d.name;
 }
 
-function ctosShareholderDisplayName(r: CtosOrgDirectorParsed): string {
-  const own = ownershipLabelFromCtos(r);
-  const n = (r.name ?? "").trim() || "—";
-  return own ? `${n} (${own})` : n;
+function issuerCtosPersonNameAndIdMatch(d: DirectorKycStatus, ctosSide: CtosOrgDirectorParsed): boolean {
+  const appId = normalizeIdKey(d.governmentIdNumber);
+  const ctosId = normalizeIdKey(primaryCtosIdFromDirectorRow(ctosSide));
+  if (!appId || !ctosId || appId !== ctosId) return false;
+  const nameMatch =
+    d.name.trim().toLowerCase() === String(ctosSide.name ?? "").trim().toLowerCase();
+  return nameMatch;
 }
 
-function namesMatchLoose(a: string, b: string | null | undefined): boolean {
-  const x = normalizeCompanyName(a);
-  const y = normalizeCompanyName(b ?? "");
-  if (!x || !y) return false;
-  return x === y || x.includes(y) || y.includes(x);
-}
-
-/** Compare shareholder name and optional % from application role vs CTOS equity fields */
-function shareholderDisplayMatch(d: DirectorKycStatus, ctosRow: CtosOrgDirectorParsed | undefined): boolean {
-  if (!ctosRow) return false;
-  const appLabel = appShareholderDisplayName(d);
-  const ctosLabel = ctosShareholderDisplayName(ctosRow);
-  if (!namesMatchLoose(d.name, ctosRow.name)) return false;
-  const pctApp = shareholderPercentFromRole(d.role);
-  const pctCtos = ownershipLabelFromCtos(ctosRow);
-  if (pctApp && pctCtos) {
-    const da = pctApp.replace(/\D/g, "");
-    const db = pctCtos.replace(/\D/g, "");
-    if (da && db) return da === db;
-  }
-  return appLabel.length > 0 && ctosLabel.length > 0;
-}
-
-function applicationIndustryLabel(application: OnboardingApplicationResponse): string {
-  return application.corporateBasicInfo?.industry?.trim() || "—";
-}
-
-function applicationEntityTypeLabel(application: OnboardingApplicationResponse): string {
-  return application.corporateBasicInfo?.entityType?.trim() || "—";
-}
-
-/** CTOS SSM company type: `comp_type` label + optional `comp_category` (see ctos.response.txt section_a). */
-function ctosEntityTypeDisplay(cj: Record<string, unknown> | null | undefined): string | null {
-  if (!cj) return null;
-  const t = cj.comp_type != null ? String(cj.comp_type).trim() : "";
-  const c = cj.comp_category != null ? String(cj.comp_category).trim() : "";
-  if (t && c) return `${t} · ${c}`;
-  if (t) return t;
-  if (c) return c;
-  return null;
-}
-
-/** Loose string match for free-text industry/entity labels (substring / token overlap). */
-function businessTypesLooselyMatch(appLabel: string, ctos: string | null | undefined): boolean {
-  if (appLabel === "—" || !ctos?.trim()) return false;
-  const a = normalizeCompanyName(appLabel);
-  const c = normalizeCompanyName(ctos);
-  if (!a || !c) return false;
-  if (a === c || c.includes(a) || a.includes(c)) return true;
-  for (const part of a.split(/[(),/&]+/).map((p) => p.trim()).filter(Boolean)) {
-    if (part.length > 2 && c.includes(part)) return true;
-  }
-  return false;
-}
-
-/** Same shape as financing-review `personNameFromCe` (corporate_entities person row) */
 function personNameFromCe(p: Record<string, unknown>): string {
   const info = p.personalInfo as Record<string, unknown> | undefined;
   const full = String(info?.fullName ?? "").trim();
@@ -294,10 +222,6 @@ function corporateEntitiesHasPeople(
   );
 }
 
-/**
- * CE-first list (same rule as financing `extractDirectorShareholders`): order and IDs from
- * corporate_entities; fill missing IC from director_kyc_status JSON by EOD.
- */
 function directorKycRowsFromCorporateEntities(
   ce: NonNullable<OnboardingApplicationResponse["corporateEntities"]>,
   directorKycStatus: OnboardingApplicationResponse["directorKycStatus"]
@@ -365,62 +289,68 @@ function effectiveKycDirectors(application: OnboardingApplicationResponse): Dire
   return [];
 }
 
+function parseCtosNameReg(companyJson: unknown): { ctosName: string | null; ctosReg: string | null } {
+  const cj = companyJson as Record<string, unknown> | null | undefined;
+  if (!cj || typeof cj !== "object") return { ctosName: null, ctosReg: null };
+  const ctosName = cj.name != null ? String(cj.name) : null;
+  const ctosReg =
+    cj.brn_ssm != null
+      ? String(cj.brn_ssm)
+      : cj.nic_brno != null
+        ? String(cj.nic_brno)
+        : cj.ic_lcno != null
+          ? String(cj.ic_lcno)
+          : null;
+  return { ctosName, ctosReg };
+}
+
+/** At least company name or SSM in extract — enough to compare registry fields. */
+export function companyJsonUsableForRegistryCompare(companyJson: unknown): boolean {
+  const { ctosName, ctosReg } = parseCtosNameReg(companyJson);
+  if (ctosName != null && String(ctosName).trim() !== "") return true;
+  const digits = String(ctosReg ?? "").replace(/\D/g, "");
+  return digits.length > 0;
+}
+
+/** Report row has usable `company_json` (registry fields and/or director list). */
+export function companyJsonReadyForCtosCompare(companyJson: unknown): boolean {
+  if (!companyJson || typeof companyJson !== "object") return false;
+  if (companyJsonUsableForRegistryCompare(companyJson)) return true;
+  const cj = companyJson as { directors?: unknown };
+  return Array.isArray(cj.directors) && cj.directors.length > 0;
+}
+
 export function buildOnboardingCtosComparison(
   application: OnboardingApplicationResponse,
-  companyJson: unknown | null
+  companyJson: unknown | null,
+  orgFetchState: OnboardingCtosOrgFetchState
 ): OnboardingCtosComparison {
   const appName = application.organizationName?.trim() || "—";
   const appReg = application.registrationNumber?.trim() || "—";
 
-  const cj = companyJson as Record<string, unknown> | null | undefined;
-  const ctosName = cj?.name != null ? String(cj.name) : null;
-  const ctosReg =
-    cj?.brn_ssm != null
-      ? String(cj.brn_ssm)
-      : cj?.nic_brno != null
-        ? String(cj.nic_brno)
-        : cj?.ic_lcno != null
-          ? String(cj.ic_lcno)
-          : null;
-  const hasCtos = Boolean(companyJson && typeof companyJson === "object");
-  const ctosTypeOfBusiness = cj?.type_of_business != null ? String(cj.type_of_business) : null;
-  const ctosEntityDisplay = hasCtos ? ctosEntityTypeDisplay(cj) : null;
+  const ready = orgFetchState === "ready";
+  const { ctosName, ctosReg } = parseCtosNameReg(companyJson);
 
   const companyName: OnboardingVerificationRow = {
     appCell: appName,
-    ctosCell: hasCtos ? ctosName : null,
-    match: hasCtos && namesLooselyMatchApplicationVsCtos(appName, ctosName),
+    ctosCell: ready ? ctosName : null,
+    match: ready && namesStrictMatch(appName, ctosName),
   };
 
   const registration: OnboardingVerificationRow = {
     appCell: appReg,
-    ctosCell: hasCtos ? (ctosReg?.trim() || "—") : null,
-    match: hasCtos && registrationNumbersMatch(application.registrationNumber, ctosReg),
+    ctosCell: ready ? (ctosReg?.trim() || null) : null,
+    match: ready && registrationNumbersMatch(application.registrationNumber, ctosReg),
   };
 
-  const appIndustry = applicationIndustryLabel(application);
-  const industryActivity: OnboardingVerificationRow = {
-    appCell: appIndustry,
-    ctosCell: hasCtos ? (ctosTypeOfBusiness ?? "—") : null,
-    match:
-      hasCtos &&
-      appIndustry !== "—" &&
-      Boolean(ctosTypeOfBusiness?.trim()) &&
-      businessTypesLooselyMatch(appIndustry, ctosTypeOfBusiness),
-  };
+  const ctosRows = ready && companyJson ? extractCtosOrgDirectorsFromCompanyJson(companyJson) : [];
+  const ctosDirectorRows = ctosRows.filter((r) => isCtosDirectorTableRow(ctosPositionCode(r.position)));
+  const ctosShareholderRows = ctosRows.filter((r) => isCtosShareholderTableRow(ctosPositionCode(r.position)));
 
-  const appEntity = applicationEntityTypeLabel(application);
-  const entityType: OnboardingVerificationRow = {
-    appCell: appEntity,
-    ctosCell: hasCtos ? (ctosEntityDisplay ?? "—") : null,
-    match:
-      hasCtos &&
-      appEntity !== "—" &&
-      Boolean(ctosEntityDisplay?.trim()) &&
-      businessTypesLooselyMatch(appEntity, ctosEntityDisplay),
-  };
-
-  const ctosRows = hasCtos ? extractCtosOrgDirectorsFromCompanyJson(companyJson) : [];
+  const ctosHasUsableSnapshot =
+    companyJsonUsableForRegistryCompare(companyJson) ||
+    ctosDirectorRows.length > 0 ||
+    ctosShareholderRows.length > 0;
 
   const ctosByKey = new Map<string, CtosOrgDirectorParsed[]>();
   for (const r of ctosRows) {
@@ -434,59 +364,75 @@ export function buildOnboardingCtosComparison(
   const kycList = effectiveKycDirectors(application);
   const appDirList = appDirectorsFromKyc(kycList);
   const directors: OnboardingVerificationRow[] = appDirList.map((d) => {
+    if (!ready) return { appCell: d.name, ctosCell: null, match: false };
     const k = normalizeIdKey(d.governmentIdNumber);
     const candidates = k ? ctosByKey.get(k) ?? [] : [];
     const ctosSide = candidates.find((c) => isCtosDirectorTableRow(ctosPositionCode(c.position)));
     const ctosCell = ctosSide ? (ctosSide.name ?? "").trim() || "—" : null;
-    const match =
-      Boolean(ctosSide) &&
-      namesMatchLoose(d.name, ctosSide!.name) &&
-      isCtosDirectorTableRow(ctosPositionCode(ctosSide!.position));
+    const match = ctosSide != null && issuerCtosPersonNameAndIdMatch(d, ctosSide);
     return { appCell: d.name, ctosCell, match };
   });
 
   const appShList = appShareholdersFromKyc(kycList);
   const shareholders: OnboardingVerificationRow[] = appShList.map((d) => {
+    if (!ready) return { appCell: appShareholderDisplayName(d), ctosCell: null, match: false };
     const k = normalizeIdKey(d.governmentIdNumber);
     const candidates = k ? ctosByKey.get(k) ?? [] : [];
     const ctosSide = candidates.find((c) => isCtosShareholderTableRow(ctosPositionCode(c.position)));
-    const ctosCell = ctosSide ? ctosShareholderDisplayName(ctosSide) : null;
-    const match = Boolean(ctosSide) && shareholderDisplayMatch(d, ctosSide);
+    const ctosCell = ctosSide ? (ctosSide.name ?? "").trim() || "—" : null;
+    const match = ctosSide != null && issuerCtosPersonNameAndIdMatch(d, ctosSide);
     return { appCell: appShareholderDisplayName(d), ctosCell, match };
   });
 
   const directorsMatch =
-    appDirList.length === 0
-      ? true
-      : hasCtos && appDirList.length > 0 && directors.length > 0 && directors.every((r) => r.match);
+    !ready || !ctosHasUsableSnapshot
+      ? false
+      : appDirList.length === 0
+        ? ctosDirectorRows.length === 0
+        : directors.length > 0 && directors.every((r) => r.match);
 
   const shareholdersMatch =
-    appShList.length === 0
-      ? true
-      : hasCtos && appShList.length > 0 && shareholders.length > 0 && shareholders.every((r) => r.match);
+    !ready || !ctosHasUsableSnapshot
+      ? false
+      : appShList.length === 0
+        ? ctosShareholderRows.length === 0
+        : shareholders.length > 0 && shareholders.every((r) => r.match);
 
   const checklist: { id: string; label: string; ok: boolean }[] = [
-    { id: "name", label: "Company name matches CTOS", ok: companyName.match },
-    { id: "reg", label: "Registration number matches CTOS", ok: registration.match },
-    {
-      id: "industry",
-      label: "Industry / activity matches CTOS (type of business)",
-      ok: !hasCtos || appIndustry === "—" || industryActivity.match,
-    },
-    {
-      id: "entity",
-      label: "Entity type matches CTOS (SSM company type)",
-      ok: !hasCtos || appEntity === "—" || entityType.match,
-    },
-    { id: "dir", label: "Directors match CTOS (by ID)", ok: directorsMatch },
-    { id: "sh", label: "Shareholders match CTOS (by ID and % where available)", ok: shareholdersMatch },
+    { id: "name", label: "Name matches", ok: companyName.match },
+    { id: "reg", label: "SSM no. matches", ok: registration.match },
+    { id: "dir", label: "Directors match", ok: directorsMatch },
+    { id: "sh", label: "Shareholders match", ok: shareholdersMatch },
   ];
+
+  if (process.env.NODE_ENV === "development") {
+    console.log("[CTOS compare] application vs CTOS", {
+      orgFetchState,
+      ready,
+      application: {
+        organizationName: application.organizationName,
+        registrationNumber: application.registrationNumber,
+        directorRows: appDirList.length,
+        shareholderRows: appShList.length,
+      },
+      ctos: {
+        name: ctosName ?? null,
+        registration: ctosReg ?? null,
+        directorRowsInReport: ctosDirectorRows.length,
+        shareholderRowsInReport: ctosShareholderRows.length,
+        hasUsableSnapshot: ctosHasUsableSnapshot,
+      },
+      rowMatchFlags: {
+        companyName: companyName.match,
+        registration: registration.match,
+      },
+      checklist: checklist.map((c) => ({ id: c.id, ok: c.ok, label: c.label })),
+    });
+  }
 
   return {
     companyName,
     registration,
-    industryActivity,
-    entityType,
     directors,
     shareholders,
     checklist,
