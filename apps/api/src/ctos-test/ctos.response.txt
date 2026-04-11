@@ -6,7 +6,7 @@ CTOS harness: financials rows: 4
 CTOS harness: legal cases: 0
 CTOS harness: dcheqs raw_flag: 0
 CTOS harness: case start, kind: company name: GINSENGA CHICKEN RESTAURANTSA SDN BHD regOrNic: 200001020876
-CTOS harness: report XML length: 43035
+CTOS harness: report XML length: 43032
 CTOS harness: enquiry_error: null
 CTOS harness: fico_score: 372
 CTOS harness: financials rows: 4
@@ -20,7 +20,7 @@ CTOS harness: financials rows: 4
 CTOS harness: legal cases: 0
 CTOS harness: dcheqs raw_flag: 0
 CTOS harness: case start, kind: company name: Harry SDN BHD regOrNic: 198601005678
-CTOS harness: report XML length: 57455
+CTOS harness: report XML length: 57395
 CTOS harness: enquiry_error: null
 CTOS harness: fico_score: 0
 CTOS harness: financials rows: 4
@@ -83,7 +83,7 @@ CTOS harness: financials rows: 0
 CTOS harness: legal cases: 2
 CTOS harness: dcheqs raw_flag: 0
 CTOS harness: case start, kind: company name: SIEW HUI CONSTRUCTION BERHAD regOrNic: 198401005456
-CTOS harness: report XML length: 22555
+CTOS harness: report XML length: 22558
 CTOS harness: enquiry_error: null
 CTOS harness: fico_score: 0
 CTOS harness: financials rows: 1
@@ -97,7 +97,7 @@ CTOS harness: financials rows: 1
 CTOS harness: legal cases: 0
 CTOS harness: dcheqs raw_flag: 0
 CTOS harness: case start, kind: company name: ZORO'S CONSTRUCTION BERHAD regOrNic: 198401005124
-CTOS harness: report XML length: 18089
+CTOS harness: report XML length: 18091
 CTOS harness: enquiry_error: null
 CTOS harness: fico_score: 0
 CTOS harness: financials rows: 1
@@ -223,23 +223,26 @@ CTOS harness: financials rows: 0
 CTOS harness: legal cases: 1
 CTOS harness: dcheqs raw_flag: 0
 CTOS harness: case start, kind: individual name: VIGNESH RAJ regOrNic: 800706217043
-CTOS harness: report XML length: 2812
-CTOS harness: enquiry_error: { code: '2', message: 'MULTIPLE ENTITIES' }
-CTOS harness: fico_score: null
+CTOS harness: multiple entities; auto-picking first entity key: 212453 all: [ '212453', '140002' ]
+CTOS harness: report XML length: 21636
+CTOS harness: enquiry_error: null
+CTOS harness: fico_score: 817
 CTOS harness: financials rows: 0
 CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: null
+CTOS harness: dcheqs raw_flag: 0
 CTOS harness: case start, kind: individual name: KIRAN CHANDRASEKAR regOrNic: 870227082659
-CTOS harness: report XML length: 2841
-CTOS harness: enquiry_error: { code: '2', message: 'MULTIPLE ENTITIES' }
-CTOS harness: fico_score: null
+CTOS harness: multiple entities; auto-picking first entity key: 4534342 all: [ '4534342', '140003' ]
+CTOS harness: report XML length: 21711
+CTOS harness: enquiry_error: null
+CTOS harness: fico_score: 817
 CTOS harness: financials rows: 0
 CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: null
+CTOS harness: dcheqs raw_flag: 0
 CTOS harness: case start, kind: individual name: Siti Hajar Binti Mohd Zain regOrNic: 870515051120
-CTOS harness: report XML length: 2873
-CTOS harness: enquiry_error: { code: '2', message: 'MULTIPLE ENTITIES' }
-CTOS harness: fico_score: null
+CTOS harness: multiple entities; auto-picking first entity key: 8927639 all: [ '8927639', '140004' ]
+CTOS harness: report XML length: 26868
+CTOS harness: enquiry_error: null
+CTOS harness: fico_score: 817
 CTOS harness: financials rows: 0
 CTOS harness: legal cases: 0
-CTOS harness: dcheqs raw_flag: null
+CTOS harness: dcheqs raw_flag: 0

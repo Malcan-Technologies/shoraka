@@ -275,7 +275,19 @@ function escapeXml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function oneRecordBlock(typeCode: string, typeVal: string, icLc: string, nicBr: string, name: string, refNo: string) {
+function oneRecordBlock(
+  typeCode: string,
+  typeVal: string,
+  icLc: string,
+  nicBr: string,
+  name: string,
+  refNo: string,
+  confirmEntity?: string | null
+) {
+  const confirmLine =
+    confirmEntity != null && confirmEntity !== ""
+      ? `\n    <confirm_entity>${escapeXml(confirmEntity)}</confirm_entity>`
+      : "";
   return `
   <records>
     <type code="${typeCode}">${typeVal}</type>
@@ -285,7 +297,7 @@ function oneRecordBlock(typeCode: string, typeVal: string, icLc: string, nicBr: 
     <ref_no>${refNo}</ref_no>
     <include_ctos>1</include_ctos>
     <include_ccris>1</include_ccris>
-    <include_fico>1</include_fico>
+    <include_fico>1</include_fico>${confirmLine}
   </records>`;
 }
 
@@ -639,6 +651,64 @@ const wrapSoap = (inner: string) => `
 </soapenv:Envelope>
 `;
 
+const wrapSoapRequestConfirm = (inner: string) => `
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ws="http://ws.proxy.xml.ctos.com.my/">
+  <soapenv:Body>
+    <ws:requestConfirm>
+      <input>${inner.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</input>
+    </ws:requestConfirm>
+  </soapenv:Body>
+</soapenv:Envelope>
+`;
+
+async function extractEnqSumStatusCodeAndEntityKeys(xmlStr: string): Promise<{
+  enqSumStatusCode: string | null;
+  entityKeys: string[];
+}> {
+  const parsed = await parseStringPromise(xmlStr, { explicitArray: true });
+  const report0 = (parsed as { report?: { enq_report?: unknown[] } })?.report?.enq_report?.[0] as
+    | { summary?: unknown[]; entities?: unknown[] }
+    | undefined;
+  const sumTop = report0?.summary?.[0] as { enq_sum?: unknown[] } | undefined;
+  const enqSum0 = sumTop?.enq_sum?.[0] as Record<string, unknown> | undefined;
+  const enqSumStatus = firstArrayEl(enqSum0?.enq_status);
+  const enqSumStatusCode = enqStatusMeta(enqSumStatus).code;
+
+  const keys: string[] = [];
+  const entitiesTop = report0?.entities?.[0] as Record<string, unknown> | undefined;
+  const subjectsRaw = entitiesTop?.subject;
+  const subjects = Array.isArray(subjectsRaw) ? subjectsRaw : subjectsRaw ? [subjectsRaw] : [];
+  for (const subj of subjects) {
+    const s = subj as Record<string, unknown>;
+    const entRaw = s.entity;
+    const ents = Array.isArray(entRaw) ? entRaw : entRaw ? [entRaw] : [];
+    for (const e of ents) {
+      const ent = e as { $?: { key?: string } };
+      const k = ent?.$?.key;
+      if (k != null && String(k).trim() !== "") keys.push(String(k).trim());
+    }
+  }
+  return { enqSumStatusCode, entityKeys: keys };
+}
+
+async function fetchReportXmlWithAutoEntityConfirm(test: TestRow): Promise<string> {
+  const inner1 = buildXML(test);
+  let reportXml = await callCTOS(wrapSoap(inner1));
+  const state = await extractEnqSumStatusCodeAndEntityKeys(reportXml);
+  if (state.enqSumStatusCode !== "2") return reportXml;
+  if (state.entityKeys.length === 0) {
+    console.log(
+      "CTOS harness: enq_sum status 2 (multiple entities) but no entity keys in XML; keeping first response"
+    );
+    return reportXml;
+  }
+  const picked = state.entityKeys[0];
+  console.log("CTOS harness: multiple entities; auto-picking first entity key:", picked, "all:", state.entityKeys);
+  const inner2 = buildXML(test, picked);
+  reportXml = await callCTOS(wrapSoapRequestConfirm(inner2));
+  return reportXml;
+}
+
 async function callCTOS(xml: string) {
   const token = await getToken();
   const res = await axios.post(CONFIG.soapUrl, xml, {
@@ -652,7 +722,8 @@ async function callCTOS(xml: string) {
   return Buffer.from(match[1], "base64").toString("utf-8");
 }
 
-function buildXML(test: TestRow) {
+function buildXML(test: TestRow, confirmEntityKey?: string | null) {
+  const confirm = confirmEntityKey ?? null;
   if (test.kind === "business") {
     const ownerNic = test.ownerNic ?? DEFAULT_BUSINESS_OWNER.ownerNic;
     const ownerName = test.ownerName ?? DEFAULT_BUSINESS_OWNER.ownerName;
@@ -665,7 +736,7 @@ function buildXML(test: TestRow) {
   <company_code>${CONFIG.companyCode}</company_code>
   <account_no>${CONFIG.accountNo}</account_no>
   <user_id>${CONFIG.userId}</user_id>
-  <record_total>2</record_total>${oneRecordBlock("21", "B", "", bizReg, bizName, bizReg)}${oneRecordBlock("11", "I", "", oNic, oName, oNic)}
+  <record_total>2</record_total>${oneRecordBlock("21", "B", "", bizReg, bizName, bizReg, confirm)}${oneRecordBlock("11", "I", "", oNic, oName, oNic, null)}
 </batch>
 `;
   }
@@ -690,7 +761,7 @@ function buildXML(test: TestRow) {
   <company_code>${CONFIG.companyCode}</company_code>
   <account_no>${CONFIG.accountNo}</account_no>
   <user_id>${CONFIG.userId}</user_id>
-  <record_total>1</record_total>${oneRecordBlock(typeCode, typeVal, ic, reg, name, refNo)}
+  <record_total>1</record_total>${oneRecordBlock(typeCode, typeVal, ic, reg, name, refNo, confirm)}
 </batch>
 `;
 }
@@ -699,8 +770,7 @@ async function run() {
   for (const t of TEST_CASES) {
     const regOrNic = t.kind === "individual" ? t.nic : t.reg;
     console.log("CTOS harness: case start, kind:", t.kind, "name:", t.name, "regOrNic:", regOrNic);
-    const xml = buildXML(t);
-    const res = await callCTOS(wrapSoap(xml));
+    const res = await fetchReportXmlWithAutoEntityConfirm(t);
     console.log("CTOS harness: report XML length:", res.length);
     const parsed = await parseCtosReportXmlLocal(res);
     console.log("CTOS harness: enquiry_error:", parsed.summary_json.enquiry_error);
