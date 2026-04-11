@@ -496,7 +496,7 @@ const CONFIG = {
   tokenUrl:
     "https://uat-sso.ctos.com.my/auth/realms/CTOSNET/protocol/openid-connect/token",
   soapUrl: "https://uat-integration.ctos.com.my/ctos_secure/Proxy",
-  privateKeyPath: "./apps/api/src/ctos-test/rsa-private.cer",
+  privateKeyPath: "./rsa-private.cer",
 
   companyCode: "SHORUAT",
   accountNo: "SHORUAT",
@@ -508,40 +508,79 @@ const CONFIG = {
  * FULL SABRINA TEST CASES
  */
 const TEST_CASES = [
-  // { kind: "company", name: "REDIAL ONE SDN BHD", reg: "200501525124" },
-  // { kind: "company", name: "GINSENGA CHICKEN RESTAURANTSA SDN BHD", reg: "200001020876" },
-  // { kind: "company", name: "SHINING SDN BHD", reg: "198501006938" },
-  // { kind: "company", name: "Harry SDN BHD", reg: "198601005678" },
 
+  /**
+   * =========================
+   * COMPANIES (SDN BHD / BHD)
+   * =========================
+   */
+
+  // Existing
+  { kind: "company", name: "REDIAL ONE SDN BHD", reg: "200501525124" },
+  { kind: "company", name: "GINSENGA CHICKEN RESTAURANTSA SDN BHD", reg: "200001020876" },
+  { kind: "company", name: "SHINING SDN BHD", reg: "198501006938" },
+  { kind: "company", name: "Harry SDN BHD", reg: "198601005678" },
+
+  // New (your list)
   { kind: "company", name: "BrightNova Solutions Sdn. Bhd.", reg: "202501234567" },
   { kind: "company", name: "Vertex Quantum Technologies Sdn. Bhd.", reg: "202501998877" },
   { kind: "company", name: "Orion Crest Holdings Sdn. Bhd.", reg: "202001556432" },
   { kind: "company", name: "QuantumEdge Solutions Sdn. Bhd.", reg: "202501447890" },
   { kind: "company", name: "ApexStar Holdings Sdn. Bhd.", reg: "202001223344" },
   { kind: "company", name: "AeroNova Solutions Sdn. Bhd.", reg: "202501889900" },
-  // { kind: "company", name: "THE FOURSQUARE GOSPEL CHURCH BHD.", reg: "198401018032" },
-  // { kind: "company", name: "SIEW HUI CONSTRUCTION BERHAD", reg: "198401005456" },
-  // { kind: "company", name: "LUFFY'S CONSTRUCTION BERHAD", reg: "198401005123" },
-  // { kind: "company", name: "ZORO'S CONSTRUCTION BERHAD", reg: "198401005124" },
-  // { kind: "company", name: "ELEGANT RAY RAY (M) SDN. BHD.", reg: "199001010123" },
 
-  // { kind: "business", name: "BLANC ENTERPRISE", reg: "190003594012" },
-  // { kind: "business", name: "DAHLIA RIZAL ENTERPRISE", reg: "190203155179" },
-  // { kind: "business", name: "ALPHA MAJU ENTERPRISE", reg: "190403983543" },
-  // { kind: "business", name: "JAMES BOND ENTERPRISE", reg: "192403950452" },
-  // { kind: "business", name: "CASHMIRA ENTERPRISE", reg: "192803228303" },
-  // { kind: "business", name: "BATISTE ENTERPRISE", reg: "193003261657" },
+  // Important CTOS test ones
+  { kind: "company", name: "THE FOURSQUARE GOSPEL CHURCH BHD.", reg: "198401018032" },
+  { kind: "company", name: "INTRALIGHT SDN BHD", reg: "201301000165" },
 
-  // { kind: "individual", name: "HAFIY HAMDAN", nic: "720330027845" },
-  // { kind: "individual", name: "CHEW MEI QI", nic: "741214265249" },
-  // { kind: "individual", name: "NG KEAT HAW", nic: "810324145789" },
-  // { kind: "individual", name: "Jonathan Chan", nic: "820106017731" },
-  // { kind: "individual", name: "WONG JIA XIN", nic: "661007322268" },
-  // { kind: "individual", name: "TAN CHONG MIN", nic: "750706081234" },
-  // { kind: "individual", name: "Wan Mohd Najib Azahari", nic: "771015087483" },
-  // { kind: "individual", name: "VIGNESH RAJ", nic: "800706217043" },
-  // { kind: "individual", name: "KIRAN CHANDRASEKAR", nic: "870227082659" },
-  // { kind: "individual", name: "Siti Hajar Binti Mohd Zain", nic: "870515051120" }
+  // Extra company table
+  { kind: "company", name: "SIEW HUI CONSTRUCTION BERHAD", reg: "198401005456" },
+  { kind: "company", name: "LUFFY'S CONSTRUCTION BERHAD", reg: "198401005123" },
+  { kind: "company", name: "ZORO'S CONSTRUCTION BERHAD", reg: "198401005124" },
+  { kind: "company", name: "ELEGANT RAY RAY (M) SDN. BHD.", reg: "199001010123" },
+
+
+
+  /**
+   * =========================
+   * BUSINESS (ENTERPRISE)
+   * =========================
+   */
+
+  { kind: "business", name: "BLANC ENTERPRISE", reg: "190003594012" },
+  { kind: "business", name: "DAHLIA RIZAL ENTERPRISE", reg: "190203155179" },
+  { kind: "business", name: "ALPHA MAJU ENTERPRISE", reg: "190403983543" },
+  { kind: "business", name: "JAMES BOND ENTERPRISE", reg: "192403950452" },
+  { kind: "business", name: "CASHMIRA ENTERPRISE", reg: "192803228303" },
+  { kind: "business", name: "BATISTE ENTERPRISE", reg: "193003261657" },
+
+  // Extra from top list
+  { kind: "business", name: "BINTANG MAJU SERVICES", reg: "190003274306" },
+
+
+
+  /**
+   * =========================
+   * INDIVIDUAL
+   * =========================
+   */
+
+  // From your list
+  { kind: "individual", name: "SITI NORHALIZA BINTI ABDUL RAHMAD", nic: "881108085746" },
+  { kind: "individual", name: "LEE CHOONG WEI", nic: "780120085849" },
+
+  // Existing batch
+  { kind: "individual", name: "HAFIY HAMDAN", nic: "720330027845" },
+  { kind: "individual", name: "CHEW MEI QI", nic: "741214265249" },
+  { kind: "individual", name: "NG KEAT HAW", nic: "810324145789" },
+  { kind: "individual", name: "Jonathan Chan", nic: "820106017731" },
+  { kind: "individual", name: "WONG JIA XIN", nic: "661007322268" },
+  { kind: "individual", name: "TAN CHONG MIN", nic: "750706081234" },
+  { kind: "individual", name: "Wan Mohd Najib Azahari", nic: "771015087483" },
+  { kind: "individual", name: "VIGNESH RAJ", nic: "800706217043" },
+  { kind: "individual", name: "KIRAN CHANDRASEKAR", nic: "870227082659" },
+  { kind: "individual", name: "Siti Hajar Binti Mohd Zain", nic: "870515051120" }
+
 ]
 
 /**
