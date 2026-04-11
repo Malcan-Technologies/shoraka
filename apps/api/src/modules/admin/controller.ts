@@ -57,6 +57,7 @@ import {
   getCtosReportById,
   getCtosReportByAdminOrg,
 } from "../ctos/ctos-report-service";
+import { renderCtosHtmlToPdfBuffer } from "../ctos/render-ctos-html-to-pdf";
 
 const router = Router();
 const adminService = new AdminService();
@@ -2055,6 +2056,36 @@ router.get(
 );
 
 router.get(
+  "/organizations/:portal/:id/ctos-reports/:reportId/pdf",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { portal, id, reportId } = req.params;
+      if (portal !== "investor" && portal !== "issuer") {
+        throw new AppError(400, "VALIDATION_ERROR", "CTOS is only available for issuer or investor organizations");
+      }
+      const orgPortal = portal as "issuer" | "investor";
+      const row = await getCtosReportByAdminOrg(orgPortal, id, reportId);
+      if (!row?.report_html) {
+        throw new AppError(404, "NOT_FOUND", "CTOS HTML report not available");
+      }
+      let pdf: Buffer;
+      try {
+        pdf = await renderCtosHtmlToPdfBuffer(row.report_html);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new AppError(503, "PDF_GENERATION_FAILED", `Could not generate PDF: ${msg}`);
+      }
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="ctos-report-${reportId.slice(0, 8)}.pdf"`);
+      res.send(pdf);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
   "/organizations/:portal/:id/ctos-reports/:reportId",
   requireRole(UserRole.ADMIN),
   async (req: Request, res: Response, next: NextFunction) => {
@@ -2178,6 +2209,39 @@ router.get(
       }
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       res.send(row.report_html);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  "/applications/:id/ctos-reports/:reportId/pdf",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id: applicationId, reportId } = req.params;
+      const app = await prisma.application.findUnique({
+        where: { id: applicationId },
+        select: { issuer_organization_id: true },
+      });
+      if (!app) {
+        throw new AppError(404, "NOT_FOUND", "Application not found");
+      }
+      const row = await getCtosReportById(app.issuer_organization_id, reportId);
+      if (!row?.report_html) {
+        throw new AppError(404, "NOT_FOUND", "CTOS HTML report not available");
+      }
+      let pdf: Buffer;
+      try {
+        pdf = await renderCtosHtmlToPdfBuffer(row.report_html);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new AppError(503, "PDF_GENERATION_FAILED", `Could not generate PDF: ${msg}`);
+      }
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="ctos-report-${reportId.slice(0, 8)}.pdf"`);
+      res.send(pdf);
     } catch (error) {
       next(error);
     }

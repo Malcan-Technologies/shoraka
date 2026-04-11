@@ -4,7 +4,7 @@
  * SECTION: Organization CTOS report history (admin sidebar)
  * WHY: Match KYC card typography, padding (p-6 pt-0), and date format (PPpp)
  * INPUT: portal + organization id
- * OUTPUT: Collapsible card with view/download HTML
+ * OUTPUT: Collapsible card with view (HTML) / download (PDF)
  * WHERE USED: OrganizationDetailPage (issuer or investor)
  */
 
@@ -46,12 +46,12 @@ function sortOrgCtosReports(rows: AdminCtosReportListItem[]): AdminCtosReportLis
   );
 }
 
-function reportHtmlFilename(fetchedAtIso: string, reportId: string): string {
+function reportPdfFilename(fetchedAtIso: string, reportId: string): string {
   const d = new Date(fetchedAtIso);
   const stamp = Number.isNaN(d.getTime())
     ? "report"
     : d.toISOString().slice(0, 19).replace(/[T:]/g, "-");
-  return `ctos-report-${stamp}-${reportId.slice(0, 8)}.html`;
+  return `ctos-report-${stamp}-${reportId.slice(0, 8)}.pdf`;
 }
 
 export function OrganizationIssuerCtosReportsCard({
@@ -132,23 +132,32 @@ export function OrganizationIssuerCtosReportsCard({
     [fetchReportHtml]
   );
 
-  const downloadOrgReportHtml = React.useCallback(
+  const downloadOrgReportPdf = React.useCallback(
     async (reportId: string, fetchedAt: string) => {
-      console.log("Downloading CTOS report HTML:", reportId);
-      const html = await fetchReportHtml(reportId);
-      if (!html) return;
-      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      console.log("Downloading CTOS report PDF:", reportId);
+      const token = await getAccessToken();
+      if (!token) {
+        toast.error("Not signed in");
+        return;
+      }
+      const url = `${API_URL}/v1/admin/organizations/${portal}/${encodeURIComponent(organizationId)}/ctos-reports/${reportId}/pdf`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        toast.error("Could not download PDF");
+        return;
+      }
+      const blob = await res.blob();
       const objectUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = objectUrl;
-      a.download = reportHtmlFilename(fetchedAt, reportId);
+      a.download = reportPdfFilename(fetchedAt, reportId);
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(objectUrl);
       toast.success("Report download started.");
     },
-    [fetchReportHtml]
+    [getAccessToken, organizationId, portal]
   );
 
   const onConfirmGetLatest = () => {
@@ -263,8 +272,8 @@ export function OrganizationIssuerCtosReportsCard({
                             size="icon"
                             className="h-8 w-8 text-muted-foreground hover:text-foreground"
                             disabled={!r.has_report_html}
-                            title="Download HTML"
-                            onClick={() => void downloadOrgReportHtml(r.id, r.fetched_at)}
+                            title="Download PDF"
+                            onClick={() => void downloadOrgReportPdf(r.id, r.fetched_at)}
                           >
                             <ArrowDownTrayIcon className="h-4 w-4" />
                             <span className="sr-only">Download report</span>

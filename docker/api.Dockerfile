@@ -32,8 +32,12 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 
 # Install OpenSSL for Prisma, curl for RDS cert, libstdc++/libgcc for native modules (bcrypt),
-# and libxslt (xsltproc) for CTOS report XML → HTML at snapshot time
-RUN apk add --no-cache openssl curl libstdc++ libgcc libxslt
+# libxslt (xsltproc) for CTOS report XML → HTML at snapshot time,
+# Chromium + fonts for CTOS HTML → PDF (Playwright uses system browser in production)
+RUN apk add --no-cache openssl curl libstdc++ libgcc libxslt \
+  chromium nss freetype harfbuzz ca-certificates ttf-freefont
+
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Download AWS RDS global CA certificate bundle
 # This is required for SSL connections to RDS
