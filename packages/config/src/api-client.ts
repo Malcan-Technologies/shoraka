@@ -429,7 +429,11 @@ export class ApiClient {
 
   async createAdminApplicationCtosSubjectReport(
     applicationId: string,
-    body: { subjectRef: string; subjectKind: "INDIVIDUAL" | "CORPORATE" }
+    body: {
+      subjectRef: string;
+      subjectKind: "INDIVIDUAL" | "CORPORATE";
+      enquiryOverride?: { displayName: string; idNumber: string };
+    }
   ): Promise<ApiResponse<AdminCtosReportListItem> | ApiError> {
     return this.post<AdminCtosReportListItem>(`/v1/admin/applications/${applicationId}/ctos-subject-reports`, body);
   }

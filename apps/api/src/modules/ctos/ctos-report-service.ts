@@ -155,7 +155,11 @@ export async function fetchAndInsertCtosReport(
 
 export async function fetchAndInsertCtosSubjectReport(
   issuerOrganizationId: string,
-  input: { subjectRef: string; subjectKind: CtosSubjectKind },
+  input: {
+    subjectRef: string;
+    subjectKind: CtosSubjectKind;
+    enquiryOverride?: { displayName: string; idNumber: string };
+  },
   correlationId?: string
 ): Promise<CtosReport> {
   const cfg = getCtosConfig();
@@ -170,14 +174,25 @@ export async function fetchAndInsertCtosSubjectReport(
     throw new AppError(404, "NOT_FOUND", "Issuer organization not found");
   }
 
-  const resolved = resolveCtosSubjectFromOrgJson(
-    org.corporate_entities,
-    org.director_kyc_status,
-    input.subjectRef.trim(),
-    input.subjectKind
-  );
-  if (!resolved) {
-    throw new AppError(400, "CTOS_SUBJECT_UNKNOWN", "Subject not found for this organization or missing IC/SSM");
+  let resolved: { displayName: string; idNumber: string };
+  if (input.enquiryOverride) {
+    const displayName = input.enquiryOverride.displayName.trim();
+    const idNumber = input.enquiryOverride.idNumber.trim();
+    if (!displayName || !idNumber) {
+      throw new AppError(400, "CTOS_SUBJECT_INVALID", "enquiryOverride requires display name and id number");
+    }
+    resolved = { displayName, idNumber };
+  } else {
+    const r = resolveCtosSubjectFromOrgJson(
+      org.corporate_entities,
+      org.director_kyc_status,
+      input.subjectRef.trim(),
+      input.subjectKind
+    );
+    if (!r) {
+      throw new AppError(400, "CTOS_SUBJECT_UNKNOWN", "Subject not found for this organization or missing IC/SSM");
+    }
+    resolved = r;
   }
 
   const innerXml = buildCtosSubjectEnquiryXml(cfg, {

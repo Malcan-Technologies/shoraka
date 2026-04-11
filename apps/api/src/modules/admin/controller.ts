@@ -2248,7 +2248,11 @@ router.post(
       const body = createCtosSubjectReportSchema.parse(req.body);
       const row = await fetchAndInsertCtosSubjectReport(
         app.issuer_organization_id,
-        { subjectRef: body.subjectRef, subjectKind: body.subjectKind },
+        {
+          subjectRef: body.subjectRef,
+          subjectKind: body.subjectKind,
+          enquiryOverride: body.enquiryOverride,
+        },
         res.locals.correlationId
       );
       res.status(201).json({
@@ -2301,7 +2305,15 @@ router.post(
         throw new AppError(404, "NOT_FOUND", "Organization not found");
       }
       const body = createCtosSubjectReportSchema.parse(req.body);
-      const row = await fetchAndInsertCtosSubjectReport(id, { subjectRef: body.subjectRef, subjectKind: body.subjectKind }, res.locals.correlationId);
+      const row = await fetchAndInsertCtosSubjectReport(
+        id,
+        {
+          subjectRef: body.subjectRef,
+          subjectKind: body.subjectKind,
+          enquiryOverride: body.enquiryOverride,
+        },
+        res.locals.correlationId
+      );
       res.status(201).json({
         success: true,
         data: ctosRowPublicSummary(row),

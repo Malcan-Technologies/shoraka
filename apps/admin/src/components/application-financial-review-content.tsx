@@ -496,6 +496,7 @@ type DirectorCtosRowStatus =
  */
 interface DirectorCtosComparisonTableRow {
   id: string;
+  /** Onboarding row id when IC matched (name/role checks only); never used for Get report. */
   profileRowId: string | null;
   issuerName: string;
   ctosName: string;
@@ -503,6 +504,8 @@ interface DirectorCtosComparisonTableRow {
   roleCheckCell: string;
   ownershipCheckCell: string;
   rowStatus: DirectorCtosRowStatus;
+  /** Built only from CTOS org director row; drives subject Get report / View report. */
+  subjectActionRow: DirectorShareholderRow | null;
 }
 
 /**
@@ -873,80 +876,63 @@ function extractCtosOrgDirectorsFromCompanyJson(companyJson: unknown): CtosOrgDi
 }
 
 /**
- * SECTION: Name key for matching issuer row to CTOS company_json.directors
- * WHY: Same normalization as cross-check; one CTOS name per issuer line when IC missing
- * INPUT: display name
- * OUTPUT: lowercased single-spaced trim
- * WHERE USED: enrichDirectorShareholderRowsFromOrgCtos
+ * SECTION: Subject kind from CTOS org director row
+ * WHY: buildCtosSubjectEnquiryXml needs INDIVIDUAL (nic_br) vs CORPORATE (ic_lc)
+ * INPUT: company_json.directors[] element
+ * OUTPUT: INDIVIDUAL | CORPORATE | null
+ * WHERE USED: directorShareholderRowFromCtosOrgDirectorForAction
  */
-function normalizeDirectorNameKeyForCtos(name: string): string {
-  return name.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-function ctosOrgDirectorIsIndividual(r: CtosOrgDirectorRow): boolean {
-  if (r.party_type === "I") return true;
-  if (r.party_type === "C") return false;
+function directorSubjectKindFromCtosOrgRow(r: CtosOrgDirectorRow): "INDIVIDUAL" | "CORPORATE" | null {
+  if (r.party_type === "I") return "INDIVIDUAL";
+  if (r.party_type === "C") return "CORPORATE";
   const nic = (r.nic_brno ?? "").trim();
-  if (nic) return true;
-  return false;
-}
-
-function ctosOrgDirectorIsCorporate(r: CtosOrgDirectorRow): boolean {
-  if (r.party_type === "C") return true;
-  if (r.party_type === "I") return false;
   const ic = (r.ic_lcno ?? "").trim();
-  const nic = (r.nic_brno ?? "").trim();
-  return Boolean(ic && !nic);
+  if (nic && !ic) return "INDIVIDUAL";
+  if (ic && !nic) return "CORPORATE";
+  if (nic) return "INDIVIDUAL";
+  if (ic) return "CORPORATE";
+  return null;
+}
+
+function roleLabelFromCtosOrgDirector(r: CtosOrgDirectorRow): string {
+  const c = ctosPositionCanonicalCode(r.position);
+  if (c && CTOS_POSITION_LABEL_BY_CODE[c]) return CTOS_POSITION_LABEL_BY_CODE[c];
+  const p = (r.position ?? "").trim();
+  return p || "Director";
 }
 
 /**
- * SECTION: Fill issuer IC/SSM from latest org CTOS directors
- * WHY: CTOS stores nic_brno (individual) and ic_lcno (corporate SO) per ctos.response.txt; Get report needs a real id
- * INPUT: merged issuer rows; company_json from latest org CtosReport
- * OUTPUT: shallow copies with icOrSsm set when uniquely matched by name + kind
- * WHERE USED: ApplicationFinancialReviewContent after merge, before tables
+ * SECTION: Synthetic issuer-shaped row from CTOS only (subject fetch)
+ * WHY: CTOS table Get report must use org-report id + name, not corporate_entities
+ * INPUT: CtosOrgDirectorRow; stable synthetic id
+ * OUTPUT: DirectorShareholderRow for API or null if id/kind missing
+ * WHERE USED: buildDirectorCtosComparison subjectActionRow
  */
-function enrichDirectorShareholderRowsFromOrgCtos(
-  rows: DirectorShareholderRow[],
-  companyJson: unknown
-): DirectorShareholderRow[] {
-  if (!companyJson) return rows;
-  const ctosDirs = extractCtosOrgDirectorsFromCompanyJson(companyJson);
-  if (ctosDirs.length === 0) return rows;
-
-  let filled = 0;
-  const next = rows.map((row) => {
-    if (normalizeIcSsmKey(row.icOrSsm)) return row;
-    if (!row.subjectKind) return row;
-
-    const nameKey = normalizeDirectorNameKeyForCtos(row.name);
-    if (!nameKey || nameKey === "unknown") return row;
-
-    const candidates = ctosDirs.filter((d) => {
-      const dn = normalizeDirectorNameKeyForCtos(d.name ?? "");
-      if (dn !== nameKey) return false;
-      if (row.subjectKind === "INDIVIDUAL") return ctosOrgDirectorIsIndividual(d);
-      if (row.subjectKind === "CORPORATE") return ctosOrgDirectorIsCorporate(d);
-      return false;
-    });
-
-    if (candidates.length !== 1) return row;
-    const pid = primaryCtosIdFromDirectorRow(candidates[0]).trim();
-    if (!pid) return row;
-    filled += 1;
-    return { ...row, icOrSsm: pid };
-  });
-
-  if (filled > 0) {
-    console.log("Filled IC or SSM from org CTOS company_json for director rows:", filled);
-  }
-  return next;
+function directorShareholderRowFromCtosOrgDirectorForAction(
+  ctosRow: CtosOrgDirectorRow,
+  syntheticId: string
+): DirectorShareholderRow | null {
+  const icOrSsm = primaryCtosIdFromDirectorRow(ctosRow).trim();
+  if (!icOrSsm) return null;
+  const subjectKind = directorSubjectKindFromCtosOrgRow(ctosRow);
+  if (!subjectKind) return null;
+  return {
+    id: syntheticId,
+    name: (ctosRow.name ?? "").trim() || "Unknown",
+    role: roleLabelFromCtosOrgDirector(ctosRow),
+    ownership: ownershipFromCtosDirector(ctosRow),
+    icOrSsm,
+    verificationLabel: subjectKind === "CORPORATE" ? "KYB" : "KYC",
+    verificationStatus: null,
+    subjectRef: null,
+    subjectKind,
+  };
 }
 
 /**
- * SECTION: Build issuer vs organization CTOS comparison rows
- * WHY: Compliance-safe pairing only by IC/SSM; extras and gaps explicit
- * INPUT: issuer list, CTOS org director list
+ * SECTION: Build CTOS-first director cross-check rows
+ * WHY: Table order follows company_json.directors only; onboarding used only for IC-keyed name/role/ownership checks; subject actions use CTOS ids only
+ * INPUT: issuer list (merge), CTOS org director list
  * OUTPUT: table rows + debug side lists
  * WHERE USED: ApplicationFinancialReviewContent
  */
@@ -959,68 +945,86 @@ function buildDirectorCtosComparison(
   unmatchedIssuer: DirectorShareholderRow[];
   unmatchedCtos: CtosOrgDirectorRow[];
 } {
-  const matchedPairs: { issuerId: string; ctosName: string | null }[] = [];
-  const unmatchedIssuer: DirectorShareholderRow[] = [];
-  const unmatchedCtos: CtosOrgDirectorRow[] = [];
+  const issuerByKey = new Map<string, DirectorShareholderRow[]>();
+  for (const ir of issuerList) {
+    const k = normalizeIcSsmKey(ir.icOrSsm);
+    if (!k) continue;
+    const arr = issuerByKey.get(k) ?? [];
+    arr.push(ir);
+    issuerByKey.set(k, arr);
+  }
+  const usedIssuerId = new Set<string>();
 
-  const ctosNoId: CtosOrgDirectorRow[] = [];
-  const buckets = new Map<string, CtosOrgDirectorRow[]>();
-  for (const row of ctosList) {
-    const primary = primaryCtosIdFromDirectorRow(row);
-    const key = normalizeIcSsmKey(primary);
-    if (!key) {
-      ctosNoId.push(row);
-      continue;
-    }
-    const arr = buckets.get(key) ?? [];
-    arr.push(row);
-    buckets.set(key, arr);
+  const ctosKeys = new Set<string>();
+  for (const cr of ctosList) {
+    const pk = normalizeIcSsmKey(primaryCtosIdFromDirectorRow(cr));
+    if (pk) ctosKeys.add(pk);
   }
 
+  const unmatchedIssuer: DirectorShareholderRow[] = [];
+  for (const ir of issuerList) {
+    const ik = normalizeIcSsmKey(ir.icOrSsm);
+    if (!ik) {
+      unmatchedIssuer.push(ir);
+      continue;
+    }
+    if (!ctosKeys.has(ik)) unmatchedIssuer.push(ir);
+  }
+
+  const matchedPairs: { issuerId: string; ctosName: string | null }[] = [];
+  const unmatchedCtos: CtosOrgDirectorRow[] = [];
   const tableRows: DirectorCtosComparisonTableRow[] = [];
   let rowSeq = 0;
 
-  for (const issuerRow of issuerList) {
-    const issuerKey = normalizeIcSsmKey(issuerRow.icOrSsm);
-    if (!issuerKey) {
-      unmatchedIssuer.push(issuerRow);
+  for (const ctosRow of ctosList) {
+    const primary = primaryCtosIdFromDirectorRow(ctosRow);
+    const key = normalizeIcSsmKey(primary);
+    const rowId = `dcmp-${rowSeq++}`;
+    const subjectActionRow = directorShareholderRowFromCtosOrgDirectorForAction(ctosRow, `${rowId}-ctos-subj`);
+
+    if (!key) {
+      unmatchedCtos.push(ctosRow);
       tableRows.push({
-        id: `dcmp-${rowSeq++}`,
-        profileRowId: issuerRow.id,
-        issuerName: issuerRow.name,
-        ctosName: HEADER_PLACEHOLDER,
+        id: rowId,
+        profileRowId: null,
+        issuerName: HEADER_PLACEHOLDER,
+        ctosName: ctosRow.name ?? HEADER_PLACEHOLDER,
         nameCheckCell: HEADER_PLACEHOLDER,
         roleCheckCell: HEADER_PLACEHOLDER,
         ownershipCheckCell: HEADER_PLACEHOLDER,
-        rowStatus: "NOT FOUND IN CTOS",
+        rowStatus: "NOT VERIFIABLE",
+        subjectActionRow: null,
       });
       continue;
     }
 
-    const queue = buckets.get(issuerKey);
-    const ctosRow = queue && queue.length > 0 ? queue.shift()! : null;
-    if (!ctosRow) {
-      unmatchedIssuer.push(issuerRow);
-      tableRows.push({
-        id: `dcmp-${rowSeq++}`,
-        profileRowId: issuerRow.id,
-        issuerName: issuerRow.name,
-        ctosName: HEADER_PLACEHOLDER,
-        nameCheckCell: HEADER_PLACEHOLDER,
-        roleCheckCell: HEADER_PLACEHOLDER,
-        ownershipCheckCell: HEADER_PLACEHOLDER,
-        rowStatus: "NOT FOUND IN CTOS",
-      });
-      continue;
-    }
+    const bucket = issuerByKey.get(key) ?? [];
+    const issuerMatch = bucket.find((r) => !usedIssuerId.has(r.id)) ?? null;
+    if (issuerMatch) usedIssuerId.add(issuerMatch.id);
 
     const ctosNameStr = ctosRow.name ?? "";
     const ctosOwnStr = ownershipFromCtosDirector(ctosRow);
 
+    if (!issuerMatch) {
+      unmatchedCtos.push(ctosRow);
+      tableRows.push({
+        id: rowId,
+        profileRowId: null,
+        issuerName: HEADER_PLACEHOLDER,
+        ctosName: ctosNameStr || HEADER_PLACEHOLDER,
+        nameCheckCell: HEADER_PLACEHOLDER,
+        roleCheckCell: HEADER_PLACEHOLDER,
+        ownershipCheckCell: HEADER_PLACEHOLDER,
+        rowStatus: "EXTRA IN CTOS",
+        subjectActionRow,
+      });
+      continue;
+    }
+
     const nameMatch =
-      issuerRow.name.trim().toLowerCase() === ctosNameStr.trim().toLowerCase();
-    const roleMatch = ctosDirectorRolesMatch(issuerRow.role, ctosRow.position);
-    const ownA = (issuerRow.ownership ?? "").trim().toLowerCase();
+      issuerMatch.name.trim().toLowerCase() === ctosNameStr.trim().toLowerCase();
+    const roleMatch = ctosDirectorRolesMatch(issuerMatch.role, ctosRow.position);
+    const ownA = (issuerMatch.ownership ?? "").trim().toLowerCase();
     const ownB = (ctosOwnStr ?? "").trim().toLowerCase();
     const ownershipMatch = ownA === ownB;
 
@@ -1031,46 +1035,17 @@ function buildDirectorCtosComparison(
     const allMatch = nameMatch && roleMatch && ownershipMatch;
     const rowStatus: "MATCH" | "MISMATCH" = allMatch ? "MATCH" : "MISMATCH";
 
-    matchedPairs.push({ issuerId: issuerRow.id, ctosName: ctosRow.name });
+    matchedPairs.push({ issuerId: issuerMatch.id, ctosName: ctosRow.name });
     tableRows.push({
-      id: `dcmp-${rowSeq++}`,
-      profileRowId: issuerRow.id,
-      issuerName: issuerRow.name,
+      id: rowId,
+      profileRowId: issuerMatch.id,
+      issuerName: issuerMatch.name,
       ctosName: ctosNameStr || HEADER_PLACEHOLDER,
       nameCheckCell,
       roleCheckCell,
       ownershipCheckCell,
       rowStatus,
-    });
-  }
-
-  for (const [, queue] of buckets) {
-    for (const leftover of queue) {
-      unmatchedCtos.push(leftover);
-      tableRows.push({
-        id: `dcmp-${rowSeq++}`,
-        profileRowId: null,
-        issuerName: HEADER_PLACEHOLDER,
-        ctosName: leftover.name ?? HEADER_PLACEHOLDER,
-        nameCheckCell: HEADER_PLACEHOLDER,
-        roleCheckCell: HEADER_PLACEHOLDER,
-        ownershipCheckCell: HEADER_PLACEHOLDER,
-        rowStatus: "EXTRA IN CTOS",
-      });
-    }
-  }
-
-  for (const r of ctosNoId) {
-    unmatchedCtos.push(r);
-    tableRows.push({
-      id: `dcmp-${rowSeq++}`,
-      profileRowId: null,
-      issuerName: HEADER_PLACEHOLDER,
-      ctosName: r.name ?? HEADER_PLACEHOLDER,
-      nameCheckCell: HEADER_PLACEHOLDER,
-      roleCheckCell: HEADER_PLACEHOLDER,
-      ownershipCheckCell: HEADER_PLACEHOLDER,
-      rowStatus: "NOT VERIFIABLE",
+      subjectActionRow,
     });
   }
 
@@ -1571,25 +1546,13 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
 
   const latestCtos = ctosList?.[0];
 
-  /**
-   * SECTION: Issuer director rows with IC/SSM from org CTOS when missing on onboarding
-   * WHY: company_json.directors lists nic_brno / ic_lcno (see ctos.response.txt); Get report prefers real id over EOD
-   * INPUT: merged issuer rows + latest org report company_json
-   * OUTPUT: same rows, icOrSsm filled when name + subjectKind match one CTOS director
-   * WHERE USED: Issuer table + CTOS cross-check issuer column + Get report
-   */
-  const directorShareholdersForCtos = React.useMemo(() => {
-    if (USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS) return directorShareholdersMerged;
-    return enrichDirectorShareholderRowsFromOrgCtos(directorShareholdersMerged, latestCtos?.company_json);
-  }, [directorShareholdersMerged, latestCtos?.company_json]);
-
   const directorCtosComparisonTableRows = React.useMemo((): DirectorCtosComparisonTableRow[] => {
     const ctosOrgList = USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS
       ? MOCK_CTOS_ORG_DIRECTOR_ROWS
       : extractCtosOrgDirectorsFromCompanyJson(latestCtos?.company_json);
-    const { tableRows } = buildDirectorCtosComparison(directorShareholdersForCtos, ctosOrgList);
+    const { tableRows } = buildDirectorCtosComparison(directorShareholdersMerged, ctosOrgList);
     return tableRows;
-  }, [directorShareholdersForCtos, latestCtos?.company_json]);
+  }, [directorShareholdersMerged, latestCtos?.company_json]);
 
   const financialRows: CtosFinRow[] = React.useMemo(() => {
     const raw = latestCtos?.financials_json;
@@ -1864,12 +1827,19 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
     }
   };
 
-  const onGetSubjectCtos = (row: DirectorShareholderRow) => {
+  const onGetSubjectCtos = (
+    row: DirectorShareholderRow,
+    options?: { enquiryOverride: { displayName: string; idNumber: string } }
+  ) => {
     const subjectRef = ctosSubjectRefForRequest(row);
     if (!subjectRef || !row.subjectKind) return;
     const t = toast.loading("Fetching CTOS report…");
     createSubjectCtos.mutate(
-      { subjectRef, subjectKind: row.subjectKind },
+      {
+        subjectRef,
+        subjectKind: row.subjectKind,
+        ...(options?.enquiryOverride ? { enquiryOverride: options.enquiryOverride } : {}),
+      },
       {
         onSuccess: () => {
           toast.dismiss(t);
@@ -2318,7 +2288,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
       </ReviewFieldBlock>
 
       <ReviewFieldBlock title="Director and Shareholders">
-        {directorShareholdersForCtos.length > 0 ? (
+        {directorShareholdersMerged.length > 0 ? (
           <div className="space-y-8">
             <div>
               <h3 className="mb-2 text-sm font-semibold text-foreground">Issuer</h3>
@@ -2336,7 +2306,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {directorShareholdersForCtos.map((row) => {
+                    {directorShareholdersMerged.map((row) => {
                       const isApproved =
                         row.verificationStatus === "APPROVED" || row.verificationStatus === "Approved";
                       const subjectSnap = lookupSubjectReportSnap(subjectReportByRef, row.icOrSsm, row.subjectRef);
@@ -2429,11 +2399,9 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                   </TableHeader>
                   <TableBody>
                     {directorCtosComparisonTableRows.map((row) => {
-                      const profileRow = row.profileRowId
-                        ? directorShareholdersForCtos.find((r) => r.id === row.profileRowId)
-                        : undefined;
-                      const subjectSnap = profileRow
-                        ? lookupSubjectReportSnap(subjectReportByRef, profileRow.icOrSsm, profileRow.subjectRef)
+                      const actionRow = row.subjectActionRow;
+                      const subjectSnap = actionRow
+                        ? lookupSubjectReportSnap(subjectReportByRef, actionRow.icOrSsm, actionRow.subjectRef)
                         : undefined;
                       const canViewSubject = Boolean(subjectSnap?.has_report_html);
                       const checksOpen = Boolean(directorCtosChecksExpanded[row.id]);
@@ -2484,11 +2452,11 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                               {directorCtosRowStatusDisplay(row.rowStatus)}
                             </TableCell>
                             <TableCell className={applicationTableCellClass}>
-                              {profileRow ? (
+                              {actionRow ? (
                                 subjectLastFetchDisplay({
                                   subjectRef: ctosSubjectReportLookupKey(
-                                    profileRow.icOrSsm,
-                                    profileRow.subjectRef
+                                    actionRow.icOrSsm,
+                                    actionRow.subjectRef
                                   ),
                                   snap: subjectSnap,
                                 })
@@ -2502,8 +2470,8 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                                 size="sm"
                                 className="rounded-lg h-8 text-xs"
                                 disabled={
-                                  !profileRow ||
-                                  !ctosSubjectRefForRequest(profileRow) ||
+                                  !actionRow ||
+                                  !ctosSubjectRefForRequest(actionRow) ||
                                   !canViewSubject ||
                                   ctosSubjectLoading ||
                                   !subjectSnap?.id
@@ -2519,13 +2487,21 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                                 size="sm"
                                 className="rounded-lg h-8 text-xs"
                                 disabled={
-                                  !profileRow ||
-                                  !ctosSubjectRefForRequest(profileRow) ||
-                                  !profileRow.subjectKind ||
+                                  !actionRow ||
+                                  !ctosSubjectRefForRequest(actionRow) ||
+                                  !actionRow.subjectKind ||
                                   createSubjectCtos.isPending ||
                                   ctosSubjectLoading
                                 }
-                                onClick={() => profileRow && onGetSubjectCtos(profileRow)}
+                                onClick={() => {
+                                  if (!actionRow?.icOrSsm) return;
+                                  onGetSubjectCtos(actionRow, {
+                                    enquiryOverride: {
+                                      displayName: actionRow.name,
+                                      idNumber: actionRow.icOrSsm,
+                                    },
+                                  });
+                                }}
                               >
                                 {createSubjectCtos.isPending ? "Fetching…" : "Get report"}
                               </Button>

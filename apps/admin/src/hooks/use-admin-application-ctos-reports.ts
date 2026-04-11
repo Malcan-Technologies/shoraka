@@ -76,7 +76,11 @@ export function useCreateAdminApplicationCtosSubjectReport(applicationId: string
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (body: { subjectRef: string; subjectKind: "INDIVIDUAL" | "CORPORATE" }) => {
+    mutationFn: async (body: {
+      subjectRef: string;
+      subjectKind: "INDIVIDUAL" | "CORPORATE";
+      enquiryOverride?: { displayName: string; idNumber: string };
+    }) => {
       const response = await apiClient.createAdminApplicationCtosSubjectReport(applicationId!, body);
       if (!response.success) {
         throw new Error(response.error.message);
