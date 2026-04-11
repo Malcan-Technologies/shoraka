@@ -13,7 +13,18 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -217,6 +228,7 @@ export function SSMVerificationPanel({
   disabled = false,
 }: SSMVerificationPanelProps) {
   const [confirmed, setConfirmed] = React.useState(false);
+  const [getLatestConfirmOpen, setGetLatestConfirmOpen] = React.useState(false);
   const { getAccessToken } = useAuthToken();
   const apiClient = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
   const queryClient = useQueryClient();
@@ -328,7 +340,18 @@ export function SSMVerificationPanel({
     [getAccessToken, orgId]
   );
 
-  const onGetLatestReport = () => {
+  /** Same pattern as financial tab: always open HTML for the latest org report in DB at click time. */
+  const openLatestOrgReportHtml = React.useCallback(async () => {
+    const raw =
+      USE_MOCK_ONBOARDING_CTOS && isIssuerPortal
+        ? buildMockOrgCtosReports(applicationForCompare)
+        : (ctosQuery.data ?? []);
+    const latest = sortOrgCtosReports(raw)[0];
+    if (!latest?.id || !latest.has_report_html) return;
+    await openOrgReportHtml(latest.id);
+  }, [applicationForCompare, ctosQuery.data, isIssuerPortal, openOrgReportHtml]);
+
+  const onConfirmGetLatestReport = () => {
     if (USE_MOCK_ONBOARDING_CTOS) {
       toast.message("Mock mode", { description: "Set USE_MOCK_ONBOARDING_CTOS to false to call the real API." });
       return;
@@ -394,7 +417,7 @@ export function SSMVerificationPanel({
                       !latestOrgCtos?.has_report_html ||
                       ctosListLoading
                     }
-                    onClick={() => latestOrgCtos && void openOrgReportHtml(latestOrgCtos.id)}
+                    onClick={() => void openLatestOrgReportHtml()}
                   >
                     <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                     View report
@@ -408,7 +431,7 @@ export function SSMVerificationPanel({
                       fetchCtosMutation.isPending ||
                       ctosListLoading
                     }
-                    onClick={onGetLatestReport}
+                    onClick={() => setGetLatestConfirmOpen(true)}
                   >
                     <DocumentTextIcon className="h-4 w-4" />
                     {fetchCtosMutation.isPending ? "Loading…" : "Get latest report"}
@@ -695,6 +718,34 @@ export function SSMVerificationPanel({
             </div>
           </CardContent>
         </Card>
+      ) : null}
+
+      {isIssuerPortal ? (
+        <AlertDialog open={getLatestConfirmOpen} onOpenChange={setGetLatestConfirmOpen}>
+          <AlertDialogContent className="rounded-xl">
+            <AlertDialogHeader>
+              <AlertDialogTitle>Request a new report from CTOS?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This starts a new CTOS pull for this organization. Comparison on this page uses organization data from
+                the latest stored report.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="rounded-lg" disabled={fetchCtosMutation.isPending}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                className={cn(buttonVariants({ variant: "secondary" }), "rounded-lg")}
+                disabled={fetchCtosMutation.isPending}
+                onClick={() => {
+                  onConfirmGetLatestReport();
+                }}
+              >
+                Get latest report
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       ) : null}
     </div>
   );
