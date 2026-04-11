@@ -137,8 +137,8 @@ export function SSMVerificationPanel({
   const companyRows: { label: string; row: OnboardingVerificationRow }[] = [
     { label: "Company name", row: comparison.companyName },
     { label: "SSM registration no.", row: comparison.registration },
-    { label: "Company status", row: comparison.companyStatus },
-    { label: "Business type", row: comparison.businessType },
+    { label: "Industry / business activity", row: comparison.industryActivity },
+    { label: "Entity type", row: comparison.entityType },
   ];
 
   return (

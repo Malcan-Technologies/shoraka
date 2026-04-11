@@ -33,8 +33,10 @@ export interface OnboardingVerificationRow {
 export interface OnboardingCtosComparison {
   companyName: OnboardingVerificationRow;
   registration: OnboardingVerificationRow;
-  companyStatus: OnboardingVerificationRow;
-  businessType: OnboardingVerificationRow;
+  /** Application industry vs CTOS `type_of_business` (CCM nature of business). */
+  industryActivity: OnboardingVerificationRow;
+  /** Application entity type vs CTOS `comp_type` / `comp_category` (SSM). */
+  entityType: OnboardingVerificationRow;
   directors: OnboardingVerificationRow[];
   shareholders: OnboardingVerificationRow[];
   checklist: { id: string; label: string; ok: boolean }[];
@@ -179,17 +181,26 @@ function shareholderDisplayMatch(d: DirectorKycStatus, ctosRow: CtosOrgDirectorP
   return appLabel.length > 0 && ctosLabel.length > 0;
 }
 
-/** Industry + entity type from onboarding API (RegTank COD basicInfo) */
-function applicationBusinessTypeLabel(application: OnboardingApplicationResponse): string {
-  const ind = application.corporateBasicInfo?.industry?.trim();
-  const ent = application.corporateBasicInfo?.entityType?.trim();
-  if (ind && ent) return `${ind} (${ent})`;
-  if (ind) return ind;
-  if (ent) return ent;
-  return "—";
+function applicationIndustryLabel(application: OnboardingApplicationResponse): string {
+  return application.corporateBasicInfo?.industry?.trim() || "—";
 }
 
-/** CTOS type_of_business vs form industry/entity (substring / token overlap) */
+function applicationEntityTypeLabel(application: OnboardingApplicationResponse): string {
+  return application.corporateBasicInfo?.entityType?.trim() || "—";
+}
+
+/** CTOS SSM company type: `comp_type` label + optional `comp_category` (see ctos.response.txt section_a). */
+function ctosEntityTypeDisplay(cj: Record<string, unknown> | null | undefined): string | null {
+  if (!cj) return null;
+  const t = cj.comp_type != null ? String(cj.comp_type).trim() : "";
+  const c = cj.comp_category != null ? String(cj.comp_category).trim() : "";
+  if (t && c) return `${t} · ${c}`;
+  if (t) return t;
+  if (c) return c;
+  return null;
+}
+
+/** Loose string match for free-text industry/entity labels (substring / token overlap). */
 function businessTypesLooselyMatch(appLabel: string, ctos: string | null | undefined): boolean {
   if (appLabel === "—" || !ctos?.trim()) return false;
   const a = normalizeCompanyName(appLabel);
@@ -371,10 +382,9 @@ export function buildOnboardingCtosComparison(
         : cj?.ic_lcno != null
           ? String(cj.ic_lcno)
           : null;
-  const ctosStatus = cj?.status != null ? String(cj.status) : null;
-  const ctosBiz = cj?.type_of_business != null ? String(cj.type_of_business) : null;
-
   const hasCtos = Boolean(companyJson && typeof companyJson === "object");
+  const ctosTypeOfBusiness = cj?.type_of_business != null ? String(cj.type_of_business) : null;
+  const ctosEntityDisplay = hasCtos ? ctosEntityTypeDisplay(cj) : null;
 
   const companyName: OnboardingVerificationRow = {
     appCell: appName,
@@ -388,21 +398,26 @@ export function buildOnboardingCtosComparison(
     match: hasCtos && registrationNumbersMatch(application.registrationNumber, ctosReg),
   };
 
-  const companyStatus: OnboardingVerificationRow = {
-    appCell: "—",
-    ctosCell: hasCtos ? (ctosStatus ?? "—") : null,
-    match: hasCtos && (ctosStatus ?? "").toUpperCase().includes("ACTIVE"),
-  };
-
-  const appBizLabel = applicationBusinessTypeLabel(application);
-  const businessType: OnboardingVerificationRow = {
-    appCell: appBizLabel,
-    ctosCell: hasCtos ? (ctosBiz ?? "—") : null,
+  const appIndustry = applicationIndustryLabel(application);
+  const industryActivity: OnboardingVerificationRow = {
+    appCell: appIndustry,
+    ctosCell: hasCtos ? (ctosTypeOfBusiness ?? "—") : null,
     match:
       hasCtos &&
-      appBizLabel !== "—" &&
-      Boolean(ctosBiz?.trim()) &&
-      businessTypesLooselyMatch(appBizLabel, ctosBiz),
+      appIndustry !== "—" &&
+      Boolean(ctosTypeOfBusiness?.trim()) &&
+      businessTypesLooselyMatch(appIndustry, ctosTypeOfBusiness),
+  };
+
+  const appEntity = applicationEntityTypeLabel(application);
+  const entityType: OnboardingVerificationRow = {
+    appCell: appEntity,
+    ctosCell: hasCtos ? (ctosEntityDisplay ?? "—") : null,
+    match:
+      hasCtos &&
+      appEntity !== "—" &&
+      Boolean(ctosEntityDisplay?.trim()) &&
+      businessTypesLooselyMatch(appEntity, ctosEntityDisplay),
   };
 
   const ctosRows = hasCtos ? extractCtosOrgDirectorsFromCompanyJson(companyJson) : [];
@@ -453,16 +468,25 @@ export function buildOnboardingCtosComparison(
   const checklist: { id: string; label: string; ok: boolean }[] = [
     { id: "name", label: "Company name matches CTOS", ok: companyName.match },
     { id: "reg", label: "Registration number matches CTOS", ok: registration.match },
+    {
+      id: "industry",
+      label: "Industry / activity matches CTOS (type of business)",
+      ok: !hasCtos || appIndustry === "—" || industryActivity.match,
+    },
+    {
+      id: "entity",
+      label: "Entity type matches CTOS (SSM company type)",
+      ok: !hasCtos || appEntity === "—" || entityType.match,
+    },
     { id: "dir", label: "Directors match CTOS (by ID)", ok: directorsMatch },
     { id: "sh", label: "Shareholders match CTOS (by ID and % where available)", ok: shareholdersMatch },
-    { id: "active", label: "Company is ACTIVE in CTOS", ok: companyStatus.match },
   ];
 
   return {
     companyName,
     registration,
-    companyStatus,
-    businessType,
+    industryActivity,
+    entityType,
     directors,
     shareholders,
     checklist,
