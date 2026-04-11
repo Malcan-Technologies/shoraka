@@ -173,6 +173,92 @@ function shareholderDisplayMatch(d: DirectorKycStatus, ctosRow: CtosOrgDirectorP
   return appLabel.length > 0 && ctosLabel.length > 0;
 }
 
+/** Industry + entity type from onboarding API (RegTank COD basicInfo) */
+function applicationBusinessTypeLabel(application: OnboardingApplicationResponse): string {
+  const ind = application.corporateBasicInfo?.industry?.trim();
+  const ent = application.corporateBasicInfo?.entityType?.trim();
+  if (ind && ent) return `${ind} (${ent})`;
+  if (ind) return ind;
+  if (ent) return ent;
+  return "—";
+}
+
+/** CTOS type_of_business vs form industry/entity (substring / token overlap) */
+function businessTypesLooselyMatch(appLabel: string, ctos: string | null | undefined): boolean {
+  if (appLabel === "—" || !ctos?.trim()) return false;
+  const a = normalizeCompanyName(appLabel);
+  const c = normalizeCompanyName(ctos);
+  if (!a || !c) return false;
+  if (a === c || c.includes(a) || a.includes(c)) return true;
+  for (const part of a.split(/[(),/&]+/).map((p) => p.trim()).filter(Boolean)) {
+    if (part.length > 2 && c.includes(part)) return true;
+  }
+  return false;
+}
+
+function nameFromCorporateEntityRow(row: Record<string, unknown>): string {
+  const p = row.personalInfo as Record<string, unknown> | undefined;
+  if (!p) return "";
+  const full = p.fullName != null ? String(p.fullName).trim() : "";
+  if (full) return full;
+  const fn = p.firstName != null ? String(p.firstName).trim() : "";
+  const ln = p.lastName != null ? String(p.lastName).trim() : "";
+  return `${fn} ${ln}`.trim();
+}
+
+function icFromCorporateEntityRow(row: Record<string, unknown>): string | undefined {
+  const p = row.personalInfo as Record<string, unknown> | undefined;
+  const g = p?.governmentIdNumber;
+  return typeof g === "string" && g.trim() ? g.trim() : undefined;
+}
+
+/**
+ * When director_kyc_status is empty, build minimal rows from corporate_entities (COD extract).
+ * Same person may appear in both director and shareholder arrays.
+ */
+function syntheticKycFromCorporateEntities(
+  ce: NonNullable<OnboardingApplicationResponse["corporateEntities"]>
+): DirectorKycStatus[] {
+  const rows: DirectorKycStatus[] = [];
+  let idx = 0;
+  for (const d of ce.directors ?? []) {
+    const r = d as Record<string, unknown>;
+    const name = nameFromCorporateEntityRow(r);
+    if (!name) continue;
+    rows.push({
+      eodRequestId: `ce-dir-${idx++}`,
+      name,
+      email: "",
+      role: "Director",
+      kycStatus: "APPROVED",
+      governmentIdNumber: icFromCorporateEntityRow(r),
+      lastUpdated: new Date(0).toISOString(),
+    });
+  }
+  for (const s of ce.shareholders ?? []) {
+    const r = s as Record<string, unknown>;
+    const name = nameFromCorporateEntityRow(r);
+    if (!name) continue;
+    rows.push({
+      eodRequestId: `ce-sh-${idx++}`,
+      name,
+      email: "",
+      role: "Shareholder",
+      kycStatus: "APPROVED",
+      governmentIdNumber: icFromCorporateEntityRow(r),
+      lastUpdated: new Date(0).toISOString(),
+    });
+  }
+  return rows;
+}
+
+function effectiveKycDirectors(application: OnboardingApplicationResponse): DirectorKycStatus[] {
+  const fromKyc = application.directorKycStatus?.directors;
+  if (fromKyc && fromKyc.length > 0) return fromKyc;
+  if (application.corporateEntities) return syntheticKycFromCorporateEntities(application.corporateEntities);
+  return [];
+}
+
 export function buildOnboardingCtosComparison(
   application: OnboardingApplicationResponse,
   companyJson: unknown | null
@@ -213,10 +299,15 @@ export function buildOnboardingCtosComparison(
     match: hasCtos && (ctosStatus ?? "").toUpperCase().includes("ACTIVE"),
   };
 
+  const appBizLabel = applicationBusinessTypeLabel(application);
   const businessType: OnboardingVerificationRow = {
-    appCell: "—",
+    appCell: appBizLabel,
     ctosCell: hasCtos ? (ctosBiz ?? "—") : null,
-    match: false,
+    match:
+      hasCtos &&
+      appBizLabel !== "—" &&
+      Boolean(ctosBiz?.trim()) &&
+      businessTypesLooselyMatch(appBizLabel, ctosBiz),
   };
 
   const ctosRows = hasCtos ? extractCtosOrgDirectorsFromCompanyJson(companyJson) : [];
@@ -230,7 +321,8 @@ export function buildOnboardingCtosComparison(
     ctosByKey.set(k, arr);
   }
 
-  const appDirList = appDirectorsFromKyc(application.directorKycStatus?.directors);
+  const kycList = effectiveKycDirectors(application);
+  const appDirList = appDirectorsFromKyc(kycList);
   const directors: OnboardingVerificationRow[] = appDirList.map((d) => {
     const k = normalizeIdKey(d.governmentIdNumber);
     const candidates = k ? ctosByKey.get(k) ?? [] : [];
@@ -243,7 +335,7 @@ export function buildOnboardingCtosComparison(
     return { appCell: d.name, ctosCell, match };
   });
 
-  const appShList = appShareholdersFromKyc(application.directorKycStatus?.directors);
+  const appShList = appShareholdersFromKyc(kycList);
   const shareholders: OnboardingVerificationRow[] = appShList.map((d) => {
     const k = normalizeIdKey(d.governmentIdNumber);
     const candidates = k ? ctosByKey.get(k) ?? [] : [];

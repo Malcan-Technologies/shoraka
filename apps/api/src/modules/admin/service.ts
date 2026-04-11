@@ -2544,13 +2544,31 @@ export class AdminService {
 
     // Derive organization name and SSM from top-level or corporate_onboarding_data.basicInfo
     const corporateData = org
-      ? (org as { corporate_onboarding_data?: { basicInfo?: { businessName?: string; ssmRegistrationNumber?: string; ssmRegisterNumber?: string } } }).corporate_onboarding_data
+      ? (org as {
+          corporate_onboarding_data?: {
+            basicInfo?: {
+              businessName?: string | null;
+              ssmRegistrationNumber?: string | null;
+              ssmRegisterNumber?: string | null;
+              entityType?: string | null;
+              industry?: string | null;
+            };
+          };
+        }).corporate_onboarding_data
       : undefined;
     const basicInfo = corporateData?.basicInfo;
     const organizationName =
       org?.name ?? basicInfo?.businessName ?? null;
     const registrationNumber =
       org?.registration_number ?? basicInfo?.ssmRegistrationNumber ?? basicInfo?.ssmRegisterNumber ?? null;
+
+    const corporateBasicInfo =
+      record.organization_type === "COMPANY"
+        ? {
+            entityType: basicInfo?.entityType ?? null,
+            industry: basicInfo?.industry ?? null,
+          }
+        : undefined;
 
     return {
       id: record.id,
@@ -2584,6 +2602,7 @@ export class AdminService {
       directorKycStatus,
       directorAmlStatus,
       corporateEntities,
+      corporateBasicInfo,
     };
   }
 
