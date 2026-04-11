@@ -4,9 +4,15 @@
  * INPUT: onboarding application + optional CTOS company_json
  * OUTPUT: row models and checklist flags for the verification panel
  * WHERE USED: SSMVerificationPanel
+ * NOTE: Director/shareholder Application column uses corporate_entities first (same as financing review),
+ * then director_kyc_status only when CE has no people rows.
  */
 
-import type { DirectorKycStatus, OnboardingApplicationResponse } from "@cashsouk/types";
+import {
+  governmentIdFromDirectorKycForEod,
+  type DirectorKycStatus,
+  type OnboardingApplicationResponse,
+} from "@cashsouk/types";
 
 interface CtosOrgDirectorParsed {
   ic_lcno: string | null;
@@ -196,56 +202,142 @@ function businessTypesLooselyMatch(appLabel: string, ctos: string | null | undef
   return false;
 }
 
-function nameFromCorporateEntityRow(row: Record<string, unknown>): string {
-  const p = row.personalInfo as Record<string, unknown> | undefined;
-  if (!p) return "";
-  const full = p.fullName != null ? String(p.fullName).trim() : "";
+/** Same shape as financing-review `personNameFromCe` (corporate_entities person row) */
+function personNameFromCe(p: Record<string, unknown>): string {
+  const info = p.personalInfo as Record<string, unknown> | undefined;
+  const full = String(info?.fullName ?? "").trim();
   if (full) return full;
-  const fn = p.firstName != null ? String(p.firstName).trim() : "";
-  const ln = p.lastName != null ? String(p.lastName).trim() : "";
-  return `${fn} ${ln}`.trim();
+  const first = String(info?.firstName ?? "").trim();
+  const last = String(info?.lastName ?? "").trim();
+  return [first, last].filter(Boolean).join(" ").trim();
 }
 
-function icFromCorporateEntityRow(row: Record<string, unknown>): string | undefined {
-  const p = row.personalInfo as Record<string, unknown> | undefined;
-  const g = p?.governmentIdNumber;
-  return typeof g === "string" && g.trim() ? g.trim() : undefined;
+function ownershipFromCePerson(p: Record<string, unknown>): string | null {
+  const info = p.personalInfo as Record<string, unknown> | undefined;
+  const formContent = (info?.formContent ?? p.formContent) as Record<string, unknown> | undefined;
+  const content = Array.isArray(formContent?.content)
+    ? (formContent.content as Array<{ fieldName?: string; fieldValue?: string }>)
+    : [];
+  const shareField = content.find((f) => f.fieldName === "% of Shares");
+  return shareField?.fieldValue ? `${shareField.fieldValue}% ownership` : null;
+}
+
+function issuerIcOrSsmFromCorpPerson(p: Record<string, unknown>): string | undefined {
+  const info = p.personalInfo as Record<string, unknown> | undefined;
+  const fromTop = String(info?.governmentIdNumber ?? "").trim();
+  if (fromTop) return fromTop;
+  const formContent = (info?.formContent ?? p.formContent) as Record<string, unknown> | undefined;
+  const content = Array.isArray(formContent?.content)
+    ? (formContent.content as Array<{ fieldName?: string; fieldValue?: string }>)
+    : [];
+  const idField = content.find((f) => f.fieldName === "Government ID Number");
+  if (idField?.fieldValue) return String(idField.fieldValue).trim();
+  return undefined;
+}
+
+function issuerIcOrSsmForCePersonRow(p: Record<string, unknown>, directorKycJson: unknown): string | undefined {
+  const fromCe = issuerIcOrSsmFromCorpPerson(p);
+  if (fromCe) return fromCe;
+  const eod = String(p.eodRequestId ?? "").trim();
+  return governmentIdFromDirectorKycForEod(directorKycJson, eod) ?? undefined;
+}
+
+function roleForCeShareholder(p: Record<string, unknown>): string {
+  const own = ownershipFromCePerson(p);
+  if (!own) return "Shareholder";
+  const m = /^([\d.]+)/.exec(own);
+  return m ? `Shareholder (${m[1]}%)` : "Shareholder";
+}
+
+function corpShareholderName(corp: Record<string, unknown>): string {
+  const formContent = corp.formContent as Record<string, unknown> | undefined;
+  const displayAreas = Array.isArray(formContent?.displayAreas) ? formContent.displayAreas : [];
+  for (const area of displayAreas) {
+    const content = Array.isArray((area as Record<string, unknown>)?.content)
+      ? ((area as Record<string, unknown>).content as Array<{ fieldName?: string; fieldValue?: string }>)
+      : [];
+    const bn = content.find((f) => f.fieldName === "Business Name");
+    if (bn?.fieldValue) return String(bn.fieldValue);
+  }
+  return String(corp.companyName ?? corp.businessName ?? "Unknown");
+}
+
+function corpShareholderBrn(corp: Record<string, unknown>): string | undefined {
+  const formContent = corp.formContent as Record<string, unknown> | undefined;
+  const displayAreas = Array.isArray(formContent?.displayAreas) ? formContent.displayAreas : [];
+  for (const area of displayAreas) {
+    const content = Array.isArray((area as Record<string, unknown>)?.content)
+      ? ((area as Record<string, unknown>).content as Array<{ fieldName?: string; fieldValue?: string }>)
+      : [];
+    const numField = content.find((f) => f.fieldName === "Business Number");
+    if (numField?.fieldValue) return String(numField.fieldValue).trim();
+  }
+  return undefined;
+}
+
+function corporateEntitiesHasPeople(
+  ce: NonNullable<OnboardingApplicationResponse["corporateEntities"]>
+): boolean {
+  return (
+    (ce.directors?.length ?? 0) + (ce.shareholders?.length ?? 0) + (ce.corporateShareholders?.length ?? 0) > 0
+  );
 }
 
 /**
- * When director_kyc_status is empty, build minimal rows from corporate_entities (COD extract).
- * Same person may appear in both director and shareholder arrays.
+ * CE-first list (same rule as financing `extractDirectorShareholders`): order and IDs from
+ * corporate_entities; fill missing IC from director_kyc_status JSON by EOD.
  */
-function syntheticKycFromCorporateEntities(
-  ce: NonNullable<OnboardingApplicationResponse["corporateEntities"]>
+function directorKycRowsFromCorporateEntities(
+  ce: NonNullable<OnboardingApplicationResponse["corporateEntities"]>,
+  directorKycStatus: OnboardingApplicationResponse["directorKycStatus"]
 ): DirectorKycStatus[] {
+  const kycJson = directorKycStatus as unknown;
   const rows: DirectorKycStatus[] = [];
   let idx = 0;
   for (const d of ce.directors ?? []) {
-    const r = d as Record<string, unknown>;
-    const name = nameFromCorporateEntityRow(r);
+    const p = d as Record<string, unknown>;
+    const name = personNameFromCe(p);
     if (!name) continue;
+    const eod = String(p.eodRequestId ?? "").trim();
     rows.push({
-      eodRequestId: `ce-dir-${idx++}`,
+      eodRequestId: eod || `ce-dir-${idx++}`,
       name,
       email: "",
       role: "Director",
       kycStatus: "APPROVED",
-      governmentIdNumber: icFromCorporateEntityRow(r),
+      governmentIdNumber: issuerIcOrSsmForCePersonRow(p, kycJson),
       lastUpdated: new Date(0).toISOString(),
     });
   }
   for (const s of ce.shareholders ?? []) {
-    const r = s as Record<string, unknown>;
-    const name = nameFromCorporateEntityRow(r);
+    const p = s as Record<string, unknown>;
+    const name = personNameFromCe(p);
     if (!name) continue;
+    const eod = String(p.eodRequestId ?? "").trim();
     rows.push({
-      eodRequestId: `ce-sh-${idx++}`,
+      eodRequestId: eod || `ce-sh-${idx++}`,
       name,
       email: "",
-      role: "Shareholder",
+      role: roleForCeShareholder(p),
       kycStatus: "APPROVED",
-      governmentIdNumber: icFromCorporateEntityRow(r),
+      governmentIdNumber: issuerIcOrSsmForCePersonRow(p, kycJson),
+      lastUpdated: new Date(0).toISOString(),
+    });
+  }
+  for (const c of ce.corporateShareholders ?? []) {
+    const corp = c as Record<string, unknown>;
+    const codRequestId = String(
+      (corp.corporateOnboardingRequest as Record<string, unknown> | undefined)?.requestId ??
+        corp.requestId ??
+        ""
+    ).trim();
+    rows.push({
+      eodRequestId: codRequestId || `ce-corp-${idx++}`,
+      name: corpShareholderName(corp),
+      email: "",
+      role: "Corporate Shareholder",
+      kycStatus: "APPROVED",
+      governmentIdNumber: corpShareholderBrn(corp),
       lastUpdated: new Date(0).toISOString(),
     });
   }
@@ -253,9 +345,12 @@ function syntheticKycFromCorporateEntities(
 }
 
 function effectiveKycDirectors(application: OnboardingApplicationResponse): DirectorKycStatus[] {
+  const ce = application.corporateEntities;
   const fromKyc = application.directorKycStatus?.directors;
+  if (ce && corporateEntitiesHasPeople(ce)) {
+    return directorKycRowsFromCorporateEntities(ce, application.directorKycStatus);
+  }
   if (fromKyc && fromKyc.length > 0) return fromKyc;
-  if (application.corporateEntities) return syntheticKycFromCorporateEntities(application.corporateEntities);
   return [];
 }
 
