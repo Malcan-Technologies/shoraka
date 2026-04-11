@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * SECTION: Financial tab resubmit comparison (issuer-submitted figures + directors)
- * WHY: Resubmit diff for issuer unaudited_by_year only (up to two years); directors unchanged.
- * INPUT: before/after app slices, path matcher, submitted dates
- * OUTPUT: Unaudited-only Financial Summary (up to 2 year columns × before/after) and director table
+ * SECTION: Financial tab resubmit comparison (unaudited figures only)
+ * WHY: Resubmit diff for issuer unaudited_by_year only (up to two years). Directors not compared here.
+ * INPUT: before/after app slices, path matcher
+ * OUTPUT: Financial Summary table (before/after unaudited)
  * WHERE USED: FinancialSection comparison mode
  */
 
@@ -22,11 +22,7 @@ import {
   comparisonSurfaceChangedBeforeClass,
   reviewEmptyStateClass,
 } from "@/components/application-review/review-section-styles";
-import {
-  extractQuestionnaireAndUnaudited,
-  extractDirectorShareholders,
-  type DirectorShareholderRow,
-} from "@/components/application-financial-review-content";
+import { extractQuestionnaireAndUnaudited } from "@/components/application-financial-review-content";
 import {
   Table,
   TableBody,
@@ -88,7 +84,6 @@ type MockFinancialResubmitPayload = {
   before: Record<string, unknown>;
   after: Record<string, unknown>;
   changedPaths: Set<string>;
-  bannerText: string;
 };
 
 function buildMockFinancialResubmitPayload(yearCount: 1 | 2): MockFinancialResubmitPayload {
@@ -115,8 +110,6 @@ function buildMockFinancialResubmitPayload(yearCount: 1 | 2): MockFinancialResub
         },
       },
       changedPaths: new Set(["financial_statements.unaudited_by_year.2023.turnover"]),
-      bannerText:
-        "One unaudited year (2023): a single “Unaudited” block with Before | After only (no “1 of 2”). Sample diff: turnover.",
     };
   }
   return {
@@ -146,8 +139,6 @@ function buildMockFinancialResubmitPayload(yearCount: 1 | 2): MockFinancialResub
       "financial_statements.unaudited_by_year.2022.turnover",
       "financial_statements.unaudited_by_year.2023.plnpat",
     ]),
-    bannerText:
-      "Two unaudited years (2022, 2023): two column groups. Diffs: 2022 turnover, 2023 profit after tax.",
   };
 }
 
@@ -330,10 +321,6 @@ const ROW_LABELS: { id: string; label: string }[] = [
   { id: "workcap", label: COMPUTED_FIELD_LABELS.workcap },
 ];
 
-function directorSummary(r: DirectorShareholderRow): string {
-  return [r.role, r.name, r.ownership ?? "", r.verificationStatus ?? "—"].filter(Boolean).join(" · ");
-}
-
 export function ApplicationFinancialReviewComparison({
   beforeApp,
   afterApp,
@@ -404,36 +391,12 @@ export function ApplicationFinancialReviewComparison({
     [beforeUnauditedKeys, afterUnauditedKeys]
   );
 
-  const beforeDir = React.useMemo(
-    () => extractDirectorShareholders(beforeApp.issuer_organization),
-    [beforeApp.issuer_organization]
-  );
-  const afterDir = React.useMemo(
-    () => extractDirectorShareholders(afterApp.issuer_organization),
-    [afterApp.issuer_organization]
-  );
-
-  const maxLen = Math.max(beforeDir.length, afterDir.length);
-
   const tableMinWidth =
     unauditedSlots.length <= 1 ? "min-w-[560px]" : "min-w-[880px]";
 
   return (
     <>
       <ReviewFieldBlock title="Financial Summary">
-        {mockFinancialPayload ? (
-          <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-950 dark:text-amber-100">
-            <span className="font-semibold">Mock data (temporary).</span> {mockFinancialPayload.bannerText}{" "}
-            Changed cells use tinted background; before value is struck through; rows flagged in metadata show{" "}
-            <span className="font-medium">· Diff</span>. Toggle{" "}
-            <span className="font-mono">MOCK_UNAUDITED_YEAR_COUNT</span> (1 or 2) in code to compare layouts.
-          </div>
-        ) : null}
-        <p className="-mt-1 mb-3 max-w-3xl text-xs leading-relaxed text-muted-foreground">
-          Comparison uses issuer <span className="font-medium text-foreground">unaudited</span> figures from
-          each revision. Up to two financial years are shown in column order (earlier year first). If before
-          and after use different year sets, the same slot may show different calendar years on each side.
-        </p>
         {unauditedSlots.length === 0 ? (
           <p className={reviewEmptyStateClass}>No unaudited financial data in these snapshots.</p>
         ) : (
@@ -470,10 +433,10 @@ export function ApplicationFinancialReviewComparison({
                           <span className="font-semibold text-foreground">
                             Unaudited {unauditedSlots.length > 1 ? `(${si + 1} of 2)` : ""}
                           </span>
-                          <div className="mt-1 text-xs font-normal leading-snug text-muted-foreground">
-                            Before: year {by}
+                          <div className="mt-1 text-xs font-normal tabular-nums leading-snug text-muted-foreground">
+                            {by}
                             <span className="mx-1 text-border">·</span>
-                            After: year {ay}
+                            {ay}
                           </div>
                         </TableHead>
                       );
@@ -567,65 +530,6 @@ export function ApplicationFinancialReviewComparison({
                 </TableBody>
               </Table>
             </div>
-          </div>
-        )}
-      </ReviewFieldBlock>
-
-      <ReviewFieldBlock title="Director and Shareholders">
-        {maxLen === 0 ? (
-          <p className={reviewEmptyStateClass}>No director or shareholder data in these snapshots.</p>
-        ) : (
-          <div className="rounded-xl border border-border overflow-hidden">
-            <Table className="text-[15px]">
-              <TableHeader className={applicationTableHeaderBgClass}>
-                <TableRow className="hover:bg-transparent border-b border-border">
-                  <TableHead className={applicationTableHeaderClass}>Role / name</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>Before</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>After</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {Array.from({ length: maxLen }).map((_, i) => {
-                  const br = beforeDir[i];
-                  const ar = afterDir[i];
-                  const changed =
-                    effectiveIsPathChanged("issuer_organization") ||
-                    (br && effectiveIsPathChanged(`issuer_organization.corporate_entities.directors[${i}]`)) ||
-                    (ar && effectiveIsPathChanged(`issuer_organization.corporate_entities.directors[${i}]`));
-                  const bText = br ? directorSummary(br) : "—";
-                  const aText = ar ? directorSummary(ar) : "—";
-                  const rowDiffers = bText !== aText;
-                  return (
-                    <TableRow key={i} className={applicationTableRowClass}>
-                      <TableCell className={`${applicationTableCellClass} font-medium`}>
-                        {`Row ${i + 1}`}
-                        {(changed || rowDiffers) ? (
-                          <span className="ml-2 text-xs text-muted-foreground font-normal">Changed</span>
-                        ) : null}
-                      </TableCell>
-                      <TableCell
-                        className={cn(
-                          applicationTableCellClass,
-                          "text-muted-foreground",
-                          rowDiffers && cn(comparisonSurfaceChangedBeforeClass, "rounded-none")
-                        )}
-                      >
-                        {bText}
-                      </TableCell>
-                      <TableCell
-                        className={cn(
-                          applicationTableCellClass,
-                          "text-foreground",
-                          rowDiffers && cn(comparisonSurfaceChangedAfterClass, "rounded-none")
-                        )}
-                      >
-                        {aText}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
           </div>
         )}
       </ReviewFieldBlock>
