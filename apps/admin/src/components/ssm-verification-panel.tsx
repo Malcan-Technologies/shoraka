@@ -55,7 +55,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
  * Set to true to preview CTOS comparison UI with fake list + company_json (mirrors this application).
  * Set back to false before shipping.
  */
-const USE_MOCK_ONBOARDING_CTOS = true;
+const USE_MOCK_ONBOARDING_CTOS = false;
 
 /** When the real application has no people rows, inject one director + one shareholder so mock tables show data. */
 function syntheticDemoDirectorKycForMock(): CorporateDirectorData {
