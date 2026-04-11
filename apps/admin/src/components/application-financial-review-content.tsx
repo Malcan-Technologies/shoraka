@@ -350,7 +350,7 @@ export interface DirectorShareholderRow {
 }
 
 /** TEMP: set to false to use real issuer organization data. Remove when CTOS cross-check table is done. */
-const USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS = true;
+const USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS = false;
 
 /**
  * Mock issuer rows: order matches cross-check walk. Covers MATCH, each MISMATCH shape, NOT FOUND (no IC / missing in

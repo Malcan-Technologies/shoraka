@@ -47,7 +47,7 @@ const HEADER_PLACEHOLDER = "\u2014";
  * TEMP: set true to preview unaudited before/after without real resubmit snapshots.
  * Set false before shipping.
  */
-const USE_MOCK_FINANCIAL_RESUBMIT_COMPARISON = true;
+const USE_MOCK_FINANCIAL_RESUBMIT_COMPARISON = false;
 
 /**
  * Mock only: 1 = single unaudited year (narrow table, one Unaudited group). 2 = two years (two groups).
