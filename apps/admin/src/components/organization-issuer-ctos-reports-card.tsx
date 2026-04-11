@@ -2,9 +2,9 @@
 
 /**
  * SECTION: Organization CTOS report history (admin sidebar)
- * WHY: Matches Activity Timeline + KYC card patterns; collapsible; view/download HTML
+ * WHY: Match KYC card typography, padding (p-6 pt-0), and date format (PPpp)
  * INPUT: portal + organization id
- * OUTPUT: Card consistent with organization detail right column
+ * OUTPUT: Collapsible card with view/download HTML
  * WHERE USED: OrganizationDetailPage (issuer or investor)
  */
 
@@ -12,11 +12,11 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
+import { format } from "date-fns";
 import type { AdminCtosReportListItem, PortalType } from "@cashsouk/types";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   AlertDialog,
@@ -161,40 +161,40 @@ export function OrganizationIssuerCtosReportsCard({
   return (
     <>
       <Collapsible open={historyOpen} onOpenChange={setHistoryOpen}>
-        <Card className="rounded-2xl flex flex-col shrink-0 overflow-hidden">
-          <CardHeader className="pb-3 shrink-0 space-y-0">
-            <div className="flex items-start justify-between gap-3">
+        <Card className="rounded-2xl">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-3">
               <CollapsibleTrigger asChild>
                 <button
                   type="button"
                   className={cn(
-                    "flex-1 min-w-0 text-left rounded-lg -ml-2 pl-2 pr-1 py-1",
+                    "flex flex-1 min-w-0 items-center gap-2 rounded-lg -ml-2 pl-2 pr-1 py-0.5 text-left",
                     "hover:bg-muted/50 transition-colors",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   )}
                 >
-                  <div className="flex items-center gap-2">
-                    <ChevronRightIcon
-                      className={cn(
-                        "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200",
-                        historyOpen && "rotate-90"
-                      )}
-                    />
+                  <ChevronRightIcon
+                    className={cn(
+                      "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200",
+                      historyOpen && "rotate-90"
+                    )}
+                  />
+                  <span className="text-sm font-medium flex items-center gap-2 min-w-0 leading-none">
                     <DocumentTextIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    <span className="text-sm font-semibold text-foreground leading-snug">CTOS Report History</span>
+                    <span className="truncate">CTOS Report History</span>
                     {!ctosQuery.isLoading && orgCtosReports.length > 0 ? (
-                      <Badge variant="secondary" className="text-[10px] h-5 px-1.5 shrink-0 tabular-nums">
+                      <Badge variant="secondary" className="text-xs shrink-0 font-normal">
                         {orgCtosReports.length}
                       </Badge>
                     ) : null}
-                  </div>
+                  </span>
                 </button>
               </CollapsibleTrigger>
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                className="shrink-0 gap-1.5 h-8 mt-0.5"
+                className="shrink-0 gap-1.5 h-8"
                 disabled={fetchCtosMutation.isPending || ctosQuery.isLoading}
                 onClick={(e) => {
                   e.preventDefault();
@@ -210,74 +210,71 @@ export function OrganizationIssuerCtosReportsCard({
           </CardHeader>
 
           <CollapsibleContent className="overflow-hidden">
-            <CardContent className="flex-1 overflow-hidden pt-0 px-0 border-t border-border/60">
-              <ScrollArea className="h-56">
-                <div className="px-6 pb-4 pt-3">
-                  {ctosQuery.isLoading ? (
-                    <p className="text-sm text-muted-foreground py-4 text-center">Loading…</p>
-                  ) : ctosQuery.isError ? (
-                    <p className="text-sm text-destructive py-2">
-                      {(ctosQuery.error as Error)?.message ?? "Could not load CTOS."}
-                    </p>
-                  ) : orgCtosReports.length === 0 ? (
-                    <p className="text-sm text-muted-foreground py-6 text-center">
-                      No reports yet. Use Get latest to pull from CTOS.
-                    </p>
-                  ) : (
-                    <ul className="space-y-0 divide-y divide-border/60">
-                      {orgCtosReports.map((r, idx) => (
-                        <li key={r.id} className="flex items-center gap-2 py-3 first:pt-0 text-sm">
-                          <div className="flex-1 min-w-0">
-                            <div className="text-xs text-muted-foreground">Fetched</div>
-                            <div className="text-sm font-medium text-foreground mt-0.5 flex flex-wrap items-center gap-2">
-                              <span className="tabular-nums">
-                                {new Date(r.fetched_at).toLocaleString("en-MY", {
-                                  day: "numeric",
-                                  month: "short",
-                                  year: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                              </span>
-                              {idx === 0 ? (
-                                <Badge variant="secondary" className="text-[10px] font-medium px-1.5 py-0 h-5">
-                                  Latest
-                                </Badge>
-                              ) : null}
+            <CardContent className="p-6 pt-0">
+              <div
+                className={cn(
+                  "max-h-[min(20rem,45vh)] overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable]",
+                  "scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/30"
+                )}
+              >
+                {ctosQuery.isLoading ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">Loading…</p>
+                ) : ctosQuery.isError ? (
+                  <p className="text-sm text-destructive">
+                    {(ctosQuery.error as Error)?.message ?? "Could not load CTOS."}
+                  </p>
+                ) : orgCtosReports.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    No reports yet. Use Get latest to pull from CTOS.
+                  </p>
+                ) : (
+                  <ul className="space-y-4 text-sm">
+                    {orgCtosReports.map((r, idx) => (
+                      <li key={r.id} className="flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs text-muted-foreground">Fetched</div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="text-sm text-foreground">
+                              {format(new Date(r.fetched_at), "PPpp")}
                             </div>
+                            {idx === 0 ? (
+                              <Badge variant="secondary" className="text-xs font-normal">
+                                Latest
+                              </Badge>
+                            ) : null}
                           </div>
-                          <div className="flex items-center gap-0.5 shrink-0 self-center">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
-                              disabled={!r.has_report_html}
-                              title="View in new tab"
-                              onClick={() => void openOrgReportHtml(r.id)}
-                            >
-                              <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                              <span className="sr-only">View report</span>
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
-                              disabled={!r.has_report_html}
-                              title="Download HTML"
-                              onClick={() => void downloadOrgReportHtml(r.id, r.fetched_at)}
-                            >
-                              <ArrowDownTrayIcon className="h-4 w-4" />
-                              <span className="sr-only">Download report</span>
-                            </Button>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </ScrollArea>
+                        </div>
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            disabled={!r.has_report_html}
+                            title="View in new tab"
+                            onClick={() => void openOrgReportHtml(r.id)}
+                          >
+                            <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                            <span className="sr-only">View report</span>
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            disabled={!r.has_report_html}
+                            title="Download HTML"
+                            onClick={() => void downloadOrgReportHtml(r.id, r.fetched_at)}
+                          >
+                            <ArrowDownTrayIcon className="h-4 w-4" />
+                            <span className="sr-only">Download report</span>
+                          </Button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </CardContent>
           </CollapsibleContent>
         </Card>
