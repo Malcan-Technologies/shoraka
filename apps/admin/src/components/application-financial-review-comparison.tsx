@@ -2,9 +2,9 @@
 
 /**
  * SECTION: Financial tab resubmit comparison (issuer-submitted figures + directors)
- * WHY: Mirrors financial review layout read-only; CTOS live fetch is not in snapshots.
+ * WHY: Resubmit diff for issuer unaudited_by_year only (up to two years); directors unchanged.
  * INPUT: before/after app slices, path matcher, submitted dates
- * OUTPUT: ReviewFieldBlocks with ComparisonFieldRow and director side-by-side lists
+ * OUTPUT: Unaudited-only Financial Summary (up to 2 year columns × before/after) and director table
  * WHERE USED: FinancialSection comparison mode
  */
 
@@ -17,14 +17,13 @@ import {
   type FinancialStatementsInput,
 } from "@cashsouk/types";
 import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
-import { ComparisonFieldRow } from "@/components/application-review/comparison-field-row";
 import {
   comparisonSurfaceChangedAfterClass,
   comparisonSurfaceChangedBeforeClass,
   reviewEmptyStateClass,
 } from "@/components/application-review/review-section-styles";
 import {
-  firstUnauditedYearFinancialBlock,
+  extractQuestionnaireAndUnaudited,
   extractDirectorShareholders,
   type DirectorShareholderRow,
 } from "@/components/application-financial-review-content";
@@ -42,7 +41,178 @@ import {
   applicationTableHeaderClass,
   applicationTableRowClass,
   applicationTableCellClass,
+  applicationTableWrapperClass,
 } from "@/components/application-review/application-table-styles";
+
+/** Matches Financial Summary table placeholder for empty year slots. */
+const HEADER_PLACEHOLDER = "\u2014";
+
+/**
+ * TEMP: set true to preview unaudited before/after without real resubmit snapshots.
+ * Set false before shipping.
+ */
+const USE_MOCK_FINANCIAL_RESUBMIT_COMPARISON = true;
+
+/**
+ * Mock only: 1 = single unaudited year (narrow table, one Unaudited group). 2 = two years (two groups).
+ * Real data: slot count follows max(before years, after years), capped at 2.
+ */
+const MOCK_UNAUDITED_YEAR_COUNT: 1 | 2 = 1;
+
+function mockUnauditedYearBlock(
+  year: number,
+  overrides: Record<string, unknown> = {}
+): Record<string, unknown> {
+  const y = String(year);
+  return {
+    pldd: `${y}-12-31`,
+    bsdd: `${y}-12-31`,
+    bsfatot: 180_000,
+    othass: 45_000,
+    bscatot: 220_000,
+    bsclbank: 30_000,
+    curlib: 95_000,
+    bsslltd: 110_000,
+    bsclstd: 25_000,
+    bsqpuc: 160_000,
+    turnover: 1_000_000,
+    plnpbt: 85_000,
+    plnpat: 52_000,
+    plnetdiv: 5_000,
+    plyear: 12_000,
+    ...overrides,
+  };
+}
+
+type MockFinancialResubmitPayload = {
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+  changedPaths: Set<string>;
+  bannerText: string;
+};
+
+function buildMockFinancialResubmitPayload(yearCount: 1 | 2): MockFinancialResubmitPayload {
+  if (yearCount === 1) {
+    return {
+      before: {
+        questionnaire: {
+          latest_financial_year: 2023,
+          submitted_this_financial_year: false,
+          has_data_for_next_financial_year: false,
+        },
+        unaudited_by_year: {
+          "2023": mockUnauditedYearBlock(2023, { turnover: 1_050_000, plnpat: 48_000 }),
+        },
+      },
+      after: {
+        questionnaire: {
+          latest_financial_year: 2023,
+          submitted_this_financial_year: false,
+          has_data_for_next_financial_year: false,
+        },
+        unaudited_by_year: {
+          "2023": mockUnauditedYearBlock(2023, { turnover: 1_180_000, plnpat: 48_000 }),
+        },
+      },
+      changedPaths: new Set(["financial_statements.unaudited_by_year.2023.turnover"]),
+      bannerText:
+        "One unaudited year (2023): a single “Unaudited” block with Before | After only (no “1 of 2”). Sample diff: turnover.",
+    };
+  }
+  return {
+    before: {
+      questionnaire: {
+        latest_financial_year: 2023,
+        submitted_this_financial_year: false,
+        has_data_for_next_financial_year: true,
+      },
+      unaudited_by_year: {
+        "2022": mockUnauditedYearBlock(2022, { turnover: 880_000, plnpat: 41_000 }),
+        "2023": mockUnauditedYearBlock(2023, { turnover: 1_050_000, plnpat: 48_000 }),
+      },
+    },
+    after: {
+      questionnaire: {
+        latest_financial_year: 2023,
+        submitted_this_financial_year: false,
+        has_data_for_next_financial_year: true,
+      },
+      unaudited_by_year: {
+        "2022": mockUnauditedYearBlock(2022, { turnover: 965_000, plnpat: 41_000 }),
+        "2023": mockUnauditedYearBlock(2023, { turnover: 1_050_000, plnpat: 61_000 }),
+      },
+    },
+    changedPaths: new Set([
+      "financial_statements.unaudited_by_year.2022.turnover",
+      "financial_statements.unaudited_by_year.2023.plnpat",
+    ]),
+    bannerText:
+      "Two unaudited years (2022, 2023): two column groups. Diffs: 2022 turnover, 2023 profit after tax.",
+  };
+}
+
+function financialCellsDiffer(before: string, after: string): boolean {
+  const norm = (v: string) => {
+    if (v === "—" || v.trim() === "") return "";
+    return v.trim();
+  };
+  return norm(before) !== norm(after);
+}
+
+const MAX_UNAUDITED_SLOTS = 2;
+
+function sortedUnauditedYearKeys(byYear: Record<string, Record<string, unknown>>): string[] {
+  return Object.keys(byYear)
+    .filter((k) => {
+      const b = byYear[k];
+      return b != null && typeof b === "object" && !Array.isArray(b);
+    })
+    .sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+}
+
+type UnauditedSlot = { beforeYear: string | null; afterYear: string | null };
+
+function buildUnauditedSlots(
+  beforeKeys: string[],
+  afterKeys: string[]
+): UnauditedSlot[] {
+  const n = Math.min(
+    MAX_UNAUDITED_SLOTS,
+    Math.max(beforeKeys.length, afterKeys.length, beforeKeys.length || afterKeys.length ? 1 : 0)
+  );
+  if (n === 0) return [];
+  const slots: UnauditedSlot[] = [];
+  for (let i = 0; i < n; i++) {
+    slots.push({
+      beforeYear: beforeKeys[i] ?? null,
+      afterYear: afterKeys[i] ?? null,
+    });
+  }
+  return slots;
+}
+
+function rowMarkedChangedFinancial(
+  rowId: string,
+  slot: UnauditedSlot,
+  isPathChanged: (path: string) => boolean
+): boolean {
+  if (isPathChanged("financial_statements")) return true;
+  if (isPathChanged(`financial_statements.${rowId}`)) return true;
+  if (isPathChanged(`financial_statements.input.${rowId}`)) return true;
+  if (
+    slot.beforeYear &&
+    isPathChanged(`financial_statements.unaudited_by_year.${slot.beforeYear}.${rowId}`)
+  ) {
+    return true;
+  }
+  if (
+    slot.afterYear &&
+    isPathChanged(`financial_statements.unaudited_by_year.${slot.afterYear}.${rowId}`)
+  ) {
+    return true;
+  }
+  return false;
+}
 
 const COMPUTED_FIELD_LABELS: Record<string, string> = {
   totass: "Total Assets",
@@ -180,14 +350,60 @@ export function ApplicationFinancialReviewComparison({
   afterApp: typeof beforeApp;
   isPathChanged: (path: string) => boolean;
 }) {
-  const beforeFs = React.useMemo(
-    () => firstUnauditedYearFinancialBlock(beforeApp.financial_statements),
-    [beforeApp.financial_statements]
+  const mockFinancialPayload = React.useMemo(
+    () =>
+      USE_MOCK_FINANCIAL_RESUBMIT_COMPARISON
+        ? buildMockFinancialResubmitPayload(MOCK_UNAUDITED_YEAR_COUNT)
+        : null,
+    []
   );
-  const afterFs = React.useMemo(
-    () => firstUnauditedYearFinancialBlock(afterApp.financial_statements),
-    [afterApp.financial_statements]
+
+  const effectiveBeforeApp = React.useMemo(() => {
+    if (!mockFinancialPayload) return beforeApp;
+    return { ...beforeApp, financial_statements: mockFinancialPayload.before };
+  }, [beforeApp, mockFinancialPayload]);
+
+  const effectiveAfterApp = React.useMemo(() => {
+    if (!mockFinancialPayload) return afterApp;
+    return { ...afterApp, financial_statements: mockFinancialPayload.after };
+  }, [afterApp, mockFinancialPayload]);
+
+  const effectiveIsPathChanged = React.useCallback(
+    (path: string) => {
+      if (mockFinancialPayload && path.startsWith("financial_statements")) {
+        return mockFinancialPayload.changedPaths.has(path);
+      }
+      return isPathChanged(path);
+    },
+    [isPathChanged, mockFinancialPayload]
   );
+
+  React.useEffect(() => {
+    if (mockFinancialPayload) {
+      console.log(
+        "ApplicationFinancialReviewComparison: MOCK financial resubmit —",
+        MOCK_UNAUDITED_YEAR_COUNT === 1
+          ? "one unaudited year (2023); turnover diff."
+          : "two unaudited years (2022, 2023); turnover + plnpat diffs."
+      );
+    }
+  }, [mockFinancialPayload]);
+
+  const beforeByYear = React.useMemo(
+    () => extractQuestionnaireAndUnaudited(effectiveBeforeApp.financial_statements).unauditedByYear,
+    [effectiveBeforeApp.financial_statements]
+  );
+  const afterByYear = React.useMemo(
+    () => extractQuestionnaireAndUnaudited(effectiveAfterApp.financial_statements).unauditedByYear,
+    [effectiveAfterApp.financial_statements]
+  );
+  const beforeUnauditedKeys = React.useMemo(() => sortedUnauditedYearKeys(beforeByYear), [beforeByYear]);
+  const afterUnauditedKeys = React.useMemo(() => sortedUnauditedYearKeys(afterByYear), [afterByYear]);
+  const unauditedSlots = React.useMemo(
+    () => buildUnauditedSlots(beforeUnauditedKeys, afterUnauditedKeys),
+    [beforeUnauditedKeys, afterUnauditedKeys]
+  );
+
   const beforeDir = React.useMemo(
     () => extractDirectorShareholders(beforeApp.issuer_organization),
     [beforeApp.issuer_organization]
@@ -199,34 +415,160 @@ export function ApplicationFinancialReviewComparison({
 
   const maxLen = Math.max(beforeDir.length, afterDir.length);
 
+  const tableMinWidth =
+    unauditedSlots.length <= 1 ? "min-w-[560px]" : "min-w-[880px]";
+
   return (
     <>
-      <ReviewFieldBlock title="CTOS report">
-        <p className="text-xs text-muted-foreground mb-3">
-          Only values from the application snapshot are shown here (like the unaudited / issuer column on
-          the main tab). Fetched CTOS year columns are not stored in revision snapshots.
+      <ReviewFieldBlock title="Financial Summary">
+        {mockFinancialPayload ? (
+          <div className="mb-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-950 dark:text-amber-100">
+            <span className="font-semibold">Mock data (temporary).</span> {mockFinancialPayload.bannerText}{" "}
+            Changed cells use tinted background; before value is struck through; rows flagged in metadata show{" "}
+            <span className="font-medium">· Diff</span>. Toggle{" "}
+            <span className="font-mono">MOCK_UNAUDITED_YEAR_COUNT</span> (1 or 2) in code to compare layouts.
+          </div>
+        ) : null}
+        <p className="-mt-1 mb-3 max-w-3xl text-xs leading-relaxed text-muted-foreground">
+          Comparison uses issuer <span className="font-medium text-foreground">unaudited</span> figures from
+          each revision. Up to two financial years are shown in column order (earlier year first). If before
+          and after use different year sets, the same slot may show different calendar years on each side.
         </p>
-        <div className="space-y-2">
-          {ROW_LABELS.map((row) => {
-            const path = `financial_statements.${row.id}`;
-            const pathInput = `financial_statements.input.${row.id}`;
-            const changed =
-              isPathChanged("financial_statements") ||
-              isPathChanged(path) ||
-              isPathChanged(pathInput);
-            const b = formatIssuerFinancialCell(row.id, beforeFs);
-            const a = formatIssuerFinancialCell(row.id, afterFs);
-            return (
-              <ComparisonFieldRow
-                key={row.id}
-                label={row.label}
-                before={b}
-                after={a}
-                changed={changed}
-              />
-            );
-          })}
-        </div>
+        {unauditedSlots.length === 0 ? (
+          <p className={reviewEmptyStateClass}>No unaudited financial data in these snapshots.</p>
+        ) : (
+          <div className={applicationTableWrapperClass}>
+            <div className="overflow-x-auto">
+              <Table
+                className={cn("table-fixed w-full text-[15px]", tableMinWidth)}
+                aria-label="Unaudited figures by financial metric, before and after resubmit"
+              >
+                <TableHeader className={cn(applicationTableHeaderBgClass, "[&_tr]:border-b-border")}>
+                  <TableRow className="hover:bg-transparent border-b border-border">
+                    <TableHead
+                      rowSpan={2}
+                      scope="col"
+                      className={cn(
+                        applicationTableHeaderClass,
+                        "w-[22%] min-w-[120px] border-r border-border bg-muted/30 align-middle font-normal"
+                      )}
+                    >
+                      <span className="sr-only">Financial metric</span>
+                    </TableHead>
+                    {unauditedSlots.map((slot, si) => {
+                      const by = slot.beforeYear ?? HEADER_PLACEHOLDER;
+                      const ay = slot.afterYear ?? HEADER_PLACEHOLDER;
+                      return (
+                        <TableHead
+                          key={`g-${si}`}
+                          colSpan={2}
+                          className={cn(
+                            applicationTableHeaderClass,
+                            "border-r border-border text-center last:border-r-0"
+                          )}
+                        >
+                          <span className="font-semibold text-foreground">
+                            Unaudited {unauditedSlots.length > 1 ? `(${si + 1} of 2)` : ""}
+                          </span>
+                          <div className="mt-1 text-xs font-normal leading-snug text-muted-foreground">
+                            Before: year {by}
+                            <span className="mx-1 text-border">·</span>
+                            After: year {ay}
+                          </div>
+                        </TableHead>
+                      );
+                    })}
+                  </TableRow>
+                  <TableRow className="hover:bg-transparent border-b border-border">
+                    {unauditedSlots.flatMap((_, si) => [
+                      <TableHead
+                        key={`${si}-bef`}
+                        className={cn(
+                          applicationTableHeaderClass,
+                          "w-[19%] border-r border-border text-right tabular-nums text-muted-foreground"
+                        )}
+                      >
+                        Before
+                      </TableHead>,
+                      <TableHead
+                        key={`${si}-aft`}
+                        className={cn(
+                          applicationTableHeaderClass,
+                          "w-[19%] border-r border-border text-right tabular-nums text-foreground last:border-r-0"
+                        )}
+                      >
+                        After
+                      </TableHead>,
+                    ])}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {ROW_LABELS.map((row) => {
+                    const anySlotChanged = unauditedSlots.some((slot) =>
+                      rowMarkedChangedFinancial(row.id, slot, effectiveIsPathChanged)
+                    );
+                    return (
+                      <TableRow key={row.id} className={applicationTableRowClass}>
+                        <TableCell
+                          className={cn(
+                            applicationTableCellClass,
+                            "border-r border-border bg-muted/20 font-medium text-foreground"
+                          )}
+                        >
+                          {row.label}
+                          {anySlotChanged ? (
+                            <span className="ml-2 text-xs font-normal text-muted-foreground">· Diff</span>
+                          ) : null}
+                        </TableCell>
+                        {unauditedSlots.flatMap((slot, si) => {
+                          const beforeFs = slot.beforeYear
+                            ? (beforeByYear[slot.beforeYear] as Record<string, unknown> | undefined) ?? null
+                            : null;
+                          const afterFs = slot.afterYear
+                            ? (afterByYear[slot.afterYear] as Record<string, unknown> | undefined) ?? null
+                            : null;
+                          const b = formatIssuerFinancialCell(row.id, beforeFs);
+                          const a = formatIssuerFinancialCell(row.id, afterFs);
+                          const differs = financialCellsDiffer(b, a);
+                          return [
+                            <TableCell
+                              key={`${si}-b`}
+                              className={cn(
+                                applicationTableCellClass,
+                                "border-r border-border text-right tabular-nums text-muted-foreground",
+                                differs && cn(comparisonSurfaceChangedBeforeClass, "rounded-none")
+                              )}
+                            >
+                              <span
+                                className={cn(
+                                  differs &&
+                                    b !== "—" &&
+                                    "line-through decoration-muted-foreground/80 decoration-1 [text-decoration-skip-ink:none]"
+                                )}
+                              >
+                                {b}
+                              </span>
+                            </TableCell>,
+                            <TableCell
+                              key={`${si}-a`}
+                              className={cn(
+                                applicationTableCellClass,
+                                "border-r border-border text-right tabular-nums text-foreground last:border-r-0",
+                                differs && cn(comparisonSurfaceChangedAfterClass, "rounded-none")
+                              )}
+                            >
+                              {a}
+                            </TableCell>,
+                          ];
+                        })}
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
       </ReviewFieldBlock>
 
       <ReviewFieldBlock title="Director and Shareholders">
@@ -247,9 +589,9 @@ export function ApplicationFinancialReviewComparison({
                   const br = beforeDir[i];
                   const ar = afterDir[i];
                   const changed =
-                    isPathChanged("issuer_organization") ||
-                    (br && isPathChanged(`issuer_organization.corporate_entities.directors[${i}]`)) ||
-                    (ar && isPathChanged(`issuer_organization.corporate_entities.directors[${i}]`));
+                    effectiveIsPathChanged("issuer_organization") ||
+                    (br && effectiveIsPathChanged(`issuer_organization.corporate_entities.directors[${i}]`)) ||
+                    (ar && effectiveIsPathChanged(`issuer_organization.corporate_entities.directors[${i}]`));
                   const bText = br ? directorSummary(br) : "—";
                   const aText = ar ? directorSummary(ar) : "—";
                   const rowDiffers = bText !== aText;
