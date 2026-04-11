@@ -33,3 +33,7 @@ When CTOS provides `profit_margin`, `return_on_equity`, `turnover_growth`, `curr
 - **Computed** fallbacks (from `computeProfitMargin`, etc.) use **decimal ratios** internally; those rows still use **× 100** before showing `%`.
 - **`currat`** is a plain ratio (e.g. `1.32`), not a percent.
 - **`workcap`** is a currency amount.
+
+## CTOS director / shareholder position (cross-check table)
+
+Organization `company_json.directors[].position` uses ENQWS-style codes: **DO** Director Only, **SO** Shareholder Only, **DS** Director & Shareholder, **AD** Alternate Director, **AS** Alternate Director & Shareholder. The admin CTOS comparison table shows the code plus label and compares issuer role text to these codes (and common phrases like “Director” / “Shareholder”).

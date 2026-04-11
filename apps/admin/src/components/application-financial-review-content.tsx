@@ -496,6 +496,10 @@ interface DirectorCtosComparisonTableRow {
   profileRowId: string | null;
   issuerName: string;
   ctosName: string;
+  /** Issuer-declared role when this row is tied to a profile row; null for CTOS-only rows */
+  issuerRoleText: string | null;
+  /** CTOS position code + label (ENQWS); null when no CTOS director row */
+  ctosPositionSummary: string | null;
   nameCheckCell: string;
   roleCheckCell: string;
   ownershipCheckCell: string;
@@ -642,15 +646,80 @@ function ownershipFromCtosDirector(r: CtosOrgDirectorRow): string | null {
 }
 
 /**
- * SECTION: CTOS role label for comparison
- * WHY: Use CTOS position text as role (no fuzzy mapping)
- * INPUT: position from extract
- * OUTPUT: trimmed string or "Director" fallback
- * WHERE USED: role check for matched pairs
+ * SECTION: CTOS director/shareholder position codes (ENQWS company_json.directors.position)
+ * WHY: CTOS returns DO/SO/DS/AD/AS; match issuer wording and show human-readable labels in admin
+ * INPUT: code or free-text from XML / issuer form
+ * OUTPUT: canonical code, display label, or summary string
+ * WHERE USED: buildDirectorCtosComparison, CTOS table Position column
  */
-function ctosRoleLabelFromPosition(position: string | null | undefined): string {
-  const p = String(position ?? "").trim();
-  return p || "Director";
+const CTOS_POSITION_LABEL_BY_CODE: Record<string, string> = {
+  DO: "Director Only",
+  SO: "Shareholder Only",
+  DS: "Director & Shareholder",
+  AD: "Alternate Director",
+  AS: "Alternate Director & Shareholder",
+};
+
+function ctosPositionCanonicalCode(position: string | null | undefined): string | null {
+  const p = String(position ?? "").trim().toUpperCase();
+  if (p in CTOS_POSITION_LABEL_BY_CODE) return p;
+  return null;
+}
+
+function collapseRoleSpaces(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/** Map issuer or legacy free-text to CTOS position code when recognizable */
+function issuerRoleCanonicalCode(role: string | null | undefined): string | null {
+  const raw = String(role ?? "").trim();
+  if (!raw) return null;
+  const asCode = ctosPositionCanonicalCode(raw);
+  if (asCode) return asCode;
+  const n = collapseRoleSpaces(raw.replace(/&/g, " and ").replace(/\+/g, " and "));
+  const checks: { re: RegExp; code: string }[] = [
+    { re: /\balternate\s+director\s+and\s+shareholder\b/, code: "AS" },
+    { re: /\balternate\s+director\b/, code: "AD" },
+    { re: /\bdirector\s+and\s+shareholder\b/, code: "DS" },
+    { re: /\bdirector\s+only\b/, code: "DO" },
+    { re: /\bshareholder\s+only\b/, code: "SO" },
+    { re: /\bcorporate\s+shareholder\b/, code: "SO" },
+    { re: /\bshareholder\b/, code: "SO" },
+    { re: /\bdirector\b/, code: "DO" },
+  ];
+  for (const { re, code } of checks) {
+    if (re.test(n)) return code;
+  }
+  return null;
+}
+
+function ctosPositionSummaryFromRaw(position: string | null | undefined): string {
+  const code = ctosPositionCanonicalCode(position);
+  const raw = String(position ?? "").trim();
+  if (code) return `${code} — ${CTOS_POSITION_LABEL_BY_CODE[code]}`;
+  return raw;
+}
+
+function ctosDirectorRolesMatch(issuerRole: string, ctosPosition: string | null | undefined): boolean {
+  const i = String(issuerRole ?? "").trim();
+  const cRaw = String(ctosPosition ?? "").trim();
+  if (!i && !cRaw) return true;
+  const iCode = issuerRoleCanonicalCode(i);
+  const cCode = ctosPositionCanonicalCode(cRaw);
+
+  if (iCode && cCode) return iCode === cCode;
+  if (iCode && !cCode && cRaw) {
+    return i.toLowerCase() === cRaw.toLowerCase();
+  }
+  if (!iCode && cCode && i) {
+    const label = CTOS_POSITION_LABEL_BY_CODE[cCode];
+    return (
+      i.toLowerCase() === cRaw.toLowerCase() ||
+      i.toLowerCase() === label.toLowerCase() ||
+      i.toLowerCase() === cCode.toLowerCase()
+    );
+  }
+  return i.toLowerCase() === cRaw.toLowerCase();
 }
 
 /**
@@ -724,6 +793,8 @@ function buildDirectorCtosComparison(
         profileRowId: issuerRow.id,
         issuerName: issuerRow.name,
         ctosName: HEADER_PLACEHOLDER,
+        issuerRoleText: issuerRow.role,
+        ctosPositionSummary: null,
         nameCheckCell: HEADER_PLACEHOLDER,
         roleCheckCell: HEADER_PLACEHOLDER,
         ownershipCheckCell: HEADER_PLACEHOLDER,
@@ -741,6 +812,8 @@ function buildDirectorCtosComparison(
         profileRowId: issuerRow.id,
         issuerName: issuerRow.name,
         ctosName: HEADER_PLACEHOLDER,
+        issuerRoleText: issuerRow.role,
+        ctosPositionSummary: null,
         nameCheckCell: HEADER_PLACEHOLDER,
         roleCheckCell: HEADER_PLACEHOLDER,
         ownershipCheckCell: HEADER_PLACEHOLDER,
@@ -750,12 +823,13 @@ function buildDirectorCtosComparison(
     }
 
     const ctosNameStr = ctosRow.name ?? "";
-    const ctosRoleStr = ctosRoleLabelFromPosition(ctosRow.position);
     const ctosOwnStr = ownershipFromCtosDirector(ctosRow);
+    const ctosPosSummary =
+      ctosPositionSummaryFromRaw(ctosRow.position) || null;
 
     const nameMatch =
       issuerRow.name.trim().toLowerCase() === ctosNameStr.trim().toLowerCase();
-    const roleMatch = issuerRow.role.trim().toLowerCase() === ctosRoleStr.trim().toLowerCase();
+    const roleMatch = ctosDirectorRolesMatch(issuerRow.role, ctosRow.position);
     const ownA = (issuerRow.ownership ?? "").trim().toLowerCase();
     const ownB = (ctosOwnStr ?? "").trim().toLowerCase();
     const ownershipMatch = ownA === ownB;
@@ -773,6 +847,8 @@ function buildDirectorCtosComparison(
       profileRowId: issuerRow.id,
       issuerName: issuerRow.name,
       ctosName: ctosNameStr || HEADER_PLACEHOLDER,
+      issuerRoleText: issuerRow.role,
+      ctosPositionSummary: ctosPosSummary,
       nameCheckCell,
       roleCheckCell,
       ownershipCheckCell,
@@ -788,6 +864,8 @@ function buildDirectorCtosComparison(
         profileRowId: null,
         issuerName: HEADER_PLACEHOLDER,
         ctosName: leftover.name ?? HEADER_PLACEHOLDER,
+        issuerRoleText: null,
+        ctosPositionSummary: ctosPositionSummaryFromRaw(leftover.position) || null,
         nameCheckCell: HEADER_PLACEHOLDER,
         roleCheckCell: HEADER_PLACEHOLDER,
         ownershipCheckCell: HEADER_PLACEHOLDER,
@@ -803,6 +881,8 @@ function buildDirectorCtosComparison(
       profileRowId: null,
       issuerName: HEADER_PLACEHOLDER,
       ctosName: r.name ?? HEADER_PLACEHOLDER,
+      issuerRoleText: null,
+      ctosPositionSummary: ctosPositionSummaryFromRaw(r.position) || null,
       nameCheckCell: HEADER_PLACEHOLDER,
       roleCheckCell: HEADER_PLACEHOLDER,
       ownershipCheckCell: HEADER_PLACEHOLDER,
@@ -2128,6 +2208,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                       </TableHead>
                       <TableHead className={applicationTableHeaderClass}>Issuer Name</TableHead>
                       <TableHead className={applicationTableHeaderClass}>CTOS Name</TableHead>
+                      <TableHead className={applicationTableHeaderClass}>CTOS position</TableHead>
                       <TableHead className={applicationTableHeaderClass}>Status</TableHead>
                       <TableHead className={applicationTableHeaderClass}>Last subject fetch</TableHead>
                       <TableHead className={applicationTableHeaderClass}>View report</TableHead>
@@ -2188,6 +2269,13 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                                 row.ctosName
                               )}
                             </TableCell>
+                            <TableCell className={`${applicationTableCellClass} max-w-[220px]`}>
+                              {row.ctosPositionSummary ? (
+                                <span className="text-[14px] leading-snug">{row.ctosPositionSummary}</span>
+                              ) : (
+                                <span className="text-muted-foreground">{HEADER_PLACEHOLDER}</span>
+                              )}
+                            </TableCell>
                             <TableCell className={applicationTableCellClass}>
                               {directorCtosRowStatusDisplay(row.rowStatus)}
                             </TableCell>
@@ -2238,7 +2326,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                             <TableRow className="border-b border-border bg-muted/20 hover:bg-muted/25">
                               <TableCell
                                 id={detailId}
-                                colSpan={7}
+                                colSpan={8}
                                 className={`${applicationTableCellClass} px-4 py-3`}
                               >
                                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -2253,6 +2341,20 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                                       Role Check
                                     </p>
                                     <div>{directorCtosFieldCheckDisplay(row.roleCheckCell)}</div>
+                                    <div className="mt-2 space-y-0.5 text-[13px] leading-snug text-muted-foreground">
+                                      <p className="m-0">
+                                        <span className="font-medium text-foreground">Issuer role: </span>
+                                        {row.issuerRoleText?.trim()
+                                          ? row.issuerRoleText
+                                          : HEADER_PLACEHOLDER}
+                                      </p>
+                                      <p className="m-0">
+                                        <span className="font-medium text-foreground">CTOS position: </span>
+                                        {row.ctosPositionSummary?.trim()
+                                          ? row.ctosPositionSummary
+                                          : HEADER_PLACEHOLDER}
+                                      </p>
+                                    </div>
                                   </div>
                                   <div className="space-y-1">
                                     <p className="m-0 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
