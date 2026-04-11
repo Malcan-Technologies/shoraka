@@ -2,7 +2,7 @@
  * SECTION: CTOS vs onboarding application comparison (admin)
  * WHY: SSM/CTOS verification compares application vs CTOS company_json
  * INPUT: onboarding application + optional CTOS company_json + fetch state
- * OUTPUT: name/SSM rows, director/shareholder rows, checklist
+ * OUTPUT: name/SSM rows, director/shareholder rows, checklist (company + people name/ID checks)
  * WHERE USED: SSMVerificationPanel
  * NOTE: Company name match = trim + lowercase + single spaces, then exact equality. SSM = digits only.
  * Director/shareholder: match CTOS row by normalized IC/SSM key, then require same ID + same name (trim, case-insensitive).
@@ -31,6 +31,10 @@ export interface OnboardingVerificationRow {
   appCell: string;
   ctosCell: string | null;
   match: boolean;
+  /** Application IC / reg. no. (director & shareholder rows). */
+  appIdDisplay?: string | null;
+  /** CTOS extract IC / BRN (director & shareholder rows, when matched to a row). */
+  ctosIdDisplay?: string | null;
 }
 
 export interface OnboardingCtosComparison {
@@ -90,6 +94,16 @@ function primaryCtosIdFromDirectorRow(r: CtosOrgDirectorParsed): string {
   return a || b;
 }
 
+function displayIdFromApp(governmentId: string | null | undefined): string | null {
+  const s = String(governmentId ?? "").trim();
+  return s || null;
+}
+
+function displayIdFromCtosRow(r: CtosOrgDirectorParsed): string | null {
+  const s = primaryCtosIdFromDirectorRow(r).trim();
+  return s || null;
+}
+
 function extractCtosOrgDirectorsFromCompanyJson(companyJson: unknown): CtosOrgDirectorParsed[] {
   const cj = companyJson as { directors?: unknown } | null | undefined;
   const raw = Array.isArray(cj?.directors) ? cj!.directors : [];
@@ -124,8 +138,9 @@ function shareholderPercentFromRole(role: string): string | null {
   const m = /\(([^)]+)\)/.exec(role);
   if (!m) return null;
   const inner = m[1].trim();
-  if (/\d/.test(inner)) return inner.replace(/\s*%?\s*$/, "").trim() + (inner.includes("%") ? "" : "%");
-  return null;
+  if (!/\d/.test(inner)) return null;
+  if (inner.includes("%")) return inner.replace(/\s+/g, "");
+  return `${inner.replace(/\s+/g, "")}%`;
 }
 
 function appShareholderDisplayName(d: DirectorKycStatus): string {
@@ -289,6 +304,18 @@ function effectiveKycDirectors(application: OnboardingApplicationResponse): Dire
   return [];
 }
 
+/** For mock CTOS preview only — same director/shareholder split as the compare tables. */
+export function getOnboardingPeopleSplit(application: OnboardingApplicationResponse): {
+  directors: DirectorKycStatus[];
+  shareholders: DirectorKycStatus[];
+} {
+  const kycList = effectiveKycDirectors(application);
+  return {
+    directors: appDirectorsFromKyc(kycList),
+    shareholders: appShareholdersFromKyc(kycList),
+  };
+}
+
 function parseCtosNameReg(companyJson: unknown): { ctosName: string | null; ctosReg: string | null } {
   const cj = companyJson as Record<string, unknown> | null | undefined;
   if (!cj || typeof cj !== "object") return { ctosName: null, ctosReg: null };
@@ -364,24 +391,38 @@ export function buildOnboardingCtosComparison(
   const kycList = effectiveKycDirectors(application);
   const appDirList = appDirectorsFromKyc(kycList);
   const directors: OnboardingVerificationRow[] = appDirList.map((d) => {
-    if (!ready) return { appCell: d.name, ctosCell: null, match: false };
+    const appIdDisplay = displayIdFromApp(d.governmentIdNumber);
+    if (!ready) {
+      return { appCell: d.name, ctosCell: null, match: false, appIdDisplay, ctosIdDisplay: null };
+    }
     const k = normalizeIdKey(d.governmentIdNumber);
     const candidates = k ? ctosByKey.get(k) ?? [] : [];
     const ctosSide = candidates.find((c) => isCtosDirectorTableRow(ctosPositionCode(c.position)));
     const ctosCell = ctosSide ? (ctosSide.name ?? "").trim() || "—" : null;
     const match = ctosSide != null && issuerCtosPersonNameAndIdMatch(d, ctosSide);
-    return { appCell: d.name, ctosCell, match };
+    const ctosIdDisplay = ctosSide ? displayIdFromCtosRow(ctosSide) : null;
+    return { appCell: d.name, ctosCell, match, appIdDisplay, ctosIdDisplay };
   });
 
   const appShList = appShareholdersFromKyc(kycList);
   const shareholders: OnboardingVerificationRow[] = appShList.map((d) => {
-    if (!ready) return { appCell: appShareholderDisplayName(d), ctosCell: null, match: false };
+    const appIdDisplay = displayIdFromApp(d.governmentIdNumber);
+    if (!ready) {
+      return {
+        appCell: appShareholderDisplayName(d),
+        ctosCell: null,
+        match: false,
+        appIdDisplay,
+        ctosIdDisplay: null,
+      };
+    }
     const k = normalizeIdKey(d.governmentIdNumber);
     const candidates = k ? ctosByKey.get(k) ?? [] : [];
     const ctosSide = candidates.find((c) => isCtosShareholderTableRow(ctosPositionCode(c.position)));
     const ctosCell = ctosSide ? (ctosSide.name ?? "").trim() || "—" : null;
     const match = ctosSide != null && issuerCtosPersonNameAndIdMatch(d, ctosSide);
-    return { appCell: appShareholderDisplayName(d), ctosCell, match };
+    const ctosIdDisplay = ctosSide ? displayIdFromCtosRow(ctosSide) : null;
+    return { appCell: appShareholderDisplayName(d), ctosCell, match, appIdDisplay, ctosIdDisplay };
   });
 
   const directorsMatch =
@@ -399,10 +440,18 @@ export function buildOnboardingCtosComparison(
         : shareholders.length > 0 && shareholders.every((r) => r.match);
 
   const checklist: { id: string; label: string; ok: boolean }[] = [
-    { id: "name", label: "Name matches", ok: companyName.match },
-    { id: "reg", label: "SSM no. matches", ok: registration.match },
-    { id: "dir", label: "Directors match", ok: directorsMatch },
-    { id: "sh", label: "Shareholders match", ok: shareholdersMatch },
+    { id: "name", label: "Company name matches", ok: companyName.match },
+    { id: "reg", label: "Company SSM / reg. no. matches", ok: registration.match },
+    {
+      id: "dir",
+      label: "Directors: name and IC / reg. no. match",
+      ok: directorsMatch,
+    },
+    {
+      id: "sh",
+      label: "Shareholders: name and IC / reg. no. match",
+      ok: shareholdersMatch,
+    },
   ];
 
   if (process.env.NODE_ENV === "development") {
