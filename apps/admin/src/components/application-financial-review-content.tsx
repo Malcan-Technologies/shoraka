@@ -1126,209 +1126,6 @@ function findKycStatusForEod(
   return null;
 }
 
-/**
- * SECTION: Name normalize for issuer application combined list (company-details-step)
- * WHY: Same dedupe key as issuer flow directors/shareholders table
- * INPUT: display name
- * OUTPUT: trimmed lower collapsed spaces
- * WHERE USED: buildDirectorShareholderRowsIssuerApplicationFlow
- */
-function normalizeNameForIssuerList(name: string): string {
-  return name.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-/** Align with apps/issuer/src/hooks/use-corporate-entities.ts isDirector */
-function kycRoleIsDirector(role: string | null | undefined): boolean {
-  if (!role) return false;
-  return role.toLowerCase().includes("director");
-}
-
-/** Align with apps/issuer/src/hooks/use-corporate-entities.ts isShareholder */
-function kycRoleIsShareholder(role: string | null | undefined): boolean {
-  if (!role) return false;
-  return role.toLowerCase().includes("shareholder");
-}
-
-/** Align with apps/issuer useCorporateEntities extractOwnershipFromRole */
-function sharePercentageFromKycRole(role: string | null | undefined): number | null {
-  if (!role) return null;
-  const matches = role.match(/\((\d+)%\)/g);
-  if (!matches || matches.length === 0) return null;
-  const percentages = new Set<number>();
-  for (const match of matches) {
-    const pct = Number.parseInt(match.replace(/[()%]/g, ""), 10);
-    if (!Number.isNaN(pct)) percentages.add(pct);
-  }
-  if (percentages.size === 1) return Array.from(percentages)[0];
-  if (percentages.size > 1) return Array.from(percentages).reduce((sum, pct) => sum + pct, 0);
-  return null;
-}
-
-/**
- * SECTION: Issuer application flow rows for CTOS compare
- * WHY: Match company-details-step + useCorporateEntities combined list; append corporate shareholders like issuer UI
- * INPUT: issuer_organization
- * OUTPUT: rows or null when director_kyc_status.directors is empty (caller uses extractDirectorShareholders + merge)
- * WHERE USED: directorCtosComparisonTableRows useMemo
- */
-function buildDirectorShareholderRowsIssuerApplicationFlow(
-  issuerOrg: {
-    corporate_entities?: unknown;
-    director_kyc_status?: unknown;
-    director_aml_status?: unknown;
-  } | null | undefined
-): DirectorShareholderRow[] | null {
-  const directorKycStatus = issuerOrg?.director_kyc_status as Record<string, unknown> | null | undefined;
-  const directorAmlStatus = issuerOrg?.director_aml_status as Record<string, unknown> | null | undefined;
-  const kycDirectors = Array.isArray(directorKycStatus?.directors)
-    ? (directorKycStatus!.directors as Record<string, unknown>[])
-    : [];
-  if (kycDirectors.length === 0) return null;
-
-  const directorsDisplay: { name: string; ownershipLabel: string; kycVerified: boolean }[] = [];
-  const shareholdersDisplay: { name: string; ownershipLabel: string; kycVerified: boolean }[] = [];
-  for (const entry of kycDirectors) {
-    const role = entry.role ? String(entry.role) : "";
-    const pct = sharePercentageFromKycRole(role);
-    const ownershipLabel = pct != null ? `${pct}% ownership` : "—";
-    const kycVerified = String(entry.kycStatus ?? "") === "APPROVED";
-    const item = { name: String(entry.name || "Unknown"), ownershipLabel, kycVerified };
-    if (kycRoleIsDirector(role)) directorsDisplay.push(item);
-    if (kycRoleIsShareholder(role)) shareholdersDisplay.push(item);
-  }
-
-  const nameToKycEntry = new Map<string, Record<string, unknown>>();
-  for (const entry of kycDirectors) {
-    const nk = normalizeNameForIssuerList(String(entry.name || ""));
-    if (!nameToKycEntry.has(nk)) nameToKycEntry.set(nk, entry);
-  }
-
-  const seen = new Set<string>();
-  const rows: DirectorShareholderRow[] = [];
-  let idx = 0;
-
-  for (const d of directorsDisplay) {
-    const normalized = normalizeNameForIssuerList(d.name);
-    if (seen.has(normalized)) continue;
-    seen.add(normalized);
-    const isAlsoShareholder = d.ownershipLabel !== "—";
-    const roleLabel = isAlsoShareholder ? "Director, Shareholder" : "Director";
-    const entry = nameToKycEntry.get(normalized);
-    const ref = entry ? String(entry.eodRequestId ?? "").trim() : "";
-    const gid = entry?.governmentIdNumber != null ? String(entry.governmentIdNumber).trim() : "";
-    const kycSt = ref ? findKycStatusForEod(directorKycStatus, ref) : null;
-    rows.push({
-      id: ref || `issuer-flow-${idx++}`,
-      name: d.name,
-      role: roleLabel,
-      ownership: d.ownershipLabel !== "—" ? d.ownershipLabel : null,
-      icOrSsm: gid || null,
-      verificationLabel: "KYC",
-      verificationStatus: kycSt,
-      subjectRef: ref || null,
-      subjectKind: ref ? "INDIVIDUAL" : null,
-    });
-  }
-
-  for (const s of shareholdersDisplay) {
-    const normalized = normalizeNameForIssuerList(s.name);
-    if (seen.has(normalized)) continue;
-    seen.add(normalized);
-    const entry = nameToKycEntry.get(normalized);
-    const ref = entry ? String(entry.eodRequestId ?? "").trim() : "";
-    const gid = entry?.governmentIdNumber != null ? String(entry.governmentIdNumber).trim() : "";
-    const kycSt = ref ? findKycStatusForEod(directorKycStatus, ref) : null;
-    rows.push({
-      id: ref || `issuer-flow-${idx++}`,
-      name: s.name,
-      role: "Shareholder",
-      ownership: s.ownershipLabel !== "—" ? s.ownershipLabel : null,
-      icOrSsm: gid || null,
-      verificationLabel: "KYC",
-      verificationStatus: kycSt,
-      subjectRef: ref || null,
-      subjectKind: ref ? "INDIVIDUAL" : null,
-    });
-  }
-
-  const corporateEntities = issuerOrg?.corporate_entities as Record<string, unknown> | null | undefined;
-  const corpShareholders = Array.isArray(corporateEntities?.corporateShareholders)
-    ? (corporateEntities!.corporateShareholders as Record<string, unknown>[])
-    : [];
-  const businessAml = Array.isArray(directorAmlStatus?.businessShareholders)
-    ? (directorAmlStatus!.businessShareholders as Record<string, unknown>[])
-    : [];
-
-  const getCorpOwnership = (corp: Record<string, unknown>): string | null => {
-    const formContent = corp.formContent as Record<string, unknown> | undefined;
-    const displayAreas = Array.isArray(formContent?.displayAreas) ? formContent.displayAreas : [];
-    for (const area of displayAreas) {
-      const content = Array.isArray((area as Record<string, unknown>)?.content)
-        ? ((area as Record<string, unknown>).content as Array<{ fieldName?: string; fieldValue?: string }>)
-        : [];
-      const shareField = content.find((f) => f.fieldName === "% of Shares");
-      if (shareField?.fieldValue) return `${shareField.fieldValue}% ownership`;
-    }
-    const pct = corp.share_percentage ?? corp.sharePercentage ?? corp.percentage;
-    if (pct != null) return `${pct}% ownership`;
-    return null;
-  };
-
-  const getCorpName = (corp: Record<string, unknown>): string => {
-    const formContent = corp.formContent as Record<string, unknown> | undefined;
-    const displayAreas = Array.isArray(formContent?.displayAreas) ? formContent.displayAreas : [];
-    const basicInfo = displayAreas.find(
-      (a: Record<string, unknown>) => a.displayArea === "Basic Information Setting"
-    ) as { content?: Array<{ fieldName?: string; fieldValue?: string }> } | undefined;
-    const content = Array.isArray(basicInfo?.content) ? basicInfo.content : [];
-    const businessNameField = content.find((f) => f.fieldName === "Business Name");
-    if (businessNameField?.fieldValue) return String(businessNameField.fieldValue);
-    return String(corp.companyName || corp.businessName || "Unknown");
-  };
-
-  const getCorpBusinessNumber = (corp: Record<string, unknown>): string | null => {
-    const formContent = corp.formContent as Record<string, unknown> | undefined;
-    const displayAreas = Array.isArray(formContent?.displayAreas) ? formContent.displayAreas : [];
-    for (const area of displayAreas) {
-      const content = Array.isArray((area as Record<string, unknown>)?.content)
-        ? ((area as Record<string, unknown>).content as Array<{ fieldName?: string; fieldValue?: string }>)
-        : [];
-      const numField = content.find((f) => f.fieldName === "Business Number");
-      if (numField?.fieldValue) return String(numField.fieldValue).trim();
-    }
-    return null;
-  };
-
-  for (const corp of corpShareholders) {
-    const codRequestId = String(
-      (corp.corporateOnboardingRequest as Record<string, unknown> | undefined)?.requestId ?? corp.requestId ?? ""
-    ).trim();
-    const matchingAml = businessAml.find(
-      (b) => b.codRequestId === codRequestId || (corp.kybId && b.kybId === corp.kybId)
-    );
-    const corpPct = getCorpOwnership(corp);
-    const ownership =
-      matchingAml?.sharePercentage != null
-        ? `${matchingAml.sharePercentage}% ownership`
-        : corpPct;
-    const amlStatus = matchingAml?.amlStatus ? String(matchingAml.amlStatus) : null;
-    const codStatus = corp.status ?? corp.approveStatus;
-    rows.push({
-      id: codRequestId || `issuer-flow-corp-${idx++}`,
-      name: getCorpName(corp),
-      role: "Corporate Shareholder",
-      ownership,
-      icOrSsm: getCorpBusinessNumber(corp),
-      verificationLabel: "KYB",
-      verificationStatus: amlStatus ?? (codStatus ? String(codStatus) : null),
-      subjectRef: codRequestId || null,
-      subjectKind: codRequestId ? "CORPORATE" : null,
-    });
-  }
-
-  return rows;
-}
-
 function personNameFromCe(p: Record<string, unknown>): string {
   const info = p.personalInfo as Record<string, unknown> | undefined;
   const full = String(info?.fullName ?? "").trim();
@@ -1658,6 +1455,18 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
     return extractDirectorShareholders(app.issuer_organization);
   }, [app.issuer_organization]);
 
+  /**
+   * SECTION: Merged issuer director/shareholder rows
+   * WHY: Same list for Issuer table and CTOS cross-check (one row per IC/kind after merge)
+   * INPUT: extractDirectorShareholders output
+   * OUTPUT: mergeDirectorShareholderRowsForCtosCompare(rows)
+   * WHERE USED: Issuer block + directorCtosComparisonTableRows
+   */
+  const directorShareholdersMerged = React.useMemo(
+    () => mergeDirectorShareholderRowsForCtosCompare(directorShareholders),
+    [directorShareholders]
+  );
+
   const subjectReportByRef = React.useMemo(() => {
     const m = new Map<string, { id: string; has_report_html: boolean; fetched_at: string }>();
     for (const r of ctosSubjectList ?? []) {
@@ -1678,17 +1487,12 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
   const latestCtos = ctosList?.[0];
 
   const directorCtosComparisonTableRows = React.useMemo((): DirectorCtosComparisonTableRow[] => {
-    const issuerFlow =
-      USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS
-        ? null
-        : buildDirectorShareholderRowsIssuerApplicationFlow(app.issuer_organization);
-    const issuerList = mergeDirectorShareholderRowsForCtosCompare(issuerFlow ?? directorShareholders);
     const ctosOrgList = USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS
       ? MOCK_CTOS_ORG_DIRECTOR_ROWS
       : extractCtosOrgDirectorsFromCompanyJson(latestCtos?.company_json);
-    const { tableRows } = buildDirectorCtosComparison(issuerList, ctosOrgList);
+    const { tableRows } = buildDirectorCtosComparison(directorShareholdersMerged, ctosOrgList);
     return tableRows;
-  }, [directorShareholders, latestCtos?.company_json, app.issuer_organization]);
+  }, [directorShareholdersMerged, latestCtos?.company_json]);
 
   const financialRows: CtosFinRow[] = React.useMemo(() => {
     const raw = latestCtos?.financials_json;
@@ -2417,7 +2221,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
       </ReviewFieldBlock>
 
       <ReviewFieldBlock title="Director and Shareholders">
-        {directorShareholders.length > 0 ? (
+        {directorShareholdersMerged.length > 0 ? (
           <div className="space-y-8">
             <div>
               <h3 className="mb-2 text-sm font-semibold text-foreground">Issuer</h3>
@@ -2435,7 +2239,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {directorShareholders.map((row) => {
+                    {directorShareholdersMerged.map((row) => {
                       const isApproved =
                         row.verificationStatus === "APPROVED" || row.verificationStatus === "Approved";
                       const subjectSnap = lookupSubjectReportSnap(subjectReportByRef, row.icOrSsm, row.subjectRef);
