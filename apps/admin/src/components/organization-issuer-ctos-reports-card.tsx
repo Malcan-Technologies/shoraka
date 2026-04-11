@@ -2,10 +2,10 @@
 
 /**
  * SECTION: Organization CTOS report history (admin sidebar)
- * WHY: Collapsible list + fetch latest; view or download HTML without pushing layout
+ * WHY: Matches Activity Timeline + KYC card patterns; collapsible; view/download HTML
  * INPUT: portal + organization id
- * OUTPUT: Card aligned with KYC card styling on org detail
- * WHERE USED: OrganizationDetailPage right column (issuer or investor)
+ * OUTPUT: Card consistent with organization detail right column
+ * WHERE USED: OrganizationDetailPage (issuer or investor)
  */
 
 import * as React from "react";
@@ -16,6 +16,7 @@ import type { AdminCtosReportListItem, PortalType } from "@cashsouk/types";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   AlertDialog,
@@ -30,6 +31,7 @@ import {
 import { cn } from "@/lib/utils";
 import {
   ArrowDownTrayIcon,
+  ArrowPathIcon,
   ArrowTopRightOnSquareIcon,
   ChevronRightIcon,
   DocumentTextIcon,
@@ -159,112 +161,126 @@ export function OrganizationIssuerCtosReportsCard({
   return (
     <>
       <Collapsible open={historyOpen} onOpenChange={setHistoryOpen}>
-        <Card className="rounded-2xl shrink-0 overflow-hidden">
-          <CardHeader className="pb-3 space-y-0">
-            <div className="flex items-center gap-2">
+        <Card className="rounded-2xl flex flex-col shrink-0 overflow-hidden">
+          <CardHeader className="pb-3 shrink-0 space-y-0">
+            <div className="flex items-start justify-between gap-3">
               <CollapsibleTrigger asChild>
                 <button
                   type="button"
                   className={cn(
-                    "flex flex-1 min-w-0 items-center gap-2 rounded-lg -ml-1 px-1 py-1.5 text-left",
+                    "flex-1 min-w-0 text-left rounded-lg -ml-2 pl-2 pr-1 py-1",
                     "hover:bg-muted/50 transition-colors",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   )}
                 >
-                  <ChevronRightIcon
-                    className={cn(
-                      "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200",
-                      historyOpen && "rotate-90"
-                    )}
-                  />
-                  <DocumentTextIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className="text-sm font-medium text-foreground truncate">CTOS report history</span>
-                  {!ctosQuery.isLoading ? (
-                    <Badge variant="secondary" className="text-xs font-normal shrink-0 tabular-nums">
-                      {orgCtosReports.length}
-                    </Badge>
-                  ) : null}
+                  <div className="flex items-center gap-2">
+                    <ChevronRightIcon
+                      className={cn(
+                        "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200",
+                        historyOpen && "rotate-90"
+                      )}
+                    />
+                    <DocumentTextIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="text-sm font-semibold text-foreground leading-snug">CTOS report history</span>
+                    {!ctosQuery.isLoading && orgCtosReports.length > 0 ? (
+                      <Badge variant="secondary" className="text-[10px] h-5 px-1.5 shrink-0 tabular-nums">
+                        {orgCtosReports.length}
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <span className="block text-xs text-muted-foreground mt-1 pl-6 pr-2">
+                    Company-level credit reports stored from CTOS
+                  </span>
                 </button>
               </CollapsibleTrigger>
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                className="shrink-0 gap-1.5 h-8 rounded-lg"
+                className="shrink-0 gap-1.5 h-8 mt-0.5"
                 disabled={fetchCtosMutation.isPending || ctosQuery.isLoading}
-                onClick={() => setGetLatestConfirmOpen(true)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setGetLatestConfirmOpen(true);
+                }}
               >
-                <DocumentTextIcon className="h-3.5 w-3.5" />
-                {fetchCtosMutation.isPending ? "Loading…" : "Get latest"}
+                <ArrowPathIcon
+                  className={cn("h-3.5 w-3.5", fetchCtosMutation.isPending && "animate-spin")}
+                />
+                {fetchCtosMutation.isPending ? "Fetching…" : "Get latest"}
               </Button>
             </div>
           </CardHeader>
 
           <CollapsibleContent className="overflow-hidden">
-            <CardContent className="pt-0 pb-4 px-6 border-t border-border/50">
-              <div className="max-h-56 overflow-y-auto pr-1 -mr-1">
-                {ctosQuery.isLoading ? (
-                  <p className="text-sm text-muted-foreground py-2">Loading…</p>
-                ) : ctosQuery.isError ? (
-                  <p className="text-sm text-destructive py-2">
-                    {(ctosQuery.error as Error)?.message ?? "Could not load CTOS."}
-                  </p>
-                ) : orgCtosReports.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-2">No reports yet. Use Get latest to fetch from CTOS.</p>
-                ) : (
-                  <ul className="space-y-1">
-                    {orgCtosReports.map((r, idx) => (
-                      <li
-                        key={r.id}
-                        className="flex flex-wrap items-center gap-2 py-2 border-b border-border/50 last:border-0 text-sm"
-                      >
-                        <div className="flex flex-1 min-w-0 flex-wrap items-center gap-2">
-                          <span className="text-muted-foreground tabular-nums">
-                            {new Date(r.fetched_at).toLocaleString("en-MY", {
-                              day: "numeric",
-                              month: "short",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </span>
-                          {idx === 0 ? (
-                            <Badge variant="secondary" className="text-[10px] font-medium shrink-0 px-1.5 py-0">
-                              Latest
-                            </Badge>
-                          ) : null}
-                        </div>
-                        <div className="flex items-center gap-0.5 shrink-0">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
-                            disabled={!r.has_report_html}
-                            title="View in new tab"
-                            onClick={() => void openOrgReportHtml(r.id)}
-                          >
-                            <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                            <span className="sr-only">View report</span>
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
-                            disabled={!r.has_report_html}
-                            title="Download HTML"
-                            onClick={() => void downloadOrgReportHtml(r.id, r.fetched_at)}
-                          >
-                            <ArrowDownTrayIcon className="h-4 w-4" />
-                            <span className="sr-only">Download report</span>
-                          </Button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+            <CardContent className="flex-1 overflow-hidden pt-0 px-0 border-t border-border/60">
+              <ScrollArea className="h-56">
+                <div className="px-6 pb-4 pt-3">
+                  {ctosQuery.isLoading ? (
+                    <p className="text-sm text-muted-foreground py-4 text-center">Loading…</p>
+                  ) : ctosQuery.isError ? (
+                    <p className="text-sm text-destructive py-2">
+                      {(ctosQuery.error as Error)?.message ?? "Could not load CTOS."}
+                    </p>
+                  ) : orgCtosReports.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-6 text-center">
+                      No reports yet. Use Get latest to pull from CTOS.
+                    </p>
+                  ) : (
+                    <ul className="space-y-0 divide-y divide-border/60">
+                      {orgCtosReports.map((r, idx) => (
+                        <li key={r.id} className="flex items-center gap-2 py-3 first:pt-0 text-sm">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs text-muted-foreground">Fetched</div>
+                            <div className="text-sm font-medium text-foreground mt-0.5 flex flex-wrap items-center gap-2">
+                              <span className="tabular-nums">
+                                {new Date(r.fetched_at).toLocaleString("en-MY", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                              {idx === 0 ? (
+                                <Badge variant="secondary" className="text-[10px] font-medium px-1.5 py-0 h-5">
+                                  Latest
+                                </Badge>
+                              ) : null}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-0.5 shrink-0 self-center">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
+                              disabled={!r.has_report_html}
+                              title="View in new tab"
+                              onClick={() => void openOrgReportHtml(r.id)}
+                            >
+                              <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                              <span className="sr-only">View report</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 rounded-lg text-muted-foreground hover:text-foreground"
+                              disabled={!r.has_report_html}
+                              title="Download HTML"
+                              onClick={() => void downloadOrgReportHtml(r.id, r.fetched_at)}
+                            >
+                              <ArrowDownTrayIcon className="h-4 w-4" />
+                              <span className="sr-only">Download report</span>
+                            </Button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </ScrollArea>
             </CardContent>
           </CollapsibleContent>
         </Card>
