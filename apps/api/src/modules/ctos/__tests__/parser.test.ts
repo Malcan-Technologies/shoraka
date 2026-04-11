@@ -1,17 +1,21 @@
-import { parseCtosReportXml, parseReportingYearFromCtosDates } from "../parser";
+import { parseCtosReportXml, parseYearFromPldd } from "../parser";
 
-describe("parseReportingYearFromCtosDates", () => {
-  it("reads ISO date", () => {
-    expect(parseReportingYearFromCtosDates("31-12-2018", "2018-12-31")).toBe(2018);
+describe("parseYearFromPldd", () => {
+  it("reads DD-MM-YYYY", () => {
+    expect(parseYearFromPldd("31-12-2018")).toBe(2018);
   });
 
-  it("prefers FY end (pldd) when dates imply different years", () => {
-    expect(parseReportingYearFromCtosDates("31-01-2019", "2018-06-30")).toBe(2019);
+  it("reads ISO date", () => {
+    expect(parseYearFromPldd("2018-12-31")).toBe(2018);
+  });
+
+  it("uses pldd year only (no bsdd fallback in this helper)", () => {
+    expect(parseYearFromPldd("31-01-2019")).toBe(2019);
   });
 });
 
 describe("parseCtosReportXml", () => {
-  it("extracts reporting_year from pldd and bsdd", async () => {
+  it("extracts reporting_year from pldd and account codenames", async () => {
     const xml = `<?xml version="1.0"?>
 <report version="5.11.0" xmlns="http://ws.cmctos.com.my/ctosnet/response">
   <enq_report>
@@ -51,8 +55,8 @@ describe("parseCtosReportXml", () => {
     const parsed = await parseCtosReportXml(xml);
     expect(parsed.financials_json.length).toBe(1);
     expect(parsed.financials_json[0].reporting_year).toBe(2018);
-    expect(parsed.financials_json[0].profit_and_loss.revenue).toBe(200);
-    expect(parsed.financials_json[0].profit_and_loss.profit_line_amount).toBe(50000);
+    expect(parsed.financials_json[0].account.turnover).toBe(200);
+    expect(parsed.financials_json[0].account.plyear).toBe(50000);
   });
 
   it("individual ptype I: person_json set, company null, no financials even with accounts", async () => {
@@ -91,14 +95,15 @@ describe("parseCtosReportXml", () => {
     expect(parsed.financials_json.length).toBe(0);
     expect(parsed.person_json).toEqual({
       name: "JANE TEST",
-      ic_no: "800808088888",
+      nic_brno: "800808088888",
+      ic_lcno: null,
       nationality: "MYS",
       birth_date: "1980-08-08",
-      address: "10 Jalan Test",
+      addr: "10 Jalan Test",
     });
   });
 
-  it("keeps first account only when duplicate calendar year from dates", async () => {
+  it("keeps first account only when duplicate calendar year from pldd", async () => {
     const xml = `<?xml version="1.0"?>
 <report version="5.11.0" xmlns="http://ws.cmctos.com.my/ctosnet/response">
   <enq_report>
@@ -130,6 +135,6 @@ describe("parseCtosReportXml", () => {
 
     const parsed = await parseCtosReportXml(xml);
     expect(parsed.financials_json.length).toBe(1);
-    expect(parsed.financials_json[0].profit_and_loss.revenue).toBe(100);
+    expect(parsed.financials_json[0].account.turnover).toBe(100);
   });
 });

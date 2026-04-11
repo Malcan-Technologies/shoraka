@@ -1,47 +1,53 @@
 /**
  * SECTION: CTOS parsed and API shapes
- * WHY: Shared types for parser output and admin DTOs
+ * WHY: Shared types for parser output and admin DTOs (matches ctos-test harness JSON)
  * INPUT: N/A (types only)
  * OUTPUT: TypeScript interfaces
  * WHERE USED: ctos module and admin responses
  */
 
-export interface CtosFinancialBalanceSheet {
-  fixed_assets: number | null;
-  other_assets: number | null;
-  current_assets: number | null;
-  non_current_assets: number | null;
-  total_assets: number | null;
-  current_liabilities: number | null;
-  long_term_liabilities: number | null;
-  non_current_liabilities: number | null;
-  total_liabilities: number | null;
-  equity: number | null;
-}
+/** Numeric `<account>` tags stored under each financial year row (same allowlist as parser). */
+export const CTOS_ACCOUNT_NUMERIC_CODENAMES = [
+  "bsfatot",
+  "othass",
+  "bscatot",
+  "bsclbank",
+  "totass",
+  "curlib",
+  "bsslltd",
+  "bsclstd",
+  "totlib",
+  "bsqpuc",
+  "turnover",
+  "plnpbt",
+  "plnpat",
+  "plnetdiv",
+  "plyear",
+  "networth",
+  "turnover_growth",
+  "profit_margin",
+  "return_on_equity",
+  "currat",
+  "workcap",
+] as const;
 
-export interface CtosFinancialProfitAndLoss {
-  revenue: number | null;
-  profit_before_tax: number | null;
-  profit_after_tax: number | null;
-  net_dividend: number | null;
-  /** Raw CTOS `plyear` field (currency line, not calendar year). */
-  profit_line_amount: number | null;
-}
+export type CtosFinancialAccountJson = {
+  [K in (typeof CTOS_ACCOUNT_NUMERIC_CODENAMES)[number]]: number | null;
+};
 
 export interface CtosFinancialYearRow {
   reporting_year: number | null;
-  financial_year_end_date: string | null;
-  balance_sheet_date: string | null;
-  balance_sheet: CtosFinancialBalanceSheet;
-  profit_and_loss: CtosFinancialProfitAndLoss;
+  dates: { pldd: string | null; bsdd: string | null };
+  account: CtosFinancialAccountJson;
 }
 
 export interface CtosPersonJson {
   name: string | null;
-  ic_no: string | null;
+  nic_brno: string | null;
+  ic_lcno: string | null;
   nationality: string | null;
   birth_date: string | null;
-  address: string | null;
+  addr: string | null;
 }
 
 export interface CtosReportParsed {

@@ -179,29 +179,11 @@ const COMPUTED_FIELD_LABELS: Record<string, string> = {
   workcap: "Working Capital",
 };
 
+/** One year row from CTOS `financials_json` (parser matches ctos.new.ts harness). */
 interface CtosFinRow {
   reporting_year: number | null;
-  financial_year_end_date: string | null;
-  balance_sheet_date: string | null;
-  balance_sheet: {
-    fixed_assets: number | null;
-    other_assets: number | null;
-    current_assets: number | null;
-    non_current_assets: number | null;
-    total_assets: number | null;
-    current_liabilities: number | null;
-    long_term_liabilities: number | null;
-    non_current_liabilities: number | null;
-    total_liabilities: number | null;
-    equity: number | null;
-  };
-  profit_and_loss: {
-    revenue: number | null;
-    profit_before_tax: number | null;
-    profit_after_tax: number | null;
-    net_dividend: number | null;
-    profit_line_amount: number | null;
-  };
+  dates: { pldd: string | null; bsdd: string | null };
+  account: Record<string, number | null>;
 }
 
 function toNum(v: unknown): number {
@@ -299,24 +281,32 @@ type ColumnSpec =
     };
 
 function ctosFinToFs(r: CtosFinRow): Record<string, unknown> {
-  const bs = r.balance_sheet;
-  const pl = r.profit_and_loss;
+  const a = r.account;
+  const n = (k: string) => (a[k] != null ? a[k] : "");
   return {
-    pldd: r.financial_year_end_date ?? "",
-    bsdd: r.balance_sheet_date ?? "",
-    bsfatot: bs.fixed_assets ?? "",
-    othass: bs.other_assets ?? "",
-    bscatot: bs.current_assets ?? "",
-    bsclbank: bs.non_current_assets ?? "",
-    curlib: bs.current_liabilities ?? "",
-    bsslltd: bs.long_term_liabilities ?? "",
-    bsclstd: bs.non_current_liabilities ?? "",
-    bsqpuc: bs.equity ?? "",
-    turnover: pl.revenue ?? "",
-    plnpbt: pl.profit_before_tax ?? "",
-    plnpat: pl.profit_after_tax ?? "",
-    plnetdiv: pl.net_dividend ?? "",
-    plyear: pl.profit_line_amount ?? "",
+    pldd: r.dates.pldd ?? "",
+    bsdd: r.dates.bsdd ?? "",
+    bsfatot: n("bsfatot"),
+    othass: n("othass"),
+    bscatot: n("bscatot"),
+    bsclbank: n("bsclbank"),
+    totass: n("totass"),
+    curlib: n("curlib"),
+    bsslltd: n("bsslltd"),
+    bsclstd: n("bsclstd"),
+    totlib: n("totlib"),
+    bsqpuc: n("bsqpuc"),
+    turnover: n("turnover"),
+    plnpbt: n("plnpbt"),
+    plnpat: n("plnpat"),
+    plnetdiv: n("plnetdiv"),
+    plyear: n("plyear"),
+    networth: n("networth"),
+    turnover_growth: n("turnover_growth"),
+    profit_margin: n("profit_margin"),
+    return_on_equity: n("return_on_equity"),
+    currat: n("currat"),
+    workcap: n("workcap"),
   };
 }
 
@@ -1412,7 +1402,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
       if (spec.year == null) return { year: null as number | null, turnover: null as number | null };
       if (spec.kind === "ctos") {
         const row = byYear.get(spec.year);
-        return { year: spec.year, turnover: row?.profit_and_loss.revenue ?? null };
+        return { year: spec.year, turnover: row?.account.turnover ?? null };
       }
       const fs = unauditedByYear[String(spec.year)];
       const rawT = fs?.turnover;
@@ -1445,21 +1435,22 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
         if (spec.year == null) return null;
         const row = byYear.get(spec.year);
         if (!row) return null;
+        const ac = row.account;
         const { bs, pl } = financialFormToBsPl({
-          bsfatot: row.balance_sheet.fixed_assets ?? 0,
-          othass: row.balance_sheet.other_assets ?? 0,
-          bscatot: row.balance_sheet.current_assets ?? 0,
-          bsclbank: row.balance_sheet.non_current_assets ?? 0,
-          curlib: row.balance_sheet.current_liabilities ?? 0,
-          bsslltd: row.balance_sheet.long_term_liabilities ?? 0,
-          bsclstd: row.balance_sheet.non_current_liabilities ?? 0,
-          bsqpuc: row.balance_sheet.equity ?? 0,
-          turnover: row.profit_and_loss.revenue ?? 0,
-          plnpat: row.profit_and_loss.profit_after_tax ?? 0,
+          bsfatot: ac.bsfatot ?? 0,
+          othass: ac.othass ?? 0,
+          bscatot: ac.bscatot ?? 0,
+          bsclbank: ac.bsclbank ?? 0,
+          curlib: ac.curlib ?? 0,
+          bsslltd: ac.bsslltd ?? 0,
+          bsclstd: ac.bsclstd ?? 0,
+          bsqpuc: ac.bsqpuc ?? 0,
+          turnover: ac.turnover ?? 0,
+          plnpat: ac.plnpat ?? 0,
         });
         Object.assign(bs, {
-          total_assets: row.balance_sheet.total_assets,
-          total_liabilities: row.balance_sheet.total_liabilities,
+          total_assets: ac.totass,
+          total_liabilities: ac.totlib,
         });
         return computeColumnMetrics(bs, pl, g);
       }
