@@ -12,12 +12,11 @@ import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
-import { Checkbox } from "@cashsouk/ui";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   ArrowTopRightOnSquareIcon,
@@ -625,6 +624,51 @@ export function SSMVerificationPanel({
               </p>
             ) : null}
           </div>
+
+          {!isAlreadyVerified ? (
+            <div className="space-y-5">
+              <div className="flex items-center gap-3">
+                <Switch
+                  id="ctos-confirmed"
+                  checked={confirmed}
+                  onCheckedChange={setConfirmed}
+                  disabled={disabled}
+                />
+                <Label
+                  htmlFor="ctos-confirmed"
+                  className="text-sm font-normal text-foreground leading-snug cursor-pointer"
+                >
+                  {isIssuerPortal
+                    ? "I have verified this company against CTOS records."
+                    : "I have verified this company against SSM records."}
+                </Label>
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
+                <Button
+                  type="button"
+                  variant="default"
+                  size="lg"
+                  onClick={onApprove}
+                  disabled={!canApprove || disabled}
+                  className="w-full sm:flex-1 rounded-full gap-2 shadow-sm"
+                >
+                  <CheckCircleIcon className="h-5 w-5 shrink-0" aria-hidden />
+                  {isIssuerPortal ? "Approve CTOS Verification" : "Approve SSM Verification"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="lg"
+                  onClick={onReject}
+                  disabled={disabled}
+                  className="w-full sm:w-auto shrink-0 rounded-full border-destructive text-destructive hover:bg-destructive/10"
+                >
+                  Reject
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -649,61 +693,6 @@ export function SSMVerificationPanel({
                 ) : null}
               </div>
             </div>
-          </CardContent>
-        </Card>
-      ) : null}
-
-      {!isAlreadyVerified ? (
-        <Card className="border-primary/25 bg-primary/5">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-lg">Confirm and approve</CardTitle>
-            <CardDescription>
-              {isIssuerPortal
-                ? "Load CTOS with usable data, fix any failed checks, tick the box, then approve."
-                : "Tick the box when you have checked SSM (or equivalent)."}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <Separator />
-            <div className="flex items-start space-x-3">
-              <Checkbox
-                id="ctos-confirmed"
-                checked={confirmed}
-                onCheckedChange={(v) => setConfirmed(v === true)}
-                disabled={disabled}
-              />
-              <Label htmlFor="ctos-confirmed" className="text-sm font-medium leading-relaxed cursor-pointer">
-                I confirm this company against CTOS / SSM.
-              </Label>
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Button
-                onClick={onApprove}
-                disabled={!canApprove || disabled}
-                className="flex-1 gap-2 sm:order-1"
-              >
-                <CheckCircleIcon className="h-4 w-4" />
-                Approve
-              </Button>
-              <Button
-                variant="outline"
-                onClick={onReject}
-                disabled={disabled}
-                className="border-destructive text-destructive hover:bg-destructive/10 sm:order-2"
-              >
-                Reject
-              </Button>
-            </div>
-            {isIssuerPortal && !compareReady ? (
-              <p className="text-xs text-muted-foreground text-center">
-                Fetch CTOS with company name, SSM, and people (name + IC / reg. no.) and pass all checks to
-                enable Approve.
-              </p>
-            ) : null}
-            {isIssuerPortal && compareReady && !comparison.checklist.every((c) => c.ok) ? (
-              <p className="text-xs text-muted-foreground text-center">Fix mismatches or reject. All checks must pass to approve.</p>
-            ) : null}
           </CardContent>
         </Card>
       ) : null}
