@@ -46,6 +46,7 @@ import {
   financialFormToBsPl,
   getCtosLatestYear,
   getLatestThreeCtosYears,
+  governmentIdFromDirectorKycForEod,
   validateUnauditedColumn,
   normalizeFinancialStatementsQuestionnaire,
   type ColumnComputedMetrics,
@@ -1112,7 +1113,9 @@ function findKycStatusForEod(
     ? (directorKycStatus!.directors as Record<string, unknown>[])
     : [];
   for (const d of dirs) {
-    if (String(d.eodRequestId ?? "").trim() === eod && d.kycStatus) return String(d.kycStatus);
+    const primary = String(d.eodRequestId ?? "").trim();
+    const shareholderEod = String(d.shareholderEodRequestId ?? "").trim();
+    if ((primary === eod || shareholderEod === eod) && d.kycStatus) return String(d.kycStatus);
   }
   const sh = Array.isArray(directorKycStatus?.individualShareholders)
     ? (directorKycStatus!.individualShareholders as Record<string, unknown>[])
@@ -1359,6 +1362,16 @@ function issuerIcOrSsmFromCorpPerson(p: Record<string, unknown>): string | null 
   return null;
 }
 
+function issuerIcOrSsmForCePersonRow(
+  p: Record<string, unknown>,
+  directorKycStatus: Record<string, unknown> | null | undefined
+): string | null {
+  const fromCe = issuerIcOrSsmFromCorpPerson(p);
+  if (fromCe) return fromCe;
+  const eod = String(p.eodRequestId ?? "").trim();
+  return governmentIdFromDirectorKycForEod(directorKycStatus, eod);
+}
+
 function rowsFromCorporateEntities(
   directors: Record<string, unknown>[],
   shareholders: Record<string, unknown>[],
@@ -1421,7 +1434,7 @@ function rowsFromCorporateEntities(
       name: personNameFromCe(p),
       role: "Director",
       ownership: ownershipFromCePerson(p),
-      icOrSsm: issuerIcOrSsmFromCorpPerson(p),
+      icOrSsm: issuerIcOrSsmForCePersonRow(p, directorKycStatus),
       verificationLabel: "KYC",
       verificationStatus: kycSt ?? st,
       subjectRef: ref || null,
@@ -1437,7 +1450,7 @@ function rowsFromCorporateEntities(
       name: personNameFromCe(p),
       role: "Shareholder",
       ownership: ownershipFromCePerson(p),
-      icOrSsm: issuerIcOrSsmFromCorpPerson(p),
+      icOrSsm: issuerIcOrSsmForCePersonRow(p, directorKycStatus),
       verificationLabel: "KYC",
       verificationStatus: kycSt ?? st,
       subjectRef: ref || null,

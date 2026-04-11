@@ -6,6 +6,8 @@
  * WHERE USED: ctos-report-service subject fetch
  */
 
+import { governmentIdFromDirectorKycForEod } from "@cashsouk/types";
+
 export type CtosSubjectKind = "INDIVIDUAL" | "CORPORATE";
 
 export interface ResolvedCtosSubject {
@@ -112,20 +114,42 @@ export function resolveCtosSubjectFromOrgJson(
     return null;
   }
 
+  const kyc = directorKycStatus as Record<string, unknown> | null | undefined;
+  const kycDirs = Array.isArray(kyc?.directors) ? (kyc!.directors as Record<string, unknown>[]) : [];
+  const kycIndSh = Array.isArray(kyc?.individualShareholders) ? (kyc!.individualShareholders as Record<string, unknown>[]) : [];
+
   const ceDirectors = Array.isArray(ce?.directors) ? (ce!.directors as Record<string, unknown>[]) : [];
   const ceShareholders = Array.isArray(ce?.shareholders) ? (ce!.shareholders as Record<string, unknown>[]) : [];
   for (const p of [...ceDirectors, ...ceShareholders]) {
     if (!refEq(norm(p.eodRequestId), ref)) continue;
-    const idNumber = govIdFromCorpPerson(p);
+    let idNumber = govIdFromCorpPerson(p);
+    if (!idNumber) {
+      const fromKyc = governmentIdFromDirectorKycForEod(directorKycStatus, norm(p.eodRequestId));
+      if (fromKyc) idNumber = fromKyc;
+    }
     if (!idNumber) return null;
-    return { displayName: nameFromCorpPerson(p), idNumber };
+    let displayName = nameFromCorpPerson(p);
+    if (!displayName || displayName === "Unknown") {
+      for (const kp of [...kycDirs, ...kycIndSh]) {
+        const pe = norm(kp.eodRequestId);
+        const se = norm(kp.shareholderEodRequestId);
+        if (!refEq(pe, ref) && !refEq(se, ref)) continue;
+        const kn = norm(kp.name);
+        if (kn) {
+          displayName = kn;
+          break;
+        }
+      }
+    }
+    return { displayName, idNumber };
   }
-
-  const kyc = directorKycStatus as Record<string, unknown> | null | undefined;
-  const kycDirs = Array.isArray(kyc?.directors) ? (kyc!.directors as Record<string, unknown>[]) : [];
-  const kycIndSh = Array.isArray(kyc?.individualShareholders) ? (kyc!.individualShareholders as Record<string, unknown>[]) : [];
   for (const p of [...kycDirs, ...kycIndSh]) {
-    if (!refEq(norm(p.eodRequestId), ref)) continue;
+    const matchesPrimary = refEq(norm(p.eodRequestId), ref);
+    const matchesShareholderEod = refEq(
+      norm((p as { shareholderEodRequestId?: unknown }).shareholderEodRequestId),
+      ref
+    );
+    if (!matchesPrimary && !matchesShareholderEod) continue;
     const idNumber = norm(p.governmentIdNumber);
     if (!idNumber) return null;
     return { displayName: norm(p.name) || "Unknown", idNumber };
