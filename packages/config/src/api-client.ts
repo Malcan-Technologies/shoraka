@@ -439,7 +439,7 @@ export class ApiClient {
   }
 
   async listAdminOrganizationCtosReports(
-    portal: "issuer",
+    portal: "issuer" | "investor",
     organizationId: string
   ): Promise<ApiResponse<AdminCtosReportListItem[]> | ApiError> {
     return this.get<AdminCtosReportListItem[]>(
@@ -448,7 +448,7 @@ export class ApiClient {
   }
 
   async createAdminOrganizationCtosReport(
-    portal: "issuer",
+    portal: "issuer" | "investor",
     organizationId: string
   ): Promise<ApiResponse<AdminCtosReportListItem> | ApiError> {
     return this.post<AdminCtosReportListItem>(

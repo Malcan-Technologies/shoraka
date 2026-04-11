@@ -3,7 +3,7 @@
 /**
  * SECTION: CTOS / company registry verification (onboarding admin)
  * WHY: Manual CTOS fetch and Application vs CTOS comparison before registry approval
- * INPUT: onboarding application + org CTOS list API for issuer portal
+ * INPUT: onboarding application + org CTOS list API (issuer or investor company)
  * OUTPUT: comparison tables, checklist, attestation, approve/reject
  * WHERE USED: OnboardingReviewDialog (PENDING_SSM_REVIEW)
  */
@@ -90,6 +90,7 @@ function syntheticDemoDirectorKycForMock(): CorporateDirectorData {
 
 function buildMockOrgCtosReports(application: OnboardingApplicationResponse): AdminCtosReportListItem[] {
   const orgId = application.organizationId;
+  const portal = application.portal;
   const now = new Date().toISOString();
   const yesterday = new Date(Date.now() - 86400000).toISOString();
   const digits = (s: string) => s.replace(/\D/g, "");
@@ -136,7 +137,8 @@ function buildMockOrgCtosReports(application: OnboardingApplicationResponse): Ad
 
   const latest: AdminCtosReportListItem = {
     id: "mock-onboarding-ctos-latest",
-    issuer_organization_id: orgId,
+    issuer_organization_id: portal === "issuer" ? orgId : null,
+    investor_organization_id: portal === "investor" ? orgId : null,
     subject_ref: null,
     fetched_at: now,
     created_at: now,
@@ -146,7 +148,8 @@ function buildMockOrgCtosReports(application: OnboardingApplicationResponse): Ad
   };
   const older: AdminCtosReportListItem = {
     id: "mock-onboarding-ctos-older",
-    issuer_organization_id: orgId,
+    issuer_organization_id: portal === "issuer" ? orgId : null,
+    investor_organization_id: portal === "investor" ? orgId : null,
     subject_ref: null,
     fetched_at: yesterday,
     created_at: yesterday,
@@ -233,41 +236,43 @@ export function SSMVerificationPanel({
   const apiClient = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
   const queryClient = useQueryClient();
 
-  const isIssuerPortal = application.portal === "issuer";
+  const useOrgCtosFlow = application.portal === "issuer" || application.portal === "investor";
   const orgId = application.organizationId;
 
   const applicationForCompare = React.useMemo(() => {
-    if (!USE_MOCK_ONBOARDING_CTOS || !isIssuerPortal) return application;
+    if (!USE_MOCK_ONBOARDING_CTOS || !useOrgCtosFlow) return application;
     const { directors, shareholders } = getOnboardingPeopleSplit(application);
     if (directors.length > 0 || shareholders.length > 0) return application;
     console.log("Mock onboarding CTOS: no app people, adding demo director + shareholder", {
       organizationId: application.organizationId,
     });
     return { ...application, directorKycStatus: syntheticDemoDirectorKycForMock() };
-  }, [application, isIssuerPortal]);
+  }, [application, useOrgCtosFlow]);
 
   const ctosQuery = useQuery({
-    queryKey: ["admin", "organization-ctos-reports", orgId],
+    queryKey: ["admin", "organization-ctos-reports", application.portal, orgId],
     queryFn: async () => {
-      const res = await apiClient.listAdminOrganizationCtosReports("issuer", orgId);
+      const res = await apiClient.listAdminOrganizationCtosReports(application.portal, orgId);
       if (!res.success) {
         throw new Error(res.error.message);
       }
       return res.data;
     },
-    enabled: isIssuerPortal && Boolean(orgId) && !USE_MOCK_ONBOARDING_CTOS,
+    enabled: useOrgCtosFlow && Boolean(orgId) && !USE_MOCK_ONBOARDING_CTOS,
   });
 
   const fetchCtosMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiClient.createAdminOrganizationCtosReport("issuer", orgId);
+      const res = await apiClient.createAdminOrganizationCtosReport(application.portal, orgId);
       if (!res.success) {
         throw new Error(res.error.message);
       }
       return res.data;
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["admin", "organization-ctos-reports", orgId] });
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "organization-ctos-reports", application.portal, orgId],
+      });
       toast.success("CTOS report saved.");
     },
     onError: (e: Error) => {
@@ -279,17 +284,17 @@ export function SSMVerificationPanel({
 
   const orgCtosReports = React.useMemo(() => {
     const raw =
-      USE_MOCK_ONBOARDING_CTOS && isIssuerPortal
+      USE_MOCK_ONBOARDING_CTOS && useOrgCtosFlow
         ? buildMockOrgCtosReports(applicationForCompare)
         : (ctosQuery.data ?? []);
     return sortOrgCtosReports(raw);
-  }, [applicationForCompare, ctosQuery.data, isIssuerPortal]);
+  }, [applicationForCompare, ctosQuery.data, useOrgCtosFlow]);
 
   const latestOrgCtos = orgCtosReports[0] ?? null;
   const companyJson = latestOrgCtos?.company_json ?? null;
 
   const orgFetchState: OnboardingCtosOrgFetchState = React.useMemo(() => {
-    if (!isIssuerPortal) return "not_pulled";
+    if (!useOrgCtosFlow) return "not_pulled";
     if (USE_MOCK_ONBOARDING_CTOS) {
       if (orgCtosReports.length === 0) return "not_pulled";
       if (!companyJsonReadyForCtosCompare(companyJson)) return "no_record";
@@ -299,19 +304,19 @@ export function SSMVerificationPanel({
     if (orgCtosReports.length === 0) return "not_pulled";
     if (!companyJsonReadyForCtosCompare(companyJson)) return "no_record";
     return "ready";
-  }, [isIssuerPortal, ctosQuery.isSuccess, orgCtosReports.length, companyJson]);
+  }, [useOrgCtosFlow, ctosQuery.isSuccess, orgCtosReports.length, companyJson]);
 
-  const compareState = isIssuerPortal ? orgFetchState : "not_pulled";
+  const compareState = useOrgCtosFlow ? orgFetchState : "not_pulled";
 
   const comparison = React.useMemo(
     () => buildOnboardingCtosComparison(applicationForCompare, companyJson, compareState),
     [applicationForCompare, companyJson, compareState]
   );
 
-  const compareReady = isIssuerPortal && orgFetchState === "ready";
+  const compareReady = useOrgCtosFlow && orgFetchState === "ready";
 
   const autoChecksPass =
-    !isIssuerPortal || (compareReady && comparison.checklist.every((c) => c.ok));
+    !useOrgCtosFlow || (compareReady && comparison.checklist.every((c) => c.ok));
 
   const canApprove = confirmed && autoChecksPass && !fetchCtosMutation.isPending;
 
@@ -324,7 +329,7 @@ export function SSMVerificationPanel({
         toast.error("Not signed in");
         return;
       }
-      const url = `${API_URL}/v1/admin/organizations/issuer/${encodeURIComponent(orgId)}/ctos-reports/${reportId}/html`;
+      const url = `${API_URL}/v1/admin/organizations/${application.portal}/${encodeURIComponent(orgId)}/ctos-reports/${reportId}/html`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) {
         toast.error("Could not load full report");
@@ -337,19 +342,19 @@ export function SSMVerificationPanel({
         w.document.close();
       }
     },
-    [getAccessToken, orgId]
+    [getAccessToken, orgId, application.portal]
   );
 
   /** Same pattern as financial tab: always open HTML for the latest org report in DB at click time. */
   const openLatestOrgReportHtml = React.useCallback(async () => {
     const raw =
-      USE_MOCK_ONBOARDING_CTOS && isIssuerPortal
+      USE_MOCK_ONBOARDING_CTOS && useOrgCtosFlow
         ? buildMockOrgCtosReports(applicationForCompare)
         : (ctosQuery.data ?? []);
     const latest = sortOrgCtosReports(raw)[0];
     if (!latest?.id || !latest.has_report_html) return;
     await openOrgReportHtml(latest.id);
-  }, [applicationForCompare, ctosQuery.data, isIssuerPortal, openOrgReportHtml]);
+  }, [applicationForCompare, ctosQuery.data, useOrgCtosFlow, openOrgReportHtml]);
 
   const onConfirmGetLatestReport = () => {
     if (USE_MOCK_ONBOARDING_CTOS) {
@@ -393,7 +398,7 @@ export function SSMVerificationPanel({
                 Company info
               </CardTitle>
               <CardDescription>
-                {isIssuerPortal
+                {useOrgCtosFlow
                   ? "Compare the application with CTOS. Use Get latest report if nothing is listed yet."
                   : "Compare the application with your SSM or registry checks."}
               </CardDescription>
@@ -405,7 +410,7 @@ export function SSMVerificationPanel({
                   Verified
                 </Badge>
               ) : null}
-              {isIssuerPortal ? (
+              {useOrgCtosFlow ? (
                 <>
                   <Button
                     type="button"
@@ -442,13 +447,7 @@ export function SSMVerificationPanel({
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          {!isIssuerPortal ? (
-            <div className="rounded-lg border border-muted bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-              CTOS reports are for issuers only. For investors, check SSM yourself, then confirm below.
-            </div>
-          ) : null}
-
-          {isIssuerPortal && USE_MOCK_ONBOARDING_CTOS ? (
+          {useOrgCtosFlow && USE_MOCK_ONBOARDING_CTOS ? (
             <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100">
               Mock CTOS preview: list and company extract are fake (aligned to this application). Set{" "}
               <span className="font-mono text-xs">USE_MOCK_ONBOARDING_CTOS</span> to{" "}
@@ -457,57 +456,9 @@ export function SSMVerificationPanel({
             </div>
           ) : null}
 
-          {isIssuerPortal && !USE_MOCK_ONBOARDING_CTOS && ctosQuery.isError ? (
+          {useOrgCtosFlow && !USE_MOCK_ONBOARDING_CTOS && ctosQuery.isError ? (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
               {(ctosQuery.error as Error)?.message ?? "Could not load CTOS."}
-            </div>
-          ) : null}
-
-          {isIssuerPortal ? (
-            <div className="rounded-lg border bg-muted/30 px-4 py-3 space-y-2">
-              <p className="text-sm font-medium">CTOS reports for this organization</p>
-              {ctosListLoading ? (
-                <p className="text-sm text-muted-foreground">Loading…</p>
-              ) : orgCtosReports.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No reports yet. Click Get latest report.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {orgCtosReports.map((r, idx) => (
-                    <li
-                      key={r.id}
-                      className="flex flex-wrap items-center justify-between gap-2 text-sm border-b border-border/60 pb-2 last:border-0 last:pb-0"
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-muted-foreground">
-                          {new Date(r.fetched_at).toLocaleString("en-MY", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                        {idx === 0 ? (
-                          <Badge variant="secondary" className="text-xs">
-                            Latest
-                          </Badge>
-                        ) : null}
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 gap-1"
-                        disabled={!r.has_report_html}
-                        onClick={() => void openOrgReportHtml(r.id)}
-                      >
-                        <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
-                        View
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              )}
             </div>
           ) : null}
 
@@ -613,7 +564,7 @@ export function SSMVerificationPanel({
             <ul className="space-y-1.5">
               {comparison.checklist.map((item) => (
                 <li key={item.id} className="flex items-center gap-2 text-sm">
-                  {isIssuerPortal ? (
+                  {useOrgCtosFlow ? (
                     compareReady ? (
                       item.ok ? (
                         <CheckCircleIcon className="h-4 w-4 text-emerald-600 shrink-0" />
@@ -628,7 +579,7 @@ export function SSMVerificationPanel({
                   )}
                   <span
                     className={
-                      item.ok && isIssuerPortal && compareReady ? "text-foreground" : "text-muted-foreground"
+                      item.ok && useOrgCtosFlow && compareReady ? "text-foreground" : "text-muted-foreground"
                     }
                   >
                     {item.label}
@@ -636,12 +587,12 @@ export function SSMVerificationPanel({
                 </li>
               ))}
             </ul>
-            {isIssuerPortal && orgFetchState === "not_pulled" ? (
+            {useOrgCtosFlow && orgFetchState === "not_pulled" ? (
               <p className="text-xs text-muted-foreground pt-1">
                 No CTOS data yet — checks stay failed until you fetch a report with company data.
               </p>
             ) : null}
-            {isIssuerPortal && orgFetchState === "no_record" ? (
+            {useOrgCtosFlow && orgFetchState === "no_record" ? (
               <p className="text-xs text-muted-foreground pt-1">
                 Report saved but no company extract — try Get latest report again or check the full HTML.
               </p>
@@ -661,7 +612,7 @@ export function SSMVerificationPanel({
                   htmlFor="ctos-confirmed"
                   className="text-sm font-normal text-foreground leading-snug cursor-pointer"
                 >
-                  {isIssuerPortal
+                  {useOrgCtosFlow
                     ? "I have verified this company against CTOS records."
                     : "I have verified this company against SSM records."}
                 </Label>
@@ -677,7 +628,7 @@ export function SSMVerificationPanel({
                   className="w-full sm:flex-1 rounded-full gap-2 shadow-sm"
                 >
                   <CheckCircleIcon className="h-5 w-5 shrink-0" aria-hidden />
-                  {isIssuerPortal ? "Approve CTOS Verification" : "Approve SSM Verification"}
+                  {useOrgCtosFlow ? "Approve CTOS Verification" : "Approve SSM Verification"}
                 </Button>
                 <Button
                   type="button"
@@ -720,7 +671,7 @@ export function SSMVerificationPanel({
         </Card>
       ) : null}
 
-      {isIssuerPortal ? (
+      {useOrgCtosFlow ? (
         <AlertDialog open={getLatestConfirmOpen} onOpenChange={setGetLatestConfirmOpen}>
           <AlertDialogContent className="rounded-xl">
             <AlertDialogHeader>

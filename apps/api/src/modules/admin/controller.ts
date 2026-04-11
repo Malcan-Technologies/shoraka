@@ -47,10 +47,15 @@ import {
 import { prisma } from "../../lib/prisma";
 import {
   listCtosReportsForIssuerOrg,
+  listCtosReportsForAdminOrg,
   listLatestCtosSubjectReportsForIssuerOrg,
+  listLatestCtosSubjectReportsForAdminOrg,
   fetchAndInsertCtosReport,
+  fetchAndInsertCtosReportForAdminOrg,
   fetchAndInsertCtosSubjectReport,
+  fetchAndInsertCtosSubjectReportForAdminOrg,
   getCtosReportById,
+  getCtosReportByAdminOrg,
 } from "../ctos/ctos-report-service";
 
 const router = Router();
@@ -58,7 +63,8 @@ const adminService = new AdminService();
 
 function ctosRowPublicSummary(row: {
   id: string;
-  issuer_organization_id: string;
+  issuer_organization_id: string | null;
+  investor_organization_id: string | null;
   subject_ref?: string | null;
   fetched_at: Date;
   created_at: Date;
@@ -68,6 +74,7 @@ function ctosRowPublicSummary(row: {
   return {
     id: row.id,
     issuer_organization_id: row.issuer_organization_id,
+    investor_organization_id: row.investor_organization_id,
     subject_ref: row.subject_ref ?? null,
     fetched_at: row.fetched_at,
     created_at: row.created_at,
@@ -75,6 +82,7 @@ function ctosRowPublicSummary(row: {
     has_report_html: Boolean(row.report_html && row.report_html.length > 0),
   };
 }
+
 
 /**
  * @swagger
@@ -2030,10 +2038,11 @@ router.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { portal, id, reportId } = req.params;
-      if (portal !== "issuer") {
-        throw new AppError(400, "VALIDATION_ERROR", "CTOS is only available for issuer organizations");
+      if (portal !== "investor" && portal !== "issuer") {
+        throw new AppError(400, "VALIDATION_ERROR", "CTOS is only available for issuer or investor organizations");
       }
-      const row = await getCtosReportById(id, reportId);
+      const orgPortal = portal as "issuer" | "investor";
+      const row = await getCtosReportByAdminOrg(orgPortal, id, reportId);
       if (!row?.report_html) {
         throw new AppError(404, "NOT_FOUND", "CTOS HTML report not available");
       }
@@ -2051,10 +2060,11 @@ router.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { portal, id, reportId } = req.params;
-      if (portal !== "issuer") {
-        throw new AppError(400, "VALIDATION_ERROR", "CTOS is only available for issuer organizations");
+      if (portal !== "investor" && portal !== "issuer") {
+        throw new AppError(400, "VALIDATION_ERROR", "CTOS is only available for issuer or investor organizations");
       }
-      const row = await getCtosReportById(id, reportId);
+      const orgPortal = portal as "issuer" | "investor";
+      const row = await getCtosReportByAdminOrg(orgPortal, id, reportId);
       if (!row) {
         throw new AppError(404, "NOT_FOUND", "CTOS report not found");
       }
@@ -2063,6 +2073,7 @@ router.get(
         data: {
           id: row.id,
           issuer_organization_id: row.issuer_organization_id,
+          investor_organization_id: row.investor_organization_id,
           fetched_at: row.fetched_at,
           created_at: row.created_at,
           updated_at: row.updated_at,
@@ -2088,14 +2099,22 @@ router.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { portal, id } = req.params;
-      if (portal !== "issuer") {
-        throw new AppError(400, "VALIDATION_ERROR", "CTOS is only available for issuer organizations");
+      if (portal !== "investor" && portal !== "issuer") {
+        throw new AppError(400, "VALIDATION_ERROR", "CTOS is only available for issuer or investor organizations");
       }
-      const org = await prisma.issuerOrganization.findUnique({ where: { id } });
-      if (!org) {
-        throw new AppError(404, "NOT_FOUND", "Organization not found");
+      const orgPortal = portal as "issuer" | "investor";
+      if (portal === "issuer") {
+        const org = await prisma.issuerOrganization.findUnique({ where: { id } });
+        if (!org) {
+          throw new AppError(404, "NOT_FOUND", "Organization not found");
+        }
+      } else {
+        const org = await prisma.investorOrganization.findUnique({ where: { id } });
+        if (!org) {
+          throw new AppError(404, "NOT_FOUND", "Organization not found");
+        }
       }
-      const data = await listCtosReportsForIssuerOrg(id);
+      const data = await listCtosReportsForAdminOrg(orgPortal, id);
       res.json({
         success: true,
         data,
@@ -2113,14 +2132,22 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { portal, id } = req.params;
-      if (portal !== "issuer") {
-        throw new AppError(400, "VALIDATION_ERROR", "CTOS is only available for issuer organizations");
+      if (portal !== "investor" && portal !== "issuer") {
+        throw new AppError(400, "VALIDATION_ERROR", "CTOS is only available for issuer or investor organizations");
       }
-      const org = await prisma.issuerOrganization.findUnique({ where: { id } });
-      if (!org) {
-        throw new AppError(404, "NOT_FOUND", "Organization not found");
+      const orgPortal = portal as "issuer" | "investor";
+      if (portal === "issuer") {
+        const org = await prisma.issuerOrganization.findUnique({ where: { id } });
+        if (!org) {
+          throw new AppError(404, "NOT_FOUND", "Organization not found");
+        }
+      } else {
+        const org = await prisma.investorOrganization.findUnique({ where: { id } });
+        if (!org) {
+          throw new AppError(404, "NOT_FOUND", "Organization not found");
+        }
       }
-      const row = await fetchAndInsertCtosReport(id, res.locals.correlationId);
+      const row = await fetchAndInsertCtosReportForAdminOrg(orgPortal, id, res.locals.correlationId);
       res.status(201).json({
         success: true,
         data: ctosRowPublicSummary(row),
@@ -2272,14 +2299,22 @@ router.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { portal, id } = req.params;
-      if (portal !== "issuer") {
-        throw new AppError(400, "VALIDATION_ERROR", "CTOS is only available for issuer organizations");
+      if (portal !== "investor" && portal !== "issuer") {
+        throw new AppError(400, "VALIDATION_ERROR", "CTOS is only available for issuer or investor organizations");
       }
-      const org = await prisma.issuerOrganization.findUnique({ where: { id } });
-      if (!org) {
-        throw new AppError(404, "NOT_FOUND", "Organization not found");
+      const orgPortal = portal as "issuer" | "investor";
+      if (portal === "issuer") {
+        const org = await prisma.issuerOrganization.findUnique({ where: { id } });
+        if (!org) {
+          throw new AppError(404, "NOT_FOUND", "Organization not found");
+        }
+      } else {
+        const org = await prisma.investorOrganization.findUnique({ where: { id } });
+        if (!org) {
+          throw new AppError(404, "NOT_FOUND", "Organization not found");
+        }
       }
-      const data = await listLatestCtosSubjectReportsForIssuerOrg(id);
+      const data = await listLatestCtosSubjectReportsForAdminOrg(orgPortal, id);
       res.json({
         success: true,
         data,
@@ -2297,15 +2332,24 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { portal, id } = req.params;
-      if (portal !== "issuer") {
-        throw new AppError(400, "VALIDATION_ERROR", "CTOS is only available for issuer organizations");
+      if (portal !== "investor" && portal !== "issuer") {
+        throw new AppError(400, "VALIDATION_ERROR", "CTOS is only available for issuer or investor organizations");
       }
-      const org = await prisma.issuerOrganization.findUnique({ where: { id } });
-      if (!org) {
-        throw new AppError(404, "NOT_FOUND", "Organization not found");
+      const orgPortal = portal as "issuer" | "investor";
+      if (portal === "issuer") {
+        const org = await prisma.issuerOrganization.findUnique({ where: { id } });
+        if (!org) {
+          throw new AppError(404, "NOT_FOUND", "Organization not found");
+        }
+      } else {
+        const org = await prisma.investorOrganization.findUnique({ where: { id } });
+        if (!org) {
+          throw new AppError(404, "NOT_FOUND", "Organization not found");
+        }
       }
       const body = createCtosSubjectReportSchema.parse(req.body);
-      const row = await fetchAndInsertCtosSubjectReport(
+      const row = await fetchAndInsertCtosSubjectReportForAdminOrg(
+        orgPortal,
         id,
         {
           subjectRef: body.subjectRef,

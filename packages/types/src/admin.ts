@@ -1175,7 +1175,8 @@ export interface GetProductsParams {
 
 export interface AdminCtosReportListItem {
   id: string;
-  issuer_organization_id: string;
+  issuer_organization_id: string | null;
+  investor_organization_id: string | null;
   /** Null = organization CTOS row; set for director/shareholder/corporate subject snapshots. */
   subject_ref?: string | null;
   fetched_at: string;
