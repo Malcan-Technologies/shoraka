@@ -119,8 +119,8 @@ export default function OnboardingApprovalPage() {
             <h2 className="text-xl font-semibold mb-2">Onboarding Approval Queue</h2>
             <p className="text-muted-foreground text-[15px] leading-relaxed">
               Review and approve user onboarding applications. Personal applications go directly to
-              RegTank for approval. Company applications require SSM verification on our side before
-              proceeding to RegTank.
+              RegTank for approval. Company applications include a CTOS / SSM verification step after AML
+              screening.
             </p>
           </div>
 
@@ -246,7 +246,7 @@ export default function OnboardingApprovalPage() {
                   </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="PENDING_AML">Pending AML</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="PENDING_SSM_REVIEW">
-                    Pending SSM Review
+                    Pending CTOS Review
                   </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="PENDING_FINAL_APPROVAL">
                     Pending Final Approval

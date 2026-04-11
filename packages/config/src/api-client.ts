@@ -438,6 +438,25 @@ export class ApiClient {
     return this.post<AdminCtosReportListItem>(`/v1/admin/applications/${applicationId}/ctos-subject-reports`, body);
   }
 
+  async listAdminOrganizationCtosReports(
+    portal: "issuer",
+    organizationId: string
+  ): Promise<ApiResponse<AdminCtosReportListItem[]> | ApiError> {
+    return this.get<AdminCtosReportListItem[]>(
+      `/v1/admin/organizations/${portal}/${encodeURIComponent(organizationId)}/ctos-reports`
+    );
+  }
+
+  async createAdminOrganizationCtosReport(
+    portal: "issuer",
+    organizationId: string
+  ): Promise<ApiResponse<AdminCtosReportListItem> | ApiError> {
+    return this.post<AdminCtosReportListItem>(
+      `/v1/admin/organizations/${portal}/${encodeURIComponent(organizationId)}/ctos-reports`,
+      {}
+    );
+  }
+
   async updateAdminApplicationStatus(
     id: string,
     status: string
