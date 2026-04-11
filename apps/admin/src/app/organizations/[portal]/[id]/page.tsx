@@ -1741,12 +1741,12 @@ export default function OrganizationDetailPage() {
           </div>
         </div>
 
-        {/* Right Sidebar — CTOS (issuer / investor org), KYC/AML + Activity Timeline (~33%) */}
+        {/* Right Sidebar — KYC/AML, CTOS history (issuer / investor), Activity Timeline (~33%) */}
         <div className="w-[380px] xl:w-[420px] shrink-0 hidden lg:flex flex-col overflow-hidden py-8 pr-4 gap-4">
+          {org?.kycResponse && <KycResponseDisplay data={org.kycResponse} />}
           {(portal === "issuer" || portal === "investor") && organizationId ? (
             <OrganizationIssuerCtosReportsCard organizationId={organizationId} portal={portal} />
           ) : null}
-          {org?.kycResponse && <KycResponseDisplay data={org.kycResponse} />}
           <div className="flex-1 min-h-0">
             <OrganizationActivityTimeline organizationId={organizationId} />
           </div>
