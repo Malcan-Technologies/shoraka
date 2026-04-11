@@ -661,9 +661,28 @@ const wrapSoapRequestConfirm = (inner: string) => `
 </soapenv:Envelope>
 `;
 
-async function extractEnqSumStatusCodeAndEntityKeys(xmlStr: string): Promise<{
+type EntityCandidateHarness = {
+  key: string | null;
+  status: string | null;
+  code: string | null;
+  ent_name: string | null;
+  id_no1: string | null;
+  id_no2: string | null;
+};
+
+type MultipleEntitiesHarnessInfo = {
+  firstPassXml: string;
   enqSumStatusCode: string | null;
-  entityKeys: string[];
+  enqSumStatusMessage: string | null;
+  entityCandidates: EntityCandidateHarness[];
+  pickedEntityKey: string | null;
+  didRequestConfirm: boolean;
+};
+
+async function parseEnqSumStatusAndEntityCandidates(xmlStr: string): Promise<{
+  enqSumStatusCode: string | null;
+  enqSumStatusMessage: string | null;
+  entityCandidates: EntityCandidateHarness[];
 }> {
   const parsed = await parseStringPromise(xmlStr, { explicitArray: true });
   const report0 = (parsed as { report?: { enq_report?: unknown[] } })?.report?.enq_report?.[0] as
@@ -672,9 +691,9 @@ async function extractEnqSumStatusCodeAndEntityKeys(xmlStr: string): Promise<{
   const sumTop = report0?.summary?.[0] as { enq_sum?: unknown[] } | undefined;
   const enqSum0 = sumTop?.enq_sum?.[0] as Record<string, unknown> | undefined;
   const enqSumStatus = firstArrayEl(enqSum0?.enq_status);
-  const enqSumStatusCode = enqStatusMeta(enqSumStatus).code;
+  const sumMeta = enqStatusMeta(enqSumStatus);
 
-  const keys: string[] = [];
+  const entityCandidates: EntityCandidateHarness[] = [];
   const entitiesTop = report0?.entities?.[0] as Record<string, unknown> | undefined;
   const subjectsRaw = entitiesTop?.subject;
   const subjects = Array.isArray(subjectsRaw) ? subjectsRaw : subjectsRaw ? [subjectsRaw] : [];
@@ -683,30 +702,70 @@ async function extractEnqSumStatusCodeAndEntityKeys(xmlStr: string): Promise<{
     const entRaw = s.entity;
     const ents = Array.isArray(entRaw) ? entRaw : entRaw ? [entRaw] : [];
     for (const e of ents) {
-      const ent = e as { $?: { key?: string } };
-      const k = ent?.$?.key;
-      if (k != null && String(k).trim() !== "") keys.push(String(k).trim());
+      const x = e as Record<string, unknown>;
+      const attrs = x.$ as { key?: string; status?: string; code?: string } | undefined;
+      entityCandidates.push({
+        key: attrs?.key != null && String(attrs.key).trim() !== "" ? String(attrs.key).trim() : null,
+        status: attrs?.status ?? null,
+        code: attrs?.code ?? null,
+        ent_name: xmlText(safeGet(x, ["ent_name", 0])),
+        id_no1: xmlText(safeGet(x, ["id_no1", 0])),
+        id_no2: xmlText(safeGet(x, ["id_no2", 0])),
+      });
     }
   }
-  return { enqSumStatusCode, entityKeys: keys };
+  return {
+    enqSumStatusCode: sumMeta.code,
+    enqSumStatusMessage: sumMeta.message,
+    entityCandidates,
+  };
 }
 
-async function fetchReportXmlWithAutoEntityConfirm(test: TestRow): Promise<string> {
+async function fetchReportXmlWithAutoEntityConfirm(test: TestRow): Promise<{
+  finalXml: string;
+  multipleEntities: MultipleEntitiesHarnessInfo | null;
+}> {
   const inner1 = buildXML(test);
   let reportXml = await callCTOS(wrapSoap(inner1));
-  const state = await extractEnqSumStatusCodeAndEntityKeys(reportXml);
-  if (state.enqSumStatusCode !== "2") return reportXml;
-  if (state.entityKeys.length === 0) {
+  const detail = await parseEnqSumStatusAndEntityCandidates(reportXml);
+  const entityKeys = detail.entityCandidates.map((c) => c.key).filter((k): k is string => k != null);
+
+  if (detail.enqSumStatusCode !== "2") {
+    return { finalXml: reportXml, multipleEntities: null };
+  }
+
+  const baseMulti = (): MultipleEntitiesHarnessInfo => ({
+    firstPassXml: reportXml,
+    enqSumStatusCode: detail.enqSumStatusCode,
+    enqSumStatusMessage: detail.enqSumStatusMessage,
+    entityCandidates: detail.entityCandidates,
+    pickedEntityKey: null,
+    didRequestConfirm: false,
+  });
+
+  if (entityKeys.length === 0) {
     console.log(
       "CTOS harness: enq_sum status 2 (multiple entities) but no entity keys in XML; keeping first response"
     );
-    return reportXml;
+    return { finalXml: reportXml, multipleEntities: baseMulti() };
   }
-  const picked = state.entityKeys[0];
-  console.log("CTOS harness: multiple entities; auto-picking first entity key:", picked, "all:", state.entityKeys);
+
+  const picked = entityKeys[0];
+  console.log("CTOS harness: multiple entities; auto-picking first entity key:", picked, "all keys:", entityKeys);
+  const firstPassXml = reportXml;
   const inner2 = buildXML(test, picked);
   reportXml = await callCTOS(wrapSoapRequestConfirm(inner2));
-  return reportXml;
+  return {
+    finalXml: reportXml,
+    multipleEntities: {
+      firstPassXml,
+      enqSumStatusCode: detail.enqSumStatusCode,
+      enqSumStatusMessage: detail.enqSumStatusMessage,
+      entityCandidates: detail.entityCandidates,
+      pickedEntityKey: picked,
+      didRequestConfirm: true,
+    },
+  };
 }
 
 async function callCTOS(xml: string) {
@@ -770,11 +829,29 @@ async function run() {
   for (const t of TEST_CASES) {
     const regOrNic = t.kind === "individual" ? t.nic : t.reg;
     console.log("CTOS harness: case start, kind:", t.kind, "name:", t.name, "regOrNic:", regOrNic);
-    const res = await fetchReportXmlWithAutoEntityConfirm(t);
-    console.log("CTOS harness: report XML length:", res.length);
-    const parsed = await parseCtosReportXmlLocal(res);
+    const out = await fetchReportXmlWithAutoEntityConfirm(t);
+    console.log("CTOS harness: raw_xml (final):", out.finalXml);
+    console.log("CTOS harness: final report XML length:", out.finalXml.length);
+    if (out.multipleEntities) {
+      console.log("CTOS harness: multiple_entities first_pass raw_xml:", out.multipleEntities.firstPassXml);
+      console.log(
+        "CTOS harness: multiple_entities detail:",
+        JSON.stringify(
+          {
+            enqSumStatusCode: out.multipleEntities.enqSumStatusCode,
+            enqSumStatusMessage: out.multipleEntities.enqSumStatusMessage,
+            entityCandidates: out.multipleEntities.entityCandidates,
+            pickedEntityKey: out.multipleEntities.pickedEntityKey,
+            didRequestConfirm: out.multipleEntities.didRequestConfirm,
+          },
+          null,
+          2
+        )
+      );
+    }
+    const parsed = await parseCtosReportXmlLocal(out.finalXml);
     console.log(
-      "CTOS harness: parsed JSON (raw_xml omitted):",
+      "CTOS harness: parsed JSON (raw_xml omitted — see raw_xml final log):",
       JSON.stringify(parsed, (k, v) => (k === "raw_xml" ? undefined : v), 2)
     );
   }
