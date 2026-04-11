@@ -25,6 +25,7 @@ const listSelect = {
   created_at: true,
   updated_at: true,
   report_html: true,
+  company_json: true,
   financials_json: true,
 } satisfies Prisma.CtosReportSelect;
 

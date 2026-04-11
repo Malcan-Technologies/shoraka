@@ -1182,6 +1182,8 @@ export interface AdminCtosReportListItem {
   created_at: string;
   updated_at: string;
   has_report_html: boolean;
+  /** Organization extract: directors with IC/SSM for admin cross-check. Omitted on create until refetch. */
+  company_json?: unknown;
   /** Present on list GET; omitted on create response until refetch. */
   financials_json?: unknown;
 }

@@ -351,6 +351,8 @@ export interface DirectorShareholderRow {
   name: string;
   role: string;
   ownership: string | null;
+  /** Government ID (individual) or business registration number (corporate); used only for CTOS cross-check key. */
+  icOrSsm: string | null;
   verificationLabel: "KYC" | "KYB";
   verificationStatus: string | null;
   /** RegTank EOD… or COD…; Get/View CTOS subject report when set. */
@@ -367,6 +369,7 @@ const MOCK_DIRECTOR_SHAREHOLDER_ROWS: DirectorShareholderRow[] = [
     name: "Ahmad bin Hassan",
     role: "Director",
     ownership: null,
+    icOrSsm: "800808088888",
     verificationLabel: "KYC",
     verificationStatus: "APPROVED",
     subjectRef: null,
@@ -377,6 +380,7 @@ const MOCK_DIRECTOR_SHAREHOLDER_ROWS: DirectorShareholderRow[] = [
     name: "Sarah Lim Wei Ting",
     role: "Director, Shareholder",
     ownership: "40% ownership",
+    icOrSsm: "900909099999",
     verificationLabel: "KYC",
     verificationStatus: "Approved",
     subjectRef: null,
@@ -387,6 +391,7 @@ const MOCK_DIRECTOR_SHAREHOLDER_ROWS: DirectorShareholderRow[] = [
     name: "Pacific Ventures Sdn Bhd",
     role: "Corporate Shareholder",
     ownership: "25% ownership",
+    icOrSsm: "201901000123",
     verificationLabel: "KYB",
     verificationStatus: "PENDING_REVIEW",
     subjectRef: null,
@@ -397,6 +402,7 @@ const MOCK_DIRECTOR_SHAREHOLDER_ROWS: DirectorShareholderRow[] = [
     name: "James Koh",
     role: "Shareholder",
     ownership: "15% ownership",
+    icOrSsm: "700707077777",
     verificationLabel: "KYC",
     verificationStatus: "APPROVED",
     subjectRef: null,
@@ -405,106 +411,399 @@ const MOCK_DIRECTOR_SHAREHOLDER_ROWS: DirectorShareholderRow[] = [
 ];
 
 /**
- * Per-field issuer vs CTOS comparison. `na` renders as an em dash (no badge). Mock rows set sample outcomes; live rows
- * stay `na` until subject CTOS fields are parsed and rules run (see blurb under CTOS subject table).
+ * SECTION: CTOS organization director shape (company_json.directors)
+ * WHY: Typed slice of parser output for IC/SSM-keyed cross-check
+ * INPUT: XML-derived JSON
+ * OUTPUT: normalized in-memory row
+ * WHERE USED: buildDirectorCtosComparison, extractCtosOrgDirectorsFromCompanyJson
  */
-type CtosDimensionCheck = "match" | "review" | "mismatch" | "na";
-
-interface CtosDirectorShareholderCrossRow {
-  id: string;
-  /** Links to `DirectorShareholderRow.id` for subject CTOS actions. */
-  profileRowId: string;
-  ctosDisplayName: string | null;
-  ctosDisplayRole: string | null;
-  /** Shareholding as stated in subject CTOS extract, when available. */
-  ctosOwnership: string | null;
-  nameCheck: CtosDimensionCheck;
-  roleCheck: CtosDimensionCheck;
-  ownershipCheck: CtosDimensionCheck;
-  lastSubjectFetchLabel: string | null;
+interface CtosOrgDirectorRow {
+  ic_lcno: string | null;
+  nic_brno: string | null;
+  name: string | null;
+  position: string | null;
+  equity_percentage: number | null;
+  equity: number | null;
 }
 
-const MOCK_CTOS_DIRECTOR_CROSS_ROWS: CtosDirectorShareholderCrossRow[] = [
+type DirectorCtosRowStatus =
+  | "MATCH"
+  | "MISMATCH"
+  | "NOT VERIFIABLE"
+  | "NOT FOUND IN CTOS"
+  | "EXTRA IN CTOS";
+
+/**
+ * SECTION: DirectorCtosComparisonTableRow
+ * WHY: One admin table row for issuer vs organization CTOS
+ * INPUT: built by buildDirectorCtosComparison
+ * OUTPUT: cells for Name/Role/Ownership checks and row status
+ * WHERE USED: CTOS cross-check table
+ */
+interface DirectorCtosComparisonTableRow {
+  id: string;
+  profileRowId: string | null;
+  issuerName: string;
+  ctosName: string;
+  nameCheckCell: string;
+  roleCheckCell: string;
+  ownershipCheckCell: string;
+  rowStatus: DirectorCtosRowStatus;
+}
+
+/**
+ * SECTION: Mock CTOS organization director rows (KYB/KYC cross-check dev preview)
+ * WHY: Same shape as parsed company_json.directors when organization CTOS is not loaded
+ * INPUT: none
+ * OUTPUT: list with IC/SSM and display fields
+ * WHERE USED: USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS comparison only
+ */
+const MOCK_CTOS_ORG_DIRECTOR_ROWS: CtosOrgDirectorRow[] = [
   {
-    id: "ctos-x-1",
-    profileRowId: "mock-ds-1",
-    ctosDisplayName: "AHMAD BIN HASSAN",
-    ctosDisplayRole: "Director",
-    ctosOwnership: null,
-    nameCheck: "match",
-    roleCheck: "match",
-    ownershipCheck: "na",
-    lastSubjectFetchLabel: "Apr 10, 2026, 2:00 PM",
+    ic_lcno: null,
+    nic_brno: "800808088888",
+    name: "AHMAD BIN HASSAN",
+    position: "Director",
+    equity_percentage: null,
+    equity: null,
   },
   {
-    id: "ctos-x-2",
-    profileRowId: "mock-ds-2",
-    ctosDisplayName: "LIM WEI TING SARAH",
-    ctosDisplayRole: "Director",
-    ctosOwnership: "40% ownership",
-    nameCheck: "review",
-    roleCheck: "match",
-    ownershipCheck: "match",
-    lastSubjectFetchLabel: null,
+    ic_lcno: null,
+    nic_brno: "900909099999",
+    name: "LIM WEI TING SARAH",
+    position: "Director",
+    equity_percentage: 40,
+    equity: null,
   },
   {
-    id: "ctos-x-3",
-    profileRowId: "mock-ds-3",
-    ctosDisplayName: "PACIFIC VENTURES SDN BHD",
-    ctosDisplayRole: "Shareholder",
-    ctosOwnership: "25% ownership",
-    nameCheck: "match",
-    roleCheck: "match",
-    ownershipCheck: "match",
-    lastSubjectFetchLabel: "Apr 9, 2026, 11:15 AM",
+    ic_lcno: "201901000123",
+    nic_brno: null,
+    name: "PACIFIC VENTURES SDN BHD",
+    position: "Corporate Shareholder",
+    equity_percentage: 25,
+    equity: null,
+  },
+   {
+    ic_lcno: null,
+    nic_brno: "700707077777",
+    name: "KOH JAMES",
+    position: "Shareholder",
+    equity_percentage: 10,
+    equity: null,
   },
   {
-    id: "ctos-x-4",
-    profileRowId: "mock-ds-4",
-    ctosDisplayName: "KOH JAMES",
-    ctosDisplayRole: "Shareholder",
-    ctosOwnership: "10% ownership",
-    nameCheck: "match",
-    roleCheck: "match",
-    ownershipCheck: "mismatch",
-    lastSubjectFetchLabel: "Apr 8, 2026, 9:30 AM",
+    ic_lcno: null,
+    nic_brno: "660606066666",
+    name: "EXTRA PERSON CTOS ONLY",
+    position: "Director",
+    equity_percentage: null,
+    equity: null,
+  },
+  {
+    ic_lcno: null,
+    nic_brno: null,
+    name: "NO ID IN CTOS",
+    position: "Director",
+    equity_percentage: null,
+    equity: null,
   },
 ];
 
-function dimensionCheckBadgeClass(c: CtosDimensionCheck): string {
-  if (c === "na") return "";
-  if (c === "match") {
-    return "border-emerald-500/35 bg-emerald-500/10 text-emerald-800 dark:text-emerald-100";
-  }
-  if (c === "review") {
-    return "border-amber-500/40 bg-amber-500/10 text-amber-950 dark:text-amber-100";
-  }
-  if (c === "mismatch") {
-    return "border-destructive/40 bg-destructive/10 text-destructive";
-  }
-  return "border-border bg-muted/50 text-muted-foreground";
+/**
+ * SECTION: Normalize IC / SSM for map keys
+ * WHY: Stable equality without guessing identity from names
+ * INPUT: raw id string
+ * OUTPUT: trimmed lowercase no spaces, or null if empty
+ * WHERE USED: buildDirectorCtosComparison
+ */
+function normalizeIcSsmKey(raw: string | null | undefined): string | null {
+  const s = String(raw ?? "")
+    .trim()
+    .replace(/\s+/g, "");
+  if (!s) return null;
+  return s.toLowerCase();
 }
 
-function dimensionCheckLabel(c: CtosDimensionCheck): string {
-  if (c === "match") return "Match";
-  if (c === "review") return "Needs review";
-  if (c === "mismatch") return "Mismatch";
-  return "";
+/**
+ * SECTION: Primary CTOS id from director row (IC or SSM)
+ * WHY: Parser stores individuals under nic_brno and companies under ic_lcno
+ * INPUT: CtosOrgDirectorRow
+ * OUTPUT: first non-empty id string
+ * WHERE USED: CTOS map and NOT VERIFIABLE gate
+ */
+function primaryCtosIdFromDirectorRow(r: CtosOrgDirectorRow): string {
+  const a = r.nic_brno != null ? String(r.nic_brno).trim() : "";
+  const b = r.ic_lcno != null ? String(r.ic_lcno).trim() : "";
+  return a || b;
 }
 
-function dimensionCheckDisplay(check: CtosDimensionCheck): React.ReactNode {
-  if (check === "na") {
+/**
+ * SECTION: Ownership string from CTOS director equity fields
+ * WHY: Compare to issuer "% ownership" strings
+ * INPUT: CtosOrgDirectorRow
+ * OUTPUT: e.g. "40% ownership" or null
+ * WHERE USED: matched-pair ownership check
+ */
+function ownershipFromCtosDirector(r: CtosOrgDirectorRow): string | null {
+  if (r.equity_percentage != null && !Number.isNaN(Number(r.equity_percentage))) {
+    return `${r.equity_percentage}% ownership`;
+  }
+  if (r.equity != null && !Number.isNaN(Number(r.equity))) {
+    return `${r.equity}% ownership`;
+  }
+  return null;
+}
+
+/**
+ * SECTION: CTOS role label for comparison
+ * WHY: Use CTOS position text as role (no fuzzy mapping)
+ * INPUT: position from extract
+ * OUTPUT: trimmed string or "Director" fallback
+ * WHERE USED: role check for matched pairs
+ */
+function ctosRoleLabelFromPosition(position: string | null | undefined): string {
+  const p = String(position ?? "").trim();
+  return p || "Director";
+}
+
+/**
+ * SECTION: Parse company_json.directors from organization CTOS list item
+ * WHY: Admin list now includes company_json for cross-check
+ * INPUT: unknown JSON
+ * OUTPUT: CtosOrgDirectorRow[]
+ * WHERE USED: ApplicationFinancialReviewContent useMemo
+ */
+function extractCtosOrgDirectorsFromCompanyJson(companyJson: unknown): CtosOrgDirectorRow[] {
+  const cj = companyJson as { directors?: unknown } | null | undefined;
+  const raw = Array.isArray(cj?.directors) ? cj!.directors : [];
+  const out: CtosOrgDirectorRow[] = [];
+  for (const d of raw) {
+    const x = d as Record<string, unknown>;
+    out.push({
+      ic_lcno: x.ic_lcno != null ? String(x.ic_lcno) : null,
+      nic_brno: x.nic_brno != null ? String(x.nic_brno) : null,
+      name: x.name != null ? String(x.name) : null,
+      position: x.position != null ? String(x.position) : null,
+      equity_percentage: typeof x.equity_percentage === "number" ? x.equity_percentage : null,
+      equity: typeof x.equity === "number" ? x.equity : null,
+    });
+  }
+  return out;
+}
+
+/**
+ * SECTION: Build issuer vs organization CTOS comparison rows
+ * WHY: Compliance-safe pairing only by IC/SSM; extras and gaps explicit
+ * INPUT: issuer list, CTOS org director list
+ * OUTPUT: table rows + debug side lists
+ * WHERE USED: ApplicationFinancialReviewContent
+ */
+function buildDirectorCtosComparison(
+  issuerList: DirectorShareholderRow[],
+  ctosList: CtosOrgDirectorRow[]
+): {
+  tableRows: DirectorCtosComparisonTableRow[];
+  matchedPairs: { issuerId: string; ctosName: string | null }[];
+  unmatchedIssuer: DirectorShareholderRow[];
+  unmatchedCtos: CtosOrgDirectorRow[];
+} {
+  const matchedPairs: { issuerId: string; ctosName: string | null }[] = [];
+  const unmatchedIssuer: DirectorShareholderRow[] = [];
+  const unmatchedCtos: CtosOrgDirectorRow[] = [];
+
+  const ctosNoId: CtosOrgDirectorRow[] = [];
+  const buckets = new Map<string, CtosOrgDirectorRow[]>();
+  for (const row of ctosList) {
+    const primary = primaryCtosIdFromDirectorRow(row);
+    const key = normalizeIcSsmKey(primary);
+    if (!key) {
+      ctosNoId.push(row);
+      continue;
+    }
+    const arr = buckets.get(key) ?? [];
+    arr.push(row);
+    buckets.set(key, arr);
+  }
+
+  const tableRows: DirectorCtosComparisonTableRow[] = [];
+  let rowSeq = 0;
+
+  for (const issuerRow of issuerList) {
+    const issuerKey = normalizeIcSsmKey(issuerRow.icOrSsm);
+    if (!issuerKey) {
+      unmatchedIssuer.push(issuerRow);
+      tableRows.push({
+        id: `dcmp-${rowSeq++}`,
+        profileRowId: issuerRow.id,
+        issuerName: issuerRow.name,
+        ctosName: HEADER_PLACEHOLDER,
+        nameCheckCell: HEADER_PLACEHOLDER,
+        roleCheckCell: HEADER_PLACEHOLDER,
+        ownershipCheckCell: HEADER_PLACEHOLDER,
+        rowStatus: "NOT FOUND IN CTOS",
+      });
+      continue;
+    }
+
+    const queue = buckets.get(issuerKey);
+    const ctosRow = queue && queue.length > 0 ? queue.shift()! : null;
+    if (!ctosRow) {
+      unmatchedIssuer.push(issuerRow);
+      tableRows.push({
+        id: `dcmp-${rowSeq++}`,
+        profileRowId: issuerRow.id,
+        issuerName: issuerRow.name,
+        ctosName: HEADER_PLACEHOLDER,
+        nameCheckCell: HEADER_PLACEHOLDER,
+        roleCheckCell: HEADER_PLACEHOLDER,
+        ownershipCheckCell: HEADER_PLACEHOLDER,
+        rowStatus: "NOT FOUND IN CTOS",
+      });
+      continue;
+    }
+
+    const ctosNameStr = ctosRow.name ?? "";
+    const ctosRoleStr = ctosRoleLabelFromPosition(ctosRow.position);
+    const ctosOwnStr = ownershipFromCtosDirector(ctosRow);
+
+    const nameMatch =
+      issuerRow.name.trim().toLowerCase() === ctosNameStr.trim().toLowerCase();
+    const roleMatch = issuerRow.role.trim().toLowerCase() === ctosRoleStr.trim().toLowerCase();
+    const ownA = (issuerRow.ownership ?? "").trim().toLowerCase();
+    const ownB = (ctosOwnStr ?? "").trim().toLowerCase();
+    const ownershipMatch = ownA === ownB;
+
+    const nameCheckCell: "MATCH" | "MISMATCH" = nameMatch ? "MATCH" : "MISMATCH";
+    const roleCheckCell: "MATCH" | "MISMATCH" = roleMatch ? "MATCH" : "MISMATCH";
+    const ownershipCheckCell: "MATCH" | "MISMATCH" = ownershipMatch ? "MATCH" : "MISMATCH";
+
+    const allMatch = nameMatch && roleMatch && ownershipMatch;
+    const rowStatus: "MATCH" | "MISMATCH" = allMatch ? "MATCH" : "MISMATCH";
+
+    matchedPairs.push({ issuerId: issuerRow.id, ctosName: ctosRow.name });
+    tableRows.push({
+      id: `dcmp-${rowSeq++}`,
+      profileRowId: issuerRow.id,
+      issuerName: issuerRow.name,
+      ctosName: ctosNameStr || HEADER_PLACEHOLDER,
+      nameCheckCell,
+      roleCheckCell,
+      ownershipCheckCell,
+      rowStatus,
+    });
+  }
+
+  for (const [, queue] of buckets) {
+    for (const leftover of queue) {
+      unmatchedCtos.push(leftover);
+      tableRows.push({
+        id: `dcmp-${rowSeq++}`,
+        profileRowId: null,
+        issuerName: HEADER_PLACEHOLDER,
+        ctosName: leftover.name ?? HEADER_PLACEHOLDER,
+        nameCheckCell: HEADER_PLACEHOLDER,
+        roleCheckCell: HEADER_PLACEHOLDER,
+        ownershipCheckCell: HEADER_PLACEHOLDER,
+        rowStatus: "EXTRA IN CTOS",
+      });
+    }
+  }
+
+  for (const r of ctosNoId) {
+    unmatchedCtos.push(r);
+    tableRows.push({
+      id: `dcmp-${rowSeq++}`,
+      profileRowId: null,
+      issuerName: HEADER_PLACEHOLDER,
+      ctosName: r.name ?? HEADER_PLACEHOLDER,
+      nameCheckCell: HEADER_PLACEHOLDER,
+      roleCheckCell: HEADER_PLACEHOLDER,
+      ownershipCheckCell: HEADER_PLACEHOLDER,
+      rowStatus: "NOT VERIFIABLE",
+    });
+  }
+
+  return { tableRows, matchedPairs, unmatchedIssuer, unmatchedCtos };
+}
+
+/**
+ * SECTION: Field check cell (Name / Role / Ownership)
+ * WHY: MATCH and MISMATCH badges; em dash when not compared
+ * INPUT: cell text
+ * OUTPUT: React node
+ * WHERE USED: CTOS cross-check table body
+ */
+function directorCtosFieldCheckDisplay(cell: string): React.ReactNode {
+  if (cell === HEADER_PLACEHOLDER) {
     return <span className="text-muted-foreground">{HEADER_PLACEHOLDER}</span>;
   }
+  if (cell === "MATCH") {
+    return (
+      <Badge
+        variant="outline"
+        className="font-semibold text-[11px] leading-tight border-emerald-500/35 bg-emerald-500/10 text-emerald-800 dark:text-emerald-100"
+      >
+        MATCH
+      </Badge>
+    );
+  }
+  if (cell === "MISMATCH") {
+    return (
+      <Badge
+        variant="outline"
+        className="font-semibold text-[11px] leading-tight border-destructive/40 bg-destructive/10 text-destructive"
+      >
+        MISMATCH
+      </Badge>
+    );
+  }
+  return <span className="text-muted-foreground">{cell}</span>;
+}
+
+/**
+ * SECTION: Row status badge for cross-check
+ * WHY: Capitalized statuses per compliance copy
+ * INPUT: DirectorCtosRowStatus
+ * OUTPUT: styled Badge
+ * WHERE USED: Status column
+ */
+function directorCtosRowStatusBadgeClass(status: DirectorCtosRowStatus): string {
+  if (status === "MATCH") {
+    return "border-emerald-500/35 bg-emerald-500/10 text-emerald-800 dark:text-emerald-100";
+  }
+  if (status === "MISMATCH") {
+    return "border-destructive/40 bg-destructive/10 text-destructive";
+  }
+  if (status === "NOT VERIFIABLE") {
+    return "border-border bg-muted/50 text-muted-foreground";
+  }
+  if (status === "NOT FOUND IN CTOS") {
+    return "border-amber-500/40 bg-amber-500/10 text-amber-950 dark:text-amber-100";
+  }
+  return "border-sky-500/35 bg-sky-500/10 text-sky-950 dark:text-sky-100";
+}
+
+function directorCtosRowStatusDisplay(status: DirectorCtosRowStatus): React.ReactNode {
   return (
     <Badge
       variant="outline"
-      className={cn("font-semibold text-[11px] leading-tight", dimensionCheckBadgeClass(check))}
+      className={cn(
+        "font-semibold text-[11px] leading-tight shadow-none",
+        directorCtosRowStatusBadgeClass(status)
+      )}
     >
-      {dimensionCheckLabel(check)}
+      {status}
     </Badge>
   );
 }
+
+const DIRECTOR_CTOS_STATUS_LEGEND: { status: DirectorCtosRowStatus; caption: string }[] = [
+  { status: "MATCH", caption: "Verified using IC / SSM" },
+  { status: "MISMATCH", caption: "Same person, but details differ" },
+  { status: "NOT VERIFIABLE", caption: "CTOS has no ID, cannot compare" },
+  { status: "NOT FOUND IN CTOS", caption: "Issuer record missing in CTOS" },
+  { status: "EXTRA IN CTOS", caption: "CTOS record missing in issuer" },
+];
 
 function formatCtosListFetchedAt(iso: string | null | undefined): string | null {
   if (!iso) return null;
@@ -587,6 +886,19 @@ function ownershipFromCePerson(p: Record<string, unknown>): string | null {
   return shareField?.fieldValue ? `${shareField.fieldValue}% ownership` : null;
 }
 
+function issuerIcOrSsmFromCorpPerson(p: Record<string, unknown>): string | null {
+  const info = p.personalInfo as Record<string, unknown> | undefined;
+  const fromTop = String(info?.governmentIdNumber ?? "").trim();
+  if (fromTop) return fromTop;
+  const formContent = (info?.formContent ?? p.formContent) as Record<string, unknown> | undefined;
+  const content = Array.isArray(formContent?.content)
+    ? (formContent.content as Array<{ fieldName?: string; fieldValue?: string }>)
+    : [];
+  const idField = content.find((f) => f.fieldName === "Government ID Number");
+  if (idField?.fieldValue) return String(idField.fieldValue).trim();
+  return null;
+}
+
 function rowsFromCorporateEntities(
   directors: Record<string, unknown>[],
   shareholders: Record<string, unknown>[],
@@ -627,6 +939,19 @@ function rowsFromCorporateEntities(
     return String(corp.companyName || corp.businessName || "Unknown");
   };
 
+  const getCorpBusinessNumber = (corp: Record<string, unknown>): string | null => {
+    const formContent = corp.formContent as Record<string, unknown> | undefined;
+    const displayAreas = Array.isArray(formContent?.displayAreas) ? formContent.displayAreas : [];
+    for (const area of displayAreas) {
+      const content = Array.isArray((area as Record<string, unknown>)?.content)
+        ? ((area as Record<string, unknown>).content as Array<{ fieldName?: string; fieldValue?: string }>)
+        : [];
+      const numField = content.find((f) => f.fieldName === "Business Number");
+      if (numField?.fieldValue) return String(numField.fieldValue).trim();
+    }
+    return null;
+  };
+
   for (const p of directors) {
     const ref = String(p.eodRequestId ?? "").trim();
     const kycSt = ref ? findKycStatusForEod(directorKycStatus, ref) : null;
@@ -636,6 +961,7 @@ function rowsFromCorporateEntities(
       name: personNameFromCe(p),
       role: "Director",
       ownership: ownershipFromCePerson(p),
+      icOrSsm: issuerIcOrSsmFromCorpPerson(p),
       verificationLabel: "KYC",
       verificationStatus: kycSt ?? st,
       subjectRef: ref || null,
@@ -651,6 +977,7 @@ function rowsFromCorporateEntities(
       name: personNameFromCe(p),
       role: "Shareholder",
       ownership: ownershipFromCePerson(p),
+      icOrSsm: issuerIcOrSsmFromCorpPerson(p),
       verificationLabel: "KYC",
       verificationStatus: kycSt ?? st,
       subjectRef: ref || null,
@@ -676,6 +1003,7 @@ function rowsFromCorporateEntities(
       name: getCorpName(corp),
       role: "Corporate Shareholder",
       ownership,
+      icOrSsm: getCorpBusinessNumber(corp),
       verificationLabel: "KYB",
       verificationStatus: amlStatus ?? (codStatus ? String(codStatus) : null),
       subjectRef: codRequestId || null,
@@ -727,14 +1055,29 @@ function rowsFromKycOnly(
     return String(corp.companyName || corp.businessName || "Unknown");
   };
 
+  const getCorpBusinessNumber = (corp: Record<string, unknown>): string | null => {
+    const formContent = corp.formContent as Record<string, unknown> | undefined;
+    const displayAreas = Array.isArray(formContent?.displayAreas) ? formContent.displayAreas : [];
+    for (const area of displayAreas) {
+      const content = Array.isArray((area as Record<string, unknown>)?.content)
+        ? ((area as Record<string, unknown>).content as Array<{ fieldName?: string; fieldValue?: string }>)
+        : [];
+      const numField = content.find((f) => f.fieldName === "Business Number");
+      if (numField?.fieldValue) return String(numField.fieldValue).trim();
+    }
+    return null;
+  };
+
   for (const d of kycDirectors) {
     const ref = String(d.eodRequestId ?? "").trim();
     const roleStr = d.role ? String(d.role) : "";
+    const gid = d.governmentIdNumber != null ? String(d.governmentIdNumber).trim() : "";
     rows.push({
       id: ref || `kyc-d-${idx++}`,
       name: String(d.name || "Unknown"),
       role: getRoleLabel(roleStr, false),
       ownership: extractOwnershipFromRole(roleStr),
+      icOrSsm: gid || null,
       verificationLabel: "KYC",
       verificationStatus: d.kycStatus ? String(d.kycStatus) : null,
       subjectRef: ref || null,
@@ -744,11 +1087,13 @@ function rowsFromKycOnly(
   for (const s of kycShareholders) {
     const ref = String(s.eodRequestId ?? "").trim();
     const roleStr = s.role ? String(s.role) : "";
+    const gid = s.governmentIdNumber != null ? String(s.governmentIdNumber).trim() : "";
     rows.push({
       id: ref || `kyc-s-${idx++}`,
       name: String(s.name || "Unknown"),
       role: getRoleLabel(roleStr, false),
       ownership: extractOwnershipFromRole(roleStr),
+      icOrSsm: gid || null,
       verificationLabel: "KYC",
       verificationStatus: s.kycStatus ? String(s.kycStatus) : null,
       subjectRef: ref || null,
@@ -774,6 +1119,7 @@ function rowsFromKycOnly(
       name: getCorpName(corp),
       role: "Corporate Shareholder",
       ownership,
+      icOrSsm: getCorpBusinessNumber(corp),
       verificationLabel: "KYB",
       verificationStatus: amlStatus ?? (codStatus ? String(codStatus) : null),
       subjectRef: codRequestId || null,
@@ -829,6 +1175,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
   const { data: ctosSubjectList, isLoading: ctosSubjectLoading } = useAdminApplicationCtosSubjectReports(applicationId);
   const createSubjectCtos = useCreateAdminApplicationCtosSubjectReport(applicationId);
   const [financialSummaryLegendOpen, setFinancialSummaryLegendOpen] = React.useState(false);
+  const [directorCtosLegendOpen, setDirectorCtosLegendOpen] = React.useState(false);
   const [orgCtosConfirmOpen, setOrgCtosConfirmOpen] = React.useState(false);
 
   const directorShareholders = React.useMemo(() => {
@@ -848,27 +1195,6 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
     return m;
   }, [ctosSubjectList]);
 
-  const ctosDirectorCrossRows = React.useMemo((): CtosDirectorShareholderCrossRow[] => {
-    if (USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS) {
-      return MOCK_CTOS_DIRECTOR_CROSS_ROWS;
-    }
-    return directorShareholders.map((r) => {
-      const snap = r.subjectRef ? subjectReportByRef.get(r.subjectRef) : undefined;
-      const lastSubjectFetchLabel = snap?.fetched_at ? formatCtosListFetchedAt(snap.fetched_at) : null;
-      return {
-        id: `ctos-cross-${r.id}`,
-        profileRowId: r.id,
-        ctosDisplayName: null,
-        ctosDisplayRole: null,
-        ctosOwnership: null,
-        nameCheck: "na",
-        roleCheck: "na",
-        ownershipCheck: "na",
-        lastSubjectFetchLabel,
-      };
-    });
-  }, [directorShareholders, subjectReportByRef]);
-
   const { questionnaire, unauditedByYear } = React.useMemo(
     () => extractQuestionnaireAndUnaudited(app.financial_statements),
     [app.financial_statements]
@@ -876,6 +1202,23 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
   const hasIssuerFinancialData = Object.keys(unauditedByYear).length > 0;
 
   const latestCtos = ctosList?.[0];
+
+  const directorCtosComparisonTableRows = React.useMemo((): DirectorCtosComparisonTableRow[] => {
+    const issuerList = directorShareholders;
+    const ctosOrgList = USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS
+      ? MOCK_CTOS_ORG_DIRECTOR_ROWS
+      : extractCtosOrgDirectorsFromCompanyJson(latestCtos?.company_json);
+    const { tableRows, matchedPairs, unmatchedIssuer, unmatchedCtos } = buildDirectorCtosComparison(
+      issuerList,
+      ctosOrgList
+    );
+    console.log("Issuer list:", issuerList);
+    console.log("CTOS list:", ctosOrgList);
+    console.log("Matched pairs:", matchedPairs);
+    console.log("Unmatched issuer:", unmatchedIssuer);
+    console.log("Unmatched CTOS:", unmatchedCtos);
+    return tableRows;
+  }, [directorShareholders, latestCtos?.company_json]);
 
   const financialRows: CtosFinRow[] = React.useMemo(() => {
     const raw = latestCtos?.financials_json;
@@ -1582,8 +1925,8 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
           <p className="mb-3 rounded-md border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-xs text-amber-950 dark:text-amber-100">
             Preview only: issuer profile and CTOS cross-check rows are mock data. Set{" "}
             <span className="font-mono">USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS</span> to <span className="font-mono">false</span>{" "}
-            in application-financial-review-content.tsx to use real issuer rows (CTOS cross-check will still show empty
-            until wired to API).
+            in application-financial-review-content.tsx to use real issuer rows and organization CTOS{" "}
+            <span className="font-mono">company_json</span> for the cross-check table.
           </p>
         ) : null}
         <p
@@ -1593,9 +1936,9 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
           )}
         >
           The first table is issuer data from onboarding (ownership and KYC / KYB). CTOS does not provide KYC or KYB. The
-          second table is for subject CTOS names and roles so you can cross-check them against the profile. Use{" "}
-          <span className="font-medium text-foreground">Get report</span> on either table for the same person or entity.
-          Organization CTOS and Financial Summary cover organization-level CTOS.
+          second table compares issuer IDs to the latest organization CTOS <span className="font-mono">company_json</span>{" "}
+          directors list (IC / SSM only). Use <span className="font-medium text-foreground">Get report</span> on the first
+          table for subject-level HTML. Organization CTOS fetch and Financial Summary use the same organization snapshot.
         </p>
         {directorShareholders.length > 0 ? (
           <div className="space-y-8">
@@ -1689,77 +2032,131 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
             </div>
 
             <div>
-              <h3 className="mb-2 text-sm font-semibold text-foreground">CTOS subject (cross-check)</h3>
-              <p className="mb-2 max-w-3xl text-xs leading-relaxed text-muted-foreground">
-                Values here come from the subject CTOS report, not from KYC or KYB. Compare to{" "}
-                <span className="font-medium text-foreground">Issuer profile (KYC / KYB)</span> above.
-              </p>
+              <h3 className="mb-1 text-sm font-semibold text-foreground">Organization CTOS (cross-check)</h3>
               <p className="mb-3 max-w-3xl text-xs leading-relaxed text-muted-foreground">
-                <span className="font-medium text-foreground">Internal logic (planned):</span>{" "}
-                <span className="font-medium text-foreground">Name check</span> compares issuer name to CTOS name with
-                normalized, order-insensitive tokens. <span className="font-medium text-foreground">Role check</span> compares
-                director / shareholder / corporate capacity. <span className="font-medium text-foreground">Ownership check</span>{" "}
-                runs only when both sides have a percent (same value = Match, rounding TBD).{" "}
-                <span className="font-medium text-foreground">Needs review</span> = incomplete or fuzzy name.{" "}
-                <span className="font-medium text-foreground">Mismatch</span> = clear conflict. A cell shows an em dash when
-                that dimension is not applicable or not computed yet. Mock rows demonstrate outcomes; live data fills after
-                CTOS parse.
+                Each row is one person or entity. Issuer and CTOS are linked only when both sides share the same{" "}
+                <span className="font-medium text-foreground">IC or SSM</span> (not by name). Data in the CTOS columns
+                comes from the latest organization report; subject fetch is per person below.
               </p>
               <div className={applicationTableWrapperClass}>
-                <Table className="text-[15px]">
+                <Collapsible open={directorCtosLegendOpen} onOpenChange={setDirectorCtosLegendOpen}>
+                  <div className="border-b border-border bg-muted/15">
+                    <CollapsibleTrigger asChild>
+                      <button
+                        type="button"
+                        className={cn(
+                          "flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm transition-colors",
+                          "hover:bg-muted/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        )}
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          <InformationCircleIcon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                          <span className="font-semibold text-foreground">Status meanings</span>
+                          <span className="hidden truncate text-xs font-normal text-muted-foreground sm:inline">
+                            What each label in the Status column means.
+                          </span>
+                        </span>
+                        <ChevronDownIcon
+                          className={cn(
+                            "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200",
+                            directorCtosLegendOpen && "rotate-180"
+                          )}
+                          aria-hidden
+                        />
+                      </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="border-t border-border/80 bg-gradient-to-br from-muted/30 via-card to-muted/10 px-4 pb-3 pt-2">
+                        <p className="m-0 mb-2 text-[11px] leading-relaxed text-muted-foreground">
+                          <span className="font-medium text-foreground">Name / Role / Ownership</span> columns compare fields
+                          only after an IC/SSM match. An em dash (—) means that check was not run.
+                        </p>
+                        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+                          {DIRECTOR_CTOS_STATUS_LEGEND.map((item) => (
+                            <div
+                              key={item.status}
+                              className="flex gap-2 rounded-md border border-border/80 bg-card/90 p-2 shadow-sm"
+                            >
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  "h-fit shrink-0 font-semibold text-[11px] leading-tight px-2 py-0.5 rounded-md shadow-none",
+                                  directorCtosRowStatusBadgeClass(item.status)
+                                )}
+                              >
+                                {item.status}
+                              </Badge>
+                              <p className="m-0 min-w-0 text-[11px] leading-relaxed text-muted-foreground">
+                                {item.caption}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </CollapsibleContent>
+                  </div>
+                </Collapsible>
+                <div className="overflow-x-auto">
+                  <Table className="min-w-[960px] text-[15px]">
                   <TableHeader className={applicationTableHeaderBgClass}>
                     <TableRow className="hover:bg-transparent border-b border-border">
-                      <TableHead className={applicationTableHeaderClass}>Name (CTOS)</TableHead>
-                      <TableHead className={applicationTableHeaderClass}>Role (CTOS)</TableHead>
-                      <TableHead className={applicationTableHeaderClass}>Ownership (CTOS)</TableHead>
-                      <TableHead className={applicationTableHeaderClass}>Name check</TableHead>
-                      <TableHead className={applicationTableHeaderClass}>Role check</TableHead>
-                      <TableHead className={applicationTableHeaderClass}>Ownership check</TableHead>
+                      <TableHead className={applicationTableHeaderClass}>Issuer Name</TableHead>
+                      <TableHead className={applicationTableHeaderClass}>CTOS Name</TableHead>
+                      <TableHead className={applicationTableHeaderClass}>Name Check</TableHead>
+                      <TableHead className={applicationTableHeaderClass}>Role Check</TableHead>
+                      <TableHead className={applicationTableHeaderClass}>Ownership Check</TableHead>
+                      <TableHead className={applicationTableHeaderClass}>Status</TableHead>
                       <TableHead className={applicationTableHeaderClass}>Last subject fetch</TableHead>
                       <TableHead className={applicationTableHeaderClass}>View report</TableHead>
                       <TableHead className={`${applicationTableHeaderClass} w-[140px]`}>Action</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {ctosDirectorCrossRows.map((cross) => {
-                      const profileRow = directorShareholders.find((r) => r.id === cross.profileRowId);
+                    {directorCtosComparisonTableRows.map((row) => {
+                      const profileRow = row.profileRowId
+                        ? directorShareholders.find((r) => r.id === row.profileRowId)
+                        : undefined;
                       const subjectSnap =
                         profileRow?.subjectRef != null
                           ? subjectReportByRef.get(profileRow.subjectRef)
                           : undefined;
                       const canViewSubject = Boolean(subjectSnap?.has_report_html);
                       return (
-                        <TableRow key={cross.id} className={applicationTableRowClass}>
+                        <TableRow key={row.id} className={applicationTableRowClass}>
                           <TableCell className={`${applicationTableCellClass} font-medium`}>
-                            {cross.ctosDisplayName ?? "—"}
-                          </TableCell>
-                          <TableCell className={applicationTableCellClass}>
-                            {cross.ctosDisplayRole ?? "—"}
-                          </TableCell>
-                          <TableCell className={applicationTableCellClass}>
-                            {cross.ctosOwnership ?? "—"}
-                          </TableCell>
-                          <TableCell className={applicationTableCellClass}>
-                            {dimensionCheckDisplay(cross.nameCheck)}
-                          </TableCell>
-                          <TableCell className={applicationTableCellClass}>
-                            {dimensionCheckDisplay(cross.roleCheck)}
-                          </TableCell>
-                          <TableCell className={applicationTableCellClass}>
-                            {dimensionCheckDisplay(cross.ownershipCheck)}
-                          </TableCell>
-                          <TableCell className={applicationTableCellClass}>
-                            {USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS ? (
-                              cross.lastSubjectFetchLabel ? (
-                                <span className="tabular-nums text-muted-foreground">{cross.lastSubjectFetchLabel}</span>
-                              ) : (
-                                <span className="text-muted-foreground">{HEADER_PLACEHOLDER}</span>
-                              )
+                            {row.issuerName === HEADER_PLACEHOLDER ? (
+                              <span className="text-muted-foreground">{HEADER_PLACEHOLDER}</span>
                             ) : (
+                              row.issuerName
+                            )}
+                          </TableCell>
+                          <TableCell className={`${applicationTableCellClass} font-medium`}>
+                            {row.ctosName === HEADER_PLACEHOLDER ? (
+                              <span className="text-muted-foreground">{HEADER_PLACEHOLDER}</span>
+                            ) : (
+                              row.ctosName
+                            )}
+                          </TableCell>
+                          <TableCell className={applicationTableCellClass}>
+                            {directorCtosFieldCheckDisplay(row.nameCheckCell)}
+                          </TableCell>
+                          <TableCell className={applicationTableCellClass}>
+                            {directorCtosFieldCheckDisplay(row.roleCheckCell)}
+                          </TableCell>
+                          <TableCell className={applicationTableCellClass}>
+                            {directorCtosFieldCheckDisplay(row.ownershipCheckCell)}
+                          </TableCell>
+                          <TableCell className={applicationTableCellClass}>
+                            {directorCtosRowStatusDisplay(row.rowStatus)}
+                          </TableCell>
+                          <TableCell className={applicationTableCellClass}>
+                            {profileRow ? (
                               subjectLastFetchDisplay({
-                                subjectRef: profileRow?.subjectRef ?? null,
+                                subjectRef: profileRow.subjectRef,
                                 snap: subjectSnap,
                               })
+                            ) : (
+                              <span className="text-muted-foreground">{HEADER_PLACEHOLDER}</span>
                             )}
                           </TableCell>
                           <TableCell className={applicationTableCellClass}>
@@ -1799,6 +2196,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                     })}
                   </TableBody>
                 </Table>
+                </div>
               </div>
             </div>
           </div>
