@@ -108,7 +108,9 @@ export function DateInput({
         <div
           className={cn(
             "relative flex items-center rounded-xl border bg-background transition-colors",
-            disabled ? "cursor-not-allowed bg-muted" : "cursor-text",
+            disabled
+              ? "cursor-not-allowed bg-muted text-muted-foreground"
+              : "cursor-text",
             preset.container,
             isInvalid && "border-destructive focus-within:border-2 focus-within:border-destructive",
             !isInvalid && "border-input focus-within:border-primary",

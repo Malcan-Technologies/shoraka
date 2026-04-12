@@ -71,7 +71,6 @@ import { UnsavedChangesModal } from "@/components/unsaved-changes-modal";
 import { DevToolsProvider, useDevTools } from "../../components/dev-tools-context";
 import { DevToolsPanel } from "../../components/dev-tools-panel";
 import "../../components/dev-tools-registry";
-
 /**
  * SAVE & CONTINUE VALIDATION CONTRACT
  *
@@ -1343,12 +1342,25 @@ function EditApplicationPageBody() {
     const next = !devPreviewAmendment;
     setDevPreviewAmendment(next);
     if (next) {
-      const mockFlagged = new Set(["contract_details", "invoice_details", "supporting_documents"]);
-      const firstFlagged = effectiveWorkflow.findIndex(
-        (s: Record<string, unknown>) =>
-          mockFlagged.has(getStepKeyFromStepId((s.id as string) || "") || "")
-      );
-      const targetStep = firstFlagged >= 0 ? firstFlagged + 1 : 1;
+      const mock = getMockAmendmentContext();
+      const previewFlagged = new Set<string>();
+      for (const r of mock.remarks) {
+        const rem = r as { scope?: string; scope_key?: string };
+        if (rem.scope === "section" && rem.scope_key) {
+          previewFlagged.add(rem.scope_key);
+          if (rem.scope_key === "financial") previewFlagged.add("financial_statements");
+        }
+        if (rem.scope === "item" && rem.scope_key) {
+          previewFlagged.add(rem.scope_key.split(":")[0]);
+        }
+      }
+      const actionable = Array.from(previewFlagged).filter((k) => k !== "review_and_submit");
+      let targetStep = 1;
+      const firstIdx = effectiveWorkflow.findIndex((s: Record<string, unknown>) => {
+        const key = getStepKeyFromStepId((s.id as string) || "") || "";
+        return actionable.includes(key);
+      });
+      if (firstIdx >= 0) targetStep = firstIdx + 1;
       queueMicrotask(() => {
         void navigateWithVersionCheck(
           `/applications/edit/${applicationId}?step=${targetStep}`,
@@ -1356,7 +1368,13 @@ function EditApplicationPageBody() {
         );
       });
     }
-  }, [devPreviewAmendment, effectiveWorkflow, applicationId, navigateWithVersionCheck]);
+  }, [
+    devPreviewAmendment,
+    effectiveWorkflow,
+    applicationId,
+    navigateWithVersionCheck,
+    getMockAmendmentContext,
+  ]);
 
   /* ================================================================
      RENDER LOGIC

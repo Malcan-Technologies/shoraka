@@ -21,9 +21,9 @@ export const formLabelClassName =
 export const formInputAutofillChromeFix =
   "[&:-webkit-autofill]:shadow-[inset_0_0_0_1000px_hsl(var(--background))] [&:-webkit-autofill]:[-webkit-text-fill-color:hsl(var(--foreground))]";
 
-/** Same as autofill fix when the control uses muted surface (disabled / read-only). */
+/** Same as autofill fix when the control uses muted surface (disabled / read-only), same as invoice locked row. */
 export const formInputAutofillMutedChromeFix =
-  "[&:-webkit-autofill]:shadow-[inset_0_0_0_1000px_hsl(var(--muted))] [&:-webkit-autofill]:[-webkit-text-fill-color:hsl(var(--foreground))]";
+  "[&:-webkit-autofill]:shadow-[inset_0_0_0_1000px_hsl(var(--muted))] [&:-webkit-autofill]:[-webkit-text-fill-color:hsl(var(--muted-foreground))]";
 
 export const formInputClassName = cn(
   "h-11 w-full rounded-xl border border-input bg-background px-4 text-foreground focus-visible:outline-none focus-visible:ring-0 focus-visible:border-primary",
@@ -40,12 +40,12 @@ export const formSelectTriggerClassName =
 
 /** Read-only / disabled field styling
  *
- * What: Grey background, readable text, no opacity fade.
- * Why: Locked amendment steps must show fields as locked without washing out the page.
+ * What: Same fill + text as invoice locked table row (`applicationFlowLockedTableRowClassName`).
+ * Why: One disabled look across every application-flow step.
  * Use: Add to Input/Textarea/Select className when disabled={true}.
  */
 export const formInputDisabledClassName = cn(
-  "bg-muted text-foreground opacity-100 cursor-not-allowed disabled:opacity-100 disabled:bg-muted border-border",
+  "bg-muted text-muted-foreground opacity-100 cursor-not-allowed disabled:opacity-100 disabled:bg-muted border-border shadow-none",
   formInputAutofillMutedChromeFix
 );
 
@@ -62,10 +62,6 @@ export const applicationFlowAmendmentTargetTableRowClassName = cn(
   "bg-primary/[0.07] hover:bg-primary/[0.09] ring-1 ring-inset ring-primary/20",
   "[&>td]:bg-primary/[0.07] hover:[&>td]:bg-primary/[0.09]"
 );
-
-/** Full-width grid row (e.g. supporting documents) when uploads are locked in amendment mode. */
-export const applicationFlowLockedSurfaceClassName =
-  "rounded-xl border border-border/70 bg-muted/45";
 
 /** Helpers
  *

@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
  *       and remove interactive affordances (no hover / no focus ring).
  * Data: Tailwind class strings.
  */
-const cardDisabledClassName = "border-sidebar-border bg-sidebar text-sidebar-foreground";
+const cardDisabledClassName = "border-border bg-muted";
 
 /** Helpers
  *
@@ -125,10 +125,16 @@ export function SelectionCard({
           <div className="flex items-center gap-3 min-w-0">
             {leading ? <div className="shrink-0">{leading}</div> : null}
             <div className="min-w-0 flex-1">
-              <div className={cn(titleClassName, "truncate")}>{title}</div>
-              <div className={cn(descriptionClassName, "truncate")}>
-                {description}
+              <div
+                className={cn(
+                  titleClassName,
+                  "truncate",
+                  disabled && "text-muted-foreground"
+                )}
+              >
+                {title}
               </div>
+              <div className={cn(descriptionClassName, "truncate")}>{description}</div>
             </div>
           </div>
           {trailing ? <div className="shrink-0">{trailing}</div> : null}

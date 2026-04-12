@@ -200,7 +200,7 @@ export default function InvoiceDetailsStep({
   onDataChange,
   readOnly = false,
   isAmendmentMode = false,
-  flaggedSections: _flaggedSections,
+  flaggedSections,
   flaggedItems: _flaggedItems,
   remarks = [],
 }: InvoiceDetailsStepProps) {
@@ -255,6 +255,22 @@ export default function InvoiceDetailsStep({
     () => new Set(invoiceRemarksByIndex.keys()),
     [invoiceRemarksByIndex]
   );
+
+  const hasItemLevelInvoiceRemarks = invoicesWithRemarks.size > 0;
+  const sectionInvoiceAmendment =
+    isAmendmentMode &&
+    !readOnly &&
+    !hasItemLevelInvoiceRemarks &&
+    Boolean(
+      flaggedSections?.has("invoice_details") ||
+        flaggedSections?.has("invoice") ||
+        remarks.some(
+          (r) =>
+            (r as { scope?: string; scope_key?: string }).scope === "section" &&
+            ((r as { scope_key?: string }).scope_key === "invoice_details" ||
+              (r as { scope_key?: string }).scope_key === "invoice")
+        )
+    );
 
   /** Grouped invoice amendment data for card: { invoiceLabel, bullets }[]. */
   const invoiceAmendmentGroups = React.useMemo(() => {
@@ -1212,17 +1228,31 @@ export default function InvoiceDetailsStep({
                           })();
                           const value = parseMoney(inv.value);
                           const financingAmount = value * (ratioNum / 100);
-                          const isLocked =
-                            inv.status === "SUBMITTED" ||
-                            inv.status === "APPROVED" ||
-                            inv.status === "OFFER_SENT" ||
-                            inv.status === "REJECTED";
-                          const isEditable =
+                          const isInvFlagged = invoicesWithRemarks.has(invIndex);
+                          const isSubmittedEditableInAmendment =
+                            isAmendmentMode &&
+                            !readOnly &&
+                            inv.status === "SUBMITTED" &&
+                            (isInvFlagged || sectionInvoiceAmendment);
+
+                          let isEditable =
+                            !readOnly &&
                             (inv.status === "DRAFT" ||
                               inv.status === "AMENDMENT_REQUESTED" ||
-                              !inv.status) &&
-                            !readOnly;
-                          const isInvFlagged = invoicesWithRemarks.has(invIndex);
+                              !inv.status ||
+                              isSubmittedEditableInAmendment);
+
+                          if (isAmendmentMode && !readOnly && hasItemLevelInvoiceRemarks) {
+                            if (inv.status === "DRAFT" || !inv.status) {
+                              /* keep new / draft rows usable */
+                            } else {
+                              isEditable =
+                                (inv.status === "AMENDMENT_REQUESTED" ||
+                                  (inv.status === "SUBMITTED" && isInvFlagged)) &&
+                                !readOnly;
+                            }
+                          }
+
                           const rowLocked = !isEditable;
 
                           return (
@@ -1342,7 +1372,7 @@ export default function InvoiceDetailsStep({
                                   <FileDisplayBadge
                                     fileName={inv.document.file_name}
                                     size="sm"
-                                    className={cn(!isEditable ? "bg-muted" : "bg-background")}
+                                    className={cn(!isEditable ? "bg-muted border-border" : "bg-background")}
                                     trailing={
                                       isEditable ? (
                                         <button
@@ -1394,10 +1424,10 @@ export default function InvoiceDetailsStep({
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  disabled={isLocked || readOnly}
+                                  disabled={!isEditable}
                                   onClick={() => deleteInvoice(inv)}
                                   className={cn(
-                                    isLocked
+                                    !isEditable
                                       ? "text-muted-foreground cursor-not-allowed"
                                       : "hover:text-destructive"
                                   )}
