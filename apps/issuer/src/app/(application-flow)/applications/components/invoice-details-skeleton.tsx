@@ -12,7 +12,7 @@ export function InvoiceDetailsSkeleton({
   showInvoiceTable = true,
 }: Props) {
   return (
-    <div className="space-y-10 px-3 max-w-[1200px] mx-auto">
+    <div className="space-y-10 px-3">
 
       {/* ================= Contract Section ================= */}
       {showContractSection && (

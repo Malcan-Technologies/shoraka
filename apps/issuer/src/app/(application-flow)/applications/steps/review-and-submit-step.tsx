@@ -72,10 +72,11 @@ interface ReviewAndSubmitStepProps {
 
 /**
  * REUSED STYLES FROM STEPS
- * Matching: business-details-step, contract-details-step patterns
+ * Horizontal padding matches contract-details-step (`px-3`); shell is edit page max-w-7xl.
  */
 // Centralized layout/class tokens (aligned with Branding.mdc)
-const pageWrapperClassName = "mx-auto max-w-7xl px-6 "; //py-10 md:py-12
+/** Same horizontal rhythm as contract-details-step (`space-y-10 px-3`); parent shell already max-w-7xl. */
+const pageWrapperClassName = "w-full px-3";
 const labelClassName = formLabelClassName; // canonical label class from shared form control
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium break-words min-w-0";
 const sectionHeaderClassName = "text-base font-semibold text-foreground";
@@ -446,7 +447,7 @@ export function ReviewAndSubmitStep({
             {invoiceLoading || devTools?.showSkeletonDebug ? (
               <ReviewInvoiceSkeleton />
             ) : (
-              <div className="mt-4 px-3 max-w-[1200px] mx-auto">
+              <div className="mt-4 px-3 w-full">
                 <div className="border rounded-xl bg-card overflow-hidden">
                   {invoices.length === 0 ? (
                     <div className="p-4 text-sm text-muted-foreground italic">

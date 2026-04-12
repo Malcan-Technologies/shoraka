@@ -771,7 +771,7 @@ export function SupportingDocumentsStep({
 
   return (
     <>
-    <div className="space-y-6 px-3 w-full max-w-[1200px] mx-auto">
+    <div className="space-y-6 px-3 w-full">
       {isLoadingApp || !stepConfig || devTools?.showSkeletonDebug ? (
         <SupportingDocumentsSkeleton />
       ) : (
@@ -791,7 +791,7 @@ export function SupportingDocumentsStep({
             return (
               <section
                 key={categoryIndex}
-                className="w-full max-w-[1200px] mx-auto rounded-xl border border-border bg-background overflow-hidden"
+                className="w-full rounded-xl border border-border bg-background overflow-hidden"
               >
                 <button
                   type="button"

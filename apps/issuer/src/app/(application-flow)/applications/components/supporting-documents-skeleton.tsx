@@ -2,7 +2,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export function SupportingDocumentsSkeleton() {
   return (
-    <div className="space-y-6 px-3 w-full max-w-[1200px] mx-auto">
+    <div className="space-y-6 px-3 w-full">
       {[0, 1, 2].map((i) => (
         <div
           key={i}

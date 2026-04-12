@@ -420,7 +420,7 @@ const textareaClassName = cn(formTextareaClassName, "min-h-[100px]");
  * Includes px-3 for consistent indentation with other steps
  */
 const rowGridClassName =
-  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-8 mt-5 w-full max-w-[1200px] items-start px-3";
+  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-8 mt-5 w-full items-start px-3";
 
 /** Right-column wrapper for yes/no rows: vertically center radios vs multi-line labels. */
 const radioGridControlClassName = "self-center w-full min-w-0";
@@ -428,14 +428,12 @@ const radioGridControlClassName = "self-center w-full min-w-0";
 /**
  * Section wrapper
  */
-const sectionWrapperClassName =
-  "w-full max-w-[1200px]";
+const sectionWrapperClassName = "w-full";
 
 /**
  * Outer form spacing — room between major sections (BRANDING: breathable layout).
  */
-const formOuterClassName =
-  "w-full max-w-[1200px] flex flex-col gap-12 md:gap-14 px-3";
+const formOuterClassName = "w-full flex flex-col gap-12 md:gap-14 px-3";
 
 /** Tooltip surface for investor badge: neutral popover, not primary red. */
 const investorBadgeTooltipContentClassName =

@@ -298,16 +298,16 @@ const subsectionHeadingClassName = "text-sm font-semibold text-foreground";
 const inputClassName = formInputClassName;
 /** Label + field columns — same horizontal/vertical gaps as company-details / contract-details. */
 const rowGridBaseClassName =
-  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-6 gap-y-4 w-full max-w-[1200px] items-center px-3";
+  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-6 gap-y-4 w-full items-center px-3";
 /** First grid under a section header (adds top offset like other steps). */
 const rowGridClassName = cn(rowGridBaseClassName, "mt-4");
-const sectionWrapperClassName = "w-full max-w-[1200px]";
+const sectionWrapperClassName = "w-full";
 /** Same outer rhythm as company-details / contract-details steps. */
-const formOuterClassName = "w-full max-w-[1200px] space-y-10 px-3";
+const formOuterClassName = "w-full space-y-10 px-3";
 
 /** Empty / info states under Financial Details — same shell as declarations-step boxes (border-border bg-background). */
 const financialDetailsMessagePanelClassName =
-  "rounded-xl border border-border bg-background p-4 sm:p-5 w-full max-w-[1200px]";
+  "rounded-xl border border-border bg-background p-4 sm:p-5 w-full";
 
 /** Big centered helper box: same layout for “complete answers” and “already submitted” messages. */
 const financialDetailsCenteredMessageBoxClassName = cn(
@@ -1221,7 +1221,7 @@ export function FinancialStatementsStep({
           ) : null}
 
           {questionnaireDto && !caseCInfoOnly && yearsToShow.length > 1 ? (
-            <div className="w-full max-w-[1200px]">
+            <div className="w-full">
               <Tabs
                 key={yearsToShow.join("-")}
                 value={activeYearTab || String(yearsToShow[0])}

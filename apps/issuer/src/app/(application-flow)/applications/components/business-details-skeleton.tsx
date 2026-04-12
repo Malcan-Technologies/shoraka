@@ -9,12 +9,10 @@
 
 import { Skeleton } from "@/components/ui/skeleton";
 
-const formOuterClassName =
-  "w-full max-w-[1200px] flex flex-col gap-12 md:gap-14 px-3";
-const sectionWrapperClassName =
-  "w-full max-w-[1200px]";
+const formOuterClassName = "w-full flex flex-col gap-12 md:gap-14 px-3";
+const sectionWrapperClassName = "w-full";
 const rowGridClassName =
-  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-8 mt-5 w-full max-w-[1200px] items-start px-3";
+  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-8 mt-5 w-full items-start px-3";
 
 export function BusinessDetailsSkeleton() {
   return (

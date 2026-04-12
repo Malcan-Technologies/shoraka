@@ -1023,7 +1023,7 @@ export default function InvoiceDetailsStep({
 
   return (
     <>
-      <div className="space-y-10 px-3 max-w-[1200px] mx-auto">
+      <div className="space-y-10 px-3">
         {/* ================= Contract ================= */}
         {!isInvoiceOnly && (
           <div className="space-y-3">
