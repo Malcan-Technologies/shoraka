@@ -12,6 +12,7 @@ import { useOrganization } from "@cashsouk/config";
 import { toast } from "sonner";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { useNavigationGuard } from "@/hooks/use-navigation-guard2";
+import { useIssuerUnsavedNavigation } from "@/contexts/issuer-unsaved-navigation-context";
 import { UnsavedChangesModal } from "@/components/unsaved-changes-modal";
 import { VersionMismatchModal } from "@/components/VersionMismatchModal";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -85,6 +86,40 @@ export default function NewApplicationPage() {
     hasUnsavedChanges,
     onConfirmNavigation
   );
+
+  const { setGuard: setIssuerUnsavedNavGuard } = useIssuerUnsavedNavigation();
+
+  const tryNavigateInternalLinks = React.useCallback(
+    (href: string) => {
+      const url = new URL(href, window.location.origin);
+      if (url.origin !== window.location.origin) return true;
+      const path = url.pathname + url.search + url.hash;
+      const current = window.location.pathname + window.location.search + window.location.hash;
+      if (path === current) return true;
+      pendingNavRef.current = { path, leavingPage: true };
+      requestNavigation(path);
+      return false;
+    },
+    [requestNavigation]
+  );
+
+  React.useEffect(() => {
+    if (!activeOrganization || activeOrganization.onboardingStatus !== "COMPLETED") {
+      setIssuerUnsavedNavGuard(null);
+      return;
+    }
+    setIssuerUnsavedNavGuard({
+      hasUnsavedChanges,
+      tryNavigate: tryNavigateInternalLinks,
+    });
+    return () => setIssuerUnsavedNavGuard(null);
+  }, [
+    activeOrganization,
+    hasUnsavedChanges,
+    tryNavigateInternalLinks,
+    setIssuerUnsavedNavGuard,
+  ]);
+
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(undefined, getAccessToken);
 

@@ -68,6 +68,7 @@ import { useProductVersionGuard } from "@/hooks/use-product-version-guard";
 import { VersionMismatchModal } from "@/components/VersionMismatchModal";
 import { useNavigationGuard } from "@/hooks/use-navigation-guard2";
 import { UnsavedChangesModal } from "@/components/unsaved-changes-modal";
+import { useIssuerUnsavedNavigation } from "@/contexts/issuer-unsaved-navigation-context";
 import { DevToolsProvider, useDevTools } from "../../components/dev-tools-context";
 import { DevToolsPanel } from "../../components/dev-tools-panel";
 import "../../components/dev-tools-registry";
@@ -683,6 +684,32 @@ function EditApplicationPageBody() {
     },
     [hasUnsavedChanges, requestNavigation, navigateWithVersionCheck]
   );
+
+  const { setGuard: setIssuerUnsavedNavGuard } = useIssuerUnsavedNavigation();
+
+  const tryNavigateInternalLinks = React.useCallback(
+    (href: string) => {
+      const url = new URL(href, window.location.origin);
+      if (url.origin !== window.location.origin) return true;
+      const path = url.pathname + url.search + url.hash;
+      const currentUrl = new URL(window.location.href);
+      const sameEditApplication =
+        currentUrl.pathname === url.pathname &&
+        /^\/applications\/edit\/[^/]+$/.test(currentUrl.pathname);
+      const leavingPage = !sameEditApplication;
+      void safeNavigate(path, { leavingPage });
+      return false;
+    },
+    [safeNavigate]
+  );
+
+  React.useEffect(() => {
+    setIssuerUnsavedNavGuard({
+      hasUnsavedChanges,
+      tryNavigate: tryNavigateInternalLinks,
+    });
+    return () => setIssuerUnsavedNavGuard(null);
+  }, [hasUnsavedChanges, tryNavigateInternalLinks, setIssuerUnsavedNavGuard]);
 
   /* ================================================================
      RESUME LOGIC
