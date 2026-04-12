@@ -694,24 +694,18 @@ export function SupportingDocumentsStep({
     return true;
   }, [categories, uploadedFiles]);
 
-  const hasRemovedFiles = React.useMemo(() => {
-    const initialKeys = Object.keys(initialUploadedFiles);
-    const currentKeys = Object.keys(uploadedFiles);
-    if (initialKeys.some((key) => !currentKeys.includes(key))) {
-      return true;
-    }
-    return Object.keys(uploadedFiles).some((key) => {
-      const initialCount = (initialUploadedFiles[key] ?? []).filter((f) => f.s3_key).length;
-      const currentCount = (uploadedFiles[key] ?? []).filter((f) => f.s3_key).length;
-      return currentCount < initialCount;
-    });
-  }, [uploadedFiles, initialUploadedFiles]);
-
   React.useEffect(() => {
     if (!onDataChange) return;
 
     const dataToSave = buildDataToSave(uploadedFiles);
-    const hasPendingChanges = Object.keys(selectedFiles).length > 0 || hasRemovedFiles;
+    const pendingSlotUploads = Object.values(selectedFiles).some(
+      (batch) => Array.isArray(batch) && batch.length > 0
+    );
+    const savedPayloadDirty =
+      categories.length > 0 &&
+      JSON.stringify(buildDataToSave(uploadedFiles)) !==
+        JSON.stringify(buildDataToSave(initialUploadedFiles));
+    const hasPendingChanges = readOnly ? false : pendingSlotUploads || savedPayloadDirty;
 
     onDataChange({
       hasPendingChanges: hasPendingChanges,
@@ -721,7 +715,16 @@ export function SupportingDocumentsStep({
       _uploadFiles: uploadFilesRef.current,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFiles, hasRemovedFiles, uploadFilesToS3, areAllFilesUploaded, uploadedFiles, categories, applicationId]);
+  }, [
+    readOnly,
+    selectedFiles,
+    uploadFilesToS3,
+    areAllFilesUploaded,
+    uploadedFiles,
+    initialUploadedFiles,
+    categories,
+    applicationId,
+  ]);
 
   const handleRemoveFile = (categoryIndex: number, documentIndex: number, fileIndex: number) => {
     const key = `${categoryIndex}-${documentIndex}`;

@@ -835,6 +835,7 @@ function EditApplicationPageBody() {
   const isStepFlagged = React.useMemo(() => {
     if (!isAmendmentModeEffective) return true;
     if (!currentStepKey) return false;
+    if (currentStepKey === "review_and_submit") return true;
     const sectionMatch =
       flaggedSections.has(currentStepKey) ||
       (currentStepKey === "financial_statements" && flaggedSections.has("financial"));
@@ -982,7 +983,8 @@ function EditApplicationPageBody() {
   const handleSubmitApplication = async () => {
     if (isSubmittingRef.current) return;
     if (devPreviewAmendment) {
-      toast.info("Preview mode - no database changes");
+      toast.info("Preview: submit was not sent to the server");
+      await navigateWithVersionCheck("/", "replace");
       return;
     }
     isSubmittingRef.current = true;
@@ -1099,7 +1101,7 @@ function EditApplicationPageBody() {
     setIsSaving(true);
 
     try {
-      // Locked step: navigate only, no save, no DB write, no toast
+      // Amendment view-only tabs: client navigation only — no saveFunction, no updateStep, no acknowledge, no version API.
       if (isAmendmentModeEffective && !isStepFlagged) {
         const nextStep = getNextAmendmentStepNumber(stepFromUrl);
         const didNav = await safeNavigate(`/applications/edit/${applicationId}?step=${nextStep}`, {
@@ -1108,7 +1110,7 @@ function EditApplicationPageBody() {
         });
         if (!didNav) return;
         setHasUnsavedChanges(false);
-        if (wizardState) {
+        if (wizardState && !devPreviewAmendment) {
           setWizardState({
             lastCompletedStep: wizardState.lastCompletedStep,
             allowedMaxStep: Math.max(wizardState.allowedMaxStep, nextStep),
@@ -1127,7 +1129,7 @@ function EditApplicationPageBody() {
         return;
       }
 
-      if (await versionBlocksNavigation()) {
+      if (!devPreviewAmendment && (await versionBlocksNavigation())) {
         return;
       }
 
@@ -1140,12 +1142,15 @@ function EditApplicationPageBody() {
       /**
        * Step-specific save helpers (uploads, etc.) run after product version is OK.
        * They return persisted data merged into dataToSave; saveFunction is deleted after.
+       * Preview amendment: skip saveFunction so no upload/delete API calls — navigate only without persisting.
        */
       const saveFunctionFromData = (
         dataToSave as Record<string, unknown>
       )?.saveFunction as (() => Promise<unknown>) | undefined;
 
-      if (saveFunctionFromData) {
+      if (saveFunctionFromData && devPreviewAmendment) {
+        delete (dataToSave as Record<string, unknown>).saveFunction;
+      } else if (saveFunctionFromData) {
         const returnedData = await saveFunctionFromData();
         delete (dataToSave as Record<string, unknown>).saveFunction;
 
@@ -1193,33 +1198,35 @@ function EditApplicationPageBody() {
         delete (dataToSave as Record<string, unknown>)._uploadFiles;
       }
 
-      // DECLARATIONS validation
-      if (currentStepId === "declarations_1") {
-        const declarations = (
-          (dataToSave as Record<string, unknown>)?.declarations as Record<string, unknown>[]
-        ) || [];
-        const allChecked = declarations.every(
-          (d: Record<string, unknown>) => (d as Record<string, unknown>).checked === true
-        );
+      if (!devPreviewAmendment) {
+        // DECLARATIONS validation
+        if (currentStepId === "declarations_1") {
+          const declarations = (
+            (dataToSave as Record<string, unknown>)?.declarations as Record<string, unknown>[]
+          ) || [];
+          const allChecked = declarations.every(
+            (d: Record<string, unknown>) => (d as Record<string, unknown>).checked === true
+          );
 
-        if (!allChecked || declarations.length === 0) {
-          toast.error("Please check all declarations to continue");
+          if (!allChecked || declarations.length === 0) {
+            toast.error("Please check all declarations to continue");
+            return;
+          }
+        }
+
+        // FINANCIAL STATEMENTS validation — all fields required (step passes isValid)
+        if (currentStepKey === "financial_statements" && (rawData as Record<string, unknown>)?.isValid === false) {
+          toast.error("Please fill in all required fields before saving");
           return;
         }
-      }
 
-      // FINANCIAL STATEMENTS validation — all fields required (step passes isValid)
-      if (currentStepKey === "financial_statements" && (rawData as Record<string, unknown>)?.isValid === false) {
-        toast.error("Please fill in all required fields before saving");
-        return;
-      }
-
-      // BUSINESS & GUARANTOR DETAILS — at least one guarantor; every guarantor row fully filled
-      if (currentStepKey === "business_details" && (rawData as Record<string, unknown>)?.isValid === false) {
-        toast.error(
-          "Add at least one guarantor and complete all fields for every guarantor (including any you added) before continuing"
-        );
-        return;
+        // BUSINESS & GUARANTOR DETAILS — at least one guarantor; every guarantor row fully filled
+        if (currentStepKey === "business_details" && (rawData as Record<string, unknown>)?.isValid === false) {
+          toast.error(
+            "Add at least one guarantor and complete all fields for every guarantor (including any you added) before continuing"
+          );
+          return;
+        }
       }
 
       // No data case
@@ -1232,7 +1239,11 @@ function EditApplicationPageBody() {
           { leavingPage: false, forceSkipGuard: true }
         );
         if (didNav) {
-          toast.success("Step completed");
+          if (devPreviewAmendment) {
+            toast.info("Preview: continued without saving to the server");
+          } else {
+            toast.success("Step completed");
+          }
           setHasUnsavedChanges(false);
         }
         return;
@@ -1255,7 +1266,12 @@ function EditApplicationPageBody() {
             leavingPage: false,
             forceSkipGuard: true,
           });
-          if (ok) setHasUnsavedChanges(false);
+          if (ok) {
+            setHasUnsavedChanges(false);
+            if (devPreviewAmendment) {
+              toast.info("Preview: continued without saving to the server");
+            }
+          }
           return;
         }
         // First-time save: fall through to standard save flow
@@ -1276,28 +1292,30 @@ function EditApplicationPageBody() {
         ...(structureChanged && { forceRewindToStep: stepFromUrl }),
       };
 
-      // Save to database (version already checked above, before save helpers)
-      await updateStepMutation.mutateAsync({
-        id: applicationId,
-        stepData: stepPayload,
-      });
+      if (!devPreviewAmendment) {
+        // Save to database (version already checked above, before save helpers)
+        await updateStepMutation.mutateAsync({
+          id: applicationId,
+          stepData: stepPayload,
+        });
 
-      // In amendment mode: if this step is flagged, acknowledge workflow
-      try {
-        if (application?.status === "AMENDMENT_REQUESTED") {
-          const token = await getAccessToken();
-          await fetch(`${API_URL}/v1/applications/${applicationId}/acknowledge-workflow`, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ workflowId: currentStepId }),
-          });
-          queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
+        // In amendment mode: if this step is flagged, acknowledge workflow
+        try {
+          if (application?.status === "AMENDMENT_REQUESTED") {
+            const token = await getAccessToken();
+            await fetch(`${API_URL}/v1/applications/${applicationId}/acknowledge-workflow`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ workflowId: currentStepId }),
+            });
+            queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
+          }
+        } catch {
+          // ignore acknowledgement failures - backend enforcement remains authoritative
         }
-      } catch {
-        // ignore acknowledgement failures - backend enforcement remains authoritative
       }
 
       const ackExtra: string[] = [];
@@ -1322,7 +1340,7 @@ function EditApplicationPageBody() {
       }
 
       /** In amendment flow, wizard state is not updated here. Progress is driven by acknowledgement only. */
-      if (wizardState && application?.status !== "AMENDMENT_REQUESTED") {
+      if (wizardState && application?.status !== "AMENDMENT_REQUESTED" && !devPreviewAmendment) {
         setWizardState({
           lastCompletedStep: stepFromUrl,
           allowedMaxStep: Math.max(wizardState.allowedMaxStep, linearNext),
@@ -1331,12 +1349,16 @@ function EditApplicationPageBody() {
 
       setHasUnsavedChanges(false);
 
-      if (currentStepKey === "financing_structure") {
+      if (currentStepKey === "financing_structure" && !devPreviewAmendment) {
         sessionStorage.removeItem("cashsouk:financing_structure_override");
         setSessionStructureType(null);
       }
 
-      toast.success("Saved successfully");
+      if (devPreviewAmendment) {
+        toast.info("Preview: continued without saving to the server");
+      } else {
+        toast.success("Saved successfully");
+      }
     } catch (err) {
       if (err instanceof Error && err.message.startsWith("VALIDATION_")) {
         return;
@@ -1552,7 +1574,8 @@ function EditApplicationPageBody() {
                   ? async () => {
                       if (isSubmittingRef.current || !applicationId) return;
                       if (devPreviewAmendment) {
-                        toast.info("Preview mode - no database changes");
+                        toast.info("Preview: resubmit was not sent to the server");
+                        await navigateWithVersionCheck("/", "replace");
                         return;
                       }
                       isSubmittingRef.current = true;
@@ -1578,12 +1601,12 @@ function EditApplicationPageBody() {
                 (currentStepKey === "review_and_submit" && (application?.status === "AMENDMENT_REQUESTED" || devPreviewAmendment)
                   ? resubmitMutation.isPending ||
                     isSubmittingRef.current ||
-                    !allAmendmentStepsAcknowledged ||
-                    !isCurrentStepValid
+                    (!devPreviewAmendment && !allAmendmentStepsAcknowledged) ||
+                    (!devPreviewAmendment && !isCurrentStepValid)
                   : updateStepMutation.isPending ||
                     updateStatusMutation.isPending ||
                     isSaving ||
-                    !isCurrentStepValid ||
+                    (!devPreviewAmendment && !isCurrentStepValid) ||
                     !isStepMapped)
               }
               className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2 h-11"
