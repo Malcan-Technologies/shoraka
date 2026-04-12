@@ -6,6 +6,11 @@ import { SelectionCard } from "../components/selection-card";
 import { ProductImagePreview } from "../components/product-image-preview";
 import { FinancingTypeSkeleton } from "@/app/(application-flow)/applications/components/financing-type-skeleton";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
+import {
+  applicationFlowSectionDividerClassName,
+  applicationFlowSectionTitleClassName,
+  applicationFlowStepHorizontalClassName,
+} from "@/app/(application-flow)/applications/components/form-control";
 
 /**
  * FINANCING TYPE STEP (edit flow)
@@ -81,7 +86,7 @@ export function FinancingTypeStep({
   }
 
   return (
-    <div className="px-3">
+    <div className={applicationFlowStepHorizontalClassName}>
       {productList.map((p) => {
         const workflow = p.workflow as Record<string, unknown>[] | undefined;
         const cfg = (workflow?.[0]?.config || {}) as Record<string, unknown>;
@@ -92,10 +97,10 @@ export function FinancingTypeStep({
         return (
           <section key={p.id}>
             <div className="flex items-center justify-between cursor-default">
-              <h2 className="text-base font-semibold text-foreground">{category}</h2>
+              <h3 className={applicationFlowSectionTitleClassName}>{category}</h3>
               <span className="text-xs text-muted-foreground">Selected product</span>
             </div>
-            <div className="border-b border-border mt-2 mb-4" />
+            <div className={applicationFlowSectionDividerClassName} />
 
             <div>
               <SelectionCard

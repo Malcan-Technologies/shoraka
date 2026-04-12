@@ -36,7 +36,12 @@ import {
   AMENDMENT_CALLOUT_TITLE,
 } from "@/app/(application-flow)/applications/components/amendments/amendment-callout-styles";
 import { Button } from "@/components/ui/button";
-import { applicationFlowAmendmentTargetTableRowClassName } from "@/app/(application-flow)/applications/components/form-control";
+import {
+  applicationFlowAmendmentTargetSurfaceClassName,
+  applicationFlowAmendmentTargetTableRowClassName,
+  applicationFlowSectionTitleClassName,
+  applicationFlowStepOuterClassName,
+} from "@/app/(application-flow)/applications/components/form-control";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -771,7 +776,7 @@ export function SupportingDocumentsStep({
 
   return (
     <>
-    <div className="space-y-6 px-3 w-full">
+    <div className={applicationFlowStepOuterClassName}>
       {isLoadingApp || !stepConfig || devTools?.showSkeletonDebug ? (
         <SupportingDocumentsSkeleton />
       ) : (
@@ -811,7 +816,12 @@ export function SupportingDocumentsStep({
                       )}
                       aria-hidden
                     />
-                    <h2 className="text-base md:text-[17px] font-semibold text-foreground leading-7 truncate">
+                    <h2
+                      className={cn(
+                        applicationFlowSectionTitleClassName,
+                        "leading-7 truncate"
+                      )}
+                    >
                       {category.name}
                     </h2>
                   </div>
@@ -881,7 +891,7 @@ export function SupportingDocumentsStep({
                             className={cn(
                               "min-h-9 w-full",
                               isItemFlagged && isEditable
-                                ? "border-primary/30 bg-primary/[0.07]"
+                                ? applicationFlowAmendmentTargetSurfaceClassName
                                 : !isEditable
                                   ? "border-border"
                                   : "bg-background border-border"
@@ -919,7 +929,12 @@ export function SupportingDocumentsStep({
                           <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,17rem)_1fr] lg:gap-x-4 lg:items-start">
                             <div className="min-w-0 space-y-1.5">
                               <div>
-                                <h3 className="text-base md:text-[17px] leading-snug font-semibold text-foreground">
+                                <h3
+                                  className={cn(
+                                    applicationFlowSectionTitleClassName,
+                                    "leading-snug"
+                                  )}
+                                >
                                   {document.title}
                                   {isRequired ? (
                                     <>

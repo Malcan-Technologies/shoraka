@@ -10,9 +10,11 @@ import { ProductImagePreview } from "@/app/(application-flow)/applications/compo
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { CheckCircleIcon } from "@heroicons/react/24/outline";
 import {
-  formLabelClassName,
+  applicationFlowSectionDividerClassName,
+  applicationFlowSectionTitleClassName,
   fieldTooltipContentClassName,
   fieldTooltipTriggerClassName,
+  formLabelClassName,
 } from "@/app/(application-flow)/applications/components/form-control";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
@@ -75,11 +77,10 @@ interface ReviewAndSubmitStepProps {
  * Horizontal padding matches contract-details-step (`px-3`); shell is edit page max-w-7xl.
  */
 // Centralized layout/class tokens (aligned with Branding.mdc)
-/** Same horizontal rhythm as contract-details-step (`space-y-10 px-3`); parent shell already max-w-7xl. */
+/** Same horizontal rhythm as contract-details-step (`px-3`); parent shell already max-w-7xl. */
 const pageWrapperClassName = "w-full px-3";
 const labelClassName = formLabelClassName; // canonical label class from shared form control
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium break-words min-w-0";
-const sectionHeaderClassName = "text-base font-semibold text-foreground";
 const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 px-3 items-start min-w-0";
 const sectionSpacingClassName = "space-y-6";
 export function ReviewAndSubmitStep({
@@ -340,8 +341,8 @@ export function ReviewAndSubmitStep({
         {showFinancingDetails && (
           <section className={sectionSpacingClassName}>
             <div>
-              <h3 className={sectionHeaderClassName}>Financing Details</h3>
-              <div className="border-b border-border mt-2 mb-4" />
+              <h3 className={applicationFlowSectionTitleClassName}>Financing Details</h3>
+              <div className={applicationFlowSectionDividerClassName} />
             </div>
 
             {financingTypeConfig ? (
@@ -369,8 +370,8 @@ export function ReviewAndSubmitStep({
         {showContractSection && !isInvoiceOnly && (
           <section className={sectionSpacingClassName}>
             <div>
-              <h3 className={sectionHeaderClassName}>{isInvoiceOnly ? "Customer Details" : "Contract Details"}</h3>
-              <div className="border-b border-border mt-2 mb-4" />
+              <h3 className={applicationFlowSectionTitleClassName}>{isInvoiceOnly ? "Customer Details" : "Contract Details"}</h3>
+              <div className={applicationFlowSectionDividerClassName} />
             </div>
             {contractLoading || devTools?.showSkeletonDebug ? (
               <ReviewContractSkeleton />
@@ -438,11 +439,11 @@ export function ReviewAndSubmitStep({
         {showInvoiceSection && (
           <section className={sectionSpacingClassName}>
             <div>
-              <h3 className={sectionHeaderClassName}>Invoices</h3>
+              <h3 className={applicationFlowSectionTitleClassName}>Invoices</h3>
               <p className="text-sm text-muted-foreground mt-1">
                 You may include multiple invoices in a single financing request, provided all invoices relate to the same underlying contract with the buyer
               </p>
-              <div className="border-b border-border mt-2 mb-4" />
+              <div className={applicationFlowSectionDividerClassName} />
             </div>
             {invoiceLoading || devTools?.showSkeletonDebug ? (
               <ReviewInvoiceSkeleton />
@@ -600,8 +601,8 @@ export function ReviewAndSubmitStep({
           <>
             <section className={sectionSpacingClassName}>
               <div>
-                <h3 className={sectionHeaderClassName}>Company Info</h3>
-                <div className="border-b border-border mt-2 mb-4" />
+                <h3 className={applicationFlowSectionTitleClassName}>Company Info</h3>
+                <div className={applicationFlowSectionDividerClassName} />
               </div>
               {companyLoading || devTools?.showSkeletonDebug ? (
                 <ReviewCompanySkeleton />
@@ -631,8 +632,8 @@ export function ReviewAndSubmitStep({
             {/* Director & Shareholders */}
             <section className={sectionSpacingClassName}>
               <div>
-                <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
-                <div className="border-b border-border mt-2 mb-4" />
+                <h3 className={applicationFlowSectionTitleClassName}>Director & Shareholders</h3>
+                <div className={applicationFlowSectionDividerClassName} />
               </div>
               {companyLoading || devTools?.showSkeletonDebug ? (
                 <ReviewBusinessSkeleton />
@@ -683,8 +684,8 @@ export function ReviewAndSubmitStep({
             {/* Banking details */}
             <section className={sectionSpacingClassName}>
               <div>
-                <h3 className={sectionHeaderClassName}>Banking Details</h3>
-                <div className="border-b border-border mt-2 mb-4" />
+                <h3 className={applicationFlowSectionTitleClassName}>Banking Details</h3>
+                <div className={applicationFlowSectionDividerClassName} />
               </div>
               {companyLoading || devTools?.showSkeletonDebug ? (
                 <ReviewBusinessSkeleton />
@@ -702,8 +703,8 @@ export function ReviewAndSubmitStep({
             {/* Address */}
             <section className={sectionSpacingClassName}>
               <div>
-                <h3 className={sectionHeaderClassName}>Address</h3>
-                <div className="border-b border-border mt-2 mb-4" />
+                <h3 className={applicationFlowSectionTitleClassName}>Address</h3>
+                <div className={applicationFlowSectionDividerClassName} />
               </div>
               {companyLoading || devTools?.showSkeletonDebug ? (
                 <ReviewBusinessSkeleton />
@@ -721,8 +722,8 @@ export function ReviewAndSubmitStep({
             {/* Contact Person */}
             <section className={sectionSpacingClassName}>
               <div>
-                <h3 className={sectionHeaderClassName}>Contact Person</h3>
-                <div className="border-b border-border mt-2 mb-4" />
+                <h3 className={applicationFlowSectionTitleClassName}>Contact Person</h3>
+                <div className={applicationFlowSectionDividerClassName} />
               </div>
               {companyLoading || devTools?.showSkeletonDebug ? (
                 <ReviewBusinessSkeleton />
@@ -749,8 +750,8 @@ export function ReviewAndSubmitStep({
         {showFinancialStatementsSection && (
           <section className={sectionSpacingClassName}>
             <div>
-              <h3 className={sectionHeaderClassName}>Financial Statements</h3>
-              <div className="border-b border-border mt-2 mb-4" />
+              <h3 className={applicationFlowSectionTitleClassName}>Financial Statements</h3>
+              <div className={applicationFlowSectionDividerClassName} />
             </div>
             {financialStatementsLoading || devTools?.showSkeletonDebug ? (
               <FinancialStatementsSkeleton />
@@ -856,16 +857,16 @@ export function ReviewAndSubmitStep({
             {supportingLoading || devTools?.showSkeletonDebug ? (
               <section className={sectionSpacingClassName}>
                 <div>
-                  <h3 className={sectionHeaderClassName}>Supporting Documents</h3>
-                  <div className="border-b border-border mt-2 mb-4" />
+                  <h3 className={applicationFlowSectionTitleClassName}>Supporting Documents</h3>
+                  <div className={applicationFlowSectionDividerClassName} />
                 </div>
                 <ReviewSupportingDocsSkeleton />
               </section>
             ) : categories.length === 0 ? (
               <section className={sectionSpacingClassName}>
                 <div>
-                  <h3 className={sectionHeaderClassName}>Supporting Documents</h3>
-                  <div className="border-b border-border mt-2 mb-4" />
+                  <h3 className={applicationFlowSectionTitleClassName}>Supporting Documents</h3>
+                  <div className={applicationFlowSectionDividerClassName} />
                 </div>
                 <div className="text-sm text-muted-foreground italic px-3">No documents</div>
               </section>
@@ -873,8 +874,8 @@ export function ReviewAndSubmitStep({
               categories.map((cat: any, catIdx: number) => (
                 <section key={catIdx} className={sectionSpacingClassName}>
                   <div>
-                    <h3 className={sectionHeaderClassName}>{cat.name || "Documents"}</h3>
-                    <div className="border-b border-border mt-2 mb-4" />
+                    <h3 className={applicationFlowSectionTitleClassName}>{cat.name || "Documents"}</h3>
+                    <div className={applicationFlowSectionDividerClassName} />
                   </div>
                   <div className={sectionGridClassName}>
                     {(cat.documents || []).map((doc: any, docIdx: number) => (

@@ -39,6 +39,10 @@ import { useAuthToken, createApiClient } from "@cashsouk/config";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
+  applicationFlowSectionDividerClassName,
+  applicationFlowSectionStackClassName,
+  applicationFlowSectionTitleClassName,
+  applicationFlowStepOuterClassName,
   formInputClassName,
   formInputDisabledClassName,
   formLockedFileSurfaceClassName,
@@ -1103,7 +1107,6 @@ export function ContractDetailsStep({
 
   const labelClassName = cn(formLabelClassName, "font-normal");
   const inputClassName = cn(formInputClassName, !stepIsEditable && formInputDisabledClassName);
-  const sectionHeaderClassName = "text-base font-semibold text-foreground";
   const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center";
 
   const customerCountryCode = formData.customer.country as Country;
@@ -1116,13 +1119,13 @@ export function ContractDetailsStep({
 
   return (
     <>
-      <div className="space-y-10 px-3">
+      <div className={applicationFlowStepOuterClassName}>
         {/* Contract Details Section — hidden when invoice_only */}
         {!isInvoiceOnly && (
-        <section className="space-y-3">
+        <section className={applicationFlowSectionStackClassName}>
           <div>
-            <h3 className={sectionHeaderClassName}>Contract Details</h3>
-            <div className="border-b border-border mt-2 mb-4" />
+            <h3 className={applicationFlowSectionTitleClassName}>Contract Details</h3>
+            <div className={applicationFlowSectionDividerClassName} />
           </div>
 
           <div className={sectionGridClassName}>
@@ -1294,13 +1297,13 @@ export function ContractDetailsStep({
         )}
 
         {/* Customer Details Section */}
-        <section className="space-y-3">
+        <section className={applicationFlowSectionStackClassName}>
           <div>
-            <h3 className={sectionHeaderClassName}>
+            <h3 className={applicationFlowSectionTitleClassName}>
               {/* {isInvoiceOnly ? "Customer Details (Required for Invoice Financing)" : "Customer details"} */}
               Customer Details
             </h3>
-            <div className="border-b border-border mt-2 mb-4" />
+            <div className={applicationFlowSectionDividerClassName} />
           </div>
 
           <div className={sectionGridClassName}>

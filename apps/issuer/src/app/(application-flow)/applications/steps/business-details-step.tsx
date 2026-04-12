@@ -14,6 +14,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import {
+  applicationFlowSectionDividerClassName,
+  applicationFlowSectionTitleClassName,
   formInputClassName,
   formInputDisabledClassName,
   formLockedFileSurfaceClassName,
@@ -399,7 +401,6 @@ interface BusinessDetailsStepProps {
   readOnly?: boolean;
 }
 
-const sectionHeaderClassName = "text-base font-semibold text-foreground";
 
 /** Helpers
  *
@@ -1233,10 +1234,10 @@ export function BusinessDetailsStep({
         <section className={`${sectionWrapperClassName} space-y-5`}>
         <div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <h3 className={cn(sectionHeaderClassName, "shrink-0")}>About your business</h3>
+            <h3 className={cn(applicationFlowSectionTitleClassName, "shrink-0")}>About your business</h3>
             <InvestorVisibilityBadge />
           </div>
-          <div className="border-b border-border mt-4 mb-6" />
+          <div className={applicationFlowSectionDividerClassName} />
         </div>
 
         <div
@@ -1320,10 +1321,10 @@ export function BusinessDetailsStep({
       <section className={`${sectionWrapperClassName} space-y-5`}>
         <div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <h3 className={cn(sectionHeaderClassName, "shrink-0")}>Why are you raising funds?</h3>
+            <h3 className={cn(applicationFlowSectionTitleClassName, "shrink-0")}>Why are you raising funds?</h3>
             <InvestorVisibilityBadge />
           </div>
-          <div className="border-b border-border mt-4 mb-6" />
+          <div className={applicationFlowSectionDividerClassName} />
         </div>
 
         <div className={rowGridClassName}>
@@ -1636,7 +1637,7 @@ export function BusinessDetailsStep({
       >
         <div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
-            <h3 className={sectionHeaderClassName}>Guarantor details</h3>
+            <h3 className={applicationFlowSectionTitleClassName}>Guarantor details</h3>
             <Button
               type="button"
               variant="default"
@@ -1647,7 +1648,7 @@ export function BusinessDetailsStep({
               + Add guarantor
             </Button>
           </div>
-          <div className="border-b border-border mt-3 mb-6" />
+          <div className={applicationFlowSectionDividerClassName} />
         </div>
 
         <div className="flex flex-col gap-8 px-3">
@@ -1743,8 +1744,8 @@ export function BusinessDetailsStep({
         )}
       >
         <div>
-          <h3 className={sectionHeaderClassName}>Declarations</h3>
-          <div className="border-b border-border mt-3 mb-6" />
+          <h3 className={applicationFlowSectionTitleClassName}>Declarations</h3>
+          <div className={applicationFlowSectionDividerClassName} />
         </div>
 
         <div className="rounded-xl border border-border bg-background p-4 sm:p-5">

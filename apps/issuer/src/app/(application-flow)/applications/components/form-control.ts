@@ -67,6 +67,29 @@ export const applicationFlowAmendmentTargetTableRowClassName = cn(
   "[&>td]:bg-primary/[0.07] hover:[&>td]:bg-primary/[0.09]"
 );
 
+/** Flagged row / field outside tables (chips, panels) — same primary tint + ring as table rows. */
+export const applicationFlowAmendmentTargetSurfaceClassName = cn(
+  "text-foreground",
+  "bg-primary/[0.07] ring-1 ring-inset ring-primary/20 border-primary/30"
+);
+
+/** Section title (h2/h3) — contract-details pattern. */
+export const applicationFlowSectionTitleClassName =
+  "text-base font-semibold text-foreground";
+
+/** Divider directly under a section title. */
+export const applicationFlowSectionDividerClassName =
+  "border-b border-border mt-2 mb-4";
+
+/** Standard vertical + horizontal shell for long form steps (matches contract-details-step). */
+export const applicationFlowStepOuterClassName = "space-y-10 px-3 w-full";
+
+/** Horizontal inset only — selection steps without a long form stack. */
+export const applicationFlowStepHorizontalClassName = "px-3 w-full";
+
+/** Tight stack under a section title (title + fields). */
+export const applicationFlowSectionStackClassName = "space-y-3";
+
 /** Helpers
  *
  * What: Apply error styling consistently (thin red border, thick when focused).

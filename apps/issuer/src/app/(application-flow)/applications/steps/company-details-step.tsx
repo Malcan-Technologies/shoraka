@@ -42,6 +42,9 @@ import PhoneInput from "react-phone-number-input";
 import "react-phone-number-input/style.css";
 import { cn } from "@/lib/utils";
 import {
+  applicationFlowSectionDividerClassName,
+  applicationFlowSectionTitleClassName,
+  applicationFlowStepOuterClassName,
   formInputClassName,
   formInputDisabledClassName,
   formLabelClassName,
@@ -153,8 +156,6 @@ const inputClassName = cn(formInputClassName, formInputDisabledClassName);
 const inputClassNameEditable = formInputClassName;
 const labelClassName = formLabelClassName;
 const labelClassNameEditable = formLabelClassName;
-const sectionHeaderClassName = "text-base font-semibold text-foreground";
-
 export function CompanyDetailsStep({
   applicationId,
   onDataChange,
@@ -593,12 +594,12 @@ export function CompanyDetailsStep({
 
   return (
     <>
-      <div className="space-y-10 px-3">
+      <div className={applicationFlowStepOuterClassName}>
         {/* Company Info Section */}
         <div className="space-y-3">
           <div>
-          <h3 className={sectionHeaderClassName}>Company Info</h3>
-            <div className="border-b border-border mt-2 mb-4" />
+          <h3 className={applicationFlowSectionTitleClassName}>Company Info</h3>
+            <div className={applicationFlowSectionDividerClassName} />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center">
@@ -669,7 +670,7 @@ export function CompanyDetailsStep({
         {/* Address Section */}
         <div className="space-y-3">
           <div className="flex justify-between items-center">
-            <h3 className={sectionHeaderClassName}>Address</h3>
+            <h3 className={applicationFlowSectionTitleClassName}>Address</h3>
             <Button
               variant="ghost"
               size="sm"
@@ -683,7 +684,7 @@ export function CompanyDetailsStep({
               <PencilIcon className="h-4 w-4" />
             </Button>
           </div>
-          <div className="border-b border-border mt-2 mb-4" />
+          <div className={applicationFlowSectionDividerClassName} />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center">
             <div className={labelClassName}>Business address</div>
@@ -715,8 +716,8 @@ export function CompanyDetailsStep({
         {/* Directors & Shareholders Section */}
         <div className="space-y-3">
           <div>
-            <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
-            <div className="border-b border-border mt-2 mb-4" />
+            <h3 className={applicationFlowSectionTitleClassName}>Director & Shareholders</h3>
+            <div className={applicationFlowSectionDividerClassName} />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center">
@@ -757,8 +758,8 @@ export function CompanyDetailsStep({
         {/* Banking Details Section */}
         <div className="space-y-3">
           <div>
-            <h3 className={sectionHeaderClassName}>Banking Details</h3>
-            <div className="border-b border-border mt-2 mb-4" />
+            <h3 className={applicationFlowSectionTitleClassName}>Banking Details</h3>
+            <div className={applicationFlowSectionDividerClassName} />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center">
@@ -834,8 +835,8 @@ export function CompanyDetailsStep({
         {/* Contact Person Section */}
         <div className="space-y-3">
           <div>
-            <h3 className={sectionHeaderClassName}>Contact Person</h3>
-            <div className="border-b border-border mt-2 mb-4" />
+            <h3 className={applicationFlowSectionTitleClassName}>Contact Person</h3>
+            <div className={applicationFlowSectionDividerClassName} />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center">
@@ -1052,7 +1053,7 @@ function EditAddressDialog({
         </DialogHeader>
         <div className="space-y-8 py-4">
           <div className="space-y-3">
-            <h4 className="text-base font-semibold">Business address</h4>
+            <h4 className={applicationFlowSectionTitleClassName}>Business address</h4>
             <div className="space-y-3">
               <div className="space-y-2">
                 <Label htmlFor="business-line1" className={formLabelClassName}>Address line 1</Label>
@@ -1128,7 +1129,7 @@ function EditAddressDialog({
           </div>
           <div className="border-t border-border pt-6 space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="text-base font-semibold">Registered address</h4>
+              <h4 className={applicationFlowSectionTitleClassName}>Registered address</h4>
               <div className="flex items-center gap-2">
                 <Checkbox
                   id="registered-same-as-business"

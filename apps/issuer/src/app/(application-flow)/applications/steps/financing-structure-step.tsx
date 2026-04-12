@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  applicationFlowStepHorizontalClassName,
   formInputDisabledClassName,
   formSelectTriggerClassName,
 } from "@/app/(application-flow)/applications/components/form-control";
@@ -243,7 +244,7 @@ export function FinancingStructureStep({
    */
   return (
     <>
-    <div className="px-3">
+    <div className={applicationFlowStepHorizontalClassName}>
       <div className="space-y-3">
         {/* Option 1: Submit a new contract */}
         <SelectionCard

@@ -23,6 +23,9 @@ import { Input } from "@/components/ui/input";
 import { DateInput } from "@/app/(application-flow)/applications/components/date-input";
 import { cn } from "@/lib/utils";
 import {
+  applicationFlowSectionDividerClassName,
+  applicationFlowSectionTitleClassName,
+  applicationFlowStepOuterClassName,
   formInputClassName,
   formInputDisabledClassName,
   formLabelClassName,
@@ -292,7 +295,6 @@ function legacyHasAnyInput(data: FinancialStatementsPayload): boolean {
    LAYOUT & STYLING
    ================================================================ */
 
-const sectionHeaderClassName = "text-base font-semibold text-foreground";
 const labelClassName = cn(formLabelClassName, "font-normal");
 const subsectionHeadingClassName = "text-sm font-semibold text-foreground";
 const inputClassName = formInputClassName;
@@ -303,7 +305,7 @@ const rowGridBaseClassName =
 const rowGridClassName = cn(rowGridBaseClassName, "mt-4");
 const sectionWrapperClassName = "w-full";
 /** Same outer rhythm as company-details / contract-details steps. */
-const formOuterClassName = "w-full space-y-10 px-3";
+const formOuterClassName = applicationFlowStepOuterClassName;
 
 /** Empty / info states under Financial Details — same shell as declarations-step boxes (border-border bg-background). */
 const financialDetailsMessagePanelClassName =
@@ -1119,8 +1121,8 @@ export function FinancialStatementsStep({
       <div className={formOuterClassName}>
         <section className={`${sectionWrapperClassName} space-y-3`}>
           <div>
-            <h3 className={sectionHeaderClassName}>Financial Overview</h3>
-            <div className="border-b border-border mt-2 mb-4" />
+            <h3 className={applicationFlowSectionTitleClassName}>Financial Overview</h3>
+            <div className={applicationFlowSectionDividerClassName} />
           </div>
 
           <div className={rowGridClassName}>
@@ -1192,11 +1194,11 @@ export function FinancialStatementsStep({
 
         <section className={`${sectionWrapperClassName} w-full space-y-3`}>
           <div className="px-3">
-            <h3 className={sectionHeaderClassName}>
+            <h3 className={applicationFlowSectionTitleClassName}>
               Financial Details{" "}
               <span className="font-normal text-muted-foreground">(Unaudited)</span>
             </h3>
-            <div className="border-b border-border mt-2 mb-4" />
+            <div className={applicationFlowSectionDividerClassName} />
           </div>
 
           <div className="space-y-4 px-3">

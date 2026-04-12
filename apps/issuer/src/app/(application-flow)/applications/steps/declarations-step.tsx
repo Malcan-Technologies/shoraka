@@ -7,6 +7,11 @@ import { cn } from "@/lib/utils";
 import { useApplication } from "@/hooks/use-applications";
 import { DeclarationsSkeleton } from "@/app/(application-flow)/applications/components/declarations-skeleton";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
+import {
+  applicationFlowSectionDividerClassName,
+  applicationFlowSectionTitleClassName,
+  applicationFlowStepOuterClassName,
+} from "@/app/(application-flow)/applications/components/form-control";
 
 /**
  * DECLARATIONS STEP
@@ -219,7 +224,7 @@ export function DeclarationsStep({
    */
 return (
   <>
-  <div className="px-3">
+  <div className={applicationFlowStepOuterClassName}>
     <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
       {/* ================= DECLARATIONS BOX ================= */}
       <div className="rounded-xl border border-border bg-background p-4 sm:p-5 h-fit">
@@ -258,10 +263,10 @@ return (
 
       {/* ================= WHAT HAPPENS NEXT ================= */}
       <div className="rounded-xl border border-border bg-background p-6">
-        <h3 className="text-base font-semibold text-foreground mb-3">
-          What happens next?
-        </h3>
-        <div className="border-b border-border mt-2 mb-4" />
+        <div>
+          <h3 className={applicationFlowSectionTitleClassName}>What happens next?</h3>
+          <div className={applicationFlowSectionDividerClassName} />
+        </div>
 
         <ul className="list-disc pl-5 space-y-3 text-sm md:text-base leading-6 text-foreground mt-4">
           <li>After submission, your application will be reviewed by our team.</li>
