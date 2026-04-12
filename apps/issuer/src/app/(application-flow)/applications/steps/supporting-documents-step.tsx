@@ -12,6 +12,8 @@ import {
   ArrowDownTrayIcon,
   ExclamationTriangleIcon,
   XMarkIcon,
+  DocumentIcon,
+  DocumentDuplicateIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -23,10 +25,13 @@ import { useDevTools } from "@/app/(application-flow)/applications/components/de
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-/** Same pattern as invoice table upload link: icon + label, no heavy button chrome. */
-const supportingDocActionRow =
-  "inline-flex items-center justify-end gap-1.5 text-sm font-medium w-full sm:justify-end min-h-9";
-const supportingDocActionOn =
+/** One line per action; column wide enough so labels do not wrap awkwardly. */
+const supportingDocActionLink =
+  "inline-flex items-center justify-start gap-1.5 text-sm font-medium leading-tight whitespace-nowrap rounded-md px-0.5 py-1 -mx-0.5 w-full min-w-0";
+/** Download template = secondary (muted); upload / add = brand primary — easier to scan. */
+const supportingDocTemplateOn =
+  "text-muted-foreground hover:text-foreground cursor-pointer";
+const supportingDocUploadOn =
   "text-primary hover:opacity-80 cursor-pointer";
 const supportingDocActionOff =
   "text-muted-foreground cursor-not-allowed select-none";
@@ -804,10 +809,10 @@ export function SupportingDocumentsStep({
                             key={rowKey}
                             fileName={file.name}
                             truncate
-                            maxChars={44}
+                            inlineChip
                             size="sm"
                             className={cn(
-                              "w-full max-w-full min-h-8",
+                              "min-h-8",
                               isItemFlagged
                                 ? "border-primary/35 bg-primary/5"
                                 : !isEditable
@@ -844,21 +849,39 @@ export function SupportingDocumentsStep({
                             isItemFlagged && "bg-primary/[0.03]"
                           )}
                         >
-                          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,10.5rem)] lg:gap-8 lg:items-start">
+                          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,15rem)_1fr] lg:gap-x-6 lg:items-start">
                             <div className="min-w-0 space-y-2">
-                              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                              <div>
                                 <h3 className="text-base md:text-[17px] leading-7 font-semibold text-foreground">
                                   {document.title}
+                                  {isRequired ? (
+                                    <>
+                                      <span className="text-primary font-semibold" aria-hidden="true">
+                                        *
+                                      </span>
+                                      <span className="sr-only">Required</span>
+                                    </>
+                                  ) : null}
                                 </h3>
-                                {isRequired ? (
-                                  <span className="inline-flex items-center rounded-full border border-destructive/25 bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-                                    Required
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center rounded-full border border-border bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                                    Optional
-                                  </span>
-                                )}
+                                <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                                  {mode === "multiple" ? (
+                                    <>
+                                      <DocumentDuplicateIcon
+                                        className="h-3 w-3 shrink-0 opacity-80"
+                                        aria-hidden
+                                      />
+                                      <span>Multiple files allowed</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <DocumentIcon
+                                        className="h-3 w-3 shrink-0 opacity-80"
+                                        aria-hidden
+                                      />
+                                      <span>One file only</span>
+                                    </>
+                                  )}
+                                </p>
                               </div>
                               {isItemFlagged && itemRemark ? (
                                 <div className="flex items-start gap-2 rounded-lg border border-primary/35 bg-primary/5 px-3 py-2 text-sm text-foreground leading-snug">
@@ -871,7 +894,8 @@ export function SupportingDocumentsStep({
                               ) : null}
                             </div>
 
-                            <div className="min-w-0 flex flex-col gap-3">
+                            <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:gap-5 lg:items-start">
+                              <div className="min-w-0 flex-1 flex flex-col gap-2">
                               {fileIsUploading ? (
                                 <p className="text-sm text-muted-foreground">Uploading…</p>
                               ) : hasFiles ? (
@@ -909,16 +933,16 @@ export function SupportingDocumentsStep({
                               ) : isEditable && !hasFiles && !fileIsUploading ? (
                                 <span className="text-sm text-muted-foreground">No file uploaded</span>
                               ) : null}
-                            </div>
+                              </div>
 
-                            <div className="flex flex-col gap-2.5 w-full sm:min-w-[11rem] lg:max-w-[14rem] lg:ml-auto lg:items-end">
+                            <div className="flex flex-col gap-1 w-full min-w-0 border-t border-border pt-3 lg:border-t-0 lg:pt-0 lg:min-w-[12.5rem] lg:w-[12.5rem] lg:shrink-0 lg:border-l lg:border-border lg:pl-4">
                               {templateS3Key ? (
                                 <button
                                   type="button"
                                   disabled={!isEditable}
                                   className={cn(
-                                    supportingDocActionRow,
-                                    isEditable ? supportingDocActionOn : supportingDocActionOff
+                                    supportingDocActionLink,
+                                    isEditable ? supportingDocTemplateOn : supportingDocActionOff
                                   )}
                                   onClick={async () => {
                                     if (!isEditable) return;
@@ -944,7 +968,7 @@ export function SupportingDocumentsStep({
 
                               {fileIsUploading && !hasFiles ? (
                                 <span
-                                  className={cn(supportingDocActionRow, supportingDocActionOff)}
+                                  className={cn(supportingDocActionLink, supportingDocActionOff)}
                                 >
                                   <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
                                   Uploading…
@@ -954,8 +978,8 @@ export function SupportingDocumentsStep({
                                   <label
                                     htmlFor={`file-${key}`}
                                     className={cn(
-                                      supportingDocActionRow,
-                                      supportingDocActionOn
+                                      supportingDocActionLink,
+                                      supportingDocUploadOn
                                     )}
                                   >
                                     <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
@@ -973,7 +997,7 @@ export function SupportingDocumentsStep({
                                   </label>
                                 ) : (
                                   <span
-                                    className={cn(supportingDocActionRow, supportingDocActionOff)}
+                                    className={cn(supportingDocActionLink, supportingDocActionOff)}
                                   >
                                     <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
                                     {mode === "multiple" ? "Upload files" : "Upload file"}
@@ -984,7 +1008,7 @@ export function SupportingDocumentsStep({
                               {mode === "multiple" && hasFiles ? (
                                 fileIsUploading ? (
                                   <span
-                                    className={cn(supportingDocActionRow, supportingDocActionOff)}
+                                    className={cn(supportingDocActionLink, supportingDocActionOff)}
                                   >
                                     <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
                                     Uploading…
@@ -993,8 +1017,8 @@ export function SupportingDocumentsStep({
                                   <label
                                     htmlFor={`file-${key}-add`}
                                     className={cn(
-                                      supportingDocActionRow,
-                                      supportingDocActionOn
+                                      supportingDocActionLink,
+                                      supportingDocUploadOn
                                     )}
                                   >
                                     <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
@@ -1012,7 +1036,7 @@ export function SupportingDocumentsStep({
                                   </label>
                                 ) : (
                                   <span
-                                    className={cn(supportingDocActionRow, supportingDocActionOff)}
+                                    className={cn(supportingDocActionLink, supportingDocActionOff)}
                                   >
                                     <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
                                     Add files
@@ -1020,6 +1044,7 @@ export function SupportingDocumentsStep({
                                 )
                               ) : null}
                             </div>
+                          </div>
                           </div>
                         </div>
                       );

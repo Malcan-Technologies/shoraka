@@ -20,7 +20,7 @@ export function SupportingDocumentsSkeleton() {
               <div key={row} className="px-4 py-4 sm:px-5 space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <Skeleton className="h-6 w-48" />
-                  <Skeleton className="h-5 w-16 rounded-full" />
+                  <Skeleton className="h-6 w-[4.5rem] rounded-md" />
                 </div>
                 <div className="flex flex-col gap-2 max-w-md">
                   <Skeleton className="h-8 w-full rounded-xl" />

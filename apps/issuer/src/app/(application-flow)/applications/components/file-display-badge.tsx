@@ -16,6 +16,8 @@ export function FileDisplayBadge({
   size = "default",
   truncate = true,
   maxChars,
+  /** Shrink-to-fit chip (supporting docs); long names ellipsis inside a max width. */
+  inlineChip = false,
 }: {
   fileName: string;
   className?: string;
@@ -25,6 +27,7 @@ export function FileDisplayBadge({
   truncate?: boolean;
   /** Optional hard text cap before CSS truncation (e.g. 40 chars). */
   maxChars?: number;
+  inlineChip?: boolean;
 }) {
   const textClass =
     size === "xs" ? "text-[10px]" : size === "sm" ? "text-xs" : "text-[14px]";
@@ -35,7 +38,11 @@ export function FileDisplayBadge({
   const padClass = size === "xs" ? "px-1.5 py-[1px]" : "px-2 py-[2px]";
 
   const displayedFileName =
-    truncate && typeof maxChars === "number" && maxChars > 0 && fileName.length > maxChars
+    truncate &&
+    !inlineChip &&
+    typeof maxChars === "number" &&
+    maxChars > 0 &&
+    fileName.length > maxChars
       ? `${fileName.slice(0, Math.max(0, maxChars - 1))}…`
       : fileName;
 
@@ -47,17 +54,27 @@ export function FileDisplayBadge({
         gapClass,
         padClass,
         height,
-        truncate && "min-w-0 max-w-full overflow-hidden",
+        inlineChip
+          ? "w-full min-w-0 max-w-full overflow-hidden"
+          : truncate && "w-full min-w-0 max-w-full overflow-hidden",
         className
       )}
     >
       <div className={`${boxSize} rounded-sm bg-foreground flex items-center justify-center shrink-0`}>
         <CheckIconSolid className={`${iconSize} text-background`} />
       </div>
-      <span className={`${textClass} font-medium ${truncate ? "truncate min-w-0" : ""}`}>
+      <span
+        className={cn(
+          textClass,
+          "font-medium",
+          truncate && "min-w-0 flex-1 truncate"
+        )}
+      >
         {displayedFileName}
       </span>
-      {trailing}
+      {trailing ? (
+        <span className="inline-flex shrink-0 items-center">{trailing}</span>
+      ) : null}
     </div>
   );
 }
