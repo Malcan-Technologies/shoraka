@@ -2,7 +2,7 @@
  * SECTION: Dev-only long amendment text for layout testing
  * WHY: Preview AmendmentRemarkCard with many newlines and long lines
  * INPUT: Used when dev preview amendment is on (edit application page)
- * OUTPUT: Single string passed as a section remark
+ * OUTPUT: Strings passed as section / item remarks in dev amendment preview
  * WHERE USED: getMockAmendmentContext in edit/[id]/page.tsx
  */
 
@@ -34,4 +34,29 @@ export const MOCK_DEV_LONG_AMENDMENT_REMARK = [
   "",
   "Paragraph G — Closing",
   "After fixes, upload the revised documents and add a short note in Review & Submit describing what changed. Thank you.",
+].join("\n");
+
+/** Long multi-line remark for Supporting documents step (section + item dialogs). */
+export const MOCK_DEV_LONG_SUPPORTING_DOCUMENTS_AMENDMENT_REMARK = [
+  "Supporting documents — reviewer feedback (stress test for newlines and wrapping).",
+  "",
+  "Section A — File quality",
+  "Scans must be legible (minimum 150 dpi effective). Do not crop stamps or signatures.\nPassword-protected PDFs are not accepted unless you provide the password in Review & Submit notes (not in the file).",
+  "",
+  "Section B — Naming and versions",
+  "Use clear filenames: CompanyName_DocumentType_YYYY-MM.pdf\nIf you replace a file, delete the old upload first to avoid duplicate reviews.",
+  "",
+  "Section C — Category rules",
+  "Financial docs: management accounts must cover the same fiscal period as stated in company details.\nLegal docs: ensure deed / resolution dates align with signatories shown on the contract step.",
+  "",
+  "Section D — Long unbroken line for wrap testing",
+  `${"Upload complete uncropped PDFs; partial screenshots may be rejected: ".repeat(15)}END.`,
+  "",
+  "Section E — Checklist (one bullet per line after split)",
+  "Bank statements must show account holder name matching the issuer entity.",
+  "Invoices in this pack must not be the same files already tied to invoice financing rows unless the product allows it.",
+  "Excel or Word source files are not accepted where PDF is required.",
+  "",
+  "Section F — Closing",
+  "Re-upload corrected files, then acknowledge this step. Contact support if a required doc type is not applicable to your entity.",
 ].join("\n");

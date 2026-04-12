@@ -52,7 +52,10 @@ import {
   ApplicationFlowBlockedStepSkeleton,
 } from "../../components/application-flow-blocked-backdrop";
 import { AmendmentRemarkCard, ReadOnlyStepBanner } from "../../components/amendments";
-import { MOCK_DEV_LONG_AMENDMENT_REMARK } from "../../lib/mock-long-amendment-remark";
+import {
+  MOCK_DEV_LONG_AMENDMENT_REMARK,
+  MOCK_DEV_LONG_SUPPORTING_DOCUMENTS_AMENDMENT_REMARK,
+} from "../../lib/mock-long-amendment-remark";
 import { useHeader } from "@cashsouk/ui";
 import { FinancingTypeStep } from "../../steps/financing-type-step";
 import { FinancingStructureStep } from "../../steps/financing-structure-step";
@@ -254,18 +257,20 @@ function EditApplicationPageBody() {
       { scope: "section", scope_key: "invoice_details", remark: "Invoice amount does not match document\nMissing supplier signature" },
       { scope: "item", scope_key: "invoice_details:0:Invoice", remark: "amount does not match document/nInvoice date must match contract" },
       { scope: "item", scope_key: "invoice_details:1:Invoice", remark: "missing supplier signature" },
-      { scope: "section", scope_key: "supporting_documents", remark: "Upload missing Company Secretary Letter." },
+      {
+        scope: "section",
+        scope_key: "supporting_documents",
+        remark: MOCK_DEV_LONG_SUPPORTING_DOCUMENTS_AMENDMENT_REMARK,
+      },
       {
         scope: "item",
         scope_key: "supporting_documents:doc:financial_docs:0:Latest_Management_Account",
-        remark:
-          "Wrong document uploaded\nPlease upload the latest audited management accounts (PDF only).\nThe file must be dated within the last 6 months.\nThe company name on the document must match this application.",
+        remark: MOCK_DEV_LONG_SUPPORTING_DOCUMENTS_AMENDMENT_REMARK,
       },
       {
         scope: "item",
         scope_key: "supporting_documents:doc:legal_docs:0:Deed_of_Assignment",
-        remark:
-          "Deed of assignment date has expired\nUpload a renewed deed or a current signed version.\nEnsure all pages are legible and signatures are visible.",
+        remark: MOCK_DEV_LONG_SUPPORTING_DOCUMENTS_AMENDMENT_REMARK,
       },
     ],
   }), [(application as { review_cycle?: number })?.review_cycle]);
