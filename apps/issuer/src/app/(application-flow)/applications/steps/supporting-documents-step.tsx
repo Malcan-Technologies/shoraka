@@ -13,6 +13,7 @@ import { useApplication } from "@/hooks/use-applications";
 import { useAuthToken } from "@cashsouk/config";
 import { SupportingDocumentsSkeleton } from "@/app/(application-flow)/applications/components/supporting-documents-skeleton";
 import { FileDisplayBadge } from "@/app/(application-flow)/applications/components/file-display-badge";
+import { applicationFlowLockedSurfaceClassName } from "@/app/(application-flow)/applications/components/form-control";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -774,7 +775,10 @@ export function SupportingDocumentsStep({
                     return (
                       <div
                         key={documentIndex}
-                        className="col-span-2 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,22rem)_auto] gap-x-3 gap-y-2 items-start"
+                        className={cn(
+                          "col-span-2 grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,22rem)_auto] gap-x-3 gap-y-2 items-start px-2 py-2 -mx-0.5",
+                          !isEditable && applicationFlowLockedSurfaceClassName
+                        )}
                       >
                         <div className="min-w-0 space-y-2">
                           <div className="text-[16px] leading-[22px] text-foreground">
@@ -856,7 +860,7 @@ export function SupportingDocumentsStep({
                         <div
                           className={cn(
                             "flex flex-col items-start gap-1.5 pt-0.5 shrink-0",
-                            !isEditable && "pointer-events-none opacity-60 cursor-not-allowed"
+                            !isEditable && "pointer-events-none cursor-not-allowed"
                           )}
                         >
                           {templateS3Key && (

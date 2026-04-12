@@ -49,6 +49,24 @@ export const formInputDisabledClassName = cn(
   formInputAutofillMutedChromeFix
 );
 
+/** Whole table row locked: tr + every td same muted fill (inputs also use formInputDisabledClassName). */
+export const applicationFlowLockedTableRowClassName = cn(
+  "bg-muted hover:bg-muted",
+  "[&>td]:bg-muted",
+  "text-muted-foreground"
+);
+
+/** Row must be fixed for amendment — same fill on all td, soft primary tint + inset ring. */
+export const applicationFlowAmendmentTargetTableRowClassName = cn(
+  "text-foreground",
+  "bg-primary/[0.07] hover:bg-primary/[0.09] ring-1 ring-inset ring-primary/20",
+  "[&>td]:bg-primary/[0.07] hover:[&>td]:bg-primary/[0.09]"
+);
+
+/** Full-width grid row (e.g. supporting documents) when uploads are locked in amendment mode. */
+export const applicationFlowLockedSurfaceClassName =
+  "rounded-xl border border-border/70 bg-muted/45";
+
 /** Helpers
  *
  * What: Apply error styling consistently (thin red border, thick when focused).

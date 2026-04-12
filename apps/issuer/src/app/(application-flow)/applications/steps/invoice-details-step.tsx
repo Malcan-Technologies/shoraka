@@ -59,6 +59,8 @@ import { cn } from "@cashsouk/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useProducts } from "@/hooks/use-products";
 import {
+  applicationFlowAmendmentTargetTableRowClassName,
+  applicationFlowLockedTableRowClassName,
   formInputDisabledClassName,
   formLabelClassName,
   withFieldError,
@@ -1221,14 +1223,18 @@ export default function InvoiceDetailsStep({
                               !inv.status) &&
                             !readOnly;
                           const isInvFlagged = invoicesWithRemarks.has(invIndex);
+                          const rowLocked = !isEditable;
 
                           return (
                             <TableRow
                               key={inv.id}
                               className={cn(
-                                "hover:bg-muted/40 transition-colors",
-                                (isLocked || readOnly) && "bg-muted/30",
-                                isInvFlagged && "border-l-4 border-l-destructive bg-red-50"
+                                "transition-colors",
+                                rowLocked && applicationFlowLockedTableRowClassName,
+                                !rowLocked && "hover:bg-muted/40",
+                                isEditable &&
+                                  isInvFlagged &&
+                                  applicationFlowAmendmentTargetTableRowClassName
                               )}
                             >
                               <TableCell className="p-2">
@@ -1256,7 +1262,7 @@ export default function InvoiceDetailsStep({
                                   value={inv.maturity_date || ""}
                                   onChange={(v) => updateInvoiceField(inv.id, "maturity_date", v)}
                                   disabled={!isEditable}
-                                  className={!isEditable ? "bg-muted" : ""}
+                                  className={!isEditable ? "cursor-not-allowed" : undefined}
                                   isInvalid={isRowPartial(inv)}
                                   size="compact"
                                   placeholder="Enter date"
@@ -1290,7 +1296,14 @@ export default function InvoiceDetailsStep({
                                       width: "fit-content",
                                     }}
                                   >
-                                    <div className="rounded-md border border-border bg-white px-2 py-0.5 text-[10px] font-medium text-black shadow-sm">
+                                    <div
+                                      className={cn(
+                                        "rounded-md border border-border px-2 py-0.5 text-[10px] font-medium shadow-sm",
+                                        !isEditable
+                                          ? "bg-muted text-foreground"
+                                          : "bg-background text-black"
+                                      )}
+                                    >
                                       {ratioNum}%
                                     </div>
                                   </div>
@@ -1329,7 +1342,7 @@ export default function InvoiceDetailsStep({
                                   <FileDisplayBadge
                                     fileName={inv.document.file_name}
                                     size="sm"
-                                    className="bg-background"
+                                    className={cn(!isEditable ? "bg-muted" : "bg-background")}
                                     trailing={
                                       isEditable ? (
                                         <button
