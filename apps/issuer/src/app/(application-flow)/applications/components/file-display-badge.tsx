@@ -50,13 +50,12 @@ export function FileDisplayBadge({
     <div
       title={fileName}
       className={cn(
-        "inline-flex items-center border border-input bg-background rounded-xl",
+        "items-center border border-input bg-background rounded-xl",
+        inlineChip ? "flex" : "inline-flex",
         gapClass,
         padClass,
         height,
-        inlineChip
-          ? "w-full min-w-0 max-w-full overflow-hidden"
-          : truncate && "w-full min-w-0 max-w-full overflow-hidden",
+        "min-w-0 max-w-full overflow-hidden",
         className
       )}
     >

@@ -88,6 +88,15 @@ const makeClientId = () => {
 
 const INITIAL_VISIBLE_FILES = 2;
 
+function sortUploadRecordsNewestFirst(list: UploadRecord[]): UploadRecord[] {
+  return [...list].sort((a, b) => {
+    const ta = Date.parse(a.uploadedAt ?? "") || 0;
+    const tb = Date.parse(b.uploadedAt ?? "") || 0;
+    if (tb !== ta) return tb - ta;
+    return (b.name ?? "").localeCompare(a.name ?? "");
+  });
+}
+
 function collectS3KeysBySlot(files: Record<string, UploadRecord[]>): Map<string, Set<string>> {
   const result = new Map<string, Set<string>>();
   for (const [slot, list] of Object.entries(files)) {
@@ -396,7 +405,7 @@ export function SupportingDocumentsStep({
               s3_key: f.s3_key,
             }));
           if (normalized.length > 0) {
-            loadedFiles[key] = normalized;
+            loadedFiles[key] = sortUploadRecordsNewestFirst(normalized);
           }
         }
       );
@@ -428,12 +437,11 @@ export function SupportingDocumentsStep({
       }
     }
 
-    const today = new Date().toISOString().split("T")[0];
     const pending = selected.map((file) => ({ file, clientId: makeClientId() }));
     const previews: UploadRecord[] = pending.map(({ file, clientId }) => ({
       name: file.name,
       size: file.size,
-      uploadedAt: today,
+      uploadedAt: new Date().toISOString(),
       clientId,
     }));
 
@@ -441,7 +449,7 @@ export function SupportingDocumentsStep({
       ...prev,
       [key]:
         mode === "multiple"
-          ? [...(prev[key] ?? []), ...pending]
+          ? [...pending, ...(prev[key] ?? [])]
           : pending,
     }));
     setUploadedFiles((prev: any) => {
@@ -450,7 +458,7 @@ export function SupportingDocumentsStep({
         ...prev,
         [key]:
           mode === "multiple"
-            ? [...current, ...previews]
+            ? sortUploadRecordsNewestFirst([...previews, ...current])
             : previews,
       };
     });
@@ -564,7 +572,7 @@ export function SupportingDocumentsStep({
           s3_key: uploaded.s3_key,
         };
       });
-      updatedFiles[key] = normalized;
+      updatedFiles[key] = sortUploadRecordsNewestFirst(normalized);
     });
 
     const removedS3Keys = computeRemovedS3Keys(initialUploadedFiles, updatedFiles);
@@ -935,7 +943,7 @@ export function SupportingDocumentsStep({
                               ) : null}
                               </div>
 
-                            <div className="flex flex-col gap-1 w-full min-w-0 border-t border-border pt-3 lg:border-t-0 lg:pt-0 lg:min-w-[12.5rem] lg:w-[12.5rem] lg:shrink-0 lg:border-l lg:border-border lg:pl-4">
+                            <div className="flex flex-col gap-1 w-full min-w-0 border-t border-border pt-3 lg:self-start lg:border-t-0 lg:pt-0 lg:min-w-[12.5rem] lg:w-[12.5rem] lg:shrink-0 lg:border-l lg:border-border lg:pl-4">
                               {templateS3Key ? (
                                 <button
                                   type="button"
