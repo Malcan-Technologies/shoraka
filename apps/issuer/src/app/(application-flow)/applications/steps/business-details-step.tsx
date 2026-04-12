@@ -31,6 +31,10 @@ import { useDevTools } from "@/app/(application-flow)/applications/components/de
 import { BusinessDetailsSkeleton } from "@/app/(application-flow)/applications/components/business-details-skeleton";
 import { generateBusinessDetailsData } from "@/app/(application-flow)/applications/utils/dev-data-generator";
 import {
+  isValidMalaysianNric,
+  malaysianNricDigits,
+} from "@/app/(application-flow)/applications/utils/malaysian-nric";
+import {
   GUARANTOR_COMPANY_RELATIONSHIP_LABELS,
   GUARANTOR_COMPANY_RELATIONSHIPS,
   GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS,
@@ -276,7 +280,7 @@ function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
             guarantor_type: "individual" as const,
             first_name: g.firstName.trim(),
             last_name: g.lastName.trim(),
-            ic_number: g.icNumber.trim(),
+            ic_number: malaysianNricDigits(g.icNumber),
             relationship: g.relationship as GuarantorIndividualRelationship,
           }
         : {
@@ -355,7 +359,7 @@ function parseGuarantorsFromRaw(raw: unknown): GuarantorFormRow[] {
         guarantorType: "individual",
         firstName: String(o.first_name ?? o.firstName ?? ""),
         lastName: String(o.last_name ?? o.lastName ?? ""),
-        icNumber: String(o.ic_number ?? o.icNumber ?? ""),
+        icNumber: malaysianNricDigits(String(o.ic_number ?? o.icNumber ?? "")),
         relationship: relationshipOk ? (rel as GuarantorIndividualRelationship) : "",
       });
     } else if (gt === "company") {
@@ -702,19 +706,24 @@ function GuarantorCardFields({
             <Label htmlFor={`g-${index}-ic`} className={labelInputClassName}>
               IC number
             </Label>
-            <Input
-              id={`g-${index}-ic`}
-              value={row.icNumber}
-              onChange={(e) =>
-                replaceGuarantorRow(index, {
-                  ...row,
-                  icNumber: e.target.value.slice(0, 30),
-                })
-              }
-              placeholder="e.g. 901212-10-1234"
-              className={cn(inputClassName, readOnly && formInputDisabledClassName)}
-              disabled={readOnly}
-            />
+            <div className="space-y-1 min-h-[48px]">
+              <Input
+                id={`g-${index}-ic`}
+                value={row.icNumber}
+                onChange={(e) =>
+                  replaceGuarantorRow(index, {
+                    ...row,
+                    icNumber: malaysianNricDigits(e.target.value),
+                  })
+                }
+                placeholder="e.g. 901212101234"
+                inputMode="numeric"
+                autoComplete="off"
+                className={cn(inputClassName, readOnly && formInputDisabledClassName)}
+                disabled={readOnly}
+              />
+              <p className="text-xs text-muted-foreground">12 digits</p>
+            </div>
           </div>
           <div className="space-y-2 w-full min-w-0">
             <Label className={labelInputClassName}>Relationship</Label>
@@ -912,7 +921,7 @@ export function BusinessDetailsStep({
         if (
           !g.firstName.trim() ||
           !g.lastName.trim() ||
-          !g.icNumber.trim() ||
+          !isValidMalaysianNric(g.icNumber) ||
           !g.relationship ||
           !GUARANTOR_INDIVIDUAL_RELATIONSHIPS.includes(g.relationship as GuarantorIndividualRelationship)
         ) {

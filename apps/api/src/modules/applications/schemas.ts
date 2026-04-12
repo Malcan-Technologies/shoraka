@@ -70,7 +70,13 @@ const guarantorIndividualSchema = z.object({
   guarantor_type: z.literal("individual"),
   first_name: z.string().min(1).max(100),
   last_name: z.string().min(1).max(100),
-  ic_number: z.string().min(1).max(30),
+  ic_number: z
+    .string()
+    .min(1)
+    .max(30)
+    .refine((s) => s.replace(/\D/g, "").length === 12, {
+      message: "IC number must be 12 digits",
+    }),
   relationship: z.enum([
     "family_members_of_director",
     "director_shareholder",
