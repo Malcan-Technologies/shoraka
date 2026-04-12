@@ -1087,8 +1087,6 @@ export function ContractDetailsStep({
     return <ContractDetailsSkeleton />;
   }
 
-  const stepIsFlagged = isAmendmentMode && (flaggedSections?.has("contract_details") || (flaggedItems?.get("contract_details")?.size ?? 0) > 0);
-
   const labelClassName = cn(formLabelClassName, "font-normal");
   const inputClassName = cn(formInputClassName, !stepIsEditable && formInputDisabledClassName);
   const sectionHeaderClassName = "text-base font-semibold text-foreground";
@@ -1120,7 +1118,7 @@ export function ContractDetailsStep({
               onChange={(e) => handleInputChange("contract", "title", e.target.value)}
               disabled={!stepIsEditable}
               placeholder="eg. Mining Rig Repair 12654"
-              className={cn(inputClassName, stepIsFlagged ? "border-destructive focus-visible:border-2 focus-visible:border-destructive" : "")}
+              className={inputClassName}
             />
 
             <Label className={labelClassName}>Contract Description</Label>
