@@ -63,13 +63,15 @@ export function FinancingTypeConfig({
   config,
   onChange,
   onPendingImageChange,
+  /** Unsaved file chosen on parent (survives workflow card collapse/remount). */
+  pendingImageFile = null,
 }: {
   config: unknown;
   onChange: (config: unknown) => void;
   onPendingImageChange?: (file: File | null) => void;
+  pendingImageFile?: File | null;
 }) {
   const current = getConfig(config);
-  const [pendingFile, setPendingFile] = React.useState<File | null>(null);
   const [previewDataUrl, setPreviewDataUrl] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const base = (config as Record<string, unknown>) ?? {};
@@ -79,18 +81,18 @@ export function FinancingTypeConfig({
   const { data: viewUrl, isLoading: viewUrlLoading } = useS3ViewUrl(s3Key || null);
   const [imgError, setImgError] = React.useState(false);
 
-  const hasPreview = pendingFile !== null || imageData !== null;
+  const hasPreview = pendingImageFile !== null || imageData !== null;
 
   // Preview: pending file → FileReader.readAsDataURL (data URL). Saved image → S3 view URL.
   React.useEffect(() => {
-    if (!pendingFile) {
+    if (!pendingImageFile) {
       setPreviewDataUrl(null);
       return;
     }
     const reader = new FileReader();
     reader.onload = () => setPreviewDataUrl(reader.result as string);
-    reader.readAsDataURL(pendingFile);
-  }, [pendingFile]);
+    reader.readAsDataURL(pendingImageFile);
+  }, [pendingImageFile]);
 
   React.useEffect(() => {
     setImgError(false);
@@ -112,7 +114,6 @@ export function FinancingTypeConfig({
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) {
-      setPendingFile(null);
       onPendingImageChange?.(null);
       return;
     }
@@ -126,20 +127,20 @@ export function FinancingTypeConfig({
       e.target.value = "";
       return;
     }
-    setPendingFile(file);
     onPendingImageChange?.(file);
   };
 
   const handleRemove = () => {
-    setPendingFile(null);
     onPendingImageChange?.(null);
     update({ image: undefined, _pendingImage: false } as Record<string, unknown>);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   // Pending file → data URL from FileReader. Else saved image (s3_key) → presigned view URL.
-  const previewSrc = pendingFile && previewDataUrl ? previewDataUrl : viewUrl && !imgError ? viewUrl : null;
-  const previewLoading = (pendingFile && !previewDataUrl) || (!pendingFile && viewUrlLoading);
+  const previewSrc =
+    pendingImageFile && previewDataUrl ? previewDataUrl : viewUrl && !imgError ? viewUrl : null;
+  const previewLoading =
+    (pendingImageFile && !previewDataUrl) || (!pendingImageFile && viewUrlLoading);
 
   return (
     <div className={cn("grid pt-2 text-sm leading-6 min-w-0", SECTION_GAP)}>
@@ -209,22 +210,22 @@ export function FinancingTypeConfig({
                 )}
               </div>
               <div className="min-w-0 flex-1 sm:basis-0 sm:overflow-hidden">
-                {(pendingFile || imageData?.file_name || imageData?.file_size != null) && (
+                {(pendingImageFile || imageData?.file_name || imageData?.file_size != null) && (
                   <p
                     className="text-sm font-medium block max-w-full min-w-0 break-words sm:overflow-hidden sm:text-ellipsis sm:whitespace-nowrap"
                     title={
-                      pendingFile
-                        ? pendingFile.name
+                      pendingImageFile
+                        ? pendingImageFile.name
                         : imageData?.file_name || (imageData?.file_size != null ? "Image" : undefined)
                     }
                   >
-                    {pendingFile
-                      ? `${pendingFile.name} (${formatFileSize(pendingFile.size)})`
+                    {pendingImageFile
+                      ? `${pendingImageFile.name} (${formatFileSize(pendingImageFile.size)})`
                       : `${imageData?.file_name || "Image"}${imageData?.file_size != null ? ` (${formatFileSize(imageData.file_size)})` : ""}`}
                   </p>
                 )}
                 <p className="text-sm text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-                  {viewUrl && !pendingFile ? (
+                  {viewUrl && !pendingImageFile ? (
                     <a
                       href={viewUrl}
                       target="_blank"

@@ -596,7 +596,10 @@ const hasChanges = !isEdit
                                       onChange={(config) => handleConfigChange(stepId, config)}
                                       extraProps={
                                         stepKey === FIRST_STEP_KEY
-                                          ? { onPendingImageChange: handlePendingImageChange }
+                                          ? {
+                                              onPendingImageChange: handlePendingImageChange,
+                                              pendingImageFile,
+                                            }
                                           : stepKey === SUPPORTING_DOCS_STEP_KEY
                                             ? { onPendingTemplateChange: handlePendingSupportingDocTemplate }
                                             : undefined
