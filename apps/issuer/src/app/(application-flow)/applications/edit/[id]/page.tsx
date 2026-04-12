@@ -72,6 +72,10 @@ import { useIssuerUnsavedNavigation } from "@/contexts/issuer-unsaved-navigation
 import { DevToolsProvider, useDevTools } from "../../components/dev-tools-context";
 import { DevToolsPanel } from "../../components/dev-tools-panel";
 import "../../components/dev-tools-registry";
+
+/** Post-submit / post-resubmit list route (toast shows first, then client navigates here). */
+const SUBMIT_SUCCESS_REDIRECT = "/applications";
+
 /**
  * SAVE & CONTINUE VALIDATION CONTRACT
  *
@@ -607,6 +611,8 @@ function EditApplicationPageBody() {
   const isSubmittingRef = React.useRef<boolean>(false);
   /** UI state for Save & Continue: triggers re-render so button shows "Saving..." and disables. */
   const [isSaving, setIsSaving] = React.useState(false);
+  /** UI state for Submit / Resubmit: covers version check + mutations (ref alone does not re-render). */
+  const [isSubmittingApplication, setIsSubmittingApplication] = React.useState(false);
 
   /* ================================================================
      MUTATIONS
@@ -1016,10 +1022,14 @@ function EditApplicationPageBody() {
     if (isSubmittingRef.current) return;
     if (devPreviewAmendment) {
       toast.info("Preview: submit was not sent to the server");
-      await navigateWithVersionCheck("/", "replace");
+      queueMicrotask(() => {
+        router.replace(SUBMIT_SUCCESS_REDIRECT);
+      });
       return;
     }
     isSubmittingRef.current = true;
+    setIsSubmittingApplication(true);
+    let successPendingNav = false;
 
     try {
       if (!applicationId) return;
@@ -1043,16 +1053,21 @@ function EditApplicationPageBody() {
         status: isResubmit ? "RESUBMITTED" : "SUBMITTED",
       });
 
-      const didLeave = await navigateWithVersionCheck("/", "replace");
-      if (didLeave) {
-        toast.success(
-          isResubmit ? "Application resubmitted successfully" : "Application submitted successfully"
-        );
-      }
+      successPendingNav = true;
+      const successMessage = isResubmit
+        ? "Application resubmitted successfully"
+        : "Application submitted successfully";
+      toast.success(successMessage);
+      queueMicrotask(() => {
+        router.replace(SUBMIT_SUCCESS_REDIRECT);
+      });
     } catch {
       toast.error("Failed to submit application");
     } finally {
-      isSubmittingRef.current = false;
+      if (!successPendingNav) {
+        isSubmittingRef.current = false;
+        setIsSubmittingApplication(false);
+      }
     }
   };
 
@@ -1591,7 +1606,7 @@ function EditApplicationPageBody() {
                 isSaving ||
                 (currentStepKey === "review_and_submit" &&
                   application?.status === "AMENDMENT_REQUESTED" &&
-                  resubmitMutation.isPending)
+                  (resubmitMutation.isPending || isSubmittingApplication))
               }
               className="text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-2 sm:order-1 h-11"
             >
@@ -1607,21 +1622,29 @@ function EditApplicationPageBody() {
                       if (isSubmittingRef.current || !applicationId) return;
                       if (devPreviewAmendment) {
                         toast.info("Preview: resubmit was not sent to the server");
-                        await navigateWithVersionCheck("/", "replace");
+                        queueMicrotask(() => {
+                          router.replace(SUBMIT_SUCCESS_REDIRECT);
+                        });
                         return;
                       }
                       isSubmittingRef.current = true;
+                      setIsSubmittingApplication(true);
+                      let successPendingNav = false;
                       try {
                         if (await versionBlocksNavigation()) return;
                         await resubmitMutation.mutateAsync(applicationId);
-                        const didLeave = await navigateWithVersionCheck("/", "replace");
-                        if (didLeave) {
-                          toast.success("Application resubmitted successfully");
-                        }
+                        successPendingNav = true;
+                        toast.success("Application resubmitted successfully");
+                        queueMicrotask(() => {
+                          router.replace(SUBMIT_SUCCESS_REDIRECT);
+                        });
                       } catch {
                         toast.error("Failed to resubmit application");
                       } finally {
-                        isSubmittingRef.current = false;
+                        if (!successPendingNav) {
+                          isSubmittingRef.current = false;
+                          setIsSubmittingApplication(false);
+                        }
                       }
                     }
                   : currentStepKey === "review_and_submit"
@@ -1632,11 +1655,13 @@ function EditApplicationPageBody() {
                 footerActionsLocked ||
                 (currentStepKey === "review_and_submit" && (application?.status === "AMENDMENT_REQUESTED" || devPreviewAmendment)
                   ? resubmitMutation.isPending ||
+                    isSubmittingApplication ||
                     isSubmittingRef.current ||
                     (!devPreviewAmendment && !allAmendmentStepsAcknowledged) ||
                     (!devPreviewAmendment && !isCurrentStepValid)
                   : updateStepMutation.isPending ||
                     updateStatusMutation.isPending ||
+                    isSubmittingApplication ||
                     isSaving ||
                     (!devPreviewAmendment && !isCurrentStepValid) ||
                     !isStepMapped)
@@ -1644,11 +1669,13 @@ function EditApplicationPageBody() {
               className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2 h-11"
             >
               {currentStepKey === "review_and_submit" && (application?.status === "AMENDMENT_REQUESTED" || devPreviewAmendment)
-                ? resubmitMutation.isPending
+                ? resubmitMutation.isPending || isSubmittingApplication
                   ? "Resubmitting..."
                   : "Resubmit for Review"
                 : currentStepKey === "review_and_submit"
-                ? updateStatusMutation.isPending
+                ? isSubmittingApplication ||
+                  updateStepMutation.isPending ||
+                  updateStatusMutation.isPending
                   ? "Submitting..."
                   : "Submit"
                 : updateStepMutation.isPending || isSaving
