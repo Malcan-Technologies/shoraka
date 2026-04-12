@@ -1253,24 +1253,7 @@ export function BusinessDetailsStep({
     hasRemovedSupportingDocuments,
   ]);
 
-  if (isLoadingApp || !isInitialized || devTools?.showSkeletonDebug) {
-    return <BusinessDetailsSkeleton />;
-  }
-
-  const sameInvoiceP2pBlocked =
-    whyRaisingFunds.raisingOnOtherP2P === "yes" && whyRaisingFunds.sameInvoiceUsed === "yes";
-  const fieldsLocked = readOnly || sameInvoiceP2pBlocked;
-
-  const replaceGuarantorRow = (index: number, next: GuarantorFormRow) => {
-    setGuarantors((prev) => prev.map((row, i) => (i === index ? next : row)));
-  };
-
-  const setGuarantorTypeAt = (index: number, type: "individual" | "company") => {
-    replaceGuarantorRow(index, type === "individual" ? emptyIndividualGuarantor() : emptyCompanyGuarantor());
-  };
-
-  const handleWhySectionSupportingDocumentsSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
+  const addWhySectionSupportingPdfFiles = React.useCallback((files: File[]) => {
     if (files.length === 0) return;
 
     for (const file of files) {
@@ -1302,8 +1285,42 @@ export function BusinessDetailsStep({
         })),
       ],
     }));
+  }, []);
 
+  const whySupportingDocumentsDropZoneProps = React.useMemo(
+    () => ({
+      onDragOver: (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+      },
+      onDrop: (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        addWhySectionSupportingPdfFiles(Array.from(e.dataTransfer.files ?? []));
+      },
+    }),
+    [addWhySectionSupportingPdfFiles]
+  );
+
+  const handleWhySectionSupportingDocumentsSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    addWhySectionSupportingPdfFiles(Array.from(e.target.files ?? []));
     e.currentTarget.value = "";
+  };
+
+  if (isLoadingApp || !isInitialized || devTools?.showSkeletonDebug) {
+    return <BusinessDetailsSkeleton />;
+  }
+
+  const sameInvoiceP2pBlocked =
+    whyRaisingFunds.raisingOnOtherP2P === "yes" && whyRaisingFunds.sameInvoiceUsed === "yes";
+  const fieldsLocked = readOnly || sameInvoiceP2pBlocked;
+
+  const replaceGuarantorRow = (index: number, next: GuarantorFormRow) => {
+    setGuarantors((prev) => prev.map((row, i) => (i === index ? next : row)));
+  };
+
+  const setGuarantorTypeAt = (index: number, type: "individual" | "company") => {
+    replaceGuarantorRow(index, type === "individual" ? emptyIndividualGuarantor() : emptyCompanyGuarantor());
   };
 
   const removeWhySectionSupportingDocumentAt = (index: number) => {
@@ -1573,7 +1590,10 @@ export function BusinessDetailsStep({
                 ))}
                 {!fieldsLocked && (
                   <label htmlFor="why-section-supporting-documents" className="cursor-pointer">
-                    <div className="border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-colors border-border bg-card/50 hover:bg-muted/50">
+                    <div
+                      className="border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-colors border-border bg-card/50 hover:bg-muted/50"
+                      {...whySupportingDocumentsDropZoneProps}
+                    >
                       <div className="p-2 rounded-full bg-background border shadow-sm">
                         <CloudUpload className="h-5 w-5 text-muted-foreground" />
                       </div>
@@ -1601,7 +1621,10 @@ export function BusinessDetailsStep({
                 htmlFor="why-section-supporting-documents"
                 className="cursor-pointer"
               >
-                <div className="border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-colors border-border bg-card/50 hover:bg-muted/50">
+                <div
+                  className="border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-colors border-border bg-card/50 hover:bg-muted/50"
+                  {...whySupportingDocumentsDropZoneProps}
+                >
                   <div className="p-2 rounded-full bg-background border shadow-sm">
                     <CloudUpload className="h-5 w-5 text-muted-foreground" />
                   </div>
