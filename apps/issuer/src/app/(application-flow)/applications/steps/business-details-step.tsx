@@ -1242,12 +1242,7 @@ export function BusinessDetailsStep({
           <div className={applicationFlowSectionDividerClassName} />
         </div>
 
-        <div
-          className={cn(
-            rowGridClassName,
-            sameInvoiceP2pBlocked && "pointer-events-none opacity-50 select-none"
-          )}
-        >
+        <div className={rowGridClassName}>
           <Label htmlFor="what-does-company-do" className={labelTextareaClassName}>
             What does your company do?
           </Label>
@@ -1330,12 +1325,7 @@ export function BusinessDetailsStep({
         </div>
 
         <div className={rowGridClassName}>
-          <div
-            className={cn(
-              "contents",
-              sameInvoiceP2pBlocked && "[&>*]:pointer-events-none [&>*]:opacity-50 [&>*]:select-none"
-            )}
-          >
+          <div className="contents">
             <Label htmlFor="financing-for" className={labelTextareaClassName}>
               What is this financing for?
             </Label>
@@ -1630,13 +1620,7 @@ export function BusinessDetailsStep({
       </section>
 
       {/* ===================== GUARANTOR DETAILS ===================== */}
-      <section
-        className={cn(
-          sectionWrapperClassName,
-          "space-y-5",
-          sameInvoiceP2pBlocked && "opacity-50"
-        )}
-      >
+      <section className={cn(sectionWrapperClassName, "space-y-5")}>
         <div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
             <h3 className={applicationFlowSectionTitleClassName}>Guarantor details</h3>
@@ -1738,13 +1722,7 @@ export function BusinessDetailsStep({
       </section>
 
       {/* ===================== DECLARATIONS ===================== */}
-      <section
-        className={cn(
-          sectionWrapperClassName,
-          "space-y-5",
-          sameInvoiceP2pBlocked && "opacity-50"
-        )}
-      >
+      <section className={cn(sectionWrapperClassName, "space-y-5")}>
         <div>
           <h3 className={applicationFlowSectionTitleClassName}>Declarations</h3>
           <div className={applicationFlowSectionDividerClassName} />
