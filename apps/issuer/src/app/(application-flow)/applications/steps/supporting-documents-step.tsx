@@ -24,12 +24,17 @@ import { FileDisplayBadge } from "@/app/(application-flow)/applications/componen
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AMENDMENT_CALLOUT_BODY,
+  AMENDMENT_CALLOUT_CONTENT,
+  AMENDMENT_CALLOUT_ICON_WRAP,
+  AMENDMENT_CALLOUT_ROOT,
+  AMENDMENT_CALLOUT_TITLE,
+} from "@/app/(application-flow)/applications/components/amendments/amendment-callout-styles";
 import { Button } from "@/components/ui/button";
 import { applicationFlowAmendmentTargetTableRowClassName } from "@/app/(application-flow)/applications/components/form-control";
 
@@ -1131,56 +1136,81 @@ export function SupportingDocumentsStep({
       open={feedbackDialog.open}
       onOpenChange={(open) => setFeedbackDialog((s) => ({ ...s, open }))}
     >
-      <DialogContent className="rounded-xl sm:max-w-lg">
-        <DialogHeader>
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/20 border border-primary/45">
-              <ExclamationTriangleIcon className="h-5 w-5 text-primary" aria-hidden />
+      <DialogContent
+        hideClose
+        className="gap-0 border-0 bg-transparent p-0 shadow-none sm:max-w-lg"
+      >
+        <DialogTitle className="sr-only">
+          Amendment required
+          {feedbackDialog.documentTitle
+            ? ` — ${feedbackDialog.documentTitle}`
+            : ""}
+        </DialogTitle>
+        <div
+          className={cn(
+            AMENDMENT_CALLOUT_ROOT,
+            "relative flex flex-col gap-4 border-primary/55 text-foreground bg-[color-mix(in_srgb,hsl(var(--primary))_10%,hsl(var(--card)))]"
+          )}
+        >
+          <DialogClose asChild>
+            <button
+              type="button"
+              className="absolute right-3 top-3 z-10 rounded-sm p-1 text-primary opacity-80 ring-offset-[color-mix(in_srgb,hsl(var(--primary))_10%,hsl(var(--card)))] transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              aria-label="Close"
+            >
+              <XMarkIcon className="h-5 w-5 shrink-0" />
+            </button>
+          </DialogClose>
+          <div className="flex w-full gap-3 sm:gap-4 items-start pr-9">
+            <div
+              className={cn(
+                AMENDMENT_CALLOUT_ICON_WRAP,
+                "border-primary/45 bg-[color-mix(in_srgb,hsl(var(--primary))_20%,hsl(var(--card)))]"
+              )}
+              aria-hidden
+            >
+              <ExclamationTriangleIcon className="h-5 w-5 text-primary" />
             </div>
-            <div className="min-w-0 flex-1 space-y-2 text-left">
-              <DialogTitle className="text-primary">Reviewer feedback</DialogTitle>
-              <DialogDescription className="text-left">
-                {feedbackDialog.documentTitle
-                  ? `Document: ${feedbackDialog.documentTitle}`
-                  : "Amendment note from the reviewer."}
-              </DialogDescription>
+            <div className={AMENDMENT_CALLOUT_BODY}>
+              <p className={cn(AMENDMENT_CALLOUT_TITLE, "text-primary")}>
+                Amendment required
+              </p>
+              {feedbackDialog.documentTitle ? (
+                <p className="text-sm text-muted-foreground -mt-0.5">
+                  Document: {feedbackDialog.documentTitle}
+                </p>
+              ) : null}
+              {(() => {
+                const lines = parseRemarkLines(feedbackDialog.remark);
+                const displayLines =
+                  lines.length > 0 ? lines : ["No details provided."];
+                const emptyRemark = lines.length === 0;
+                return (
+                  <ul
+                    className={cn(
+                      AMENDMENT_CALLOUT_CONTENT,
+                      "list-disc space-y-1.5 pl-4 text-foreground",
+                      emptyRemark && "text-muted-foreground"
+                    )}
+                  >
+                    {displayLines.map((line, idx) => (
+                      <li key={idx} className="break-words whitespace-pre-wrap">
+                        {line}
+                      </li>
+                    ))}
+                  </ul>
+                );
+              })()}
             </div>
           </div>
-        </DialogHeader>
-        <div className="text-[15px] leading-7 text-foreground">
-          {(() => {
-            const lines = parseRemarkLines(feedbackDialog.remark);
-            if (lines.length === 0) {
-              return (
-                <p className="text-muted-foreground">No details provided.</p>
-              );
-            }
-            if (lines.length === 1) {
-              return (
-                <p className="whitespace-pre-wrap break-words">{lines[0]}</p>
-              );
-            }
-            return (
-              <ul className="list-disc space-y-1.5 pl-4">
-                {lines.map((line, idx) => (
-                  <li key={idx} className="break-words">
-                    {line}
-                  </li>
-                ))}
-              </ul>
-            );
-          })()}
+          <div className="flex w-full justify-end border-t border-primary/25 pt-3">
+            <DialogClose asChild>
+              <Button type="button" variant="outline" className="rounded-xl">
+                Close
+              </Button>
+            </DialogClose>
+          </div>
         </div>
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            className="rounded-xl"
-            onClick={() => setFeedbackDialog((s) => ({ ...s, open: false }))}
-          >
-            Close
-          </Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
     </>
