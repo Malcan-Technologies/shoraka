@@ -557,7 +557,8 @@ export function ReviewAndSubmitStep({
                                         <FileDisplayBadge
                                           fileName={d.document.file_name}
                                           size="sm"
-                                          className="bg-background"
+                                          truncate
+                                          className="min-w-0 max-w-full bg-background border-border"
                                         />
                                       </div>
                                     ) : (
@@ -885,11 +886,19 @@ export function ReviewAndSubmitStep({
                                 <FileDisplayBadge
                                   key={`${file?.s3_key ?? file?.file_name ?? "file"}-${fileIndex}`}
                                   fileName={file.file_name}
+                                  size="sm"
+                                  truncate
+                                  className="min-w-0 max-w-full bg-background border-border"
                                 />
                               ))}
                             </div>
                           ) : doc.file ? (
-                            <FileDisplayBadge fileName={doc.file.file_name} />
+                            <FileDisplayBadge
+                              fileName={doc.file.file_name}
+                              size="sm"
+                              truncate
+                              className="min-w-0 max-w-full bg-background border-border"
+                            />
                           ) : (
                             <span className="text-xs text-muted-foreground italic">Not provided</span>
                           )}

@@ -1373,7 +1373,10 @@ export default function InvoiceDetailsStep({
                                     fileName={inv.document.file_name}
                                     size="sm"
                                     locked={!isEditable}
-                                    className={cn(!isEditable ? "border-border" : "bg-background")}
+                                    className={cn(
+                                      "min-w-0 max-w-full border-border",
+                                      isEditable && "bg-background"
+                                    )}
                                     trailing={
                                       isEditable ? (
                                         <button

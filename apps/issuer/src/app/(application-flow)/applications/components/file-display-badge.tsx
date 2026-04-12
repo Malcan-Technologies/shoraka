@@ -1,14 +1,37 @@
 "use client";
 
 /**
- * Consistent filename display across application flow.
- * Compact badge style (width based on filename), native browser title for full name on hover.
- * Matches invoice / review: rounded-xl border, check chip, optional trailing (e.g. remove).
+ * Consistent filename display across application flow (invoice, supporting docs, review).
+ * Rounded-xl chip, circular success icon sized close to Sonner toast success affordance.
  */
 import * as React from "react";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { cn } from "@/lib/utils";
 import { formLockedFileSurfaceClassName } from "@/app/(application-flow)/applications/components/form-control";
+
+/** Icon ~ cap-height of label text (Sonner toast–style), not full row height. */
+const SIZE_STYLES = {
+  /** Tables + supporting inline chips (text-xs). */
+  sm: {
+    row: "h-9 gap-1.5 px-2 py-1",
+    box: "h-4 w-4",
+    icon: "h-3 w-3",
+    text: "text-xs",
+  },
+  /** Default / text-sm — slightly above toast dot; still below old “pill-filling” size. */
+  default: {
+    row: "h-9 gap-2 px-2.5 py-1",
+    box: "h-4 w-4",
+    icon: "h-3 w-3",
+    text: "text-sm",
+  },
+  xs: {
+    row: "h-6 gap-1 px-1.5 py-px",
+    box: "h-3.5 w-3.5",
+    icon: "h-2.5 w-2.5",
+    text: "text-[10px]",
+  },
+} as const;
 
 export function FileDisplayBadge({
   fileName,
@@ -25,7 +48,7 @@ export function FileDisplayBadge({
   fileName: string;
   className?: string;
   trailing?: React.ReactNode;
-  size?: "default" | "sm" | "xs";
+  size?: keyof typeof SIZE_STYLES;
   /** When false, filename expands to show full (for supporting docs, legal docs). Tables use truncate. */
   truncate?: boolean;
   /** Optional hard text cap before CSS truncation (e.g. 40 chars). */
@@ -33,13 +56,7 @@ export function FileDisplayBadge({
   inlineChip?: boolean;
   locked?: boolean;
 }) {
-  const textClass =
-    size === "xs" ? "text-[10px]" : size === "sm" ? "text-xs" : "text-[14px]";
-  const iconSize = size === "xs" ? "h-1.5 w-1.5" : size === "sm" ? "h-2 w-2" : "h-2.5 w-2.5";
-  const boxSize = size === "xs" ? "w-2.5 h-2.5" : size === "sm" ? "w-3 h-3" : "w-3.5 h-3.5";
-  const height = size === "xs" ? "h-6" : size === "sm" ? "h-8" : "h-6";
-  const gapClass = size === "xs" ? "gap-1.5" : "gap-2";
-  const padClass = size === "xs" ? "px-1.5 py-[1px]" : "px-2 py-[2px]";
+  const s = SIZE_STYLES[size];
 
   const displayedFileName =
     truncate &&
@@ -56,9 +73,7 @@ export function FileDisplayBadge({
       className={cn(
         "items-center border border-input bg-background rounded-xl",
         inlineChip ? "flex" : "inline-flex",
-        gapClass,
-        padClass,
-        height,
+        s.row,
         "min-w-0 max-w-full overflow-hidden",
         locked && formLockedFileSurfaceClassName,
         className
@@ -66,20 +81,21 @@ export function FileDisplayBadge({
     >
       <div
         className={cn(
-          `${boxSize} flex items-center justify-center shrink-0 rounded-sm border`,
+          s.box,
+          "flex shrink-0 items-center justify-center rounded-full border",
           locked
             ? "border-border bg-background/50"
             : "border-transparent bg-foreground"
         )}
       >
         <CheckIconSolid
-          className={cn(`${iconSize}`, locked ? "text-muted-foreground" : "text-background")}
+          className={cn(s.icon, locked ? "text-muted-foreground" : "text-background")}
         />
       </div>
       <span
         className={cn(
-          textClass,
-          "font-medium block",
+          s.text,
+          "font-medium block leading-tight",
           truncate && "min-w-0 flex-1 truncate",
           locked && "text-muted-foreground"
         )}

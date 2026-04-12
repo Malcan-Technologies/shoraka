@@ -879,7 +879,7 @@ export function SupportingDocumentsStep({
                             size="sm"
                             locked={!isEditable}
                             className={cn(
-                              "min-h-8 w-full",
+                              "min-h-9 w-full",
                               isItemFlagged && isEditable
                                 ? "border-primary/30 bg-primary/[0.07]"
                                 : !isEditable
