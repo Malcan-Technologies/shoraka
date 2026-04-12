@@ -97,6 +97,30 @@ function sortUploadRecordsNewestFirst(list: UploadRecord[]): UploadRecord[] {
   });
 }
 
+/**
+ * Matches API scope_key to a document row when slug suffixes differ between admin UI and issuer config.
+ * Accepts exact keys and prefix forms: supporting_documents:doc:{group}:{index}:… or supporting_documents:{group}:{index}:…
+ */
+function supportingDocScopeKeyMatchesRow(
+  scopeKey: string,
+  groupKey: string,
+  documentIndex: number,
+  slug: string
+): boolean {
+  const sk = scopeKey.trim().toLowerCase();
+  const g = groupKey.trim().toLowerCase();
+  const exact = [
+    `supporting_documents:${groupKey}:${documentIndex}:${slug}`,
+    `supporting_documents:doc:${groupKey}:${documentIndex}:${slug}`,
+  ];
+  if (exact.some((e) => e.toLowerCase() === sk)) return true;
+  const prefixes = [
+    `supporting_documents:doc:${g}:${documentIndex}:`,
+    `supporting_documents:${g}:${documentIndex}:`,
+  ];
+  return prefixes.some((p) => sk.startsWith(p));
+}
+
 function collectS3KeysBySlot(files: Record<string, UploadRecord[]>): Map<string, Set<string>> {
   const result = new Map<string, Set<string>>();
   for (const [slot, list] of Object.entries(files)) {
@@ -791,11 +815,15 @@ export function SupportingDocumentsStep({
                       const acceptAttr = buildAcceptAttr(document.allowedTypes ?? ["pdf"]);
                       const rawKey = `supporting_documents:${groupKey}:${documentIndex}:${slug}`;
                       const rawKeyWithDoc = `supporting_documents:doc:${groupKey}:${documentIndex}:${slug}`;
-                      const isItemFlagged =
-                        supportingDocItemSet.has(rawKey) ||
-                        supportingDocItemSet.has(rawKeyWithDoc);
+                      const isItemFlagged = [...supportingDocItemSet].some((key) =>
+                        supportingDocScopeKeyMatchesRow(key, groupKey, documentIndex, slug)
+                      );
                       const itemRemark =
-                        flaggedDocRemarks.get(rawKey) || flaggedDocRemarks.get(rawKeyWithDoc);
+                        [...flaggedDocRemarks.entries()].find(([k]) =>
+                          supportingDocScopeKeyMatchesRow(k, groupKey, documentIndex, slug)
+                        )?.[1] ??
+                        flaggedDocRemarks.get(rawKey) ??
+                        flaggedDocRemarks.get(rawKeyWithDoc);
                       /** Step-level readOnly (e.g. view-only amendment tab) is the only lock; item flags only drive highlights. */
                       const isEditable = !readOnly;
                       const isRequired = document.required !== false;
@@ -820,9 +848,9 @@ export function SupportingDocumentsStep({
                             inlineChip
                             size="sm"
                             className={cn(
-                              "min-h-8",
+                              "min-h-8 w-full",
                               isItemFlagged
-                                ? "border-primary/35 bg-primary/5"
+                                ? "border-destructive/35 bg-destructive/[0.06]"
                                 : !isEditable
                                   ? "bg-muted border-border"
                                   : "bg-background border-border"
@@ -853,14 +881,14 @@ export function SupportingDocumentsStep({
                         <div
                           key={documentIndex}
                           className={cn(
-                            "px-4 py-4 sm:px-5 sm:py-5",
-                            isItemFlagged && "bg-primary/[0.03]"
+                            "px-4 py-3.5 sm:px-5 sm:py-4",
+                            isItemFlagged && "bg-destructive/[0.04]"
                           )}
                         >
-                          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,15rem)_1fr] lg:gap-x-6 lg:items-start">
-                            <div className="min-w-0 space-y-2">
+                          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,17rem)_1fr] lg:gap-x-4 lg:items-start">
+                            <div className="min-w-0 space-y-1.5">
                               <div>
-                                <h3 className="text-base md:text-[17px] leading-7 font-semibold text-foreground">
+                                <h3 className="text-base md:text-[17px] leading-snug font-semibold text-foreground">
                                   {document.title}
                                   {isRequired ? (
                                     <>
@@ -871,7 +899,7 @@ export function SupportingDocumentsStep({
                                     </>
                                   ) : null}
                                 </h3>
-                                <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                                <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                                   {mode === "multiple" ? (
                                     <>
                                       <DocumentDuplicateIcon
@@ -892,18 +920,18 @@ export function SupportingDocumentsStep({
                                 </p>
                               </div>
                               {isItemFlagged && itemRemark ? (
-                                <div className="flex items-start gap-2 rounded-lg border border-primary/35 bg-primary/5 px-3 py-2 text-sm text-foreground leading-snug">
+                                <p className="text-xs text-destructive flex items-start gap-1.5 leading-snug">
                                   <ExclamationTriangleIcon
-                                    className="h-4 w-4 text-primary shrink-0 mt-0.5"
+                                    className="h-3.5 w-3.5 shrink-0 mt-0.5 text-destructive"
                                     aria-hidden
                                   />
-                                  <p>{itemRemark.split("\n")[0]}</p>
-                                </div>
+                                  <span>{itemRemark.split("\n")[0]}</span>
+                                </p>
                               ) : null}
                             </div>
 
-                            <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:gap-5 lg:items-start">
-                              <div className="min-w-0 flex-1 flex flex-col gap-2">
+                            <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:gap-3 lg:items-start">
+                              <div className="min-w-0 flex-1 flex flex-col gap-2 max-w-[min(100%,26rem)] lg:max-w-[min(100%,28rem)]">
                               {fileIsUploading ? (
                                 <p className="text-sm text-muted-foreground">Uploading…</p>
                               ) : hasFiles ? (
@@ -914,7 +942,7 @@ export function SupportingDocumentsStep({
                                   {remainingCount > 0 ? (
                                     <button
                                       type="button"
-                                      className="text-left text-sm font-medium text-primary hover:underline underline-offset-2 w-fit"
+                                      className="text-left text-sm font-medium text-foreground underline-offset-2 hover:underline w-fit"
                                       onClick={() =>
                                         setExpandedFileLists((prev) => ({ ...prev, [key]: true }))
                                       }
@@ -943,7 +971,7 @@ export function SupportingDocumentsStep({
                               ) : null}
                               </div>
 
-                            <div className="flex flex-col gap-1 w-full min-w-0 border-t border-border pt-3 lg:self-start lg:border-t-0 lg:pt-0 lg:min-w-[12.5rem] lg:w-[12.5rem] lg:shrink-0 lg:border-l lg:border-border lg:pl-4">
+                            <div className="flex flex-col gap-1 w-full min-w-0 border-t border-border pt-3 lg:self-start lg:border-t-0 lg:pt-0 lg:min-w-[12rem] lg:w-[12rem] lg:shrink-0 lg:border-l lg:border-border lg:pl-3">
                               {templateS3Key ? (
                                 <button
                                   type="button"

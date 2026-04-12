@@ -65,7 +65,7 @@ export function FileDisplayBadge({
       <span
         className={cn(
           textClass,
-          "font-medium",
+          "font-medium block",
           truncate && "min-w-0 flex-1 truncate"
         )}
       >

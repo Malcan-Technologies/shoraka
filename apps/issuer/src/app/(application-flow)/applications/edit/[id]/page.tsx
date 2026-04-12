@@ -836,16 +836,26 @@ function EditApplicationPageBody() {
   const currentStepRemarks = React.useMemo(() => {
     if (!currentStepKey || !amendmentContext?.remarks) return [];
     const remarks = amendmentContext.remarks as { scope?: string; scope_key?: string; remark?: string }[];
+    const hasSupportingDocItemRemarks =
+      (flaggedItems.get("supporting_documents")?.size ?? 0) > 0;
     return remarks
       .filter((r) => {
         if (r.scope !== "section" || !r.scope_key) return false;
-        return (
+        const sectionMatch =
           r.scope_key === currentStepKey ||
-          (currentStepKey === "financial_statements" && r.scope_key === "financial")
-        );
+          (currentStepKey === "financial_statements" && r.scope_key === "financial");
+        if (!sectionMatch) return false;
+        if (
+          currentStepKey === "supporting_documents" &&
+          r.scope_key === "supporting_documents" &&
+          hasSupportingDocItemRemarks
+        ) {
+          return false;
+        }
+        return true;
       })
       .map((r) => r.remark || "");
-  }, [currentStepKey, amendmentContext?.remarks]);
+  }, [currentStepKey, amendmentContext?.remarks, flaggedItems]);
 
   const stepReadOnly = isAmendmentModeEffective && !isStepFlagged;
 
