@@ -26,9 +26,11 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -1128,35 +1130,56 @@ export function SupportingDocumentsStep({
       open={feedbackDialog.open}
       onOpenChange={(open) => setFeedbackDialog((s) => ({ ...s, open }))}
     >
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="rounded-xl sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-primary">Reviewer feedback</DialogTitle>
-          <DialogDescription>
-            {feedbackDialog.documentTitle
-              ? `Document: ${feedbackDialog.documentTitle}`
-              : "Amendment note from the reviewer."}
-          </DialogDescription>
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-destructive/10">
+              <ExclamationTriangleIcon className="h-5 w-5 text-destructive" aria-hidden />
+            </div>
+            <div className="min-w-0 flex-1 space-y-2 text-left">
+              <DialogTitle>Reviewer feedback</DialogTitle>
+              <DialogDescription className="text-left">
+                {feedbackDialog.documentTitle
+                  ? `Document: ${feedbackDialog.documentTitle}`
+                  : "Amendment note from the reviewer."}
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
-        <div className="text-sm text-foreground">
+        <div className="text-[15px] leading-7 text-foreground">
           {(() => {
             const lines = parseRemarkLines(feedbackDialog.remark);
             if (lines.length === 0) {
               return (
-                <p className="text-muted-foreground leading-relaxed">No details provided.</p>
+                <p className="text-muted-foreground">No details provided.</p>
               );
             }
             if (lines.length === 1) {
-              return <p className="leading-7">{lines[0]}</p>;
+              return (
+                <p className="whitespace-pre-wrap break-words">{lines[0]}</p>
+              );
             }
             return (
-              <ul className="list-disc space-y-1.5 pl-4 leading-7">
+              <ul className="list-disc space-y-1.5 pl-4">
                 {lines.map((line, idx) => (
-                  <li key={idx}>{line}</li>
+                  <li key={idx} className="break-words">
+                    {line}
+                  </li>
                 ))}
               </ul>
             );
           })()}
         </div>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            className="rounded-xl"
+            onClick={() => setFeedbackDialog((s) => ({ ...s, open: false }))}
+          >
+            Close
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
     </>
