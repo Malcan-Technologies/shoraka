@@ -7,6 +7,13 @@
 
 import * as React from "react";
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import {
+  AMENDMENT_CALLOUT_BODY,
+  AMENDMENT_CALLOUT_CONTENT,
+  AMENDMENT_CALLOUT_ICON_WRAP,
+  AMENDMENT_CALLOUT_ROOT,
+  AMENDMENT_CALLOUT_TITLE,
+} from "./amendment-callout-styles";
 
 /** Default intro line shown when step is flagged for amendment */
 const DEFAULT_INTRO = "This section requires amendments before it can be approved.";
@@ -33,18 +40,18 @@ export function AmendmentRemarkCard({ remarks, showDefaultIntro = true }: Amendm
   if (lines.length === 0) return null;
 
   return (
-    <div className="rounded-xl border-2 border-primary/55 bg-primary/10 p-4 sm:p-5 flex gap-3 sm:gap-4 shadow-sm">
+    <div
+      className={`${AMENDMENT_CALLOUT_ROOT} border-primary/55 bg-primary/10 text-foreground`}
+    >
       <div
-        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/20 border-2 border-primary/45"
+        className={`${AMENDMENT_CALLOUT_ICON_WRAP} bg-primary/20 border-primary/45`}
         aria-hidden
       >
         <ExclamationTriangleIcon className="h-5 w-5 text-primary" />
       </div>
-      <div className="min-w-0 pt-0.5">
-        <p className="font-semibold text-primary text-[15px] sm:text-base leading-snug tracking-tight">
-          Amendment required
-        </p>
-        <ul className="mt-2 pl-4 list-disc text-sm sm:text-[15px] text-foreground leading-6 sm:leading-7">
+      <div className={AMENDMENT_CALLOUT_BODY}>
+        <p className={`${AMENDMENT_CALLOUT_TITLE} text-primary`}>Amendment required</p>
+        <ul className={`${AMENDMENT_CALLOUT_CONTENT} pl-4 list-disc space-y-1.5 text-foreground`}>
           {lines.map((line, idx) => (
             <li key={idx}>{line}</li>
           ))}
