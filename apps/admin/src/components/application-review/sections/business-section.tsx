@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { Label } from "@/components/ui/label";
 import { YesNoRadioDisplay } from "@cashsouk/ui";
 import { formatCurrency } from "@cashsouk/config";
@@ -7,6 +8,7 @@ import {
   ArrowDownTrayIcon,
   ArrowTopRightOnSquareIcon,
   ChevronDownIcon,
+  ChevronRightIcon,
   DocumentTextIcon,
 } from "@heroicons/react/24/outline";
 import { ReviewSectionCard } from "../review-section-card";
@@ -89,10 +91,12 @@ function RegTankGuarantorLinkButton({
   side,
   disabled,
   disabledReason,
+  className,
 }: {
   side?: "before" | "after";
   disabled?: boolean;
   disabledReason?: string;
+  className?: string;
 }) {
   const label =
     side === "before"
@@ -106,10 +110,12 @@ function RegTankGuarantorLinkButton({
       type="button"
       variant="outline"
       size="sm"
-      className="gap-2 w-full sm:w-auto shrink-0"
+      className={cn("gap-1.5 h-9 shrink-0 px-3 text-sm", className)}
       disabled={disabled}
       title={disabled ? disabledReason : undefined}
-      onClick={() => {}}
+      onClick={(e) => {
+        e.stopPropagation();
+      }}
     >
       <ArrowTopRightOnSquareIcon className="h-4 w-4 shrink-0" aria-hidden />
       {label}
@@ -131,8 +137,8 @@ function RegTankGuarantorControlRow({
     <div
       className={
         mode === "comparison"
-          ? "pt-3 mt-1 border-t border-border/70 flex flex-col gap-2 sm:flex-row sm:flex-wrap"
-          : "pt-3 mt-1 border-t border-border/70"
+          ? "flex flex-col items-stretch gap-1.5 sm:flex-row sm:flex-wrap sm:justify-end"
+          : "contents"
       }
     >
       {mode === "comparison" ? (
@@ -297,6 +303,277 @@ export function parseBusinessDetails(raw: unknown): BusinessDetailsView | null {
     declarationConfirmed: Boolean(r.declaration_confirmed ?? r.declarationConfirmed),
     guarantors: parseGuarantors(r.guarantors),
   };
+}
+
+function guarantorKindLabel(kind: "individual" | "company"): string {
+  return kind === "individual" ? "Individual" : "Company";
+}
+
+/** Collapsed-card subtitle (name or company + relationship), aligned with issuer guarantor cards. */
+function guarantorReviewSubtitle(g: GuarantorReviewRow): string {
+  if (g.kind === "individual") {
+    const name = [g.firstName, g.lastName]
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .join(" ");
+    const rel =
+      g.relationshipLabel && g.relationshipLabel !== REVIEW_EMPTY_LABEL ? g.relationshipLabel : "";
+    if (name && rel) return `${name} (${rel})`;
+    if (name) return name;
+    if (rel) return `(${rel})`;
+    return "";
+  }
+  const co = g.companyName.trim();
+  const rel =
+    g.relationshipLabel && g.relationshipLabel !== REVIEW_EMPTY_LABEL ? g.relationshipLabel : "";
+  if (co && rel) return `${co} (${rel})`;
+  if (co) return co;
+  if (rel) return `(${rel})`;
+  return "";
+}
+
+function sideGuarantorTypeLabel(g: GuarantorReviewRow | undefined): string {
+  return g ? guarantorKindLabel(g.kind) : "—";
+}
+
+function AdminGuarantorSingleList({ guarantors }: { guarantors: GuarantorReviewRow[] }) {
+  const [panelOpen, setPanelOpen] = React.useState<Record<number, boolean>>({});
+  const count = guarantors.length;
+
+  React.useEffect(() => {
+    setPanelOpen((prev) => {
+      const next = { ...prev };
+      for (let i = 0; i < count; i++) {
+        if (next[i] === undefined) next[i] = true;
+      }
+      for (const k of Object.keys(next)) {
+        const n = Number(k);
+        if (n >= count) delete next[n];
+      }
+      return next;
+    });
+  }, [count]);
+
+  return (
+    <div className="flex flex-col gap-6 sm:gap-8 px-1 sm:px-2">
+      {guarantors.map((g, idx) => {
+        const open = panelOpen[idx] !== undefined ? panelOpen[idx]! : true;
+        const subtitle = guarantorReviewSubtitle(g);
+        return (
+          <details
+            key={idx}
+            className="group rounded-xl border border-border bg-background"
+            open={open}
+            onToggle={(e) => {
+              const d = e.currentTarget;
+              setPanelOpen((p) => ({ ...p, [idx]: d.open }));
+            }}
+          >
+            <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-border px-4 py-3">
+                <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                  <span className="shrink-0 text-sm font-semibold text-foreground leading-6">
+                    Guarantor {idx + 1}
+                  </span>
+                  <ChevronRightIcon
+                    className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-90"
+                    aria-hidden
+                  />
+                  {subtitle ? (
+                    <span className="min-w-0 truncate text-sm text-muted-foreground leading-6">
+                      {subtitle}
+                    </span>
+                  ) : null}
+                </div>
+                <div
+                  className="flex flex-wrap items-center gap-2"
+                  onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  <RegTankGuarantorControlRow mode="single" />
+                </div>
+              </div>
+            </summary>
+            <div className="px-4 pb-4 pt-3">
+              <div className={reviewRowGridClass}>
+                <Label className={reviewLabelClass}>Guarantor type</Label>
+                <ReviewValue value={guarantorKindLabel(g.kind)} />
+                {g.kind === "individual" ? (
+                  <>
+                    <Label className={reviewLabelClass}>First name</Label>
+                    <ReviewValue value={g.firstName || REVIEW_EMPTY_LABEL} />
+                    <Label className={reviewLabelClass}>Last name</Label>
+                    <ReviewValue value={g.lastName || REVIEW_EMPTY_LABEL} />
+                    <Label className={reviewLabelClass}>IC number</Label>
+                    <ReviewValue value={g.icNumber || REVIEW_EMPTY_LABEL} />
+                    <Label className={reviewLabelClass}>Relationship</Label>
+                    <ReviewValue value={g.relationshipLabel} />
+                  </>
+                ) : (
+                  <>
+                    <Label className={reviewLabelClass}>Company name</Label>
+                    <ReviewValue value={g.companyName || REVIEW_EMPTY_LABEL} multiline />
+                    <Label className={reviewLabelClass}>SSM number</Label>
+                    <ReviewValue value={g.ssmNumber || REVIEW_EMPTY_LABEL} />
+                    <Label className={reviewLabelClass}>Relationship</Label>
+                    <ReviewValue value={g.relationshipLabel} />
+                  </>
+                )}
+              </div>
+            </div>
+          </details>
+        );
+      })}
+    </div>
+  );
+}
+
+function AdminGuarantorComparisonList({
+  b,
+  a,
+  isPathChanged,
+}: {
+  b: BusinessDetailsView;
+  a: BusinessDetailsView;
+  isPathChanged: (path: string) => boolean;
+}) {
+  const count = Math.max(b.guarantors.length, a.guarantors.length);
+  const [panelOpen, setPanelOpen] = React.useState<Record<number, boolean>>({});
+
+  React.useEffect(() => {
+    setPanelOpen((prev) => {
+      const next = { ...prev };
+      for (let i = 0; i < count; i++) {
+        if (next[i] === undefined) next[i] = true;
+      }
+      for (const k of Object.keys(next)) {
+        const n = Number(k);
+        if (n >= count) delete next[n];
+      }
+      return next;
+    });
+  }, [count]);
+
+  return (
+    <div className="flex flex-col gap-6 sm:gap-8 px-1 sm:px-2">
+      {Array.from({ length: count }).map((_, idx) => {
+        const gB = b.guarantors[idx];
+        const gA = a.guarantors[idx];
+        const hasBeforeGuarantor = gB != null;
+        const hasAfterGuarantor = gA != null;
+        const changed =
+          isPathChanged("business_details") || isPathChanged(`business_details.guarantors[${idx}]`);
+        const open = panelOpen[idx] !== undefined ? panelOpen[idx]! : true;
+        const subtitleSource = gA ?? gB;
+        const subtitle = subtitleSource ? guarantorReviewSubtitle(subtitleSource) : "";
+        const showIndividual = gB?.kind === "individual" || gA?.kind === "individual";
+        const showCompany = gB?.kind === "company" || gA?.kind === "company";
+
+        return (
+          <details
+            key={idx}
+            className="group rounded-xl border border-border bg-background"
+            open={open}
+            onToggle={(e) => {
+              const d = e.currentTarget;
+              setPanelOpen((p) => ({ ...p, [idx]: d.open }));
+            }}
+          >
+            <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-border px-4 py-3">
+                <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                  <span className="shrink-0 text-sm font-semibold text-foreground leading-6">
+                    Guarantor {idx + 1}
+                  </span>
+                  <ChevronRightIcon
+                    className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-90"
+                    aria-hidden
+                  />
+                  {subtitle ? (
+                    <span className="min-w-0 truncate text-sm text-muted-foreground leading-6">
+                      {subtitle}
+                    </span>
+                  ) : null}
+                </div>
+                <div
+                  className="flex flex-wrap items-center gap-2"
+                  onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  <RegTankGuarantorControlRow
+                    mode="comparison"
+                    comparisonSides={{
+                      beforeAvailable: hasBeforeGuarantor,
+                      afterAvailable: hasAfterGuarantor,
+                    }}
+                  />
+                </div>
+              </div>
+            </summary>
+            <div className="space-y-2 px-4 pb-4 pt-3">
+              <ComparisonFieldRow
+                label="Guarantor type"
+                before={sideGuarantorTypeLabel(gB)}
+                after={sideGuarantorTypeLabel(gA)}
+                changed={changed}
+              />
+              {showIndividual ? (
+                <div className="space-y-2">
+                  <ComparisonFieldRow
+                    label="First name"
+                    before={gB?.kind === "individual" ? gB.firstName : "—"}
+                    after={gA?.kind === "individual" ? gA.firstName : "—"}
+                    changed={changed}
+                  />
+                  <ComparisonFieldRow
+                    label="Last name"
+                    before={gB?.kind === "individual" ? gB.lastName : "—"}
+                    after={gA?.kind === "individual" ? gA.lastName : "—"}
+                    changed={changed}
+                  />
+                  <ComparisonFieldRow
+                    label="IC number"
+                    before={gB?.kind === "individual" ? gB.icNumber : "—"}
+                    after={gA?.kind === "individual" ? gA.icNumber : "—"}
+                    changed={changed}
+                  />
+                  <ComparisonFieldRow
+                    label="Relationship"
+                    before={gB?.kind === "individual" ? gB.relationshipLabel : "—"}
+                    after={gA?.kind === "individual" ? gA.relationshipLabel : "—"}
+                    changed={changed}
+                  />
+                </div>
+              ) : null}
+              {showCompany ? (
+                <div className="space-y-2">
+                  <ComparisonFieldRow
+                    label="Company name"
+                    before={gB?.kind === "company" ? gB.companyName : "—"}
+                    after={gA?.kind === "company" ? gA.companyName : "—"}
+                    changed={changed}
+                    multiline
+                  />
+                  <ComparisonFieldRow
+                    label="SSM number"
+                    before={gB?.kind === "company" ? gB.ssmNumber : "—"}
+                    after={gA?.kind === "company" ? gA.ssmNumber : "—"}
+                    changed={changed}
+                  />
+                  <ComparisonFieldRow
+                    label="Relationship"
+                    before={gB?.kind === "company" ? gB.relationshipLabel : "—"}
+                    after={gA?.kind === "company" ? gA.relationshipLabel : "—"}
+                    changed={changed}
+                  />
+                </div>
+              ) : null}
+            </div>
+          </details>
+        );
+      })}
+    </div>
+  );
 }
 
 /**
@@ -548,89 +825,7 @@ export function BusinessSection({
 
         {(b.guarantors.length > 0 || a.guarantors.length > 0) && (
           <ReviewFieldBlock title="Guarantor details">
-            <div className="space-y-4">
-              {Array.from({
-                length: Math.max(b.guarantors.length, a.guarantors.length),
-              }).map((_, idx) => {
-                const gB = b.guarantors[idx];
-                const gA = a.guarantors[idx];
-                const kind = gB?.kind ?? gA?.kind;
-                const hasBeforeGuarantor = gB != null;
-                const hasAfterGuarantor = gA != null;
-                const changed =
-                  isPathChanged("business_details") ||
-                  isPathChanged(`business_details.guarantors[${idx}]`);
-                return (
-                  <div
-                    key={idx}
-                    className="rounded-lg border border-border bg-muted/20 p-3 space-y-2"
-                  >
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      Guarantor {idx + 1}
-                      {kind ? ` · ${kind === "individual" ? "Individual" : "Company"}` : ""}
-                    </p>
-                    {kind === "individual" ? (
-                      <div className="space-y-2">
-                        <ComparisonFieldRow
-                          label="First name"
-                          before={gB?.kind === "individual" ? gB.firstName : "—"}
-                          after={gA?.kind === "individual" ? gA.firstName : "—"}
-                          changed={changed}
-                        />
-                        <ComparisonFieldRow
-                          label="Last name"
-                          before={gB?.kind === "individual" ? gB.lastName : "—"}
-                          after={gA?.kind === "individual" ? gA.lastName : "—"}
-                          changed={changed}
-                        />
-                        <ComparisonFieldRow
-                          label="IC number"
-                          before={gB?.kind === "individual" ? gB.icNumber : "—"}
-                          after={gA?.kind === "individual" ? gA.icNumber : "—"}
-                          changed={changed}
-                        />
-                        <ComparisonFieldRow
-                          label="Relationship"
-                          before={gB?.kind === "individual" ? gB.relationshipLabel : "—"}
-                          after={gA?.kind === "individual" ? gA.relationshipLabel : "—"}
-                          changed={changed}
-                        />
-                      </div>
-                    ) : null}
-                    {kind === "company" ? (
-                      <div className="space-y-2">
-                        <ComparisonFieldRow
-                          label="Company name"
-                          before={gB?.kind === "company" ? gB.companyName : "—"}
-                          after={gA?.kind === "company" ? gA.companyName : "—"}
-                          changed={changed}
-                          multiline
-                        />
-                        <ComparisonFieldRow
-                          label="SSM number"
-                          before={gB?.kind === "company" ? gB.ssmNumber : "—"}
-                          after={gA?.kind === "company" ? gA.ssmNumber : "—"}
-                          changed={changed}
-                        />
-                        <ComparisonFieldRow
-                          label="Relationship"
-                          before={gB?.kind === "company" ? gB.relationshipLabel : "—"}
-                          after={gA?.kind === "company" ? gA.relationshipLabel : "—"}
-                          changed={changed}
-                        />
-                      </div>
-                    ) : null}
-                    <RegTankGuarantorControlRow
-                      mode="comparison"
-                      comparisonSides={{
-                        beforeAvailable: hasBeforeGuarantor,
-                        afterAvailable: hasAfterGuarantor,
-                      }}
-                    />
-                  </div>
-                );
-              })}
-            </div>
+            <AdminGuarantorComparisonList b={b} a={a} isPathChanged={isPathChanged} />
           </ReviewFieldBlock>
         )}
 
@@ -828,42 +1023,7 @@ export function BusinessSection({
 
           {view.guarantors.length > 0 && (
             <ReviewFieldBlock title="Guarantor details">
-              <div className="flex flex-col gap-4">
-                {view.guarantors.map((g, idx) => (
-                  <div
-                    key={idx}
-                    className="rounded-lg border border-border bg-muted/20 p-3 space-y-2"
-                  >
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      Guarantor {idx + 1} · {g.kind === "individual" ? "Individual" : "Company"}
-                    </p>
-                    <div className={reviewRowGridClass}>
-                      {g.kind === "individual" ? (
-                        <>
-                          <Label className={reviewLabelClass}>First name</Label>
-                          <ReviewValue value={g.firstName || REVIEW_EMPTY_LABEL} />
-                          <Label className={reviewLabelClass}>Last name</Label>
-                          <ReviewValue value={g.lastName || REVIEW_EMPTY_LABEL} />
-                          <Label className={reviewLabelClass}>IC number</Label>
-                          <ReviewValue value={g.icNumber || REVIEW_EMPTY_LABEL} />
-                          <Label className={reviewLabelClass}>Relationship</Label>
-                          <ReviewValue value={g.relationshipLabel} />
-                        </>
-                      ) : (
-                        <>
-                          <Label className={reviewLabelClass}>Company name</Label>
-                          <ReviewValue value={g.companyName || REVIEW_EMPTY_LABEL} multiline />
-                          <Label className={reviewLabelClass}>SSM number</Label>
-                          <ReviewValue value={g.ssmNumber || REVIEW_EMPTY_LABEL} />
-                          <Label className={reviewLabelClass}>Relationship</Label>
-                          <ReviewValue value={g.relationshipLabel} />
-                        </>
-                      )}
-                    </div>
-                    <RegTankGuarantorControlRow mode="single" />
-                  </div>
-                ))}
-              </div>
+              <AdminGuarantorSingleList guarantors={view.guarantors} />
             </ReviewFieldBlock>
           )}
 
