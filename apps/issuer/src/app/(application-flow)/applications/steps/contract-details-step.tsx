@@ -41,6 +41,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import {
   formInputClassName,
   formInputDisabledClassName,
+  formLockedFileSurfaceClassName,
   formLabelClassName,
   formSelectTriggerClassName,
   formTextareaClassName,
@@ -355,21 +356,19 @@ function FileUploadArea({
     return (
       <div
         className={cn(
-          "border rounded-xl px-4 py-3 flex items-center justify-between gap-3",
-          disabled
-            ? "border-muted bg-muted/30"
-            : "border-border bg-card/50"
+          "rounded-xl border px-4 py-3 flex items-center justify-between gap-3 min-h-11",
+          disabled ? formLockedFileSurfaceClassName : "border-border bg-card/50 text-foreground"
         )}
       >
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <div
             className={cn(
-              "p-1 rounded-full shrink-0",
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border",
               disabled
-                ? "bg-muted"
+                ? "border-border bg-background/50"
                 : isPending
-                  ? "bg-yellow-500/10"
-                  : "bg-primary/10"
+                  ? "border-transparent bg-yellow-500/10"
+                  : "border-transparent bg-primary/10"
             )}
           >
             <CheckCircle2
@@ -383,10 +382,7 @@ function FileUploadArea({
               )}
             />
           </div>
-          <div
-            className={cn("min-w-0 flex-1", disabled && "text-muted-foreground")}
-            title={fileName}
-          >
+          <div className="min-w-0 flex-1" title={fileName}>
             <div className="text-sm font-medium truncate">{fileName}</div>
             <div className="text-xs text-muted-foreground">
               {sizeDisplay}

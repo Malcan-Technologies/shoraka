@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import {
   formInputClassName,
   formInputDisabledClassName,
+  formLockedFileSurfaceClassName,
   formTextareaClassName,
   formLabelClassName,
 } from "@/app/(application-flow)/applications/components/form-control";
@@ -1440,21 +1441,21 @@ export function BusinessDetailsStep({
                   <div
                     key={`${doc.s3_key ?? doc.client_id ?? doc.file_name}-${index}`}
                     className={cn(
-                      "border rounded-xl px-4 py-3 flex items-center justify-between gap-3",
+                      "rounded-xl border px-4 py-3 flex items-center justify-between gap-3 min-h-11",
                       fieldsLocked
-                        ? "border-muted bg-muted/30"
-                        : "border-border bg-card/50"
+                        ? formLockedFileSurfaceClassName
+                        : "border-border bg-card/50 text-foreground"
                     )}
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div
                         className={cn(
-                          "p-1 rounded-full shrink-0",
+                          "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border",
                           fieldsLocked
-                            ? "bg-muted"
+                            ? "border-border bg-background/50"
                             : doc.client_id
-                              ? "bg-yellow-500/10"
-                              : "bg-primary/10"
+                              ? "border-transparent bg-yellow-500/10"
+                              : "border-transparent bg-primary/10"
                         )}
                       >
                         <CheckCircle2
@@ -1468,13 +1469,7 @@ export function BusinessDetailsStep({
                           )}
                         />
                       </div>
-                      <div
-                        className={cn(
-                          "min-w-0 flex-1",
-                          fieldsLocked && "text-muted-foreground"
-                        )}
-                        title={doc.file_name}
-                      >
+                      <div className="min-w-0 flex-1" title={doc.file_name}>
                         <div className="text-sm font-medium truncate">{doc.file_name}</div>
                         <div className="text-xs text-muted-foreground">
                           {formatFileSize(Math.max(doc.file_size ?? 0, 0))}

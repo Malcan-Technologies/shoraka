@@ -49,6 +49,10 @@ export const formInputDisabledClassName = cn(
   formInputAutofillMutedChromeFix
 );
 
+/** Read-only uploaded file row / chip shell — same surface tokens as `formInputDisabledClassName` (no input-only autofill rules). */
+export const formLockedFileSurfaceClassName =
+  "bg-muted text-muted-foreground border-border shadow-none opacity-100";
+
 /** Whole table row locked: tr + every td same muted fill (inputs also use formInputDisabledClassName). */
 export const applicationFlowLockedTableRowClassName = cn(
   "bg-muted hover:bg-muted",

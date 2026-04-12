@@ -1372,7 +1372,8 @@ export default function InvoiceDetailsStep({
                                   <FileDisplayBadge
                                     fileName={inv.document.file_name}
                                     size="sm"
-                                    className={cn(!isEditable ? "bg-muted border-border" : "bg-background")}
+                                    locked={!isEditable}
+                                    className={cn(!isEditable ? "border-border" : "bg-background")}
                                     trailing={
                                       isEditable ? (
                                         <button

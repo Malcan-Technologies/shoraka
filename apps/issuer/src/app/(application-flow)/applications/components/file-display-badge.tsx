@@ -8,6 +8,7 @@
 import * as React from "react";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { cn } from "@/lib/utils";
+import { formLockedFileSurfaceClassName } from "@/app/(application-flow)/applications/components/form-control";
 
 export function FileDisplayBadge({
   fileName,
@@ -59,14 +60,16 @@ export function FileDisplayBadge({
         padClass,
         height,
         "min-w-0 max-w-full overflow-hidden",
-        locked && "border-muted bg-muted/30",
+        locked && formLockedFileSurfaceClassName,
         className
       )}
     >
       <div
         className={cn(
-          `${boxSize} rounded-sm flex items-center justify-center shrink-0`,
-          locked ? "bg-muted" : "bg-foreground"
+          `${boxSize} flex items-center justify-center shrink-0 rounded-sm border`,
+          locked
+            ? "border-border bg-background/50"
+            : "border-transparent bg-foreground"
         )}
       >
         <CheckIconSolid
