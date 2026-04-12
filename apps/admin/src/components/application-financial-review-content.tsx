@@ -164,7 +164,7 @@ function financialSummaryColumnShellClass(kind: "ctos" | "unaudited", colIndex: 
   const isFirstUnaudited = kind === "unaudited" && colIndex === 3;
   return cn(
     kind === "ctos" ? "bg-muted/25" : "bg-background/80",
-    isFirstUnaudited && "border-l-2 border-l-primary/20",
+    isFirstUnaudited && "border-l-2 border-l-border",
     extra
   );
 }
