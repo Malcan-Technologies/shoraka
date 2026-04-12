@@ -70,6 +70,11 @@ export function SectionActionDropdown({
   if (!isReviewable) return null;
 
   const showViewSignedOffer = !!onViewSignedOffer && signedOfferLetterAvailable === true;
+  const normalizedStatus = (sectionStatus ?? "PENDING").toUpperCase();
+  const canApprove = showApprove && normalizedStatus !== "APPROVED";
+  const canReject = showReject && normalizedStatus !== "REJECTED";
+  const canRequestAmendment =
+    showRequestAmendment && normalizedStatus !== "AMENDMENT_REQUESTED";
 
   if (viewSignedOfferOnly && showViewSignedOffer) {
     return (
@@ -92,7 +97,7 @@ export function SectionActionDropdown({
 
   const showResetOption = !!(onResetToPending && sectionStatus && sectionStatus !== "PENDING");
   const hasAnyMenuAction =
-    showApprove || showReject || showRequestAmendment || showResetOption || showViewSignedOffer;
+    canApprove || canReject || canRequestAmendment || showResetOption || showViewSignedOffer;
 
   const button = (
     <Button
@@ -164,7 +169,7 @@ export function SectionActionDropdown({
             <DropdownMenuSeparator />
           </>
         )}
-        {showApprove && (
+        {canApprove && (
           <DropdownMenuItem
             className="rounded-lg"
             onClick={() => onApprove(section)}
@@ -174,13 +179,13 @@ export function SectionActionDropdown({
             Approve
           </DropdownMenuItem>
         )}
-        {showReject && (
+        {canReject && (
           <DropdownMenuItem className="rounded-lg" onClick={() => onReject(section)}>
             <XCircleIcon className="h-4 w-4 mr-2" />
             Reject
           </DropdownMenuItem>
         )}
-        {showRequestAmendment && (
+        {canRequestAmendment && (
           <DropdownMenuItem className="rounded-lg" onClick={() => onRequestAmendment(section)}>
             <DocumentTextIcon className="h-4 w-4 mr-2" />
             Request amendment

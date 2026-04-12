@@ -5,7 +5,7 @@ import { AppError } from "../../lib/http/error-handler";
 import { logApplicationActivity } from "../applications/logs/service";
 import { ActivityPortal } from "../applications/logs/types";
 import { ApplicationReviewRemark, Contract, Prisma } from "@prisma/client";
-import { ContractStatus, WithdrawReason } from "@cashsouk/types";
+import { ApplicationStatus, ContractStatus, WithdrawReason } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import {
   generateContractDocumentKey,
@@ -265,8 +265,24 @@ export class ContractService {
     return { uploadUrl, s3Key, expiresIn };
   }
 
+  private async anyLinkedApplicationPreservesContractDocuments(contractId: string): Promise<boolean> {
+    const row = await prisma.application.findFirst({
+      where: { contract_id: contractId, status: ApplicationStatus.AMENDMENT_REQUESTED },
+      select: { id: true },
+    });
+    return row != null;
+  }
+
   async deleteDocument(contractId: string, s3Key: string, userId: string): Promise<void> {
     await this.verifyContractAccess(contractId, userId);
+
+    if (await this.anyLinkedApplicationPreservesContractDocuments(contractId)) {
+      logger.info(
+        { contractId, s3Key },
+        "Skipped contract document S3 delete: linked application AMENDMENT_REQUESTED (preserve for compare/audit)"
+      );
+      return;
+    }
 
     try {
       await deleteS3Object(s3Key);

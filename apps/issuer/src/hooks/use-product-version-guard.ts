@@ -1,42 +1,37 @@
-/* Hook: useProductVersionGuard
- *
- * Purpose:
- * - Centralize product version validation for an application.
- * - Expose isMismatch, isChecking and checkNow() for callers to run a live check
- *   (refetches the product to ensure up-to-date comparison).
+/**
+ * SECTION: Product version guard (issuer edit flow)
+ * WHY: Block or warn when the live product edition no longer matches the application's saved product_version.
+ * INPUT: applicationId, issuer session (via API client).
+ * OUTPUT: isMismatch, isChecking, blockReason, checkNow().
+ * WHERE USED: applications edit page and navigation guards.
  */
 import * as React from "react";
+import { createApiClient, useAuthToken } from "@cashsouk/config";
+import type { IssuerProductBlockReason } from "@cashsouk/types";
 import { useApplication } from "./use-applications";
-import { useProduct } from "./use-products";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export function useProductVersionGuard(applicationId: string) {
   const { data: application } = useApplication(applicationId);
+  const { getAccessToken } = useAuthToken();
 
   const productId = React.useMemo(
-    () => (application?.financing_type as any)?.product_id as string | undefined,
+    () => (application?.financing_type as { product_id?: string })?.product_id as string | undefined,
     [application]
   );
 
-  const {
-    data: _product,
-    refetch: refetchProduct,
-    isFetching: isFetchingProduct,
-  } = useProduct(productId || "");
-
   const [isMismatch, setIsMismatch] = React.useState(false);
   const [isChecking, setIsChecking] = React.useState(false);
-  const [blockReason, setBlockReason] = React.useState<"PRODUCT_DELETED" | "PRODUCT_INACTIVE" | "PRODUCT_VERSION_CHANGED" | null>(null);
+  const [blockReason, setBlockReason] = React.useState<IssuerProductBlockReason>(null);
 
   const checkNow = React.useCallback(async (): Promise<boolean> => {
-    setIsChecking(true);
-
     if (!application) {
       setIsChecking(false);
       setIsMismatch(false);
       return false;
     }
 
-    /** Amendment flow must skip all product validation; use original product configuration. */
     if ((application as { status?: string }).status === "AMENDMENT_REQUESTED") {
       setIsMismatch(false);
       setBlockReason(null);
@@ -44,67 +39,91 @@ export function useProductVersionGuard(applicationId: string) {
       return false;
     }
 
-    if (!productId) {
-      // No product selected on application — treat as no mismatch here (higher-level logic may block)
+    if (isMismatch) {
       setIsChecking(false);
-      setIsMismatch(false);
-      return false;
+      return true;
+    }
+
+    setIsChecking(true);
+
+    if (!productId?.trim()) {
+      console.log("[VERSION CHECK] no product_id on application — PRODUCT_UNAVAILABLE");
+      setIsMismatch(true);
+      setBlockReason("PRODUCT_UNAVAILABLE");
+      setIsChecking(false);
+      return true;
     }
 
     try {
-      const latestResult = await refetchProduct();
-      const latestProduct = latestResult?.data;
+      const apiClient = createApiClient(API_URL, getAccessToken);
+      const response = await apiClient.getApplicationProductVersionCompare(applicationId);
 
-      if (!latestProduct) {
-        // Product not found -> mismatch (deleted)
+      if (!response.success) {
+        console.log("[VERSION CHECK] API error:", response.error?.message);
         setIsMismatch(true);
-        setBlockReason("PRODUCT_DELETED");
+        setBlockReason("PRODUCT_UNAVAILABLE");
         setIsChecking(false);
         return true;
       }
 
-      // Use product.status lifecycle: DELETED -> INACTIVE -> version comparison
-      const status = (latestProduct as any).status as string | undefined;
-      if (status === "DELETED") {
+      const payload = response.data;
+      console.log("[VERSION CHECK] outcome:", payload.outcome, "compare_version:", payload.compare_version);
+      console.log("application.product_version:", application?.product_version);
+      console.log("product_id:", productId);
+
+      if (payload.outcome === "NO_PRODUCT_ID") {
+        console.log("[VERSION CHECK] API NO_PRODUCT_ID — PRODUCT_UNAVAILABLE");
         setIsMismatch(true);
-        setBlockReason("PRODUCT_DELETED");
+        setBlockReason("PRODUCT_UNAVAILABLE");
         setIsChecking(false);
         return true;
       }
 
-      if (status === "INACTIVE") {
+      if (payload.outcome === "PRODUCT_UNAVAILABLE") {
         setIsMismatch(true);
-        setBlockReason("PRODUCT_INACTIVE");
+        setBlockReason("PRODUCT_UNAVAILABLE");
         setIsChecking(false);
         return true;
       }
 
-      const mismatch = latestProduct.version !== (application.product_version as number);
+      const compareVersion = payload.compare_version!;
+      const mismatch = compareVersion !== (application.product_version as number);
+      console.log("is version mismatch:", mismatch);
+
+      if (mismatch) {
+        console.log("BLOCKING: Product version mismatch detected");
+      }
+
       setIsMismatch(mismatch);
       setBlockReason(mismatch ? "PRODUCT_VERSION_CHANGED" : null);
       setIsChecking(false);
       return mismatch;
     } catch (err) {
-      // On error, be conservative and treat as mismatch
+      console.log("[VERSION CHECK] exception:", err instanceof Error ? err.message : err);
       setIsMismatch(true);
-      setBlockReason("PRODUCT_VERSION_CHANGED");
+      setBlockReason("PRODUCT_UNAVAILABLE");
       setIsChecking(false);
       return true;
     }
-  }, [application, productId, refetchProduct]);
+  }, [application, applicationId, productId, getAccessToken, isMismatch]);
 
+  /**
+   * SECTION: Version check on application load
+   * WHY: Refresh or open edit URL must show mismatch modal without Save/navigation first.
+   * INPUT: applicationId, loaded application from useApplication.
+   * OUTPUT: Triggers compare API via checkNow.
+   * WHERE USED: applications/[id]/edit via useProductVersionGuard.
+   */
   React.useEffect(() => {
-    // Run an initial quick check when application or selected product changes
-    if (!application) return;
-    // fire-and-forget; checkNow will update state
-    checkNow();
-  }, [application, checkNow]);
+    if (!applicationId?.trim() || !application) return;
+    console.log("[VERSION CHECK] on load for applicationId:", applicationId);
+    void checkNow();
+  }, [applicationId, application, checkNow]);
 
   return {
     isMismatch,
-    isChecking: isChecking || isFetchingProduct,
+    isChecking,
     blockReason,
     checkNow,
   };
 }
-

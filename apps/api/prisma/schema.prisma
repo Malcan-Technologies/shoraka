@@ -252,6 +252,7 @@ model InvestorOrganization {
   onboarding_logs               OnboardingLog[]
   members                       OrganizationMember[]
   regtank_onboarding            RegTankOnboarding[]              @relation("RegTankOnboardingToInvestorOrg")
+  ctos_reports                  CtosReport[]
 
   @@index([owner_user_id])
   @@index([owner_user_id, type])
@@ -306,11 +307,41 @@ model IssuerOrganization {
   onboarding_logs              OnboardingLog[]
   members                      OrganizationMember[]
   regtank_onboarding           RegTankOnboarding[]            @relation("RegTankOnboardingToIssuerOrg")
+  ctos_reports                 CtosReport[]
 
   @@index([owner_user_id])
   @@index([owner_user_id, type])
   @@index([onboarding_status])
   @@map("issuer_organizations")
+}
+
+model CtosReport {
+  id                       String @id @default(cuid())
+  issuer_organization_id   String?
+  investor_organization_id String?
+  /// Null = company/org CTOS snapshot; non-null = RegTank subject (e.g. EOD or COD).
+  subject_ref              String?               @db.Text
+  fetched_at               DateTime
+  created_at               DateTime              @default(now())
+  updated_at               DateTime              @updatedAt
+  raw_xml                  String                @db.Text
+  report_html              String?               @db.Text
+  summary_json             Json
+  company_json             Json?
+  person_json              Json?
+  legal_json               Json
+  ccris_json               Json
+  financials_json          Json
+  issuer_organization      IssuerOrganization?   @relation(fields: [issuer_organization_id], references: [id], onDelete: Restrict)
+  investor_organization    InvestorOrganization? @relation(fields: [investor_organization_id], references: [id], onDelete: Restrict)
+
+  @@index([issuer_organization_id])
+  @@index([investor_organization_id])
+  @@index([issuer_organization_id, fetched_at(sort: Desc)])
+  @@index([investor_organization_id, fetched_at(sort: Desc)])
+  @@index([issuer_organization_id, subject_ref, fetched_at(sort: Desc)])
+  @@index([investor_organization_id, subject_ref, fetched_at(sort: Desc)])
+  @@map("ctos_reports")
 }
 
 model Application {
@@ -723,6 +754,7 @@ model NotificationType {
   description       String?
   category          NotificationCategory
   default_priority  NotificationPriority         @default(INFO)
+  portal_targets    NotificationPortalTarget[]   @default([INVESTOR, ISSUER])
   enabled_platform  Boolean                      @default(true)
   enabled_email     Boolean                      @default(true)
   user_configurable Boolean                      @default(true)
@@ -1004,4 +1036,9 @@ enum NotificationPriority {
   INFO
   WARNING
   CRITICAL
+}
+
+enum NotificationPortalTarget {
+  INVESTOR
+  ISSUER
 }

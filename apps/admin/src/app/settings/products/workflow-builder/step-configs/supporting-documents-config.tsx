@@ -29,13 +29,43 @@ type CategoryKey = (typeof CATEGORY_KEYS)[number];
 
 export interface SupportingDocItemShape {
   name: string;
+  allow_multiple?: boolean;
+  /** Omitted or true → required (backward compatible); false → optional */
+  required?: boolean;
+  /** One entry: ["pdf"] or ["excel"]. Omitted or empty → treat as ["pdf"] at runtime */
+  allowed_types?: string[];
   template?: { s3_key: string; file_name: string; file_size?: number };
+}
+
+function resolveRowRequired(row: { required?: boolean }): boolean {
+  return row.required !== false;
 }
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function resolveAllowedTypes(row: { allowed_types?: string[] }): string[] {
+  const raw = row.allowed_types;
+  if (!Array.isArray(raw) || raw.length === 0) return ["pdf"];
+  const filtered = raw
+    .filter((x): x is string => typeof x === "string")
+    .filter((t) => t === "pdf" || t === "excel");
+  if (filtered.length === 0) return ["pdf"];
+  const first = filtered[0];
+  return first === "excel" ? ["excel"] : ["pdf"];
+}
+
+/** Issuer upload allows PDF or Excel per row; optional admin template always allows PDF and Excel. */
+const ADMIN_OPTIONAL_TEMPLATE_ACCEPT = ".pdf,.xlsx,.xls";
+
+function adminOptionalTemplateMatches(file: File): boolean {
+  const lower = file.name.toLowerCase();
+  const dot = lower.lastIndexOf(".");
+  const ext = dot >= 0 ? lower.slice(dot + 1) : "";
+  return ext === "pdf" || ext === "xlsx" || ext === "xls";
 }
 
 function getCategoryList(config: unknown, key: CategoryKey): SupportingDocItemShape[] {
@@ -46,8 +76,23 @@ function getCategoryList(config: unknown, key: CategoryKey): SupportingDocItemSh
     const row = item as Record<string, unknown> | undefined;
     const template = row?.template as { s3_key?: string; file_name?: string; filename?: string; file_size?: number } | undefined;
     const fileName = (template?.file_name ?? template?.filename) as string | undefined;
+    const at = row?.allowed_types;
+    let allowed_types: string[] | undefined;
+    if (Array.isArray(at)) {
+      const f = at
+        .filter((x): x is string => typeof x === "string")
+        .filter((t) => t === "pdf" || t === "excel");
+      if (f.length > 0) {
+        const first = f[0];
+        allowed_types = [first === "excel" ? "excel" : "pdf"];
+      }
+    }
+    const rq = row?.required;
     return {
       name: (row?.name as string) ?? "",
+      allow_multiple: row?.allow_multiple === true,
+      ...(typeof rq === "boolean" ? { required: rq } : {}),
+      ...(allowed_types !== undefined && allowed_types.length > 0 ? { allowed_types } : {}),
       template:
         template?.s3_key != null
           ? {
@@ -94,11 +139,10 @@ function getConfig(config: unknown): Record<CategoryKey, SupportingDocItemShape[
   };
 }
 
-const TEMPLATE_ACCEPT = "application/pdf";
 const MAX_TEMPLATE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
 
-/** Optional template feature: disabled. Set to true to re-enable. Logic preserved below. */
-const OPTIONAL_TEMPLATE_ENABLED = false;
+/** Optional template (PDF or Excel) per document row; uploaded in admin, shown as “Download template” on issuer supporting docs step. */
+const OPTIONAL_TEMPLATE_ENABLED = true;
 
 export function SupportingDocumentsConfig({
   config,
@@ -152,7 +196,7 @@ export function SupportingDocumentsConfig({
   const addCategory = (key: CategoryKey) => {
     if (enabledCategories.includes(key)) return;
     const nextEnabled = ensureOthersLast([...enabledCategories, key]);
-    const nextLists = { ...lists, [key]: [{ name: "" }] };
+    const nextLists = { ...lists, [key]: [{ name: "", allow_multiple: false, allowed_types: ["pdf"] }] };
     setLists(nextLists);
     setEnabledCategories(nextEnabled);
     persist(nextLists, nextEnabled);
@@ -167,7 +211,7 @@ export function SupportingDocumentsConfig({
   };
 
   const addDoc = (key: CategoryKey) => {
-    updateCategory(key, [...lists[key], { name: "" }]);
+    updateCategory(key, [...lists[key], { name: "", allow_multiple: false, allowed_types: ["pdf"] }]);
   };
 
   const updateDoc = (key: CategoryKey, index: number, updates: Partial<SupportingDocItemShape>) => {
@@ -189,8 +233,9 @@ export function SupportingDocumentsConfig({
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
-    if (file.type !== "application/pdf") {
-      toast.error("Only PDF files are allowed");
+    console.log("Supporting doc optional template selected, file:", file.name);
+    if (!adminOptionalTemplateMatches(file)) {
+      toast.error("Template must be a PDF or Excel file (.pdf, .xlsx, .xls)");
       return;
     }
     if (file.size > MAX_TEMPLATE_SIZE_BYTES) {
@@ -259,7 +304,6 @@ export function SupportingDocumentsConfig({
               onTemplateSelect={(index, e) => handleTemplateSelect(key, index, e)}
               onTemplateRemove={(index) => removeTemplate(key, index)}
               onRemoveCategory={() => removeCategory(key)}
-              templateAccept={TEMPLATE_ACCEPT}
               isUploadingTemplate={false}
             />
           ))}
@@ -281,7 +325,6 @@ function CategorySection({
   onTemplateSelect,
   onTemplateRemove,
   onRemoveCategory,
-  templateAccept,
   isUploadingTemplate,
 }: {
   categoryKey: CategoryKey;
@@ -295,7 +338,6 @@ function CategorySection({
   onTemplateSelect: (index: number, e: React.ChangeEvent<HTMLInputElement>) => void;
   onTemplateRemove: (index: number) => void;
   onRemoveCategory: () => void;
-  templateAccept: string;
   isUploadingTemplate: boolean;
 }) {
   return (
@@ -335,7 +377,6 @@ function CategorySection({
               onRemove={() => onRemove(index)}
               onTemplateSelect={(e) => onTemplateSelect(index, e)}
               onTemplateRemove={() => onTemplateRemove(index)}
-              templateAccept={templateAccept}
               isUploadingTemplate={isUploadingTemplate}
             />
           ))}
@@ -353,7 +394,6 @@ function DocRow({
   onRemove,
   onTemplateSelect,
   onTemplateRemove,
-  templateAccept,
   isUploadingTemplate,
 }: {
   item: SupportingDocItemShape;
@@ -363,29 +403,43 @@ function DocRow({
   onRemove: () => void;
   onTemplateSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onTemplateRemove: () => void;
-  templateAccept: string;
   isUploadingTemplate: boolean;
 }) {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const issuerTypeIsExcel = resolveAllowedTypes(item).includes("excel");
   const s3Key = item.template?.s3_key ?? "";
   const { data: viewUrl, isLoading: viewUrlLoading } = useS3ViewUrl(s3Key || null);
   const hasTemplate = !!item.template;
   const showPending = !hasTemplate && !!pendingFile;
 
   return (
-    <li className="flex gap-2 py-2.5 px-0 min-w-0 sm:gap-3">
-      <span className="flex h-8 w-6 shrink-0 items-center justify-center text-sm font-medium text-muted-foreground tabular-nums">
+    <li className="flex gap-2 py-3 px-0 min-w-0 sm:gap-3">
+      <span className="flex h-8 w-6 shrink-0 items-start justify-center pt-1.5 text-sm font-medium text-muted-foreground tabular-nums">
         {index + 1}
       </span>
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <div className="flex items-center gap-2 min-w-0">
+      <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
           <Input
             value={item.name}
             onChange={(e) => onUpdate({ name: e.target.value })}
             placeholder="Document name"
             maxLength={200}
-            className={cn(INPUT_CLASS, "h-8 min-w-0 flex-1")}
+            className={cn(INPUT_CLASS, "h-8 min-w-0 flex-1 basis-[160px]")}
           />
+          <Select
+            value={item.allow_multiple ? "multiple" : "single"}
+            onValueChange={(value) =>
+              onUpdate({ allow_multiple: value === "multiple" })
+            }
+          >
+            <SelectTrigger className={cn(SELECT_TRIGGER_CLASS, "h-8 w-[170px] shrink-0")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="single">Single file</SelectItem>
+              <SelectItem value="multiple">Multiple files</SelectItem>
+            </SelectContent>
+          </Select>
           <Button
             type="button"
             variant="ghost"
@@ -397,81 +451,148 @@ function DocRow({
             <TrashIcon className="h-4 w-4" />
           </Button>
         </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-8 sm:gap-y-2 pl-0.5">
+          <fieldset className="m-0 min-w-0 flex-none border-0 p-0">
+            <legend className="mb-1.5 block text-xs font-medium text-muted-foreground">Allowed file types</legend>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-foreground">
+              <label className="flex cursor-pointer select-none items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 shrink-0 rounded border-input accent-primary"
+                  checked={!issuerTypeIsExcel}
+                  onChange={() => onUpdate({ allowed_types: ["pdf"] })}
+                />
+                PDF
+              </label>
+              <label className="flex cursor-pointer select-none items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 shrink-0 rounded border-input accent-primary"
+                  checked={issuerTypeIsExcel}
+                  onChange={() => onUpdate({ allowed_types: ["excel"] })}
+                />
+                Excel
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset className="m-0 min-w-0 flex-none border-0 p-0 sm:border-l sm:border-border sm:pl-8">
+            <legend className="mb-1.5 block text-xs font-medium text-muted-foreground">Issuer</legend>
+            <label className="flex cursor-pointer select-none items-center gap-2 text-sm text-foreground">
+              <input
+                type="checkbox"
+                className="h-4 w-4 shrink-0 rounded border-input accent-primary"
+                checked={resolveRowRequired(item)}
+                onChange={(e) => {
+                  console.log("Supporting doc row required toggled:", e.target.checked, "row:", index);
+                  onUpdate({ required: e.target.checked });
+                }}
+              />
+              Required to upload
+            </label>
+          </fieldset>
+        </div>
         {OPTIONAL_TEMPLATE_ENABLED && (
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground leading-6 min-w-0">
+          <div className="flex min-w-0 flex-wrap items-start gap-x-2 gap-y-1 text-sm leading-6 text-muted-foreground">
             <Input
               ref={fileInputRef}
               type="file"
-              accept={templateAccept}
+              accept={ADMIN_OPTIONAL_TEMPLATE_ACCEPT}
               onChange={onTemplateSelect}
               disabled={isUploadingTemplate}
               className="sr-only"
               tabIndex={hasTemplate || showPending ? -1 : undefined}
             />
             <span className="shrink-0">Optional template:</span>
-            {hasTemplate ? (
-              <>
-                <span className="truncate min-w-0 max-w-[180px] sm:max-w-[200px]" title={item.template!.file_name}>
-                  {item.template!.file_name}
-                  {item.template!.file_size != null && (
-                    <span className="ml-1">({formatFileSize(item.template!.file_size)})</span>
-                  )}
-                </span>
-                <span className="w-full sm:w-auto flex items-center gap-x-2 gap-y-1 shrink-0">
-                  {viewUrlLoading ? (
-                    <Skeleton className="h-4 w-10 shrink-0" />
-                  ) : viewUrl ? (
-                    <a
-                      href={viewUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="shrink-0 hover:underline focus:outline-none"
+            <div className="flex min-w-0 flex-1 basis-[200px] flex-col gap-0.5">
+              {hasTemplate ? (
+                <>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
+                    <span
+                      className="truncate min-w-0 max-w-full sm:max-w-[280px] text-foreground"
+                      title={item.template!.file_name}
                     >
-                      View
-                    </a>
+                      {item.template!.file_name}
+                    </span>
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 shrink-0">
+                      {viewUrlLoading ? (
+                        <Skeleton className="h-4 w-10 shrink-0" />
+                      ) : viewUrl ? (
+                        <a
+                          href={viewUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="shrink-0 hover:underline focus:outline-none"
+                        >
+                          View
+                        </a>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploadingTemplate}
+                        className="shrink-0 hover:underline focus:outline-none"
+                      >
+                        Change
+                      </button>
+                      <button
+                        type="button"
+                        onClick={onTemplateRemove}
+                        className="shrink-0 hover:text-destructive hover:underline focus:outline-none"
+                      >
+                        Remove
+                      </button>
+                    </span>
+                  </div>
+                  {item.template!.file_size != null ? (
+                    <p className="m-0 text-xs text-muted-foreground tabular-nums">
+                      {formatFileSize(item.template!.file_size)}
+                    </p>
                   ) : null}
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploadingTemplate}
-                    className="shrink-0 hover:underline focus:outline-none"
-                  >
-                    Change
-                  </button>
-                  <button type="button" onClick={onTemplateRemove} className="shrink-0 hover:text-destructive hover:underline focus:outline-none">
-                    Remove
-                  </button>
-                </span>
-              </>
-            ) : showPending ? (
-              <>
-                <span className="truncate min-w-0 max-w-[180px] sm:max-w-[200px]" title={pendingFile.name}>
-                  {pendingFile.name} ({formatFileSize(pendingFile.size)})
-                </span>
-                <span className="w-full sm:w-auto flex items-center gap-x-2 gap-y-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploadingTemplate}
-                    className="shrink-0 hover:underline focus:outline-none"
-                  >
-                    Change
-                  </button>
-                  <button type="button" onClick={onTemplateRemove} className="shrink-0 hover:text-destructive hover:underline focus:outline-none">
-                    Remove
-                  </button>
-                </span>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploadingTemplate}
-                className="shrink-0 hover:text-foreground hover:underline focus:outline-none"
-              >
-                {isUploadingTemplate ? "Uploading…" : "Upload"}
-              </button>
-            )}
+                </>
+              ) : showPending ? (
+                <>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
+                    <span
+                      className="truncate min-w-0 max-w-full sm:max-w-[280px] text-foreground"
+                      title={pendingFile.name}
+                    >
+                      {pendingFile.name}
+                    </span>
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploadingTemplate}
+                        className="shrink-0 hover:underline focus:outline-none"
+                      >
+                        Change
+                      </button>
+                      <button
+                        type="button"
+                        onClick={onTemplateRemove}
+                        className="shrink-0 hover:text-destructive hover:underline focus:outline-none"
+                      >
+                        Remove
+                      </button>
+                    </span>
+                  </div>
+                  <p className="m-0 text-xs text-muted-foreground tabular-nums">
+                    {formatFileSize(pendingFile.size)}
+                  </p>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingTemplate}
+                  className="shrink-0 self-start hover:text-foreground hover:underline focus:outline-none"
+                >
+                  {isUploadingTemplate ? "Uploading…" : "Upload"}
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>

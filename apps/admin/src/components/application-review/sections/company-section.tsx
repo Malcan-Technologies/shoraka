@@ -16,6 +16,7 @@ import {
   formatReviewValue,
 } from "../review-section-styles";
 import type { ReviewSectionId } from "../section-types";
+import { ComparisonFieldRow } from "../comparison-field-row";
 
 function formatAddress(addr: Record<string, unknown> | null | undefined): string {
   if (!addr || typeof addr !== "object") return REVIEW_EMPTY_LABEL;
@@ -60,6 +61,69 @@ export interface CompanySectionProps {
   onRequestAmendment?: (section: ReviewSectionId) => void;
   comments: SectionCommentItem[];
   onAddComment?: (comment: string) => Promise<void> | void;
+  sectionComparison?: {
+    beforeApp: CompanySectionProps["app"];
+    afterApp: CompanySectionProps["app"];
+    isPathChanged: (path: string) => boolean;
+  };
+  hideSectionComments?: boolean;
+}
+
+function companyDisplayFromSnapshot(app: CompanySectionProps["app"]) {
+  const rawOrg = app.issuer_organization as Record<string, unknown> | null | undefined;
+  const cod = (rawOrg?.corporateOnboardingData ??
+    rawOrg?.corporate_onboarding_data) as Record<string, unknown> | undefined;
+  const basicInfo = (cod?.basicInfo ?? cod?.basic_info) as Record<string, unknown> | undefined;
+  const addresses = (cod?.addresses ?? cod?.Addresses) as Record<string, unknown> | undefined;
+  const businessAddress = addresses?.business as Record<string, unknown> | undefined;
+  const registeredAddress = addresses?.registered as Record<string, unknown> | undefined;
+  const bankDetails = (rawOrg?.bankAccountDetails ??
+    rawOrg?.bank_account_details) as Record<string, unknown> | null | undefined;
+  const bankName = getBankField(bankDetails, "Bank") || getBankField(bankDetails, "Bank name");
+  const bankAccountNumber =
+    getBankField(bankDetails, "Bank account number") || getBankField(bankDetails, "Bank account");
+  const contactPerson = (app.company_details as Record<string, unknown> | undefined)?.contact_person as
+    | Record<string, unknown>
+    | undefined;
+  const cpName = contactPerson?.name != null ? String(contactPerson.name).trim() : "";
+  const cpEmail = contactPerson?.email != null ? String(contactPerson.email).trim() : "";
+  const cpPosition = contactPerson?.position != null ? String(contactPerson.position).trim() : "";
+  const cpContact = contactPerson?.contact != null ? String(contactPerson.contact).trim() : "";
+  const emptyDash = "—";
+  const companyName =
+    (basicInfo?.businessName ?? basicInfo?.business_name ?? rawOrg?.name) != null
+      ? formatReviewValue(basicInfo?.businessName ?? basicInfo?.business_name ?? rawOrg?.name, {
+          emptyLabel: emptyDash,
+        })
+      : REVIEW_EMPTY_LABEL;
+  const entityType =
+    formatReviewValue(basicInfo?.entityType ?? basicInfo?.entity_type, { emptyLabel: emptyDash }) ||
+    REVIEW_EMPTY_LABEL;
+  const ssmNo =
+    formatReviewValue(basicInfo?.ssmRegisterNumber ?? basicInfo?.ssm_register_number, {
+      emptyLabel: emptyDash,
+    }) || REVIEW_EMPTY_LABEL;
+  const industry =
+    formatReviewValue(basicInfo?.industry, { emptyLabel: emptyDash }) || REVIEW_EMPTY_LABEL;
+  const numberOfEmployees =
+    formatReviewValue(basicInfo?.numberOfEmployees ?? basicInfo?.number_of_employees, {
+      emptyLabel: emptyDash,
+    }) || REVIEW_EMPTY_LABEL;
+  return {
+    companyName,
+    entityType,
+    ssmNo,
+    industry,
+    numberOfEmployees,
+    businessAddress: formatAddress(businessAddress),
+    registeredAddress: formatAddress(registeredAddress),
+    bankName: bankName || REVIEW_EMPTY_LABEL,
+    bankAccountNumber: bankAccountNumber || REVIEW_EMPTY_LABEL,
+    cpName: cpName || REVIEW_EMPTY_LABEL,
+    cpEmail: cpEmail || REVIEW_EMPTY_LABEL,
+    cpPosition: cpPosition || REVIEW_EMPTY_LABEL,
+    cpContact: cpContact || REVIEW_EMPTY_LABEL,
+  };
 }
 
 export function CompanySection({
@@ -76,7 +140,123 @@ export function CompanySection({
   onRequestAmendment,
   comments,
   onAddComment,
+  sectionComparison,
+  hideSectionComments = false,
 }: CompanySectionProps) {
+  if (sectionComparison) {
+    const { beforeApp, afterApp, isPathChanged } = sectionComparison;
+    const b = companyDisplayFromSnapshot(beforeApp);
+    const a = companyDisplayFromSnapshot(afterApp);
+    return (
+      <ReviewSectionCard
+        title="Company Details"
+        icon={BuildingOffice2Icon}
+        section={section}
+        isReviewable={false}
+      >
+        <ReviewFieldBlock title="Company Info">
+          <div className="space-y-2">
+            <ComparisonFieldRow
+              label="Company Name"
+              before={b.companyName}
+              after={a.companyName}
+              changed={isPathChanged("company_details") || isPathChanged("issuer_organization")}
+            />
+            <ComparisonFieldRow
+              label="Type of Entity"
+              before={b.entityType}
+              after={a.entityType}
+              changed={isPathChanged("company_details") || isPathChanged("issuer_organization")}
+            />
+            <ComparisonFieldRow
+              label="SSM No"
+              before={b.ssmNo}
+              after={a.ssmNo}
+              changed={isPathChanged("company_details") || isPathChanged("issuer_organization")}
+            />
+            <ComparisonFieldRow
+              label="Industry"
+              before={b.industry}
+              after={a.industry}
+              changed={isPathChanged("company_details") || isPathChanged("issuer_organization")}
+            />
+            <ComparisonFieldRow
+              label="Number of Employees"
+              before={b.numberOfEmployees}
+              after={a.numberOfEmployees}
+              changed={isPathChanged("company_details") || isPathChanged("issuer_organization")}
+            />
+          </div>
+        </ReviewFieldBlock>
+        <ReviewFieldBlock title="Address">
+          <div className="space-y-2">
+            <ComparisonFieldRow
+              label="Business Address"
+              before={b.businessAddress}
+              after={a.businessAddress}
+              changed={isPathChanged("issuer_organization")}
+              multiline
+            />
+            <ComparisonFieldRow
+              label="Registered Address"
+              before={b.registeredAddress}
+              after={a.registeredAddress}
+              changed={isPathChanged("issuer_organization")}
+              multiline
+            />
+          </div>
+        </ReviewFieldBlock>
+        <ReviewFieldBlock title="Banking Details">
+          <div className="space-y-2">
+            <ComparisonFieldRow
+              label="Bank Name"
+              before={b.bankName}
+              after={a.bankName}
+              changed={isPathChanged("issuer_organization")}
+            />
+            <ComparisonFieldRow
+              label="Bank Account Number"
+              before={b.bankAccountNumber}
+              after={a.bankAccountNumber}
+              changed={isPathChanged("issuer_organization")}
+            />
+          </div>
+        </ReviewFieldBlock>
+        <ReviewFieldBlock title="Contact Person">
+          <div className="space-y-2">
+            <ComparisonFieldRow
+              label="Applicant Name"
+              before={b.cpName}
+              after={a.cpName}
+              changed={isPathChanged("company_details")}
+            />
+            <ComparisonFieldRow
+              label="Applicant Email"
+              before={b.cpEmail}
+              after={a.cpEmail}
+              changed={isPathChanged("company_details")}
+            />
+            <ComparisonFieldRow
+              label="Applicant Position"
+              before={b.cpPosition}
+              after={a.cpPosition}
+              changed={isPathChanged("company_details")}
+            />
+            <ComparisonFieldRow
+              label="Applicant Contact"
+              before={b.cpContact}
+              after={a.cpContact}
+              changed={isPathChanged("company_details")}
+            />
+          </div>
+        </ReviewFieldBlock>
+        {!hideSectionComments ? (
+          <SectionComments comments={comments} onSubmitComment={onAddComment} />
+        ) : null}
+      </ReviewSectionCard>
+    );
+  }
+
   const organizationId =
     app.issuer_organization_id ?? (app.issuer_organization as { id?: string } | null)?.id ?? null;
 
@@ -202,7 +382,9 @@ export function CompanySection({
         </div>
       </ReviewFieldBlock>
 
-      <SectionComments comments={comments} onSubmitComment={onAddComment} />
+      {!hideSectionComments ? (
+        <SectionComments comments={comments} onSubmitComment={onAddComment} />
+      ) : null}
     </ReviewSectionCard>
   );
 }

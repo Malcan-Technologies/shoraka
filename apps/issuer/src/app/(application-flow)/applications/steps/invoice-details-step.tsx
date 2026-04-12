@@ -59,6 +59,11 @@ import { cn } from "@cashsouk/ui";
 import { useQueryClient } from "@tanstack/react-query";
 import { useProducts } from "@/hooks/use-products";
 import {
+  applicationFlowAmendmentTargetTableRowClassName,
+  applicationFlowLockedTableRowClassName,
+  applicationFlowSectionDividerClassName,
+  applicationFlowSectionTitleClassName,
+  applicationFlowStepOuterClassName,
   formInputDisabledClassName,
   formLabelClassName,
   withFieldError,
@@ -198,7 +203,7 @@ export default function InvoiceDetailsStep({
   onDataChange,
   readOnly = false,
   isAmendmentMode = false,
-  flaggedSections: _flaggedSections,
+  flaggedSections,
   flaggedItems: _flaggedItems,
   remarks = [],
 }: InvoiceDetailsStepProps) {
@@ -253,6 +258,22 @@ export default function InvoiceDetailsStep({
     () => new Set(invoiceRemarksByIndex.keys()),
     [invoiceRemarksByIndex]
   );
+
+  const hasItemLevelInvoiceRemarks = invoicesWithRemarks.size > 0;
+  const sectionInvoiceAmendment =
+    isAmendmentMode &&
+    !readOnly &&
+    !hasItemLevelInvoiceRemarks &&
+    Boolean(
+      flaggedSections?.has("invoice_details") ||
+        flaggedSections?.has("invoice") ||
+        remarks.some(
+          (r) =>
+            (r as { scope?: string; scope_key?: string }).scope === "section" &&
+            ((r as { scope_key?: string }).scope_key === "invoice_details" ||
+              (r as { scope_key?: string }).scope_key === "invoice")
+        )
+    );
 
   /** Grouped invoice amendment data for card: { invoiceLabel, bullets }[]. */
   const invoiceAmendmentGroups = React.useMemo(() => {
@@ -1005,15 +1026,15 @@ export default function InvoiceDetailsStep({
 
   return (
     <>
-      <div className="space-y-10 px-3 max-w-[1200px] mx-auto">
+      <div className={applicationFlowStepOuterClassName}>
         {/* ================= Contract ================= */}
         {!isInvoiceOnly && (
           <div className="space-y-3">
             <div>
-              <h3 className="text-base font-semibold text-foreground">
+              <h3 className={applicationFlowSectionTitleClassName}>
                 {isInvoiceOnly ? "Customer" : "Contract"}
               </h3>
-              <div className="border-b border-border mt-2 mb-4" />
+              <div className={applicationFlowSectionDividerClassName} />
             </div>
 
             <div className="space-y-3 mt-4 px-3">
@@ -1051,36 +1072,40 @@ export default function InvoiceDetailsStep({
                     : "N/A"}
                 </div>
 
-                {/* ================= Approved Facility ================= */}
-                <div className={formLabelClassName}>Approved Facility</div>
-                <div className={valueClassName}>
-                  {typeof cd?.approved_facility === "number"
-                    ? `RM ${formatMoney(cd.approved_facility)}`
-                    : "N/A"}
-                </div>
+                {structureType === "existing_contract" && (
+                  <>
+                    {/* ================= Approved Facility ================= */}
+                    <div className={formLabelClassName}>Approved Facility</div>
+                    <div className={valueClassName}>
+                      {typeof cd?.approved_facility === "number"
+                        ? `RM ${formatMoney(cd.approved_facility)}`
+                        : "N/A"}
+                    </div>
 
-                {/* ================= Utilised Facility ================= */}
-                <div className={formLabelClassName}>Utilised Facility</div>
-                <div className={valueClassName}>
-                  {typeof cd?.utilized_facility === "number"
-                    ? `RM ${formatMoney(cd.utilized_facility)}`
-                    : "N/A"}
-                </div>
+                    {/* ================= Utilised Facility ================= */}
+                    <div className={formLabelClassName}>Utilised Facility</div>
+                    <div className={valueClassName}>
+                      {typeof cd?.utilized_facility === "number"
+                        ? `RM ${formatMoney(cd.utilized_facility)}`
+                        : "N/A"}
+                    </div>
 
-                {/* ================= Available Facility ================= */}
-                <div className={formLabelClassName}>Available Facility</div>
-                <div
-                  className={cn(
-                    "text-sm md:text-base leading-6 font-medium",
-                    typeof cd?.available_facility === "number" &&
-                    cd.available_facility < 0 &&
-                    "text-destructive"
-                  )}
-                >
-                  {typeof cd?.available_facility === "number"
-                    ? `RM ${formatMoney(cd.available_facility)}`
-                    : "N/A"}
-                </div>
+                    {/* ================= Available Facility ================= */}
+                    <div className={formLabelClassName}>Available Facility</div>
+                    <div
+                      className={cn(
+                        "text-sm md:text-base leading-6 font-medium",
+                        typeof cd?.available_facility === "number" &&
+                        cd.available_facility < 0 &&
+                        "text-destructive"
+                      )}
+                    >
+                      {typeof cd?.available_facility === "number"
+                        ? `RM ${formatMoney(cd.available_facility)}`
+                        : "N/A"}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -1091,7 +1116,7 @@ export default function InvoiceDetailsStep({
           <div className="space-y-4">
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="text-base font-semibold text-foreground">
+                <h3 className={applicationFlowSectionTitleClassName}>
                   Invoices
                 </h3>
                 <p className="text-sm text-muted-foreground mt-1">
@@ -1106,6 +1131,7 @@ export default function InvoiceDetailsStep({
                 Add invoice
               </Button>
             </div>
+            <div className={applicationFlowSectionDividerClassName} />
 
             {/* Item-level invoice amendment remarks above table */}
             {invoiceAmendmentGroups.length > 0 && (
@@ -1167,16 +1193,16 @@ export default function InvoiceDetailsStep({
                                       </span>
                                     </TooltipTrigger>
                                     <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
-                                      {"Per invoice\n"}
+                                      {"Per invoice.\n"}
                                       {typeof productConfig.min_invoice_value === "number"
-                                        ? `min RM ${formatMoney(productConfig.min_invoice_value)}`
+                                        ? `Min RM ${formatMoney(productConfig.min_invoice_value)}.`
                                         : ""}
                                       {typeof productConfig.min_invoice_value === "number" &&
                                       typeof productConfig.max_invoice_value === "number"
                                         ? "\n"
                                         : ""}
                                       {typeof productConfig.max_invoice_value === "number"
-                                        ? `max RM ${formatMoney(productConfig.max_invoice_value)}`
+                                        ? `Max RM ${formatMoney(productConfig.max_invoice_value)}.`
                                         : ""}
                                     </TooltipContent>
                                   </Tooltip>
@@ -1206,25 +1232,43 @@ export default function InvoiceDetailsStep({
                           })();
                           const value = parseMoney(inv.value);
                           const financingAmount = value * (ratioNum / 100);
-                          const isLocked =
-                            inv.status === "SUBMITTED" ||
-                            inv.status === "APPROVED" ||
-                            inv.status === "OFFER_SENT" ||
-                            inv.status === "REJECTED";
-                          const isEditable =
+                          const isInvFlagged = invoicesWithRemarks.has(invIndex);
+                          const isSubmittedEditableInAmendment =
+                            isAmendmentMode &&
+                            !readOnly &&
+                            inv.status === "SUBMITTED" &&
+                            (isInvFlagged || sectionInvoiceAmendment);
+
+                          let isEditable =
+                            !readOnly &&
                             (inv.status === "DRAFT" ||
                               inv.status === "AMENDMENT_REQUESTED" ||
-                              !inv.status) &&
-                            !readOnly;
-                          const isInvFlagged = invoicesWithRemarks.has(invIndex);
+                              !inv.status ||
+                              isSubmittedEditableInAmendment);
+
+                          if (isAmendmentMode && !readOnly && hasItemLevelInvoiceRemarks) {
+                            if (inv.status === "DRAFT" || !inv.status) {
+                              /* keep new / draft rows usable */
+                            } else {
+                              isEditable =
+                                (inv.status === "AMENDMENT_REQUESTED" ||
+                                  (inv.status === "SUBMITTED" && isInvFlagged)) &&
+                                !readOnly;
+                            }
+                          }
+
+                          const rowLocked = !isEditable;
 
                           return (
                             <TableRow
                               key={inv.id}
                               className={cn(
-                                "hover:bg-muted/40 transition-colors",
-                                (isLocked || readOnly) && "bg-muted/30",
-                                isInvFlagged && "border-l-4 border-l-destructive bg-red-50"
+                                "transition-colors",
+                                rowLocked && applicationFlowLockedTableRowClassName,
+                                !rowLocked && "hover:bg-muted/40",
+                                isEditable &&
+                                  isInvFlagged &&
+                                  applicationFlowAmendmentTargetTableRowClassName
                               )}
                             >
                               <TableCell className="p-2">
@@ -1252,7 +1296,7 @@ export default function InvoiceDetailsStep({
                                   value={inv.maturity_date || ""}
                                   onChange={(v) => updateInvoiceField(inv.id, "maturity_date", v)}
                                   disabled={!isEditable}
-                                  className={!isEditable ? "bg-muted" : ""}
+                                  className={!isEditable ? "cursor-not-allowed" : undefined}
                                   isInvalid={isRowPartial(inv)}
                                   size="compact"
                                   placeholder="Enter date"
@@ -1286,7 +1330,14 @@ export default function InvoiceDetailsStep({
                                       width: "fit-content",
                                     }}
                                   >
-                                    <div className="rounded-md border border-border bg-white px-2 py-0.5 text-[10px] font-medium text-black shadow-sm">
+                                    <div
+                                      className={cn(
+                                        "rounded-md border border-border px-2 py-0.5 text-[10px] font-medium shadow-sm",
+                                        !isEditable
+                                          ? "bg-muted text-foreground"
+                                          : "bg-background text-black"
+                                      )}
+                                    >
                                       {ratioNum}%
                                     </div>
                                   </div>
@@ -1325,7 +1376,11 @@ export default function InvoiceDetailsStep({
                                   <FileDisplayBadge
                                     fileName={inv.document.file_name}
                                     size="sm"
-                                    className="bg-background"
+                                    locked={!isEditable}
+                                    className={cn(
+                                      "min-w-0 max-w-full border-border",
+                                      isEditable && "bg-background"
+                                    )}
                                     trailing={
                                       isEditable ? (
                                         <button
@@ -1377,10 +1432,10 @@ export default function InvoiceDetailsStep({
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  disabled={isLocked || readOnly}
+                                  disabled={!isEditable}
                                   onClick={() => deleteInvoice(inv)}
                                   className={cn(
-                                    isLocked
+                                    !isEditable
                                       ? "text-muted-foreground cursor-not-allowed"
                                       : "hover:text-destructive"
                                   )}

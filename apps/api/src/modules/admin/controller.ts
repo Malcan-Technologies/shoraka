@@ -41,10 +41,49 @@ import {
   sendInvoiceOfferSchema,
   addPendingAmendmentSchema,
   updatePendingAmendmentSchema,
+  createCtosSubjectReportSchema,
+  resubmitComparisonQuerySchema,
 } from "./schemas";
+import { prisma } from "../../lib/prisma";
+import {
+  listCtosReportsForIssuerOrg,
+  listCtosReportsForAdminOrg,
+  listLatestCtosSubjectReportsForIssuerOrg,
+  listLatestCtosSubjectReportsForAdminOrg,
+  fetchAndInsertCtosReport,
+  fetchAndInsertCtosReportForAdminOrg,
+  fetchAndInsertCtosSubjectReport,
+  fetchAndInsertCtosSubjectReportForAdminOrg,
+  getCtosReportById,
+  getCtosReportByAdminOrg,
+} from "../ctos/ctos-report-service";
+import { renderCtosHtmlToPdfBuffer } from "../ctos/render-ctos-html-to-pdf";
 
 const router = Router();
 const adminService = new AdminService();
+
+function ctosRowPublicSummary(row: {
+  id: string;
+  issuer_organization_id: string | null;
+  investor_organization_id: string | null;
+  subject_ref?: string | null;
+  fetched_at: Date;
+  created_at: Date;
+  updated_at: Date;
+  report_html: string | null;
+}) {
+  return {
+    id: row.id,
+    issuer_organization_id: row.issuer_organization_id,
+    investor_organization_id: row.investor_organization_id,
+    subject_ref: row.subject_ref ?? null,
+    fetched_at: row.fetched_at,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    has_report_html: Boolean(row.report_html && row.report_html.length > 0),
+  };
+}
+
 
 /**
  * @swagger
@@ -1963,6 +2002,429 @@ router.get(
       res.json({
         success: true,
         data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  "/applications/:id/resubmit-comparison",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    console.log("[admin] resubmit-comparison request", {
+      applicationId: req.params.id,
+      query: req.query,
+    });
+    try {
+      const { id } = req.params;
+      const { reviewCycle } = resubmitComparisonQuerySchema.parse(req.query);
+      const result = await adminService.getResubmitComparisonSnapshots(id, reviewCycle);
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  "/organizations/:portal/:id/ctos-reports/:reportId/html",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { portal, id, reportId } = req.params;
+      if (portal !== "investor" && portal !== "issuer") {
+        throw new AppError(400, "VALIDATION_ERROR", "CTOS is only available for issuer or investor organizations");
+      }
+      const orgPortal = portal as "issuer" | "investor";
+      const row = await getCtosReportByAdminOrg(orgPortal, id, reportId);
+      if (!row?.report_html) {
+        throw new AppError(404, "NOT_FOUND", "CTOS HTML report not available");
+      }
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(row.report_html);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  "/organizations/:portal/:id/ctos-reports/:reportId/pdf",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { portal, id, reportId } = req.params;
+      if (portal !== "investor" && portal !== "issuer") {
+        throw new AppError(400, "VALIDATION_ERROR", "CTOS is only available for issuer or investor organizations");
+      }
+      const orgPortal = portal as "issuer" | "investor";
+      const row = await getCtosReportByAdminOrg(orgPortal, id, reportId);
+      if (!row?.report_html) {
+        throw new AppError(404, "NOT_FOUND", "CTOS HTML report not available");
+      }
+      let pdf: Buffer;
+      try {
+        pdf = await renderCtosHtmlToPdfBuffer(row.report_html);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new AppError(503, "PDF_GENERATION_FAILED", `Could not generate PDF: ${msg}`);
+      }
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="ctos-report-${reportId.slice(0, 8)}.pdf"`);
+      res.send(pdf);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  "/organizations/:portal/:id/ctos-reports/:reportId",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { portal, id, reportId } = req.params;
+      if (portal !== "investor" && portal !== "issuer") {
+        throw new AppError(400, "VALIDATION_ERROR", "CTOS is only available for issuer or investor organizations");
+      }
+      const orgPortal = portal as "issuer" | "investor";
+      const row = await getCtosReportByAdminOrg(orgPortal, id, reportId);
+      if (!row) {
+        throw new AppError(404, "NOT_FOUND", "CTOS report not found");
+      }
+      res.json({
+        success: true,
+        data: {
+          id: row.id,
+          issuer_organization_id: row.issuer_organization_id,
+          investor_organization_id: row.investor_organization_id,
+          fetched_at: row.fetched_at,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+          report_html: row.report_html,
+          summary_json: row.summary_json,
+          person_json: row.person_json,
+          company_json: row.company_json,
+          legal_json: row.legal_json,
+          ccris_json: row.ccris_json,
+          financials_json: row.financials_json,
+        },
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  "/organizations/:portal/:id/ctos-reports",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { portal, id } = req.params;
+      if (portal !== "investor" && portal !== "issuer") {
+        throw new AppError(400, "VALIDATION_ERROR", "CTOS is only available for issuer or investor organizations");
+      }
+      const orgPortal = portal as "issuer" | "investor";
+      if (portal === "issuer") {
+        const org = await prisma.issuerOrganization.findUnique({ where: { id } });
+        if (!org) {
+          throw new AppError(404, "NOT_FOUND", "Organization not found");
+        }
+      } else {
+        const org = await prisma.investorOrganization.findUnique({ where: { id } });
+        if (!org) {
+          throw new AppError(404, "NOT_FOUND", "Organization not found");
+        }
+      }
+      const data = await listCtosReportsForAdminOrg(orgPortal, id);
+      res.json({
+        success: true,
+        data,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/organizations/:portal/:id/ctos-reports",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { portal, id } = req.params;
+      if (portal !== "investor" && portal !== "issuer") {
+        throw new AppError(400, "VALIDATION_ERROR", "CTOS is only available for issuer or investor organizations");
+      }
+      const orgPortal = portal as "issuer" | "investor";
+      if (portal === "issuer") {
+        const org = await prisma.issuerOrganization.findUnique({ where: { id } });
+        if (!org) {
+          throw new AppError(404, "NOT_FOUND", "Organization not found");
+        }
+      } else {
+        const org = await prisma.investorOrganization.findUnique({ where: { id } });
+        if (!org) {
+          throw new AppError(404, "NOT_FOUND", "Organization not found");
+        }
+      }
+      const row = await fetchAndInsertCtosReportForAdminOrg(orgPortal, id, res.locals.correlationId);
+      res.status(201).json({
+        success: true,
+        data: ctosRowPublicSummary(row),
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  "/applications/:id/ctos-reports/:reportId/html",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id: applicationId, reportId } = req.params;
+      const app = await prisma.application.findUnique({
+        where: { id: applicationId },
+        select: { issuer_organization_id: true },
+      });
+      if (!app) {
+        throw new AppError(404, "NOT_FOUND", "Application not found");
+      }
+      const row = await getCtosReportById(app.issuer_organization_id, reportId);
+      if (!row?.report_html) {
+        throw new AppError(404, "NOT_FOUND", "CTOS HTML report not available");
+      }
+      res.setHeader("Content-Type", "text/html; charset=utf-8");
+      res.send(row.report_html);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  "/applications/:id/ctos-reports/:reportId/pdf",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id: applicationId, reportId } = req.params;
+      const app = await prisma.application.findUnique({
+        where: { id: applicationId },
+        select: { issuer_organization_id: true },
+      });
+      if (!app) {
+        throw new AppError(404, "NOT_FOUND", "Application not found");
+      }
+      const row = await getCtosReportById(app.issuer_organization_id, reportId);
+      if (!row?.report_html) {
+        throw new AppError(404, "NOT_FOUND", "CTOS HTML report not available");
+      }
+      let pdf: Buffer;
+      try {
+        pdf = await renderCtosHtmlToPdfBuffer(row.report_html);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new AppError(503, "PDF_GENERATION_FAILED", `Could not generate PDF: ${msg}`);
+      }
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="ctos-report-${reportId.slice(0, 8)}.pdf"`);
+      res.send(pdf);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  "/applications/:id/ctos-reports",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id: applicationId } = req.params;
+      const app = await prisma.application.findUnique({
+        where: { id: applicationId },
+        select: { issuer_organization_id: true },
+      });
+      if (!app) {
+        throw new AppError(404, "NOT_FOUND", "Application not found");
+      }
+      const data = await listCtosReportsForIssuerOrg(app.issuer_organization_id);
+      res.json({
+        success: true,
+        data,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/applications/:id/ctos-reports",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id: applicationId } = req.params;
+      const app = await prisma.application.findUnique({
+        where: { id: applicationId },
+        select: { issuer_organization_id: true },
+      });
+      if (!app) {
+        throw new AppError(404, "NOT_FOUND", "Application not found");
+      }
+      const row = await fetchAndInsertCtosReport(app.issuer_organization_id, res.locals.correlationId);
+      res.status(201).json({
+        success: true,
+        data: ctosRowPublicSummary(row),
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  "/applications/:id/ctos-subject-reports",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id: applicationId } = req.params;
+      const app = await prisma.application.findUnique({
+        where: { id: applicationId },
+        select: { issuer_organization_id: true },
+      });
+      if (!app) {
+        throw new AppError(404, "NOT_FOUND", "Application not found");
+      }
+      const data = await listLatestCtosSubjectReportsForIssuerOrg(app.issuer_organization_id);
+      res.json({
+        success: true,
+        data,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/applications/:id/ctos-subject-reports",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id: applicationId } = req.params;
+      const app = await prisma.application.findUnique({
+        where: { id: applicationId },
+        select: { issuer_organization_id: true },
+      });
+      if (!app) {
+        throw new AppError(404, "NOT_FOUND", "Application not found");
+      }
+      const body = createCtosSubjectReportSchema.parse(req.body);
+      const row = await fetchAndInsertCtosSubjectReport(
+        app.issuer_organization_id,
+        {
+          subjectRef: body.subjectRef,
+          subjectKind: body.subjectKind,
+          enquiryOverride: body.enquiryOverride,
+        },
+        res.locals.correlationId
+      );
+      res.status(201).json({
+        success: true,
+        data: ctosRowPublicSummary(row),
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  "/organizations/:portal/:id/ctos-subject-reports",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { portal, id } = req.params;
+      if (portal !== "investor" && portal !== "issuer") {
+        throw new AppError(400, "VALIDATION_ERROR", "CTOS is only available for issuer or investor organizations");
+      }
+      const orgPortal = portal as "issuer" | "investor";
+      if (portal === "issuer") {
+        const org = await prisma.issuerOrganization.findUnique({ where: { id } });
+        if (!org) {
+          throw new AppError(404, "NOT_FOUND", "Organization not found");
+        }
+      } else {
+        const org = await prisma.investorOrganization.findUnique({ where: { id } });
+        if (!org) {
+          throw new AppError(404, "NOT_FOUND", "Organization not found");
+        }
+      }
+      const data = await listLatestCtosSubjectReportsForAdminOrg(orgPortal, id);
+      res.json({
+        success: true,
+        data,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/organizations/:portal/:id/ctos-subject-reports",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { portal, id } = req.params;
+      if (portal !== "investor" && portal !== "issuer") {
+        throw new AppError(400, "VALIDATION_ERROR", "CTOS is only available for issuer or investor organizations");
+      }
+      const orgPortal = portal as "issuer" | "investor";
+      if (portal === "issuer") {
+        const org = await prisma.issuerOrganization.findUnique({ where: { id } });
+        if (!org) {
+          throw new AppError(404, "NOT_FOUND", "Organization not found");
+        }
+      } else {
+        const org = await prisma.investorOrganization.findUnique({ where: { id } });
+        if (!org) {
+          throw new AppError(404, "NOT_FOUND", "Organization not found");
+        }
+      }
+      const body = createCtosSubjectReportSchema.parse(req.body);
+      const row = await fetchAndInsertCtosSubjectReportForAdminOrg(
+        orgPortal,
+        id,
+        {
+          subjectRef: body.subjectRef,
+          subjectKind: body.subjectKind,
+          enquiryOverride: body.enquiryOverride,
+        },
+        res.locals.correlationId
+      );
+      res.status(201).json({
+        success: true,
+        data: ctosRowPublicSummary(row),
         correlationId: res.locals.correlationId,
       });
     } catch (error) {

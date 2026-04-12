@@ -214,6 +214,8 @@ These define:
 - Health checks
 - Logging configuration
 
+**CTOS full report HTML:** The API container image (`docker/api.Dockerfile`) must include `xsltproc` (via Alpine `libxslt`). Without it, CTOS snapshots still store XML and JSON, but `report_html` stays empty and admin “View full report” stays disabled.
+
 ## Monitoring & Operations
 
 ### CloudWatch Logs

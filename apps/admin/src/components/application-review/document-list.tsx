@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * SECTION: Supporting documents list for admin review
+ * WHY: Group uploads by workflow category; show review actions per document slot.
+ * INPUT: supporting_documents payload; optional workflow step config for requirement hints
+ * OUTPUT: Collapsible categories with file rows and optional captions
+ * WHERE USED: DocumentsSection, SupportingDocumentsComparisonLayout (via buildCategoryGroups)
+ */
+
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -8,6 +16,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
+  ArrowDownTrayIcon,
   ArrowTopRightOnSquareIcon,
   ChevronDownIcon,
   DocumentArrowDownIcon,
@@ -18,11 +27,43 @@ import {
 } from "@/app/settings/products/workflow-builder/product-form-helpers";
 import { ItemActionDropdown } from "./item-action-dropdown";
 import { ReviewStepStatusBadge } from "./review-step-status-badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { formatFileSize } from "./review-section-styles";
+import {
+  supportingDocRowRequirementMeta,
+  type SupportingDocRowRequirementMeta,
+} from "./supporting-documents-admin-meta";
+import { SupportingDocRequirementBadges } from "./supporting-doc-requirement-badges";
 
-type DocItem = { key: string; label: string; s3Key?: string };
-type CategoryGroup = { categoryKey: string; categoryLabel: string; items: DocItem[] };
+function formattedFileSize(row: Record<string, unknown> | undefined): string | undefined {
+  if (!row) return undefined;
+  const raw = row.file_size ?? row.fileSize;
+  if (typeof raw !== "number" || !Number.isFinite(raw) || raw <= 0) return undefined;
+  return formatFileSize(raw);
+}
 
-function buildCategoryGroups(documents: unknown): CategoryGroup[] {
+export type DocFile = { label: string; s3Key: string; secondary?: string };
+export type DocItem = {
+  key: string;
+  label: string;
+  s3Key?: string;
+  downloadFileName?: string;
+  files: DocFile[];
+  /** From product workflow — shown as badges */
+  requirementMeta?: SupportingDocRowRequirementMeta;
+};
+export type CategoryGroup = { categoryKey: string; categoryLabel: string; items: DocItem[] };
+
+/** Same grouping as the live review document list (categories + item keys). */
+export function buildCategoryGroups(
+  documents: unknown,
+  supportingDocumentsStepConfig?: Record<string, unknown> | null
+): CategoryGroup[] {
   if (typeof documents !== "object") return [];
   const raw = (documents as Record<string, unknown>)?.supporting_documents ?? documents;
   if (Array.isArray(raw)) {
@@ -30,11 +71,28 @@ function buildCategoryGroups(documents: unknown): CategoryGroup[] {
       const file = d?.file as { s3_key?: string } | undefined;
       const name = String(d?.name ?? d?.title ?? "document");
       const slug = name.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
-      return {
+      const base: DocItem = {
         key: `supporting_documents:others:${i}:${slug}`,
         label: name || `Document ${i + 1}`,
         s3Key: file?.s3_key ?? (d?.s3_key as string | undefined),
+        downloadFileName:
+          typeof (d?.file as { file_name?: string } | undefined)?.file_name === "string"
+            ? (d?.file as { file_name?: string }).file_name
+            : undefined,
+        files:
+          typeof (file?.s3_key ?? (d?.s3_key as string | undefined)) === "string" &&
+          String(file?.s3_key ?? (d?.s3_key as string | undefined)).trim() !== ""
+            ? [
+                {
+                  label: name || `Document ${i + 1}`,
+                  s3Key: String(file?.s3_key ?? (d?.s3_key as string | undefined)),
+                  secondary: formattedFileSize(file as Record<string, unknown>),
+                },
+              ]
+            : [],
       };
+      const meta = supportingDocRowRequirementMeta(supportingDocumentsStepConfig, "others", i);
+      return meta ? { ...base, requirementMeta: meta } : base;
     });
     return items.length > 0 ? [{ categoryKey: "others", categoryLabel: "Others", items }] : [];
   }
@@ -52,16 +110,53 @@ function buildCategoryGroups(documents: unknown): CategoryGroup[] {
       const categoryKey = labelToKey[categoryLabel] ?? `cat_${catIndex}`;
       const docList = Array.isArray(cat?.documents) ? cat.documents : [];
       const items: DocItem[] = docList.map((d: Record<string, unknown>, docIndex: number) => {
-        const file = d?.file as { file_name?: string; s3_key?: string } | undefined;
+        const files = Array.isArray(d?.files)
+          ? (d.files as Array<{ file_name?: string; s3_key?: string; file_size?: number; fileSize?: number }>)
+          : [];
+        const file =
+          (d?.file as {
+            file_name?: string;
+            s3_key?: string;
+            file_size?: number;
+            fileSize?: number;
+          } | undefined) ?? files[0];
+        const viewFiles = files
+          .filter((f) => typeof f?.s3_key === "string" && f.s3_key.trim() !== "")
+          .map((f, fileIndex) => ({
+            label: String(f.file_name ?? `File ${fileIndex + 1}`),
+            s3Key: String(f.s3_key),
+            secondary: formattedFileSize(f as Record<string, unknown>),
+          }));
+        if (viewFiles.length === 0 && typeof file?.s3_key === "string" && file.s3_key.trim() !== "") {
+          viewFiles.push({
+            label: String(file.file_name ?? `File 1`),
+            s3Key: String(file.s3_key),
+            secondary: formattedFileSize(file as Record<string, unknown>),
+          });
+        }
+        const fileCount = files.length > 0 ? files.length : file ? 1 : 0;
         const label =
           String(d?.title ?? file?.file_name ?? d?.name ?? "").trim() ||
           `Document ${docIndex + 1}`;
+        const labelWithCount =
+          fileCount > 1 ? `${label} (${fileCount} files)` : label;
         const slug = label.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
-        return {
+        const base: DocItem = {
           key: `supporting_documents:${categoryKey}:${docIndex}:${slug}`,
-          label,
+          label: labelWithCount,
           s3Key: file?.s3_key ?? (d?.s3_key as string | undefined),
+          downloadFileName:
+            typeof file?.file_name === "string" && file.file_name.trim() !== ""
+              ? file.file_name
+              : undefined,
+          files: viewFiles,
         };
+        const meta = supportingDocRowRequirementMeta(
+          supportingDocumentsStepConfig,
+          categoryKey,
+          docIndex
+        );
+        return meta ? { ...base, requirementMeta: meta } : base;
       });
       if (items.length > 0) {
         groups.push({ categoryKey, categoryLabel, items });
@@ -76,14 +171,34 @@ function buildCategoryGroups(documents: unknown): CategoryGroup[] {
     if (val == null) continue;
     const arr = Array.isArray(val) ? val : [val];
     const items: DocItem[] = arr.map((d: Record<string, unknown>, i: number) => {
-      const file = d?.file as { s3_key?: string } | undefined;
+      const file = d?.file as {
+        s3_key?: string;
+        file_name?: string;
+        file_size?: number;
+        fileSize?: number;
+      } | undefined;
       const name = String(d?.name ?? d?.title ?? "doc");
       const slug = name.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
-      return {
+      const base: DocItem = {
         key: `supporting_documents:${categoryKey}:${i}:${slug}`,
         label: name || `${categoryKey} ${i + 1}`,
         s3Key: file?.s3_key ?? (d?.s3_key as string | undefined),
+        downloadFileName:
+          typeof file?.file_name === "string" ? file.file_name : undefined,
+        files:
+          typeof (file?.s3_key ?? (d?.s3_key as string | undefined)) === "string" &&
+          String(file?.s3_key ?? (d?.s3_key as string | undefined)).trim() !== ""
+            ? [
+                {
+                  label: name || `${categoryKey} ${i + 1}`,
+                  s3Key: String(file?.s3_key ?? (d?.s3_key as string | undefined)),
+                  secondary: formattedFileSize(file as Record<string, unknown>),
+                },
+              ]
+            : [],
       };
+      const meta = supportingDocRowRequirementMeta(supportingDocumentsStepConfig, categoryKey, i);
+      return meta ? { ...base, requirementMeta: meta } : base;
     });
     if (items.length > 0) {
       groups.push({
@@ -101,6 +216,7 @@ export interface DocumentListProps {
   reviewItems: { item_type: string; item_id: string; status: string }[];
   isReviewable: boolean;
   onViewDocument?: (s3Key: string) => void;
+  onDownloadDocument?: (s3Key: string, fileName?: string) => void;
   onApproveItem: (itemId: string) => Promise<void>;
   onRejectItem: (itemId: string) => void;
   onRequestAmendmentItem: (itemId: string) => void;
@@ -111,6 +227,8 @@ export interface DocumentListProps {
   actionLockTooltip?: string;
   /** When any document was rejected, hide approve/reject/amendment on all rows (reset still allowed where applicable). */
   lockItemPrimaryReviewActions?: boolean;
+  /** Product supporting_documents step config (for Required/Optional + Single/Multiple hints). */
+  supportingDocumentsStepConfig?: Record<string, unknown> | null;
 }
 
 export function DocumentList({
@@ -118,6 +236,7 @@ export function DocumentList({
   reviewItems,
   isReviewable,
   onViewDocument,
+  onDownloadDocument,
   onApproveItem,
   onRejectItem,
   onRequestAmendmentItem,
@@ -127,8 +246,12 @@ export function DocumentList({
   isActionLocked,
   actionLockTooltip,
   lockItemPrimaryReviewActions = false,
+  supportingDocumentsStepConfig = null,
 }: DocumentListProps) {
-  const categoryGroups = React.useMemo(() => buildCategoryGroups(documents), [documents]);
+  const categoryGroups = React.useMemo(
+    () => buildCategoryGroups(documents, supportingDocumentsStepConfig),
+    [documents, supportingDocumentsStepConfig]
+  );
 
   const getItemStatus = (key: string) => {
     return reviewItems.find((r) => r.item_id === key)?.status ?? "PENDING";
@@ -160,8 +283,12 @@ export function DocumentList({
             </CollapsibleTrigger>
             <CollapsibleContent>
               <div className="border-t pl-12 pr-4 py-3 space-y-3">
-                {items.map(({ key, label, s3Key }) => {
+                {items.map(({ key, label, s3Key, downloadFileName, files, requirementMeta }) => {
                   const status = getItemStatus(key);
+                  const canViewSingle = Boolean(s3Key && onViewDocument);
+                  const canViewMultiple = Boolean(onViewDocument && files.length > 1);
+                  const canDownloadSingle = Boolean(s3Key && onDownloadDocument);
+                  const canDownloadMultiple = Boolean(onDownloadDocument && files.length > 1);
                   return (
                     <div
                       key={key}
@@ -169,22 +296,93 @@ export function DocumentList({
                     >
                       <div className="min-w-0 flex-1">
                         <span className="text-sm text-foreground">{label}</span>
+                        {requirementMeta ? (
+                          <SupportingDocRequirementBadges meta={requirementMeta} />
+                        ) : null}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         {status !== "PENDING" && (
                           <ReviewStepStatusBadge status={status} size="sm" />
                         )}
-                        {s3Key && onViewDocument && (
+                        {canViewSingle && !canViewMultiple && (
                           <Button
                             variant="outline"
                             size="sm"
                             className="rounded-lg h-9 gap-1 border-0"
-                            onClick={() => onViewDocument(s3Key)}
+                            onClick={() => onViewDocument?.(s3Key!)}
                             disabled={isViewDocumentPending}
                           >
                             <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                             View
                           </Button>
+                        )}
+                        {canViewMultiple && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="rounded-lg h-9 gap-1 border-0"
+                                disabled={isViewDocumentPending}
+                              >
+                                <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                                View
+                                <ChevronDownIcon className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="min-w-[220px]">
+                              {files.map((f, fileIndex) => (
+                                <DropdownMenuItem
+                                  key={`${f.s3Key}-${fileIndex}`}
+                                  onClick={() => onViewDocument?.(f.s3Key)}
+                                  className="flex items-center justify-between gap-3"
+                                >
+                                  <span className="truncate min-w-0">{f.label}</span>
+                                  <ArrowTopRightOnSquareIcon className="h-4 w-4 shrink-0" />
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                        {canDownloadSingle && !canDownloadMultiple && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="rounded-lg h-9 gap-1 border-0"
+                            onClick={() => onDownloadDocument?.(s3Key!, downloadFileName)}
+                            disabled={isViewDocumentPending}
+                          >
+                            <ArrowDownTrayIcon className="h-4 w-4" />
+                            Download
+                          </Button>
+                        )}
+                        {canDownloadMultiple && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="rounded-lg h-9 gap-1 border-0"
+                                disabled={isViewDocumentPending}
+                              >
+                                <ArrowDownTrayIcon className="h-4 w-4" />
+                                Download
+                                <ChevronDownIcon className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="min-w-[220px]">
+                              {files.map((f, fileIndex) => (
+                                <DropdownMenuItem
+                                  key={`${f.s3Key}-${fileIndex}-download`}
+                                  onClick={() => onDownloadDocument?.(f.s3Key, f.label)}
+                                  className="flex items-center justify-between gap-3"
+                                >
+                                  <span className="truncate min-w-0">{f.label}</span>
+                                  <ArrowDownTrayIcon className="h-4 w-4 shrink-0" />
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         )}
                         {isReviewable && (
                           <ItemActionDropdown

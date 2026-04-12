@@ -9,6 +9,9 @@ import { prisma } from "../../../lib/prisma";
 import { logger } from "../../../lib/logger";
 import { AppError } from "../../../lib/http/error-handler";
 import { ApplicationRepository } from "../repository";
+import { assertRequiredSupportingDocumentsPresent } from "../supporting-docs-workflow";
+import { buildApplicationRevisionSnapshot } from "../revision-snapshot";
+import { summarizeResubmitSnapshotDiff } from "../../application-revision-diff";
 
 export interface AmendmentAllowedSections {
   allowedSections: Set<string>;
@@ -143,6 +146,18 @@ export async function resubmitApplication(
     );
   }
 
+  const financingTypeResubmit = application.financing_type as { product_id?: string } | null | undefined;
+  const resubmitProductId = financingTypeResubmit?.product_id;
+  if (resubmitProductId) {
+    const resubmitProduct = await prisma.product.findUnique({ where: { id: resubmitProductId } });
+    if (resubmitProduct?.workflow) {
+      assertRequiredSupportingDocumentsPresent(
+        resubmitProduct.workflow as unknown[],
+        application.supporting_documents
+      );
+    }
+  }
+
   const appFullCurrent = await prisma.application.findUnique({
     where: { id: applicationId },
     include: { contract: true, invoices: true, issuer_organization: true },
@@ -150,6 +165,35 @@ export async function resubmitApplication(
 
   const previousCycle = (application as any).review_cycle ?? 1;
   const newCycle = previousCycle + 1;
+
+  const prevRevision = await prisma.applicationRevision.findFirst({
+    where: { application_id: applicationId, review_cycle: previousCycle },
+  });
+
+  const nextSnapshot = appFullCurrent
+    ? buildApplicationRevisionSnapshot({
+        financing_type: appFullCurrent.financing_type,
+        product_version: appFullCurrent.product_version,
+        amendment_acknowledged_workflow_ids: appFullCurrent.amendment_acknowledged_workflow_ids,
+        financing_structure: appFullCurrent.financing_structure,
+        company_details: appFullCurrent.company_details,
+        business_details: appFullCurrent.business_details,
+        financial_statements: appFullCurrent.financial_statements,
+        supporting_documents: appFullCurrent.supporting_documents,
+        declarations: appFullCurrent.declarations,
+        review_and_submit: appFullCurrent.review_and_submit,
+        last_completed_step: appFullCurrent.last_completed_step,
+        contract_id: appFullCurrent.contract_id,
+        contract: appFullCurrent.contract,
+        invoices: appFullCurrent.invoices,
+        issuer_organization: appFullCurrent.issuer_organization,
+      })
+    : null;
+
+  const resubmitChangeSummary =
+    prevRevision?.snapshot && nextSnapshot
+      ? summarizeResubmitSnapshotDiff(prevRevision.snapshot, nextSnapshot)
+      : null;
 
   await prisma.$transaction(async (tx) => {
     await tx.applicationReviewRemark.deleteMany({
@@ -173,34 +217,12 @@ export async function resubmitApplication(
       } as any,
     });
 
-    if (appFullCurrent) {
-      const snapshot = {
-        product: {
-          id: (appFullCurrent as any).financing_type?.product_id ?? null,
-          version: (appFullCurrent as any).product_version ?? null,
-        },
-        application: {
-          financing_type: appFullCurrent.financing_type,
-          financing_structure: appFullCurrent.financing_structure,
-          company_details: appFullCurrent.company_details,
-          business_details: appFullCurrent.business_details,
-          financial_statements: appFullCurrent.financial_statements,
-          supporting_documents: appFullCurrent.supporting_documents,
-          declarations: appFullCurrent.declarations,
-          review_and_submit: appFullCurrent.review_and_submit,
-          last_completed_step: appFullCurrent.last_completed_step,
-          contract_id: appFullCurrent.contract_id,
-        },
-        contract: appFullCurrent.contract ?? null,
-        invoices: appFullCurrent.invoices ?? [],
-        issuer_organization: appFullCurrent.issuer_organization ?? null,
-      };
-
+    if (appFullCurrent && nextSnapshot) {
       await (tx as any).applicationRevision.create({
         data: {
           application_id: applicationId,
           review_cycle: newCycle,
-          snapshot,
+          snapshot: nextSnapshot,
           submitted_at: new Date(),
         },
       });
@@ -219,12 +241,35 @@ export async function resubmitApplication(
 
   logger.info({ applicationId }, "Application resubmitted: cleared amendment flags, created revision");
 
+  const logMetadata: Record<string, unknown> = {
+    portal: "ISSUER",
+    amendment_remarks: remarks.map((r) => ({
+      scope: r.scope,
+      scope_key: r.scope_key,
+      remark: r.remark,
+      author_user_id: r.author_user_id,
+      submitted_at: r.submitted_at?.toISOString() ?? null,
+    })),
+  };
+  if (resubmitChangeSummary) {
+    logMetadata.resubmit_changes = {
+      section_keys: resubmitChangeSummary.changedSectionKeys,
+      section_labels: resubmitChangeSummary.changedSectionLabels,
+      contract_updated: resubmitChangeSummary.contractChanged,
+      invoices_updated: resubmitChangeSummary.invoicesChanged,
+      activity_summary: resubmitChangeSummary.activitySummary,
+      field_changes: resubmitChangeSummary.field_changes,
+    };
+  }
+
   await prisma.applicationLog.create({
     data: {
       user_id: userId,
       application_id: applicationId,
       event_type: "APPLICATION_RESUBMITTED",
       review_cycle: newCycle,
+      portal: "ISSUER",
+      metadata: logMetadata,
       created_at: new Date(),
     } as any,
   });

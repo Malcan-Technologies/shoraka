@@ -16,7 +16,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { formSelectTriggerClassName } from "@/app/(application-flow)/applications/components/form-control";
+import {
+  applicationFlowStepHorizontalClassName,
+  formInputDisabledClassName,
+  formSelectTriggerClassName,
+} from "@/app/(application-flow)/applications/components/form-control";
+import { cn } from "@/lib/utils";
 import { FinancingStructureSkeleton } from "@/app/(application-flow)/applications/components/financing-structure-skeleton";
 import { SelectionCard } from "@/app/(application-flow)/applications/components/selection-card";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
@@ -239,7 +244,7 @@ export function FinancingStructureStep({
    */
   return (
     <>
-    <div className="px-3">
+    <div className={applicationFlowStepHorizontalClassName}>
       <div className="space-y-3">
         {/* Option 1: Submit a new contract */}
         <SelectionCard
@@ -261,7 +266,11 @@ export function FinancingStructureStep({
             hasApprovedContracts ? (
               <Select value={selectedContractId} onValueChange={handleContractSelect} disabled={readOnly}>
                 <SelectTrigger
-                  className={formSelectTriggerClassName + " w-[280px]"}
+                  className={cn(
+                    formSelectTriggerClassName,
+                    "w-[280px]",
+                    readOnly && formInputDisabledClassName
+                  )}
                   onClick={(e) => {
                     e.stopPropagation();
                     if (selectedStructure !== "existing_contract") {
@@ -282,7 +291,7 @@ export function FinancingStructureStep({
               </Select>
             ) : (
               <div
-                className="w-[280px] rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground bg-muted/30"
+                className="w-[280px] rounded-md border border-dashed border-border px-3 py-2 text-sm text-muted-foreground bg-muted"
                 onClick={(e) => e.stopPropagation()}
               >
                 No existing contracts

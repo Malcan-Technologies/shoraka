@@ -73,6 +73,7 @@ export function useApplicationLogs(applicationId: string | null) {
         created_at: d.created_at,
         remark: d.remark ?? null,
         entityId: d.entityId ?? d.entity_id ?? null,
+        review_cycle: typeof d.review_cycle === "number" ? d.review_cycle : null,
       }));
 
       return {

@@ -926,6 +926,7 @@ export interface ExportProductLogsParams extends Omit<GetProductLogsParams, "pag
 // Notifications (Admin)
 export type AdminNotificationCategory = "AUTHENTICATION" | "SYSTEM" | "MARKETING" | "ANNOUNCEMENT";
 export type AdminNotificationPriority = "INFO" | "WARNING" | "CRITICAL";
+export type AdminNotificationPortalTarget = "INVESTOR" | "ISSUER";
 
 export interface AdminNotificationType {
   id: string;
@@ -933,6 +934,7 @@ export interface AdminNotificationType {
   description: string | null;
   category: AdminNotificationCategory;
   default_priority: AdminNotificationPriority;
+  portal_targets: AdminNotificationPortalTarget[];
   enabled_platform: boolean;
   enabled_email: boolean;
   user_configurable: boolean;
@@ -1000,6 +1002,7 @@ export interface AdminSendNotificationPayload {
 export interface AdminUpdateNotificationTypePayload {
   enabled_platform?: boolean;
   enabled_email?: boolean;
+  portal_targets?: AdminNotificationPortalTarget[];
 }
 
 export interface AdminSeedTypesResponse {
@@ -1168,4 +1171,20 @@ export interface GetProductsParams {
   page: number;
   pageSize: number;
   search?: string;
+}
+
+export interface AdminCtosReportListItem {
+  id: string;
+  issuer_organization_id: string | null;
+  investor_organization_id: string | null;
+  /** Null = organization CTOS row; set for director/shareholder/corporate subject snapshots. */
+  subject_ref?: string | null;
+  fetched_at: string;
+  created_at: string;
+  updated_at: string;
+  has_report_html: boolean;
+  /** Organization extract: directors with IC/SSM for admin cross-check. Omitted on create until refetch. */
+  company_json?: unknown;
+  /** Present on list GET; omitted on create response until refetch. */
+  financials_json?: unknown;
 }

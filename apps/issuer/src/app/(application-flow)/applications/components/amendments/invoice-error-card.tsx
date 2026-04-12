@@ -2,10 +2,18 @@
 
 import * as React from "react";
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import {
+  AMENDMENT_CALLOUT_BODY,
+  AMENDMENT_CALLOUT_CONTENT,
+  AMENDMENT_CALLOUT_ICON_WRAP,
+  AMENDMENT_CALLOUT_ROOT,
+  AMENDMENT_CALLOUT_TITLE,
+} from "./amendment-callout-styles";
+import { AmendmentExpandableBulletList } from "./amendment-expandable-bullet-list";
 
 /**
- * Invoice item-level amendment remarks displayed above the invoice table.
- * Matches AmendmentRemarkCard visual style. Uses CashSouk brand tokens (primary).
+ * Invoice item-level amendment remarks above the invoice table.
+ * Same shell + typography as AmendmentRemarkCard; body lists per-invoice bullets.
  */
 interface InvoiceAmendmentGroup {
   invoiceLabel: string;
@@ -31,19 +39,24 @@ export function InvoiceErrorCard({ groups = [], errors = [] }: InvoiceErrorCardP
   if (effectiveGroups.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 mb-6 flex gap-3">
-      <ExclamationTriangleIcon className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-      <div className="flex-1 min-w-0">
-        <h4 className="font-semibold text-primary">Amendments required (invoices)</h4>
-        <div className="mt-2 space-y-3">
+    <div
+      className={`${AMENDMENT_CALLOUT_ROOT} mb-6 border-primary/55 bg-primary/10 text-foreground`}
+    >
+      <div
+        className={`${AMENDMENT_CALLOUT_ICON_WRAP} bg-primary/20 border-primary/45`}
+        aria-hidden
+      >
+        <ExclamationTriangleIcon className="h-5 w-5 text-primary" />
+      </div>
+      <div className={`${AMENDMENT_CALLOUT_BODY} flex-1`}>
+        <p className={`${AMENDMENT_CALLOUT_TITLE} text-primary`}>
+          Amendments required (invoices)
+        </p>
+        <div className={`${AMENDMENT_CALLOUT_CONTENT} space-y-3 text-foreground`}>
           {effectiveGroups.map((g, gIdx) => (
             <div key={gIdx}>
-              <div className="font-medium text-foreground text-sm">{g.invoiceLabel}</div>
-              <ul className="mt-1 pl-4 list-disc text-sm text-foreground">
-                {g.bullets.map((b, bIdx) => (
-                  <li key={bIdx}>{b}</li>
-                ))}
-              </ul>
+              <div className="font-medium text-foreground">{g.invoiceLabel}</div>
+              <AmendmentExpandableBulletList lines={g.bullets} listClassName="mt-1" />
             </div>
           ))}
         </div>

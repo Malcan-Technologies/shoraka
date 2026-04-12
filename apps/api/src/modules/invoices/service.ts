@@ -19,6 +19,7 @@ import {
 import { logger } from "../../lib/logger";
 import { ProductRepository } from "../products/repository";
 import { assertMaturityForApplication } from "../products/validate-financial-config";
+import { shouldPreserveApplicationDocumentsInS3 } from "../applications/amendment-preserve-s3";
 
 export class InvoiceService {
   private repository: InvoiceRepository;
@@ -213,6 +214,12 @@ export class InvoiceService {
   }
 
   const applicationId = (invoice as { application_id: string }).application_id;
+  const applicationRow = applicationId
+    ? await this.applicationRepository.findById(applicationId)
+    : null;
+  const preserveInvoiceDocsInAmendment = shouldPreserveApplicationDocumentsInS3(
+    (applicationRow as { status?: string } | null)?.status
+  );
   const workflow = await this.loadWorkflowForApplication(applicationId);
   if (workflow) {
     assertMaturityForApplication(workflow, updatedDetails as Record<string, unknown>);
@@ -236,8 +243,12 @@ export class InvoiceService {
   try {
     const updatedInvoice = await this.repository.update(id, updatePayload);
 
-    // 🔥 delete previous version AFTER successful update
-    if (prevS3Key && nextS3Key && prevS3Key !== nextS3Key) {
+    if (
+      !preserveInvoiceDocsInAmendment &&
+      prevS3Key &&
+      nextS3Key &&
+      prevS3Key !== nextS3Key
+    ) {
       try {
         await deleteS3Object(prevS3Key);
         logger.info(
@@ -250,6 +261,16 @@ export class InvoiceService {
           "Failed to delete old invoice document from S3"
         );
       }
+    } else if (
+      preserveInvoiceDocsInAmendment &&
+      prevS3Key &&
+      nextS3Key &&
+      prevS3Key !== nextS3Key
+    ) {
+      logger.info(
+        { invoiceId: id, prevS3Key, nextS3Key },
+        "Skipped old invoice document S3 delete: AMENDMENT_REQUESTED (preserve for compare/audit)"
+      );
     }
 
     return updatedInvoice;
@@ -274,16 +295,27 @@ async deleteInvoice(id: string, userId: string) {
   const invoice = await this.verifyInvoiceAccess(id, userId);
 
   const s3Key = (invoice.details as any)?.document?.s3_key;
+  const application = invoice.application_id
+    ? await this.applicationRepository.findById(invoice.application_id)
+    : null;
 
   // delete DB first OR last — your choice
   await this.repository.delete(id);
 
-  if (s3Key) {
+  if (
+    s3Key &&
+    !shouldPreserveApplicationDocumentsInS3((application as { status?: string } | null)?.status)
+  ) {
     try {
       await deleteS3Object(s3Key);
     } catch (err) {
       logger.error({ id, s3Key, err }, "Failed to delete invoice S3 object");
     }
+  } else if (s3Key) {
+    logger.info(
+      { invoiceId: id, s3Key },
+      "Skipped invoice S3 delete on invoice row removal: AMENDMENT_REQUESTED (preserve for compare/audit)"
+    );
   }
 }
 
@@ -355,7 +387,18 @@ async deleteInvoice(id: string, userId: string) {
   }
 
   async deleteDocument(invoiceId: string, s3Key: string, userId: string): Promise<void> {
-    await this.verifyInvoiceAccess(invoiceId, userId);
+    const invoice = await this.verifyInvoiceAccess(invoiceId, userId);
+    const application = invoice.application_id
+      ? await this.applicationRepository.findById(invoice.application_id)
+      : null;
+
+    if (shouldPreserveApplicationDocumentsInS3((application as { status?: string } | null)?.status)) {
+      logger.info(
+        { invoiceId, s3Key },
+        "Skipped invoice document S3 delete: AMENDMENT_REQUESTED (preserve for compare/audit)"
+      );
+      return;
+    }
 
     try {
       await deleteS3Object(s3Key);

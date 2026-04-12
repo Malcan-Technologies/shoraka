@@ -209,7 +209,7 @@ async function main() {
         { id: "contract_details_1", name: "Contract Details" },
         { id: "invoice_details_1", name: "Invoice Details" },
         { id: "company_details_1", name: "Company Details" },
-        { id: "business_details_1", name: "Business Details" },
+        { id: "business_details_1", name: "Business & Guarantor Details" },
         { id: "supporting_documents_1", name: "Supporting Documents" },
         { id: "declarations_1", name: "Declarations" },
         { id: "review_and_submit_1", name: "Review and Submit" },

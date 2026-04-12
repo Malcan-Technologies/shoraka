@@ -6,6 +6,7 @@ import { AuthProvider, OrganizationProvider } from "@cashsouk/config";
 import "../lib/amplify-config"; // Initialize Amplify
 import { HeaderProvider } from "@cashsouk/ui";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { IssuerUnsavedNavigationProvider } from "@/contexts/issuer-unsaved-navigation-context";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -27,7 +28,9 @@ export function Providers({ children }: { children: ReactNode }) {
       <AuthProvider>
         <OrganizationProvider portalType="issuer" apiUrl={API_URL}>
           <HeaderProvider>
-            <TooltipProvider>{children}</TooltipProvider>
+            <TooltipProvider>
+              <IssuerUnsavedNavigationProvider>{children}</IssuerUnsavedNavigationProvider>
+            </TooltipProvider>
           </HeaderProvider>
         </OrganizationProvider>
       </AuthProvider>

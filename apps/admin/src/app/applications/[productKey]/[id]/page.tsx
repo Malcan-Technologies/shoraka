@@ -10,6 +10,7 @@ import { Skeleton } from "@cashsouk/ui";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { useApplicationDetail } from "@/hooks/use-application-detail";
+import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
 import { useUpdateApplicationStatus } from "@/hooks/use-update-application-status";
 import {
   useApproveReviewSection,
@@ -36,6 +37,7 @@ import {
   ReviewSummaryCard,
   RecentActivityCard,
   AmendmentReviewModal,
+  getSectionRejectCommonReasons,
   type ReviewSectionId,
 } from "@/components/application-review";
 import { useProducts } from "@/hooks/use-products";
@@ -67,6 +69,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { formatCurrency, useAuthToken, readInvoiceMaturityMonthsFromWorkflow } from "@cashsouk/config";
 import { ApplicationStatusBadge } from "@/components/application-review";
+import JSZip from "jszip";
 
 function PageSkeleton() {
   return (
@@ -126,10 +129,7 @@ export default function DynamicApplicationDetailPage() {
     return readInvoiceMaturityMonthsFromWorkflow(workflow).minMonthsReviewToMaturity;
   }, [currentProduct]);
 
-  const [confirmAction, setConfirmAction] = React.useState<{
-    type: "APPROVE" | "REJECT";
-    isOpen: boolean;
-  }>({ type: "APPROVE", isOpen: false });
+  const [rejectApplicationDialogOpen, setRejectApplicationDialogOpen] = React.useState(false);
 
   const approveSection = useApproveReviewSection();
   const rejectSection = useRejectReviewSection();
@@ -171,34 +171,90 @@ export default function DynamicApplicationDetailPage() {
   ];
   const isReviewable = !!app && REVIEWABLE_STATUSES.includes(app.status);
   const { getAccessToken } = useAuthToken();
-  const [viewDocumentPending, setViewDocumentPending] = React.useState(false);
+  const { viewDocumentPending, handleViewDocument, handleDownloadDocument } =
+    useAdminS3DocumentViewDownload();
+  const [downloadAllDocumentsPending, setDownloadAllDocumentsPending] = React.useState(false);
 
-  const handleViewDocument = React.useCallback(
-    async (s3Key: string) => {
+  const handleDownloadAllDocuments = React.useCallback(
+    async (files: { s3Key: string; fileName: string; category: string; field: string }[]) => {
+      if (!files.length) {
+        toast.error("No supporting documents available for download");
+        return;
+      }
       try {
-        setViewDocumentPending(true);
+        setDownloadAllDocumentsPending(true);
         const token = await getAccessToken();
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-        const response = await fetch(`${apiUrl}/v1/s3/view-url`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token && { Authorization: `Bearer ${token}` }),
-          },
-          body: JSON.stringify({ s3Key }),
-        });
-        const result = await response.json();
-        if (!result.success) throw new Error(result.error?.message || "Failed to get view URL");
-        const viewUrl = result.data?.viewUrl;
-        if (viewUrl) window.open(viewUrl, "_blank", "noopener,noreferrer");
-        else toast.error("Failed to open document");
+        const zip = new JSZip();
+        const usedNames = new Map<string, Map<string, number>>();
+
+        const sanitizePathSegment = (value: string, fallback: string) => {
+          const v = value.trim();
+          const cleaned = v.replace(/[\\/:*?"<>|]/g, "_").replace(/\.+/g, ".").replace(/\s+/g, " ");
+          return cleaned || fallback;
+        };
+
+        const getUniqueName = (name: string, category: string, field: string) => {
+          const trimmed = name.trim() || "document.pdf";
+          const safeCategory = sanitizePathSegment(category, "Others");
+          const safeField = sanitizePathSegment(field, "Document");
+          const folderKey = `${safeCategory}/${safeField}`;
+          const byFolder = usedNames.get(folderKey) ?? new Map<string, number>();
+          const count = byFolder.get(trimmed) ?? 0;
+          byFolder.set(trimmed, count + 1);
+          usedNames.set(folderKey, byFolder);
+          const safeName = sanitizePathSegment(trimmed, "document.pdf");
+          if (count === 0) return `${safeCategory}/${safeField}/${safeName}`;
+          const dot = safeName.lastIndexOf(".");
+          if (dot <= 0) return `${safeCategory}/${safeField}/${safeName} (${count + 1})`;
+          const base = safeName.slice(0, dot);
+          const ext = safeName.slice(dot);
+          return `${safeCategory}/${safeField}/${base} (${count + 1})${ext}`;
+        };
+
+        for (const item of files) {
+          const response = await fetch(`${apiUrl}/v1/s3/download-url`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token && { Authorization: `Bearer ${token}` }),
+            },
+            body: JSON.stringify({ s3Key: item.s3Key }),
+          });
+          const result = await response.json();
+          if (!result.success) {
+            throw new Error(result.error?.message || "Failed to get download URL");
+          }
+          const downloadUrl = result.data?.downloadUrl;
+          if (!downloadUrl) {
+            throw new Error("Failed to get download URL");
+          }
+          const fileResponse = await fetch(downloadUrl);
+          if (!fileResponse.ok) {
+            throw new Error("Failed to fetch one of the files");
+          }
+          const blob = await fileResponse.blob();
+          const entryName = getUniqueName(item.fileName, item.category, item.field);
+          zip.file(entryName, blob);
+        }
+
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        const objectUrl = URL.createObjectURL(zipBlob);
+        const link = document.createElement("a");
+        link.href = objectUrl;
+        const suffix = (app?.id ?? applicationId).slice(-8).toUpperCase();
+        link.download = `supporting-documents-${suffix}.zip`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(objectUrl);
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Failed to open document");
+        toast.error(err instanceof Error ? err.message : "Failed to download documents ZIP");
       } finally {
-        setViewDocumentPending(false);
+        setDownloadAllDocumentsPending(false);
       }
     },
-    [getAccessToken]
+    [getAccessToken, app?.id, applicationId]
   );
 
   const handleViewSignedInvoiceOffer = React.useCallback(
@@ -496,6 +552,14 @@ export default function DynamicApplicationDetailPage() {
     : noteDialog?.action === "reject"
       ? "Reject"
       : "Add to List";
+  const noteDialogCommonReasons =
+    noteDialog && noteDialog.action === "reject"
+      ? "section" in noteDialog
+        ? getSectionRejectCommonReasons(noteDialog.section)
+        : noteDialog.itemType === "invoice"
+          ? getSectionRejectCommonReasons("invoice_details")
+          : []
+      : [];
   const noteDialogPending =
     approveSection.isPending ||
     approveItem.isPending ||
@@ -503,11 +567,11 @@ export default function DynamicApplicationDetailPage() {
     addPendingAmendment.isPending ||
     rejectItem.isPending;
 
-  const handleUpdateStatus = async (status: string) => {
+  const handleConfirmRejectApplication = async () => {
     try {
-      await updateStatus.mutateAsync({ id: applicationId, status });
-      toast.success(`Application ${status.toLowerCase()} successfully`);
-      setConfirmAction((prev) => ({ ...prev, isOpen: false }));
+      await updateStatus.mutateAsync({ id: applicationId, status: "REJECTED" });
+      toast.success("Application rejected successfully");
+      setRejectApplicationDialogOpen(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update status");
     }
@@ -678,7 +742,7 @@ export default function DynamicApplicationDetailPage() {
                                 allSectionsApproved ||
                                 !hasRejectedSection
                               }
-                              onClick={() => setConfirmAction({ type: "REJECT", isOpen: true })}
+                              onClick={() => setRejectApplicationDialogOpen(true)}
                             >
                               <XCircleIcon className="h-4 w-4" />
                               Reject
@@ -883,6 +947,9 @@ export default function DynamicApplicationDetailPage() {
                               setNoteDialog({ open: true, action: "amend", section: s })
                             }
                             onViewDocument={handleViewDocument}
+                            onDownloadDocument={handleDownloadDocument}
+                            onDownloadAllDocuments={handleDownloadAllDocuments}
+                            downloadAllDocumentsPending={downloadAllDocumentsPending}
                             onApproveItem={async (itemId, itemType) => {
                               setNoteDialog({
                                 open: true,
@@ -992,18 +1059,10 @@ export default function DynamicApplicationDetailPage() {
                 </div>
 
                 <div className="min-w-0 space-y-6">
-                  <ReviewSummaryCard
-                    sections={reviewSections}
-                    reviewItems={
-                      (app.application_review_items as {
-                        item_type: string;
-                        item_id: string;
-                        status: string;
-                      }[]) ?? []
-                    }
-                  />
+                  <ReviewSummaryCard sections={reviewSections} />
 
                   <RecentActivityCard
+                    reviewTabSections={reviewSections}
                     events={
                       (app.application_review_events as {
                         event_type: string;
@@ -1022,6 +1081,7 @@ export default function DynamicApplicationDetailPage() {
                       }[]) ?? []
                     }
                     applicationId={applicationId}
+                    productKey={productKey}
                     sectionLabelOverrides={isInvoiceOnly ? { contract_details: "Customer" } : undefined}
                   />
                 </div>
@@ -1043,6 +1103,7 @@ export default function DynamicApplicationDetailPage() {
         submitLabel={noteDialogSubmitLabel}
         variant={noteDialog?.action === "reject" ? "destructive" : "default"}
         optional={noteDialog?.action === "approve"}
+        commonReasons={noteDialogCommonReasons}
         onConfirm={handleNoteDialogConfirm}
         isPending={noteDialogPending}
       />
@@ -1063,34 +1124,22 @@ export default function DynamicApplicationDetailPage() {
         isSubmitPending={submitAmendmentRequest.isPending}
       />
 
-      <AlertDialog
-        open={confirmAction.isOpen}
-        onOpenChange={(open) => setConfirmAction((prev) => ({ ...prev, isOpen: open }))}
-      >
+      <AlertDialog open={rejectApplicationDialogOpen} onOpenChange={setRejectApplicationDialogOpen}>
         <AlertDialogContent className="rounded-2xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {confirmAction.type === "APPROVE" ? "Approve Application?" : "Reject Application?"}
-            </AlertDialogTitle>
+            <AlertDialogTitle>Reject Application?</AlertDialogTitle>
             <AlertDialogDescription>
-              {confirmAction.type === "APPROVE"
-                ? "This will approve the financing application and move it to the next stage in the workflow."
-                : "This will reject the application. The issuer will be notified and will need to submit a new application."}
+              This will reject the application. The issuer will be notified and will need to submit a
+              new application.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className={`rounded-xl ${
-                confirmAction.type === "APPROVE"
-                  ? "bg-primary hover:bg-primary/90 text-primary-foreground"
-                  : "bg-destructive hover:bg-destructive/90 text-destructive-foreground"
-              }`}
-              onClick={() =>
-                handleUpdateStatus(confirmAction.type === "APPROVE" ? "APPROVED" : "REJECTED")
-              }
+              className="rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+              onClick={() => void handleConfirmRejectApplication()}
             >
-              Confirm {confirmAction.type === "APPROVE" ? "Approval" : "Rejection"}
+              Confirm Rejection
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

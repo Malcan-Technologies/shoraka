@@ -372,3 +372,23 @@ export const addPendingAmendmentSchema = z
 export const updatePendingAmendmentSchema = z.object({
   remark: z.string().min(1, "Remark is required"),
 });
+
+export const createCtosSubjectReportSchema = z.object({
+  subjectRef: z.string().min(1).max(80),
+  subjectKind: z.enum(["INDIVIDUAL", "CORPORATE"]),
+  /** When set, CTOS enquiry uses these fields only (org JSON resolution skipped). Admin CTOS table uses org report name + id. */
+  enquiryOverride: z
+    .object({
+      displayName: z.string().min(1).max(500),
+      idNumber: z.string().min(1).max(80),
+    })
+    .optional(),
+});
+
+export type CreateCtosSubjectReportInput = z.infer<typeof createCtosSubjectReportSchema>;
+
+export const resubmitComparisonQuerySchema = z.object({
+  reviewCycle: z.coerce.number().int().min(2, "reviewCycle must be at least 2"),
+});
+
+export type ResubmitComparisonQuery = z.infer<typeof resubmitComparisonQuerySchema>;

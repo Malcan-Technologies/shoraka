@@ -12,6 +12,7 @@ import { siteDocumentUserRouter } from "./modules/site-documents/user-controller
 import { documentLogRouter } from "./modules/site-documents/log-controller";
 import { productLogRouter } from "./modules/products/log/controller";
 import { productsRouter } from "./modules/products/controller";
+import { issuerCatalogRouter } from "./modules/products/issuer-catalog-controller";
 import { requireAuth, requireRole } from "./lib/auth/middleware";
 import { devAuthBypass } from "./lib/auth/dev-auth-middleware";
 import { UserRole } from "@prisma/client";
@@ -79,6 +80,8 @@ export function registerRoutes(app: Application): void {
   v1Router.use("/organizations", createOrganizationRouter());
 
   v1Router.use("/applications", createApplicationRouter());
+  // Public issuer catalog (active products + live-check); no auth — same JSON shape as before.
+  v1Router.use("/issuer/products", issuerCatalogRouter);
   v1Router.use("/contracts", createContractRouter());
   v1Router.use("/invoices", createInvoiceRouter());
 

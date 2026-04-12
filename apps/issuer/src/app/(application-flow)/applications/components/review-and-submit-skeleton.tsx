@@ -3,7 +3,7 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@
 
 export function ReviewAndSubmitSkeleton() {
   return (
-    <div className="space-y-10 px-3 max-w-[1200px] mx-auto pb-20">
+    <div className="space-y-10 px-3 w-full pb-20">
       {/* Financing Details Section */}
       <section className="space-y-5">
         <div>

@@ -57,6 +57,11 @@ import { Button } from "@/components/ui/button";
 import { formatRemarkAsBullets } from "@/lib/utils";
 import { getReviewTabLabel } from "@/components/application-review/review-registry";
 import { formatCurrency } from "@cashsouk/config";
+import type {
+  ResubmitChangesMetadata,
+  ResubmitFieldChangeItem,
+} from "@/components/application-revision-diff-panel";
+import { ResubmitComparisonModal } from "@/components/resubmit-comparison-modal";
 
 type ActivityMetadata = {
   scope_key?: string;
@@ -75,6 +80,7 @@ type ActivityMetadata = {
   offered_profit_rate_percent?: number | null;
   expires_at?: string | null;
   rejection_reason?: string;
+  resubmit_changes?: ResubmitChangesMetadata;
 };
 
 function formatItemLabelFromScopeKey(scopeKey: string): string {
@@ -124,6 +130,10 @@ function formatItemLabelFromScopeKey(scopeKey: string): string {
  */
 interface AdminActivityTimelineProps {
   applicationId: string | null;
+  /** Product id (same as route `productKey`) for workflow tabs in resubmit comparison modal. */
+  productKey?: string | null;
+  /** Section review statuses from application detail — same dots as main review tabs in comparison modal. */
+  reviewTabSections?: { section: string; status: string }[];
   /** Override section labels for display (e.g. contract_details → "Customer" for invoice_only). */
   sectionLabelOverrides?: Record<string, string>;
 }
@@ -315,7 +325,12 @@ function TimelineSkeleton() {
   );
 }
 
-export function AdminActivityTimeline({ applicationId, sectionLabelOverrides }: AdminActivityTimelineProps) {
+export function AdminActivityTimeline({
+  applicationId,
+  productKey,
+  reviewTabSections,
+  sectionLabelOverrides,
+}: AdminActivityTimelineProps) {
   /**
    * Local state / hooks
    *
@@ -335,6 +350,11 @@ export function AdminActivityTimeline({ applicationId, sectionLabelOverrides }: 
   const logs: any[] = React.useMemo(() => data ?? [], [data]) as any[];
 
   const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
+  const [comparisonModalOpen, setComparisonModalOpen] = React.useState(false);
+  const [comparisonContext, setComparisonContext] = React.useState<{
+    reviewCycle: number;
+    fieldChanges?: ResubmitFieldChangeItem[];
+  } | null>(null);
   const [visibleCount, setVisibleCount] = React.useState(ACTIVITY_PAGE_SIZE);
 
   React.useEffect(() => {
@@ -366,6 +386,7 @@ export function AdminActivityTimeline({ applicationId, sectionLabelOverrides }: 
   }
 
   return (
+    <>
     <Card className="rounded-2xl flex flex-col overflow-hidden">
       <CardHeader className="pb-3 shrink-0">
         <div className="flex items-center justify-between">
@@ -421,6 +442,18 @@ export function AdminActivityTimeline({ applicationId, sectionLabelOverrides }: 
                       // Server stores remark/entity_id at top-level. Do NOT read from metadata.
                       const remark = (log as any).remark;
                       const entityId = (log as any).entityId ?? undefined;
+                      const resubmitChanges =
+                        eventType === "APPLICATION_RESUBMITTED"
+                          ? metadata?.resubmit_changes
+                          : undefined;
+                      const reviewCycleFromLog =
+                        typeof (log as { review_cycle?: unknown }).review_cycle === "number"
+                          ? (log as { review_cycle: number }).review_cycle
+                          : null;
+                      const canOpenResubmitComparison =
+                        eventType === "APPLICATION_RESUBMITTED" &&
+                        reviewCycleFromLog != null &&
+                        reviewCycleFromLog >= 2;
 
                       return (
                         <div key={log.id} className="relative flex gap-3 pl-0">
@@ -440,9 +473,13 @@ export function AdminActivityTimeline({ applicationId, sectionLabelOverrides }: 
 
                             {/* Activity text */}
                             {log.activity && (
-                              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                                {log.activity}
-                              </p>
+                                <p
+                                  className={`text-xs text-muted-foreground mt-0.5 ${
+                                    eventType === "APPLICATION_RESUBMITTED" ? "" : "line-clamp-2"
+                                  }`}
+                                >
+                                  {log.activity}
+                                </p>
                             )}
 
                             {/* Actor + context row */}
@@ -466,7 +503,7 @@ export function AdminActivityTimeline({ applicationId, sectionLabelOverrides }: 
                             </div>
 
                             {/* Timestamp */}
-                            <div className="flex items-center gap-3 mt-1">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1">
                               <p
                                 className="text-[11px] text-muted-foreground/70"
                                 title={format(new Date(log.created_at), "PPpp")}
@@ -476,11 +513,34 @@ export function AdminActivityTimeline({ applicationId, sectionLabelOverrides }: 
                                 })}
                               </p>
 
+                              {canOpenResubmitComparison && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    console.log("Open resubmit comparison", {
+                                      applicationId,
+                                      reviewCycle: reviewCycleFromLog,
+                                    });
+                                    setComparisonContext({
+                                      reviewCycle: reviewCycleFromLog!,
+                                      fieldChanges: Array.isArray(resubmitChanges?.field_changes)
+                                        ? (resubmitChanges!.field_changes as ResubmitFieldChangeItem[])
+                                        : undefined,
+                                    });
+                                    setComparisonModalOpen(true);
+                                  }}
+                                  className="text-xs text-foreground/80 hover:underline font-medium"
+                                >
+                                  View comparison
+                                </button>
+                              )}
+
                               {(remark ||
                                 ((eventType === "CONTRACT_OFFER_SENT" || eventType === "INVOICE_OFFER_SENT") && metadata) ||
                                 ((eventType === "CONTRACT_WITHDRAWN" || eventType === "INVOICE_OFFER_REJECTED") &&
                                   metadata?.rejection_reason)) && (
                                 <button
+                                  type="button"
                                   onClick={() => toggle(log.id)}
                                   className="text-xs text-foreground/80 hover:underline"
                                 >
@@ -602,6 +662,19 @@ export function AdminActivityTimeline({ applicationId, sectionLabelOverrides }: 
         )}
       </CardContent>
     </Card>
+    <ResubmitComparisonModal
+      open={comparisonModalOpen}
+      onOpenChange={(o) => {
+        setComparisonModalOpen(o);
+        if (!o) setComparisonContext(null);
+      }}
+      applicationId={applicationId}
+      productKey={productKey ?? null}
+      reviewCycle={comparisonContext?.reviewCycle ?? null}
+      fieldChanges={comparisonContext?.fieldChanges}
+      reviewTabSections={reviewTabSections}
+    />
+    </>
   );
 }
 

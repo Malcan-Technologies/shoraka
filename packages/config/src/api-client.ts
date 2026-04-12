@@ -60,6 +60,8 @@ import type {
   Product,
   GetProductsResponse,
   Application,
+  ApplicationProductVersionCompare,
+  IssuerProductLiveCheck,
   ApplicationStatus,
   CreateApplicationInput,
   UpdateApplicationStepInput,
@@ -76,6 +78,7 @@ import type {
   AdminUpdateNotificationTypePayload,
   AdminSeedTypesResponse,
   WithdrawReason,
+  AdminCtosReportListItem,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
 
@@ -378,6 +381,80 @@ export class ApiClient {
 
   async getAdminApplicationDetail(id: string): Promise<ApiResponse<any> | ApiError> {
     return this.get<any>(`/v1/admin/applications/${id}`);
+  }
+
+  async getAdminApplicationResubmitComparison(
+    applicationId: string,
+    reviewCycle: number
+  ): Promise<
+    ApiResponse<{
+      previous_review_cycle: number;
+      next_review_cycle: number;
+      previous_snapshot: unknown;
+      next_snapshot: unknown;
+      previous_submitted_at: string;
+      next_submitted_at: string;
+      amendment_remarks?: Array<{
+        scope: string;
+        scope_key: string;
+        remark: string;
+        author_user_id: string;
+        submitted_at: string | null;
+      }>;
+    }> | ApiError
+  > {
+    const q = new URLSearchParams({ reviewCycle: String(reviewCycle) });
+    return this.get(
+      `/v1/admin/applications/${encodeURIComponent(applicationId)}/resubmit-comparison?${q.toString()}`
+    );
+  }
+
+  async listAdminApplicationCtosReports(
+    applicationId: string
+  ): Promise<ApiResponse<AdminCtosReportListItem[]> | ApiError> {
+    return this.get<AdminCtosReportListItem[]>(`/v1/admin/applications/${applicationId}/ctos-reports`);
+  }
+
+  async createAdminApplicationCtosReport(
+    applicationId: string
+  ): Promise<ApiResponse<AdminCtosReportListItem> | ApiError> {
+    return this.post<AdminCtosReportListItem>(`/v1/admin/applications/${applicationId}/ctos-reports`, {});
+  }
+
+  async listAdminApplicationCtosSubjectReports(
+    applicationId: string
+  ): Promise<ApiResponse<AdminCtosReportListItem[]> | ApiError> {
+    return this.get<AdminCtosReportListItem[]>(`/v1/admin/applications/${applicationId}/ctos-subject-reports`);
+  }
+
+  async createAdminApplicationCtosSubjectReport(
+    applicationId: string,
+    body: {
+      subjectRef: string;
+      subjectKind: "INDIVIDUAL" | "CORPORATE";
+      enquiryOverride?: { displayName: string; idNumber: string };
+    }
+  ): Promise<ApiResponse<AdminCtosReportListItem> | ApiError> {
+    return this.post<AdminCtosReportListItem>(`/v1/admin/applications/${applicationId}/ctos-subject-reports`, body);
+  }
+
+  async listAdminOrganizationCtosReports(
+    portal: "issuer" | "investor",
+    organizationId: string
+  ): Promise<ApiResponse<AdminCtosReportListItem[]> | ApiError> {
+    return this.get<AdminCtosReportListItem[]>(
+      `/v1/admin/organizations/${portal}/${encodeURIComponent(organizationId)}/ctos-reports`
+    );
+  }
+
+  async createAdminOrganizationCtosReport(
+    portal: "issuer" | "investor",
+    organizationId: string
+  ): Promise<ApiResponse<AdminCtosReportListItem> | ApiError> {
+    return this.post<AdminCtosReportListItem>(
+      `/v1/admin/organizations/${portal}/${encodeURIComponent(organizationId)}/ctos-reports`,
+      {}
+    );
   }
 
   async updateAdminApplicationStatus(
@@ -1234,6 +1311,27 @@ export class ApiClient {
     return this.get<Product>(`/v1/products/${id}`);
   }
 
+  async getIssuerProducts(params: {
+    page: number;
+    pageSize: number;
+    search?: string;
+  }): Promise<ApiResponse<GetProductsResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", String(params.page));
+    queryParams.append("pageSize", String(params.pageSize));
+    if (params.search) queryParams.append("search", params.search);
+    queryParams.append("active", "true");
+
+    return this.get<GetProductsResponse>(`/v1/issuer/products?${queryParams.toString()}`);
+  }
+
+  async getIssuerProductLiveCheck(
+    productId: string
+  ): Promise<ApiResponse<IssuerProductLiveCheck> | ApiError> {
+    const id = encodeURIComponent(productId);
+    return this.get<IssuerProductLiveCheck>(`/v1/issuer/products/live-check/${id}`);
+  }
+
   async createProduct(data: {
     workflow: unknown[];
     offer_expiry_days?: number | null;
@@ -1297,6 +1395,14 @@ export class ApiClient {
 
   async getApplication(id: string): Promise<ApiResponse<Application> | ApiError> {
     return this.get<Application>(`/v1/applications/${id}`);
+  }
+
+  async getApplicationProductVersionCompare(
+    applicationId: string
+  ): Promise<ApiResponse<ApplicationProductVersionCompare> | ApiError> {
+    return this.get<ApplicationProductVersionCompare>(
+      `/v1/applications/${applicationId}/product-version-compare`
+    );
   }
 
   async updateApplicationStep(id: string, data: UpdateApplicationStepInput): Promise<ApiResponse<Application> | ApiError> {
@@ -1368,8 +1474,13 @@ export class ApiClient {
     );
   }
 
-  async acceptContractOffer(applicationId: string): Promise<ApiResponse<Application> | ApiError> {
-    return this.post<Application>(`/v1/applications/${applicationId}/offers/contracts/accept`, {});
+  async acceptContractOffer(
+    applicationId: string,
+    options?: { skipSigning?: boolean }
+  ): Promise<ApiResponse<Application> | ApiError> {
+    return this.post<Application>(`/v1/applications/${applicationId}/offers/contracts/accept`, {
+      ...(options?.skipSigning ? { skipSigning: true } : {}),
+    });
   }
 
   async rejectContractOffer(
@@ -1381,11 +1492,14 @@ export class ApiClient {
 
   async acceptInvoiceOffer(
     applicationId: string,
-    invoiceId: string
+    invoiceId: string,
+    options?: { skipSigning?: boolean }
   ): Promise<ApiResponse<Application> | ApiError> {
     return this.post<Application>(
       `/v1/applications/${applicationId}/offers/invoices/${invoiceId}/accept`,
-      {}
+      {
+        ...(options?.skipSigning ? { skipSigning: true } : {}),
+      }
     );
   }
 

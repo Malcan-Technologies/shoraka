@@ -22,7 +22,7 @@ The stored JSON is a flat object. There is no nesting. Each key maps directly to
 
 **Stored fields** — These are the only keys written to `financial_statements`:
 
-- **pldd** — Financing year end (date string, e.g. `"2024-12-31"`).
+- **pldd** — Financial year end (calendar year only, e.g. `"2024"`). Legacy rows may store a full date; the issuer form normalizes to a four-digit year.
 - **bsdd** — Financial data until (management accounts date; date string).
 - **bsfatot** — Fixed assets (number).
 - **othass** — Other assets (number).
@@ -35,7 +35,6 @@ The stored JSON is a flat object. There is no nesting. Each key maps directly to
 - **turnover** — Turnover (number).
 - **plnpbt** — Profit before tax (number).
 - **plnpat** — Profit after tax (number).
-- **plminin** — Minority interest (number).
 - **plnetdiv** — Net dividend (number).
 - **plyear** — Profit and loss year (number).
 

@@ -1,11 +1,18 @@
 "use client";
 
 import { DocumentTextIcon } from "@heroicons/react/24/outline";
-import { reviewEmptyStateClass } from "../review-section-styles";
+import { REVIEW_EMPTY_LABEL, reviewEmptyStateClass } from "../review-section-styles";
 import { ReviewSectionCard } from "../review-section-card";
 import { InvoiceList } from "@/components/invoice-review-list";
 import { ContractFacilitySummary } from "../contract-facility-summary";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
+import { ReviewFieldBlock } from "../review-field-block";
+import { ComparisonFieldRow } from "../comparison-field-row";
+import {
+  ComparisonDocumentTitleRow,
+  fileDocToComparisonChips,
+} from "../comparison-document-pair";
+import { formatCurrency, resolveOfferedAmount } from "@cashsouk/config";
 
 export interface InvoiceSectionProps {
   invoices: {
@@ -29,6 +36,7 @@ export interface InvoiceSectionProps {
   isActionLocked?: boolean;
   actionLockTooltip?: string;
   onViewDocument: (s3Key: string) => void;
+  onDownloadDocument: (s3Key: string, fileName?: string) => void;
   viewDocumentPending: boolean;
   invoiceRatioLimits?: { min: number; max: number };
   offerExpiryDays?: number | null;
@@ -47,6 +55,53 @@ export interface InvoiceSectionProps {
   comments: SectionCommentItem[];
   onAddComment?: (comment: string) => Promise<void> | void;
   onViewSignedInvoiceOffer?: (signedOfferLetterS3Key: string) => void | Promise<void>;
+  sectionComparison?: {
+    beforeInvoices: InvoiceSectionProps["invoices"];
+    afterInvoices: InvoiceSectionProps["invoices"];
+    isPathChanged: (path: string) => boolean;
+  };
+  hideSectionComments?: boolean;
+}
+
+function invoiceDetailsDocumentChips(details: unknown) {
+  const d = details as Record<string, unknown> | null | undefined;
+  const doc = d?.document as { s3_key?: string; file_name?: string; file_size?: number } | undefined;
+  return fileDocToComparisonChips(doc);
+}
+
+function invoiceDetailString(inv: { details?: unknown }, key: string): string {
+  const d = inv.details as Record<string, unknown> | null | undefined;
+  if (!d) return REVIEW_EMPTY_LABEL;
+  const v = d[key] ?? d[key.replace(/_([a-z])/g, (_, c) => c.toUpperCase())];
+  if (v == null || v === "") return REVIEW_EMPTY_LABEL;
+  return String(v);
+}
+
+/** Same precedence as invoice review list: maturity_date, else due_date. */
+function invoiceMaturityString(inv: { details?: unknown } | undefined): string {
+  if (!inv) return "—";
+  const d = inv.details as Record<string, unknown> | null | undefined;
+  if (!d) return "—";
+  const raw =
+    d.maturity_date ??
+    d.maturityDate ??
+    d.due_date ??
+    d.dueDate;
+  if (raw == null || raw === "") return REVIEW_EMPTY_LABEL;
+  return String(raw);
+}
+
+/** Match invoice list: ratio with % suffix when numeric. */
+function invoiceFinancingRatioDisplay(inv: { details?: unknown } | undefined): string {
+  if (!inv) return "—";
+  const d = inv.details as Record<string, unknown> | null | undefined;
+  if (!d) return "—";
+  const v = d.financing_ratio_percent ?? d.financingRatioPercent;
+  if (v == null || v === "") return REVIEW_EMPTY_LABEL;
+  if (typeof v === "number" && Number.isFinite(v)) return `${v}%`;
+  const n = Number(String(v).replace(/,/g, ""));
+  if (Number.isFinite(n)) return `${n}%`;
+  return String(v);
 }
 
 export function InvoiceSection({
@@ -59,6 +114,7 @@ export function InvoiceSection({
   isActionLocked,
   actionLockTooltip,
   onViewDocument,
+  onDownloadDocument,
   viewDocumentPending,
   invoiceRatioLimits,
   offerExpiryDays,
@@ -72,7 +128,97 @@ export function InvoiceSection({
   comments,
   onAddComment,
   onViewSignedInvoiceOffer,
+  sectionComparison,
+  hideSectionComments = false,
 }: InvoiceSectionProps) {
+  if (sectionComparison) {
+    const { beforeInvoices, afterInvoices, isPathChanged } = sectionComparison;
+    const byId = (arr: typeof beforeInvoices) =>
+      new Map(arr.map((inv) => [inv.id, inv] as const));
+    const bMap = byId(beforeInvoices);
+    const aMap = byId(afterInvoices);
+    const ids = Array.from(new Set([...bMap.keys(), ...aMap.keys()])).sort();
+
+    return (
+      <ReviewSectionCard title="Invoice" icon={DocumentTextIcon} hideSectionActions>
+        {ids.length === 0 ? (
+          <p className={reviewEmptyStateClass}>No invoices in these snapshots.</p>
+        ) : (
+          <div className="space-y-8">
+            {ids.map((id) => {
+              const bInv = bMap.get(id);
+              const aInv = aMap.get(id);
+              const pathHit = `invoices[${id}]`;
+              const changed = isPathChanged("invoices") || isPathChanged(pathHit);
+              const bOffer = bInv?.offer_details as Record<string, unknown> | undefined;
+              const aOffer = aInv?.offer_details as Record<string, unknown> | undefined;
+              const bOffAmt = resolveOfferedAmount(bOffer);
+              const aOffAmt = resolveOfferedAmount(aOffer);
+              return (
+                <ReviewFieldBlock key={id} title={`Invoice ${invoiceDetailString(bInv ?? aInv!, "number") !== REVIEW_EMPTY_LABEL ? invoiceDetailString(bInv ?? aInv!, "number") : id}`}>
+                  <div className="space-y-2">
+                    <ComparisonFieldRow
+                      label="Invoice Value"
+                      before={
+                        bInv
+                          ? (() => {
+                              const raw = invoiceDetailString(bInv, "value");
+                              const n = Number(String(raw).replace(/,/g, ""));
+                              return Number.isFinite(n) && n > 0 ? formatCurrency(n) : raw;
+                            })()
+                          : "—"
+                      }
+                      after={
+                        aInv
+                          ? (() => {
+                              const raw = invoiceDetailString(aInv, "value");
+                              const n = Number(String(raw).replace(/,/g, ""));
+                              return Number.isFinite(n) && n > 0 ? formatCurrency(n) : raw;
+                            })()
+                          : "—"
+                      }
+                      changed={changed}
+                    />
+                    <ComparisonFieldRow
+                      label="Maturity Date"
+                      before={bInv ? invoiceMaturityString(bInv) : "—"}
+                      after={aInv ? invoiceMaturityString(aInv) : "—"}
+                      changed={changed}
+                    />
+                    <ComparisonFieldRow
+                      label="Financing Ratio"
+                      before={bInv ? invoiceFinancingRatioDisplay(bInv) : "—"}
+                      after={aInv ? invoiceFinancingRatioDisplay(aInv) : "—"}
+                      changed={changed}
+                    />
+                    <ComparisonFieldRow
+                      label="Financing Amount"
+                      before={bOffAmt > 0 ? formatCurrency(bOffAmt) : REVIEW_EMPTY_LABEL}
+                      after={aOffAmt > 0 ? formatCurrency(aOffAmt) : REVIEW_EMPTY_LABEL}
+                      changed={changed}
+                    />
+                    <ComparisonDocumentTitleRow
+                      title="Document"
+                      beforeFiles={bInv ? invoiceDetailsDocumentChips(bInv.details) : []}
+                      afterFiles={aInv ? invoiceDetailsDocumentChips(aInv.details) : []}
+                      markChanged={changed}
+                      onViewDocument={onViewDocument}
+                      onDownloadDocument={onDownloadDocument}
+                      viewDocumentPending={viewDocumentPending}
+                    />
+                  </div>
+                </ReviewFieldBlock>
+              );
+            })}
+          </div>
+        )}
+        {!hideSectionComments ? (
+          <SectionComments comments={comments} onSubmitComment={onAddComment} />
+        ) : null}
+      </ReviewSectionCard>
+    );
+  }
+
   return (
     <ReviewSectionCard title="Invoice" icon={DocumentTextIcon} hideSectionActions>
       {contractFacility && (
@@ -107,7 +253,9 @@ export function InvoiceSection({
       ) : (
         <p className={reviewEmptyStateClass}>No invoices submitted.</p>
       )}
-      <SectionComments comments={comments} onSubmitComment={onAddComment} />
+      {!hideSectionComments ? (
+        <SectionComments comments={comments} onSubmitComment={onAddComment} />
+      ) : null}
     </ReviewSectionCard>
   );
 }

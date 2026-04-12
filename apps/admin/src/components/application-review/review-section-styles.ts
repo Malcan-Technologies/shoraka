@@ -25,6 +25,43 @@ export const reviewValueClass =
 export const reviewValueClassTextArea =
   "min-h-[60px] w-full rounded-lg border border-input bg-muted/50 px-3 py-2 text-sm text-muted-foreground flex items-start";
 
+/**
+ * Resubmit comparison field shell (border/background only).
+ * Before column: add text-muted-foreground. After column: add text-foreground.
+ */
+export const comparisonCellSurfaceShellClass =
+  "min-h-[36px] w-full rounded-lg border border-input bg-muted/50 px-3 py-2 text-sm break-words flex items-center";
+
+export const comparisonCellSurfaceMultilineShellClass =
+  "min-h-[60px] w-full rounded-lg border border-input bg-muted/50 px-3 py-2 text-sm break-words whitespace-pre-wrap flex items-start";
+
+/**
+ * File chip row in comparison — same border/radius/padding/tint as comparisonCellSurfaceShellClass,
+ * with items-start + gap for icon + multi-line filenames. Used everywhere document pairs render (all tabs + supporting docs modal).
+ */
+export const comparisonFileChipRowShellClass =
+  "min-h-[36px] w-full rounded-lg border border-input bg-muted/50 px-3 py-2 text-sm break-words flex items-start gap-2";
+
+/**
+ * When earlier ≠ later: Before uses status-rejected (red tint); After uses status-action (yellow–amber).
+ * Tokens match packages/config status-badges GROUP.rejected / GROUP.action.
+ */
+export const comparisonSurfaceChangedBeforeClass =
+  "ring-2 ring-status-rejected-text/30 bg-status-rejected-bg dark:ring-red-400/35 dark:bg-red-950/45";
+
+export const comparisonSurfaceChangedAfterClass =
+  "ring-2 ring-status-action-text/30 bg-status-action-bg dark:ring-amber-400/35 dark:bg-amber-950/45";
+
+/**
+ * Before | After comparison columns — shared gutter with modal scrollbar-gutter: stable.
+ * Vertical rule on md+; stacked on small screens.
+ */
+export const comparisonSplitRowGridClass = "grid grid-cols-1 gap-0 md:grid-cols-2";
+/** No column tint — only vertical rule; sticky bar in modal carries Before/After fills. */
+export const comparisonSplitBeforeColClass =
+  "min-w-0 border-b border-border py-3 md:border-b-0 md:border-r md:border-border md:py-0 md:pr-6";
+export const comparisonSplitAfterColClass = "min-w-0 py-3 md:py-0 md:pl-6";
+
 /** Row grid: items-center so label vertically aligns with input center (h-11). Matches application flow gap-x-6 gap-y-4. */
 const ROW_GRID_BASE =
   "grid grid-cols-1 sm:grid-cols-[220px_1fr] gap-x-6 gap-y-4 mt-4 w-full items-center";

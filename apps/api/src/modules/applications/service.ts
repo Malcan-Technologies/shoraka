@@ -12,10 +12,18 @@ import {
   UpdateApplicationStepInput,
   businessDetailsDataSchema,
   financialStatementsInputSchema,
+  financialStatementsV2Schema,
 } from "./schemas";
 import { AppError } from "../../lib/http/error-handler";
-import { Application, Prisma, ApplicationStatus as DbApplicationStatus } from "@prisma/client";
+import { Application, Prisma, ApplicationStatus as DbApplicationStatus, ProductStatus } from "@prisma/client";
 import { requestPresignedUploadUrl, deleteDocumentFromS3 } from "./documents/service";
+import { shouldPreserveApplicationDocumentsInS3 } from "./amendment-preserve-s3";
+import {
+  assertRequiredSupportingDocumentsPresent,
+  fileNameToSupportingDocTypeToken,
+  getSupportingDocAllowedTypesFromProductWorkflow,
+} from "./supporting-docs-workflow";
+import { buildApplicationRevisionSnapshot } from "./revision-snapshot";
 import { deleteS3Object } from "../../lib/s3/client";
 import { logger } from "../../lib/logger";
 import {
@@ -34,7 +42,13 @@ import {
   type InvoiceOfferDetails,
 } from "./offer-letter-pdf";
 import { computeContractFacilitySnapshot } from "../../lib/contract-facility";
-import { ApplicationStatus, ContractStatus, InvoiceStatus, WithdrawReason } from "@cashsouk/types";
+import {
+  ApplicationStatus,
+  ContractStatus,
+  InvoiceStatus,
+  WithdrawReason,
+  getExpectedUnauditedYearsFromQuestionnaire,
+} from "@cashsouk/types";
 import { computeApplicationStatus } from "./lifecycle";
 import * as crypto from "crypto";
 import type { Readable } from "stream";
@@ -53,6 +67,9 @@ import {
   resolveSignedPdfFromContractFileResponse,
 } from "../signingcloud/signed-file";
 import type { OfferSigningRecord } from "../signingcloud/types";
+import { NotificationService } from "../notification/service";
+import { NotificationTypeIds } from "../notification/registry";
+import { getIssuerRecipientUserIdsForApplication } from "../notification/application-recipients";
 
 /**
  * Return URL after manual signing. Prefer SIGNINGCLOUD_ISSUER_RETURN_URL (full URL to applications page);
@@ -114,17 +131,136 @@ function mergeOfferSigningSigned(
   } as Prisma.InputJsonValue;
 }
 
+function financialToNum(v: unknown): number {
+  if (typeof v === "number" && !Number.isNaN(v)) return v;
+  const n = Number(String(v).replace(/,/g, ""));
+  return Number.isNaN(n) ? 0 : n;
+}
+
+function parseBsddDateFinancial(s: string): Date | null {
+  if (!s?.trim()) return null;
+  const t = s.trim();
+  let year: number;
+  let month: number;
+  let day: number;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
+    year = parseInt(t.slice(0, 4), 10);
+    month = parseInt(t.slice(5, 7), 10) - 1;
+    day = parseInt(t.slice(8, 10), 10);
+  } else {
+    const parts = t.split("/");
+    if (parts.length !== 3) return null;
+    day = parseInt(parts[0], 10);
+    month = parseInt(parts[1], 10) - 1;
+    year = parseInt(parts[2], 10);
+  }
+  if (Number.isNaN(day) || Number.isNaN(month) || Number.isNaN(year) || month < 0 || month > 11) return null;
+  const d = new Date(year, month, day);
+  if (d.getFullYear() !== year || d.getMonth() !== month || d.getDate() !== day) return null;
+  return d;
+}
+
+/** Business rules shared by legacy flat and v2 per-year blocks. */
+function validateFinancialYearBlockOrThrow(raw: {
+  pldd?: string;
+  bsdd?: string;
+  bsfatot?: unknown;
+  othass?: unknown;
+  bscatot?: unknown;
+  bsclbank?: unknown;
+  curlib?: unknown;
+  bsslltd?: unknown;
+  bsclstd?: unknown;
+  bsqpuc?: unknown;
+  turnover?: unknown;
+  plnpbt?: unknown;
+  plnpat?: unknown;
+  plnetdiv?: unknown;
+  plyear?: unknown;
+}): void {
+  const nonNegativeFields: { key: keyof typeof raw; label: string }[] = [
+    { key: "turnover", label: "Turnover" },
+    { key: "bsfatot", label: "Fixed assets" },
+    { key: "othass", label: "Other assets" },
+    { key: "bscatot", label: "Current assets" },
+    { key: "bsclbank", label: "Non-current assets" },
+    { key: "curlib", label: "Current liability" },
+    { key: "bsslltd", label: "Long-term liability" },
+    { key: "bsclstd", label: "Non-current liability" },
+    { key: "bsqpuc", label: "Paid-up capital" },
+    { key: "plnetdiv", label: "Net dividend" },
+  ];
+  for (const { key, label } of nonNegativeFields) {
+    const val = financialToNum(raw[key]);
+    if (val < 0) {
+      throw new AppError(400, "VALIDATION_ERROR", `${label} cannot be negative`);
+    }
+  }
+
+  const bsddDate = parseBsddDateFinancial(String(raw.bsdd ?? ""));
+  if (bsddDate) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (bsddDate > today) {
+      throw new AppError(400, "VALIDATION_ERROR", "Financial data date cannot be in the future.");
+    }
+  }
+}
+
+function normalizeFinancialYearBlock(
+  raw: Record<string, unknown>
+): Prisma.InputJsonValue {
+  return {
+    pldd: String(raw.pldd ?? ""),
+    bsdd: String(raw.bsdd ?? ""),
+    bsfatot: financialToNum(raw.bsfatot),
+    othass: financialToNum(raw.othass),
+    bscatot: financialToNum(raw.bscatot),
+    bsclbank: financialToNum(raw.bsclbank),
+    curlib: financialToNum(raw.curlib),
+    bsslltd: financialToNum(raw.bsslltd),
+    bsclstd: financialToNum(raw.bsclstd),
+    bsqpuc: financialToNum(raw.bsqpuc),
+    turnover: financialToNum(raw.turnover),
+    plnpbt: financialToNum(raw.plnpbt),
+    plnpat: financialToNum(raw.plnpat),
+    plnetdiv: financialToNum(raw.plnetdiv),
+    plyear: financialToNum(raw.plyear),
+  } as Prisma.InputJsonValue;
+}
+
 export class ApplicationService {
   private repository: ApplicationRepository;
   private productRepository: ProductRepository;
   private organizationRepository: OrganizationRepository;
   private contractRepository: ContractRepository;
+  private notificationService: NotificationService;
 
   constructor() {
     this.repository = new ApplicationRepository();
     this.productRepository = new ProductRepository();
     this.organizationRepository = new OrganizationRepository();
     this.contractRepository = new ContractRepository();
+    this.notificationService = new NotificationService();
+  }
+
+  private async sendIssuerNotification(
+    applicationId: string,
+    typeId: (typeof NotificationTypeIds)[keyof typeof NotificationTypeIds],
+    payload: Record<string, unknown>,
+    idempotencySuffix: string
+  ) {
+    const recipientUserIds = await getIssuerRecipientUserIdsForApplication(applicationId);
+    await Promise.all(
+      recipientUserIds.map((userId) =>
+        this.notificationService.sendTyped(
+          userId,
+          typeId as never,
+          payload as never,
+          `app:${applicationId}:notif:${typeId}:user:${userId}:${idempotencySuffix}`
+        )
+      )
+    );
   }
 
   /**
@@ -188,8 +324,16 @@ export class ApplicationService {
       if (!Array.isArray(docs)) continue;
       for (const doc of docs) {
         const file = (doc as Record<string, unknown>)?.file as Record<string, unknown> | undefined;
-        const key = file?.s3_key;
-        if (typeof key === "string" && key) keys.add(key);
+        const singleKey = file?.s3_key;
+        if (typeof singleKey === "string" && singleKey) keys.add(singleKey);
+
+        const files = (doc as Record<string, unknown>)?.files;
+        if (Array.isArray(files)) {
+          for (const f of files) {
+            const key = (f as Record<string, unknown>)?.s3_key;
+            if (typeof key === "string" && key) keys.add(key);
+          }
+        }
       }
     }
     return keys;
@@ -328,13 +472,19 @@ export class ApplicationService {
    * Create a new application
    */
   async createApplication(input: CreateApplicationInput): Promise<Application> {
-    // 1. Fetch product to get latest version
     const product = await this.productRepository.findById(input.productId);
     if (!product) {
       throw new AppError(404, "PRODUCT_NOT_FOUND", "Product not found");
     }
+    if (product.status !== ProductStatus.ACTIVE) {
+      throw new AppError(
+        400,
+        "PRODUCT_NOT_ACTIVE",
+        "This financing product is not available. Refresh the product list and select a current product."
+      );
+    }
 
-    // 2. Create application with product version and product_id in financing_type
+    // Create application with product version and product_id in financing_type
     return this.repository.create({
       issuer_organization_id: input.issuerOrganizationId,
       product_version: product.version,
@@ -362,6 +512,30 @@ export class ApplicationService {
     }
 
     return application;
+  }
+
+  /**
+   * Issuer guard: version to compare against application.product_version (INACTIVE row → ACTIVE successor by base_id).
+   */
+  async getProductVersionCompareForApplication(applicationId: string, userId: string) {
+    await this.verifyApplicationAccess(applicationId, userId);
+
+    const application = await this.repository.findById(applicationId);
+    if (!application) {
+      throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    }
+
+    const financing = application.financing_type as Record<string, unknown> | null | undefined;
+    const productId = financing?.product_id as string | undefined;
+    if (!productId?.trim()) {
+      return { outcome: "NO_PRODUCT_ID" as const };
+    }
+
+    const target = await this.productRepository.getVersionCompareTarget(productId.trim());
+    if (target.kind === "UNAVAILABLE") {
+      return { outcome: "PRODUCT_UNAVAILABLE" as const };
+    }
+    return { outcome: "COMPARE" as const, compare_version: target.version };
   }
 
   /**
@@ -426,9 +600,16 @@ export class ApplicationService {
     return logs.map((log) => {
       const meta = (log.metadata as Record<string, unknown>) ?? {};
       const actorName = log.user_id ? actorNameMap.get(log.user_id) ?? null : null;
+      const mergedMeta = actorName ? { ...meta, actorName } : meta;
+      let activity: string | undefined;
+      const resubmitChanges = mergedMeta.resubmit_changes as { activity_summary?: string } | undefined;
+      if (log.event_type === "APPLICATION_RESUBMITTED" && resubmitChanges?.activity_summary) {
+        activity = resubmitChanges.activity_summary;
+      }
       return {
         ...log,
-        metadata: actorName ? { ...meta, actorName } : meta,
+        metadata: mergedMeta,
+        ...(activity ? { activity } : {}),
       };
     });
   }
@@ -465,7 +646,26 @@ export class ApplicationService {
     if ((application as any).status !== "AMENDMENT_REQUESTED") {
       throw new AppError(400, "INVALID_STATE", "Resubmit allowed only in AMENDMENT_REQUESTED state");
     }
-    return amendmentResubmitApplication(applicationId, userId, this.repository);
+    const result = await amendmentResubmitApplication(applicationId, userId, this.repository);
+
+    try {
+      await this.sendIssuerNotification(
+        applicationId,
+        NotificationTypeIds.APPLICATION_RESUBMITTED_CONFIRMATION,
+        {
+          applicationId,
+          reviewCycle: (result as { review_cycle?: number })?.review_cycle ?? ((application as { review_cycle?: number }).review_cycle ?? 1) + 1,
+        },
+        `resubmitted:${(result as { review_cycle?: number })?.review_cycle ?? "next"}`
+      );
+    } catch (notificationError) {
+      logger.error(
+        { error: notificationError, applicationId },
+        "Failed to send application resubmitted confirmation notification"
+      );
+    }
+
+    return result;
   }
 
   /**
@@ -524,88 +724,58 @@ export class ApplicationService {
     }
 
     if (fieldName === "financial_statements") {
-      const result = financialStatementsInputSchema.safeParse(input.data);
-      if (!result.success) {
-        const message = result.error.errors.map((e) => e.message).join("; ");
-        throw new AppError(400, "VALIDATION_ERROR", message);
-      }
-      const raw = result.data;
-      const toNum = (v: unknown) => {
-        if (typeof v === "number" && !Number.isNaN(v)) return v;
-        const n = Number(String(v).replace(/,/g, ""));
-        return Number.isNaN(n) ? 0 : n;
-      };
+      const payload = input.data as Record<string, unknown>;
+      const isV2 =
+        payload &&
+        typeof payload === "object" &&
+        payload.questionnaire != null &&
+        typeof payload.questionnaire === "object";
 
-      const nonNegativeFields: { key: keyof typeof raw; label: string }[] = [
-        { key: "turnover", label: "Turnover" },
-        { key: "bsfatot", label: "Fixed assets" },
-        { key: "othass", label: "Other assets" },
-        { key: "bscatot", label: "Current assets" },
-        { key: "bsclbank", label: "Non-current assets" },
-        { key: "curlib", label: "Current liability" },
-        { key: "bsslltd", label: "Long-term liability" },
-        { key: "bsclstd", label: "Non-current liability" },
-        { key: "bsqpuc", label: "Paid-up capital" },
-        { key: "plnetdiv", label: "Net dividend" },
-      ];
-      for (const { key, label } of nonNegativeFields) {
-        const val = toNum(raw[key]);
-        if (val < 0) {
-          throw new AppError(400, "VALIDATION_ERROR", `${label} cannot be negative`);
+      if (isV2) {
+        const v2 = financialStatementsV2Schema.safeParse(payload);
+        if (!v2.success) {
+          const message = v2.error.errors.map((e) => e.message).join("; ");
+          throw new AppError(400, "VALIDATION_ERROR", message);
         }
-      }
-
-      /** Parse bsdd date string (ISO yyyy-MM-dd or d/M/yyyy) to local midnight Date or null. */
-      const parseBsddDate = (s: string): Date | null => {
-        if (!s?.trim()) return null;
-        const t = s.trim();
-        let year: number;
-        let month: number;
-        let day: number;
-        if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
-          year = parseInt(t.slice(0, 4), 10);
-          month = parseInt(t.slice(5, 7), 10) - 1;
-          day = parseInt(t.slice(8, 10), 10);
-        } else {
-          const parts = t.split("/");
-          if (parts.length !== 3) return null;
-          day = parseInt(parts[0], 10);
-          month = parseInt(parts[1], 10) - 1;
-          year = parseInt(parts[2], 10);
+        const { questionnaire, unaudited_by_year } = v2.data;
+        const expectedYears = getExpectedUnauditedYearsFromQuestionnaire(questionnaire);
+        const actualKeys = Object.keys(unaudited_by_year).sort();
+        const expectedStr = expectedYears.map((y) => String(y)).sort();
+        if (actualKeys.length !== expectedStr.length || actualKeys.some((k, i) => k !== expectedStr[i])) {
+          throw new AppError(
+            400,
+            "VALIDATION_ERROR",
+            `Unaudited years must match questionnaire: expected ${expectedStr.join(", ") || "(none)"}`
+          );
         }
-        if (Number.isNaN(day) || Number.isNaN(month) || Number.isNaN(year) || month < 0 || month > 11) return null;
-        const d = new Date(year, month, day);
-        if (d.getFullYear() !== year || d.getMonth() !== month || d.getDate() !== day) return null;
-        return d;
-      };
 
-      const bsddDate = parseBsddDate(String(raw.bsdd ?? ""));
-      if (bsddDate) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        if (bsddDate > today) {
-          throw new AppError(400, "VALIDATION_ERROR", "Financial data date cannot be in the future.");
+        const normalizedByYear: Record<string, Prisma.InputJsonValue> = {};
+        for (const y of expectedYears) {
+          const key = String(y);
+          const blockResult = financialStatementsInputSchema.safeParse(unaudited_by_year[key]);
+          if (!blockResult.success) {
+            const message = blockResult.error.errors.map((e) => e.message).join("; ");
+            throw new AppError(400, "VALIDATION_ERROR", `${key}: ${message}`);
+          }
+          const block = { ...blockResult.data, pldd: String(y) };
+          validateFinancialYearBlockOrThrow(block);
+          normalizedByYear[key] = normalizeFinancialYearBlock(block as Record<string, unknown>);
         }
-      }
 
-      dataToStore = {
-        pldd: String(raw.pldd ?? ""),
-        bsdd: String(raw.bsdd ?? ""),
-        bsfatot: toNum(raw.bsfatot),
-        othass: toNum(raw.othass),
-        bscatot: toNum(raw.bscatot),
-        bsclbank: toNum(raw.bsclbank),
-        curlib: toNum(raw.curlib),
-        bsslltd: toNum(raw.bsslltd),
-        bsclstd: toNum(raw.bsclstd),
-        bsqpuc: toNum(raw.bsqpuc),
-        turnover: toNum(raw.turnover),
-        plnpbt: toNum(raw.plnpbt),
-        plnpat: toNum(raw.plnpat),
-        plminin: toNum(raw.plminin),
-        plnetdiv: toNum(raw.plnetdiv),
-        plyear: toNum(raw.plyear),
-      } as Prisma.InputJsonValue;
+        dataToStore = {
+          questionnaire,
+          unaudited_by_year: normalizedByYear,
+        } as Prisma.InputJsonValue;
+      } else {
+        const result = financialStatementsInputSchema.safeParse(input.data);
+        if (!result.success) {
+          const message = result.error.errors.map((e) => e.message).join("; ");
+          throw new AppError(400, "VALIDATION_ERROR", message);
+        }
+        const raw = result.data;
+        validateFinancialYearBlockOrThrow(raw);
+        dataToStore = normalizeFinancialYearBlock(raw as Record<string, unknown>);
+      }
     }
 
     /** financing_type stores only product_id; product_version lives in application.product_version column. */
@@ -876,6 +1046,19 @@ export class ApplicationService {
         portal: ActivityPortal.ISSUER,
         metadata: { withdraw_reason: WithdrawReason.USER_CANCELLED },
       });
+      try {
+        await this.sendIssuerNotification(
+          id,
+          NotificationTypeIds.APPLICATION_WITHDRAWN_CONFIRMATION,
+          { applicationId: id },
+          "withdrawn:user-cancelled"
+        );
+      } catch (notificationError) {
+        logger.error(
+          { error: notificationError, applicationId: id },
+          "Failed to send application withdrawn confirmation notification"
+        );
+      }
     }
 
     return updated;
@@ -891,6 +1074,8 @@ export class ApplicationService {
     contentType: string;
     fileSize: number;
     existingS3Key?: string;
+    supportingDocCategoryKey?: string;
+    supportingDocIndex?: number;
     userId: string;
   }): Promise<{ uploadUrl: string; s3Key: string; expiresIn: number }> {
     await this.verifyApplicationAccess(params.applicationId, params.userId);
@@ -903,6 +1088,43 @@ export class ApplicationService {
         throw new AppError(403, "AMENDMENT_LOCKED", "This section is locked during amendment review");
       }
     }
+
+    let allowedTypes: string[];
+    if (
+      params.supportingDocCategoryKey !== undefined &&
+      params.supportingDocIndex !== undefined
+    ) {
+      const ft = application?.financing_type as { product_id?: string } | null | undefined;
+      const productId = ft?.product_id;
+      if (!productId || typeof productId !== "string") {
+        throw new AppError(400, "VALIDATION_ERROR", "Application has no product for document upload");
+      }
+      const product = await this.productRepository.findById(productId);
+      if (!product) {
+        throw new AppError(400, "VALIDATION_ERROR", "Product not found");
+      }
+      allowedTypes = getSupportingDocAllowedTypesFromProductWorkflow(
+        product.workflow as unknown[],
+        params.supportingDocCategoryKey,
+        params.supportingDocIndex
+      );
+    } else {
+      allowedTypes = ["pdf"];
+    }
+
+    const token = fileNameToSupportingDocTypeToken(params.fileName);
+    if (!token || !allowedTypes.includes(token)) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invalid file type");
+    }
+
+    console.log(
+      "Application upload URL: fileName:",
+      params.fileName,
+      "token:",
+      token,
+      "allowedTypes:",
+      allowedTypes
+    );
 
     return requestPresignedUploadUrl({
       applicationId: params.applicationId,
@@ -924,9 +1146,19 @@ export class ApplicationService {
 
     if ((application as any).status === "AMENDMENT_REQUESTED") {
       const { allowedSections } = await getAmendmentAllowedSections(applicationId);
-      if (!allowedSections.has("supporting_documents")) {
+      const canRemoveAppUploadedFile =
+        allowedSections.has("supporting_documents") || allowedSections.has("business_details");
+      if (!canRemoveAppUploadedFile) {
         throw new AppError(403, "AMENDMENT_LOCKED", "This section is locked during amendment review");
       }
+    }
+
+    if (shouldPreserveApplicationDocumentsInS3((application as { status?: string })?.status)) {
+      logger.info(
+        { applicationId, s3Key },
+        "Skipped application document S3 delete: AMENDMENT_REQUESTED (preserve for compare/audit)"
+      );
+      return;
     }
 
     await deleteDocumentFromS3(s3Key);
@@ -960,27 +1192,39 @@ export class ApplicationService {
 
     // Create revision on initial submit (DRAFT -> SUBMITTED)
     if (status === "SUBMITTED" && currentStatus === "DRAFT") {
+      const financingTypeSubmit = application.financing_type as { product_id?: string } | null | undefined;
+      const submitProductId = financingTypeSubmit?.product_id;
+      if (submitProductId) {
+        const submitProduct = await this.productRepository.findById(submitProductId);
+        if (submitProduct?.workflow) {
+          assertRequiredSupportingDocumentsPresent(
+            submitProduct.workflow,
+            application.supporting_documents
+          );
+        }
+      }
       const appFull = await prisma.application.findUnique({
         where: { id },
-        include: { contract: true, invoices: true },
+        include: { contract: true, invoices: true, issuer_organization: true },
       });
       if (appFull) {
-        const snapshot = {
-          application: {
-            financing_type: appFull.financing_type,
-            financing_structure: appFull.financing_structure,
-            company_details: appFull.company_details,
-            business_details: appFull.business_details,
-            financial_statements: appFull.financial_statements,
-            supporting_documents: appFull.supporting_documents,
-            declarations: appFull.declarations,
-            review_and_submit: appFull.review_and_submit,
-            last_completed_step: appFull.last_completed_step,
-            contract_id: appFull.contract_id,
-          },
-          contract: appFull.contract ?? null,
-          invoices: appFull.invoices ?? [],
-        };
+        const snapshot = buildApplicationRevisionSnapshot({
+          financing_type: appFull.financing_type,
+          product_version: appFull.product_version,
+          amendment_acknowledged_workflow_ids: appFull.amendment_acknowledged_workflow_ids,
+          financing_structure: appFull.financing_structure,
+          company_details: appFull.company_details,
+          business_details: appFull.business_details,
+          financial_statements: appFull.financial_statements,
+          supporting_documents: appFull.supporting_documents,
+          declarations: appFull.declarations,
+          review_and_submit: appFull.review_and_submit,
+          last_completed_step: appFull.last_completed_step,
+          contract_id: appFull.contract_id,
+          contract: appFull.contract,
+          invoices: appFull.invoices,
+          issuer_organization: appFull.issuer_organization,
+        });
         await (prisma as any).applicationRevision.create({
           data: {
             application_id: id,
@@ -1279,6 +1523,21 @@ export class ApplicationService {
           : {}),
       },
     });
+    if (responseMeta.appStatus === ApplicationStatus.WITHDRAWN) {
+      try {
+        await this.sendIssuerNotification(
+          applicationId,
+          NotificationTypeIds.APPLICATION_WITHDRAWN_CONFIRMATION,
+          { applicationId },
+          "withdrawn:contract-offer-response"
+        );
+      } catch (notificationError) {
+        logger.error(
+          { error: notificationError, applicationId },
+          "Failed to send application withdrawn confirmation notification (contract flow)"
+        );
+      }
+    }
     if (responseMeta.appStatus === ApplicationStatus.COMPLETED) {
       await logApplicationActivity({
         userId,
@@ -1286,6 +1545,19 @@ export class ApplicationService {
         eventType: "APPLICATION_COMPLETED",
         portal: ActivityPortal.ISSUER,
       });
+      try {
+        await this.sendIssuerNotification(
+          applicationId,
+          NotificationTypeIds.APPLICATION_COMPLETED,
+          { applicationId },
+          "completed:contract-flow"
+        );
+      } catch (notificationError) {
+        logger.error(
+          { error: notificationError, applicationId },
+          "Failed to send application completed notification (contract flow)"
+        );
+      }
     }
 
     const updated = await this.repository.findById(applicationId);
@@ -1544,6 +1816,21 @@ export class ApplicationService {
           : {}),
       },
     });
+    if (responseMeta.appStatus === ApplicationStatus.WITHDRAWN) {
+      try {
+        await this.sendIssuerNotification(
+          applicationId,
+          NotificationTypeIds.APPLICATION_WITHDRAWN_CONFIRMATION,
+          { applicationId },
+          "withdrawn:invoice-offer-response"
+        );
+      } catch (notificationError) {
+        logger.error(
+          { error: notificationError, applicationId },
+          "Failed to send application withdrawn confirmation notification (invoice flow)"
+        );
+      }
+    }
     if (responseMeta.appStatus === ApplicationStatus.COMPLETED) {
       await logApplicationActivity({
         userId,
@@ -1551,6 +1838,19 @@ export class ApplicationService {
         eventType: "APPLICATION_COMPLETED",
         portal: ActivityPortal.ISSUER,
       });
+      try {
+        await this.sendIssuerNotification(
+          applicationId,
+          NotificationTypeIds.APPLICATION_COMPLETED,
+          { applicationId },
+          "completed:invoice-flow"
+        );
+      } catch (notificationError) {
+        logger.error(
+          { error: notificationError, applicationId },
+          "Failed to send application completed notification (invoice flow)"
+        );
+      }
     }
 
     const updated = await this.repository.findById(applicationId);

@@ -110,7 +110,7 @@ export function buildCompanyDetails(issuerOrganizationId: string): Record<string
   };
 }
 
-/** business_details: about_your_business, why_raising_funds, declaration_confirmed. */
+/** business_details: about_your_business, why_raising_funds, declaration_confirmed, guarantors. */
 export function buildBusinessDetails(): Record<string, unknown> {
   return {
     about_your_business: {
@@ -134,17 +134,31 @@ export function buildBusinessDetails(): Record<string, unknown> {
     },
     declaration_confirmed: true,
     isDeclarationConfirmed: true,
+    guarantors: [
+      {
+        guarantor_type: "individual" as const,
+        first_name: "Ahmad",
+        last_name: "Hassan",
+        ic_number: "850315-10-1234",
+        relationship: "director_shareholder" as const,
+      },
+      {
+        guarantor_type: "company" as const,
+        company_name: "ABC Holdings Sdn Bhd",
+        ssm_number: "1234567-A",
+        relationship: "parent_company" as const,
+      },
+    ],
   };
 }
 
 /** financial_statements: flat fields (numeric or date string). Schema accepts string|number. */
 export function buildFinancialStatements(): Record<string, unknown> {
   const today = new Date();
-  const pldd = formatDate(new Date(today.getFullYear() - 1, 11, 31));
+  const pldd = String(today.getFullYear() - 1);
   const bsdd = formatDate(new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000));
   const turnover = randomInt(500000, 5000000);
   const plnpat = randomInt(100000, 500000);
-  const plminin = randomInt(0, 50000);
   const plyear = randomInt(100000, 300000);
   return {
     pldd,
@@ -160,7 +174,6 @@ export function buildFinancialStatements(): Record<string, unknown> {
     turnover,
     plnpbt: Math.round(plnpat * 1.2),
     plnpat,
-    plminin,
     plnetdiv: randomInt(10000, 100000),
     plyear,
   };

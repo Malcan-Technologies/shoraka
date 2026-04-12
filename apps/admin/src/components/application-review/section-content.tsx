@@ -1,5 +1,13 @@
 "use client";
 
+/**
+ * SECTION: Maps review tab descriptor to section UI
+ * WHY: Single switch routes financial, documents, contract, etc.
+ * INPUT: descriptor, application view, handlers, optional comparison snapshots
+ * OUTPUT: The correct section component tree
+ * WHERE USED: Admin application detail tabs, resubmit comparison modal
+ */
+
 import {
   resolveApprovedFacility,
   resolveRequestedFacility,
@@ -34,40 +42,56 @@ export interface PendingAmendmentItem {
   item_id: string | null;
 }
 
+export type ReviewApplicationView = {
+  id?: string;
+  created_at?: string;
+  business_details?: unknown;
+  supporting_documents?: unknown;
+  financing_type?: unknown;
+  financing_structure?: unknown;
+  company_details?: unknown;
+  declarations?: unknown;
+  financial_statements?: unknown;
+  review_and_submit?: unknown;
+  contract?: {
+    contract_details?: unknown;
+    customer_details?: unknown;
+    status?: string;
+    invoices?: { id: string; application_id: string; details?: unknown; status?: string; offer_details?: unknown }[];
+  } | null;
+  invoices?: {
+    id: string;
+    details?: unknown;
+    status?: string;
+    offer_details?: unknown;
+    offer_signing?: unknown;
+    application_id?: string;
+  }[];
+  application_review_items?: unknown;
+  application_review_remarks?: unknown;
+  issuer_organization_id?: string;
+  issuer_organization?: {
+    id?: string;
+    name?: string | null;
+    corporate_entities?: unknown;
+    corporate_onboarding_data?: Record<string, unknown> | null;
+    corporateOnboardingData?: Record<string, unknown> | null;
+    bank_account_details?: Record<string, unknown> | null;
+    bankAccountDetails?: Record<string, unknown> | null;
+    director_kyc_status?: unknown;
+    director_aml_status?: unknown;
+  } | null;
+};
+
+export type SectionContentComparison = {
+  beforeApp: ReviewApplicationView;
+  afterApp: ReviewApplicationView;
+  isPathChanged: (path: string) => boolean;
+};
+
 export interface SectionContentProps {
   descriptor: ReviewTabDescriptor;
-  app: {
-    business_details?: unknown;
-    supporting_documents?: unknown;
-    financing_type?: unknown;
-    financing_structure?: unknown;
-    company_details?: unknown;
-    declarations?: unknown;
-    contract?: {
-      contract_details?: unknown;
-      customer_details?: unknown;
-      status?: string;
-    } | null;
-    invoices?: {
-      id: string;
-      details?: unknown;
-      status?: string;
-      offer_details?: unknown;
-      offer_signing?: unknown;
-    }[];
-    application_review_items?: unknown;
-    application_review_remarks?: unknown;
-    issuer_organization?: {
-      name?: string | null;
-      corporate_entities?: unknown;
-      corporate_onboarding_data?: Record<string, unknown> | null;
-      corporateOnboardingData?: Record<string, unknown> | null;
-      bank_account_details?: Record<string, unknown> | null;
-      bankAccountDetails?: Record<string, unknown> | null;
-      director_kyc_status?: unknown;
-      director_aml_status?: unknown;
-    } | null;
-  };
+  app: ReviewApplicationView;
   isReviewable: boolean;
   approveSectionPending: boolean;
   approveItemPending: boolean;
@@ -84,6 +108,9 @@ export interface SectionContentProps {
   onRejectSection: (section: ReviewSectionId) => void;
   onRequestAmendmentSection: (section: ReviewSectionId) => void;
   onViewDocument: (s3Key: string) => void;
+  onDownloadDocument: (s3Key: string, fileName?: string) => void;
+  onDownloadAllDocuments: (files: { s3Key: string; fileName: string; category: string; field: string }[]) => Promise<void> | void;
+  downloadAllDocumentsPending?: boolean;
   onApproveItem: (itemId: string, itemType: "invoice" | "document") => Promise<void>;
   onRejectItem: (itemId: string, itemType: "invoice" | "document") => void;
   onRequestAmendmentItem: (itemId: string, itemType: "invoice" | "document") => void;
@@ -109,6 +136,14 @@ export interface SectionContentProps {
   onViewSignedInvoiceOffer?: (signedOfferLetterS3Key: string) => void | Promise<void>;
   onViewSignedContractOffer?: () => void | Promise<void>;
   viewSignedOfferLetterPending?: boolean;
+  /** When set, sections render read-only before/after comparison grids. */
+  sectionComparison?: SectionContentComparison;
+  /** When true (e.g. resubmit comparison modal), section comment thread is hidden. */
+  hideSectionComments?: boolean;
+  /** supporting_documents workflow config — only applied when sectionComparison is set (resubmit modal). */
+  supportingDocumentsStepConfig?: Record<string, unknown> | null;
+  /** Stored amendment remarks for resubmit comparison (modal only). */
+  resubmitAmendmentRemarks?: Array<{ scope: string; scope_key: string; remark: string }>;
 }
 
 /** Renders section content by descriptor. Single place to map descriptor → component. */
@@ -127,6 +162,9 @@ export function SectionContent({
   onRejectSection,
   onRequestAmendmentSection,
   onViewDocument,
+  onDownloadDocument,
+  onDownloadAllDocuments,
+  downloadAllDocumentsPending = false,
   onApproveItem,
   onRejectItem,
   onRequestAmendmentItem,
@@ -143,6 +181,10 @@ export function SectionContent({
   onViewSignedInvoiceOffer,
   onViewSignedContractOffer,
   viewSignedOfferLetterPending,
+  sectionComparison,
+  hideSectionComments = false,
+  supportingDocumentsStepConfig = null,
+  resubmitAmendmentRemarks,
 }: SectionContentProps) {
   const reviewItems =
     (app.application_review_items as { item_type: string; item_id: string; status: string }[]) ?? [];
@@ -160,6 +202,7 @@ export function SectionContent({
     case "financial":
       return (
         <FinancialSection
+          applicationId={app.id ?? ""}
           app={app}
           section={section}
           isReviewable={isReviewable}
@@ -173,6 +216,16 @@ export function SectionContent({
           onRequestAmendment={onRequestAmendmentSection}
           comments={sectionComments}
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
+          sectionComparison={
+            sectionComparison
+              ? {
+                  beforeApp: sectionComparison.beforeApp,
+                  afterApp: sectionComparison.afterApp,
+                  isPathChanged: sectionComparison.isPathChanged,
+                }
+              : undefined
+          }
+          hideSectionComments={hideSectionComments}
         />
       );
     case "business_details":
@@ -189,8 +242,21 @@ export function SectionContent({
           onApprove={onApproveSection}
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}
+          onViewDocument={onViewDocument}
+          onDownloadDocument={onDownloadDocument}
+          viewDocumentPending={viewDocumentPending}
           comments={sectionComments}
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
+          sectionComparison={
+            sectionComparison
+              ? {
+                  beforeDetails: sectionComparison.beforeApp.business_details,
+                  afterDetails: sectionComparison.afterApp.business_details,
+                  isPathChanged: sectionComparison.isPathChanged,
+                }
+              : undefined
+          }
+          hideSectionComments={hideSectionComments}
         />
       );
     case "company_details":
@@ -209,6 +275,16 @@ export function SectionContent({
           onRequestAmendment={onRequestAmendmentSection}
           comments={sectionComments}
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
+          sectionComparison={
+            sectionComparison
+              ? {
+                  beforeApp: sectionComparison.beforeApp,
+                  afterApp: sectionComparison.afterApp,
+                  isPathChanged: sectionComparison.isPathChanged,
+                }
+              : undefined
+          }
+          hideSectionComments={hideSectionComments}
         />
       );
     case "supporting_documents":
@@ -222,12 +298,29 @@ export function SectionContent({
           actionLockTooltip={actionLockTooltip}
           viewDocumentPending={viewDocumentPending}
           onViewDocument={onViewDocument}
+          onDownloadDocument={onDownloadDocument}
+          onDownloadAllDocuments={onDownloadAllDocuments}
+          isDownloadAllPending={downloadAllDocumentsPending}
           onApproveItem={(id) => onApproveItem(id, "document")}
           onRejectItem={(id) => onRejectItem(id, "document")}
           onRequestAmendmentItem={(id) => onRequestAmendmentItem(id, "document")}
           onResetItemToPending={onResetItemToPending ? (id) => onResetItemToPending(id, "document") : undefined}
           comments={sectionComments}
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
+          sectionComparison={
+            sectionComparison
+              ? {
+                  beforeDocs: sectionComparison.beforeApp.supporting_documents,
+                  afterDocs: sectionComparison.afterApp.supporting_documents,
+                  isPathChanged: sectionComparison.isPathChanged,
+                  amendmentRemarks: resubmitAmendmentRemarks,
+                }
+              : undefined
+          }
+          hideSectionComments={hideSectionComments}
+          supportingDocumentsStepConfig={
+            sectionComparison ? supportingDocumentsStepConfig ?? null : null
+          }
         />
       );
     case "contract_details": {
@@ -248,9 +341,20 @@ export function SectionContent({
             onReject={onRejectSection}
             onRequestAmendment={onRequestAmendmentSection}
             onViewDocument={onViewDocument}
+            onDownloadDocument={onDownloadDocument}
             viewDocumentPending={viewDocumentPending}
             comments={sectionComments}
             onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
+            sectionComparison={
+              sectionComparison
+                ? {
+                    beforeCustomer: sectionComparison.beforeApp.contract?.customer_details,
+                    afterCustomer: sectionComparison.afterApp.contract?.customer_details,
+                    isPathChanged: sectionComparison.isPathChanged,
+                  }
+                : undefined
+            }
+            hideSectionComments={hideSectionComments}
           />
         );
       }
@@ -273,6 +377,7 @@ export function SectionContent({
           onSendOffer={onSendContractOffer}
           isSendOfferPending={sendContractOfferPending}
           onViewDocument={onViewDocument}
+          onDownloadDocument={onDownloadDocument}
           viewDocumentPending={viewDocumentPending}
           comments={sectionComments}
           onAddComment={onAddSectionComment ? (comment) => onAddSectionComment(section, comment) : undefined}
@@ -281,6 +386,26 @@ export function SectionContent({
             (app.contract as { offer_signing?: unknown } | null | undefined)?.offer_signing
           )}
           viewSignedOfferLetterPending={viewSignedOfferLetterPending}
+          sectionComparison={
+            sectionComparison
+              ? {
+                  before: {
+                    contractDetails: sectionComparison.beforeApp.contract?.contract_details,
+                    customerDetails: sectionComparison.beforeApp.contract?.customer_details,
+                    offerDetails: (sectionComparison.beforeApp.contract as { offer_details?: unknown } | null)
+                      ?.offer_details,
+                  },
+                  after: {
+                    contractDetails: sectionComparison.afterApp.contract?.contract_details,
+                    customerDetails: sectionComparison.afterApp.contract?.customer_details,
+                    offerDetails: (sectionComparison.afterApp.contract as { offer_details?: unknown } | null)
+                      ?.offer_details,
+                  },
+                  isPathChanged: sectionComparison.isPathChanged,
+                }
+              : undefined
+          }
+          hideSectionComments={hideSectionComments}
         />
       );
     }
@@ -327,6 +452,7 @@ export function SectionContent({
           isActionLocked={isActionLocked}
           actionLockTooltip={actionLockTooltip}
           onViewDocument={onViewDocument}
+          onDownloadDocument={onDownloadDocument}
           viewDocumentPending={viewDocumentPending}
           invoiceRatioLimits={invoiceRatioLimits}
           onApproveItem={(id) => onApproveItem(id, "invoice")}
@@ -340,6 +466,30 @@ export function SectionContent({
           offerExpiryDays={offerExpiryDays}
           minMonthsReviewToMaturityForOffer={minMonthsReviewToMaturityForOffer}
           onViewSignedInvoiceOffer={onViewSignedInvoiceOffer}
+          sectionComparison={
+            sectionComparison
+              ? (() => {
+                  const bApp = sectionComparison.beforeApp;
+                  const aApp = sectionComparison.afterApp;
+                  const bContract = bApp.contract as typeof contract | null | undefined;
+                  const aContract = aApp.contract as typeof contract | null | undefined;
+                  const bOther =
+                    applicationId && bContract?.invoices?.length
+                      ? bContract.invoices.filter((inv) => inv.application_id !== applicationId)
+                      : [];
+                  const aOther =
+                    applicationId && aContract?.invoices?.length
+                      ? aContract.invoices.filter((inv) => inv.application_id !== applicationId)
+                      : [];
+                  return {
+                    beforeInvoices: [...(bApp.invoices ?? []), ...bOther],
+                    afterInvoices: [...(aApp.invoices ?? []), ...aOther],
+                    isPathChanged: sectionComparison.isPathChanged,
+                  };
+                })()
+              : undefined
+          }
+          hideSectionComments={hideSectionComments}
         />
       );
     }

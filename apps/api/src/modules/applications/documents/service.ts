@@ -14,6 +14,7 @@ import {
 } from "../../../lib/s3/client";
 import { logger } from "../../../lib/logger";
 import { AppError } from "../../../lib/http/error-handler";
+import { contentTypeForSupportingDocFileName } from "../supporting-docs-workflow";
 
 function generateCuid(): string {
   const timestamp = Date.now().toString(36);
@@ -38,8 +39,9 @@ export async function requestPresignedUploadUrl(params: RequestPresignedUploadUr
   s3Key: string;
   expiresIn: number;
 }> {
-  if (params.contentType !== "application/pdf") {
-    throw new AppError(400, "VALIDATION_ERROR", "File type not allowed. Please upload PDF files only.");
+  const extension = getFileExtension(params.fileName);
+  if (extension !== "pdf" && extension !== "xlsx" && extension !== "xls") {
+    throw new AppError(400, "VALIDATION_ERROR", "Invalid file type");
   }
 
   const maxSizeInBytes = 5 * 1024 * 1024;
@@ -47,7 +49,7 @@ export async function requestPresignedUploadUrl(params: RequestPresignedUploadUr
     throw new AppError(400, "VALIDATION_ERROR", "File size must be less than 5MB");
   }
 
-  const extension = getFileExtension(params.fileName) || "pdf";
+  const contentType = contentTypeForSupportingDocFileName(params.fileName);
   let s3Key: string;
 
   if (params.existingS3Key) {
@@ -75,7 +77,7 @@ export async function requestPresignedUploadUrl(params: RequestPresignedUploadUr
 
   const { uploadUrl, expiresIn } = await generatePresignedUploadUrl({
     key: s3Key,
-    contentType: params.contentType,
+    contentType,
     contentLength: params.fileSize,
   });
 

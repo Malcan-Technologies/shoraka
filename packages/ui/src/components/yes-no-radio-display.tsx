@@ -10,13 +10,19 @@ import { cn } from "../lib/utils";
 export function YesNoRadioDisplay({
   value,
   className,
+  /** Read-only comparison panels: keep selection dots, use muted text like review value fields. */
+  comparisonMuted = false,
 }: {
   /** true = Yes, false = No, null = not provided */
   value: boolean | null;
   className?: string;
+  comparisonMuted?: boolean;
 }) {
   const labelClass = "text-sm md:text-base leading-6";
-  const selectedLabelClass = cn(labelClass, "text-foreground");
+  const selectedLabelClass = cn(
+    labelClass,
+    comparisonMuted ? "text-muted-foreground font-medium" : "text-foreground"
+  );
   const unselectedLabelClass = cn(labelClass, "text-muted-foreground");
 
   if (value === null) {

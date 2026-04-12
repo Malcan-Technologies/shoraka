@@ -19,6 +19,19 @@ export const NotificationTypeIds = {
   // Marketing / Generic
   SYSTEM_ANNOUNCEMENT: 'system_announcement',
   NEW_PRODUCT_ALERT: 'new_product_alert',
+
+  // Issuer application / review lifecycle
+  APPLICATION_AMENDMENTS_REQUESTED: 'application_amendments_requested',
+  APPLICATION_APPROVED: 'application_approved',
+  APPLICATION_REJECTED: 'application_rejected',
+  CONTRACT_OFFER_SENT: 'contract_offer_sent',
+  INVOICE_OFFER_SENT: 'invoice_offer_sent',
+  OFFER_RETRACTED_OR_RESET: 'offer_retracted_or_reset',
+  OFFER_EXPIRED: 'offer_expired',
+  OFFER_EXPIRY_REMINDER_24H: 'offer_expiry_reminder_24h',
+  APPLICATION_RESUBMITTED_CONFIRMATION: 'application_resubmitted_confirmation',
+  APPLICATION_WITHDRAWN_CONFIRMATION: 'application_withdrawn_confirmation',
+  APPLICATION_COMPLETED: 'application_completed',
 } as const;
 
 export type NotificationTypeId = typeof NotificationTypeIds[keyof typeof NotificationTypeIds];
@@ -60,6 +73,54 @@ export interface NotificationPayloads {
     productName: string;
     productId: string;
   };
+  [NotificationTypeIds.APPLICATION_AMENDMENTS_REQUESTED]: {
+    applicationId: string;
+    amendmentCount: number;
+  };
+  [NotificationTypeIds.APPLICATION_APPROVED]: {
+    applicationId: string;
+  };
+  [NotificationTypeIds.APPLICATION_REJECTED]: {
+    applicationId: string;
+  };
+  [NotificationTypeIds.CONTRACT_OFFER_SENT]: {
+    applicationId: string;
+    offeredFacility: number;
+    expiresAt?: string | null;
+  };
+  [NotificationTypeIds.INVOICE_OFFER_SENT]: {
+    applicationId: string;
+    invoiceId: string;
+    invoiceNumber?: string | null;
+    offeredAmount: number;
+    expiresAt?: string | null;
+  };
+  [NotificationTypeIds.OFFER_RETRACTED_OR_RESET]: {
+    applicationId: string;
+    offerType: 'contract' | 'invoice';
+    invoiceNumber?: string | null;
+  };
+  [NotificationTypeIds.OFFER_EXPIRED]: {
+    applicationId: string;
+    offerType: 'contract' | 'invoice';
+    invoiceNumber?: string | null;
+  };
+  [NotificationTypeIds.OFFER_EXPIRY_REMINDER_24H]: {
+    applicationId: string;
+    offerType: 'contract' | 'invoice';
+    invoiceNumber?: string | null;
+    expiresAt: string;
+  };
+  [NotificationTypeIds.APPLICATION_RESUBMITTED_CONFIRMATION]: {
+    applicationId: string;
+    reviewCycle: number;
+  };
+  [NotificationTypeIds.APPLICATION_WITHDRAWN_CONFIRMATION]: {
+    applicationId: string;
+  };
+  [NotificationTypeIds.APPLICATION_COMPLETED]: {
+    applicationId: string;
+  };
 }
 
 /**
@@ -70,6 +131,19 @@ export interface NotificationTemplate<T extends NotificationTypeId> {
   message: (data: NotificationPayloads[T]) => string;
   linkPath: (data: NotificationPayloads[T]) => string;
   portal?: PortalType | ((data: NotificationPayloads[T]) => PortalType);
+}
+
+function getShortApplicationRef(applicationId: string): string {
+  return `#${applicationId.slice(-8).toUpperCase()}`;
+}
+
+function formatDateDDMMYYYY(value: string | Date): string {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
 }
 
 /**
@@ -103,12 +177,12 @@ export const NOTIFICATION_TEMPLATES: {
   },
   [NotificationTypeIds.PASSWORD_CHANGED]: {
     title: 'Password Changed',
-    message: (data) => `The password for your account was changed on ${data.changedAt.toLocaleString()}.`,
+    message: (data) => `The password for your account was changed on ${formatDateDDMMYYYY(data.changedAt)}.`,
     linkPath: () => '/account',
   },
   [NotificationTypeIds.LOGIN_NEW_DEVICE]: {
     title: 'Login from New Device',
-    message: (data) => `A new login was detected on ${data.deviceName} from ${data.location} at ${data.time.toLocaleString()}.`,
+    message: (data) => `A new login was detected on ${data.deviceName} from ${data.location} at ${formatDateDDMMYYYY(data.time)}.`,
     linkPath: () => '/account',
   },
   [NotificationTypeIds.SYSTEM_ANNOUNCEMENT]: {
@@ -120,6 +194,79 @@ export const NOTIFICATION_TEMPLATES: {
     title: 'New Investment Opportunity',
     message: (data) => `A new product "${data.productName}" is now available for investment.`,
     linkPath: (data) => `/investments/${data.productId}`,
+  },
+  [NotificationTypeIds.APPLICATION_AMENDMENTS_REQUESTED]: {
+    title: 'Amendment Requested',
+    message: (data) =>
+      `Your application ${getShortApplicationRef(data.applicationId)} requires updates. ${data.amendmentCount} amendment item(s) were requested by the reviewer.`,
+    linkPath: (data) => `/applications/edit/${data.applicationId}`,
+    portal: 'issuer',
+  },
+  [NotificationTypeIds.APPLICATION_APPROVED]: {
+    title: 'Application Approved',
+    message: (data) => `Your application ${getShortApplicationRef(data.applicationId)} has been approved.`,
+    linkPath: () => `/applications`,
+    portal: 'issuer',
+  },
+  [NotificationTypeIds.APPLICATION_REJECTED]: {
+    title: 'Application Rejected',
+    message: (data) => `Your application ${getShortApplicationRef(data.applicationId)} has been rejected.`,
+    linkPath: () => `/applications`,
+    portal: 'issuer',
+  },
+  [NotificationTypeIds.CONTRACT_OFFER_SENT]: {
+    title: 'Contract Offer Received',
+    message: (data) =>
+      `A contract offer of ${data.offeredFacility.toLocaleString()} has been sent to your application ${getShortApplicationRef(data.applicationId)}.${data.expiresAt ? ` It expires on ${formatDateDDMMYYYY(data.expiresAt)}.` : ''}`,
+    linkPath: () => `/applications`,
+    portal: 'issuer',
+  },
+  [NotificationTypeIds.INVOICE_OFFER_SENT]: {
+    title: 'Invoice Offer Received',
+    message: (data) =>
+      `An invoice offer${data.invoiceNumber ? ` for invoice ${data.invoiceNumber}` : ''} of RM${data.offeredAmount.toLocaleString()} has been sent.${data.expiresAt ? ` It expires on ${formatDateDDMMYYYY(data.expiresAt)}.` : ''}`,
+    linkPath: () => `/applications`,
+    portal: 'issuer',
+  },
+  [NotificationTypeIds.OFFER_RETRACTED_OR_RESET]: {
+    title: 'Offer Updated',
+    message: (data) =>
+      `${data.offerType === 'contract' ? 'Contract' : 'Invoice'} offer${data.invoiceNumber ? ` (${data.invoiceNumber})` : ''} was retracted or reset and is no longer active.`,
+    linkPath: () => `/applications`,
+    portal: 'issuer',
+  },
+  [NotificationTypeIds.OFFER_EXPIRED]: {
+    title: 'Offer Expired',
+    message: (data) =>
+      `${data.offerType === 'contract' ? 'Contract' : 'Invoice'} offer${data.invoiceNumber ? ` (${data.invoiceNumber})` : ''} has expired.`,
+    linkPath: () => `/applications`,
+    portal: 'issuer',
+  },
+  [NotificationTypeIds.OFFER_EXPIRY_REMINDER_24H]: {
+    title: 'Offer Expiring Soon',
+    message: (data) =>
+      `${data.offerType === 'contract' ? 'Contract' : 'Invoice'} offer${data.invoiceNumber ? ` (${data.invoiceNumber})` : ''} expires within 24 hours at ${formatDateDDMMYYYY(data.expiresAt)}.`,
+    linkPath: () => `/applications`,
+    portal: 'issuer',
+  },
+  [NotificationTypeIds.APPLICATION_RESUBMITTED_CONFIRMATION]: {
+    title: 'Application Resubmitted',
+    message: (data) =>
+      `Your application ${getShortApplicationRef(data.applicationId)} was successfully resubmitted for review (review cycle ${data.reviewCycle}).`,
+    linkPath: () => `/applications`,
+    portal: 'issuer',
+  },
+  [NotificationTypeIds.APPLICATION_WITHDRAWN_CONFIRMATION]: {
+    title: 'Application Withdrawn',
+    message: (data) => `Your application ${getShortApplicationRef(data.applicationId)} has been withdrawn successfully.`,
+    linkPath: (data) => `/applications/${data.applicationId}`,
+    portal: 'issuer',
+  },
+  [NotificationTypeIds.APPLICATION_COMPLETED]: {
+    title: 'Application Completed',
+    message: (data) => `Your application ${getShortApplicationRef(data.applicationId)} has been completed successfully.`,
+    linkPath: (data) => `/applications/${data.applicationId}`,
+    portal: 'issuer',
   },
 };
 

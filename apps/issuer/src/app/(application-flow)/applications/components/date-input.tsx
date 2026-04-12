@@ -4,6 +4,10 @@ import * as React from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  formInputAutofillChromeFix,
+  formInputAutofillMutedChromeFix,
+} from "@/app/(application-flow)/applications/components/form-control";
 import { CalendarPopover } from "./calendar-popover";
 import { parse, isValid, format, parseISO } from "date-fns";
 
@@ -87,13 +91,26 @@ export function DateInput({
     }
   };
 
+  /** Keep calendar open when using shadcn Select inside it (Select content is portaled to body). */
+  const isFromNestedSelect = (target: EventTarget | null) => {
+    const el = target instanceof HTMLElement ? target : null;
+    if (!el) return false;
+    return Boolean(
+      el.closest("[data-radix-select-content]") ||
+        el.closest("[data-radix-select-viewport]") ||
+        el.closest("[data-slot='select-content']")
+    );
+  };
+
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
       <PopoverPrimitive.Trigger asChild>
         <div
           className={cn(
             "relative flex items-center rounded-xl border bg-background transition-colors",
-            disabled ? "cursor-not-allowed bg-muted" : "cursor-text",
+            disabled
+              ? "cursor-not-allowed bg-muted text-muted-foreground"
+              : "cursor-text",
             preset.container,
             isInvalid && "border-destructive focus-within:border-2 focus-within:border-destructive",
             !isInvalid && "border-input focus-within:border-primary",
@@ -111,6 +128,7 @@ export function DateInput({
             className={cn(
               "bg-transparent outline-none flex-1 placeholder:text-muted-foreground",
               preset.input,
+              disabled ? formInputAutofillMutedChromeFix : formInputAutofillChromeFix,
               // reserve space for right icon
               size === "compact" ? "pr-8" : "pr-10",
               inputClassName
@@ -141,8 +159,16 @@ export function DateInput({
           side="bottom"
           align="start"
           sideOffset={6}
-          collisionPadding={8}
+          collisionPadding={12}
+          avoidCollisions
+          sticky="always"
           onOpenAutoFocus={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => {
+            if (isFromNestedSelect(e.target)) e.preventDefault();
+          }}
+          onInteractOutside={(e) => {
+            if (isFromNestedSelect(e.target)) e.preventDefault();
+          }}
           className={cn("z-50", popoverClassName)}
         >
           <CalendarPopover

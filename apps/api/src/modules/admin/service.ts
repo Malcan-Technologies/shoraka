@@ -41,7 +41,12 @@ import type {
 import { RegTankRepository, OnboardingApplicationRecord } from "../regtank/repository";
 import { RegTankAPIClient } from "../regtank/api-client";
 import { NotificationService } from "../notification/service";
-import { NotificationTypeIds } from "../notification/registry";
+import {
+  NotificationPayloads,
+  NotificationTypeId,
+  NotificationTypeIds,
+} from "../notification/registry";
+import { getIssuerRecipientUserIdsForApplication } from "../notification/application-recipients";
 import { getRegTankConfig } from "../../config/regtank";
 import type { OnboardingApprovalStatus, OnboardingApplicationResponse } from "@cashsouk/types";
 import {
@@ -73,6 +78,18 @@ import { computeSupportingDocumentsSectionStatus } from "../applications/support
 import { computeInvoiceDetailsSectionStatus } from "../applications/invoice-details-section-status";
 import { assertMaturityForSendInvoiceOffer } from "../products/validate-financial-config";
 
+type ResubmitComparisonAmendmentRemark = {
+  scope: string;
+  scope_key: string;
+  remark: string;
+  author_user_id: string;
+  submitted_at: string | null;
+};
+
+function isPlainObjectRecord(v: unknown): v is Record<string, unknown> {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
 export class AdminService {
   private repository: AdminRepository;
   private regTankRepository: RegTankRepository;
@@ -91,6 +108,25 @@ export class AdminService {
     this.regTankApiClient = new RegTankAPIClient();
     this.notificationService = new NotificationService();
     this.productRepository = new ProductRepository();
+  }
+
+  private async sendIssuerNotification<T extends NotificationTypeId>(
+    applicationId: string,
+    typeId: T,
+    payload: NotificationPayloads[T],
+    idempotencySuffix: string
+  ) {
+    const recipientUserIds = await getIssuerRecipientUserIdsForApplication(applicationId);
+    await Promise.all(
+      recipientUserIds.map((userId) =>
+        this.notificationService.sendTyped(
+          userId,
+          typeId,
+          payload,
+          `app:${applicationId}:notif:${String(typeId)}:user:${userId}:${idempotencySuffix}`
+        )
+      )
+    );
   }
 
   /**
@@ -2508,7 +2544,17 @@ export class AdminService {
 
     // Derive organization name and SSM from top-level or corporate_onboarding_data.basicInfo
     const corporateData = org
-      ? (org as { corporate_onboarding_data?: { basicInfo?: { businessName?: string; ssmRegistrationNumber?: string; ssmRegisterNumber?: string } } }).corporate_onboarding_data
+      ? (org as {
+          corporate_onboarding_data?: {
+            basicInfo?: {
+              businessName?: string | null;
+              ssmRegistrationNumber?: string | null;
+              ssmRegisterNumber?: string | null;
+              entityType?: string | null;
+              industry?: string | null;
+            };
+          };
+        }).corporate_onboarding_data
       : undefined;
     const basicInfo = corporateData?.basicInfo;
     const organizationName =
@@ -4082,6 +4128,95 @@ export class AdminService {
     };
   }
 
+  /**
+   * Full JSON snapshots for before/after resubmit comparison (admin).
+   * `reviewCycle` is the cycle stored on APPLICATION_RESUBMITTED logs (the new cycle after resubmit).
+   */
+  async getResubmitComparisonSnapshots(applicationId: string, nextReviewCycle: number) {
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: { id: true },
+    });
+    if (!application) {
+      throw new AppError(404, "NOT_FOUND", "Application not found");
+    }
+
+    const prevCycle = nextReviewCycle - 1;
+
+    const [nextRev, prevRev] = await Promise.all([
+      prisma.applicationRevision.findFirst({
+        where: { application_id: applicationId, review_cycle: nextReviewCycle },
+      }),
+      prisma.applicationRevision.findFirst({
+        where: { application_id: applicationId, review_cycle: prevCycle },
+      }),
+    ]);
+
+    if (!nextRev) {
+      throw new AppError(
+        404,
+        "NOT_FOUND",
+        "Revision snapshot not found for this review cycle"
+      );
+    }
+    if (!prevRev) {
+      throw new AppError(404, "NOT_FOUND", "Previous revision snapshot not found");
+    }
+
+    console.log("[admin] getResubmitComparisonSnapshots", {
+      applicationId,
+      previous_review_cycle: prevCycle,
+      next_review_cycle: nextReviewCycle,
+    });
+
+    const resubmitLog = await prisma.applicationLog.findFirst({
+      where: {
+        application_id: applicationId,
+        event_type: "APPLICATION_RESUBMITTED",
+        review_cycle: nextReviewCycle,
+      },
+      orderBy: { created_at: "desc" },
+      select: { metadata: true },
+    });
+
+    const meta = resubmitLog?.metadata;
+    let amendment_remarks: ResubmitComparisonAmendmentRemark[] | undefined;
+    if (isPlainObjectRecord(meta)) {
+      const raw = meta.amendment_remarks;
+      if (Array.isArray(raw)) {
+        const parsed: ResubmitComparisonAmendmentRemark[] = [];
+        for (const item of raw) {
+          if (!isPlainObjectRecord(item)) continue;
+          const remark = typeof item.remark === "string" ? item.remark : "";
+          if (remark.length === 0) continue;
+          parsed.push({
+            scope: typeof item.scope === "string" ? item.scope : "",
+            scope_key: typeof item.scope_key === "string" ? item.scope_key : "",
+            remark,
+            author_user_id: typeof item.author_user_id === "string" ? item.author_user_id : "",
+            submitted_at:
+              item.submitted_at === null
+                ? null
+                : typeof item.submitted_at === "string"
+                  ? item.submitted_at
+                  : null,
+          });
+        }
+        amendment_remarks = parsed.length > 0 ? parsed : undefined;
+      }
+    }
+
+    return {
+      previous_review_cycle: prevCycle,
+      next_review_cycle: nextReviewCycle,
+      previous_snapshot: prevRev.snapshot as Prisma.JsonValue,
+      next_snapshot: nextRev.snapshot as Prisma.JsonValue,
+      previous_submitted_at: prevRev.submitted_at.toISOString(),
+      next_submitted_at: nextRev.submitted_at.toISOString(),
+      amendment_remarks,
+    };
+  }
+
   private assertSignedOfferLetterS3KeyFromJson(offerSigning: unknown): string {
     if (!offerSigning || typeof offerSigning !== "object" || Array.isArray(offerSigning)) {
       throw new AppError(400, "INVALID_STATE", "No signed offer letter on file");
@@ -4242,6 +4377,26 @@ export class AdminService {
         userAgent: logContext?.userAgent ?? undefined,
         deviceInfo: logContext?.deviceInfo ?? undefined,
       });
+    }
+
+    if (status === ApplicationStatus.APPROVED || status === ApplicationStatus.REJECTED) {
+      try {
+        const typeId =
+          status === ApplicationStatus.APPROVED
+            ? NotificationTypeIds.APPLICATION_APPROVED
+            : NotificationTypeIds.APPLICATION_REJECTED;
+        await this.sendIssuerNotification(
+          id,
+          typeId,
+          { applicationId: id },
+          `${status.toLowerCase()}`
+        );
+      } catch (notificationError) {
+        logger.error(
+          { error: notificationError, applicationId: id, status },
+          "Failed to send issuer application status notification"
+        );
+      }
     }
 
     logger.info(
@@ -4482,7 +4637,8 @@ export class AdminService {
         const categoryKey = labelToKey[categoryLabel] ?? `cat_${catIndex}`;
         const docList = Array.isArray(cat?.documents) ? cat.documents : [];
         docList.forEach((d: Record<string, unknown>, docIndex: number) => {
-          const file = d?.file as { file_name?: string } | undefined;
+          const files = Array.isArray(d?.files) ? (d.files as Array<{ file_name?: string }>) : [];
+          const file = (d?.file as { file_name?: string } | undefined) ?? files[0];
           const label =
             String(d?.title ?? file?.file_name ?? d?.name ?? "").trim() || `Document ${docIndex + 1}`;
           const slug = label.replace(/[^a-z0-9]/gi, "_").slice(0, 32) || "doc";
@@ -4871,6 +5027,24 @@ export class AdminService {
       deviceInfo: logContext?.deviceInfo ?? undefined,
     });
 
+    try {
+      await this.sendIssuerNotification(
+        applicationId,
+        NotificationTypeIds.CONTRACT_OFFER_SENT,
+        {
+          applicationId,
+          offeredFacility,
+          expiresAt,
+        },
+        `contract-offer-sent:${contractOfferMeta.previousVersion + 1}`
+      );
+    } catch (notificationError) {
+      logger.error(
+        { error: notificationError, applicationId, contractId },
+        "Failed to send contract offer notification to issuer"
+      );
+    }
+
     return repository.getApplicationById(applicationId);
   }
 
@@ -5134,6 +5308,26 @@ export class AdminService {
       deviceInfo: logContext?.deviceInfo ?? undefined,
     });
 
+    try {
+      await this.sendIssuerNotification(
+        applicationId,
+        NotificationTypeIds.INVOICE_OFFER_SENT,
+        {
+          applicationId,
+          invoiceId,
+          invoiceNumber: invoiceOfferMeta.invoiceNumber,
+          offeredAmount,
+          expiresAt,
+        },
+        `invoice-offer-sent:${invoiceId}:${invoiceOfferMeta.previousVersion + 1}`
+      );
+    } catch (notificationError) {
+      logger.error(
+        { error: notificationError, applicationId, invoiceId },
+        "Failed to send invoice offer notification to issuer"
+      );
+    }
+
     let nextApp = await repository.getApplicationById(applicationId);
     if (nextApp) {
       await this.syncInvoiceDetailsSectionFromItems(
@@ -5383,6 +5577,22 @@ export class AdminService {
         userAgent: logContext?.userAgent ?? undefined,
         deviceInfo: logContext?.deviceInfo ?? undefined,
       });
+      try {
+        await this.sendIssuerNotification(
+          applicationId,
+          NotificationTypeIds.OFFER_RETRACTED_OR_RESET,
+          {
+            applicationId,
+            offerType: "contract",
+          },
+          `contract-offer-retracted:${section}`
+        );
+      } catch (notificationError) {
+        logger.error(
+          { error: notificationError, applicationId, section },
+          "Failed to send contract offer retracted/reset notification to issuer"
+        );
+      }
     }
     await this.logReviewActivity(
       applicationId,
@@ -5482,6 +5692,26 @@ export class AdminService {
         userAgent: logContext?.userAgent ?? undefined,
         deviceInfo: logContext?.deviceInfo ?? undefined,
       });
+      try {
+        const invoiceNumber = itemId.startsWith("invoice_details:")
+          ? itemId.split(":").slice(2).join(":") || null
+          : null;
+        await this.sendIssuerNotification(
+          applicationId,
+          NotificationTypeIds.OFFER_RETRACTED_OR_RESET,
+          {
+            applicationId,
+            offerType: "invoice",
+            invoiceNumber,
+          },
+          `invoice-offer-retracted:${itemId}`
+        );
+      } catch (notificationError) {
+        logger.error(
+          { error: notificationError, applicationId, itemId },
+          "Failed to send invoice offer retracted/reset notification to issuer"
+        );
+      }
     }
     if (!options?.skipItemActivityLog) {
       await this.logReviewActivity(
@@ -6417,6 +6647,23 @@ export class AdminService {
       userAgent: logContext?.userAgent ?? undefined,
       deviceInfo: logContext?.deviceInfo ?? undefined,
     });
+
+    try {
+      await this.sendIssuerNotification(
+        applicationId,
+        NotificationTypeIds.APPLICATION_AMENDMENTS_REQUESTED,
+        {
+          applicationId,
+          amendmentCount: pending.length,
+        },
+        `amendments-submitted:${application.review_cycle ?? 1}:${pending.length}`
+      );
+    } catch (notificationError) {
+      logger.error(
+        { error: notificationError, applicationId },
+        "Failed to send amendment submitted notification to issuer"
+      );
+    }
 
     logger.info({ applicationId, count: pending.length, reviewerUserId }, "Pending amendments submitted");
     return repository.getApplicationById(applicationId);

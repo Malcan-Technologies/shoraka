@@ -1,0 +1,2 @@
+-- RenameIndex
+ALTER INDEX "ctos_reports_investor_organization_id_subject_ref_fetched_at_id" RENAME TO "ctos_reports_investor_organization_id_subject_ref_fetched_a_idx";

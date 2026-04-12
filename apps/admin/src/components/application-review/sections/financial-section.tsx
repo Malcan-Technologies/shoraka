@@ -5,16 +5,20 @@ import { ApplicationFinancialReviewContent } from "@/components/application-fina
 import { ReviewSectionCard } from "../review-section-card";
 import type { ReviewSectionId } from "../section-types";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
+import { ApplicationFinancialReviewComparison } from "@/components/application-financial-review-comparison";
+
+export type FinancialSectionAppSlice = {
+  issuer_organization?: {
+    corporate_entities?: unknown;
+    director_kyc_status?: unknown;
+    director_aml_status?: unknown;
+  } | null;
+  financial_statements?: unknown;
+};
 
 export interface FinancialSectionProps {
-  app: {
-    issuer_organization?: {
-      corporate_entities?: unknown;
-      director_kyc_status?: unknown;
-      director_aml_status?: unknown;
-    } | null;
-    financial_statements?: unknown;
-  };
+  applicationId: string;
+  app: FinancialSectionAppSlice;
   section: ReviewSectionId;
   isReviewable: boolean;
   approvePending: boolean;
@@ -27,9 +31,16 @@ export interface FinancialSectionProps {
   onRequestAmendment: (section: ReviewSectionId) => void;
   comments: SectionCommentItem[];
   onAddComment?: (comment: string) => Promise<void> | void;
+  sectionComparison?: {
+    beforeApp: FinancialSectionAppSlice;
+    afterApp: FinancialSectionAppSlice;
+    isPathChanged: (path: string) => boolean;
+  };
+  hideSectionComments?: boolean;
 }
 
 export function FinancialSection({
+  applicationId,
   app,
   section,
   isReviewable,
@@ -43,7 +54,24 @@ export function FinancialSection({
   onRequestAmendment,
   comments,
   onAddComment,
+  sectionComparison,
+  hideSectionComments = false,
 }: FinancialSectionProps) {
+  if (sectionComparison) {
+    return (
+      <ReviewSectionCard title="Financial" icon={BanknotesIcon} section={section} isReviewable={false}>
+        <ApplicationFinancialReviewComparison
+          beforeApp={sectionComparison.beforeApp}
+          afterApp={sectionComparison.afterApp}
+          isPathChanged={sectionComparison.isPathChanged}
+        />
+        {!hideSectionComments ? (
+          <SectionComments comments={comments} onSubmitComment={onAddComment} />
+        ) : null}
+      </ReviewSectionCard>
+    );
+  }
+
   return (
     <ReviewSectionCard
       title="Financial"
@@ -59,8 +87,10 @@ export function FinancialSection({
       onReject={onReject}
       onRequestAmendment={onRequestAmendment}
     >
-      <ApplicationFinancialReviewContent app={app} />
-      <SectionComments comments={comments} onSubmitComment={onAddComment} />
+      <ApplicationFinancialReviewContent applicationId={applicationId} app={app} />
+      {!hideSectionComments ? (
+        <SectionComments comments={comments} onSubmitComment={onAddComment} />
+      ) : null}
     </ReviewSectionCard>
   );
 }

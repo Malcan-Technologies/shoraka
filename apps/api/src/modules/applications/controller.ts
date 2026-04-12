@@ -26,6 +26,12 @@ function getUserId(req: Request): string {
   return req.user.user_id;
 }
 
+function isDevSigningBypassRequested(req: Request): boolean {
+  if (process.env.NODE_ENV === "production") return false;
+  const parsed = z.object({ skipSigning: z.boolean().optional() }).safeParse(req.body ?? {});
+  return parsed.success && parsed.data.skipSigning === true;
+}
+
 
 /**
  * Create a new application
@@ -166,12 +172,26 @@ async function cancelApplication(req: Request, res: Response, next: NextFunction
   }
 }
 
-const requestUploadUrlSchema = z.object({
-  fileName: z.string().min(1),
-  contentType: z.literal("application/pdf"),
-  fileSize: z.number().int().positive().max(5 * 1024 * 1024), // Max 5MB
-  existingS3Key: z.string().optional(),
-});
+const requestUploadUrlSchema = z
+  .object({
+    fileName: z.string().min(1),
+    contentType: z.string().min(1),
+    fileSize: z.number().int().positive().max(5 * 1024 * 1024), // Max 5MB
+    existingS3Key: z.string().optional(),
+    supportingDocCategoryKey: z.string().min(1).optional(),
+    supportingDocIndex: z.number().int().min(0).optional(),
+  })
+  .superRefine((data, ctx) => {
+    const hasKey = data.supportingDocCategoryKey !== undefined;
+    const hasIdx = data.supportingDocIndex !== undefined;
+    if (hasKey !== hasIdx) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "supportingDocCategoryKey and supportingDocIndex must be provided together",
+        path: hasKey ? ["supportingDocIndex"] : ["supportingDocCategoryKey"],
+      });
+    }
+  });
 
 /**
  * Request presigned URL for uploading application document
@@ -189,6 +209,8 @@ async function requestUploadUrl(req: Request, res: Response, next: NextFunction)
       contentType: input.contentType,
       fileSize: input.fileSize,
       existingS3Key: input.existingS3Key,
+      supportingDocCategoryKey: input.supportingDocCategoryKey,
+      supportingDocIndex: input.supportingDocIndex,
       userId,
     });
 
@@ -387,7 +409,9 @@ export function createApplicationRouter(): Router {
       try {
         const { id } = applicationIdParamSchema.parse(req.params);
         const userId = getUserId(req);
-        if (readSigningCloudConfigFromEnv()) {
+        // Dev/local-only escape hatch so QA can accept without external webhook/signing flow.
+        const skipSigning = isDevSigningBypassRequested(req);
+        if (readSigningCloudConfigFromEnv() && !skipSigning) {
           throw new AppError(
             400,
             "USE_SIGNING_FLOW",
@@ -424,7 +448,18 @@ export function createApplicationRouter(): Router {
         const { id } = applicationIdParamSchema.parse(req.params);
         const invoiceId = z.string().cuid().parse(req.params.invoiceId);
         const userId = getUserId(req);
-        if (readSigningCloudConfigFromEnv()) {
+        const application = await applicationService.getApplication(id, userId);
+        const appWithContract = application as {
+          contract_id?: string | null | undefined;
+          contract?: { status?: string | null | undefined } | null | undefined;
+        };
+        const hasLinkedContract = Boolean(appWithContract.contract_id);
+        const isLinkedContractAccepted =
+          hasLinkedContract && String(appWithContract.contract?.status ?? "").toUpperCase() === "APPROVED";
+        const requiresInvoiceSigning = !isLinkedContractAccepted;
+        // Dev/local-only escape hatch so QA can accept without external webhook/signing flow.
+        const skipSigning = isDevSigningBypassRequested(req);
+        if (readSigningCloudConfigFromEnv() && requiresInvoiceSigning && !skipSigning) {
           throw new AppError(
             400,
             "USE_SIGNING_FLOW",
@@ -541,6 +576,25 @@ router.get("/:id/amendment-context", requireAuth, async function getAmendmentCon
     next(error);
   }
 });
+
+router.get(
+  "/:id/product-version-compare",
+  requireAuth,
+  async function getProductVersionCompare(req, res, next) {
+    try {
+      const { id } = applicationIdParamSchema.parse(req.params);
+      const userId = getUserId(req);
+      const data = await applicationService.getProductVersionCompareForApplication(id, userId);
+      res.json({
+        success: true,
+        data,
+        correlationId: res.locals.correlationId || "unknown",
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 router.get("/", requireAuth, async function listApplications(req, res, next) {
   try {

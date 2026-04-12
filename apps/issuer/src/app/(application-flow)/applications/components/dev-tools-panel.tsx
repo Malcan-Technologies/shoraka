@@ -42,7 +42,13 @@ export function DevToolsPanel({
   const handleToggleSkeleton = React.useCallback(() => {
     const next = !(devTools?.showSkeletonDebug ?? false);
     devTools?.setShowSkeletonDebug(next);
-    toast.success(next ? "Skeleton debug on" : "Skeleton debug off");
+    toast.success(next ? "Step skeleton debug on" : "Step skeleton debug off");
+  }, [devTools]);
+
+  const handleToggleWizardShell = React.useCallback(() => {
+    const next = !(devTools?.previewWizardLoadingShell ?? false);
+    devTools?.setPreviewWizardLoadingShell(next);
+    toast.success(next ? "Wizard loading shell preview on" : "Wizard loading shell preview off");
   }, [devTools]);
 
   const handleAutoFill = React.useCallback(() => {
@@ -80,13 +86,14 @@ export function DevToolsPanel({
   const devActions = [
     { label: "Fill Entire Application", action: handleFillEntireApplication },
     { label: "Auto Fill Step", action: handleAutoFill },
-    { label: "Toggle Skeleton", action: handleToggleSkeleton },
+    { label: "Toggle Step Skeleton", action: handleToggleSkeleton },
+    { label: "Preview Wizard Shell", action: handleToggleWizardShell },
     { label: "Preview Amendment", action: handlePreviewAmendment },
   ];
 
   return (
     <Card
-      className="fixed bottom-5 right-5 z-[9999] w-[200px] shadow-lg border-2"
+      className="fixed bottom-5 right-5 z-[9999] w-[220px] shadow-lg border-2"
       data-testid="dev-tools-panel"
     >
       <CardHeader className="py-2 px-3">

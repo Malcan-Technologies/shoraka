@@ -39,8 +39,16 @@ import { useAuthToken, createApiClient } from "@cashsouk/config";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import {
+  applicationFlowLabelCellAlignInputClassName,
+  applicationFlowLabelCellAlignTopClassName,
+  applicationFlowRadioRowControlClassName,
+  applicationFlowSectionDividerClassName,
+  applicationFlowSectionStackClassName,
+  applicationFlowSectionTitleClassName,
+  applicationFlowStepOuterClassName,
   formInputClassName,
   formInputDisabledClassName,
+  formLockedFileSurfaceClassName,
   formLabelClassName,
   formSelectTriggerClassName,
   formTextareaClassName,
@@ -353,18 +361,31 @@ function FileUploadArea({
     const isPending = !!pendingFile;
 
     return (
-      <div className="border border-border rounded-xl px-4 py-3 flex items-center justify-between gap-3 bg-card/50">
+      <div
+        className={cn(
+          "rounded-xl border px-4 py-3 flex items-center justify-between gap-3 min-h-11",
+          disabled ? formLockedFileSurfaceClassName : "border-border bg-card/50 text-foreground"
+        )}
+      >
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <div
             className={cn(
-              "p-1 rounded-full shrink-0",
-              isPending ? "bg-yellow-500/10" : "bg-primary/10"
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border",
+              disabled
+                ? "border-border bg-background/50"
+                : isPending
+                  ? "border-transparent bg-yellow-500/10"
+                  : "border-transparent bg-primary/10"
             )}
           >
             <CheckCircle2
               className={cn(
                 "h-4 w-4",
-                isPending ? "text-yellow-500" : "text-primary"
+                disabled
+                  ? "text-muted-foreground"
+                  : isPending
+                    ? "text-yellow-500"
+                    : "text-primary"
               )}
             />
           </div>
@@ -1087,12 +1108,12 @@ export function ContractDetailsStep({
     return <ContractDetailsSkeleton />;
   }
 
-  const stepIsFlagged = isAmendmentMode && (flaggedSections?.has("contract_details") || (flaggedItems?.get("contract_details")?.size ?? 0) > 0);
-
   const labelClassName = cn(formLabelClassName, "font-normal");
+  const labelInputClassName = cn(labelClassName, applicationFlowLabelCellAlignInputClassName);
+  const labelTextareaClassName = cn(labelClassName, applicationFlowLabelCellAlignTopClassName);
   const inputClassName = cn(formInputClassName, !stepIsEditable && formInputDisabledClassName);
-  const sectionHeaderClassName = "text-base font-semibold text-foreground";
-  const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center";
+  const sectionGridClassName =
+    "grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-start";
 
   const customerCountryCode = formData.customer.country as Country;
   const customerCountryName =
@@ -1104,26 +1125,26 @@ export function ContractDetailsStep({
 
   return (
     <>
-      <div className="space-y-10 px-3">
+      <div className={applicationFlowStepOuterClassName}>
         {/* Contract Details Section — hidden when invoice_only */}
         {!isInvoiceOnly && (
-        <section className="space-y-3">
+        <section className={applicationFlowSectionStackClassName}>
           <div>
-            <h3 className={sectionHeaderClassName}>Contract Details</h3>
-            <div className="border-b border-border mt-2 mb-4" />
+            <h3 className={applicationFlowSectionTitleClassName}>Contract Details</h3>
+            <div className={applicationFlowSectionDividerClassName} />
           </div>
 
           <div className={sectionGridClassName}>
-            <Label className={labelClassName}>Contract Title</Label>
+            <Label className={labelInputClassName}>Contract Title</Label>
             <Input
               value={formData.contract.title}
               onChange={(e) => handleInputChange("contract", "title", e.target.value)}
               disabled={!stepIsEditable}
               placeholder="eg. Mining Rig Repair 12654"
-              className={cn(inputClassName, stepIsFlagged ? "border-destructive focus-visible:border-2 focus-visible:border-destructive" : "")}
+              className={inputClassName}
             />
 
-            <Label className={labelClassName}>Contract Description</Label>
+            <Label className={labelTextareaClassName}>Contract Description</Label>
             <Textarea
               value={formData.contract.description}
               onChange={(e) =>
@@ -1134,7 +1155,7 @@ export function ContractDetailsStep({
               className={cn(formTextareaClassName, "min-h-[100px]", !stepIsEditable && formInputDisabledClassName)}
             />
 
-            <Label className={labelClassName}>Contract Number</Label>
+            <Label className={labelInputClassName}>Contract Number</Label>
             <Input
               value={formData.contract.number}
               onChange={(e) => handleInputChange("contract", "number", e.target.value)}
@@ -1143,7 +1164,7 @@ export function ContractDetailsStep({
               className={inputClassName}
             />
 
-            <Label className={labelClassName}>Contract Value</Label>
+            <Label className={labelInputClassName}>Contract Value</Label>
             <div className="h-11 flex items-center">
               <MoneyInput
                 value={formData.contract.value}
@@ -1155,7 +1176,7 @@ export function ContractDetailsStep({
               />
             </div>
 
-            <div className={cn("flex items-center", fieldTooltipLabelGap)}>
+            <div className={cn("flex min-h-11 items-center", fieldTooltipLabelGap)}>
               <Label className={labelClassName}>Financing Amount</Label>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -1164,7 +1185,8 @@ export function ContractDetailsStep({
                   </span>
                 </TooltipTrigger>
                 <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
-                  This refers to how much financing you would like to apply. Financing amount should not exceed your contract amount.
+                  This refers to how much financing you would like to apply. The financing amount must not exceed your
+                  contract amount.
                 </TooltipContent>
               </Tooltip>
             </div>
@@ -1186,7 +1208,7 @@ export function ContractDetailsStep({
               )}
             </div>
 
-            <Label className={labelClassName}>Contract Start Date</Label>
+            <Label className={labelInputClassName}>Contract Start Date</Label>
             <div className="space-y-1">
               <DateInput
                 value={formData.contract.start_date || ""}
@@ -1209,7 +1231,7 @@ export function ContractDetailsStep({
 
 
 
-            <div className={cn("flex items-center", fieldTooltipLabelGap)}>
+            <div className={cn("flex min-h-11 items-center", fieldTooltipLabelGap)}>
               <Label className={labelClassName}>Contract End Date</Label>
               {formData.contract.start_date && productMinMonths && (
                 <Tooltip>
@@ -1219,7 +1241,7 @@ export function ContractDetailsStep({
                     </span>
                   </TooltipTrigger>
                   <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
-                    {`The contract must run for at least ${productMinMonths} months from the later of today or the contract start date`}
+                    {`The contract must run for at least ${productMinMonths} months from the later of today or the contract start date.`}
                   </TooltipContent>
                 </Tooltip>
               )}
@@ -1263,7 +1285,7 @@ export function ContractDetailsStep({
                 )}
             </div>
 
-            <Label className={cn(labelClassName, "self-start")}>Upload Contract</Label>
+            <Label className={labelTextareaClassName}>Upload Contract</Label>
             <div className="self-start">
             <FileUploadArea
                 onFileSelect={(file) => handleFileUpload("contract", file)}
@@ -1282,17 +1304,17 @@ export function ContractDetailsStep({
         )}
 
         {/* Customer Details Section */}
-        <section className="space-y-3">
+        <section className={applicationFlowSectionStackClassName}>
           <div>
-            <h3 className={sectionHeaderClassName}>
+            <h3 className={applicationFlowSectionTitleClassName}>
               {/* {isInvoiceOnly ? "Customer Details (Required for Invoice Financing)" : "Customer details"} */}
               Customer Details
             </h3>
-            <div className="border-b border-border mt-2 mb-4" />
+            <div className={applicationFlowSectionDividerClassName} />
           </div>
 
           <div className={sectionGridClassName}>
-            <Label className={labelClassName}>Customer Name</Label>
+            <Label className={labelInputClassName}>Customer Name</Label>
             <Input
               value={formData.customer.name}
               onChange={(e) => handleInputChange("customer", "name", e.target.value)}
@@ -1301,7 +1323,7 @@ export function ContractDetailsStep({
               className={inputClassName}
             />
 
-            <Label className={labelClassName}>Customer Entity Type</Label>
+            <Label className={labelInputClassName}>Customer Entity Type</Label>
             <Select
               value={formData.customer.entity_type}
               onValueChange={(value) => handleInputChange("customer", "entity_type", value)}
@@ -1319,7 +1341,7 @@ export function ContractDetailsStep({
               </SelectContent>
             </Select>
 
-            <Label className={labelClassName}>Customer SSM Number</Label>
+            <Label className={labelInputClassName}>Customer SSM Number</Label>
             <div className="space-y-1 min-h-[48px]">
               <Input
                 value={formData.customer.ssm_number}
@@ -1346,7 +1368,7 @@ export function ContractDetailsStep({
               )}
             </div>
 
-            <Label htmlFor="contract-customer-country" className={labelClassName}>
+            <Label htmlFor="contract-customer-country" className={labelInputClassName}>
               Customer Country
             </Label>
             <div
@@ -1382,7 +1404,7 @@ export function ContractDetailsStep({
               </select>
             </div>
 
-            <div className={cn("flex items-center", fieldTooltipLabelGap)}>
+            <div className={cn("flex min-h-11 items-center", fieldTooltipLabelGap)}>
               <Label className={labelClassName}>Is the Customer Related to You?</Label>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -1391,11 +1413,19 @@ export function ContractDetailsStep({
                   </span>
                 </TooltipTrigger>
                 <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
-                  Related director/shareholder or having subsidiary/sister company or parent company relationship
+                  {`A related party is a customer that has a direct or indirect relationship with your company that may affect independent, arm's length transactions.
+
+This includes:
+• Common ownership
+• Common directors / management
+• Control relationship
+• Significant influence
+• Family relationship
+• Economic dependence`}
                 </TooltipContent>
               </Tooltip>
             </div>
-            <div className="h-11 flex items-center">
+            <div className={applicationFlowRadioRowControlClassName}>
               <YesNoRadioGroup
                 value={formData.customer.is_related_party}
                 onValueChange={(v) => handleInputChange("customer", "is_related_party", v)}
@@ -1403,7 +1433,7 @@ export function ContractDetailsStep({
               />
             </div>
 
-            <Label className={cn(labelClassName, "self-start")}>Upload Customer Consent</Label>
+            <Label className={labelTextareaClassName}>Upload Customer Consent</Label>
             <div className="self-start">
             <FileUploadArea
               onFileSelect={(file) => handleFileUpload("consent", file)}

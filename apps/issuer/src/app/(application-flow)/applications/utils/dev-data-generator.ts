@@ -3,6 +3,10 @@
 
 import { formatMoney } from "@cashsouk/ui";
 import { format, subDays, addDays } from "date-fns";
+import {
+  FINANCIAL_DEV_CASE_KEY,
+  pickRandomFinancialQuestionnaireDevCase,
+} from "../steps/financial-statements-step";
 
 function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -15,7 +19,7 @@ function randomDecimal(min: number, max: number, decimals = 2): number {
   return Math.round(raw * factor) / factor;
 }
 
-/** Random value that can be negative (for P&L: plminin, plnpbt, plnpat, plyear). Includes decimals. */
+/** Random value that can be negative (for P&L: plnpbt, plnpat, plyear). Includes decimals. */
 function randomMoneyAllowNegative(min: number, max: number): number {
   const val = randomDecimal(Math.abs(min), Math.abs(max));
   return Math.random() < 0.5 ? val : -val;
@@ -63,20 +67,19 @@ export function generateContractData(): Record<string, unknown> {
 /**
  * Financial statements data. All 15 fields.
  * - turnover: >= 0 (validation rule)
- * - plminin, plnpbt, plnpat, plyear: may be negative
+ * - plnpbt, plnpat, plyear: may be negative
  * - plnetdiv: positive only (no allowNegative in form)
  * - All money: 2 decimal places, max 15 int digits
  */
 export function generateFinancialData(): Record<string, unknown> {
   const today = new Date();
-  const fyEnd = format(subDays(today, 180), "dd/MM/yyyy");
+  const financialYear = String(today.getFullYear() - 1);
   const dataUntil = format(subDays(today, 30), "dd/MM/yyyy");
   const turnover = randomDecimal(500000, 5000000);
   const plnpat = randomMoneyAllowNegative(10000, 500000);
-  const plminin = randomMoneyAllowNegative(0, 50000);
   const plyear = randomMoneyAllowNegative(10000, 200000);
   return {
-    pldd: fyEnd,
+    pldd: financialYear,
     bsdd: dataUntil,
     bsfatot: formatMoney(randomDecimal(100000, 500000)),
     othass: formatMoney(randomDecimal(20000, 100000)),
@@ -89,9 +92,9 @@ export function generateFinancialData(): Record<string, unknown> {
     turnover: formatMoney(turnover),
     plnpbt: formatMoney(plnpat * 1.2),
     plnpat: formatMoney(plnpat),
-    plminin: formatMoney(plminin),
     plnetdiv: formatMoney(randomDecimal(10000, Math.abs(plyear) * 0.5)),
     plyear: formatMoney(plyear),
+    [FINANCIAL_DEV_CASE_KEY]: pickRandomFinancialQuestionnaireDevCase(),
   };
 }
 
@@ -188,6 +191,21 @@ export function generateBusinessDetailsData(): Record<string, unknown> {
       accounting_software: "Xero",
     },
     declaration_confirmed: true,
+    guarantors: [
+      {
+        guarantor_type: "individual" as const,
+        first_name: "John",
+        last_name: "Doe",
+        ic_number: "901212-10-1234",
+        relationship: "family_members_of_director" as const,
+      },
+      {
+        guarantor_type: "company" as const,
+        company_name: "ABC Holdings Sdn Bhd",
+        ssm_number: "1234567-X",
+        relationship: "parent_company" as const,
+      },
+    ],
   };
 }
 

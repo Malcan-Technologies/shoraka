@@ -1,9 +1,9 @@
 /* Modal: VersionMismatchModal
  *
  * Purpose:
- * - Display when product has been updated or deleted.
+ * - Display when product has been updated or is no longer available.
  * - Offer user to Restart (clear app, go to /new) or Cancel (stay blocked).
- * - Used by edit page guard when isMismatch is true.
+ * - Used by edit and new application flows when version guard blocks.
  */
 "use client";
 
@@ -21,13 +21,13 @@ import {
 import { useArchiveApplication } from "@/hooks/use-applications";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import type { IssuerProductBlockReason } from "@cashsouk/types";
 
 interface VersionMismatchModalProps {
   open: boolean;
-  blockReason?: "PRODUCT_DELETED" | "PRODUCT_INACTIVE" | "PRODUCT_VERSION_CHANGED" | null;
+  blockReason?: IssuerProductBlockReason;
   applicationId?: string;
   onOpenChange?: (open: boolean) => void;
-  // optional primary action (used by /new to refresh products instead of archive)
   primaryLabel?: string;
   onPrimary?: () => Promise<void> | void;
 }
@@ -67,35 +67,27 @@ export function VersionMismatchModal({
     await handleRestart();
   };
 
+  const isVersionUpdated = blockReason === "PRODUCT_VERSION_CHANGED";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="[&>button]:hidden">
         <DialogHeader>
           <DialogTitle>
-            {blockReason === "PRODUCT_DELETED"
-              ? "Product No Longer Available"
-              : blockReason === "PRODUCT_INACTIVE"
-              ? "Product Inactive"
-              : "Product Updated"}
+            {isVersionUpdated ? "Product Updated" : "Product No Longer Available"}
           </DialogTitle>
           <DialogDescription>
-            {blockReason === "PRODUCT_DELETED" ? (
+            {isVersionUpdated ? (
               <>
-                The financing product used for this application has been removed
-                and is no longer available. To continue, please start a new
-                application with a different product.
-              </>
-            ) : blockReason === "PRODUCT_INACTIVE" ? (
-              <>
-                The financing product used for this application is no longer
-                active. To continue, please start a new application with an
-                active product.
+                This financing product has been updated with new requirements.
+                To continue, you&apos;ll need to restart your application using the
+                latest version.
               </>
             ) : (
               <>
-                This financing product has been updated with new requirements.
-                To continue, you'll need to restart your application using the
-                latest version.
+                This application does not have a valid financing product selected,
+                or the product is no longer available. To continue, please start a
+                new application and select an available product.
               </>
             )}
           </DialogDescription>

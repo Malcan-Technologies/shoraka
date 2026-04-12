@@ -10,9 +10,11 @@ import { ProductImagePreview } from "@/app/(application-flow)/applications/compo
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { CheckCircleIcon } from "@heroicons/react/24/outline";
 import {
-  formLabelClassName,
+  applicationFlowSectionDividerClassName,
+  applicationFlowSectionTitleClassName,
   fieldTooltipContentClassName,
   fieldTooltipTriggerClassName,
+  formLabelClassName,
 } from "@/app/(application-flow)/applications/components/form-control";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
@@ -30,12 +32,22 @@ import { ReviewFinancingSkeleton } from "../components/review-financing-skeleton
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import { format } from "date-fns";
 import { formatMoney } from "@cashsouk/ui";
-import { FINANCIAL_FIELD_LABELS } from "@cashsouk/types";
+import { FINANCIAL_FIELD_LABELS, normalizeFinancialStatementsQuestionnaire } from "@cashsouk/types";
 import { FinancialStatementsSkeleton } from "../components/financial-statements-skeleton";
 import { FileDisplayBadge } from "../components/file-display-badge";
 
 const isValidNumber = (v: any): v is number =>
   typeof v === "number" && !Number.isNaN(v);
+
+/** Show financial year end as a four-digit year (issuer step stores year; legacy rows may be a full date). */
+function financialYearEndDisplay(val: unknown): string {
+  const s = String(val).trim();
+  if (/^\d{4}$/.test(s)) return s;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 4);
+  const d = new Date(s);
+  if (!Number.isNaN(d.getTime())) return String(d.getFullYear());
+  return s;
+}
 
 
 /**
@@ -62,14 +74,15 @@ interface ReviewAndSubmitStepProps {
 
 /**
  * REUSED STYLES FROM STEPS
- * Matching: business-details-step, contract-details-step patterns
+ * Horizontal padding matches contract-details-step (`px-3`); shell is edit page max-w-7xl.
  */
 // Centralized layout/class tokens (aligned with Branding.mdc)
-const pageWrapperClassName = "mx-auto max-w-7xl px-6 "; //py-10 md:py-12
+/** Same horizontal rhythm as contract-details-step (`px-3`); parent shell already max-w-7xl. */
+const pageWrapperClassName = "w-full px-3";
 const labelClassName = formLabelClassName; // canonical label class from shared form control
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium break-words min-w-0";
-const sectionHeaderClassName = "text-base font-semibold text-foreground";
-const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 px-3 items-start min-w-0";
+const sectionGridClassName =
+  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 px-3 items-start min-w-0";
 const sectionSpacingClassName = "space-y-6";
 export function ReviewAndSubmitStep({
   applicationId,
@@ -329,8 +342,8 @@ export function ReviewAndSubmitStep({
         {showFinancingDetails && (
           <section className={sectionSpacingClassName}>
             <div>
-              <h3 className={sectionHeaderClassName}>Financing Details</h3>
-              <div className="border-b border-border mt-2 mb-4" />
+              <h3 className={applicationFlowSectionTitleClassName}>Financing Details</h3>
+              <div className={applicationFlowSectionDividerClassName} />
             </div>
 
             {financingTypeConfig ? (
@@ -358,8 +371,8 @@ export function ReviewAndSubmitStep({
         {showContractSection && !isInvoiceOnly && (
           <section className={sectionSpacingClassName}>
             <div>
-              <h3 className={sectionHeaderClassName}>{isInvoiceOnly ? "Customer Details" : "Contract Details"}</h3>
-              <div className="border-b border-border mt-2 mb-4" />
+              <h3 className={applicationFlowSectionTitleClassName}>{isInvoiceOnly ? "Customer Details" : "Contract Details"}</h3>
+              <div className={applicationFlowSectionDividerClassName} />
             </div>
             {contractLoading || devTools?.showSkeletonDebug ? (
               <ReviewContractSkeleton />
@@ -392,26 +405,30 @@ export function ReviewAndSubmitStep({
                         : renderMoney(contractDetails?.financing)}
                     </div>
 
-                    <div className={labelClassName}>Approved Facility</div>
-                    <div className={valueClassName}>
-                      {typeof contractDetails.approved_facility === "number"
-                        ? renderMoney(contractDetails.approved_facility)
-                        : "N/A"}
-                    </div>
+                    {structureType === "existing_contract" && (
+                      <>
+                        <div className={labelClassName}>Approved Facility</div>
+                        <div className={valueClassName}>
+                          {typeof contractDetails.approved_facility === "number"
+                            ? renderMoney(contractDetails.approved_facility)
+                            : "N/A"}
+                        </div>
 
-                    <div className={labelClassName}>Utilised Facility</div>
-                    <div className={valueClassName}>
-                      {typeof contractDetails.utilized_facility === "number"
-                        ? renderMoney(contractDetails.utilized_facility)
-                        : "N/A"}
-                    </div>
+                        <div className={labelClassName}>Utilised Facility</div>
+                        <div className={valueClassName}>
+                          {typeof contractDetails.utilized_facility === "number"
+                            ? renderMoney(contractDetails.utilized_facility)
+                            : "N/A"}
+                        </div>
 
-                    <div className={labelClassName}>Available Facility</div>
-                    <div className={valueClassName}>
-                      {typeof contractDetails.available_facility === "number"
-                        ? renderMoney(contractDetails.available_facility)
-                        : "N/A"}
-                    </div>
+                        <div className={labelClassName}>Available Facility</div>
+                        <div className={valueClassName}>
+                          {typeof contractDetails.available_facility === "number"
+                            ? renderMoney(contractDetails.available_facility)
+                            : "N/A"}
+                        </div>
+                      </>
+                    )}
                   </>
                 )}
               </div>
@@ -423,16 +440,16 @@ export function ReviewAndSubmitStep({
         {showInvoiceSection && (
           <section className={sectionSpacingClassName}>
             <div>
-              <h3 className={sectionHeaderClassName}>Invoices</h3>
+              <h3 className={applicationFlowSectionTitleClassName}>Invoices</h3>
               <p className="text-sm text-muted-foreground mt-1">
                 You may include multiple invoices in a single financing request, provided all invoices relate to the same underlying contract with the buyer
               </p>
-              <div className="border-b border-border mt-2 mb-4" />
+              <div className={applicationFlowSectionDividerClassName} />
             </div>
             {invoiceLoading || devTools?.showSkeletonDebug ? (
               <ReviewInvoiceSkeleton />
             ) : (
-              <div className="mt-4 px-3 max-w-[1200px] mx-auto">
+              <div className="mt-4 px-3 w-full">
                 <div className="border rounded-xl bg-card overflow-hidden">
                   {invoices.length === 0 ? (
                     <div className="p-4 text-sm text-muted-foreground italic">
@@ -473,16 +490,16 @@ export function ReviewAndSubmitStep({
                                           </span>
                                         </TooltipTrigger>
                                         <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
-                                          {"Per invoice\n"}
+                                          {"Per invoice.\n"}
                                           {typeof invoiceProductConfig.min_invoice_value === "number"
-                                            ? `min RM ${formatMoney(invoiceProductConfig.min_invoice_value)}`
+                                            ? `Min RM ${formatMoney(invoiceProductConfig.min_invoice_value)}.`
                                             : ""}
                                           {typeof invoiceProductConfig.min_invoice_value === "number" &&
                                           typeof invoiceProductConfig.max_invoice_value === "number"
                                             ? "\n"
                                             : ""}
                                           {typeof invoiceProductConfig.max_invoice_value === "number"
-                                            ? `max RM ${formatMoney(invoiceProductConfig.max_invoice_value)}`
+                                            ? `Max RM ${formatMoney(invoiceProductConfig.max_invoice_value)}.`
                                             : ""}
                                         </TooltipContent>
                                       </Tooltip>
@@ -543,7 +560,8 @@ export function ReviewAndSubmitStep({
                                         <FileDisplayBadge
                                           fileName={d.document.file_name}
                                           size="sm"
-                                          className="bg-background"
+                                          truncate
+                                          className="min-w-0 max-w-full bg-background border-border"
                                         />
                                       </div>
                                     ) : (
@@ -584,8 +602,8 @@ export function ReviewAndSubmitStep({
           <>
             <section className={sectionSpacingClassName}>
               <div>
-                <h3 className={sectionHeaderClassName}>Company Info</h3>
-                <div className="border-b border-border mt-2 mb-4" />
+                <h3 className={applicationFlowSectionTitleClassName}>Company Info</h3>
+                <div className={applicationFlowSectionDividerClassName} />
               </div>
               {companyLoading || devTools?.showSkeletonDebug ? (
                 <ReviewCompanySkeleton />
@@ -615,8 +633,8 @@ export function ReviewAndSubmitStep({
             {/* Director & Shareholders */}
             <section className={sectionSpacingClassName}>
               <div>
-                <h3 className={sectionHeaderClassName}>Director & Shareholders</h3>
-                <div className="border-b border-border mt-2 mb-4" />
+                <h3 className={applicationFlowSectionTitleClassName}>Director & Shareholders</h3>
+                <div className={applicationFlowSectionDividerClassName} />
               </div>
               {companyLoading || devTools?.showSkeletonDebug ? (
                 <ReviewBusinessSkeleton />
@@ -667,8 +685,8 @@ export function ReviewAndSubmitStep({
             {/* Banking details */}
             <section className={sectionSpacingClassName}>
               <div>
-                <h3 className={sectionHeaderClassName}>Banking Details</h3>
-                <div className="border-b border-border mt-2 mb-4" />
+                <h3 className={applicationFlowSectionTitleClassName}>Banking Details</h3>
+                <div className={applicationFlowSectionDividerClassName} />
               </div>
               {companyLoading || devTools?.showSkeletonDebug ? (
                 <ReviewBusinessSkeleton />
@@ -686,8 +704,8 @@ export function ReviewAndSubmitStep({
             {/* Address */}
             <section className={sectionSpacingClassName}>
               <div>
-                <h3 className={sectionHeaderClassName}>Address</h3>
-                <div className="border-b border-border mt-2 mb-4" />
+                <h3 className={applicationFlowSectionTitleClassName}>Address</h3>
+                <div className={applicationFlowSectionDividerClassName} />
               </div>
               {companyLoading || devTools?.showSkeletonDebug ? (
                 <ReviewBusinessSkeleton />
@@ -705,8 +723,8 @@ export function ReviewAndSubmitStep({
             {/* Contact Person */}
             <section className={sectionSpacingClassName}>
               <div>
-                <h3 className={sectionHeaderClassName}>Contact Person</h3>
-                <div className="border-b border-border mt-2 mb-4" />
+                <h3 className={applicationFlowSectionTitleClassName}>Contact Person</h3>
+                <div className={applicationFlowSectionDividerClassName} />
               </div>
               {companyLoading || devTools?.showSkeletonDebug ? (
                 <ReviewBusinessSkeleton />
@@ -733,13 +751,76 @@ export function ReviewAndSubmitStep({
         {showFinancialStatementsSection && (
           <section className={sectionSpacingClassName}>
             <div>
-              <h3 className={sectionHeaderClassName}>Financial Statements</h3>
-              <div className="border-b border-border mt-2 mb-4" />
+              <h3 className={applicationFlowSectionTitleClassName}>Financial Statements</h3>
+              <div className={applicationFlowSectionDividerClassName} />
             </div>
             {financialStatementsLoading || devTools?.showSkeletonDebug ? (
               <FinancialStatementsSkeleton />
             ) : (() => {
               const raw = (application as any)?.financial_statements;
+              if (raw && typeof raw === "object" && raw.questionnaire != null && raw.unaudited_by_year != null) {
+                const q = normalizeFinancialStatementsQuestionnaire(raw.questionnaire);
+                const by = raw.unaudited_by_year as Record<string, Record<string, unknown>>;
+                const years = Object.keys(by).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+                console.log("Review step: financial v2, years:", years);
+                const keys = Object.keys(FINANCIAL_FIELD_LABELS);
+                if (!q) {
+                  return (
+                    <div className="text-sm text-muted-foreground px-3">
+                      Financial questionnaire could not be read. Check saved data.
+                    </div>
+                  );
+                }
+                if (years.length === 0) {
+                  return (
+                    <div className="text-sm text-muted-foreground px-3 space-y-2">
+                      <p>
+                        Latest financial year (questionnaire): {q.latest_financial_year}. Submitted this financial year:{" "}
+                        {q.submitted_this_financial_year ? "Yes" : "No"}. Data for next financial year:{" "}
+                        {q.has_data_for_next_financial_year ? "Yes" : "No"}.
+                      </p>
+                      <p>No unaudited figures in this step (information-only).</p>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="space-y-8">
+                    <div className="text-sm text-muted-foreground px-3">
+                      Latest financial year {q.latest_financial_year}; submitted this financial year:{" "}
+                      {q.submitted_this_financial_year ? "Yes" : "No"}; data for next financial year:{" "}
+                      {q.has_data_for_next_financial_year ? "Yes" : "No"}.
+                    </div>
+                    {years.map((y) => {
+                      const flat = (by[y] && typeof by[y] === "object" ? by[y] : {}) as Record<string, unknown>;
+                      return (
+                        <div key={y} className="space-y-3">
+                          <h4 className="text-sm font-semibold text-foreground px-3">Financial year {y}</h4>
+                          <div className={sectionGridClassName}>
+                            {keys.map((key) => {
+                              const label = FINANCIAL_FIELD_LABELS[key];
+                              const val = flat[key];
+                              const display =
+                                val == null || val === ""
+                                  ? "N/A"
+                                  : key === "pldd"
+                                    ? financialYearEndDisplay(val)
+                                    : key === "bsdd"
+                                      ? String(val)
+                                      : renderMoney(Number(String(val).replace(/,/g, "")));
+                              return (
+                                <React.Fragment key={`${y}-${key}`}>
+                                  <div className={labelClassName}>{label}</div>
+                                  <div className={valueClassName}>{display}</div>
+                                </React.Fragment>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              }
               const data = raw && typeof raw === "object" && "input" in raw ? raw.input : raw;
               const flat = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
               const keys = Object.keys(FINANCIAL_FIELD_LABELS);
@@ -751,13 +832,13 @@ export function ReviewAndSubmitStep({
                   {keys.map((key) => {
                     const label = FINANCIAL_FIELD_LABELS[key];
                     const val = flat[key];
-                    const isDate = key === "pldd" || key === "bsdd";
                     const display = val == null || val === ""
-
                       ? "N/A"
-                      : isDate
-                        ? String(val)
-                        : renderMoney(Number(String(val).replace(/,/g, "")));
+                      : key === "pldd"
+                        ? financialYearEndDisplay(val)
+                        : key === "bsdd"
+                          ? String(val)
+                          : renderMoney(Number(String(val).replace(/,/g, "")));
                     return (
                       <React.Fragment key={key}>
                         <div className={labelClassName}>{label}</div>
@@ -777,16 +858,16 @@ export function ReviewAndSubmitStep({
             {supportingLoading || devTools?.showSkeletonDebug ? (
               <section className={sectionSpacingClassName}>
                 <div>
-                  <h3 className={sectionHeaderClassName}>Supporting Documents</h3>
-                  <div className="border-b border-border mt-2 mb-4" />
+                  <h3 className={applicationFlowSectionTitleClassName}>Supporting Documents</h3>
+                  <div className={applicationFlowSectionDividerClassName} />
                 </div>
                 <ReviewSupportingDocsSkeleton />
               </section>
             ) : categories.length === 0 ? (
               <section className={sectionSpacingClassName}>
                 <div>
-                  <h3 className={sectionHeaderClassName}>Supporting Documents</h3>
-                  <div className="border-b border-border mt-2 mb-4" />
+                  <h3 className={applicationFlowSectionTitleClassName}>Supporting Documents</h3>
+                  <div className={applicationFlowSectionDividerClassName} />
                 </div>
                 <div className="text-sm text-muted-foreground italic px-3">No documents</div>
               </section>
@@ -794,16 +875,33 @@ export function ReviewAndSubmitStep({
               categories.map((cat: any, catIdx: number) => (
                 <section key={catIdx} className={sectionSpacingClassName}>
                   <div>
-                    <h3 className={sectionHeaderClassName}>{cat.name || "Documents"}</h3>
-                    <div className="border-b border-border mt-2 mb-4" />
+                    <h3 className={applicationFlowSectionTitleClassName}>{cat.name || "Documents"}</h3>
+                    <div className={applicationFlowSectionDividerClassName} />
                   </div>
                   <div className={sectionGridClassName}>
                     {(cat.documents || []).map((doc: any, docIdx: number) => (
                       <React.Fragment key={docIdx}>
                         <div className={labelClassName}>{doc.title}</div>
                         <div className={valueClassName}>
-                          {doc.file ? (
-                            <FileDisplayBadge fileName={doc.file.file_name} />
+                          {Array.isArray(doc.files) && doc.files.length > 0 ? (
+                            <div className="flex flex-col gap-2">
+                              {doc.files.map((file: any, fileIndex: number) => (
+                                <FileDisplayBadge
+                                  key={`${file?.s3_key ?? file?.file_name ?? "file"}-${fileIndex}`}
+                                  fileName={file.file_name}
+                                  size="sm"
+                                  truncate
+                                  className="min-w-0 max-w-full bg-background border-border"
+                                />
+                              ))}
+                            </div>
+                          ) : doc.file ? (
+                            <FileDisplayBadge
+                              fileName={doc.file.file_name}
+                              size="sm"
+                              truncate
+                              className="min-w-0 max-w-full bg-background border-border"
+                            />
                           ) : (
                             <span className="text-xs text-muted-foreground italic">Not provided</span>
                           )}

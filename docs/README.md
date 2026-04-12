@@ -19,6 +19,7 @@ Step-by-step guides for common tasks:
 - **[Database Workflow](./guides/database-workflow.md)** - Working with Prisma
 - **[Authentication](./guides/authentication.md)** - Auth implementation (planned)
 - **[Environment Variables](./guides/environment-variables.md)** - Configuration reference
+- **[Notification Testing Guide](./guides/notifications/notification-testing-guide.md)** - Notification trigger map and test steps
 
 ### 📋 Application Flow
 
@@ -43,6 +44,7 @@ Plain-text guides for application status rules and log events:
 Admin portal and activity timeline:
 
 - **[Activity Timeline](./guides/admin/activity-timeline.md)** - Application log creation, remark at top-level, event labels/icons
+- **[CTOS financial summary display](./guides/admin/ctos-financial-summary-display.md)** - CTOS-first cells and fallback formulas in application review
 
 ### 🏗️ Architecture
 

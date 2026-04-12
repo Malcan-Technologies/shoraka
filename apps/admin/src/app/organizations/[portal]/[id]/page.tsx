@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { OrganizationActivityTimeline } from "@/components/organization-activity-timeline";
+import { OrganizationIssuerCtosReportsCard } from "@/components/organization-issuer-ctos-reports-card";
 import {
   useOrganizationDetail,
   useUpdateSophisticatedStatus,
@@ -1740,9 +1741,12 @@ export default function OrganizationDetailPage() {
           </div>
         </div>
 
-        {/* Right Sidebar — KYC/AML + Activity Timeline (~33%) */}
+        {/* Right Sidebar — KYC/AML, CTOS history (issuer / investor), Activity Timeline (~33%) */}
         <div className="w-[380px] xl:w-[420px] shrink-0 hidden lg:flex flex-col overflow-hidden py-8 pr-4 gap-4">
           {org?.kycResponse && <KycResponseDisplay data={org.kycResponse} />}
+          {(portal === "issuer" || portal === "investor") && organizationId ? (
+            <OrganizationIssuerCtosReportsCard organizationId={organizationId} portal={portal} />
+          ) : null}
           <div className="flex-1 min-h-0">
             <OrganizationActivityTimeline organizationId={organizationId} />
           </div>
