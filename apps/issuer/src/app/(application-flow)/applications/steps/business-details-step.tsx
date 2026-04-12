@@ -1439,23 +1439,42 @@ export function BusinessDetailsStep({
                 {whyRaisingFunds.supportingDocuments.map((doc, index) => (
                   <div
                     key={`${doc.s3_key ?? doc.client_id ?? doc.file_name}-${index}`}
-                    className="border border-border rounded-xl px-4 py-3 flex items-center justify-between gap-3 bg-card/50"
+                    className={cn(
+                      "border rounded-xl px-4 py-3 flex items-center justify-between gap-3",
+                      fieldsLocked
+                        ? "border-muted bg-muted/30"
+                        : "border-border bg-card/50"
+                    )}
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div
                         className={cn(
                           "p-1 rounded-full shrink-0",
-                          doc.client_id ? "bg-yellow-500/10" : "bg-primary/10"
+                          fieldsLocked
+                            ? "bg-muted"
+                            : doc.client_id
+                              ? "bg-yellow-500/10"
+                              : "bg-primary/10"
                         )}
                       >
                         <CheckCircle2
                           className={cn(
                             "h-4 w-4",
-                            doc.client_id ? "text-yellow-500" : "text-primary"
+                            fieldsLocked
+                              ? "text-muted-foreground"
+                              : doc.client_id
+                                ? "text-yellow-500"
+                                : "text-primary"
                           )}
                         />
                       </div>
-                      <div className="min-w-0 flex-1" title={doc.file_name}>
+                      <div
+                        className={cn(
+                          "min-w-0 flex-1",
+                          fieldsLocked && "text-muted-foreground"
+                        )}
+                        title={doc.file_name}
+                      >
                         <div className="text-sm font-medium truncate">{doc.file_name}</div>
                         <div className="text-xs text-muted-foreground">
                           {formatFileSize(Math.max(doc.file_size ?? 0, 0))}

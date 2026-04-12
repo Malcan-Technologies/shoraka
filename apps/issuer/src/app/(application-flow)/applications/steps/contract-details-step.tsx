@@ -353,22 +353,40 @@ function FileUploadArea({
     const isPending = !!pendingFile;
 
     return (
-      <div className="border border-border rounded-xl px-4 py-3 flex items-center justify-between gap-3 bg-card/50">
+      <div
+        className={cn(
+          "border rounded-xl px-4 py-3 flex items-center justify-between gap-3",
+          disabled
+            ? "border-muted bg-muted/30"
+            : "border-border bg-card/50"
+        )}
+      >
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <div
             className={cn(
               "p-1 rounded-full shrink-0",
-              isPending ? "bg-yellow-500/10" : "bg-primary/10"
+              disabled
+                ? "bg-muted"
+                : isPending
+                  ? "bg-yellow-500/10"
+                  : "bg-primary/10"
             )}
           >
             <CheckCircle2
               className={cn(
                 "h-4 w-4",
-                isPending ? "text-yellow-500" : "text-primary"
+                disabled
+                  ? "text-muted-foreground"
+                  : isPending
+                    ? "text-yellow-500"
+                    : "text-primary"
               )}
             />
           </div>
-          <div className="min-w-0 flex-1" title={fileName}>
+          <div
+            className={cn("min-w-0 flex-1", disabled && "text-muted-foreground")}
+            title={fileName}
+          >
             <div className="text-sm font-medium truncate">{fileName}</div>
             <div className="text-xs text-muted-foreground">
               {sizeDisplay}

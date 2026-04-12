@@ -877,12 +877,13 @@ export function SupportingDocumentsStep({
                             truncate
                             inlineChip
                             size="sm"
+                            locked={!isEditable}
                             className={cn(
                               "min-h-8 w-full",
-                              isItemFlagged
+                              isItemFlagged && isEditable
                                 ? "border-primary/30 bg-primary/[0.07]"
                                 : !isEditable
-                                  ? "bg-muted border-border"
+                                  ? "border-border"
                                   : "bg-background border-border"
                             )}
                             trailing={

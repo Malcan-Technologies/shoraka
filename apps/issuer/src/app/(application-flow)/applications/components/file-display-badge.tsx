@@ -18,6 +18,8 @@ export function FileDisplayBadge({
   maxChars,
   /** Shrink-to-fit chip (supporting docs); long names ellipsis inside a max width. */
   inlineChip = false,
+  /** View-only / locked step: muted chip (no strong check contrast). */
+  locked = false,
 }: {
   fileName: string;
   className?: string;
@@ -28,6 +30,7 @@ export function FileDisplayBadge({
   /** Optional hard text cap before CSS truncation (e.g. 40 chars). */
   maxChars?: number;
   inlineChip?: boolean;
+  locked?: boolean;
 }) {
   const textClass =
     size === "xs" ? "text-[10px]" : size === "sm" ? "text-xs" : "text-[14px]";
@@ -56,17 +59,26 @@ export function FileDisplayBadge({
         padClass,
         height,
         "min-w-0 max-w-full overflow-hidden",
+        locked && "border-muted bg-muted/30",
         className
       )}
     >
-      <div className={`${boxSize} rounded-sm bg-foreground flex items-center justify-center shrink-0`}>
-        <CheckIconSolid className={`${iconSize} text-background`} />
+      <div
+        className={cn(
+          `${boxSize} rounded-sm flex items-center justify-center shrink-0`,
+          locked ? "bg-muted" : "bg-foreground"
+        )}
+      >
+        <CheckIconSolid
+          className={cn(`${iconSize}`, locked ? "text-muted-foreground" : "text-background")}
+        />
       </div>
       <span
         className={cn(
           textClass,
           "font-medium block",
-          truncate && "min-w-0 flex-1 truncate"
+          truncate && "min-w-0 flex-1 truncate",
+          locked && "text-muted-foreground"
         )}
       >
         {displayedFileName}
