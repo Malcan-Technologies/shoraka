@@ -2048,8 +2048,9 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                 <span className="font-medium text-foreground">new</span> organization report.{" "}
                 <span className="font-medium text-foreground">Financial Summary</span> and{" "}
                 <span className="font-medium text-foreground">Director and Shareholders</span> show the organization data CTOS
-                returns. <span className="font-medium text-foreground">View latest report</span> only opens the HTML from the{" "}
-                <span className="font-medium text-foreground">last successful fetch</span>. It does not send a new request.
+                returns. <span className="font-medium text-foreground">View latest report</span> opens the full report from the{" "}
+                <span className="font-medium text-foreground">last successful fetch</span> in a new browser tab (read-only). It
+                does not request another pull from CTOS.
               </p>
               {ctosFetchState === "not_pulled" || hadCtosUnauditedOverride ? (
                 <div className="space-y-1 rounded-lg border border-border/70 bg-muted/25 px-3 py-2 text-xs text-muted-foreground">
