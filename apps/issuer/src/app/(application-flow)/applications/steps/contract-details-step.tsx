@@ -330,19 +330,35 @@ function FileUploadArea({
     fileInputRef.current?.click();
   };
 
+  const validateAndSelectPdf = (file: File) => {
+    if (file.type !== "application/pdf") {
+      toast.error("Please select a PDF file");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File is too large (max 5MB)");
+      return;
+    }
+    onFileSelect(file);
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      if (file.type !== "application/pdf") {
-        toast.error("Please select a PDF file");
-        return;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error("File is too large (max 5MB)");
-        return;
-      }
-      onFileSelect(file);
-    }
+    if (file) validateAndSelectPdf(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (disabled) return;
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (disabled || isUploading) return;
+    const file = e.dataTransfer.files?.[0];
+    if (file) validateAndSelectPdf(file);
   };
 
   /** Format file size for display: B, KB, or MB depending on magnitude. */
@@ -414,6 +430,8 @@ function FileUploadArea({
   return (
     <div
       onClick={disabled ? undefined : handleClick}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
       className={cn(
         "border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-colors",
         disabled

@@ -31,6 +31,11 @@ import { useDevTools } from "@/app/(application-flow)/applications/components/de
 import { BusinessDetailsSkeleton } from "@/app/(application-flow)/applications/components/business-details-skeleton";
 import { generateBusinessDetailsData } from "@/app/(application-flow)/applications/utils/dev-data-generator";
 import {
+  clampGuarantorIcInput,
+  isValidMalaysianNric,
+  malaysianNricDigits,
+} from "@/app/(application-flow)/applications/utils/malaysian-nric";
+import {
   GUARANTOR_COMPANY_RELATIONSHIP_LABELS,
   GUARANTOR_COMPANY_RELATIONSHIPS,
   GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS,
@@ -276,7 +281,7 @@ function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
             guarantor_type: "individual" as const,
             first_name: g.firstName.trim(),
             last_name: g.lastName.trim(),
-            ic_number: g.icNumber.trim(),
+            ic_number: malaysianNricDigits(g.icNumber),
             relationship: g.relationship as GuarantorIndividualRelationship,
           }
         : {
@@ -355,7 +360,7 @@ function parseGuarantorsFromRaw(raw: unknown): GuarantorFormRow[] {
         guarantorType: "individual",
         firstName: String(o.first_name ?? o.firstName ?? ""),
         lastName: String(o.last_name ?? o.lastName ?? ""),
-        icNumber: String(o.ic_number ?? o.icNumber ?? ""),
+        icNumber: clampGuarantorIcInput(String(o.ic_number ?? o.icNumber ?? "")),
         relationship: relationshipOk ? (rel as GuarantorIndividualRelationship) : "",
       });
     } else if (gt === "company") {
@@ -621,6 +626,7 @@ interface GuarantorCardFieldsProps {
   row: GuarantorFormRow;
   index: number;
   readOnly: boolean;
+  hasAttemptedSave: boolean;
   replaceGuarantorRow: (index: number, next: GuarantorFormRow) => void;
   setGuarantorTypeAt: (index: number, type: "individual" | "company") => void;
 }
@@ -629,6 +635,7 @@ function GuarantorCardFields({
   row,
   index,
   readOnly,
+  hasAttemptedSave,
   replaceGuarantorRow,
   setGuarantorTypeAt,
 }: GuarantorCardFieldsProps) {
@@ -702,19 +709,30 @@ function GuarantorCardFields({
             <Label htmlFor={`g-${index}-ic`} className={labelInputClassName}>
               IC number
             </Label>
-            <Input
-              id={`g-${index}-ic`}
-              value={row.icNumber}
-              onChange={(e) =>
-                replaceGuarantorRow(index, {
-                  ...row,
-                  icNumber: e.target.value.slice(0, 30),
-                })
-              }
-              placeholder="e.g. 901212-10-1234"
-              className={cn(inputClassName, readOnly && formInputDisabledClassName)}
-              disabled={readOnly}
-            />
+            <div className="space-y-1 min-h-[48px]">
+              <Input
+                id={`g-${index}-ic`}
+                value={row.icNumber}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === "") {
+                    replaceGuarantorRow(index, { ...row, icNumber: "" });
+                    return;
+                  }
+                  if (!/^\d{0,12}$/.test(raw)) return;
+                  replaceGuarantorRow(index, { ...row, icNumber: raw });
+                }}
+                placeholder="e.g. 901212101234"
+                className={cn(inputClassName, readOnly && formInputDisabledClassName)}
+                disabled={readOnly}
+              />
+              <p className="text-xs text-muted-foreground">12 digits</p>
+              {hasAttemptedSave &&
+              row.guarantorType === "individual" &&
+              !isValidMalaysianNric(row.icNumber) ? (
+                <p className="text-xs text-destructive">IC number must be 12 digits</p>
+              ) : null}
+            </div>
           </div>
           <div className="space-y-2 w-full min-w-0">
             <Label className={labelInputClassName}>Relationship</Label>
@@ -842,6 +860,8 @@ export function BusinessDetailsStep({
   >([]);
   /** Collapsible guarantor cards; index 0 defaults open until user toggles. */
   const [guarantorPanelOpen, setGuarantorPanelOpen] = React.useState<Record<number, boolean>>({});
+  /** After Save and Continue: show format errors (matches contract-details SSM pattern). */
+  const [hasAttemptedSave, setHasAttemptedSave] = React.useState(false);
 
   const [isInitialized, setIsInitialized] = React.useState(false);
   const initialPayloadRef = React.useRef<string>("");
@@ -860,6 +880,77 @@ export function BusinessDetailsStep({
       return next;
     });
   }, [guarantors.length]);
+
+  React.useEffect(() => {
+    setHasAttemptedSave(false);
+  }, [applicationId]);
+
+  const areBusinessDetailsFieldsFilled = React.useCallback(() => {
+    const { whatDoesCompanyDo, mainCustomers, singleCustomerOver50Revenue } = aboutYourBusiness;
+    const {
+      financingFor,
+      howFundsUsed,
+      businessPlan,
+      risksDelayRepayment,
+      backupPlan,
+      raisingOnOtherP2P,
+      platformName,
+      amountRaised,
+      sameInvoiceUsed,
+      accountingSoftware,
+    } = whyRaisingFunds;
+
+    if (
+      !whatDoesCompanyDo.trim() ||
+      !mainCustomers.trim() ||
+      !singleCustomerOver50Revenue.trim() ||
+      !financingFor.trim() ||
+      !howFundsUsed.trim() ||
+      !businessPlan.trim() ||
+      !risksDelayRepayment.trim() ||
+      !backupPlan.trim() ||
+      !raisingOnOtherP2P.trim() ||
+      !accountingSoftware.trim() ||
+      !declarationConfirmed
+    ) {
+      return false;
+    }
+
+    if (raisingOnOtherP2P === "yes") {
+      if (!platformName.trim() || !amountRaised.trim() || !sameInvoiceUsed.trim()) {
+        return false;
+      }
+      if (sameInvoiceUsed === "yes") {
+        return false;
+      }
+    }
+
+    if (guarantors.length < 1) return false;
+    for (const g of guarantors) {
+      if (g.guarantorType === "individual") {
+        if (
+          !g.firstName.trim() ||
+          !g.lastName.trim() ||
+          malaysianNricDigits(g.icNumber).length === 0 ||
+          !g.relationship ||
+          !GUARANTOR_INDIVIDUAL_RELATIONSHIPS.includes(g.relationship as GuarantorIndividualRelationship)
+        ) {
+          return false;
+        }
+      } else {
+        if (
+          !g.companyName.trim() ||
+          !g.ssmNumber.trim() ||
+          !g.relationship ||
+          !GUARANTOR_COMPANY_RELATIONSHIPS.includes(g.relationship as GuarantorCompanyRelationship)
+        ) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }, [aboutYourBusiness, whyRaisingFunds, declarationConfirmed, guarantors]);
 
   const validateBusinessDetails = React.useCallback(() => {
     const { whatDoesCompanyDo, mainCustomers, singleCustomerOver50Revenue } = aboutYourBusiness;
@@ -912,7 +1003,7 @@ export function BusinessDetailsStep({
         if (
           !g.firstName.trim() ||
           !g.lastName.trim() ||
-          !g.icNumber.trim() ||
+          !isValidMalaysianNric(g.icNumber) ||
           !g.relationship ||
           !GUARANTOR_INDIVIDUAL_RELATIONSHIPS.includes(g.relationship as GuarantorIndividualRelationship)
         ) {
@@ -1016,50 +1107,6 @@ export function BusinessDetailsStep({
     }
     return false;
   }, [initialWhySupportingDocuments, whyRaisingFunds.supportingDocuments]);
-
-  React.useEffect(() => {
-    if (!onDataChangeRef.current || !isInitialized) return;
-
-    /**
-     * What: Provide canonical validation flag to parent.
-     * Why: Parent `EditApplicationPage` expects `isValid` to determine
-     *       whether the "Save and Continue" button is enabled.
-     * Data: snakePayload includes declaration_confirmed; isValid for step validity.
-     */
-    onDataChangeRef.current({
-      ...snakePayload,
-      hasPendingChanges,
-      isValid: validateBusinessDetails(),
-      saveFunction:
-        pendingSupportingDocuments.length > 0 || hasRemovedSupportingDocuments
-          ? uploadWhySectionSupportingDocuments
-          : undefined,
-    });
-  }, [
-    snakePayload,
-    hasPendingChanges,
-    declarationConfirmed,
-    isInitialized,
-    pendingSupportingDocuments.length,
-    hasRemovedSupportingDocuments,
-    validateBusinessDetails,
-  ]);
-
-  if (isLoadingApp || !isInitialized || devTools?.showSkeletonDebug) {
-    return <BusinessDetailsSkeleton />;
-  }
-
-  const sameInvoiceP2pBlocked =
-    whyRaisingFunds.raisingOnOtherP2P === "yes" && whyRaisingFunds.sameInvoiceUsed === "yes";
-  const fieldsLocked = readOnly || sameInvoiceP2pBlocked;
-
-  const replaceGuarantorRow = (index: number, next: GuarantorFormRow) => {
-    setGuarantors((prev) => prev.map((row, i) => (i === index ? next : row)));
-  };
-
-  const setGuarantorTypeAt = (index: number, type: "individual" | "company") => {
-    replaceGuarantorRow(index, type === "individual" ? emptyIndividualGuarantor() : emptyCompanyGuarantor());
-  };
 
   async function uploadWhySectionSupportingDocuments() {
     const token = await getAccessToken();
@@ -1177,8 +1224,36 @@ export function BusinessDetailsStep({
     return nextPayload;
   }
 
-  const handleWhySectionSupportingDocumentsSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
+  React.useEffect(() => {
+    if (!onDataChangeRef.current || !isInitialized) return;
+
+    onDataChangeRef.current({
+      ...snakePayload,
+      hasPendingChanges,
+      isValid: areBusinessDetailsFieldsFilled(),
+      saveFunction: async () => {
+        setHasAttemptedSave(true);
+        if (!validateBusinessDetails()) {
+          toast.error("Please fix the highlighted fields");
+          throw new Error("VALIDATION_BUSINESS_DETAILS_FAILED");
+        }
+        if (pendingSupportingDocuments.length > 0 || hasRemovedSupportingDocuments) {
+          return uploadWhySectionSupportingDocuments();
+        }
+        return undefined;
+      },
+    });
+  }, [
+    snakePayload,
+    hasPendingChanges,
+    isInitialized,
+    areBusinessDetailsFieldsFilled,
+    validateBusinessDetails,
+    pendingSupportingDocuments.length,
+    hasRemovedSupportingDocuments,
+  ]);
+
+  const addWhySectionSupportingPdfFiles = React.useCallback((files: File[]) => {
     if (files.length === 0) return;
 
     for (const file of files) {
@@ -1210,8 +1285,42 @@ export function BusinessDetailsStep({
         })),
       ],
     }));
+  }, []);
 
+  const whySupportingDocumentsDropZoneProps = React.useMemo(
+    () => ({
+      onDragOver: (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+      },
+      onDrop: (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        addWhySectionSupportingPdfFiles(Array.from(e.dataTransfer.files ?? []));
+      },
+    }),
+    [addWhySectionSupportingPdfFiles]
+  );
+
+  const handleWhySectionSupportingDocumentsSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    addWhySectionSupportingPdfFiles(Array.from(e.target.files ?? []));
     e.currentTarget.value = "";
+  };
+
+  if (isLoadingApp || !isInitialized || devTools?.showSkeletonDebug) {
+    return <BusinessDetailsSkeleton />;
+  }
+
+  const sameInvoiceP2pBlocked =
+    whyRaisingFunds.raisingOnOtherP2P === "yes" && whyRaisingFunds.sameInvoiceUsed === "yes";
+  const fieldsLocked = readOnly || sameInvoiceP2pBlocked;
+
+  const replaceGuarantorRow = (index: number, next: GuarantorFormRow) => {
+    setGuarantors((prev) => prev.map((row, i) => (i === index ? next : row)));
+  };
+
+  const setGuarantorTypeAt = (index: number, type: "individual" | "company") => {
+    replaceGuarantorRow(index, type === "individual" ? emptyIndividualGuarantor() : emptyCompanyGuarantor());
   };
 
   const removeWhySectionSupportingDocumentAt = (index: number) => {
@@ -1242,12 +1351,7 @@ export function BusinessDetailsStep({
           <div className={applicationFlowSectionDividerClassName} />
         </div>
 
-        <div
-          className={cn(
-            rowGridClassName,
-            sameInvoiceP2pBlocked && "pointer-events-none opacity-50 select-none"
-          )}
-        >
+        <div className={rowGridClassName}>
           <Label htmlFor="what-does-company-do" className={labelTextareaClassName}>
             What does your company do?
           </Label>
@@ -1330,12 +1434,7 @@ export function BusinessDetailsStep({
         </div>
 
         <div className={rowGridClassName}>
-          <div
-            className={cn(
-              "contents",
-              sameInvoiceP2pBlocked && "[&>*]:pointer-events-none [&>*]:opacity-50 [&>*]:select-none"
-            )}
-          >
+          <div className="contents">
             <Label htmlFor="financing-for" className={labelTextareaClassName}>
               What is this financing for?
             </Label>
@@ -1491,12 +1590,16 @@ export function BusinessDetailsStep({
                 ))}
                 {!fieldsLocked && (
                   <label htmlFor="why-section-supporting-documents" className="cursor-pointer">
-                    <div className="border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-colors border-border bg-card/50 hover:bg-muted/50">
+                    <div
+                      className="border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-colors border-border bg-card/50 hover:bg-muted/50"
+                      {...whySupportingDocumentsDropZoneProps}
+                    >
                       <div className="p-2 rounded-full bg-background border shadow-sm">
                         <CloudUpload className="h-5 w-5 text-muted-foreground" />
                       </div>
                       <div className="text-center">
-                        <span className="text-base font-semibold text-primary">Add files</span>
+                        <span className="text-base font-semibold text-primary">Click to upload</span>
+                        <span className="text-base text-muted-foreground"> or drag and drop</span>
                       </div>
                       <div className="text-sm text-muted-foreground">PDF (max. 5MB)</div>
                     </div>
@@ -1518,7 +1621,10 @@ export function BusinessDetailsStep({
                 htmlFor="why-section-supporting-documents"
                 className="cursor-pointer"
               >
-                <div className="border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-colors border-border bg-card/50 hover:bg-muted/50">
+                <div
+                  className="border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-3 transition-colors border-border bg-card/50 hover:bg-muted/50"
+                  {...whySupportingDocumentsDropZoneProps}
+                >
                   <div className="p-2 rounded-full bg-background border shadow-sm">
                     <CloudUpload className="h-5 w-5 text-muted-foreground" />
                   </div>
@@ -1630,13 +1736,7 @@ export function BusinessDetailsStep({
       </section>
 
       {/* ===================== GUARANTOR DETAILS ===================== */}
-      <section
-        className={cn(
-          sectionWrapperClassName,
-          "space-y-5",
-          sameInvoiceP2pBlocked && "opacity-50"
-        )}
-      >
+      <section className={cn(sectionWrapperClassName, "space-y-5")}>
         <div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
             <h3 className={applicationFlowSectionTitleClassName}>Guarantor details</h3>
@@ -1679,6 +1779,7 @@ export function BusinessDetailsStep({
                 row={row}
                 index={index}
                 readOnly={fieldsLocked}
+                hasAttemptedSave={hasAttemptedSave}
                 replaceGuarantorRow={replaceGuarantorRow}
                 setGuarantorTypeAt={setGuarantorTypeAt}
               />
@@ -1738,13 +1839,7 @@ export function BusinessDetailsStep({
       </section>
 
       {/* ===================== DECLARATIONS ===================== */}
-      <section
-        className={cn(
-          sectionWrapperClassName,
-          "space-y-5",
-          sameInvoiceP2pBlocked && "opacity-50"
-        )}
-      >
+      <section className={cn(sectionWrapperClassName, "space-y-5")}>
         <div>
           <h3 className={applicationFlowSectionTitleClassName}>Declarations</h3>
           <div className={applicationFlowSectionDividerClassName} />
