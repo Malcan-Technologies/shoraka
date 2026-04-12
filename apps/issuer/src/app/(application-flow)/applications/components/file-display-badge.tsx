@@ -3,9 +3,11 @@
 /**
  * Consistent filename display across application flow.
  * Compact badge style (width based on filename), native browser title for full name on hover.
+ * Matches invoice / review: rounded-xl border, check chip, optional trailing (e.g. remove).
  */
 import * as React from "react";
 import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
+import { cn } from "@/lib/utils";
 
 export function FileDisplayBadge({
   fileName,
@@ -40,7 +42,14 @@ export function FileDisplayBadge({
   return (
     <div
       title={fileName}
-      className={`inline-flex items-center ${gapClass} border border-border rounded-sm ${padClass} ${height} ${truncate ? "min-w-0 max-w-full overflow-hidden" : ""} ${className ?? ""}`}
+      className={cn(
+        "inline-flex items-center border border-input bg-background rounded-xl",
+        gapClass,
+        padClass,
+        height,
+        truncate && "min-w-0 max-w-full overflow-hidden",
+        className
+      )}
     >
       <div className={`${boxSize} rounded-sm bg-foreground flex items-center justify-center shrink-0`}>
         <CheckIconSolid className={`${iconSize} text-background`} />
