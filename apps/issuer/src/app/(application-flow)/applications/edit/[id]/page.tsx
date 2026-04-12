@@ -631,6 +631,14 @@ function EditApplicationPageBody() {
   const pendingNavRef = React.useRef<{ path: string; leavingPage: boolean } | null>(null);
   const isNavigatingRef = React.useRef(false);
 
+  /**
+   * SECTION: Confirm leave with unsaved changes
+   * WHY: User is discarding local edits; do not run product version check here (same as /applications/new).
+   *      Version is still evaluated on next load via useProductVersionGuard.
+   * INPUT: target path from navigation guard.
+   * OUTPUT: router push/replace without versionBlocksNavigation.
+   * WHERE USED: useNavigationGuard confirmLeave.
+   */
   const onConfirmNavigation = React.useCallback(
     async (path: string) => {
       const pending = pendingNavRef.current;
@@ -642,25 +650,22 @@ function EditApplicationPageBody() {
 
         if (path === "__BACK__") {
           pendingNavRef.current = null;
-          const didNavigate = await navigateWithVersionCheck("/", "replace");
-          if (didNavigate) setHasUnsavedChanges(false);
+          router.replace("/");
           return;
         }
 
         if (pending?.leavingPage) {
           pendingNavRef.current = null;
-          const didNavigate = await navigateWithVersionCheck(path, "replace");
-          if (didNavigate) setHasUnsavedChanges(false);
+          router.replace(path);
         } else {
           pendingNavRef.current = null;
-          const didNavigate = await navigateWithVersionCheck(path, "push");
-          if (didNavigate) setHasUnsavedChanges(false);
+          router.push(path);
         }
       } finally {
         isNavigatingRef.current = false;
       }
     },
-    [navigateWithVersionCheck]
+    [router]
   );
 
   const { isModalOpen, requestNavigation, confirmLeave, cancelLeave, pendingPath } = useNavigationGuard(
