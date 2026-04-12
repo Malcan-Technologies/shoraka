@@ -81,6 +81,24 @@ export interface BusinessSectionProps {
 const DECLARATION_TEXT =
   "I confirm that all information provided is true, accurate, and not misleading, and I understand that false or incomplete information may result in removal from the platform and regulatory action.";
 
+/** RegTank deep link for this guarantor row — wire URL / ids when API is ready. */
+function RegTankGuarantorLinkButton() {
+  return (
+    <div className="pt-3 mt-1 border-t border-border/70">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="gap-2"
+        onClick={() => {}}
+      >
+        <ArrowTopRightOnSquareIcon className="h-4 w-4 shrink-0" aria-hidden />
+        View guarantor in RegTank
+      </Button>
+    </div>
+  );
+}
+
 type GuarantorReviewRow =
   | {
       kind: "individual";
@@ -519,6 +537,7 @@ export function BusinessSection({
                           after={gA?.kind === "individual" ? gA.relationshipLabel : "—"}
                           changed={changed}
                         />
+                        <RegTankGuarantorLinkButton />
                       </div>
                     ) : null}
                     {kind === "company" ? (
@@ -542,6 +561,7 @@ export function BusinessSection({
                           after={gA?.kind === "company" ? gA.relationshipLabel : "—"}
                           changed={changed}
                         />
+                        <RegTankGuarantorLinkButton />
                       </div>
                     ) : null}
                   </div>
@@ -777,6 +797,7 @@ export function BusinessSection({
                         </>
                       )}
                     </div>
+                    <RegTankGuarantorLinkButton />
                   </div>
                 ))}
               </div>
