@@ -30,11 +30,11 @@ import {
 } from "@/components/ui/dialog";
 import {
   AMENDMENT_CALLOUT_BODY,
-  AMENDMENT_CALLOUT_CONTENT,
   AMENDMENT_CALLOUT_ICON_WRAP,
   AMENDMENT_CALLOUT_ROOT,
   AMENDMENT_CALLOUT_TITLE,
 } from "@/app/(application-flow)/applications/components/amendments/amendment-callout-styles";
+import { AmendmentExpandableBulletList } from "@/app/(application-flow)/applications/components/amendments/amendment-expandable-bullet-list";
 import { Button } from "@/components/ui/button";
 import {
   applicationFlowAmendmentTargetSurfaceClassName,
@@ -1157,7 +1157,10 @@ export function SupportingDocumentsStep({
     >
       <DialogContent
         hideClose
-        className="gap-0 border-0 bg-transparent p-0 shadow-none sm:max-w-lg"
+        className={cn(
+          "gap-0 border-0 bg-transparent p-0 shadow-none",
+          "w-[calc(100vw-1rem)] max-w-[min(42rem,calc(100vw-1rem))] sm:max-w-2xl"
+        )}
       >
         <DialogTitle className="sr-only">
           Amendment required
@@ -1168,7 +1171,7 @@ export function SupportingDocumentsStep({
         <div
           className={cn(
             AMENDMENT_CALLOUT_ROOT,
-            "relative flex flex-col gap-4 border-primary/55 text-foreground bg-[color-mix(in_srgb,hsl(var(--primary))_10%,hsl(var(--card)))]"
+            "!p-0 relative flex max-h-[min(88vh,40rem)] flex-col !items-stretch gap-0 overflow-hidden border-primary/55 text-foreground bg-[color-mix(in_srgb,hsl(var(--primary))_10%,hsl(var(--card)))]"
           )}
         >
           <DialogClose asChild>
@@ -1180,49 +1183,36 @@ export function SupportingDocumentsStep({
               <XMarkIcon className="h-5 w-5 shrink-0" />
             </button>
           </DialogClose>
-          <div className="flex w-full gap-3 sm:gap-4 items-start pr-9">
-            <div
-              className={cn(
-                AMENDMENT_CALLOUT_ICON_WRAP,
-                "border-primary/45 bg-[color-mix(in_srgb,hsl(var(--primary))_20%,hsl(var(--card)))]"
-              )}
-              aria-hidden
-            >
-              <ExclamationTriangleIcon className="h-5 w-5 text-primary" />
-            </div>
-            <div className={AMENDMENT_CALLOUT_BODY}>
-              <p className={cn(AMENDMENT_CALLOUT_TITLE, "text-primary")}>
-                Amendment required
-              </p>
-              {feedbackDialog.documentTitle ? (
-                <p className="text-sm text-muted-foreground -mt-0.5">
-                  Document: {feedbackDialog.documentTitle}
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-2 pt-4 sm:px-5 sm:pt-5">
+            <div className="flex w-full gap-3 sm:gap-4 items-start pr-8">
+              <div
+                className={cn(
+                  AMENDMENT_CALLOUT_ICON_WRAP,
+                  "border-primary/45 bg-[color-mix(in_srgb,hsl(var(--primary))_20%,hsl(var(--card)))]"
+                )}
+                aria-hidden
+              >
+                <ExclamationTriangleIcon className="h-5 w-5 text-primary" />
+              </div>
+              <div className={cn(AMENDMENT_CALLOUT_BODY, "min-w-0 flex-1")}>
+                <p className={cn(AMENDMENT_CALLOUT_TITLE, "text-primary")}>
+                  Amendment required
                 </p>
-              ) : null}
-              {(() => {
-                const lines = parseRemarkLines(feedbackDialog.remark);
-                const displayLines =
-                  lines.length > 0 ? lines : ["No details provided."];
-                const emptyRemark = lines.length === 0;
-                return (
-                  <ul
-                    className={cn(
-                      AMENDMENT_CALLOUT_CONTENT,
-                      "list-disc space-y-1.5 pl-4 text-foreground",
-                      emptyRemark && "text-muted-foreground"
-                    )}
-                  >
-                    {displayLines.map((line, idx) => (
-                      <li key={idx} className="break-words whitespace-pre-wrap">
-                        {line}
-                      </li>
-                    ))}
-                  </ul>
-                );
-              })()}
+                {feedbackDialog.documentTitle ? (
+                  <p className="text-sm text-muted-foreground -mt-0.5">
+                    Document: {feedbackDialog.documentTitle}
+                  </p>
+                ) : null}
+                {(() => {
+                  const lines = parseRemarkLines(feedbackDialog.remark);
+                  return (
+                    <AmendmentExpandableBulletList lines={lines} collapsible={false} />
+                  );
+                })()}
+              </div>
             </div>
           </div>
-          <div className="flex w-full justify-end border-t border-primary/25 pt-3">
+          <div className="flex w-full shrink-0 justify-end border-t border-primary/25 px-4 py-3 sm:px-5">
             <DialogClose asChild>
               <Button type="button" variant="outline" className="rounded-xl">
                 Close

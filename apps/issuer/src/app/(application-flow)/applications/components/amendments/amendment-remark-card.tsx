@@ -9,11 +9,11 @@ import * as React from "react";
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import {
   AMENDMENT_CALLOUT_BODY,
-  AMENDMENT_CALLOUT_CONTENT,
   AMENDMENT_CALLOUT_ICON_WRAP,
   AMENDMENT_CALLOUT_ROOT,
   AMENDMENT_CALLOUT_TITLE,
 } from "./amendment-callout-styles";
+import { AmendmentExpandableBulletList } from "./amendment-expandable-bullet-list";
 
 /** Default intro line shown when step is flagged for amendment */
 const DEFAULT_INTRO = "This section requires amendments before it can be approved.";
@@ -51,11 +51,7 @@ export function AmendmentRemarkCard({ remarks, showDefaultIntro = true }: Amendm
       </div>
       <div className={AMENDMENT_CALLOUT_BODY}>
         <p className={`${AMENDMENT_CALLOUT_TITLE} text-primary`}>Amendment required</p>
-        <ul className={`${AMENDMENT_CALLOUT_CONTENT} pl-4 list-disc space-y-1.5 text-foreground`}>
-          {lines.map((line, idx) => (
-            <li key={idx}>{line}</li>
-          ))}
-        </ul>
+        <AmendmentExpandableBulletList lines={lines} />
       </div>
     </div>
   );

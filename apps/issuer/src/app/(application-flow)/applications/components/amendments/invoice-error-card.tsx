@@ -9,6 +9,7 @@ import {
   AMENDMENT_CALLOUT_ROOT,
   AMENDMENT_CALLOUT_TITLE,
 } from "./amendment-callout-styles";
+import { AmendmentExpandableBulletList } from "./amendment-expandable-bullet-list";
 
 /**
  * Invoice item-level amendment remarks above the invoice table.
@@ -55,11 +56,7 @@ export function InvoiceErrorCard({ groups = [], errors = [] }: InvoiceErrorCardP
           {effectiveGroups.map((g, gIdx) => (
             <div key={gIdx}>
               <div className="font-medium text-foreground">{g.invoiceLabel}</div>
-              <ul className="mt-1 pl-4 list-disc space-y-1.5">
-                {g.bullets.map((b, bIdx) => (
-                  <li key={bIdx}>{b}</li>
-                ))}
-              </ul>
+              <AmendmentExpandableBulletList lines={g.bullets} listClassName="mt-1" />
             </div>
           ))}
         </div>
