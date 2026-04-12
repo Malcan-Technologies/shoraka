@@ -22,6 +22,13 @@ import { useAuthToken } from "@cashsouk/config";
 import { SupportingDocumentsSkeleton } from "@/app/(application-flow)/applications/components/supporting-documents-skeleton";
 import { FileDisplayBadge } from "@/app/(application-flow)/applications/components/file-display-badge";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -87,6 +94,13 @@ const makeClientId = () => {
 };
 
 const INITIAL_VISIBLE_FILES = 2;
+
+function parseRemarkLines(text: string): string[] {
+  return (text || "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+}
 
 function sortUploadRecordsNewestFirst(list: UploadRecord[]): UploadRecord[] {
   return [...list].sort((a, b) => {
@@ -292,6 +306,11 @@ export function SupportingDocumentsStep({
   const [expandedCategories, setExpandedCategories] = React.useState<Record<number, boolean>>({});
   /** Per document slot: when true, show all files; when false, show first two only. */
   const [expandedFileLists, setExpandedFileLists] = React.useState<Record<string, boolean>>({});
+  const [feedbackDialog, setFeedbackDialog] = React.useState<{
+    open: boolean;
+    documentTitle: string;
+    remark: string;
+  }>({ open: false, documentTitle: "", remark: "" });
   const [uploadingKeys, setUploadingKeys] = React.useState<Set<string>>(new Set());
   const [initialUploadedFiles, setInitialUploadedFiles] = React.useState<Record<string, UploadRecord[]>>({});
 
@@ -920,13 +939,25 @@ export function SupportingDocumentsStep({
                                 </p>
                               </div>
                               {isItemFlagged && itemRemark ? (
-                                <p className="text-xs text-destructive flex items-start gap-1.5 leading-snug">
+                                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                                   <ExclamationTriangleIcon
-                                    className="h-3.5 w-3.5 shrink-0 mt-0.5 text-destructive"
+                                    className="h-3.5 w-3.5 shrink-0 text-destructive"
                                     aria-hidden
                                   />
-                                  <span>{itemRemark.split("\n")[0]}</span>
-                                </p>
+                                  <button
+                                    type="button"
+                                    className="text-xs font-medium text-destructive underline-offset-2 hover:underline"
+                                    onClick={() =>
+                                      setFeedbackDialog({
+                                        open: true,
+                                        documentTitle: String(document.title ?? ""),
+                                        remark: itemRemark,
+                                      })
+                                    }
+                                  >
+                                    View feedback
+                                  </button>
+                                </div>
                               ) : null}
                             </div>
 
@@ -1093,6 +1124,41 @@ export function SupportingDocumentsStep({
         </>
       )}
     </div>
+    <Dialog
+      open={feedbackDialog.open}
+      onOpenChange={(open) => setFeedbackDialog((s) => ({ ...s, open }))}
+    >
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-primary">Reviewer feedback</DialogTitle>
+          <DialogDescription>
+            {feedbackDialog.documentTitle
+              ? `Document: ${feedbackDialog.documentTitle}`
+              : "Amendment note from the reviewer."}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="text-sm text-foreground">
+          {(() => {
+            const lines = parseRemarkLines(feedbackDialog.remark);
+            if (lines.length === 0) {
+              return (
+                <p className="text-muted-foreground leading-relaxed">No details provided.</p>
+              );
+            }
+            if (lines.length === 1) {
+              return <p className="leading-7">{lines[0]}</p>;
+            }
+            return (
+              <ul className="list-disc space-y-1.5 pl-4 leading-7">
+                {lines.map((line, idx) => (
+                  <li key={idx}>{line}</li>
+                ))}
+              </ul>
+            );
+          })()}
+        </div>
+      </DialogContent>
+    </Dialog>
     </>
   );
 
