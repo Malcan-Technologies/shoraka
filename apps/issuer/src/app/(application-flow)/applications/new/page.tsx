@@ -19,6 +19,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ProductList } from "../components/product-list";
 import { ProgressIndicator } from "../components/progress-indicator";
 import { FinancingTypeSkeleton } from "../components/financing-type-skeleton";
+import {
+  MOCK_FINANCING_TYPE_PRODUCTS,
+  USE_MOCK_FINANCING_TYPE_CATALOG,
+} from "../lib/mock-financing-type-catalog";
 
 /**
  * NEW APPLICATION PAGE
@@ -143,7 +147,8 @@ export default function NewApplicationPage() {
     }
   }, [activeOrganization, isOrgLoading, router]);
 
-  const products = (productsData as any)?.products || [];
+  const apiProducts = (productsData as any)?.products || [];
+  const products = USE_MOCK_FINANCING_TYPE_CATALOG ? MOCK_FINANCING_TYPE_PRODUCTS : apiProducts;
 
   /**
    * Keep selection in sync with catalog (e.g. after “Refresh products” when empty or ids change).
@@ -223,6 +228,12 @@ export default function NewApplicationPage() {
    * Backend creates record with status=DRAFT and last_completed_step=1
    */
   const handleContinue = async () => {
+    if (USE_MOCK_FINANCING_TYPE_CATALOG) {
+      toast.info(
+        "Mock catalog is on. Set USE_MOCK_FINANCING_TYPE_CATALOG to false in mock-financing-type-catalog.ts to create a real application."
+      );
+      return;
+    }
     if (products.length === 0) {
       toast.error("No financing products available");
       return;
@@ -283,8 +294,8 @@ export default function NewApplicationPage() {
     }
   };
 
-  // Show loading state while fetching products
-  if (isLoadingProducts) {
+  // Show loading state while fetching products (skip when using dev mock catalog)
+  if (!USE_MOCK_FINANCING_TYPE_CATALOG && isLoadingProducts) {
     return (
       <div className="flex flex-col h-full">
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
@@ -349,6 +360,19 @@ export default function NewApplicationPage() {
 
         {/* Product List */}
         <div className="max-w-7xl mx-auto w-full px-4 pt-6">
+          {USE_MOCK_FINANCING_TYPE_CATALOG ? (
+            <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100">
+              <p className="font-semibold">Development: mock product catalog</p>
+              <p className="mt-1 text-[15px] leading-7 opacity-95">
+                Sorting matches the live app: categories use{" "}
+                <span className="font-mono text-xs">category_display_order</span> (lower first; missing → last), then
+                name. Products inside a category use{" "}
+                <span className="font-mono text-xs">product_display_order</span> (lower first; missing → last), then{" "}
+                <span className="font-mono text-xs">created_at</span>. New products from admin get the next order values
+                from the API when created. Save and Continue is disabled until you turn the mock off.
+              </p>
+            </div>
+          ) : null}
           {products.length === 0 ? (
             <div className="text-center py-12 px-4 max-w-lg mx-auto space-y-2 text-muted-foreground">
               <p className="font-medium text-foreground">No financing products available</p>
@@ -362,7 +386,8 @@ export default function NewApplicationPage() {
               products={products}
               selectedProductId={selectedProductId}
               onProductSelect={handleProductSelect}
-              isLoading={isLoadingProducts}
+              isLoading={USE_MOCK_FINANCING_TYPE_CATALOG ? false : isLoadingProducts}
+              showExtendedControls={USE_MOCK_FINANCING_TYPE_CATALOG}
             />
           )}
         </div>
@@ -383,6 +408,7 @@ export default function NewApplicationPage() {
           <Button
             onClick={handleContinue}
             disabled={
+              USE_MOCK_FINANCING_TYPE_CATALOG ||
               products.length === 0 ||
               !selectedProductId ||
               !products.some((p: { id: string }) => p.id === selectedProductId) ||

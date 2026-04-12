@@ -134,7 +134,7 @@ export function SelectionCard({
               >
                 {title}
               </div>
-              <div className={cn(descriptionClassName, "truncate")}>{description}</div>
+              <div className={cn(descriptionClassName, "line-clamp-2 break-words")}>{description}</div>
             </div>
           </div>
           {trailing ? <div className="shrink-0">{trailing}</div> : null}
