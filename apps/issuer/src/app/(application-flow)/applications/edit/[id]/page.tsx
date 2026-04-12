@@ -52,6 +52,7 @@ import {
   ApplicationFlowBlockedStepSkeleton,
 } from "../../components/application-flow-blocked-backdrop";
 import { AmendmentRemarkCard, ReadOnlyStepBanner } from "../../components/amendments";
+import { MOCK_DEV_LONG_AMENDMENT_REMARK } from "../../lib/mock-long-amendment-remark";
 import { useHeader } from "@cashsouk/ui";
 import { FinancingTypeStep } from "../../steps/financing-type-step";
 import { FinancingStructureStep } from "../../steps/financing-structure-step";
@@ -245,7 +246,11 @@ function EditApplicationPageBody() {
   const getMockAmendmentContext = React.useCallback(() => ({
     review_cycle: (application as { review_cycle?: number })?.review_cycle ?? 1,
     remarks: [
-      { scope: "section", scope_key: "contract_details", remark: "Missing contract number\nError with customer name" },
+      {
+        scope: "section",
+        scope_key: "contract_details",
+        remark: MOCK_DEV_LONG_AMENDMENT_REMARK,
+      },
       { scope: "section", scope_key: "invoice_details", remark: "Invoice amount does not match document\nMissing supplier signature" },
       { scope: "item", scope_key: "invoice_details:0:Invoice", remark: "amount does not match document/nInvoice date must match contract" },
       { scope: "item", scope_key: "invoice_details:1:Invoice", remark: "missing supplier signature" },
