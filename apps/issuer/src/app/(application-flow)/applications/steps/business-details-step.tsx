@@ -31,6 +31,7 @@ import { useDevTools } from "@/app/(application-flow)/applications/components/de
 import { BusinessDetailsSkeleton } from "@/app/(application-flow)/applications/components/business-details-skeleton";
 import { generateBusinessDetailsData } from "@/app/(application-flow)/applications/utils/dev-data-generator";
 import {
+  clampGuarantorIcInput,
   isValidMalaysianNric,
   malaysianNricDigits,
 } from "@/app/(application-flow)/applications/utils/malaysian-nric";
@@ -359,7 +360,7 @@ function parseGuarantorsFromRaw(raw: unknown): GuarantorFormRow[] {
         guarantorType: "individual",
         firstName: String(o.first_name ?? o.firstName ?? ""),
         lastName: String(o.last_name ?? o.lastName ?? ""),
-        icNumber: malaysianNricDigits(String(o.ic_number ?? o.icNumber ?? "")),
+        icNumber: clampGuarantorIcInput(String(o.ic_number ?? o.icNumber ?? "")),
         relationship: relationshipOk ? (rel as GuarantorIndividualRelationship) : "",
       });
     } else if (gt === "company") {
@@ -625,6 +626,7 @@ interface GuarantorCardFieldsProps {
   row: GuarantorFormRow;
   index: number;
   readOnly: boolean;
+  hasAttemptedSave: boolean;
   replaceGuarantorRow: (index: number, next: GuarantorFormRow) => void;
   setGuarantorTypeAt: (index: number, type: "individual" | "company") => void;
 }
@@ -633,6 +635,7 @@ function GuarantorCardFields({
   row,
   index,
   readOnly,
+  hasAttemptedSave,
   replaceGuarantorRow,
   setGuarantorTypeAt,
 }: GuarantorCardFieldsProps) {
@@ -710,19 +713,25 @@ function GuarantorCardFields({
               <Input
                 id={`g-${index}-ic`}
                 value={row.icNumber}
-                onChange={(e) =>
-                  replaceGuarantorRow(index, {
-                    ...row,
-                    icNumber: malaysianNricDigits(e.target.value),
-                  })
-                }
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === "") {
+                    replaceGuarantorRow(index, { ...row, icNumber: "" });
+                    return;
+                  }
+                  if (!/^\d{0,12}$/.test(raw)) return;
+                  replaceGuarantorRow(index, { ...row, icNumber: raw });
+                }}
                 placeholder="e.g. 901212101234"
-                inputMode="numeric"
-                autoComplete="off"
                 className={cn(inputClassName, readOnly && formInputDisabledClassName)}
                 disabled={readOnly}
               />
               <p className="text-xs text-muted-foreground">12 digits</p>
+              {hasAttemptedSave &&
+              row.guarantorType === "individual" &&
+              !isValidMalaysianNric(row.icNumber) ? (
+                <p className="text-xs text-destructive">IC number must be 12 digits</p>
+              ) : null}
             </div>
           </div>
           <div className="space-y-2 w-full min-w-0">
@@ -851,6 +860,8 @@ export function BusinessDetailsStep({
   >([]);
   /** Collapsible guarantor cards; index 0 defaults open until user toggles. */
   const [guarantorPanelOpen, setGuarantorPanelOpen] = React.useState<Record<number, boolean>>({});
+  /** After Save and Continue: show format errors (matches contract-details SSM pattern). */
+  const [hasAttemptedSave, setHasAttemptedSave] = React.useState(false);
 
   const [isInitialized, setIsInitialized] = React.useState(false);
   const initialPayloadRef = React.useRef<string>("");
@@ -869,6 +880,77 @@ export function BusinessDetailsStep({
       return next;
     });
   }, [guarantors.length]);
+
+  React.useEffect(() => {
+    setHasAttemptedSave(false);
+  }, [applicationId]);
+
+  const areBusinessDetailsFieldsFilled = React.useCallback(() => {
+    const { whatDoesCompanyDo, mainCustomers, singleCustomerOver50Revenue } = aboutYourBusiness;
+    const {
+      financingFor,
+      howFundsUsed,
+      businessPlan,
+      risksDelayRepayment,
+      backupPlan,
+      raisingOnOtherP2P,
+      platformName,
+      amountRaised,
+      sameInvoiceUsed,
+      accountingSoftware,
+    } = whyRaisingFunds;
+
+    if (
+      !whatDoesCompanyDo.trim() ||
+      !mainCustomers.trim() ||
+      !singleCustomerOver50Revenue.trim() ||
+      !financingFor.trim() ||
+      !howFundsUsed.trim() ||
+      !businessPlan.trim() ||
+      !risksDelayRepayment.trim() ||
+      !backupPlan.trim() ||
+      !raisingOnOtherP2P.trim() ||
+      !accountingSoftware.trim() ||
+      !declarationConfirmed
+    ) {
+      return false;
+    }
+
+    if (raisingOnOtherP2P === "yes") {
+      if (!platformName.trim() || !amountRaised.trim() || !sameInvoiceUsed.trim()) {
+        return false;
+      }
+      if (sameInvoiceUsed === "yes") {
+        return false;
+      }
+    }
+
+    if (guarantors.length < 1) return false;
+    for (const g of guarantors) {
+      if (g.guarantorType === "individual") {
+        if (
+          !g.firstName.trim() ||
+          !g.lastName.trim() ||
+          malaysianNricDigits(g.icNumber).length === 0 ||
+          !g.relationship ||
+          !GUARANTOR_INDIVIDUAL_RELATIONSHIPS.includes(g.relationship as GuarantorIndividualRelationship)
+        ) {
+          return false;
+        }
+      } else {
+        if (
+          !g.companyName.trim() ||
+          !g.ssmNumber.trim() ||
+          !g.relationship ||
+          !GUARANTOR_COMPANY_RELATIONSHIPS.includes(g.relationship as GuarantorCompanyRelationship)
+        ) {
+          return false;
+        }
+      }
+    }
+
+    return true;
+  }, [aboutYourBusiness, whyRaisingFunds, declarationConfirmed, guarantors]);
 
   const validateBusinessDetails = React.useCallback(() => {
     const { whatDoesCompanyDo, mainCustomers, singleCustomerOver50Revenue } = aboutYourBusiness;
@@ -1026,50 +1108,6 @@ export function BusinessDetailsStep({
     return false;
   }, [initialWhySupportingDocuments, whyRaisingFunds.supportingDocuments]);
 
-  React.useEffect(() => {
-    if (!onDataChangeRef.current || !isInitialized) return;
-
-    /**
-     * What: Provide canonical validation flag to parent.
-     * Why: Parent `EditApplicationPage` expects `isValid` to determine
-     *       whether the "Save and Continue" button is enabled.
-     * Data: snakePayload includes declaration_confirmed; isValid for step validity.
-     */
-    onDataChangeRef.current({
-      ...snakePayload,
-      hasPendingChanges,
-      isValid: validateBusinessDetails(),
-      saveFunction:
-        pendingSupportingDocuments.length > 0 || hasRemovedSupportingDocuments
-          ? uploadWhySectionSupportingDocuments
-          : undefined,
-    });
-  }, [
-    snakePayload,
-    hasPendingChanges,
-    declarationConfirmed,
-    isInitialized,
-    pendingSupportingDocuments.length,
-    hasRemovedSupportingDocuments,
-    validateBusinessDetails,
-  ]);
-
-  if (isLoadingApp || !isInitialized || devTools?.showSkeletonDebug) {
-    return <BusinessDetailsSkeleton />;
-  }
-
-  const sameInvoiceP2pBlocked =
-    whyRaisingFunds.raisingOnOtherP2P === "yes" && whyRaisingFunds.sameInvoiceUsed === "yes";
-  const fieldsLocked = readOnly || sameInvoiceP2pBlocked;
-
-  const replaceGuarantorRow = (index: number, next: GuarantorFormRow) => {
-    setGuarantors((prev) => prev.map((row, i) => (i === index ? next : row)));
-  };
-
-  const setGuarantorTypeAt = (index: number, type: "individual" | "company") => {
-    replaceGuarantorRow(index, type === "individual" ? emptyIndividualGuarantor() : emptyCompanyGuarantor());
-  };
-
   async function uploadWhySectionSupportingDocuments() {
     const token = await getAccessToken();
     if (!token) {
@@ -1185,6 +1223,51 @@ export function BusinessDetailsStep({
     initialPayloadRef.current = JSON.stringify(nextPayload);
     return nextPayload;
   }
+
+  React.useEffect(() => {
+    if (!onDataChangeRef.current || !isInitialized) return;
+
+    onDataChangeRef.current({
+      ...snakePayload,
+      hasPendingChanges,
+      isValid: areBusinessDetailsFieldsFilled(),
+      saveFunction: async () => {
+        setHasAttemptedSave(true);
+        if (!validateBusinessDetails()) {
+          toast.error("Please fix the highlighted fields");
+          throw new Error("VALIDATION_BUSINESS_DETAILS_FAILED");
+        }
+        if (pendingSupportingDocuments.length > 0 || hasRemovedSupportingDocuments) {
+          return uploadWhySectionSupportingDocuments();
+        }
+        return undefined;
+      },
+    });
+  }, [
+    snakePayload,
+    hasPendingChanges,
+    isInitialized,
+    areBusinessDetailsFieldsFilled,
+    validateBusinessDetails,
+    pendingSupportingDocuments.length,
+    hasRemovedSupportingDocuments,
+  ]);
+
+  if (isLoadingApp || !isInitialized || devTools?.showSkeletonDebug) {
+    return <BusinessDetailsSkeleton />;
+  }
+
+  const sameInvoiceP2pBlocked =
+    whyRaisingFunds.raisingOnOtherP2P === "yes" && whyRaisingFunds.sameInvoiceUsed === "yes";
+  const fieldsLocked = readOnly || sameInvoiceP2pBlocked;
+
+  const replaceGuarantorRow = (index: number, next: GuarantorFormRow) => {
+    setGuarantors((prev) => prev.map((row, i) => (i === index ? next : row)));
+  };
+
+  const setGuarantorTypeAt = (index: number, type: "individual" | "company") => {
+    replaceGuarantorRow(index, type === "individual" ? emptyIndividualGuarantor() : emptyCompanyGuarantor());
+  };
 
   const handleWhySectionSupportingDocumentsSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -1495,7 +1578,8 @@ export function BusinessDetailsStep({
                         <CloudUpload className="h-5 w-5 text-muted-foreground" />
                       </div>
                       <div className="text-center">
-                        <span className="text-base font-semibold text-primary">Add files</span>
+                        <span className="text-base font-semibold text-primary">Click to upload</span>
+                        <span className="text-base text-muted-foreground"> or drag and drop</span>
                       </div>
                       <div className="text-sm text-muted-foreground">PDF (max. 5MB)</div>
                     </div>
@@ -1672,6 +1756,7 @@ export function BusinessDetailsStep({
                 row={row}
                 index={index}
                 readOnly={fieldsLocked}
+                hasAttemptedSave={hasAttemptedSave}
                 replaceGuarantorRow={replaceGuarantorRow}
                 setGuarantorTypeAt={setGuarantorTypeAt}
               />

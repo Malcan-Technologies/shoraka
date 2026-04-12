@@ -1280,7 +1280,7 @@ function EditApplicationPageBody() {
         // BUSINESS & GUARANTOR DETAILS — at least one guarantor; every guarantor row fully filled
         if (currentStepKey === "business_details" && (rawData as Record<string, unknown>)?.isValid === false) {
           toast.error(
-            "Add at least one guarantor and complete all fields for every guarantor. Each individual guarantor needs a valid 12-digit IC."
+            "Add at least one guarantor and complete all fields for every guarantor before continuing."
           );
           return;
         }
