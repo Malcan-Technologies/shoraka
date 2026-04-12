@@ -81,20 +81,53 @@ export interface BusinessSectionProps {
 const DECLARATION_TEXT =
   "I confirm that all information provided is true, accurate, and not misleading, and I understand that false or incomplete information may result in removal from the platform and regulatory action.";
 
-/** RegTank deep link for this guarantor row — wire URL / ids when API is ready. */
-function RegTankGuarantorLinkButton() {
+/**
+ * RegTank deep link for this guarantor row — wire URL / ids when API is ready.
+ * Comparison uses two buttons (before vs after) when the guarantor may differ between versions.
+ */
+function RegTankGuarantorLinkButton({
+  side,
+}: {
+  side?: "before" | "after";
+}) {
+  const label =
+    side === "before"
+      ? "View guarantor in RegTank (before)"
+      : side === "after"
+        ? "View guarantor in RegTank (after)"
+        : "View guarantor in RegTank";
+
   return (
-    <div className="pt-3 mt-1 border-t border-border/70">
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="gap-2"
-        onClick={() => {}}
-      >
-        <ArrowTopRightOnSquareIcon className="h-4 w-4 shrink-0" aria-hidden />
-        View guarantor in RegTank
-      </Button>
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="gap-2 w-full sm:w-auto shrink-0"
+      onClick={() => {}}
+    >
+      <ArrowTopRightOnSquareIcon className="h-4 w-4 shrink-0" aria-hidden />
+      {label}
+    </Button>
+  );
+}
+
+function RegTankGuarantorControlRow({ mode }: { mode: "single" | "comparison" }) {
+  return (
+    <div
+      className={
+        mode === "comparison"
+          ? "pt-3 mt-1 border-t border-border/70 flex flex-col gap-2 sm:flex-row sm:flex-wrap"
+          : "pt-3 mt-1 border-t border-border/70"
+      }
+    >
+      {mode === "comparison" ? (
+        <>
+          <RegTankGuarantorLinkButton side="before" />
+          <RegTankGuarantorLinkButton side="after" />
+        </>
+      ) : (
+        <RegTankGuarantorLinkButton />
+      )}
     </div>
   );
 }
@@ -537,7 +570,6 @@ export function BusinessSection({
                           after={gA?.kind === "individual" ? gA.relationshipLabel : "—"}
                           changed={changed}
                         />
-                        <RegTankGuarantorLinkButton />
                       </div>
                     ) : null}
                     {kind === "company" ? (
@@ -561,9 +593,9 @@ export function BusinessSection({
                           after={gA?.kind === "company" ? gA.relationshipLabel : "—"}
                           changed={changed}
                         />
-                        <RegTankGuarantorLinkButton />
                       </div>
                     ) : null}
+                    <RegTankGuarantorControlRow mode="comparison" />
                   </div>
                 );
               })}
@@ -797,7 +829,7 @@ export function BusinessSection({
                         </>
                       )}
                     </div>
-                    <RegTankGuarantorLinkButton />
+                    <RegTankGuarantorControlRow mode="single" />
                   </div>
                 ))}
               </div>
