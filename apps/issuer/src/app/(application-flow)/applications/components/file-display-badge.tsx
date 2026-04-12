@@ -2,33 +2,30 @@
 
 /**
  * Consistent filename display across application flow (invoice, supporting docs, review).
- * Rounded-xl chip, circular success icon sized close to Sonner toast success affordance.
+ * Rounded-xl chip; success mark is Sonner’s built-in success SVG at toast `[data-icon]` size.
  */
 import * as React from "react";
-import { CheckIcon as CheckIconSolid } from "@heroicons/react/24/solid";
 import { cn } from "@/lib/utils";
 import { formLockedFileSurfaceClassName } from "@/app/(application-flow)/applications/components/form-control";
+import { SonnerSuccessIcon } from "@/components/ui/sonner-success-icon";
 
-/** Icon ~ cap-height of label text (Sonner toast–style), not full row height. */
+/**
+ * Icon slot matches Sonner styled toast `[data-icon]`: 16×16 (see sonner dist/styles.css).
+ */
 const SIZE_STYLES = {
-  /** Tables + supporting inline chips (text-xs). */
   sm: {
     row: "h-9 gap-1.5 px-2 py-1",
-    box: "h-4 w-4",
-    icon: "h-3 w-3",
+    iconSlot: "h-4 w-4",
     text: "text-xs",
   },
-  /** Default / text-sm — slightly above toast dot; still below old “pill-filling” size. */
   default: {
     row: "h-9 gap-2 px-2.5 py-1",
-    box: "h-4 w-4",
-    icon: "h-3 w-3",
+    iconSlot: "h-4 w-4",
     text: "text-sm",
   },
   xs: {
     row: "h-6 gap-1 px-1.5 py-px",
-    box: "h-3.5 w-3.5",
-    icon: "h-2.5 w-2.5",
+    iconSlot: "h-3.5 w-3.5",
     text: "text-[10px]",
   },
 } as const;
@@ -81,16 +78,12 @@ export function FileDisplayBadge({
     >
       <div
         className={cn(
-          s.box,
-          "flex shrink-0 items-center justify-center rounded-full border",
-          locked
-            ? "border-border bg-background/50"
-            : "border-transparent bg-foreground"
+          s.iconSlot,
+          "flex shrink-0 items-center justify-center text-foreground",
+          locked && "text-muted-foreground"
         )}
       >
-        <CheckIconSolid
-          className={cn(s.icon, locked ? "text-muted-foreground" : "text-background")}
-        />
+        <SonnerSuccessIcon className="h-full w-full" />
       </div>
       <span
         className={cn(
