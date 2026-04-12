@@ -1472,7 +1472,9 @@ function EditApplicationPageBody() {
           ) : (
             <>
               {isAmendmentModeEffective && !isStepFlagged && currentStepKey !== "review_and_submit" ? (
-                <ReadOnlyStepBanner />
+                <div className="mb-6">
+                  <ReadOnlyStepBanner />
+                </div>
               ) : null}
               {isStepFlagged ? (
                 <div className="mb-6">
