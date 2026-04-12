@@ -70,6 +70,25 @@ export interface ProductFormDialogProps {
   productId: string | null;
 }
 
+/** Presigned URL must use a whitelisted MIME type; browsers sometimes omit or misreport type for Excel. */
+function contentTypeForProductTemplateUpload(file: File): string {
+  const t = file.type?.trim();
+  if (
+    t === "application/pdf" ||
+    t === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    t === "application/vnd.ms-excel"
+  ) {
+    return t;
+  }
+  const lower = file.name.toLowerCase();
+  const dot = lower.lastIndexOf(".");
+  const ext = dot >= 0 ? lower.slice(dot + 1) : "";
+  if (ext === "pdf") return "application/pdf";
+  if (ext === "xlsx") return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  if (ext === "xls") return "application/vnd.ms-excel";
+  return "application/pdf";
+}
+
 /** Create or edit product in a dialog: drag-and-drop workflow steps only. Version is auto-managed (1 on create, auto-increment on every update). No name field; each step has its own config. */
 export function ProductFormDialog({ open, onOpenChange, productId }: ProductFormDialogProps) {
   const isEdit = productId !== null;
@@ -264,7 +283,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
         categoryKey,
         templateIndex: index,
         fileName: file.name,
-        contentType: file.type,
+        contentType: contentTypeForProductTemplateUpload(file),
         fileSize: file.size,
       });
       await uploadFileToS3(uploadUrl, file);

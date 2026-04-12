@@ -50,7 +50,7 @@ If something is missing, the orange box above the buttons lists the problems (e.
 ## Images and files (S3)
 
 - **Financing Type** image: you pick a PNG (max 5MB). It uploads when you click Save.
-- **Supporting Documents** templates: you can attach a PDF per document (max 5MB). They upload when you click Save.
+- **Supporting Documents** optional templates: you can attach a **PDF or Excel** file per document (max 5MB). They upload when you click Save. Issuers still upload **only one** file type per document row (PDF **or** Excel), which you pick in the workflow.
 
 The app first asks the API for an upload URL, then uploads the file, then saves the workflow with the new file key. All of that happens on Save.
 

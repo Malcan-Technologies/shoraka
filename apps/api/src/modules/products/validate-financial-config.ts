@@ -159,12 +159,16 @@ function supportingDocRowHasValidAllowedTypes(row: unknown): boolean {
   if (at === undefined) return true;
   if (!Array.isArray(at)) return false;
   if (at.length === 0) return false;
-  return at.some((x) => x === "pdf" || x === "excel");
+  const tokens = at
+    .filter((x): x is string => typeof x === "string")
+    .filter((t) => t === "pdf" || t === "excel");
+  const unique = [...new Set(tokens)];
+  if (unique.length !== 1) return false;
+  return true;
 }
 
 /**
- * Each supporting-doc row with allowed_types set must list at least pdf or excel.
- * Omitted allowed_types still defaults to pdf-only at runtime.
+ * Each supporting-doc row may omit allowed_types (pdf at runtime) or set exactly one of pdf | excel.
  */
 export function validateSupportingDocumentsAllowedTypes(workflow: unknown[]): void {
   if (!Array.isArray(workflow) || workflow.length === 0) return;
@@ -181,7 +185,7 @@ export function validateSupportingDocumentsAllowedTypes(workflow: unknown[]): vo
           throw new AppError(
             400,
             "VALIDATION_ERROR",
-            `Supporting documents (${key}, row ${i + 1}): select at least one file type (PDF and/or Excel).`
+            `Supporting documents (${key}, row ${i + 1}): choose exactly one file type (PDF or Excel), not both.`
           );
         }
       }

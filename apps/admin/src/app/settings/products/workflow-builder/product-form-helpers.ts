@@ -394,13 +394,19 @@ function runStepValidation(steps: unknown[]): { errors: string[]; stepIdsWithErr
         for (const item of list) {
           const at = item?.allowed_types;
           if (at === undefined) continue;
-          if (!Array.isArray(at) || at.length === 0 || !at.some((x) => x === "pdf" || x === "excel")) {
+          if (!Array.isArray(at) || at.length === 0) {
             badAllowedTypes++;
+            continue;
           }
+          const tokens = at
+            .filter((x): x is string => typeof x === "string")
+            .filter((t) => t === "pdf" || t === "excel");
+          const unique = [...new Set(tokens)];
+          if (unique.length !== 1) badAllowedTypes++;
         }
       }
       if (badAllowedTypes > 0) {
-        errors.push(`${stepLabel}: every document must allow at least PDF or Excel`);
+        errors.push(`${stepLabel}: each document allows only one file type (PDF or Excel)`);
         stepIdsWithErrors.add(stepId);
       }
     }

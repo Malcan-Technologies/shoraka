@@ -18,8 +18,8 @@ export function contentTypeForSupportingDocFileName(fileName: string): string {
 }
 
 /**
- * Read allowed_types from a supporting-document workflow row. Unknown tokens are ignored;
- * empty after filter defaults to pdf-only (backward compatible).
+ * Read allowed_types from a supporting-document workflow row. One type per row (PDF or Excel).
+ * Legacy rows with both tokens use the first valid token in array order.
  */
 export function resolveAllowedTypesFromWorkflowRow(row: unknown): string[] {
   if (!row || typeof row !== "object") return ["pdf"];
@@ -29,10 +29,8 @@ export function resolveAllowedTypesFromWorkflowRow(row: unknown): string[] {
     .filter((x): x is string => typeof x === "string")
     .filter((t) => t === "pdf" || t === "excel");
   if (filtered.length === 0) return ["pdf"];
-  const out: string[] = [];
-  if (filtered.includes("pdf")) out.push("pdf");
-  if (filtered.includes("excel")) out.push("excel");
-  return out;
+  const first = filtered[0];
+  return first === "excel" ? ["excel"] : ["pdf"];
 }
 
 export function getSupportingDocAllowedTypesFromProductWorkflow(

@@ -16,15 +16,6 @@ import {
 import { PlusIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { useS3ViewUrl } from "../../../../../hooks/use-s3";
 import { toast } from "sonner";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "../../../../../components/ui/alert-dialog";
 
 const CATEGORY_KEYS = ["financial_docs", "legal_docs", "compliance_docs", "others"] as const;
 const CATEGORY_LABELS: Record<(typeof CATEGORY_KEYS)[number], string> = {
@@ -41,7 +32,7 @@ export interface SupportingDocItemShape {
   allow_multiple?: boolean;
   /** Omitted or true → required (backward compatible); false → optional */
   required?: boolean;
-  /** Raw workflow values, e.g. ["pdf"], ["pdf","excel"]. Omitted or empty → treat as ["pdf"] at runtime */
+  /** One entry: ["pdf"] or ["excel"]. Omitted or empty → treat as ["pdf"] at runtime */
   allowed_types?: string[];
   template?: { s3_key: string; file_name: string; file_size?: number };
 }
@@ -59,35 +50,22 @@ function formatFileSize(bytes: number): string {
 function resolveAllowedTypes(row: { allowed_types?: string[] }): string[] {
   const raw = row.allowed_types;
   if (!Array.isArray(raw) || raw.length === 0) return ["pdf"];
-  return raw.filter((x): x is string => typeof x === "string");
+  const filtered = raw
+    .filter((x): x is string => typeof x === "string")
+    .filter((t) => t === "pdf" || t === "excel");
+  if (filtered.length === 0) return ["pdf"];
+  const first = filtered[0];
+  return first === "excel" ? ["excel"] : ["pdf"];
 }
 
-function normalizeAllowedTypesTokens(types: string[]): string[] {
-  const hasPdf = types.includes("pdf");
-  const hasExcel = types.includes("excel");
-  if (!hasPdf && !hasExcel) return ["pdf"];
-  const out: string[] = [];
-  if (hasPdf) out.push("pdf");
-  if (hasExcel) out.push("excel");
-  return out;
-}
+/** Issuer upload allows PDF or Excel per row; optional admin template always allows PDF and Excel. */
+const ADMIN_OPTIONAL_TEMPLATE_ACCEPT = ".pdf,.xlsx,.xls";
 
-function buildAcceptFromAllowedTypes(types: string[]): string {
-  const parts: string[] = [];
-  if (types.includes("pdf")) parts.push(".pdf");
-  if (types.includes("excel")) {
-    parts.push(".xlsx", ".xls");
-  }
-  return parts.join(",");
-}
-
-function templateFileMatchesAllowedTypes(file: File, types: string[]): boolean {
+function adminOptionalTemplateMatches(file: File): boolean {
   const lower = file.name.toLowerCase();
   const dot = lower.lastIndexOf(".");
   const ext = dot >= 0 ? lower.slice(dot + 1) : "";
-  if (types.includes("pdf") && ext === "pdf") return true;
-  if (types.includes("excel") && (ext === "xlsx" || ext === "xls")) return true;
-  return false;
+  return ext === "pdf" || ext === "xlsx" || ext === "xls";
 }
 
 function getCategoryList(config: unknown, key: CategoryKey): SupportingDocItemShape[] {
@@ -99,7 +77,16 @@ function getCategoryList(config: unknown, key: CategoryKey): SupportingDocItemSh
     const template = row?.template as { s3_key?: string; file_name?: string; filename?: string; file_size?: number } | undefined;
     const fileName = (template?.file_name ?? template?.filename) as string | undefined;
     const at = row?.allowed_types;
-    const allowed_types = Array.isArray(at) ? at.filter((x): x is string => typeof x === "string") : undefined;
+    let allowed_types: string[] | undefined;
+    if (Array.isArray(at)) {
+      const f = at
+        .filter((x): x is string => typeof x === "string")
+        .filter((t) => t === "pdf" || t === "excel");
+      if (f.length > 0) {
+        const first = f[0];
+        allowed_types = [first === "excel" ? "excel" : "pdf"];
+      }
+    }
     const rq = row?.required;
     return {
       name: (row?.name as string) ?? "",
@@ -154,7 +141,7 @@ function getConfig(config: unknown): Record<CategoryKey, SupportingDocItemShape[
 
 const MAX_TEMPLATE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
 
-/** Optional PDF template per document row; uploaded in admin, shown as “Download template” on issuer supporting docs step. */
+/** Optional template (PDF or Excel) per document row; uploaded in admin, shown as “Download template” on issuer supporting docs step. */
 const OPTIONAL_TEMPLATE_ENABLED = true;
 
 export function SupportingDocumentsConfig({
@@ -246,10 +233,9 @@ export function SupportingDocumentsConfig({
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = "";
-    const types = resolveAllowedTypes(lists[key][index] ?? {});
-    console.log("Supporting doc template selected, allowed_types:", types, "file:", file.name);
-    if (!templateFileMatchesAllowedTypes(file, types)) {
-      toast.error("File type does not match allowed types for this document");
+    console.log("Supporting doc optional template selected, file:", file.name);
+    if (!adminOptionalTemplateMatches(file)) {
+      toast.error("Template must be a PDF or Excel file (.pdf, .xlsx, .xls)");
       return;
     }
     if (file.size > MAX_TEMPLATE_SIZE_BYTES) {
@@ -420,9 +406,7 @@ function DocRow({
   isUploadingTemplate: boolean;
 }) {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const [fileTypeErrorOpen, setFileTypeErrorOpen] = React.useState(false);
-  const resolvedTypes = resolveAllowedTypes(item);
-  const templateAccept = buildAcceptFromAllowedTypes(resolvedTypes);
+  const issuerTypeIsExcel = resolveAllowedTypes(item).includes("excel");
   const s3Key = item.template?.s3_key ?? "";
   const { data: viewUrl, isLoading: viewUrlLoading } = useS3ViewUrl(s3Key || null);
   const hasTemplate = !!item.template;
@@ -476,20 +460,8 @@ function DocRow({
                 <input
                   type="checkbox"
                   className="h-4 w-4 shrink-0 rounded border-input accent-primary"
-                  checked={resolvedTypes.includes("pdf")}
-                  onChange={() => {
-                    const cur = resolveAllowedTypes(item);
-                    if (cur.includes("pdf")) {
-                      if (cur.includes("excel")) {
-                        onUpdate({ allowed_types: ["excel"] });
-                      } else {
-                        console.log("Blocked clearing PDF: need at least one file type");
-                        setFileTypeErrorOpen(true);
-                      }
-                    } else {
-                      onUpdate({ allowed_types: normalizeAllowedTypesTokens([...cur, "pdf"]) });
-                    }
-                  }}
+                  checked={!issuerTypeIsExcel}
+                  onChange={() => onUpdate({ allowed_types: ["pdf"] })}
                 />
                 PDF
               </label>
@@ -497,21 +469,8 @@ function DocRow({
                 <input
                   type="checkbox"
                   className="h-4 w-4 shrink-0 rounded border-input accent-primary"
-                  checked={resolvedTypes.includes("excel")}
-                  onChange={() => {
-                    const cur = resolveAllowedTypes(item);
-                    if (cur.includes("excel")) {
-                      const next = cur.filter((t) => t !== "excel");
-                      if (next.length === 0) {
-                        console.log("Blocked clearing Excel: need at least one file type");
-                        setFileTypeErrorOpen(true);
-                        return;
-                      }
-                      onUpdate({ allowed_types: normalizeAllowedTypesTokens(next) });
-                    } else {
-                      onUpdate({ allowed_types: normalizeAllowedTypesTokens([...cur, "excel"]) });
-                    }
-                  }}
+                  checked={issuerTypeIsExcel}
+                  onChange={() => onUpdate({ allowed_types: ["excel"] })}
                 />
                 Excel
               </label>
@@ -534,97 +493,106 @@ function DocRow({
             </label>
           </fieldset>
         </div>
-        <AlertDialog open={fileTypeErrorOpen} onOpenChange={setFileTypeErrorOpen}>
-          <AlertDialogContent className="rounded-xl">
-            <AlertDialogHeader>
-              <AlertDialogTitle>File type required</AlertDialogTitle>
-              <AlertDialogDescription>
-                Select at least one file type: PDF and/or Excel. Issuers must be allowed to upload at least one
-                of these for this document.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogAction className="rounded-xl" onClick={() => setFileTypeErrorOpen(false)}>
-                OK
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
         {OPTIONAL_TEMPLATE_ENABLED && (
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground leading-6 min-w-0">
+          <div className="flex min-w-0 flex-wrap items-start gap-x-2 gap-y-1 text-sm leading-6 text-muted-foreground">
             <Input
               ref={fileInputRef}
               type="file"
-              accept={templateAccept}
+              accept={ADMIN_OPTIONAL_TEMPLATE_ACCEPT}
               onChange={onTemplateSelect}
               disabled={isUploadingTemplate}
               className="sr-only"
               tabIndex={hasTemplate || showPending ? -1 : undefined}
             />
             <span className="shrink-0">Optional template:</span>
-            {hasTemplate ? (
-              <>
-                <span className="truncate min-w-0 max-w-[180px] sm:max-w-[200px]" title={item.template!.file_name}>
-                  {item.template!.file_name}
-                  {item.template!.file_size != null && (
-                    <span className="ml-1">({formatFileSize(item.template!.file_size)})</span>
-                  )}
-                </span>
-                <span className="w-full sm:w-auto flex items-center gap-x-2 gap-y-1 shrink-0">
-                  {viewUrlLoading ? (
-                    <Skeleton className="h-4 w-10 shrink-0" />
-                  ) : viewUrl ? (
-                    <a
-                      href={viewUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="shrink-0 hover:underline focus:outline-none"
+            <div className="flex min-w-0 flex-1 basis-[200px] flex-col gap-0.5">
+              {hasTemplate ? (
+                <>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
+                    <span
+                      className="truncate min-w-0 max-w-full sm:max-w-[280px] text-foreground"
+                      title={item.template!.file_name}
                     >
-                      View
-                    </a>
+                      {item.template!.file_name}
+                    </span>
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 shrink-0">
+                      {viewUrlLoading ? (
+                        <Skeleton className="h-4 w-10 shrink-0" />
+                      ) : viewUrl ? (
+                        <a
+                          href={viewUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="shrink-0 hover:underline focus:outline-none"
+                        >
+                          View
+                        </a>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploadingTemplate}
+                        className="shrink-0 hover:underline focus:outline-none"
+                      >
+                        Change
+                      </button>
+                      <button
+                        type="button"
+                        onClick={onTemplateRemove}
+                        className="shrink-0 hover:text-destructive hover:underline focus:outline-none"
+                      >
+                        Remove
+                      </button>
+                    </span>
+                  </div>
+                  {item.template!.file_size != null ? (
+                    <p className="m-0 text-xs text-muted-foreground tabular-nums">
+                      {formatFileSize(item.template!.file_size)}
+                    </p>
                   ) : null}
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploadingTemplate}
-                    className="shrink-0 hover:underline focus:outline-none"
-                  >
-                    Change
-                  </button>
-                  <button type="button" onClick={onTemplateRemove} className="shrink-0 hover:text-destructive hover:underline focus:outline-none">
-                    Remove
-                  </button>
-                </span>
-              </>
-            ) : showPending ? (
-              <>
-                <span className="truncate min-w-0 max-w-[180px] sm:max-w-[200px]" title={pendingFile.name}>
-                  {pendingFile.name} ({formatFileSize(pendingFile.size)})
-                </span>
-                <span className="w-full sm:w-auto flex items-center gap-x-2 gap-y-1 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploadingTemplate}
-                    className="shrink-0 hover:underline focus:outline-none"
-                  >
-                    Change
-                  </button>
-                  <button type="button" onClick={onTemplateRemove} className="shrink-0 hover:text-destructive hover:underline focus:outline-none">
-                    Remove
-                  </button>
-                </span>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploadingTemplate}
-                className="shrink-0 hover:text-foreground hover:underline focus:outline-none"
-              >
-                {isUploadingTemplate ? "Uploading…" : "Upload"}
-              </button>
-            )}
+                </>
+              ) : showPending ? (
+                <>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
+                    <span
+                      className="truncate min-w-0 max-w-full sm:max-w-[280px] text-foreground"
+                      title={pendingFile.name}
+                    >
+                      {pendingFile.name}
+                    </span>
+                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploadingTemplate}
+                        className="shrink-0 hover:underline focus:outline-none"
+                      >
+                        Change
+                      </button>
+                      <button
+                        type="button"
+                        onClick={onTemplateRemove}
+                        className="shrink-0 hover:text-destructive hover:underline focus:outline-none"
+                      >
+                        Remove
+                      </button>
+                    </span>
+                  </div>
+                  <p className="m-0 text-xs text-muted-foreground tabular-nums">
+                    {formatFileSize(pendingFile.size)}
+                  </p>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingTemplate}
+                  className="shrink-0 self-start hover:text-foreground hover:underline focus:outline-none"
+                >
+                  {isUploadingTemplate ? "Uploading…" : "Upload"}
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>

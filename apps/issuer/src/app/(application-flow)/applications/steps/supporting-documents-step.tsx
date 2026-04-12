@@ -59,7 +59,12 @@ const supportingDocActionOff =
 function resolveIssuerAllowedTypes(doc: { allowed_types?: unknown }): string[] {
   const raw = doc?.allowed_types;
   if (!Array.isArray(raw) || raw.length === 0) return ["pdf"];
-  return raw.filter((x): x is string => typeof x === "string");
+  const filtered = raw
+    .filter((x): x is string => typeof x === "string")
+    .filter((t) => t === "pdf" || t === "excel");
+  if (filtered.length === 0) return ["pdf"];
+  const first = filtered[0];
+  return first === "excel" ? ["excel"] : ["pdf"];
 }
 
 function buildAcceptAttr(types: string[]): string {
