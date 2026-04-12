@@ -1671,8 +1671,7 @@ export function BusinessDetailsStep({
 
             const subtitle = guarantorCardSummarySubtitle(row);
             const panelOpen =
-              fieldsLocked ||
-              (guarantorPanelOpen[index] !== undefined ? guarantorPanelOpen[index]! : index === 0);
+              guarantorPanelOpen[index] !== undefined ? guarantorPanelOpen[index]! : index === 0;
 
             return (
               <details
@@ -1680,11 +1679,6 @@ export function BusinessDetailsStep({
                 className="group rounded-xl border border-border bg-background"
                 open={panelOpen}
                 onToggle={(e) => {
-                  if (fieldsLocked) {
-                    e.preventDefault();
-                    (e.currentTarget as HTMLDetailsElement).open = true;
-                    return;
-                  }
                   const d = e.currentTarget;
                   setGuarantorPanelOpen((p) => ({ ...p, [index]: d.open }));
                 }}
