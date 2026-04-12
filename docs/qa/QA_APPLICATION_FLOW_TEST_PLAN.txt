@@ -1,0 +1,260 @@
+QA APPLICATION FLOW TEST PLAN (NEW)
+====================================
+Scope: Admin products, Issuer application wizard + applications dashboard, Admin application list + review + offers + amendments. Out of scope: login, Cognito, session, password, org invite, investor portal, generic settings (except Products).
+
+How to use: Check [ ] when passed. Add date + build/branch in notes. Link bugs to your tracker.
+
+----------------------------------------------------------------------
+SECTION0 — ENVIRONMENT & BASELINE
+----------------------------------------------------------------------
+
+[ ] Confirm mock toggles are OFF in source (USE_MOCK_* = false) before release testing.
+[ ] Admin user can reach /settings/products and /applications/{productId} without auth errors (smoke only; no auth test cases here).
+[ ] Issuer user can reach /applications/new and /applications (smoke only).
+
+
+----------------------------------------------------------------------
+SECTION 1 — ADMIN: PRODUCTS (CRUD + LIST)
+----------------------------------------------------------------------
+
+1.1 Create product
+[ ] Create minimal product: financing type + required steps through review; save succeeds.
+[ ] New row in products: status ACTIVE, version 1, base_id equals new product id (or matches your schema rule).
+[ ] Product log PRODUCT_CREATED exists with sensible metadata.
+[ ] Workflow JSON: first step financing type, last step review_and_submit; step ids stable.
+
+1.2 Edit product (versioning)
+[ ] Change workflow text or step config; save creates NEW product row, old row INACTIVE, new version = old + 1.
+[ ] No unintended version bump when saving with no real workflow change (if your API supports deep-equal skip).
+[ ] completeCreate / first-save path: in-place update without extra version when applicable.
+[ ] Product log PRODUCT_UPDATED on meaningful change.
+
+1.3 Delete product
+[ ] Soft delete: status DELETED, deleted_at set; product log PRODUCT_DELETED.
+[ ] Deleted product excluded from issuer “active” catalog and from admin active list behavior per API rules.
+
+1.4 List, search, pagination
+[ ] Admin products table loads; pagination changes page; total count matches.
+[ ] Search by product name and by financing type name (partial match).
+[ ] Clear search resets list.
+[ ] Order matches spec: active list by category/product display order then created_at (or document actual order).
+
+1.5 Product uploads (image + templates)
+[ ] Image optional: can publish product without image.
+[ ] Files reach S3 only after Save / Save and Continue (not on pick file alone).
+[ ] Presigned upload works; replace bumps file version in key; old object removed on replace where implemented.
+[ ] Template upload respects product template slots (categoryKey / index if applicable).
+
+1.6 Validation
+[ ] offer_expiry_days: reject0, negative, garbage; allow omit/null if optional.
+[ ] min_financing_ratio_percent vs max: reject min > max and out-of-range 0–100.
+[ ] Frontend sends default 60–80 when ratios left blank (if that is product behavior).
+
+1.7 Product logs UI
+[ ] Audit / product logs screen shows create, update, delete events in expected order (newest first or per spec).
+[ ] Metadata snapshot reflects workflow + version at time of event.
+
+
+----------------------------------------------------------------------
+SECTION 2 — ISSUER: NEW APPLICATION (STEP 1 + CREATE)
+----------------------------------------------------------------------
+
+2.1 Financing type page
+[ ] Active products appear (order: confirm “newest first” or match API).
+[ ] Empty catalog: user sees clear message when no active products.
+[ ] Selecting a product shows correct name, image, description from workflow.
+
+2.2 Create application
+[ ] Continue creates application: status DRAFT, last_completed_step = 1, product_id and product_version stored on application.
+[ ] Redirect to /applications/edit/{id}?step=2 (or next step per product).
+
+2.3 Product version guard (new app)
+[ ] If product becomes INACTIVE or DELETED before create: creation blocked with clear error/modal.
+[ ] If product version changes after page load: VersionMismatchModal (or equivalent) blocks create until refresh.
+[ ] After refresh, create works with new version.
+
+
+----------------------------------------------------------------------
+SECTION 3 — ISSUER: WIZARD (STEPS, SAVE, RESUME)
+----------------------------------------------------------------------
+
+3.1 Step access rules
+[ ] Cannot open step beyond last_completed_step + 1 via sidebar or URL.
+[ ] URL ?step=0 or negative: corrected to valid step.
+[ ] URL ?step=huge: clamped to allowed max.
+[ ] Manual URL to middle step without completing prior: forced back to allowed progress (per rules).
+
+3.2 Per-step save
+[ ] Each step Save persists PATCH to correct JSON column; last_completed_step advances correctly.
+[ ] financing_structure: existing_contract links approved contract; new_contract creates/links; invoice_only clears contract linkage on drafts as designed.
+[ ] company_details: contact_person and fields persist on application (not only org).
+[ ] business_details, financial_statements, declarations: validation errors show inline; fixable fields work.
+[ ] supporting_documents: required slots match product config; cannot continue until satisfied.
+[ ] supporting_documents: upload does not persist until Save and Continue (if that is current behavior).
+
+3.3 Contract + invoice steps
+[ ] contract_details and invoice_details persist via their APIs; application step index still advances.
+[ ] Multiple invoices: add, edit, remove draft; validation min/max invoice value from product if enforced.
+[ ] Invoice maturity: not in past; within contract dates when contract financing.
+
+3.4 Reload & resume
+[ ] Reload with no ?step: lands on correct step from last_completed_step.
+[ ] Reload with valid ?step: stays on that step if allowed.
+[ ] Switching product on step 1: other step data remains in DB; revisiting steps shows prior data where applicable.
+
+3.5 Unsaved changes
+[ ] Navigate away (link, back, reload): modal when dirty; Stay / Leave behave correctly.
+[ ] Save and Continue disabled or visually blocked when form invalid (per step).
+[ ] Regression: company_details dirty-state and field errors (known past bugs) — confirm fixed.
+
+3.6 Blocked edit states
+[ ] Non-DRAFT and non-AMENDMENT_REQUESTED: edit page redirects to /applications (or read-only rule per spec).
+[ ] ARCHIVED application: issuer cannot edit; error or redirect clear.
+
+
+----------------------------------------------------------------------
+SECTION 4 — ISSUER: SUBMIT & POST-SUBMIT
+----------------------------------------------------------------------
+
+[ ] Review & submit: submit sets SUBMITTED, submitted_at, draft contract/invoices move to SUBMITTED where applicable.
+[ ] After submit, wizard PATCH blocked from issuer.
+[ ] Withdraw / cancel: application and related contract/invoices reach expected withdraw states and badges.
+[ ] Delete draft: only DRAFT; removes draft artifacts; never deletes approved contract incorrectly.
+
+
+----------------------------------------------------------------------
+SECTION 5 — ISSUER: APPLICATIONS DASHBOARD (LISTING)
+----------------------------------------------------------------------
+
+[ ] List loads applications for org; badges match status reference (colors/labels).
+[ ] Search by id, customer, invoice number (as implemented).
+[ ] Filters: status multi-select, financing type, submitted date, offer expiry, withdraw reason — each narrows correctly; clear resets.
+[ ] Pagination / per-page options work; counts match filtered set.
+[ ] Expand card / invoice table: download document uses presigned URL; errors toast.
+[ ] Review Offer (contract + invoice): modal opens, correct amounts/terms; accept/reject paths update UI.
+[ ] Withdraw invoice: confirm dialog; success updates list.
+[ ] Delete draft from kebab: confirm; list refreshes.
+[ ] Version mismatch “start new application” / archive behavior (if present): confirm archive + new draft rules.
+[ ] Dev-only: Debug panel for mock cards only in development build (not production).
+
+
+----------------------------------------------------------------------
+SECTION 6 — ADMIN: APPLICATIONS LISTING (BY PRODUCT)
+----------------------------------------------------------------------
+
+[ ] Sidebar “Applications” lists one entry per active product (or per spec); links /applications/{productId}.
+[ ] Page title or header shows correct product name for productKey.
+[ ] GET list: pagination, search, status filters; productId filter matches route.
+[ ] financingStructureLabel or equivalent shows Contract vs Invoice financing correctly.
+[ ] Row actions: open detail; counts and empty state sensible.
+
+
+----------------------------------------------------------------------
+SECTION 7 — ADMIN: APPLICATION DETAIL & SECTION REVIEW
+----------------------------------------------------------------------
+
+7.1 Load & layout
+[ ] Detail loads by application id; sections render: financial, business, company, supporting docs, contract, invoices.
+[ ] Organization / issuer data panels show expected KYC/SSM/CTOS summaries (functional; no auth cases).
+
+7.2 Section actions
+[ ] Approve section: status APPROVED; reviewer metadata if shown.
+[ ] Reject section: requires remark; status REJECTED.
+[ ] Request amendment: creates pending amendment; after submit batch, application AMENDMENT_REQUESTED and issuer unblocked for amendment mode.
+[ ] Reset to pending: section returns to pending where allowed.
+
+7.3 Item-level review (invoices, document items)
+[ ] Approve / reject / request-amendment on item updates item row state.
+[ ] Offer sent at item level reflects in UI.
+
+7.4 Pending amendments (admin)
+[ ] Add multiple draft remarks; edit/remove draft; submit all sends to issuer.
+[ ] Cannot submit empty batch if business rules forbid.
+
+
+----------------------------------------------------------------------
+SECTION 8 — ADMIN & ISSUER: OFFERS
+----------------------------------------------------------------------
+
+8.1 Contract offer
+[ ] Admin sends contract offer: facility, expiry, status OFFER_SENT on contract and review section.
+[ ] Issuer sees offer in dashboard/detail; can view/download offer PDF if applicable.
+[ ] Accept: contract APPROVED (or next state per spec); reject: REJECTED with reason if required.
+
+8.2 Invoice offer
+[ ] Admin sends per-invoice offer: amount, ratio, profit rate, expiry as per UI.
+[ ] Invoice status OFFER_SENT; issuer accept/reject updates invoice and possibly application aggregate status.
+
+8.3 Offer expiry
+[ ] Past expiry displays correctly; blocking or reminders per offer-expiry job spec (if enabled in env).
+
+
+----------------------------------------------------------------------
+SECTION 9 — AMENDMENT & RESUBMIT (END-TO-END)
+----------------------------------------------------------------------
+
+9.1 Issuer in amendment
+[ ] Only flagged sections/items editable; others show locked or error AMENDMENT_LOCKED on PATCH.
+[ ] Remarks visible in context: section, item, long text, attachments if any.
+[ ] Supporting docs: amendment allowed only when section flagged.
+
+9.2 Acknowledgement
+[ ] Cannot resubmit until all required workflow acknowledgements completed; error MISSING_ACKNOWLEDGEMENTS or equivalent.
+[ ] After acknowledge, resubmit enabled.
+
+9.3 Resubmit
+[ ] Resubmit clears amendment state appropriately; review_cycle increments; ApplicationRevision created.
+[ ] Application status RESUBMITTED; admin list shows new state.
+[ ] Admin comparison / resubmit diff UI (if present): shows before/after for changed fields.
+
+9.4 Post-resubmit admin
+[ ] Admin can continue review from clean section states per rules.
+[ ] No duplicate stale amendment remarks.
+
+
+----------------------------------------------------------------------
+SECTION 10 — FILES & S3 (CROSS-CUTTING)
+----------------------------------------------------------------------
+
+[ ] Application documents: keys under applications/{applicationId}/... pattern.
+[ ] Contract documents: contracts/{contractId}/...
+[ ] Product assets: products/{productId}/...
+[ ] PDF-only and size limits enforced on upload failure paths.
+[ ] Replace document: version in key increases; preview/download still works.
+
+
+----------------------------------------------------------------------
+SECTION 11 — STATUS & LIFECYCLE SANITY
+----------------------------------------------------------------------
+
+[ ] Use internal status reference doc; spot-check transitions: DRAFT → SUBMITTED → UNDER_REVIEW / AMENDMENT_REQUESTED → RESUBMITTED → APPROVED / REJECTED.
+[ ] computeApplicationStatus from contract + invoices: dashboard badge matches backend when mixed invoice states exist.
+
+
+----------------------------------------------------------------------
+SECTION 12 — REGRESSION CHECKLIST (FROM PRIOR QA NOTES)
+----------------------------------------------------------------------
+
+[ ] Company details: per-field errors visible after merges; Save and Continue grays out when invalid.
+[ ] Company details: no infinite “always dirty” Save when nothing changed.
+[ ] Version mismatch: switching to different product should not falsely trigger “same product version changed” guard.
+[ ] Business details: currency / decimal fields store numbers correctly.
+[ ] Supporting docs: user can reopen/view uploaded file after save (if feature shipped).
+
+
+----------------------------------------------------------------------
+SECTION 13 — NON-GOALS (DO NOT TEST HERE)
+----------------------------------------------------------------------
+
+- Cognito login, MFA, password reset, email verification.
+- Role management screens unrelated to application flow.
+- Investor app, landing marketing pages, generic admin settings except Products.
+
+
+----------------------------------------------------------------------
+CHANGELOG
+----------------------------------------------------------------------
+
+2026-04-12 — Initial consolidated plan for application flow only (admin product, issuer, admin review, listings). Derived from legacy QA_TEST_PLAN.txt and qa.txt; restructured for breadth and execution order.
+
+Maintain this file in docs/qa/ alongside other guides.
