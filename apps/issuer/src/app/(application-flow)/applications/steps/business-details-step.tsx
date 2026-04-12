@@ -14,6 +14,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import {
+  applicationFlowLabelCellAlignInputClassName,
+  applicationFlowLabelCellAlignTopClassName,
+  applicationFlowRadioRowControlClassName,
   applicationFlowSectionDividerClassName,
   applicationFlowSectionTitleClassName,
   formInputClassName,
@@ -409,6 +412,8 @@ interface BusinessDetailsStepProps {
  * Data: Shared label typography + step-specific alignment utilities.
  */
 const labelClassName = cn(formLabelClassName, "font-normal");
+const labelInputClassName = cn(labelClassName, applicationFlowLabelCellAlignInputClassName);
+const labelTextareaClassName = cn(labelClassName, applicationFlowLabelCellAlignTopClassName);
 
 /**
  * Inputs
@@ -422,9 +427,6 @@ const textareaClassName = cn(formTextareaClassName, "min-h-[100px]");
  */
 const rowGridClassName =
   "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-8 mt-5 w-full items-start px-3";
-
-/** Right-column wrapper for yes/no rows: vertically center radios vs multi-line labels. */
-const radioGridControlClassName = "self-center w-full min-w-0";
 
 /**
  * Section wrapper
@@ -634,7 +636,7 @@ function GuarantorCardFields({
   return (
     <div className="space-y-5">
       <div className="space-y-2 w-full min-w-0">
-        <Label className={formLabelClassName}>Guarantor type</Label>
+        <Label className={labelInputClassName}>Guarantor type</Label>
         <Select
           value={row.guarantorType}
           disabled={readOnly}
@@ -660,7 +662,7 @@ function GuarantorCardFields({
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full min-w-0">
             <div className="space-y-2 w-full min-w-0">
-              <Label htmlFor={`g-${index}-first`} className={formLabelClassName}>
+              <Label htmlFor={`g-${index}-first`} className={labelInputClassName}>
                 First name
               </Label>
               <Input
@@ -678,7 +680,7 @@ function GuarantorCardFields({
               />
             </div>
             <div className="space-y-2 w-full min-w-0">
-              <Label htmlFor={`g-${index}-last`} className={formLabelClassName}>
+              <Label htmlFor={`g-${index}-last`} className={labelInputClassName}>
                 Last name
               </Label>
               <Input
@@ -697,7 +699,7 @@ function GuarantorCardFields({
             </div>
           </div>
           <div className="space-y-2 w-full min-w-0">
-            <Label htmlFor={`g-${index}-ic`} className={formLabelClassName}>
+            <Label htmlFor={`g-${index}-ic`} className={labelInputClassName}>
               IC number
             </Label>
             <Input
@@ -715,7 +717,7 @@ function GuarantorCardFields({
             />
           </div>
           <div className="space-y-2 w-full min-w-0">
-            <Label className={formLabelClassName}>Relationship</Label>
+            <Label className={labelInputClassName}>Relationship</Label>
             <Select
               value={row.relationship || undefined}
               disabled={readOnly}
@@ -748,7 +750,7 @@ function GuarantorCardFields({
       ) : (
         <>
           <div className="space-y-2 w-full min-w-0">
-            <Label htmlFor={`g-${index}-co`} className={formLabelClassName}>
+            <Label htmlFor={`g-${index}-co`} className={labelInputClassName}>
               Company name
             </Label>
             <Input
@@ -766,7 +768,7 @@ function GuarantorCardFields({
             />
           </div>
           <div className="space-y-2 w-full min-w-0">
-            <Label htmlFor={`g-${index}-ssm`} className={formLabelClassName}>
+            <Label htmlFor={`g-${index}-ssm`} className={labelInputClassName}>
               SSM number
             </Label>
             <Input
@@ -784,7 +786,7 @@ function GuarantorCardFields({
             />
           </div>
           <div className="space-y-2 w-full min-w-0">
-            <Label className={formLabelClassName}>Relationship</Label>
+            <Label className={labelInputClassName}>Relationship</Label>
             <Select
               value={row.relationship || undefined}
               disabled={readOnly}
@@ -1246,7 +1248,7 @@ export function BusinessDetailsStep({
             sameInvoiceP2pBlocked && "pointer-events-none opacity-50 select-none"
           )}
         >
-          <Label htmlFor="what-does-company-do" className={labelClassName}>
+          <Label htmlFor="what-does-company-do" className={labelTextareaClassName}>
             What does your company do?
           </Label>
           <TextareaWithCharCount
@@ -1265,7 +1267,7 @@ export function BusinessDetailsStep({
             disabled={fieldsLocked}
           />
 
-          <Label htmlFor="main-customers" className={labelClassName}>
+          <Label htmlFor="main-customers" className={labelTextareaClassName}>
             Who are your main customers?
           </Label>
           <TextareaWithCharCount
@@ -1284,10 +1286,10 @@ export function BusinessDetailsStep({
             disabled={fieldsLocked}
           />
 
-          <Label className={labelClassName}>
+          <Label className={labelInputClassName}>
             Does any single customer make up more than 50% of your revenue?
           </Label>
-          <div className={radioGridControlClassName}>
+          <div className={applicationFlowRadioRowControlClassName}>
             <YesNoRadioGroup
               name="singleCustomerOver50Revenue"
               value={aboutYourBusiness.singleCustomerOver50Revenue}
@@ -1298,7 +1300,7 @@ export function BusinessDetailsStep({
             />
           </div>
 
-          <Label htmlFor="accounting-software" className={labelClassName}>
+          <Label htmlFor="accounting-software" className={labelInputClassName}>
             Which accounting software does the issuer use?
           </Label>
           <Input
@@ -1334,7 +1336,7 @@ export function BusinessDetailsStep({
               sameInvoiceP2pBlocked && "[&>*]:pointer-events-none [&>*]:opacity-50 [&>*]:select-none"
             )}
           >
-            <Label htmlFor="financing-for" className={labelClassName}>
+            <Label htmlFor="financing-for" className={labelTextareaClassName}>
               What is this financing for?
             </Label>
             <TextareaWithCharCount
@@ -1353,7 +1355,7 @@ export function BusinessDetailsStep({
               disabled={fieldsLocked}
             />
 
-            <Label htmlFor="how-funds-used" className={labelClassName}>
+            <Label htmlFor="how-funds-used" className={labelTextareaClassName}>
               How will the funds be used?
             </Label>
             <TextareaWithCharCount
@@ -1372,7 +1374,7 @@ export function BusinessDetailsStep({
               disabled={fieldsLocked}
             />
 
-            <Label htmlFor="business-plan" className={labelClassName}>
+            <Label htmlFor="business-plan" className={labelTextareaClassName}>
               Tell us about your business plan
             </Label>
             <TextareaWithCharCount
@@ -1391,7 +1393,7 @@ export function BusinessDetailsStep({
               disabled={fieldsLocked}
             />
 
-            <Label htmlFor="risks-delay-repayment" className={labelClassName}>
+            <Label htmlFor="risks-delay-repayment" className={labelTextareaClassName}>
               Are there any risks that may delay repayment of your invoices?
             </Label>
             <TextareaWithCharCount
@@ -1410,7 +1412,7 @@ export function BusinessDetailsStep({
               disabled={fieldsLocked}
             />
 
-            <Label htmlFor="backup-plan" className={labelClassName}>
+            <Label htmlFor="backup-plan" className={labelTextareaClassName}>
               If payment is delayed, what is your backup plan?
             </Label>
             <TextareaWithCharCount
@@ -1430,7 +1432,7 @@ export function BusinessDetailsStep({
             />
           </div>
 
-          <Label className={labelClassName}>
+          <Label className={labelTextareaClassName}>
             Upload any relevant supporting documents for this section
           </Label>
           <div className="min-w-0 space-y-3">
@@ -1538,10 +1540,10 @@ export function BusinessDetailsStep({
             )}
           </div>
 
-          <Label className={labelClassName}>
+          <Label className={labelInputClassName}>
             Are you currently raising/applying funds on any other P2P platforms?
           </Label>
-          <div className={radioGridControlClassName}>
+          <div className={applicationFlowRadioRowControlClassName}>
             <YesNoRadioGroup
               name="raisingOnOtherP2P"
               value={whyRaisingFunds.raisingOnOtherP2P}
@@ -1554,7 +1556,7 @@ export function BusinessDetailsStep({
 
           {whyRaisingFunds.raisingOnOtherP2P === "yes" && (
             <>
-              <Label htmlFor="platform-name" className={labelClassName}>
+              <Label htmlFor="platform-name" className={labelInputClassName}>
                 Name of platform
               </Label>
               <Input
@@ -1574,7 +1576,7 @@ export function BusinessDetailsStep({
                 disabled={readOnly || sameInvoiceP2pBlocked}
               />
 
-              <Label htmlFor="amount-raised" className={labelClassName}>
+              <Label htmlFor="amount-raised" className={labelInputClassName}>
                 Amount raised
               </Label>
               <div className="h-11 flex items-center">
@@ -1602,11 +1604,11 @@ export function BusinessDetailsStep({
                 </div>
               </div>
 
-              <Label className={labelClassName}>
+              <Label className={labelInputClassName}>
                 Have the same invoices been used to apply for funding in the aforementioned platform?
               </Label>
-              <div className="min-w-0 space-y-2 self-center w-full">
-                <div className={radioGridControlClassName}>
+              <div className="min-w-0 space-y-2 w-full">
+                <div className={applicationFlowRadioRowControlClassName}>
                   <YesNoRadioGroup
                     name="sameInvoiceUsed"
                     value={whyRaisingFunds.sameInvoiceUsed}

@@ -81,7 +81,8 @@ interface ReviewAndSubmitStepProps {
 const pageWrapperClassName = "w-full px-3";
 const labelClassName = formLabelClassName; // canonical label class from shared form control
 const valueClassName = "text-[17px] leading-7 text-foreground font-medium break-words min-w-0";
-const sectionGridClassName = "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 px-3 items-start min-w-0";
+const sectionGridClassName =
+  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-12 gap-y-6 mt-4 px-3 items-start min-w-0";
 const sectionSpacingClassName = "space-y-6";
 export function ReviewAndSubmitStep({
   applicationId,
@@ -489,16 +490,16 @@ export function ReviewAndSubmitStep({
                                           </span>
                                         </TooltipTrigger>
                                         <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
-                                          {"Per invoice\n"}
+                                          {"Per invoice.\n"}
                                           {typeof invoiceProductConfig.min_invoice_value === "number"
-                                            ? `min RM ${formatMoney(invoiceProductConfig.min_invoice_value)}`
+                                            ? `Min RM ${formatMoney(invoiceProductConfig.min_invoice_value)}.`
                                             : ""}
                                           {typeof invoiceProductConfig.min_invoice_value === "number" &&
                                           typeof invoiceProductConfig.max_invoice_value === "number"
                                             ? "\n"
                                             : ""}
                                           {typeof invoiceProductConfig.max_invoice_value === "number"
-                                            ? `max RM ${formatMoney(invoiceProductConfig.max_invoice_value)}`
+                                            ? `Max RM ${formatMoney(invoiceProductConfig.max_invoice_value)}.`
                                             : ""}
                                         </TooltipContent>
                                       </Tooltip>

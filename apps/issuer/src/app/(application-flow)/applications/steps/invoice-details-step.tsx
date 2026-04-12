@@ -1193,16 +1193,16 @@ export default function InvoiceDetailsStep({
                                       </span>
                                     </TooltipTrigger>
                                     <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
-                                      {"Per invoice\n"}
+                                      {"Per invoice.\n"}
                                       {typeof productConfig.min_invoice_value === "number"
-                                        ? `min RM ${formatMoney(productConfig.min_invoice_value)}`
+                                        ? `Min RM ${formatMoney(productConfig.min_invoice_value)}.`
                                         : ""}
                                       {typeof productConfig.min_invoice_value === "number" &&
                                       typeof productConfig.max_invoice_value === "number"
                                         ? "\n"
                                         : ""}
                                       {typeof productConfig.max_invoice_value === "number"
-                                        ? `max RM ${formatMoney(productConfig.max_invoice_value)}`
+                                        ? `Max RM ${formatMoney(productConfig.max_invoice_value)}.`
                                         : ""}
                                     </TooltipContent>
                                   </Tooltip>

@@ -90,6 +90,18 @@ export const applicationFlowStepHorizontalClassName = "px-3 w-full";
 /** Tight stack under a section title (title + fields). */
 export const applicationFlowSectionStackClassName = "space-y-3";
 
+/**
+ * Label column next to h-11 inputs / radios (grid uses items-start; label mimics vertical center).
+ */
+export const applicationFlowLabelCellAlignInputClassName =
+  "sm:min-h-11 sm:flex sm:items-center";
+
+/** Label column next to textarea or tall upload blocks. */
+export const applicationFlowLabelCellAlignTopClassName = "self-start pt-0.5";
+
+/** Right column: yes/no radios aligned to same row height as a single-line input. */
+export const applicationFlowRadioRowControlClassName = "h-11 flex items-center min-w-0";
+
 /** Helpers
  *
  * What: Apply error styling consistently (thin red border, thick when focused).

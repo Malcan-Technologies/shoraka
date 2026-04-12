@@ -428,7 +428,7 @@ function FinancialYesNoRadioGroup({
    MONEY FIELD ROW
    ================================================================ */
 
-const NEGATIVE_TOOLTIP_TEXT = "Negative values allowed for losses\nExample: -5000";
+const NEGATIVE_TOOLTIP_TEXT = "Negative values are allowed for losses.\nExample: -5000.";
 const FINANCIAL_DATA_UNTIL_TOOLTIP =
   "Latest date your figures are updated to (e.g. management accounts).";
 
