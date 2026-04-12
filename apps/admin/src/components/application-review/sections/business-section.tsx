@@ -87,8 +87,12 @@ const DECLARATION_TEXT =
  */
 function RegTankGuarantorLinkButton({
   side,
+  disabled,
+  disabledReason,
 }: {
   side?: "before" | "after";
+  disabled?: boolean;
+  disabledReason?: string;
 }) {
   const label =
     side === "before"
@@ -103,6 +107,8 @@ function RegTankGuarantorLinkButton({
       variant="outline"
       size="sm"
       className="gap-2 w-full sm:w-auto shrink-0"
+      disabled={disabled}
+      title={disabled ? disabledReason : undefined}
       onClick={() => {}}
     >
       <ArrowTopRightOnSquareIcon className="h-4 w-4 shrink-0" aria-hidden />
@@ -111,7 +117,16 @@ function RegTankGuarantorLinkButton({
   );
 }
 
-function RegTankGuarantorControlRow({ mode }: { mode: "single" | "comparison" }) {
+function RegTankGuarantorControlRow({
+  mode,
+  comparisonSides,
+}: {
+  mode: "single" | "comparison";
+  /** When a side has no guarantor (e.g. newly added row), that RegTank button is disabled. */
+  comparisonSides?: { beforeAvailable: boolean; afterAvailable: boolean };
+}) {
+  const beforeOk = comparisonSides?.beforeAvailable ?? true;
+  const afterOk = comparisonSides?.afterAvailable ?? true;
   return (
     <div
       className={
@@ -122,8 +137,16 @@ function RegTankGuarantorControlRow({ mode }: { mode: "single" | "comparison" })
     >
       {mode === "comparison" ? (
         <>
-          <RegTankGuarantorLinkButton side="before" />
-          <RegTankGuarantorLinkButton side="after" />
+          <RegTankGuarantorLinkButton
+            side="before"
+            disabled={!beforeOk}
+            disabledReason="No guarantor in the earlier revision for this row."
+          />
+          <RegTankGuarantorLinkButton
+            side="after"
+            disabled={!afterOk}
+            disabledReason="No guarantor in the later revision for this row."
+          />
         </>
       ) : (
         <RegTankGuarantorLinkButton />
@@ -532,6 +555,8 @@ export function BusinessSection({
                 const gB = b.guarantors[idx];
                 const gA = a.guarantors[idx];
                 const kind = gB?.kind ?? gA?.kind;
+                const hasBeforeGuarantor = gB != null;
+                const hasAfterGuarantor = gA != null;
                 const changed =
                   isPathChanged("business_details") ||
                   isPathChanged(`business_details.guarantors[${idx}]`);
@@ -595,7 +620,13 @@ export function BusinessSection({
                         />
                       </div>
                     ) : null}
-                    <RegTankGuarantorControlRow mode="comparison" />
+                    <RegTankGuarantorControlRow
+                      mode="comparison"
+                      comparisonSides={{
+                        beforeAvailable: hasBeforeGuarantor,
+                        afterAvailable: hasAfterGuarantor,
+                      }}
+                    />
                   </div>
                 );
               })}

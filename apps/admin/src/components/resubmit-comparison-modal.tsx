@@ -38,6 +38,11 @@ import {
 } from "@/lib/resubmit-comparison-paths";
 import { reviewSectionHasResubmitChanges } from "@/lib/review-section-has-resubmit-changes";
 import type { ResubmitFieldChangeItem } from "@/components/application-revision-diff-panel";
+import {
+  USE_MOCK_GUARANTOR_COMPARISON,
+  getMockGuarantorFieldChanges,
+  applyMockGuarantorComparisonApps,
+} from "@/lib/mock-guarantor-comparison";
 import { CheckIcon, XMarkIcon } from "@heroicons/react/24/outline";
 
 export interface ResubmitComparisonModalProps {
@@ -80,15 +85,25 @@ export function ResubmitComparisonModal({
     return cfg;
   }, [product?.workflow]);
 
-  const changedPaths = React.useMemo(() => buildResubmitChangedPathSet(fieldChanges), [fieldChanges]);
+  const effectiveFieldChanges = React.useMemo(() => {
+    if (!USE_MOCK_GUARANTOR_COMPARISON) return fieldChanges;
+    const mockFc = getMockGuarantorFieldChanges();
+    console.log("ResubmitComparisonModal: mock guarantor paths appended, count:", mockFc.length);
+    return [...(fieldChanges ?? []), ...mockFc];
+  }, [fieldChanges]);
+
+  const changedPaths = React.useMemo(
+    () => buildResubmitChangedPathSet(effectiveFieldChanges),
+    [effectiveFieldChanges]
+  );
   const isPathChanged = React.useCallback(
     (path: string) => resubmitPathIsChanged(path, changedPaths),
     [changedPaths]
   );
 
   const resubmitTabHasChanges = React.useCallback(
-    (section: ReviewSectionId) => reviewSectionHasResubmitChanges(section, fieldChanges),
-    [fieldChanges]
+    (section: ReviewSectionId) => reviewSectionHasResubmitChanges(section, effectiveFieldChanges),
+    [effectiveFieldChanges]
   );
 
   const tabStripSections = React.useMemo(() => {
@@ -110,6 +125,17 @@ export function ResubmitComparisonModal({
     if (!data?.next_snapshot || !applicationId) return null;
     return revisionSnapshotToReviewApp(applicationId, data.next_snapshot as Record<string, unknown>);
   }, [data?.next_snapshot, applicationId]);
+
+  const { comparisonBeforeApp, comparisonAfterApp } = React.useMemo(() => {
+    if (!beforeApp || !afterApp) {
+      return { comparisonBeforeApp: null as typeof beforeApp, comparisonAfterApp: null as typeof afterApp };
+    }
+    if (!USE_MOCK_GUARANTOR_COMPARISON) {
+      return { comparisonBeforeApp: beforeApp, comparisonAfterApp: afterApp };
+    }
+    const { beforeApp: b, afterApp: a } = applyMockGuarantorComparisonApps(beforeApp, afterApp);
+    return { comparisonBeforeApp: b, comparisonAfterApp: a };
+  }, [beforeApp, afterApp]);
 
   const noopAsync = React.useCallback(async () => {}, []);
   const noop = React.useCallback(() => {}, []);
@@ -142,8 +168,17 @@ export function ResubmitComparisonModal({
                 {error instanceof Error ? error.message : "Failed to load comparison"}
               </p>
             )}
-            {!isLoading && !isError && beforeApp && afterApp && tabDescriptors.length > 0 ? (
+            {!isLoading && !isError && comparisonBeforeApp && comparisonAfterApp && tabDescriptors.length > 0 ? (
               <>
+                {USE_MOCK_GUARANTOR_COMPARISON ? (
+                  <p
+                    className="mb-2 rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100"
+                    role="status"
+                  >
+                    Dev mock: guarantor comparison sample is active. Turn off in{" "}
+                    <code className="rounded bg-background/80 px-1 text-xs">mock-guarantor-comparison.ts</code>.
+                  </p>
+                ) : null}
                 <div
                   className="sticky top-0 z-20 -mx-6 mb-2 isolate overflow-hidden border border-border bg-background"
                   role="presentation"
@@ -206,10 +241,10 @@ export function ResubmitComparisonModal({
                       />
                       <SectionContent
                         descriptor={descriptor}
-                        app={afterApp}
+                        app={comparisonAfterApp}
                         sectionComparison={{
-                          beforeApp,
-                          afterApp,
+                          beforeApp: comparisonBeforeApp,
+                          afterApp: comparisonAfterApp,
                           isPathChanged,
                         }}
                         resubmitAmendmentRemarks={amendmentRemarks}
