@@ -31,6 +31,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { applicationFlowAmendmentTargetTableRowClassName } from "@/app/(application-flow)/applications/components/form-control";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -871,7 +872,7 @@ export function SupportingDocumentsStep({
                             className={cn(
                               "min-h-8 w-full",
                               isItemFlagged
-                                ? "border-destructive/35 bg-destructive/[0.06]"
+                                ? "border-primary/30 bg-primary/[0.07]"
                                 : !isEditable
                                   ? "bg-muted border-border"
                                   : "bg-background border-border"
@@ -903,7 +904,7 @@ export function SupportingDocumentsStep({
                           key={documentIndex}
                           className={cn(
                             "px-4 py-3.5 sm:px-5 sm:py-4",
-                            isItemFlagged && "bg-destructive/[0.04]"
+                            isItemFlagged && applicationFlowAmendmentTargetTableRowClassName
                           )}
                         >
                           <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,17rem)_1fr] lg:gap-x-4 lg:items-start">
@@ -943,12 +944,12 @@ export function SupportingDocumentsStep({
                               {isItemFlagged && itemRemark ? (
                                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                                   <ExclamationTriangleIcon
-                                    className="h-3.5 w-3.5 shrink-0 text-destructive"
+                                    className="h-3.5 w-3.5 shrink-0 text-primary"
                                     aria-hidden
                                   />
                                   <button
                                     type="button"
-                                    className="text-xs font-medium text-destructive underline-offset-2 hover:underline"
+                                    className="text-xs font-medium text-primary underline-offset-2 hover:underline"
                                     onClick={() =>
                                       setFeedbackDialog({
                                         open: true,
@@ -1133,11 +1134,11 @@ export function SupportingDocumentsStep({
       <DialogContent className="rounded-xl sm:max-w-lg">
         <DialogHeader>
           <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-destructive/10">
-              <ExclamationTriangleIcon className="h-5 w-5 text-destructive" aria-hidden />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/20 border border-primary/45">
+              <ExclamationTriangleIcon className="h-5 w-5 text-primary" aria-hidden />
             </div>
             <div className="min-w-0 flex-1 space-y-2 text-left">
-              <DialogTitle>Reviewer feedback</DialogTitle>
+              <DialogTitle className="text-primary">Reviewer feedback</DialogTitle>
               <DialogDescription className="text-left">
                 {feedbackDialog.documentTitle
                   ? `Document: ${feedbackDialog.documentTitle}`
