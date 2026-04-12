@@ -2071,15 +2071,6 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
               </p>
               <div className="flex flex-wrap justify-end gap-2">
                 <Button
-                  variant="secondary"
-                  size="sm"
-                  className="rounded-lg h-8 px-3 text-xs"
-                  disabled={createCtos.isPending || ctosLoading}
-                  onClick={() => setOrgCtosConfirmOpen(true)}
-                >
-                  {createCtos.isPending ? "Fetching…" : "Fetch latest CTOS report"}
-                </Button>
-                <Button
                   variant="outline"
                   size="sm"
                   className="rounded-lg h-8 px-3 text-xs"
@@ -2087,6 +2078,15 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                   onClick={() => void openFullReport()}
                 >
                   View latest report
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="rounded-lg h-8 px-3 text-xs"
+                  disabled={createCtos.isPending || ctosLoading}
+                  onClick={() => setOrgCtosConfirmOpen(true)}
+                >
+                  {createCtos.isPending ? "Fetching…" : "Fetch latest CTOS report"}
                 </Button>
               </div>
             </div>
