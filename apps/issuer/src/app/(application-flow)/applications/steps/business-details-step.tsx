@@ -112,7 +112,9 @@ interface WhyRaisingFunds {
 type WhySupportingDocument = WhyRaisingFunds["supportingDocuments"][number];
 
 interface GuarantorIndividualRow {
+  guarantorId: string;
   guarantorType: "individual";
+  email: string;
   firstName: string;
   lastName: string;
   icNumber: string;
@@ -120,7 +122,9 @@ interface GuarantorIndividualRow {
 }
 
 interface GuarantorCompanyRow {
+  guarantorId: string;
   guarantorType: "company";
+  email: string;
   companyName: string;
   ssmNumber: string;
   relationship: GuarantorCompanyRelationship | "";
@@ -158,7 +162,9 @@ function guarantorCardSummarySubtitle(row: GuarantorFormRow): string {
 
 function emptyIndividualGuarantor(): GuarantorIndividualRow {
   return {
+    guarantorId: makeClientId(),
     guarantorType: "individual",
+    email: "",
     firstName: "",
     lastName: "",
     icNumber: "",
@@ -168,7 +174,9 @@ function emptyIndividualGuarantor(): GuarantorIndividualRow {
 
 function emptyCompanyGuarantor(): GuarantorCompanyRow {
   return {
+    guarantorId: makeClientId(),
     guarantorType: "company",
+    email: "",
     companyName: "",
     ssmNumber: "",
     relationship: "",
@@ -210,14 +218,18 @@ interface BusinessDetailsSnake {
   declaration_confirmed?: boolean;
   guarantors?: Array<
     | {
+        guarantor_id: string;
         guarantor_type: "individual";
+        email: string;
         first_name: string;
         last_name: string;
         ic_number: string;
         relationship: GuarantorIndividualRelationship;
       }
     | {
+        guarantor_id: string;
         guarantor_type: "company";
+        email: string;
         company_name: string;
         ssm_number: string;
         relationship: GuarantorCompanyRelationship;
@@ -242,6 +254,19 @@ function makeClientId() {
     return crypto.randomUUID();
   }
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function normalizeIdentifier(value: string): string {
+  return value.replace(/[^A-Za-z0-9]+/g, "").toUpperCase();
+}
+
+function stableFallbackGuarantorId(
+  index: number,
+  type: "individual" | "company",
+  identifier: string
+): string {
+  const token = identifier.replace(/[^A-Za-z0-9]+/g, "").toLowerCase() || `idx${index + 1}`;
+  return `g-${type}-${token}`;
 }
 
 function formatFileSize(bytes: number): string {
@@ -278,14 +303,18 @@ function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
     guarantors: p.guarantors.map((g) =>
       g.guarantorType === "individual"
         ? {
+            guarantor_id: g.guarantorId,
             guarantor_type: "individual" as const,
+            email: g.email.trim().toLowerCase(),
             first_name: g.firstName.trim(),
             last_name: g.lastName.trim(),
             ic_number: malaysianNricDigits(g.icNumber),
             relationship: g.relationship as GuarantorIndividualRelationship,
           }
         : {
+            guarantor_id: g.guarantorId,
             guarantor_type: "company" as const,
+            email: g.email.trim().toLowerCase(),
             company_name: g.companyName.trim(),
             ssm_number: g.ssmNumber.trim(),
             relationship: g.relationship as GuarantorCompanyRelationship,
@@ -357,7 +386,15 @@ function parseGuarantorsFromRaw(raw: unknown): GuarantorFormRow[] {
         typeof rel === "string" &&
         (GUARANTOR_INDIVIDUAL_RELATIONSHIPS as readonly string[]).includes(rel);
       out.push({
+        guarantorId:
+          String(o.guarantor_id ?? o.guarantorId ?? "").trim() ||
+          stableFallbackGuarantorId(
+            out.length,
+            "individual",
+            normalizeIdentifier(String(o.ic_number ?? o.icNumber ?? ""))
+          ),
         guarantorType: "individual",
+        email: String(o.email ?? "").trim().toLowerCase(),
         firstName: String(o.first_name ?? o.firstName ?? ""),
         lastName: String(o.last_name ?? o.lastName ?? ""),
         icNumber: clampGuarantorIcInput(String(o.ic_number ?? o.icNumber ?? "")),
@@ -368,7 +405,15 @@ function parseGuarantorsFromRaw(raw: unknown): GuarantorFormRow[] {
       const relationshipOk =
         typeof rel === "string" && (GUARANTOR_COMPANY_RELATIONSHIPS as readonly string[]).includes(rel);
       out.push({
+        guarantorId:
+          String(o.guarantor_id ?? o.guarantorId ?? "").trim() ||
+          stableFallbackGuarantorId(
+            out.length,
+            "company",
+            normalizeIdentifier(String(o.ssm_number ?? o.ssmNumber ?? ""))
+          ),
         guarantorType: "company",
+        email: String(o.email ?? "").trim().toLowerCase(),
         companyName: String(o.company_name ?? o.companyName ?? ""),
         ssmNumber: String(o.ssm_number ?? o.ssmNumber ?? ""),
         relationship: relationshipOk ? (rel as GuarantorCompanyRelationship) : "",
@@ -706,6 +751,25 @@ function GuarantorCardFields({
             </div>
           </div>
           <div className="space-y-2 w-full min-w-0">
+            <Label htmlFor={`g-${index}-email`} className={labelInputClassName}>
+              Email
+            </Label>
+            <Input
+              id={`g-${index}-email`}
+              type="email"
+              value={row.email}
+              onChange={(e) =>
+                replaceGuarantorRow(index, {
+                  ...row,
+                  email: e.target.value.slice(0, 200),
+                })
+              }
+              placeholder="name@email.com"
+              className={cn(inputClassName, readOnly && formInputDisabledClassName)}
+              disabled={readOnly}
+            />
+          </div>
+          <div className="space-y-2 w-full min-w-0">
             <Label htmlFor={`g-${index}-ic`} className={labelInputClassName}>
               IC number
             </Label>
@@ -781,6 +845,25 @@ function GuarantorCardFields({
                 })
               }
               placeholder="e.g. ABC Holdings Sdn Bhd"
+              className={cn(inputClassName, readOnly && formInputDisabledClassName)}
+              disabled={readOnly}
+            />
+          </div>
+          <div className="space-y-2 w-full min-w-0">
+            <Label htmlFor={`g-${index}-email`} className={labelInputClassName}>
+              Email
+            </Label>
+            <Input
+              id={`g-${index}-email`}
+              type="email"
+              value={row.email}
+              onChange={(e) =>
+                replaceGuarantorRow(index, {
+                  ...row,
+                  email: e.target.value.slice(0, 200),
+                })
+              }
+              placeholder="name@email.com"
               className={cn(inputClassName, readOnly && formInputDisabledClassName)}
               disabled={readOnly}
             />
@@ -927,8 +1010,10 @@ export function BusinessDetailsStep({
 
     if (guarantors.length < 1) return false;
     for (const g of guarantors) {
+      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(g.email.trim());
       if (g.guarantorType === "individual") {
         if (
+          !emailOk ||
           !g.firstName.trim() ||
           !g.lastName.trim() ||
           malaysianNricDigits(g.icNumber).length === 0 ||
@@ -939,6 +1024,7 @@ export function BusinessDetailsStep({
         }
       } else {
         if (
+          !emailOk ||
           !g.companyName.trim() ||
           !g.ssmNumber.trim() ||
           !g.relationship ||
@@ -999,8 +1085,10 @@ export function BusinessDetailsStep({
     /* At least one guarantor; each row must be complete (applies to every added guarantor). */
     if (guarantors.length < 1) return false;
     for (const g of guarantors) {
+      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(g.email.trim());
       if (g.guarantorType === "individual") {
         if (
+          !emailOk ||
           !g.firstName.trim() ||
           !g.lastName.trim() ||
           !isValidMalaysianNric(g.icNumber) ||
@@ -1011,6 +1099,7 @@ export function BusinessDetailsStep({
         }
       } else {
         if (
+          !emailOk ||
           !g.companyName.trim() ||
           !g.ssmNumber.trim() ||
           !g.relationship ||

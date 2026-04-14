@@ -518,6 +518,32 @@ export class ApiClient {
     );
   }
 
+  async triggerApplicationGuarantorAml(
+    applicationId: string,
+    guarantorId: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/guarantors/${encodeURIComponent(guarantorId)}/aml-trigger`,
+      {}
+    );
+  }
+
+  async refreshApplicationGuarantorAml(
+    applicationId: string,
+    guarantorId: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(
+      `/v1/admin/applications/${applicationId}/guarantors/${encodeURIComponent(guarantorId)}/aml-refresh`,
+      {}
+    );
+  }
+
+  async refreshAllApplicationGuarantorAml(
+    applicationId: string
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.post<any>(`/v1/admin/applications/${applicationId}/guarantors/aml-refresh-all`, {});
+  }
+
   async approveReviewItem(
     applicationId: string,
     itemType: "invoice" | "document",

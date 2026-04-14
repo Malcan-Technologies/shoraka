@@ -67,7 +67,9 @@ const whyRaisingFundsSchema = z.object({
 });
 
 const guarantorIndividualSchema = z.object({
+  guarantor_id: z.string().min(1),
   guarantor_type: z.literal("individual"),
+  email: z.string().email(),
   first_name: z.string().min(1).max(100),
   last_name: z.string().min(1).max(100),
   ic_number: z
@@ -85,7 +87,9 @@ const guarantorIndividualSchema = z.object({
 });
 
 const guarantorCompanySchema = z.object({
+  guarantor_id: z.string().min(1),
   guarantor_type: z.literal("company"),
+  email: z.string().email(),
   company_name: z.string().min(1).max(200),
   ssm_number: z.string().min(1).max(50),
   relationship: z.enum(["parent_company", "subsidiary", "related_party"]),

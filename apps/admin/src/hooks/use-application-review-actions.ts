@@ -139,6 +139,75 @@ export function useResetSectionReviewToPending() {
   });
 }
 
+export function useTriggerApplicationGuarantorAml() {
+  const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async ({
+      applicationId,
+      guarantorId,
+    }: {
+      applicationId: string;
+      guarantorId: string;
+    }) => {
+      const response = await apiClient.triggerApplicationGuarantorAml(applicationId, guarantorId);
+      if (!response.success) {
+        throw new Error((response as ApiError).error?.message ?? "Failed to trigger guarantor AML");
+      }
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
+    },
+  });
+}
+
+export function useRefreshApplicationGuarantorAml() {
+  const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async ({
+      applicationId,
+      guarantorId,
+    }: {
+      applicationId: string;
+      guarantorId: string;
+    }) => {
+      const response = await apiClient.refreshApplicationGuarantorAml(applicationId, guarantorId);
+      if (!response.success) {
+        throw new Error((response as ApiError).error?.message ?? "Failed to refresh guarantor AML");
+      }
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
+    },
+  });
+}
+
+export function useRefreshAllApplicationGuarantorAml() {
+  const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async ({ applicationId }: { applicationId: string }) => {
+      const response = await apiClient.refreshAllApplicationGuarantorAml(applicationId);
+      if (!response.success) {
+        throw new Error((response as ApiError).error?.message ?? "Failed to refresh all guarantor AML");
+      }
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
+    },
+  });
+}
+
 export function useApproveReviewItem() {
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();

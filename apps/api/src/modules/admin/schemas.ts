@@ -331,6 +331,9 @@ export const reviewItemActionSchema = z.object({
   itemType: z.enum(["invoice", "document"]),
   itemId: z.string().min(1),
 });
+export const guarantorAmlParamSchema = z.object({
+  guarantorId: z.string().min(1),
+});
 export const reviewItemApproveSchema = reviewItemActionSchema.extend({
   remark: z.string().optional(),
 });

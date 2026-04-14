@@ -37,6 +37,7 @@ import {
   reviewItemApproveSchema,
   reviewItemRejectSchema,
   reviewItemRequestAmendmentSchema,
+  guarantorAmlParamSchema,
   sendContractOfferSchema,
   sendInvoiceOfferSchema,
   addPendingAmendmentSchema,
@@ -2617,6 +2618,69 @@ router.post(
         { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
       );
 
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/applications/:id/guarantors/:guarantorId/aml-trigger",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id } = req.params;
+      const { guarantorId } = guarantorAmlParamSchema.parse(req.params);
+      const result = await adminService.triggerApplicationGuarantorAml(
+        id,
+        guarantorId,
+        req.user.user_id
+      );
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/applications/:id/guarantors/:guarantorId/aml-refresh",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id } = req.params;
+      const { guarantorId } = guarantorAmlParamSchema.parse(req.params);
+      const result = await adminService.refreshApplicationGuarantorAml(id, guarantorId);
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/applications/:id/guarantors/aml-refresh-all",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id } = req.params;
+      const result = await adminService.refreshAllApplicationGuarantorAml(id);
       res.json({
         success: true,
         data: result,
