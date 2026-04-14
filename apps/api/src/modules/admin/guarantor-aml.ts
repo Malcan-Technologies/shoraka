@@ -27,6 +27,7 @@ export interface GuarantorAmlRecord {
   icNumber?: string;
   ssmNumber?: string;
   requestId?: string;
+  onboardingVerifyLink?: string;
   kycId?: string;
   kybId?: string;
   regtankPortalUrl?: string;
@@ -168,6 +169,7 @@ export function readGuarantorAmlStore(raw: unknown): GuarantorAmlStore {
       icNumber: normalizeIdentifier(record.icNumber) || undefined,
       ssmNumber: normalizeIdentifier(record.ssmNumber) || undefined,
       requestId: normalizeText(record.requestId) || undefined,
+      onboardingVerifyLink: normalizeText(record.onboardingVerifyLink) || undefined,
       kycId: normalizeText(record.kycId) || undefined,
       kybId: normalizeText(record.kybId) || undefined,
       regtankPortalUrl: normalizeText(record.regtankPortalUrl) || undefined,

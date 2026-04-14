@@ -4204,6 +4204,7 @@ export class AdminService {
       ...existing,
       ...base,
       requestId: base.requestId ?? existing.requestId,
+      onboardingVerifyLink: base.onboardingVerifyLink ?? existing.onboardingVerifyLink,
       kycId: base.kycId ?? existing.kycId,
       kybId: base.kybId ?? existing.kybId,
       regtankPortalUrl: base.regtankPortalUrl ?? existing.regtankPortalUrl,
@@ -4218,7 +4219,7 @@ export class AdminService {
   private async triggerRegTankForGuarantor(
     issuerOrganizationId: string,
     guarantor: ReturnType<typeof parseApplicationGuarantors>[number]
-  ): Promise<{ requestId: string; regtankPortalUrl: string }> {
+  ): Promise<{ requestId: string; regtankPortalUrl: string; onboardingVerifyLink: string }> {
     const adminPortalUrl = getRegTankConfig().adminPortalUrl;
     const referenceId = this.buildGuarantorReferenceId(
       issuerOrganizationId,
@@ -4245,6 +4246,7 @@ export class AdminService {
       return {
         requestId: response.requestId,
         regtankPortalUrl: buildRegTankPortalUrl(adminPortalUrl, response.requestId),
+        onboardingVerifyLink: response.verifyLink,
       };
     }
 
@@ -4260,6 +4262,7 @@ export class AdminService {
     return {
       requestId: response.requestId,
       regtankPortalUrl: buildRegTankPortalUrl(adminPortalUrl, response.requestId),
+      onboardingVerifyLink: response.verifyLink,
     };
   }
 
@@ -4407,6 +4410,7 @@ export class AdminService {
       merged = {
         ...merged,
         requestId: regtank.requestId,
+        onboardingVerifyLink: regtank.onboardingVerifyLink,
         regtankPortalUrl: regtank.regtankPortalUrl,
         amlStatus: "Pending",
         amlMessageStatus: "PENDING",

@@ -207,6 +207,21 @@ function RegTankGuarantorControlRow({
                 <ArrowPathIcon className="h-4 w-4 shrink-0" aria-hidden />
                 Refresh AML
               </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5 h-9 shrink-0 px-3 text-sm"
+                disabled={!aml?.onboardingVerifyLink}
+                title={!aml?.onboardingVerifyLink ? "Onboarding link is not available yet." : undefined}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (!aml?.onboardingVerifyLink) return;
+                  void navigator.clipboard?.writeText(aml.onboardingVerifyLink);
+                }}
+              >
+                Copy onboarding link
+              </Button>
               <RegTankGuarantorLinkButton url={aml?.regtankPortalUrl} />
             </div>
           );
@@ -246,6 +261,7 @@ interface GuarantorAmlEntry {
   icNumber?: string;
   ssmNumber?: string;
   requestId?: string;
+  onboardingVerifyLink?: string;
   regtankPortalUrl?: string;
   amlStatus: GuarantorAmlStatus;
   amlMessageStatus: GuarantorAmlMessageStatus;
@@ -392,6 +408,7 @@ function parseGuarantorAmlEntries(raw: unknown): GuarantorAmlEntry[] {
       icNumber: reviewStr(row.icNumber) || undefined,
       ssmNumber: reviewStr(row.ssmNumber) || undefined,
       requestId: reviewStr(row.requestId) || undefined,
+      onboardingVerifyLink: reviewStr(row.onboardingVerifyLink) || undefined,
       regtankPortalUrl: reviewStr(row.regtankPortalUrl) || undefined,
       amlStatus: isStatusValid ? status : "Pending",
       amlMessageStatus: isMessageValid ? message : "PENDING",
