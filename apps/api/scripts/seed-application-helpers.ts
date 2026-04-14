@@ -136,14 +136,18 @@ export function buildBusinessDetails(): Record<string, unknown> {
     isDeclarationConfirmed: true,
     guarantors: [
       {
+        guarantor_id: "g-individual-ahmadhassan850315101234",
         guarantor_type: "individual" as const,
+        email: "ahmad.hassan@example.com",
         first_name: "Ahmad",
         last_name: "Hassan",
         ic_number: "850315-10-1234",
         relationship: "director_shareholder" as const,
       },
       {
+        guarantor_id: "g-company-abc1234567a",
         guarantor_type: "company" as const,
+        email: "compliance@abcholdings.my",
         company_name: "ABC Holdings Sdn Bhd",
         ssm_number: "1234567-A",
         relationship: "parent_company" as const,

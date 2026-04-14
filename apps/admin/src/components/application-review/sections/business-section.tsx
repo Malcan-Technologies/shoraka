@@ -6,10 +6,15 @@ import { YesNoRadioDisplay } from "@cashsouk/ui";
 import { formatCurrency } from "@cashsouk/config";
 import {
   ArrowDownTrayIcon,
+  ArrowPathIcon,
   ArrowTopRightOnSquareIcon,
+  CheckCircleIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   DocumentTextIcon,
+  ExclamationTriangleIcon,
+  XCircleIcon,
+  ClockIcon,
 } from "@heroicons/react/24/outline";
 import { ReviewSectionCard } from "../review-section-card";
 import { ReviewFieldBlock } from "../review-field-block";
@@ -60,6 +65,7 @@ export type BusinessSectionComparisonProps = {
 
 export interface BusinessSectionProps {
   businessDetails: unknown;
+  issuerOrganizationBusinessAmlStatus?: unknown;
   section: ReviewSectionId;
   /** When set, renders read-only before/after grid and hides review actions. */
   sectionComparison?: BusinessSectionComparisonProps;
@@ -72,6 +78,9 @@ export interface BusinessSectionProps {
   onApprove: (section: ReviewSectionId) => void;
   onReject: (section: ReviewSectionId) => void;
   onRequestAmendment: (section: ReviewSectionId) => void;
+  onTriggerGuarantorAml?: (guarantorId: string) => Promise<void> | void;
+  onRefreshGuarantorAml?: (guarantorId: string) => Promise<void> | void;
+  onRefreshAllGuarantorAml?: () => Promise<void> | void;
   onViewDocument: (s3Key: string) => void;
   onDownloadDocument: (s3Key: string, fileName?: string) => void;
   viewDocumentPending?: boolean;
@@ -83,16 +92,14 @@ export interface BusinessSectionProps {
 const DECLARATION_TEXT =
   "I confirm that all information provided is true, accurate, and not misleading, and I understand that false or incomplete information may result in removal from the platform and regulatory action.";
 
-/**
- * RegTank deep link for this guarantor row — wire URL / ids when API is ready.
- * Comparison uses two buttons (before vs after) when the guarantor may differ between versions.
- */
 function RegTankGuarantorLinkButton({
+  url,
   side,
   disabled,
   disabledReason,
   className,
 }: {
+  url?: string;
   side?: "before" | "after";
   disabled?: boolean;
   disabledReason?: string;
@@ -111,10 +118,12 @@ function RegTankGuarantorLinkButton({
       variant="outline"
       size="sm"
       className={cn("gap-1.5 h-9 shrink-0 px-3 text-sm", className)}
-      disabled={disabled}
-      title={disabled ? disabledReason : undefined}
+      disabled={disabled || !url}
+      title={disabled || !url ? disabledReason || "RegTank URL is not available yet." : undefined}
       onClick={(e) => {
         e.stopPropagation();
+        if (!url) return;
+        window.open(url, "_blank", "noopener,noreferrer");
       }}
     >
       <ArrowTopRightOnSquareIcon className="h-4 w-4 shrink-0" aria-hidden />
@@ -124,9 +133,17 @@ function RegTankGuarantorLinkButton({
 }
 
 function RegTankGuarantorControlRow({
+  guarantor,
+  amlByKey,
+  onTriggerGuarantorAml,
+  onRefreshGuarantorAml,
   mode,
   comparisonSides,
 }: {
+  guarantor?: GuarantorReviewRow;
+  amlByKey: Map<string, GuarantorAmlEntry>;
+  onTriggerGuarantorAml?: (guarantorId: string) => Promise<void> | void;
+  onRefreshGuarantorAml?: (guarantorId: string) => Promise<void> | void;
   mode: "single" | "comparison";
   /** When a side has no guarantor (e.g. newly added row), that RegTank button is disabled. */
   comparisonSides?: { beforeAvailable: boolean; afterAvailable: boolean };
@@ -145,17 +162,55 @@ function RegTankGuarantorControlRow({
         <>
           <RegTankGuarantorLinkButton
             side="before"
+            url={undefined}
             disabled={!beforeOk}
             disabledReason="No guarantor in the earlier revision for this row."
           />
           <RegTankGuarantorLinkButton
             side="after"
+            url={undefined}
             disabled={!afterOk}
             disabledReason="No guarantor in the later revision for this row."
           />
         </>
       ) : (
-        <RegTankGuarantorLinkButton />
+        (() => {
+          if (!guarantor) return <RegTankGuarantorLinkButton />;
+          const aml = amlByKey.get(buildGuarantorAmlKey(guarantor));
+          return (
+            <div className="flex flex-wrap items-center gap-2 justify-end">
+              {aml ? amlBadge(aml.amlStatus) : null}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5 h-9 shrink-0 px-3 text-sm"
+                disabled={!onTriggerGuarantorAml || !guarantor.email}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void onTriggerGuarantorAml?.(guarantor.guarantorId);
+                }}
+              >
+                Trigger AML
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5 h-9 shrink-0 px-3 text-sm"
+                disabled={!onRefreshGuarantorAml}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void onRefreshGuarantorAml?.(guarantor.guarantorId);
+                }}
+              >
+                <ArrowPathIcon className="h-4 w-4 shrink-0" aria-hidden />
+                Refresh AML
+              </Button>
+              <RegTankGuarantorLinkButton url={aml?.regtankPortalUrl} />
+            </div>
+          );
+        })()
       )}
     </div>
   );
@@ -164,17 +219,40 @@ function RegTankGuarantorControlRow({
 type GuarantorReviewRow =
   | {
       kind: "individual";
+      guarantorId: string;
       firstName: string;
       lastName: string;
+      email: string;
       icNumber: string;
       relationshipLabel: string;
     }
   | {
       kind: "company";
+      guarantorId: string;
       companyName: string;
+      email: string;
       ssmNumber: string;
       relationshipLabel: string;
     };
+
+type GuarantorAmlStatus = "Unresolved" | "Approved" | "Rejected" | "Pending";
+type GuarantorAmlMessageStatus = "DONE" | "PENDING" | "ERROR";
+
+interface GuarantorAmlEntry {
+  orgGuarantorKey: string;
+  guarantorType: "individual" | "company";
+  guarantorId: string;
+  email: string;
+  icNumber?: string;
+  ssmNumber?: string;
+  requestId?: string;
+  regtankPortalUrl?: string;
+  amlStatus: GuarantorAmlStatus;
+  amlMessageStatus: GuarantorAmlMessageStatus;
+  amlRiskScore: number | null;
+  amlRiskLevel: string | null;
+  lastUpdated?: string;
+}
 
 /** Normalized view model for Business Details review. Supports snake_case and camelCase from API/DB. */
 interface BusinessDetailsView {
@@ -204,10 +282,32 @@ function reviewStr(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
 }
 
+function normalizeIdentifier(v: unknown): string {
+  return reviewStr(v).replace(/[^A-Za-z0-9]+/g, "").toUpperCase();
+}
+
+function normalizeEmail(v: unknown): string {
+  return reviewStr(v).toLowerCase();
+}
+
+function safeToken(v: string): string {
+  const token = v.replace(/[^A-Za-z0-9]+/g, "").toLowerCase();
+  return token.length > 0 ? token : "unknown";
+}
+
+function deterministicGuarantorId(
+  index: number,
+  kind: "individual" | "company",
+  icOrSsm: string
+): string {
+  return `g-${kind}-${safeToken(icOrSsm || `idx${index + 1}`)}`;
+}
+
 function parseGuarantors(raw: unknown): GuarantorReviewRow[] {
   if (!raw || !Array.isArray(raw)) return [];
   const rows: GuarantorReviewRow[] = [];
-  for (const item of raw) {
+  for (let index = 0; index < raw.length; index += 1) {
+    const item = raw[index];
     if (!item || typeof item !== "object") continue;
     const o = item as Record<string, unknown>;
     const gt = o.guarantor_type ?? o.guarantorType;
@@ -219,8 +319,16 @@ function parseGuarantors(raw: unknown): GuarantorReviewRow[] {
           : null;
       rows.push({
         kind: "individual",
+        guarantorId:
+          reviewStr(o.guarantor_id ?? o.guarantorId) ||
+          deterministicGuarantorId(
+            index,
+            "individual",
+            normalizeIdentifier(o.ic_number ?? o.icNumber)
+          ),
         firstName: reviewStr(o.first_name ?? o.firstName),
         lastName: reviewStr(o.last_name ?? o.lastName),
+        email: normalizeEmail(o.email),
         icNumber: reviewStr(o.ic_number ?? o.icNumber),
         relationshipLabel: relKey ? GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS[relKey] : REVIEW_EMPTY_LABEL,
       });
@@ -232,13 +340,97 @@ function parseGuarantors(raw: unknown): GuarantorReviewRow[] {
           : null;
       rows.push({
         kind: "company",
+        guarantorId:
+          reviewStr(o.guarantor_id ?? o.guarantorId) ||
+          deterministicGuarantorId(
+            index,
+            "company",
+            normalizeIdentifier(o.ssm_number ?? o.ssmNumber)
+          ),
         companyName: reviewStr(o.company_name ?? o.companyName),
+        email: normalizeEmail(o.email),
         ssmNumber: reviewStr(o.ssm_number ?? o.ssmNumber),
         relationshipLabel: relKey ? GUARANTOR_COMPANY_RELATIONSHIP_LABELS[relKey] : REVIEW_EMPTY_LABEL,
       });
     }
   }
   return rows;
+}
+
+function buildGuarantorAmlKey(row: GuarantorReviewRow): string {
+  if (row.kind === "individual") {
+    const ic = normalizeIdentifier(row.icNumber);
+    if (ic) return `individual:${ic}`;
+    return `individual:email:${normalizeEmail(row.email)}`;
+  }
+  const ssm = normalizeIdentifier(row.ssmNumber);
+  if (ssm) return `company:${ssm}`;
+  return `company:email:${normalizeEmail(row.email)}`;
+}
+
+function parseGuarantorAmlEntries(raw: unknown): GuarantorAmlEntry[] {
+  if (!raw || typeof raw !== "object") return [];
+  const record = raw as Record<string, unknown>;
+  if (!Array.isArray(record.guarantors)) return [];
+  return record.guarantors
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const row = item as Record<string, unknown>;
+      const status = reviewStr(row.amlStatus) as GuarantorAmlStatus;
+      const message = reviewStr(row.amlMessageStatus) as GuarantorAmlMessageStatus;
+      const isStatusValid =
+        status === "Approved" || status === "Rejected" || status === "Unresolved" || status === "Pending";
+      const isMessageValid = message === "DONE" || message === "PENDING" || message === "ERROR";
+      return {
+        orgGuarantorKey: reviewStr(row.orgGuarantorKey),
+        guarantorType: row.guarantorType === "company" ? "company" : "individual",
+        guarantorId: reviewStr(row.guarantorId),
+        email: normalizeEmail(row.email),
+        icNumber: reviewStr(row.icNumber) || undefined,
+        ssmNumber: reviewStr(row.ssmNumber) || undefined,
+        requestId: reviewStr(row.requestId) || undefined,
+        regtankPortalUrl: reviewStr(row.regtankPortalUrl) || undefined,
+        amlStatus: isStatusValid ? status : "Pending",
+        amlMessageStatus: isMessageValid ? message : "PENDING",
+        amlRiskScore: typeof row.amlRiskScore === "number" ? row.amlRiskScore : null,
+        amlRiskLevel: reviewStr(row.amlRiskLevel) || null,
+        lastUpdated: reviewStr(row.lastUpdated) || undefined,
+      } satisfies GuarantorAmlEntry;
+    })
+    .filter((entry): entry is GuarantorAmlEntry => Boolean(entry?.orgGuarantorKey));
+}
+
+function amlBadge(status: GuarantorAmlStatus) {
+  if (status === "Approved") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md border border-green-500/30 bg-green-500/10 px-2 py-1 text-xs">
+        <CheckCircleIcon className="h-3.5 w-3.5 text-green-600" aria-hidden />
+        Approved
+      </span>
+    );
+  }
+  if (status === "Rejected") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1 text-xs">
+        <XCircleIcon className="h-3.5 w-3.5 text-destructive" aria-hidden />
+        Rejected
+      </span>
+    );
+  }
+  if (status === "Unresolved") {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2 py-1 text-xs">
+        <ExclamationTriangleIcon className="h-3.5 w-3.5 text-yellow-600" aria-hidden />
+        Unresolved
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md border border-gray-400/30 bg-gray-400/10 px-2 py-1 text-xs">
+      <ClockIcon className="h-3.5 w-3.5 text-gray-500" aria-hidden />
+      Pending
+    </span>
+  );
 }
 
 export function parseBusinessDetails(raw: unknown): BusinessDetailsView | null {
@@ -336,7 +528,17 @@ function sideGuarantorTypeLabel(g: GuarantorReviewRow | undefined): string {
   return g ? guarantorKindLabel(g.kind) : "—";
 }
 
-function AdminGuarantorSingleList({ guarantors }: { guarantors: GuarantorReviewRow[] }) {
+function AdminGuarantorSingleList({
+  guarantors,
+  amlByKey,
+  onTriggerGuarantorAml,
+  onRefreshGuarantorAml,
+}: {
+  guarantors: GuarantorReviewRow[];
+  amlByKey: Map<string, GuarantorAmlEntry>;
+  onTriggerGuarantorAml?: (guarantorId: string) => Promise<void> | void;
+  onRefreshGuarantorAml?: (guarantorId: string) => Promise<void> | void;
+}) {
   const [panelOpen, setPanelOpen] = React.useState<Record<number, boolean>>({});
   const count = guarantors.length;
 
@@ -359,6 +561,7 @@ function AdminGuarantorSingleList({ guarantors }: { guarantors: GuarantorReviewR
       {guarantors.map((g, idx) => {
         const open = panelOpen[idx] !== undefined ? panelOpen[idx]! : true;
         const subtitle = guarantorReviewSubtitle(g);
+        const aml = amlByKey.get(buildGuarantorAmlKey(g));
         return (
           <details
             key={idx}
@@ -390,7 +593,13 @@ function AdminGuarantorSingleList({ guarantors }: { guarantors: GuarantorReviewR
                   onClick={(e) => e.stopPropagation()}
                   onPointerDown={(e) => e.stopPropagation()}
                 >
-                  <RegTankGuarantorControlRow mode="single" />
+                  <RegTankGuarantorControlRow
+                    mode="single"
+                    guarantor={g}
+                    amlByKey={amlByKey}
+                    onTriggerGuarantorAml={onTriggerGuarantorAml}
+                    onRefreshGuarantorAml={onRefreshGuarantorAml}
+                  />
                 </div>
               </div>
             </summary>
@@ -408,6 +617,10 @@ function AdminGuarantorSingleList({ guarantors }: { guarantors: GuarantorReviewR
                     <ReviewValue value={g.icNumber || REVIEW_EMPTY_LABEL} />
                     <Label className={reviewLabelClass}>Relationship</Label>
                     <ReviewValue value={g.relationshipLabel} />
+                    <Label className={reviewLabelClass}>Email</Label>
+                    <ReviewValue value={g.email || REVIEW_EMPTY_LABEL} />
+                    <Label className={reviewLabelClass}>Last AML update</Label>
+                    <ReviewValue value={aml?.lastUpdated || REVIEW_EMPTY_LABEL} />
                   </>
                 ) : (
                   <>
@@ -417,6 +630,10 @@ function AdminGuarantorSingleList({ guarantors }: { guarantors: GuarantorReviewR
                     <ReviewValue value={g.ssmNumber || REVIEW_EMPTY_LABEL} />
                     <Label className={reviewLabelClass}>Relationship</Label>
                     <ReviewValue value={g.relationshipLabel} />
+                    <Label className={reviewLabelClass}>Email</Label>
+                    <ReviewValue value={g.email || REVIEW_EMPTY_LABEL} />
+                    <Label className={reviewLabelClass}>Last AML update</Label>
+                    <ReviewValue value={aml?.lastUpdated || REVIEW_EMPTY_LABEL} />
                   </>
                 )}
               </div>
@@ -431,10 +648,12 @@ function AdminGuarantorSingleList({ guarantors }: { guarantors: GuarantorReviewR
 function AdminGuarantorComparisonList({
   b,
   a,
+  amlByKey,
   isPathChanged,
 }: {
   b: BusinessDetailsView;
   a: BusinessDetailsView;
+  amlByKey: Map<string, GuarantorAmlEntry>;
   isPathChanged: (path: string) => boolean;
 }) {
   const count = Math.max(b.guarantors.length, a.guarantors.length);
@@ -502,6 +721,7 @@ function AdminGuarantorComparisonList({
                 >
                   <RegTankGuarantorControlRow
                     mode="comparison"
+                    amlByKey={amlByKey}
                     comparisonSides={{
                       beforeAvailable: hasBeforeGuarantor,
                       afterAvailable: hasAfterGuarantor,
@@ -667,6 +887,7 @@ const yesNoScaleWrapper = "inline-block scale-[0.88] origin-left";
 
 export function BusinessSection({
   businessDetails,
+  issuerOrganizationBusinessAmlStatus,
   section,
   isReviewable,
   approvePending,
@@ -677,6 +898,9 @@ export function BusinessSection({
   onApprove,
   onReject,
   onRequestAmendment,
+  onTriggerGuarantorAml,
+  onRefreshGuarantorAml,
+  onRefreshAllGuarantorAml,
   onViewDocument,
   onDownloadDocument,
   viewDocumentPending = false,
@@ -685,6 +909,18 @@ export function BusinessSection({
   sectionComparison,
   hideSectionComments = false,
 }: BusinessSectionProps) {
+  const guarantorAmlEntries = React.useMemo(
+    () => parseGuarantorAmlEntries(issuerOrganizationBusinessAmlStatus),
+    [issuerOrganizationBusinessAmlStatus]
+  );
+  const guarantorAmlByKey = React.useMemo(() => {
+    const m = new Map<string, GuarantorAmlEntry>();
+    for (const entry of guarantorAmlEntries) {
+      m.set(entry.orgGuarantorKey, entry);
+    }
+    return m;
+  }, [guarantorAmlEntries]);
+
   if (sectionComparison) {
     const vb = parseBusinessDetails(sectionComparison.beforeDetails);
     const va = parseBusinessDetails(sectionComparison.afterDetails);
@@ -825,7 +1061,12 @@ export function BusinessSection({
 
         {(b.guarantors.length > 0 || a.guarantors.length > 0) && (
           <ReviewFieldBlock title="Guarantor details">
-            <AdminGuarantorComparisonList b={b} a={a} isPathChanged={isPathChanged} />
+            <AdminGuarantorComparisonList
+              b={b}
+              a={a}
+              amlByKey={guarantorAmlByKey}
+              isPathChanged={isPathChanged}
+            />
           </ReviewFieldBlock>
         )}
 
@@ -1023,7 +1264,25 @@ export function BusinessSection({
 
           {view.guarantors.length > 0 && (
             <ReviewFieldBlock title="Guarantor details">
-              <AdminGuarantorSingleList guarantors={view.guarantors} />
+              <div className="mb-3 flex justify-end">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 h-9"
+                  disabled={!onRefreshAllGuarantorAml}
+                  onClick={() => void onRefreshAllGuarantorAml?.()}
+                >
+                  <ArrowPathIcon className="h-4 w-4" aria-hidden />
+                  Refresh all AML
+                </Button>
+              </div>
+              <AdminGuarantorSingleList
+                guarantors={view.guarantors}
+                amlByKey={guarantorAmlByKey}
+                onTriggerGuarantorAml={onTriggerGuarantorAml}
+                onRefreshGuarantorAml={onRefreshGuarantorAml}
+              />
             </ReviewFieldBlock>
           )}
 

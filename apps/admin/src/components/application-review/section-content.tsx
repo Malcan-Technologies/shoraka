@@ -80,6 +80,7 @@ export type ReviewApplicationView = {
     bankAccountDetails?: Record<string, unknown> | null;
     director_kyc_status?: unknown;
     director_aml_status?: unknown;
+    business_aml_status?: unknown;
   } | null;
 };
 
@@ -107,6 +108,9 @@ export interface SectionContentProps {
   onApproveSection: (section: ReviewSectionId) => void;
   onRejectSection: (section: ReviewSectionId) => void;
   onRequestAmendmentSection: (section: ReviewSectionId) => void;
+  onTriggerGuarantorAml?: (guarantorId: string) => Promise<void> | void;
+  onRefreshGuarantorAml?: (guarantorId: string) => Promise<void> | void;
+  onRefreshAllGuarantorAml?: () => Promise<void> | void;
   onViewDocument: (s3Key: string) => void;
   onDownloadDocument: (s3Key: string, fileName?: string) => void;
   onDownloadAllDocuments: (files: { s3Key: string; fileName: string; category: string; field: string }[]) => Promise<void> | void;
@@ -161,6 +165,9 @@ export function SectionContent({
   onApproveSection,
   onRejectSection,
   onRequestAmendmentSection,
+  onTriggerGuarantorAml,
+  onRefreshGuarantorAml,
+  onRefreshAllGuarantorAml,
   onViewDocument,
   onDownloadDocument,
   onDownloadAllDocuments,
@@ -232,6 +239,7 @@ export function SectionContent({
       return (
         <BusinessSection
           businessDetails={app.business_details}
+          issuerOrganizationBusinessAmlStatus={app.issuer_organization?.business_aml_status}
           section={section}
           isReviewable={isReviewable}
           approvePending={approveSectionPending}
@@ -242,6 +250,9 @@ export function SectionContent({
           onApprove={onApproveSection}
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}
+          onTriggerGuarantorAml={onTriggerGuarantorAml}
+          onRefreshGuarantorAml={onRefreshGuarantorAml}
+          onRefreshAllGuarantorAml={onRefreshAllGuarantorAml}
           onViewDocument={onViewDocument}
           onDownloadDocument={onDownloadDocument}
           viewDocumentPending={viewDocumentPending}
