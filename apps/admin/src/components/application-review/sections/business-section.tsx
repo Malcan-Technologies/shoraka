@@ -372,32 +372,35 @@ function parseGuarantorAmlEntries(raw: unknown): GuarantorAmlEntry[] {
   if (!raw || typeof raw !== "object") return [];
   const record = raw as Record<string, unknown>;
   if (!Array.isArray(record.guarantors)) return [];
-  return record.guarantors
-    .map((item) => {
-      if (!item || typeof item !== "object") return null;
-      const row = item as Record<string, unknown>;
-      const status = reviewStr(row.amlStatus) as GuarantorAmlStatus;
-      const message = reviewStr(row.amlMessageStatus) as GuarantorAmlMessageStatus;
-      const isStatusValid =
-        status === "Approved" || status === "Rejected" || status === "Unresolved" || status === "Pending";
-      const isMessageValid = message === "DONE" || message === "PENDING" || message === "ERROR";
-      return {
-        orgGuarantorKey: reviewStr(row.orgGuarantorKey),
-        guarantorType: row.guarantorType === "company" ? "company" : "individual",
-        guarantorId: reviewStr(row.guarantorId),
-        email: normalizeEmail(row.email),
-        icNumber: reviewStr(row.icNumber) || undefined,
-        ssmNumber: reviewStr(row.ssmNumber) || undefined,
-        requestId: reviewStr(row.requestId) || undefined,
-        regtankPortalUrl: reviewStr(row.regtankPortalUrl) || undefined,
-        amlStatus: isStatusValid ? status : "Pending",
-        amlMessageStatus: isMessageValid ? message : "PENDING",
-        amlRiskScore: typeof row.amlRiskScore === "number" ? row.amlRiskScore : null,
-        amlRiskLevel: reviewStr(row.amlRiskLevel) || null,
-        lastUpdated: reviewStr(row.lastUpdated) || undefined,
-      } satisfies GuarantorAmlEntry;
-    })
-    .filter((entry): entry is GuarantorAmlEntry => Boolean(entry?.orgGuarantorKey));
+  const entries: GuarantorAmlEntry[] = [];
+  for (const item of record.guarantors) {
+    if (!item || typeof item !== "object") continue;
+    const row = item as Record<string, unknown>;
+    const orgGuarantorKey = reviewStr(row.orgGuarantorKey);
+    if (!orgGuarantorKey) continue;
+    const status = reviewStr(row.amlStatus) as GuarantorAmlStatus;
+    const message = reviewStr(row.amlMessageStatus) as GuarantorAmlMessageStatus;
+    const isStatusValid =
+      status === "Approved" || status === "Rejected" || status === "Unresolved" || status === "Pending";
+    const isMessageValid = message === "DONE" || message === "PENDING" || message === "ERROR";
+
+    entries.push({
+      orgGuarantorKey,
+      guarantorType: row.guarantorType === "company" ? "company" : "individual",
+      guarantorId: reviewStr(row.guarantorId),
+      email: normalizeEmail(row.email),
+      icNumber: reviewStr(row.icNumber) || undefined,
+      ssmNumber: reviewStr(row.ssmNumber) || undefined,
+      requestId: reviewStr(row.requestId) || undefined,
+      regtankPortalUrl: reviewStr(row.regtankPortalUrl) || undefined,
+      amlStatus: isStatusValid ? status : "Pending",
+      amlMessageStatus: isMessageValid ? message : "PENDING",
+      amlRiskScore: typeof row.amlRiskScore === "number" ? row.amlRiskScore : null,
+      amlRiskLevel: reviewStr(row.amlRiskLevel) || null,
+      lastUpdated: reviewStr(row.lastUpdated) || undefined,
+    });
+  }
+  return entries;
 }
 
 function amlBadge(status: GuarantorAmlStatus) {
