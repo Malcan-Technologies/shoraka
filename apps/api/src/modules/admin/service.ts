@@ -4220,12 +4220,16 @@ export class AdminService {
     guarantor: ReturnType<typeof parseApplicationGuarantors>[number]
   ): Promise<{ requestId: string; regtankPortalUrl: string }> {
     const adminPortalUrl = getRegTankConfig().adminPortalUrl;
+    const referenceId = this.buildGuarantorReferenceId(
+      issuerOrganizationId,
+      guarantor.guarantorId
+    );
     if (guarantor.guarantorType === "individual") {
       const onboardingRequest: RegTankIndividualOnboardingRequest = {
         email: guarantor.email,
         surname: guarantor.lastName || "Guarantor",
         forename: guarantor.firstName || "Guarantor",
-        referenceId: `${issuerOrganizationId}:guarantor:${guarantor.guarantorId}`,
+        referenceId,
         countryOfResidence: "MY",
         nationality: "MY",
         placeOfBirth: "MY",
@@ -4250,7 +4254,7 @@ export class AdminService {
       email: guarantor.email,
       companyName: guarantor.companyName || "Guarantor Company",
       formName,
-      referenceId: `${issuerOrganizationId}:guarantor:${guarantor.guarantorId}`,
+      referenceId,
     };
     const response = await this.regTankApiClient.createCorporateOnboarding(corporateRequest);
     return {
@@ -4513,6 +4517,16 @@ export class AdminService {
       guarantors: updated,
       refreshedCount: updated.length,
     };
+  }
+
+  private buildGuarantorReferenceId(
+    issuerOrganizationId: string,
+    guarantorId: string
+  ): string {
+    const raw = `${issuerOrganizationId}-guarantor-${guarantorId}`;
+    const sanitized = raw.replace(/[^A-Za-z0-9_-]+/g, "-");
+    // Keep within conservative bound for third-party IDs.
+    return sanitized.slice(0, 64);
   }
 
   /**

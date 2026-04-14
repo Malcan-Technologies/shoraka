@@ -68,7 +68,7 @@ export class RegTankAPIClient {
       if (!response.ok) {
         // Extract error message from various possible response structures
         let errorMessage = `RegTank API error (${response.status}): `;
-        
+
         if (responseData.message) {
           errorMessage += responseData.message;
         } else if (responseData.error) {
@@ -83,7 +83,7 @@ export class RegTankAPIClient {
         } else if (responseData.errors) {
           // Handle array of errors
           if (Array.isArray(responseData.errors)) {
-            errorMessage += responseData.errors.map((e: any) => 
+            errorMessage += responseData.errors.map((e: any) =>
               typeof e === "string" ? e : e.message || JSON.stringify(e)
             ).join(", ");
           } else {
@@ -200,11 +200,11 @@ export class RegTankAPIClient {
 
   /**
    * Restart onboarding (get new verifyLink and new requestId)
-   * 
+   *
    * According to RegTank docs: POST /v3/onboarding/indv/restart
    * The restart endpoint creates a new record that inherits personal information
    * from the original record and returns a NEW requestId (e.g., LD00001-R01)
-   * 
+   *
    * @see https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/2.-onboarding/2.4-individual-onboarding-endpoint-json-restart-onboarding
    */
   async restartOnboarding(
@@ -245,13 +245,13 @@ export class RegTankAPIClient {
   /**
    * Set onboarding settings (redirect URL, etc.)
    * This is typically called once per environment per formId
-   * 
+   *
    * According to RegTank docs:
    * - formId: Required - Settings are per formId
    * - livenessConfidence: Required - Integer (default: 60)
    * - approveMode: Required - Boolean
    * - redirectUrl: Optional - URL to redirect after completion
-   * 
+   *
    * Note: webhookUrl is configured globally via /alert/preferences endpoint, not here
    */
   async setOnboardingSettings(settings: {
@@ -272,7 +272,7 @@ export class RegTankAPIClient {
     };
 
     logger.info(
-      { 
+      {
         settings: {
           ...settings,
           // Don't log full URLs in production logs for security
@@ -296,7 +296,7 @@ export class RegTankAPIClient {
   /**
    * Set webhook preferences (global configuration)
    * This is typically called once per environment
-   * 
+   *
    * According to RegTank docs:
    * POST /alert/preferences
    * {
@@ -371,7 +371,7 @@ export class RegTankAPIClient {
    */
   async getCorporateOnboardingDetails(requestId: string): Promise<any> {
     logger.debug({ requestId }, "Fetching RegTank corporate onboarding details (COD)");
-    
+
     return this.makeRequest(`/v3/onboarding/corp/query?requestId=${requestId}`);
   }
 
@@ -381,7 +381,7 @@ export class RegTankAPIClient {
    */
   async getEntityOnboardingDetails(requestId: string): Promise<any> {
     logger.debug({ requestId }, "Fetching RegTank entity onboarding details (EOD)");
-    
+
     return this.makeRequest(`/v3/onboarding/corp/indv/query?requestId=${requestId}`);
   }
 
@@ -392,7 +392,7 @@ export class RegTankAPIClient {
    */
   async queryKYCStatus(kycId: string): Promise<any> {
     logger.debug({ kycId }, "Querying RegTank KYC status");
-    
+
     return this.makeRequest(`/v3/kyc/query?requestId=${kycId}`);
   }
 
@@ -403,7 +403,7 @@ export class RegTankAPIClient {
    */
   async queryKYBStatus(kybId: string): Promise<any> {
     logger.debug({ kybId }, "Querying RegTank KYB status");
-    
+
     return this.makeRequest(`/v3/kyb/query?requestId=${kybId}`);
   }
 
@@ -413,7 +413,7 @@ export class RegTankAPIClient {
    */
   async getOnboardingSettings(formId: number): Promise<any> {
     logger.debug({ formId }, "Fetching RegTank onboarding settings");
-    
+
     return this.makeRequest(`/v3/onboarding/indv/setting/query?formId=${formId}`);
   }
 }
