@@ -769,13 +769,21 @@ export function FinancialStatementsStep({
   }, [questionnaireDto, allYearFormsValid, formsByYear, yearsToShow]);
 
   React.useEffect(() => {
-    if (!onDataChangeRef.current || !isInitialized) return;
+    if (!onDataChangeRef.current) return;
+    if (!isInitialized) {
+      onDataChangeRef.current({
+        hasPendingChanges: false,
+        isValid: readOnly,
+        saveFunction,
+      });
+      return;
+    }
     onDataChangeRef.current({
       hasPendingChanges,
       isValid: isValidForButton,
       saveFunction,
     });
-  }, [hasPendingChanges, isValidForButton, isInitialized, saveFunction]);
+  }, [hasPendingChanges, isValidForButton, isInitialized, saveFunction, readOnly]);
 
   const updateFormYear = React.useCallback(
     (yearKey: string, field: keyof FinancialStatementsPayload, value: string) => {
