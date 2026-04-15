@@ -11,6 +11,18 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  ISSUER_OFFER_DECLINE_REASONS,
+  OTHER_ISSUER_DECLINE_REASON_VALUE,
+  resolveIssuerOfferDeclineReason,
+} from "@/lib/issuer-offer-decline-reasons";
 import { useContract } from "@/hooks/use-contracts";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { useAcceptInvoiceOffer, useRejectContractOffer, useRejectInvoiceOffer } from "@/hooks/use-applications";
@@ -76,7 +88,9 @@ export function ReviewOfferModal({
   const [acceptSigningLoading, setAcceptSigningLoading] = React.useState(false);
   const [acceptOverrideLoading, setAcceptOverrideLoading] = React.useState(false);
   const [rejectionReason, setRejectionReason] = React.useState("");
+  const [selectedDeclineReason, setSelectedDeclineReason] = React.useState("");
   const [isRejectMode, setIsRejectMode] = React.useState(false);
+  const isOtherDeclineReason = selectedDeclineReason === OTHER_ISSUER_DECLINE_REASON_VALUE;
   const isSigningOverrideEnabled = process.env.NODE_ENV !== "production";
 
   const contractDetails = (contractRecord as { contract_details?: Record<string, unknown> } | null)
@@ -161,10 +175,13 @@ export function ReviewOfferModal({
     }
   };
 
+  const resolvedDeclineReason = resolveIssuerOfferDeclineReason(selectedDeclineReason, rejectionReason);
+
   const handleReject = async () => {
+    if (!resolvedDeclineReason) return;
     if (type === "contract") {
       try {
-        await rejectContract.mutateAsync({ applicationId, reason: rejectionReason || undefined });
+        await rejectContract.mutateAsync({ applicationId, reason: resolvedDeclineReason });
         toast.success("Offer declined");
         onClose();
       } catch {
@@ -176,7 +193,7 @@ export function ReviewOfferModal({
         await rejectInvoice.mutateAsync({
           applicationId,
           invoiceId: invoice.id,
-          reason: rejectionReason || undefined,
+          reason: resolvedDeclineReason,
         });
         toast.success("Offer declined");
         onClose();
@@ -263,6 +280,11 @@ export function ReviewOfferModal({
     rejectContract.isPending ||
     rejectInvoice.isPending;
 
+  const confirmDeclineDisabled =
+    isPending ||
+    !selectedDeclineReason ||
+    (isOtherDeclineReason && rejectionReason.trim() === "");
+
   const canDownload =
     type === "contract" || (type === "invoice" && !!invoice?.id);
 
@@ -339,7 +361,15 @@ export function ReviewOfferModal({
               <Button
                 variant="outline"
                 size="lg"
-                onClick={() => setIsRejectMode((prev) => !prev)}
+                onClick={() =>
+                  setIsRejectMode((prev) => {
+                    if (prev) {
+                      setRejectionReason("");
+                      setSelectedDeclineReason("");
+                    }
+                    return !prev;
+                  })
+                }
                 disabled={isPending}
                 className={
                   isRejectMode
@@ -371,23 +401,63 @@ export function ReviewOfferModal({
             )}
 
             {isRejectMode && (
-              <div className="mt-6 space-y-3">
-                <Label htmlFor="rejection-reason" className="block text-base font-semibold text-foreground">
-                  Please provide a reason for declining this offer?
-                </Label>
-                <div className="relative">
-                  <Textarea
-                    id="rejection-reason"
-                    placeholder="Enter reason"
-                    value={rejectionReason}
-                    onChange={(e) => setRejectionReason(e.target.value)}
-                    rows={4}
-                    className="min-h-[92px] resize-none rounded-xl border-border bg-[#f9fafb] px-4 py-3.5 pb-8 focus:border-primary/35 focus:bg-background focus:outline-none focus:ring-4 focus:ring-primary/10"
-                    maxLength={200}
-                  />
-                  <p className="absolute right-3.5 bottom-2.5 text-[13px] text-muted-foreground pointer-events-none">
-                    {rejectionReason.length}/200 characters
-                  </p>
+              <div className="mt-6 space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="decline-primary-reason" className="block text-base font-semibold text-foreground">
+                    Reason (required)
+                  </Label>
+                  <Select
+                    value={selectedDeclineReason}
+                    onValueChange={(value) => {
+                      setSelectedDeclineReason(value);
+                      if (value !== OTHER_ISSUER_DECLINE_REASON_VALUE) {
+                        setRejectionReason("");
+                      }
+                    }}
+                    disabled={isPending}
+                  >
+                    <SelectTrigger
+                      id="decline-primary-reason"
+                      className="h-12 rounded-xl border-border bg-[#f9fafb] focus:ring-4 focus:ring-primary/10"
+                    >
+                      <SelectValue placeholder="Select a primary reason" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ISSUER_OFFER_DECLINE_REASONS.map((reason) => (
+                        <SelectItem key={reason} value={reason}>
+                          {reason}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value={OTHER_ISSUER_DECLINE_REASON_VALUE}>
+                        Other (manual reason)
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rejection-reason" className="block text-base font-semibold text-foreground">
+                    {isOtherDeclineReason
+                      ? "Additional context (required)"
+                      : "Additional context (optional)"}
+                  </Label>
+                  <div className="relative">
+                    <Textarea
+                      id="rejection-reason"
+                      placeholder={
+                        isOtherDeclineReason
+                          ? "Enter the primary reason and any details."
+                          : "Add any extra details (optional)."
+                      }
+                      value={rejectionReason}
+                      onChange={(e) => setRejectionReason(e.target.value)}
+                      rows={4}
+                      className="min-h-[92px] resize-none rounded-xl border-border bg-[#f9fafb] px-4 py-3.5 pb-8 focus:border-primary/35 focus:bg-background focus:outline-none focus:ring-4 focus:ring-primary/10"
+                      maxLength={200}
+                    />
+                    <p className="absolute right-3.5 bottom-2.5 text-[13px] text-muted-foreground pointer-events-none">
+                      {rejectionReason.length}/200 characters
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
@@ -412,7 +482,7 @@ export function ReviewOfferModal({
                 <Button
                   size="sm"
                   onClick={handleReject}
-                  disabled={isPending}
+                  disabled={confirmDeclineDisabled}
                   className="inline-flex h-9 min-h-[36px] items-center justify-center gap-2 rounded-xl border border-[#e3e8ee] bg-[#edf1f5] px-3.5 text-[15px] font-medium text-[#444] hover:bg-[#e6ebf0]"
                 >
                   <CheckCircleIcon className="h-4 w-4" />
