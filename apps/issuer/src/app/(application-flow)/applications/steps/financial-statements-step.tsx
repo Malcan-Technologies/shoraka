@@ -209,6 +209,9 @@ const stepFormRowGridClassName =
 /** Financial Overview grid under section title (horizontal inset matches contract). */
 const overviewFormRowGridClassName = cn(stepFormRowGridClassName, "mt-4 px-3");
 const sectionWrapperClassName = "w-full";
+/** Vertical rhythm between Assets / Liabilities / Equity / P&L inside a year card (business-details uses `space-y-5` per section + larger gaps between blocks). */
+const yearBlockSectionStackClassName = "space-y-8 md:space-y-10";
+const yearBlockInnerSectionClassName = "space-y-5";
 /** Same outer rhythm as company-details / contract-details steps. */
 const formOuterClassName = applicationFlowStepOuterClassName;
 
@@ -799,8 +802,8 @@ export function FinancialStatementsStep({
       : { money: {} };
 
     return (
-      <div key={yearKey} className="space-y-3 border border-border rounded-xl p-4 md:p-6">
-        <section className={`${sectionWrapperClassName} space-y-3`}>
+      <div key={yearKey} className={cn("border border-border rounded-xl p-4 md:p-6", yearBlockSectionStackClassName)}>
+        <section className={cn(sectionWrapperClassName, yearBlockInnerSectionClassName)}>
           <h4 className={subsectionHeadingClassName}>Assets</h4>
           <div className={stepFormRowGridClassName}>
             {(["bsfatot", "othass", "bscatot", "bsclbank"] as const).map((key) => (
@@ -817,7 +820,7 @@ export function FinancialStatementsStep({
             ))}
           </div>
         </section>
-        <section className={`${sectionWrapperClassName} space-y-3`}>
+        <section className={cn(sectionWrapperClassName, yearBlockInnerSectionClassName)}>
           <h4 className={subsectionHeadingClassName}>Liabilities</h4>
           <div className={stepFormRowGridClassName}>
             {(["curlib", "bsslltd", "bsclstd"] as const).map((key) => (
@@ -834,7 +837,7 @@ export function FinancialStatementsStep({
             ))}
           </div>
         </section>
-        <section className={`${sectionWrapperClassName} space-y-3`}>
+        <section className={cn(sectionWrapperClassName, yearBlockInnerSectionClassName)}>
           <h4 className={subsectionHeadingClassName}>Equity</h4>
           <div className={stepFormRowGridClassName}>
             <MoneyFieldRow
@@ -848,7 +851,7 @@ export function FinancialStatementsStep({
             />
           </div>
         </section>
-        <section className={`${sectionWrapperClassName} space-y-3`}>
+        <section className={cn(sectionWrapperClassName, yearBlockInnerSectionClassName)}>
           <h4 className={subsectionHeadingClassName}>Profit and Loss</h4>
           <div className={stepFormRowGridClassName}>
             <MoneyFieldRow
