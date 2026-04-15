@@ -19,7 +19,6 @@
 import * as React from "react";
 import { useApplication } from "@/hooks/use-applications";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { DateInput } from "@/app/(application-flow)/applications/components/date-input";
 import { cn } from "@/lib/utils";
 import {
@@ -801,37 +800,6 @@ export function FinancialStatementsStep({
 
     return (
       <div key={yearKey} className="space-y-3 border border-border rounded-xl p-4 md:p-6">
-        <section className={`${sectionWrapperClassName} space-y-3`}>
-          <h4 className={subsectionHeadingClassName}>Reporting Period</h4>
-          <div className={stepFormRowGridClassName}>
-            <Label className={labelCellClassName}>Financial year (figures)</Label>
-            <div className="flex min-w-0 flex-col gap-1">
-              <Input value={yearKey} disabled className={cn(inputClassName, formInputDisabledClassName)} />
-            </div>
-            <div className={fieldLabelWithTooltipRowClassName}>
-              <Label className={labelClassName}>When did you last close your accounts?</Label>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className={fieldTooltipTriggerClassName}>
-                    <InformationCircleIcon className="h-4 w-4" />
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
-                  {LAST_CLOSE_TOOLTIP}
-                </TooltipContent>
-              </Tooltip>
-            </div>
-            <div className="flex min-w-0 flex-col gap-1">
-              <DateInput
-                value={form.pldd}
-                onChange={() => {}}
-                disabled
-                className={cn(inputClassName, formInputDisabledClassName)}
-                placeholder="YYYY-MM-DD"
-              />
-            </div>
-          </div>
-        </section>
         <section className={`${sectionWrapperClassName} space-y-3`}>
           <h4 className={subsectionHeadingClassName}>Assets</h4>
           <div className={stepFormRowGridClassName}>

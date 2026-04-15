@@ -11,7 +11,7 @@ import * as React from "react";
  *
  * What: Loading skeleton matching financial-statements-step layout.
  * Why: Prevents layout shift; matches exact spacing, grid, and field heights.
- * Data: 5 sections (Financial Year, Assets, Liabilities, Equity, P&L) — no Financial Ratios.
+ * Data: 4 sections (Assets, Liabilities, Equity, P&L) — no Financial Ratios.
  */
 
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,20 +24,6 @@ const rowGridClassName =
 export function FinancialStatementsSkeleton() {
   return (
     <div className={`${formOuterClassName} mt-1`}>
-      {/* Financial Year */}
-      <section className={`${sectionWrapperClassName} space-y-4`}>
-        <div>
-          <Skeleton className="h-6 w-[140px]" />
-          <div className="mt-2 h-px bg-border" />
-        </div>
-        <div className={rowGridClassName}>
-          <Skeleton className="h-5 w-[200px]" />
-          <Skeleton className="h-11 w-full rounded-xl" />
-          <Skeleton className="h-5 w-[220px]" />
-          <Skeleton className="h-11 w-full rounded-xl" />
-        </div>
-      </section>
-
       {/* Assets (4 fields) */}
       <section className={`${sectionWrapperClassName} space-y-4`}>
         <div>
