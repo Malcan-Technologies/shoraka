@@ -43,7 +43,7 @@ Same numeric keys as before (`bsfatot`, `othass`, `bscatot`, …, `plyear`) plus
 
 **File:** `apps/issuer/src/app/(application-flow)/applications/steps/financial-statements-step.tsx`
 
-Questionnaire UI uses the shared `DateInput` pattern; closing date is logged in dev for debugging. Year blocks show **`pldd` read-only** (copy of closing date). Save sends v2 payload only.
+Questionnaire UI uses the shared `DateInput` pattern (placeholders match other steps). Save sends v2 payload only.
 
 **Review step:** `review-and-submit-step.tsx` — financial section assumes v2 shape.
 

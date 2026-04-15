@@ -53,6 +53,7 @@ import { useDevTools } from "@/app/(application-flow)/applications/components/de
 import {
   applicationFlowDateToIso,
   isoToApplicationFlowDateDisplay,
+  isApplicationFlowDateOnOrBeforeToday,
   isApplicationFlowDateValid,
 } from "@/app/(application-flow)/applications/utils/application-flow-dates";
 
@@ -343,6 +344,9 @@ function FinancialYesNoRadioGroup({
 
 const NEGATIVE_TOOLTIP_TEXT = "Negative values are allowed for losses.\nExample: -5000.";
 
+/** Same placeholder style as contract-details money fields (`eg.` + formatted RM). */
+const FINANCIAL_MONEY_PLACEHOLDER = `eg. ${formatMoney(500000)}`;
+
 function MoneyFieldRow({
   id,
   label,
@@ -368,7 +372,7 @@ function MoneyFieldRow({
     <MoneyInput
       value={value}
       onValueChange={onValueChange}
-      placeholder="eg. 0.00"
+      placeholder={FINANCIAL_MONEY_PLACEHOLDER}
       prefix="RM"
       allowNegative={allowNegative}
       inputClassName={cn(
@@ -559,6 +563,7 @@ export function FinancialStatementsStep({
   const questionnaireDto = React.useMemo((): FinancialStatementsQuestionnaire | null => {
     const iso = applicationFlowDateToIso(lastClosingDate);
     if (!iso) return null;
+    if (!isApplicationFlowDateOnOrBeforeToday(lastClosingDate)) return null;
     if (qSubmitted === null) return null;
     return {
       last_closing_date: iso,
@@ -674,8 +679,10 @@ export function FinancialStatementsStep({
       }
 
       const closingIso = applicationFlowDateToIso(lastClosingDate);
+      const closingOk =
+        closingIso != null && isApplicationFlowDateOnOrBeforeToday(lastClosingDate);
       const same =
-        closingIso != null &&
+        closingOk &&
         closingIso === initQNorm.last_closing_date &&
         qSubmitted === initQNorm.is_submitted_to_ssm;
       const pending = !same;
@@ -693,7 +700,9 @@ export function FinancialStatementsStep({
     }
   }, [isInitialized, questionnaireDto, buildV2ApiPayloadInner, lastClosingDate, qSubmitted]);
 
-  const closingForBlocks = applicationFlowDateToIso(lastClosingDate) ?? "";
+  const closingIsoRaw = applicationFlowDateToIso(lastClosingDate);
+  const closingForBlocks =
+    closingIsoRaw && isApplicationFlowDateOnOrBeforeToday(lastClosingDate) ? closingIsoRaw : "";
 
   /** Full validation: used by saveFunction and inline errors after submit (future date, turnover sign, etc.). */
   const allYearFormsValid = React.useMemo(() => {
@@ -711,7 +720,10 @@ export function FinancialStatementsStep({
     );
   }, [yearsToShow, formsByYear, closingForBlocks]);
 
-  const questionsAnswered = applicationFlowDateToIso(lastClosingDate) != null && qSubmitted !== null;
+  const questionsAnswered =
+    applicationFlowDateToIso(lastClosingDate) != null &&
+    isApplicationFlowDateOnOrBeforeToday(lastClosingDate) &&
+    qSubmitted !== null;
 
   /** Save enabled when questionnaire + all year rows are “filled”; submit applies strict validation. */
   const isValidForButton = readOnly || (questionsAnswered && allYearFormsFilled);
@@ -788,13 +800,16 @@ export function FinancialStatementsStep({
     "Select 'Yes' if you have already submitted your accounts to SSM.\nSelect 'No' if they are still being prepared or not submitted yet.";
 
   const showOverviewErrors = hasSubmitted && !readOnly;
-  const closingFieldError = showOverviewErrors
-    ? lastClosingDate.trim() === ""
-      ? "Required"
+  const closingFieldError =
+    lastClosingDate.trim() === ""
+      ? showOverviewErrors
+        ? "Required"
+        : undefined
       : !isApplicationFlowDateValid(lastClosingDate)
         ? "Enter a valid date"
-        : undefined
-    : undefined;
+        : !isApplicationFlowDateOnOrBeforeToday(lastClosingDate)
+          ? "Closing date cannot be in the future"
+          : undefined;
   const qSubmittedFieldError =
     showOverviewErrors && qSubmitted === null ? "Please select Yes or No" : undefined;
 
@@ -952,15 +967,13 @@ export function FinancialStatementsStep({
                 value={lastClosingDate}
                 onChange={(v) => setLastClosingDate(v)}
                 disabled={readOnly}
-                placeholder="YYYY-MM-DD"
+                placeholder="Enter date"
                 className={withFieldError(inputClassName, Boolean(closingFieldError))}
                 isInvalid={Boolean(closingFieldError)}
               />
               {closingFieldError ? (
                 <p className="text-xs text-destructive">{closingFieldError}</p>
-              ) : (
-                <p className="text-xs text-muted-foreground">Stored as YYYY-MM-DD</p>
-              )}
+              ) : null}
             </div>
 
             <div className={fieldLabelWithTooltipRowClassName}>

@@ -129,5 +129,19 @@ describe("financial-unaudited-ctos-validation", () => {
         });
       }
     });
+    it("rejects last_closing_date in the future", () => {
+      const futureClosing = "2099-12-31";
+      const parsed = financialStatementsV2Schema.safeParse({
+        questionnaire: {
+          last_closing_date: futureClosing,
+          is_submitted_to_ssm: false,
+        },
+        unaudited_by_year: {
+          "2098": { ...block("2098"), pldd: futureClosing },
+          "2099": { ...block("2099"), pldd: futureClosing },
+        },
+      });
+      expect(parsed.success).toBe(false);
+    });
   });
 });

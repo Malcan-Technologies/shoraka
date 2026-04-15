@@ -121,6 +121,18 @@ export const businessDetailsDataSchema = z
 
 const isoDateOnly = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Local calendar day: ISO YYYY-MM-DD must not be after today (questionnaire last closing). */
+function isoCalendarDateOnOrBeforeToday(iso: string): boolean {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return false;
+  const chosen = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  if (Number.isNaN(chosen.getTime())) return false;
+  const t = new Date();
+  const today = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+  const c = new Date(chosen.getFullYear(), chosen.getMonth(), chosen.getDate());
+  return c.getTime() <= today.getTime();
+}
+
 /** Validates stored input fields for financial_statements step. Per-year block; no bsdd. */
 const numSchema = z.union([z.string(), z.number()]).optional().default(0);
 export const financialStatementsInputSchema = z.object({
@@ -143,7 +155,10 @@ export const financialStatementsInputSchema = z.object({
 export type FinancialStatementsStoredData = z.infer<typeof financialStatementsInputSchema>;
 
 export const financialStatementsQuestionnaireSchema = z.object({
-  last_closing_date: z.string().regex(isoDateOnly, "Must be YYYY-MM-DD"),
+  last_closing_date: z
+    .string()
+    .regex(isoDateOnly, "Must be YYYY-MM-DD")
+    .refine(isoCalendarDateOnOrBeforeToday, "Closing date must not be in the future"),
   is_submitted_to_ssm: z.boolean(),
 });
 
