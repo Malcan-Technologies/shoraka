@@ -58,7 +58,12 @@ import {
 } from "@/app/(application-flow)/applications/components/form-control";
 import { formatMoney, parseMoney } from "@cashsouk/ui";
 import { MoneyInput } from "@cashsouk/ui";
-import { format, parse, isValid, parseISO } from "date-fns";
+import {
+  applicationFlowDateToIso,
+  isoToApplicationFlowDateDisplay,
+  isApplicationFlowDateValid,
+  parseApplicationFlowDate,
+} from "@/app/(application-flow)/applications/utils/application-flow-dates";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import { getCountries, type Country } from "react-phone-number-input";
 import phoneLabelsEn from "react-phone-number-input/locale/en.json";
@@ -125,10 +130,10 @@ const ENTITY_TYPES = [
 function isStartBeforeEnd(start?: string, end?: string) {
   if (!start || !end) return true;
 
-  const parsedStart = parse(start, "d/M/yyyy", new Date());
-  const parsedEnd = parse(end, "d/M/yyyy", new Date());
+  const parsedStart = parseApplicationFlowDate(start);
+  const parsedEnd = parseApplicationFlowDate(end);
 
-  if (!isValid(parsedStart) || !isValid(parsedEnd)) {
+  if (!parsedStart || !parsedEnd) {
     return true; // format validation handled elsewhere
   }
 
@@ -143,15 +148,15 @@ function isEndDateTooSoon(
   if (!endDate) return false;
   if (!minMonths || minMonths <= 0) return false;
 
-  const parsedEnd = parse(endDate, "d/M/yyyy", new Date());
-  if (!isValid(parsedEnd)) return false;
+  const parsedEnd = parseApplicationFlowDate(endDate);
+  if (!parsedEnd) return false;
 
   const today = new Date();
   let baseDate = today;
 
   if (startDate) {
-    const parsedStart = parse(startDate, "d/M/yyyy", new Date());
-    if (isValid(parsedStart) && parsedStart > today) {
+    const parsedStart = parseApplicationFlowDate(startDate);
+    if (parsedStart && parsedStart > today) {
       baseDate = parsedStart;
     }
   }
@@ -637,31 +642,12 @@ export function ContractDetailsStep({
       },
     };
 
-  // Format display dates into d/M/yyyy if ISO present so displayed values match parent expectations.
-  const formatDisplayDate = (raw?: string) => {
-    if (!raw) return "";
-    try {
-      const p = parseISO(raw);
-      if (isValid(p)) return format(p, "d/M/yyyy");
-    } catch {
-      // fallthrough
-    }
-    // Fallback: try parsing as d/M/yyyy and return as-is if valid; otherwise keep raw
-    try {
-      const p2 = parse(raw, "d/M/yyyy", new Date());
-      if (isValid(p2)) return format(p2, "d/M/yyyy");
-    } catch {
-      // ignore
-    }
-    return raw;
-  };
-
   const displayedInitialData = {
     ...initialData,
     contract: {
       ...initialData.contract,
-      start_date: formatDisplayDate(initialData.contract.start_date),
-      end_date: formatDisplayDate(initialData.contract.end_date),
+      start_date: isoToApplicationFlowDateDisplay(initialData.contract.start_date),
+      end_date: isoToApplicationFlowDateDisplay(initialData.contract.end_date),
     },
   };
 
@@ -687,19 +673,6 @@ export function ContractDetailsStep({
      SAVE FUNCTION
      ================================================================ */
 
-  /** Parse flexible date strings: ISO (yyyy-MM-dd) or d/M/yyyy */
-  const parseFlexibleDate = (dateStr?: string): Date | null => {
-    if (!dateStr) return null;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-      const d = parseISO(dateStr);
-      return isValid(d) ? d : null;
-    }
-    const d = parse(dateStr, "d/M/yyyy", new Date());
-    return isValid(d) ? d : null;
-  };
-
-  const isValidCalendarDate = (dateStr?: string) => !!parseFlexibleDate(dateStr);
-
   const saveFunction = React.useCallback(async () => {
     setHasSubmitted(true);
     const validationErrors: string[] = [];
@@ -714,9 +687,9 @@ export function ContractDetailsStep({
         validationErrors.push("VALIDATION_CONTRACT_START_DATE_REQUIRED");
       if (!formData.contract.end_date)
         validationErrors.push("VALIDATION_CONTRACT_END_DATE_REQUIRED");
-      if (formData.contract.start_date && !isValidCalendarDate(formData.contract.start_date))
+      if (formData.contract.start_date && !isApplicationFlowDateValid(formData.contract.start_date))
         validationErrors.push("VALIDATION_CONTRACT_INVALID_START_DATE");
-      if (formData.contract.end_date && !isValidCalendarDate(formData.contract.end_date))
+      if (formData.contract.end_date && !isApplicationFlowDateValid(formData.contract.end_date))
         validationErrors.push("VALIDATION_CONTRACT_INVALID_END_DATE");
       if (!isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date))
         validationErrors.push("VALIDATION_CONTRACT_DATE_ORDER");
@@ -907,14 +880,10 @@ export function ContractDetailsStep({
       ...updatedFormData.contract,
       value: valueNum,
       financing: contractFinancingNum,
-      start_date: (() => {
-        const pd = parseFlexibleDate(updatedFormData.contract.start_date);
-        return pd ? format(pd, "yyyy-MM-dd") : updatedFormData.contract.start_date;
-      })(),
-      end_date: (() => {
-        const pd = parseFlexibleDate(updatedFormData.contract.end_date);
-        return pd ? format(pd, "yyyy-MM-dd") : updatedFormData.contract.end_date;
-      })(),
+      start_date:
+        applicationFlowDateToIso(updatedFormData.contract.start_date) ?? updatedFormData.contract.start_date,
+      end_date:
+        applicationFlowDateToIso(updatedFormData.contract.end_date) ?? updatedFormData.contract.end_date,
       approved_facility: approvedFacilityValue,
       utilized_facility: utilizedFacilityValue,
       available_facility: availableFacilityValue,
@@ -1032,8 +1001,8 @@ export function ContractDetailsStep({
     const hasFormChanges = hasFormChanged();
     const hasContractDocument = !!formData.contract.document || !!pendingFiles.contract;
     const hasConsentDocument = !!formData.customer.document || !!pendingFiles.consent;
-    const hasValidStartDate = !!formData.contract.start_date && isValidCalendarDate(formData.contract.start_date);
-    const hasValidEndDate = !!formData.contract.end_date && isValidCalendarDate(formData.contract.end_date);
+    const hasValidStartDate = !!formData.contract.start_date && isApplicationFlowDateValid(formData.contract.start_date);
+    const hasValidEndDate = !!formData.contract.end_date && isApplicationFlowDateValid(formData.contract.end_date);
 
     const isValid = isInvoiceOnly
       ? !!formData.customer.name &&
@@ -1104,14 +1073,14 @@ export function ContractDetailsStep({
     hasSubmitted &&
     (
       !formData.contract.start_date ||
-      !isValidCalendarDate(formData.contract.start_date)
+      !isApplicationFlowDateValid(formData.contract.start_date)
     );
 
   const isEndInvalid =
     hasSubmitted &&
     (
       !formData.contract.end_date ||
-      !isValidCalendarDate(formData.contract.end_date) ||
+      !isApplicationFlowDateValid(formData.contract.end_date) ||
       !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) ||
       (productMinMonths != null &&
         isEndDateTooSoon(formData.contract.start_date, formData.contract.end_date, productMinMonths))
@@ -1240,7 +1209,7 @@ export function ContractDetailsStep({
                   Start date is required
                 </p>
               )}
-              {hasSubmitted && formData.contract.start_date && !isValidCalendarDate(formData.contract.start_date) && (
+              {hasSubmitted && formData.contract.start_date && !isApplicationFlowDateValid(formData.contract.start_date) && (
                 <p className="text-xs text-destructive">
                   Invalid date
                 </p>
@@ -1280,19 +1249,19 @@ export function ContractDetailsStep({
                 </p>
               )}
 
-              {hasSubmitted && formData.contract.end_date && !isValidCalendarDate(formData.contract.end_date) && (
+              {hasSubmitted && formData.contract.end_date && !isApplicationFlowDateValid(formData.contract.end_date) && (
                 <p className="text-xs text-destructive">
                   Invalid date
                 </p>
               )}
 
-              {hasSubmitted && isValidCalendarDate(formData.contract.end_date) && !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) && (
+              {hasSubmitted && isApplicationFlowDateValid(formData.contract.end_date) && !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) && (
                 <p className="text-xs text-destructive">
                   End date must be after start date
                 </p>
               )}
 
-              {hasSubmitted && isValidCalendarDate(formData.contract.end_date) && isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) && isEndDateTooSoon(
+              {hasSubmitted && isApplicationFlowDateValid(formData.contract.end_date) && isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) && isEndDateTooSoon(
                 formData.contract.start_date,
                 formData.contract.end_date,
                 productMinMonths ?? undefined

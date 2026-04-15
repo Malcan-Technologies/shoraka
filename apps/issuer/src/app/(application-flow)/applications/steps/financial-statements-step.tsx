@@ -47,9 +47,14 @@ import {
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
-import { isValid as isValidDate, format, parse, subMonths, parseISO, getYear } from "date-fns";
+import { isValid as isValidDate, format, subMonths, parseISO, getYear } from "date-fns";
 import { toast } from "sonner";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
+import {
+  applicationFlowDateToIso,
+  isoToApplicationFlowDateDisplay,
+  isApplicationFlowDateValid,
+} from "@/app/(application-flow)/applications/utils/application-flow-dates";
 
 /** Dev auto-fill: optional SSM flag for questionnaire (not sent as this key). */
 export const FINANCIAL_DEV_SUBMITTED_SSM_KEY = "__financial_dev_submitted_ssm";
@@ -139,18 +144,6 @@ function normalizePlddIsoFromSaved(val: unknown): string {
 
 function isValidIsoDate(s: string): boolean {
   return normalizePlddIsoFromSaved(s) !== "";
-}
-
-/** DateInput stores `dd/MM/yyyy`; API and year logic need ISO `yyyy-MM-dd`. */
-function parseFinancialClosingDateToIso(raw: string): string | null {
-  const s = raw.trim();
-  if (s === "") return null;
-  if (isValidIsoDate(s)) return s;
-  for (const pattern of ["dd/MM/yyyy", "d/M/yyyy"] as const) {
-    const d = parse(s, pattern, new Date());
-    if (isValidDate(d)) return format(d, "yyyy-MM-dd");
-  }
-  return null;
 }
 
 function fromSaved(saved: unknown): FinancialStatementsPayload {
@@ -541,7 +534,7 @@ export function FinancialStatementsStep({
       }
       setFormsByYear(map);
       if (qNorm) {
-        setLastClosingDate(qNorm.last_closing_date);
+        setLastClosingDate(isoToApplicationFlowDateDisplay(qNorm.last_closing_date));
         setQSubmitted(qNorm.is_submitted_to_ssm);
         const built = buildV2ApiPayload(qNorm, map);
         initialPayloadRef.current = JSON.stringify(built);
@@ -564,7 +557,7 @@ export function FinancialStatementsStep({
   }, [application, isInitialized]);
 
   const questionnaireDto = React.useMemo((): FinancialStatementsQuestionnaire | null => {
-    const iso = parseFinancialClosingDateToIso(lastClosingDate);
+    const iso = applicationFlowDateToIso(lastClosingDate);
     if (!iso) return null;
     if (qSubmitted === null) return null;
     return {
@@ -680,7 +673,7 @@ export function FinancialStatementsStep({
         return touched;
       }
 
-      const closingIso = parseFinancialClosingDateToIso(lastClosingDate);
+      const closingIso = applicationFlowDateToIso(lastClosingDate);
       const same =
         closingIso != null &&
         closingIso === initQNorm.last_closing_date &&
@@ -700,7 +693,7 @@ export function FinancialStatementsStep({
     }
   }, [isInitialized, questionnaireDto, buildV2ApiPayloadInner, lastClosingDate, qSubmitted]);
 
-  const closingForBlocks = parseFinancialClosingDateToIso(lastClosingDate) ?? "";
+  const closingForBlocks = applicationFlowDateToIso(lastClosingDate) ?? "";
 
   /** Full validation: used by saveFunction and inline errors after submit (future date, turnover sign, etc.). */
   const allYearFormsValid = React.useMemo(() => {
@@ -718,7 +711,7 @@ export function FinancialStatementsStep({
     );
   }, [yearsToShow, formsByYear, closingForBlocks]);
 
-  const questionsAnswered = parseFinancialClosingDateToIso(lastClosingDate) != null && qSubmitted !== null;
+  const questionsAnswered = applicationFlowDateToIso(lastClosingDate) != null && qSubmitted !== null;
 
   /** Save enabled when questionnaire + all year rows are “filled”; submit applies strict validation. */
   const isValidForButton = readOnly || (questionsAnswered && allYearFormsFilled);
@@ -774,7 +767,7 @@ export function FinancialStatementsStep({
 
   const updateFormYear = React.useCallback(
     (yearKey: string, field: keyof FinancialStatementsPayload, value: string) => {
-      const plddVal = parseFinancialClosingDateToIso(lastClosingDate) ?? "";
+      const plddVal = applicationFlowDateToIso(lastClosingDate) ?? "";
       setFormsByYear((prev) => ({
         ...prev,
         [yearKey]: {
@@ -798,7 +791,7 @@ export function FinancialStatementsStep({
   const closingFieldError = showOverviewErrors
     ? lastClosingDate.trim() === ""
       ? "Required"
-      : parseFinancialClosingDateToIso(lastClosingDate) == null
+      : !isApplicationFlowDateValid(lastClosingDate)
         ? "Enter a valid date"
         : undefined
     : undefined;

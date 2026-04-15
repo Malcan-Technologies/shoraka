@@ -16,7 +16,7 @@ The column stores a single object (no legacy flat root, no `input` wrapper):
 
 | Key | Meaning |
 |-----|---------|
-| `questionnaire` | `{ last_closing_date: "YYYY-MM-DD", is_submitted_to_ssm: boolean }` |
+| `questionnaire` | `{ last_closing_date: "YYYY-MM-DD", is_submitted_to_ssm: boolean }` (issuer `DateInput` shows `d/M/yyyy` until save; same rules as contract dates — `application-flow-dates.ts`) |
 | `unaudited_by_year` | Map of year string → per-year block of numeric fields + `pldd` |
 
 **Year tabs** — Derived in `@cashsouk/types` via `getIssuerFinancialInputYearsFromQuestionnaire`: calendar year from `last_closing_date`; if not submitted to SSM, tabs are **current year** then **prior year**; if submitted, **current year only**.
