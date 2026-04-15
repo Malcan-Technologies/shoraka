@@ -29,6 +29,13 @@ import * as React from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { useAuthToken } from "@cashsouk/config";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -44,6 +51,7 @@ import {
   getStepKeyFromStepId,
   APPLICATION_STEP_KEYS_WITH_UI,
   STEP_KEY_DISPLAY,
+  enforceDeclarationsLastAndDropReview,
   type ApplicationStepKey,
 } from "@cashsouk/types";
 import { ProgressIndicator } from "../../components/progress-indicator";
@@ -66,7 +74,6 @@ import { CompanyDetailsStep } from "../../steps/company-details-step";
 import { BusinessDetailsStep } from "../../steps/business-details-step";
 import { FinancialStatementsStep } from "../../steps/financial-statements-step";
 import { SupportingDocumentsStep } from "../../steps/supporting-documents-step";
-import { ReviewAndSubmitStep } from "../../steps/review-and-submit-step";
 // dialog components are used by modal components directly
 import { useProductVersionGuard } from "@/hooks/use-product-version-guard";
 import { VersionMismatchModal } from "@/components/VersionMismatchModal";
@@ -356,7 +363,7 @@ function EditApplicationPageBody() {
     return m;
   }, [amendmentContext]);
 
-  /** Step keys that have amendment remarks. Stepper uses this for red styling. Review & Submit is always flagged in amendment mode.
+  /** Step keys that have amendment remarks. Stepper uses this for red styling. Declarations (final step) is always flagged in amendment mode.
    * Admin uses "financial" for the Financial tab; issuer workflow uses "financial_statements". Map so the step shows the flag. */
   const amendmentFlaggedStepKeys = React.useMemo(() => {
     const s = new Set<string>();
@@ -366,7 +373,7 @@ function EditApplicationPageBody() {
     }
     for (const k of flaggedItems.keys()) s.add(k);
     if (application?.status === "AMENDMENT_REQUESTED" || devPreviewAmendment) {
-      s.add("review_and_submit");
+      s.add("declarations");
     }
     return Array.from(s);
   }, [flaggedSections, flaggedItems, application?.status, devPreviewAmendment]);
@@ -377,9 +384,9 @@ function EditApplicationPageBody() {
     return Array.from(new Set(ids.map((id) => getStepKeyFromStepId(id)).filter(Boolean))) as string[];
   }, [application]);
 
-  /** True when all flagged steps (except financial and review_and_submit) are acknowledged. Required before Resubmit. */
+  /** True when all flagged steps (except financial and final declarations) are acknowledged. Required before Resubmit. */
   const allAmendmentStepsAcknowledged = amendmentFlaggedStepKeys
-    .filter((step) => !step.startsWith("financial") && step !== "review_and_submit")
+    .filter((step) => !step.startsWith("financial") && step !== "declarations")
     .every((step) => acknowledgedWorkflowIds.includes(step));
 
 
@@ -447,15 +454,18 @@ function EditApplicationPageBody() {
   /** Filters product workflow using session override when user picks structure before saving. UI-only; does not persist. */
   const effectiveWorkflow = React.useMemo(() => {
     if (!productWorkflow.length) return [];
-    if (!isStructureResolved) return productWorkflow;
-
-    if (effectiveStructureType === "existing_contract") {
-      return productWorkflow.filter(
+    let base: Record<string, unknown>[];
+    if (!isStructureResolved) {
+      base = productWorkflow as Record<string, unknown>[];
+    } else if (effectiveStructureType === "existing_contract") {
+      base = productWorkflow.filter(
         (step: Record<string, unknown>) =>
           getStepKeyFromStepId((step.id as string) || "") !== "contract_details"
-      );
+      ) as Record<string, unknown>[];
+    } else {
+      base = productWorkflow as Record<string, unknown>[];
     }
-    return productWorkflow;
+    return enforceDeclarationsLastAndDropReview(base);
   }, [productWorkflow, effectiveStructureType, isStructureResolved]);
 
   /** Forward scan for next amendment step that is flagged and not yet acknowledged; else Review & Submit. */
@@ -471,9 +481,7 @@ function EditApplicationPageBody() {
   const getNextAmendmentStepNumber = React.useCallback(
     (fromStep1Based: number, extraAckedKeys: readonly string[] = []) => {
       const extra = new Set(extraAckedKeys);
-      const amendmentStepsToCheck = amendmentFlaggedStepKeys.filter(
-        (k) => k !== "review_and_submit"
-      );
+      const amendmentStepsToCheck = amendmentFlaggedStepKeys.filter((k) => k !== "declarations");
       const cur0 = fromStep1Based - 1;
       for (let j = cur0 + 1; j < effectiveWorkflow.length; j++) {
         const row = effectiveWorkflow[j] as Record<string, unknown>;
@@ -485,11 +493,11 @@ function EditApplicationPageBody() {
           return j + 1;
         }
       }
-      const reviewIndex = effectiveWorkflow.findIndex(
+      const declIndex = effectiveWorkflow.findIndex(
         (s: Record<string, unknown>) =>
-          (getStepKeyFromStepId((s.id as string) || "") || "") === "review_and_submit"
+          (getStepKeyFromStepId((s.id as string) || "") || "") === "declarations"
       );
-      return reviewIndex >= 0 ? reviewIndex + 1 : effectiveWorkflow.length;
+      return declIndex >= 0 ? declIndex + 1 : effectiveWorkflow.length;
     },
     [effectiveWorkflow, amendmentFlaggedStepKeys, stepAcknowledgedForAmendmentNav]
   );
@@ -554,7 +562,6 @@ function EditApplicationPageBody() {
         "financial_statements",
         "supporting_documents",
         "declarations",
-        "review_and_submit",
       ];
 
       const stepIndex = stepFromUrl - 1;
@@ -607,6 +614,11 @@ function EditApplicationPageBody() {
     [currentStepKey, effectiveWorkflow, stepFromUrl, effectiveStructureType]
   ) as { title: string; description: string };
 
+  const isDeclarationsFinalStep =
+    currentStepKey === "declarations" &&
+    effectiveWorkflow.length > 0 &&
+    stepFromUrl === effectiveWorkflow.length;
+
   const isRealAmendmentMode = (application as any)?.status === "AMENDMENT_REQUESTED";
   const isAmendmentModeEffective = isRealAmendmentMode || devPreviewAmendment;
 
@@ -623,6 +635,7 @@ function EditApplicationPageBody() {
   const [isSaving, setIsSaving] = React.useState(false);
   /** UI state for Submit / Resubmit: covers version check + mutations (ref alone does not re-render). */
   const [isSubmittingApplication, setIsSubmittingApplication] = React.useState(false);
+  const [submitConfirmOpen, setSubmitConfirmOpen] = React.useState(false);
 
   /* ================================================================
      MUTATIONS
@@ -755,9 +768,7 @@ function EditApplicationPageBody() {
         ) {
           return;
         }
-        const amendmentStepsToCheck = amendmentFlaggedStepKeys.filter(
-          (k) => k !== "review_and_submit"
-        );
+        const amendmentStepsToCheck = amendmentFlaggedStepKeys.filter((k) => k !== "declarations");
         const stepAcknowledged = (key: string) =>
           acknowledgedWorkflowIds.includes(key) ||
           (key === "financial_statements" && acknowledgedWorkflowIds.includes("financial"));
@@ -770,11 +781,11 @@ function EditApplicationPageBody() {
         if (firstUnack >= 0) {
           targetStep = firstUnack + 1;
         } else {
-          const reviewIndex = effectiveWorkflow.findIndex(
+          const declIndex = effectiveWorkflow.findIndex(
             (s: Record<string, unknown>) =>
-              (getStepKeyFromStepId((s.id as string) || "") || "") === "review_and_submit"
+              (getStepKeyFromStepId((s.id as string) || "") || "") === "declarations"
           );
-          targetStep = reviewIndex >= 0 ? reviewIndex + 1 : effectiveWorkflow.length;
+          targetStep = declIndex >= 0 ? declIndex + 1 : effectiveWorkflow.length;
         }
       } else {
         targetStep = wizardState.allowedMaxStep;
@@ -818,10 +829,8 @@ function EditApplicationPageBody() {
     if (versionMismatchBlocksStepGating) return;
     if (wizardState === null) return;
     if (!searchParams.get("step")) return;
-    // Keep review & submit stable: if user is on the review page, do not
-    // auto-advance or redirect when the workflow changes (e.g. a step was removed).
-    // Users expect to stay on the review page and decide next actions manually.
-    if (currentStepKey === "review_and_submit") {
+    // Keep final declarations stable: do not auto-advance when workflow metadata changes.
+    if (isDeclarationsFinalStep) {
       return;
     }
     const maxStepInWorkflow = effectiveWorkflow.length;
@@ -872,6 +881,8 @@ function EditApplicationPageBody() {
     wizardState,
     devPreviewAmendment,
     navigateWithVersionCheck,
+    currentStepKey,
+    isDeclarationsFinalStep,
   ]);
 
   /* ================================================================
@@ -883,12 +894,12 @@ function EditApplicationPageBody() {
   const isStepFlagged = React.useMemo(() => {
     if (!isAmendmentModeEffective) return true;
     if (!currentStepKey) return false;
-    if (currentStepKey === "review_and_submit") return true;
+    if (isDeclarationsFinalStep) return true;
     const sectionMatch =
       flaggedSections.has(currentStepKey) ||
       (currentStepKey === "financial_statements" && flaggedSections.has("financial"));
     return sectionMatch || (flaggedItems.get(currentStepKey)?.size ?? 0) > 0;
-  }, [isAmendmentModeEffective, flaggedSections, flaggedItems, currentStepKey]);
+  }, [isAmendmentModeEffective, flaggedSections, flaggedItems, currentStepKey, isDeclarationsFinalStep]);
 
   /** Remarks for the current step. Section-level ones show on the top card; item-level ones show beside each file or item.
    * Admin uses "financial" for the Financial tab; issuer workflow uses "financial_statements". */
@@ -945,6 +956,7 @@ function EditApplicationPageBody() {
           stepConfig={(currentStepConfig?.config as Record<string, unknown>) || undefined}
           onDataChange={handleDataChange}
           readOnly={stepReadOnly}
+          resetCheckboxesForAmendment={isRealAmendmentMode && !stepReadOnly && isDeclarationsFinalStep}
         />
       );
     }
@@ -1015,12 +1027,6 @@ function EditApplicationPageBody() {
       );
     }
 
-    if (currentStepKey === "review_and_submit") {
-      return (
-        <ReviewAndSubmitStep applicationId={applicationId} onDataChange={handleDataChange} readOnly={stepReadOnly} />
-      );
-    }
-
     return null;
   };
 
@@ -1028,7 +1034,8 @@ function EditApplicationPageBody() {
      EVENT HANDLERS
      ================================================================ */
 
-  const handleSubmitApplication = async () => {
+  /** Saves declaration checkboxes then submits (new) or resubmits (amendment). Called after confirm modal. */
+  const executeSubmitOrResubmit = async () => {
     if (isSubmittingRef.current) return;
     if (devPreviewAmendment) {
       toast.info("Preview: submit was not sent to the server");
@@ -1037,42 +1044,64 @@ function EditApplicationPageBody() {
       });
       return;
     }
+    if (!applicationId) return;
+    if (await versionBlocksNavigation()) return;
+
+    const rawData = stepDataRef.current;
+    if (!rawData || stepDataStepKeyRef.current !== "declarations") {
+      toast.error("Please wait for the form to load before submitting");
+      return;
+    }
+    const declarationsPayload = rawData.declarations as unknown[] | undefined;
+    const allChecked = Boolean((rawData as { areAllDeclarationsChecked?: boolean }).areAllDeclarationsChecked);
+    if (!Array.isArray(declarationsPayload) || !allChecked) {
+      toast.error("Please check all declarations before submitting");
+      return;
+    }
+    if (application?.status === "AMENDMENT_REQUESTED" && !devPreviewAmendment && !allAmendmentStepsAcknowledged) {
+      toast.error("Please complete all required amendment updates first");
+      return;
+    }
+
     isSubmittingRef.current = true;
     setIsSubmittingApplication(true);
     let successPendingNav = false;
 
     try {
-      if (!applicationId) return;
-
-      if (await versionBlocksNavigation()) return;
-
       const finalStepNumber = effectiveWorkflow.length;
       await updateStepMutation.mutateAsync({
         id: applicationId,
         stepData: {
           stepId: currentStepId,
           stepNumber: finalStepNumber,
-          data: {}, // no step data change
+          data: { declarations: declarationsPayload },
         },
       });
 
-      const currentStatus = (application as { status?: string })?.status;
-      const isResubmit = currentStatus === "AMENDMENT_REQUESTED";
-      await updateStatusMutation.mutateAsync({
-        id: applicationId,
-        status: isResubmit ? "RESUBMITTED" : "SUBMITTED",
-      });
+      if (application?.status === "AMENDMENT_REQUESTED") {
+        await resubmitMutation.mutateAsync(applicationId);
+        successPendingNav = true;
+        toast.success("Application resubmitted successfully");
+      } else {
+        await updateStatusMutation.mutateAsync({
+          id: applicationId,
+          status: "SUBMITTED",
+        });
+        successPendingNav = true;
+        toast.success("Application submitted successfully");
+      }
 
-      successPendingNav = true;
-      const successMessage = isResubmit
-        ? "Application resubmitted successfully"
-        : "Application submitted successfully";
-      toast.success(successMessage);
-      queueMicrotask(() => {
-        router.replace(SUBMIT_SUCCESS_REDIRECT);
-      });
+      if (successPendingNav) {
+        queueMicrotask(() => {
+          router.replace(SUBMIT_SUCCESS_REDIRECT);
+        });
+      }
     } catch {
-      toast.error("Failed to submit application");
+      toast.error(
+        application?.status === "AMENDMENT_REQUESTED"
+          ? "Failed to resubmit application"
+          : "Failed to submit application"
+      );
     } finally {
       if (!successPendingNav) {
         isSubmittingRef.current = false;
@@ -1257,7 +1286,7 @@ function EditApplicationPageBody() {
 
       if (!devPreviewAmendment) {
         // DECLARATIONS validation
-        if (currentStepId === "declarations_1") {
+        if (currentStepKey === "declarations") {
           const declarations = (
             (dataToSave as Record<string, unknown>)?.declarations as Record<string, unknown>[]
           ) || [];
@@ -1453,7 +1482,7 @@ function EditApplicationPageBody() {
           previewFlagged.add(rem.scope_key.split(":")[0]);
         }
       }
-      const actionable = Array.from(previewFlagged).filter((k) => k !== "review_and_submit");
+      const actionable = Array.from(previewFlagged).filter((k) => k !== "declarations");
       let targetStep = 1;
       const firstIdx = effectiveWorkflow.findIndex((s: Record<string, unknown>) => {
         const key = getStepKeyFromStepId((s.id as string) || "") || "";
@@ -1588,7 +1617,7 @@ function EditApplicationPageBody() {
             <ApplicationFlowBlockedStepSkeleton />
           ) : (
             <>
-              {isAmendmentModeEffective && !isStepFlagged && currentStepKey !== "review_and_submit" ? (
+              {isAmendmentModeEffective && !isStepFlagged && !isDeclarationsFinalStep ? (
                 <div className="mb-6">
                   <ReadOnlyStepBanner />
                 </div>
@@ -1614,7 +1643,7 @@ function EditApplicationPageBody() {
               disabled={
                 footerActionsLocked ||
                 isSaving ||
-                (currentStepKey === "review_and_submit" &&
+                (isDeclarationsFinalStep &&
                   application?.status === "AMENDMENT_REQUESTED" &&
                   (resubmitMutation.isPending || isSubmittingApplication))
               }
@@ -1626,49 +1655,21 @@ function EditApplicationPageBody() {
 
             <div className="order-1 sm:order-2 flex flex-col items-end gap-1">
             <Button
-              onClick={
-                currentStepKey === "review_and_submit" && (application?.status === "AMENDMENT_REQUESTED" || devPreviewAmendment)
-                  ? async () => {
-                      if (isSubmittingRef.current || !applicationId) return;
-                      if (devPreviewAmendment) {
-                        toast.info("Preview: resubmit was not sent to the server");
-                        queueMicrotask(() => {
-                          router.replace(SUBMIT_SUCCESS_REDIRECT);
-                        });
-                        return;
-                      }
-                      isSubmittingRef.current = true;
-                      setIsSubmittingApplication(true);
-                      let successPendingNav = false;
-                      try {
-                        if (await versionBlocksNavigation()) return;
-                        await resubmitMutation.mutateAsync(applicationId);
-                        successPendingNav = true;
-                        toast.success("Application resubmitted successfully");
-                        queueMicrotask(() => {
-                          router.replace(SUBMIT_SUCCESS_REDIRECT);
-                        });
-                      } catch {
-                        toast.error("Failed to resubmit application");
-                      } finally {
-                        if (!successPendingNav) {
-                          isSubmittingRef.current = false;
-                          setIsSubmittingApplication(false);
-                        }
-                      }
-                    }
-                  : currentStepKey === "review_and_submit"
-                  ? handleSubmitApplication
-                  : handleSaveAndContinue
-              }
+              onClick={isDeclarationsFinalStep ? () => setSubmitConfirmOpen(true) : handleSaveAndContinue}
               disabled={
                 footerActionsLocked ||
-                (currentStepKey === "review_and_submit" && (application?.status === "AMENDMENT_REQUESTED" || devPreviewAmendment)
+                (isDeclarationsFinalStep
                   ? resubmitMutation.isPending ||
+                    updateStepMutation.isPending ||
+                    updateStatusMutation.isPending ||
                     isSubmittingApplication ||
                     isSubmittingRef.current ||
-                    (!devPreviewAmendment && !allAmendmentStepsAcknowledged) ||
-                    (!devPreviewAmendment && !isCurrentStepValid)
+                    isSaving ||
+                    (!devPreviewAmendment &&
+                      application?.status === "AMENDMENT_REQUESTED" &&
+                      !allAmendmentStepsAcknowledged) ||
+                    (!devPreviewAmendment && !isCurrentStepValid) ||
+                    !isStepMapped
                   : updateStepMutation.isPending ||
                     updateStatusMutation.isPending ||
                     isSubmittingApplication ||
@@ -1678,27 +1679,52 @@ function EditApplicationPageBody() {
               }
               className="bg-primary text-primary-foreground hover:opacity-95 shadow-brand text-sm sm:text-base font-semibold px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl order-1 sm:order-2 h-11"
             >
-              {currentStepKey === "review_and_submit" && (application?.status === "AMENDMENT_REQUESTED" || devPreviewAmendment)
+              {isDeclarationsFinalStep && (application?.status === "AMENDMENT_REQUESTED" || devPreviewAmendment)
                 ? resubmitMutation.isPending || isSubmittingApplication
                   ? "Resubmitting..."
                   : "Resubmit for Review"
-                : currentStepKey === "review_and_submit"
-                ? isSubmittingApplication ||
-                  updateStepMutation.isPending ||
-                  updateStatusMutation.isPending
-                  ? "Submitting..."
-                  : "Submit"
-                : updateStepMutation.isPending || isSaving
-                  ? "Saving..."
-                  : isAmendmentModeEffective && !isStepFlagged
-                  ? "Continue"
-                  : "Save and Continue"}
+                : isDeclarationsFinalStep
+                  ? isSubmittingApplication ||
+                    updateStepMutation.isPending ||
+                    updateStatusMutation.isPending
+                    ? "Submitting..."
+                    : "Submit"
+                  : updateStepMutation.isPending || isSaving
+                    ? "Saving..."
+                    : isAmendmentModeEffective && !isStepFlagged
+                      ? "Continue"
+                      : "Save and Continue"}
               <ArrowRightIcon className="h-4 w-4 ml-2" />
             </Button>
             </div>
           </div>
         </footer>
       ) : null}
+
+      <Dialog open={submitConfirmOpen} onOpenChange={setSubmitConfirmOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Submit Application</DialogTitle>
+          </DialogHeader>
+          <p className="text-[15px] leading-7 text-muted-foreground">
+            Are you sure you want to submit this application? You will not be able to edit after submission.
+          </p>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={() => setSubmitConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                setSubmitConfirmOpen(false);
+                void executeSubmitOrResubmit();
+              }}
+            >
+              Confirm
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Product Block Dialog - using standalone modal */}
       <VersionMismatchModal

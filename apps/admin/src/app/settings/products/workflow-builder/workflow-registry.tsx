@@ -27,7 +27,6 @@ import { CompanyDetailsConfig } from "./step-configs/company-details-config";
 import { BusinessDetailsConfig } from "./step-configs/business-details-config";
 import { SupportingDocumentsConfig } from "./step-configs/supporting-documents-config";
 import { DeclarationsConfig } from "./step-configs/declarations-config";
-import { ReviewAndSubmitConfig } from "./step-configs/review-and-submit-config";
 import { InvoiceDetailsConfig } from "./step-configs/invoice-details-config";
 
 export { APPLICATION_STEP_KEYS, STEP_KEY_DISPLAY, getStepKeyFromStepId };
@@ -39,7 +38,6 @@ export const STEPS_WITHOUT_CONFIG = new Set<ApplicationStepKey>([
   "company_details",
   "business_details",
   "financial_statements",
-  "review_and_submit",
 ]);
 
 type ConfigComponentProps = { config: unknown; onChange: (config: unknown) => void };
@@ -55,6 +53,5 @@ export const STEP_CONFIG_MAP: Partial<
   business_details: BusinessDetailsConfig,
   supporting_documents: SupportingDocumentsConfig,
   declarations: DeclarationsConfig,
-  review_and_submit: ReviewAndSubmitConfig,
   invoice_details: InvoiceDetailsConfig,
 };

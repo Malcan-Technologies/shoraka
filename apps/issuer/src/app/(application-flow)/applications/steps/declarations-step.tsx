@@ -33,6 +33,8 @@ interface DeclarationsStepProps {
   stepConfig?: any;
   onDataChange?: (data: any) => void;
   readOnly?: boolean;
+  /** When true, ignore saved checkbox state so the user must tick again (amendment resubmit). */
+  resetCheckboxesForAmendment?: boolean;
 }
 
 export function DeclarationsStep({
@@ -40,6 +42,7 @@ export function DeclarationsStep({
   stepConfig,
   onDataChange,
   readOnly = false,
+  resetCheckboxesForAmendment = false,
 }: DeclarationsStepProps) {
   const devTools = useDevTools();
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
@@ -121,15 +124,17 @@ export function DeclarationsStep({
     const savedDeclarations = application.declarations as any;
     const initialState: Record<number, boolean> = {};
 
-    if (savedDeclarations?.declarations && Array.isArray(savedDeclarations.declarations)) {
-      // Load from DB
+    if (resetCheckboxesForAmendment) {
+      declarations.forEach((_: unknown, index: number) => {
+        initialState[index] = false;
+      });
+    } else if (savedDeclarations?.declarations && Array.isArray(savedDeclarations.declarations)) {
       savedDeclarations.declarations.forEach((item: any, index: number) => {
         if (index < declarations.length) {
           initialState[index] = item.checked || false;
         }
       });
     } else {
-      // No saved data - start with all unchecked
       declarations.forEach((_: any, index: number) => {
         initialState[index] = false;
       });
@@ -138,7 +143,7 @@ export function DeclarationsStep({
     setCheckedDeclarations(initialState);
     setInitialDeclarations(initialState); // Save initial state for comparison
     setIsInitialized(true);
-  }, [application, declarations, isInitialized]);
+  }, [application, declarations, isInitialized, resetCheckboxesForAmendment]);
 
   /**
    * NOTIFY PARENT WHEN DATA CHANGES

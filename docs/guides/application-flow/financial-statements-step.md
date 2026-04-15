@@ -45,7 +45,7 @@ Same numeric keys as before (`bsfatot`, `othass`, `bscatot`, …, `plyear`) plus
 
 Questionnaire UI uses the shared `DateInput` pattern (placeholders match other steps). Save sends v2 payload only.
 
-**Review step:** `review-and-submit-step.tsx` — financial section assumes v2 shape.
+**After this step:** the issuer flow continues per product workflow; declarations is the final step before submit.
 
 ---
 

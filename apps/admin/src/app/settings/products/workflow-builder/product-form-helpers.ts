@@ -4,13 +4,13 @@
  * To add a step: see workflow-registry.tsx (and add validation here if the step has required fields).
  */
 
-import { getStepKeyFromStepId, STEP_KEY_DISPLAY } from "@cashsouk/types";
+import { getStepKeyFromStepId, STEP_KEY_DISPLAY, enforceDeclarationsLastAndDropReview } from "@cashsouk/types";
 import { isDeclarationHtmlEmpty } from "@cashsouk/ui/declaration-rich-text";
 import { parseMoney } from "@cashsouk/ui";
 
 // Step keys we use in validation and payload
 export const FIRST_STEP_KEY = "financing_type";
-export const LAST_STEP_KEY = "review_and_submit";
+export const LAST_STEP_KEY = "declarations";
 export const SUPPORTING_DOCS_STEP_KEY = "supporting_documents";
 export const DECLARATIONS_STEP_KEY = "declarations";
 export const INVOICE_DETAILS_STEP_KEY = "invoice_details";
@@ -34,7 +34,8 @@ export function getStepId(step: Step | unknown): string {
  * Build the steps array we send to the API: strip _pendingImage, set default for invoice details.
  */
 export function buildPayloadFromSteps(steps: unknown[]): Step[] {
-  return steps.map((s) => {
+  const ordered = enforceDeclarationsLastAndDropReview(steps as Step[]);
+  return ordered.map((s) => {
     const step = s as Step;
     let config = { ...(step.config ?? {}) };
     const stepKey = getStepKeyFromStepId(step.id ?? "");
@@ -433,5 +434,12 @@ function runStepValidation(steps: unknown[]): { errors: string[]; stepIdsWithErr
       }
     }
   }
+
+  const ordered = enforceDeclarationsLastAndDropReview(steps as Step[]);
+  const lastKey = getStepKeyFromStepId(getStepId(ordered[ordered.length - 1] ?? {}));
+  if (ordered.length > 0 && lastKey !== DECLARATIONS_STEP_KEY) {
+    errors.push("Workflow: Declarations must be the last step.");
+  }
+
   return { errors, stepIdsWithErrors };
 }

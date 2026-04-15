@@ -13,7 +13,7 @@ export type WorkflowStepShape = {
   reviewSection?: string;
 };
 
-/** Default workflow: all 9 steps in APPLICATION_STEP_KEYS order, id = `${key}_1`, name from STEP_KEY_DISPLAY. */
+/** Default workflow: all steps in APPLICATION_STEP_KEYS order, id = `${key}_1`, name from STEP_KEY_DISPLAY. */
 export function getDefaultWorkflowSteps(): WorkflowStepShape[] {
   return APPLICATION_STEP_KEYS.map((key) => ({
     id: `${key}_1`,
@@ -21,7 +21,7 @@ export function getDefaultWorkflowSteps(): WorkflowStepShape[] {
   }));
 }
 
-/** First and last steps that must always be present (financing type, review and submit). Used for create-mode initial and ensure-present. */
+/** First and last steps that must always be present (financing type, declarations). Used for create-mode initial and ensure-present. */
 export function getRequiredFirstAndLastSteps(): [WorkflowStepShape, WorkflowStepShape] {
   const all = getDefaultWorkflowSteps();
   return [all[0], all[all.length - 1]];

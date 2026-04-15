@@ -212,7 +212,6 @@ async function main() {
         { id: "business_details_1", name: "Business & Guarantor Details" },
         { id: "supporting_documents_1", name: "Supporting Documents" },
         { id: "declarations_1", name: "Declarations" },
-        { id: "review_and_submit_1", name: "Review and Submit" },
       ],
     },
   });

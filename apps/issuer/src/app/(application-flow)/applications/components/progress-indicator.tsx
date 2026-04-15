@@ -122,7 +122,7 @@ export function ProgressIndicator({
           const isAcknowledged = acknowledgedWorkflowIds.includes(stepKey);
           /** Plan: amendment flagged → acknowledgement; amendment NOT flagged → always checked; normal flow → stepIndex < currentStep. Never use lastCompletedStep for UI. */
           const isCompleted =
-            isAmendmentMode && stepKey === "review_and_submit"
+            isAmendmentMode && stepKey === "declarations"
               ? false
               : isAmendmentMode && isFlagged
                 ? isAcknowledged
