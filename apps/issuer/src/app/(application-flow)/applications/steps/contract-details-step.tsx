@@ -52,9 +52,9 @@ import {
   formLabelClassName,
   formSelectTriggerClassName,
   formTextareaClassName,
+  fieldLabelWithTooltipRowClassName,
   fieldTooltipContentClassName,
   fieldTooltipTriggerClassName,
-  fieldTooltipLabelGap,
 } from "@/app/(application-flow)/applications/components/form-control";
 import { formatMoney, parseMoney } from "@cashsouk/ui";
 import { MoneyInput } from "@cashsouk/ui";
@@ -1194,7 +1194,7 @@ export function ContractDetailsStep({
               />
             </div>
 
-            <div className={cn("flex min-h-11 items-center", fieldTooltipLabelGap)}>
+            <div className={fieldLabelWithTooltipRowClassName}>
               <Label className={labelClassName}>Financing Amount</Label>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -1249,7 +1249,7 @@ export function ContractDetailsStep({
 
 
 
-            <div className={cn("flex min-h-11 items-center", fieldTooltipLabelGap)}>
+            <div className={fieldLabelWithTooltipRowClassName}>
               <Label className={labelClassName}>Contract End Date</Label>
               {formData.contract.start_date && productMinMonths && (
                 <Tooltip>
@@ -1422,7 +1422,7 @@ export function ContractDetailsStep({
               </select>
             </div>
 
-            <div className={cn("flex min-h-11 items-center", fieldTooltipLabelGap)}>
+            <div className={fieldLabelWithTooltipRowClassName}>
               <Label className={labelClassName}>Is the Customer Related to You?</Label>
               <Tooltip>
                 <TooltipTrigger asChild>

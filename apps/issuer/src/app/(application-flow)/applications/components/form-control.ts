@@ -126,3 +126,9 @@ export const fieldTooltipTriggerInputClassName =
   "absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground cursor-help hover:text-foreground transition-colors";
 export const fieldTooltipLabelGap = "gap-1.5";
 
+/** Label column + info icon row — same as contract-details-step; `justify-self-start` avoids stretched grid cells. */
+export const fieldLabelWithTooltipRowClassName = cn(
+  "flex min-h-11 w-fit max-w-full min-w-0 items-center justify-self-start",
+  fieldTooltipLabelGap
+);
+

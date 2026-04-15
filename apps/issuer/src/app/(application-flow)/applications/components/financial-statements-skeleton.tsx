@@ -19,7 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 const formOuterClassName = "w-full space-y-10 px-3";
 const sectionWrapperClassName = "w-full";
 const rowGridClassName =
-  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-6 gap-y-4 mt-4 w-full items-center px-3";
+  "grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 w-full items-start px-3";
 
 export function FinancialStatementsSkeleton() {
   return (

@@ -23,16 +23,17 @@ import { Input } from "@/components/ui/input";
 import { DateInput } from "@/app/(application-flow)/applications/components/date-input";
 import { cn } from "@/lib/utils";
 import {
+  applicationFlowLabelCellAlignInputClassName,
   applicationFlowSectionDividerClassName,
   applicationFlowSectionTitleClassName,
   applicationFlowStepOuterClassName,
+  fieldLabelWithTooltipRowClassName,
   formInputClassName,
   formInputDisabledClassName,
   formLabelClassName,
   fieldTooltipContentClassName,
   fieldTooltipTriggerClassName,
   fieldTooltipTriggerInputClassName,
-  fieldTooltipLabelGap,
   withFieldError,
 } from "@/app/(application-flow)/applications/components/form-control";
 import { MoneyInput } from "@cashsouk/ui";
@@ -200,13 +201,14 @@ function isV2FinancialSaved(saved: unknown): saved is {
    ================================================================ */
 
 const labelClassName = cn(formLabelClassName, "font-normal");
+const labelCellClassName = cn(labelClassName, applicationFlowLabelCellAlignInputClassName, "justify-self-start min-w-0");
 const subsectionHeadingClassName = "text-sm font-semibold text-foreground";
 const inputClassName = formInputClassName;
-/** Label + field columns — same horizontal/vertical gaps as company-details / contract-details. */
-const rowGridBaseClassName =
-  "grid grid-cols-1 sm:grid-cols-[280px_1fr] gap-x-6 gap-y-4 w-full items-center px-3";
-/** First grid under a section header (adds top offset like other steps). */
-const rowGridClassName = cn(rowGridBaseClassName, "mt-4");
+/** Two-column form grid — contract-details-step (`sm:grid-cols-2`, `items-start`). */
+const stepFormRowGridClassName =
+  "grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 w-full items-start";
+/** Financial Overview grid under section title (horizontal inset matches contract). */
+const overviewFormRowGridClassName = cn(stepFormRowGridClassName, "mt-4 px-3");
 const sectionWrapperClassName = "w-full";
 /** Same outer rhythm as company-details / contract-details steps. */
 const formOuterClassName = applicationFlowStepOuterClassName;
@@ -402,10 +404,10 @@ function MoneyFieldRow({
 
   return (
     <>
-      <Label htmlFor={id} className={labelClassName}>
+      <Label htmlFor={id} className={labelCellClassName}>
         {label}
       </Label>
-      {wrappedInput}
+      <div className="min-w-0">{wrappedInput}</div>
     </>
   );
 }
@@ -801,12 +803,12 @@ export function FinancialStatementsStep({
       <div key={yearKey} className="space-y-3 border border-border rounded-xl p-4 md:p-6">
         <section className={`${sectionWrapperClassName} space-y-3`}>
           <h4 className={subsectionHeadingClassName}>Reporting Period</h4>
-          <div className={rowGridBaseClassName}>
-            <Label className={labelClassName}>Financial year (figures)</Label>
+          <div className={stepFormRowGridClassName}>
+            <Label className={labelCellClassName}>Financial year (figures)</Label>
             <div className="flex min-w-0 flex-col gap-1">
               <Input value={yearKey} disabled className={cn(inputClassName, formInputDisabledClassName)} />
             </div>
-            <div className={cn("flex items-center", fieldTooltipLabelGap)}>
+            <div className={fieldLabelWithTooltipRowClassName}>
               <Label className={labelClassName}>When did you last close your accounts?</Label>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -819,7 +821,7 @@ export function FinancialStatementsStep({
                 </TooltipContent>
               </Tooltip>
             </div>
-            <div className="flex flex-col gap-1">
+            <div className="flex min-w-0 flex-col gap-1">
               <DateInput
                 value={form.pldd}
                 onChange={() => {}}
@@ -832,7 +834,7 @@ export function FinancialStatementsStep({
         </section>
         <section className={`${sectionWrapperClassName} space-y-3`}>
           <h4 className={subsectionHeadingClassName}>Assets</h4>
-          <div className={rowGridBaseClassName}>
+          <div className={stepFormRowGridClassName}>
             {(["bsfatot", "othass", "bscatot", "bsclbank"] as const).map((key) => (
               <MoneyFieldRow
                 key={`${yearKey}-${key}`}
@@ -849,7 +851,7 @@ export function FinancialStatementsStep({
         </section>
         <section className={`${sectionWrapperClassName} space-y-3`}>
           <h4 className={subsectionHeadingClassName}>Liabilities</h4>
-          <div className={rowGridBaseClassName}>
+          <div className={stepFormRowGridClassName}>
             {(["curlib", "bsslltd", "bsclstd"] as const).map((key) => (
               <MoneyFieldRow
                 key={`${yearKey}-${key}`}
@@ -866,7 +868,7 @@ export function FinancialStatementsStep({
         </section>
         <section className={`${sectionWrapperClassName} space-y-3`}>
           <h4 className={subsectionHeadingClassName}>Equity</h4>
-          <div className={rowGridBaseClassName}>
+          <div className={stepFormRowGridClassName}>
             <MoneyFieldRow
               id={`${yearKey}-bsqpuc`}
               label={getLabel("bsqpuc")}
@@ -880,7 +882,7 @@ export function FinancialStatementsStep({
         </section>
         <section className={`${sectionWrapperClassName} space-y-3`}>
           <h4 className={subsectionHeadingClassName}>Profit and Loss</h4>
-          <div className={rowGridBaseClassName}>
+          <div className={stepFormRowGridClassName}>
             <MoneyFieldRow
               id={`${yearKey}-turnover`}
               label={getLabel("turnover")}
@@ -951,8 +953,8 @@ export function FinancialStatementsStep({
             <div className={applicationFlowSectionDividerClassName} />
           </div>
 
-          <div className={rowGridClassName}>
-            <div className={cn("flex items-center", fieldTooltipLabelGap)}>
+          <div className={overviewFormRowGridClassName}>
+            <div className={fieldLabelWithTooltipRowClassName}>
               <Label htmlFor="last-closing-date" className={labelClassName}>
                 When did you last close your accounts?
               </Label>
@@ -984,7 +986,7 @@ export function FinancialStatementsStep({
               )}
             </div>
 
-            <div className={cn("flex items-center", fieldTooltipLabelGap)}>
+            <div className={fieldLabelWithTooltipRowClassName}>
               <Label className={labelClassName}>Have you submitted your accounts to SSM?</Label>
               <Tooltip>
                 <TooltipTrigger asChild>
