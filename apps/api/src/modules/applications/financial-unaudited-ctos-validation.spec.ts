@@ -1,140 +1,96 @@
 import {
   getCtosLatestYear,
   getLatestThreeCtosYears,
-  validateUnauditedColumn,
-  getExpectedUnauditedYearsFromQuestionnaire,
+  getIssuerFinancialInputYearsFromQuestionnaire,
   normalizeFinancialStatementsQuestionnaire,
 } from "@cashsouk/types";
 import { financialStatementsV2Schema } from "./schemas";
+
+const closing = "2026-03-31";
+const block = (y: string) => ({
+  pldd: closing,
+  bsfatot: 0,
+  othass: 0,
+  bscatot: 0,
+  bsclbank: 0,
+  curlib: 0,
+  bsslltd: 0,
+  bsclstd: 0,
+  bsqpuc: 0,
+  turnover: 0,
+  plnpbt: 0,
+  plnpat: 0,
+  plnetdiv: 0,
+  plyear: 0,
+});
 
 describe("financial-unaudited-ctos-validation", () => {
   describe("getCtosLatestYear", () => {
     it("returns null for empty rows", () => {
       expect(getCtosLatestYear([])).toBeNull();
     });
-    it("returns max reporting_year", () => {
-      expect(getCtosLatestYear([{ reporting_year: 2023 }, { reporting_year: 2025 }, { reporting_year: 2024 }])).toBe(
-        2025
-      );
+    it("returns max financial_year", () => {
+      expect(
+        getCtosLatestYear([{ financial_year: 2023 }, { financial_year: 2025 }, { financial_year: 2024 }])
+      ).toBe(2025);
     });
   });
 
   describe("getLatestThreeCtosYears", () => {
     it("returns all years sorted when fewer than 3", () => {
-      expect(getLatestThreeCtosYears([{ reporting_year: 2022 }, { reporting_year: 2024 }])).toEqual([2022, 2024]);
+      expect(getLatestThreeCtosYears([{ financial_year: 2022 }, { financial_year: 2024 }])).toEqual([2022, 2024]);
     });
     it("returns last 3 when more exist", () => {
       expect(
         getLatestThreeCtosYears([
-          { reporting_year: 2020 },
-          { reporting_year: 2021 },
-          { reporting_year: 2022 },
-          { reporting_year: 2023 },
-          { reporting_year: 2024 },
+          { financial_year: 2020 },
+          { financial_year: 2021 },
+          { financial_year: 2022 },
+          { financial_year: 2023 },
+          { financial_year: 2024 },
         ])
       ).toEqual([2022, 2023, 2024]);
     });
   });
 
-  describe("validateUnauditedColumn", () => {
-    it("VALID when unaudited is ctosLatest + 1", () => {
-      const r = validateUnauditedColumn({
-        ctosLatestYear: 2025,
-        unauditedYear: 2026,
-        latestYearSubmitted: true,
-        financialYearEndYear: 2025,
-      });
-      expect(r.status).toBe("VALID");
-    });
-    it("INVALID when duplicate CTOS year", () => {
-      const r = validateUnauditedColumn({
-        ctosLatestYear: 2025,
-        unauditedYear: 2025,
-        latestYearSubmitted: false,
-        financialYearEndYear: 2025,
-      });
-      expect(r.status).toBe("INVALID");
-    });
-    it("PENDING when no CTOS", () => {
-      const r = validateUnauditedColumn({
-        ctosLatestYear: null,
-        unauditedYear: 2026,
-        latestYearSubmitted: false,
-        financialYearEndYear: 2025,
-      });
-      expect(r.status).toBe("PENDING");
-    });
-    it("CASE 5 PENDING when submitted Y ahead of CTOS", () => {
-      const r = validateUnauditedColumn({
-        ctosLatestYear: 2024,
-        unauditedYear: 2026,
-        latestYearSubmitted: true,
-        financialYearEndYear: 2025,
-      });
-      expect(r.status).toBe("PENDING");
-    });
-    it("INVALID too far ahead when not CASE 5", () => {
-      const r = validateUnauditedColumn({
-        ctosLatestYear: 2024,
-        unauditedYear: 2026,
-        latestYearSubmitted: false,
-        financialYearEndYear: 2024,
-      });
-      expect(r.status).toBe("INVALID");
-    });
-  });
-
-  describe("getExpectedUnauditedYearsFromQuestionnaire", () => {
-    it("Case A", () => {
+  describe("getIssuerFinancialInputYearsFromQuestionnaire", () => {
+    it("submitted: one year from closing date", () => {
       expect(
-        getExpectedUnauditedYearsFromQuestionnaire({
-          latest_financial_year: 2025,
-          submitted_this_financial_year: false,
-          has_data_for_next_financial_year: false,
-        })
-      ).toEqual([2025]);
-    });
-    it("Case D", () => {
-      expect(
-        getExpectedUnauditedYearsFromQuestionnaire({
-          latest_financial_year: 2025,
-          submitted_this_financial_year: true,
-          has_data_for_next_financial_year: true,
+        getIssuerFinancialInputYearsFromQuestionnaire({
+          last_closing_date: closing,
+          is_submitted_to_ssm: true,
         })
       ).toEqual([2026]);
     });
-    it("Case C empty", () => {
+    it("not submitted: current and prior year", () => {
       expect(
-        getExpectedUnauditedYearsFromQuestionnaire({
-          latest_financial_year: 2025,
-          submitted_this_financial_year: true,
-          has_data_for_next_financial_year: false,
+        getIssuerFinancialInputYearsFromQuestionnaire({
+          last_closing_date: closing,
+          is_submitted_to_ssm: false,
         })
-      ).toEqual([]);
+      ).toEqual([2026, 2025]);
     });
   });
 
   describe("normalizeFinancialStatementsQuestionnaire", () => {
-    it("returns null for legacy questionnaire keys", () => {
-      expect(
-        normalizeFinancialStatementsQuestionnaire({
-          financial_year_end_year: 2024,
-          latest_year_submitted: true,
-          has_next_financial_year_data: false,
-        })
-      ).toBeNull();
-    });
-    it("parses current questionnaire keys", () => {
+    it("returns null for unknown keys", () => {
       expect(
         normalizeFinancialStatementsQuestionnaire({
           latest_financial_year: 2024,
           submitted_this_financial_year: true,
           has_data_for_next_financial_year: false,
         })
+      ).toBeNull();
+    });
+    it("parses current questionnaire keys", () => {
+      expect(
+        normalizeFinancialStatementsQuestionnaire({
+          last_closing_date: closing,
+          is_submitted_to_ssm: false,
+        })
       ).toEqual({
-        latest_financial_year: 2024,
-        submitted_this_financial_year: true,
-        has_data_for_next_financial_year: false,
+        last_closing_date: closing,
+        is_submitted_to_ssm: false,
       });
     });
   });
@@ -143,35 +99,33 @@ describe("financial-unaudited-ctos-validation", () => {
     it("rejects legacy questionnaire keys", () => {
       const parsed = financialStatementsV2Schema.safeParse({
         questionnaire: {
-          financial_year_end_year: 2025,
-          latest_year_submitted: false,
-          has_next_financial_year_data: true,
-        },
-        unaudited_by_year: {
-          "2025": { pldd: "2025", bsdd: "31/12/2025" },
-          "2026": { pldd: "2026", bsdd: "31/12/2026" },
-        },
-      });
-      expect(parsed.success).toBe(false);
-    });
-    it("accepts current questionnaire keys", () => {
-      const parsed = financialStatementsV2Schema.safeParse({
-        questionnaire: {
           latest_financial_year: 2025,
           submitted_this_financial_year: false,
           has_data_for_next_financial_year: true,
         },
         unaudited_by_year: {
-          "2025": { pldd: "2025", bsdd: "31/12/2025" },
-          "2026": { pldd: "2026", bsdd: "31/12/2026" },
+          "2025": block("2025"),
+          "2026": block("2026"),
+        },
+      });
+      expect(parsed.success).toBe(false);
+    });
+    it("accepts current questionnaire keys and matching pldd", () => {
+      const parsed = financialStatementsV2Schema.safeParse({
+        questionnaire: {
+          last_closing_date: closing,
+          is_submitted_to_ssm: false,
+        },
+        unaudited_by_year: {
+          "2025": block("2025"),
+          "2026": block("2026"),
         },
       });
       expect(parsed.success).toBe(true);
       if (parsed.success) {
         expect(parsed.data.questionnaire).toEqual({
-          latest_financial_year: 2025,
-          submitted_this_financial_year: false,
-          has_data_for_next_financial_year: true,
+          last_closing_date: closing,
+          is_submitted_to_ssm: false,
         });
       }
     });

@@ -39,17 +39,6 @@ import { FileDisplayBadge } from "../components/file-display-badge";
 const isValidNumber = (v: any): v is number =>
   typeof v === "number" && !Number.isNaN(v);
 
-/** Show financial year end as a four-digit year (issuer step stores year; legacy rows may be a full date). */
-function financialYearEndDisplay(val: unknown): string {
-  const s = String(val).trim();
-  if (/^\d{4}$/.test(s)) return s;
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 4);
-  const d = new Date(s);
-  if (!Number.isNaN(d.getTime())) return String(d.getFullYear());
-  return s;
-}
-
-
 /**
  * REVIEW AND SUBMIT STEP
  *
@@ -758,92 +747,60 @@ export function ReviewAndSubmitStep({
               <FinancialStatementsSkeleton />
             ) : (() => {
               const raw = (application as any)?.financial_statements;
-              if (raw && typeof raw === "object" && raw.questionnaire != null && raw.unaudited_by_year != null) {
-                const q = normalizeFinancialStatementsQuestionnaire(raw.questionnaire);
-                const by = raw.unaudited_by_year as Record<string, Record<string, unknown>>;
-                const years = Object.keys(by).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
-                console.log("Review step: financial v2, years:", years);
-                const keys = Object.keys(FINANCIAL_FIELD_LABELS);
-                if (!q) {
-                  return (
-                    <div className="text-sm text-muted-foreground px-3">
-                      Financial questionnaire could not be read. Check saved data.
-                    </div>
-                  );
-                }
-                if (years.length === 0) {
-                  return (
-                    <div className="text-sm text-muted-foreground px-3 space-y-2">
-                      <p>
-                        Latest financial year (questionnaire): {q.latest_financial_year}. Submitted this financial year:{" "}
-                        {q.submitted_this_financial_year ? "Yes" : "No"}. Data for next financial year:{" "}
-                        {q.has_data_for_next_financial_year ? "Yes" : "No"}.
-                      </p>
-                      <p>No unaudited figures in this step (information-only).</p>
-                    </div>
-                  );
-                }
+              if (!(raw && typeof raw === "object" && raw.questionnaire != null && raw.unaudited_by_year != null)) {
+                return <div className="text-sm text-muted-foreground italic px-3">No financial data</div>;
+              }
+              const q = normalizeFinancialStatementsQuestionnaire(raw.questionnaire);
+              const by = raw.unaudited_by_year as Record<string, Record<string, unknown>>;
+              const years = Object.keys(by).sort((a, b) => parseInt(a, 10) - parseInt(b, 10));
+              console.log("Review step: financial v2, years:", years);
+              const keys = Object.keys(FINANCIAL_FIELD_LABELS);
+              if (!q) {
                 return (
-                  <div className="space-y-8">
-                    <div className="text-sm text-muted-foreground px-3">
-                      Latest financial year {q.latest_financial_year}; submitted this financial year:{" "}
-                      {q.submitted_this_financial_year ? "Yes" : "No"}; data for next financial year:{" "}
-                      {q.has_data_for_next_financial_year ? "Yes" : "No"}.
-                    </div>
-                    {years.map((y) => {
-                      const flat = (by[y] && typeof by[y] === "object" ? by[y] : {}) as Record<string, unknown>;
-                      return (
-                        <div key={y} className="space-y-3">
-                          <h4 className="text-sm font-semibold text-foreground px-3">Financial year {y}</h4>
-                          <div className={sectionGridClassName}>
-                            {keys.map((key) => {
-                              const label = FINANCIAL_FIELD_LABELS[key];
-                              const val = flat[key];
-                              const display =
-                                val == null || val === ""
-                                  ? "N/A"
-                                  : key === "pldd"
-                                    ? financialYearEndDisplay(val)
-                                    : key === "bsdd"
-                                      ? String(val)
-                                      : renderMoney(Number(String(val).replace(/,/g, "")));
-                              return (
-                                <React.Fragment key={`${y}-${key}`}>
-                                  <div className={labelClassName}>{label}</div>
-                                  <div className={valueClassName}>{display}</div>
-                                </React.Fragment>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
+                  <div className="text-sm text-muted-foreground px-3">
+                    Financial questionnaire could not be read. Check saved data.
                   </div>
                 );
               }
-              const data = raw && typeof raw === "object" && "input" in raw ? raw.input : raw;
-              const flat = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
-              const keys = Object.keys(FINANCIAL_FIELD_LABELS);
-              if (keys.length === 0) {
-                return <div className="text-sm text-muted-foreground italic px-3">No financial data</div>;
+              if (years.length === 0) {
+                return (
+                  <div className="text-sm text-muted-foreground px-3 space-y-2">
+                    <p>
+                      Last closing date: {q.last_closing_date}. Submitted to SSM: {q.is_submitted_to_ssm ? "Yes" : "No"}.
+                    </p>
+                    <p>No figures saved for this step yet.</p>
+                  </div>
+                );
               }
               return (
-                <div className={sectionGridClassName}>
-                  {keys.map((key) => {
-                    const label = FINANCIAL_FIELD_LABELS[key];
-                    const val = flat[key];
-                    const display = val == null || val === ""
-                      ? "N/A"
-                      : key === "pldd"
-                        ? financialYearEndDisplay(val)
-                        : key === "bsdd"
-                          ? String(val)
-                          : renderMoney(Number(String(val).replace(/,/g, "")));
+                <div className="space-y-8">
+                  <div className="text-sm text-muted-foreground px-3">
+                    Last closing date {q.last_closing_date}; submitted to SSM: {q.is_submitted_to_ssm ? "Yes" : "No"}.
+                  </div>
+                  {years.map((y) => {
+                    const flat = (by[y] && typeof by[y] === "object" ? by[y] : {}) as Record<string, unknown>;
                     return (
-                      <React.Fragment key={key}>
-                        <div className={labelClassName}>{label}</div>
-                        <div className={valueClassName}>{display}</div>
-                      </React.Fragment>
+                      <div key={y} className="space-y-3">
+                        <h4 className="text-sm font-semibold text-foreground px-3">Financial year {y}</h4>
+                        <div className={sectionGridClassName}>
+                          {keys.map((key) => {
+                            const label = FINANCIAL_FIELD_LABELS[key];
+                            const val = flat[key];
+                            const display =
+                              val == null || val === ""
+                                ? "N/A"
+                                : key === "pldd"
+                                  ? String(val)
+                                  : renderMoney(Number(String(val).replace(/,/g, "")));
+                            return (
+                              <React.Fragment key={`${y}-${key}`}>
+                                <div className={labelClassName}>{label}</div>
+                                <div className={valueClassName}>{display}</div>
+                              </React.Fragment>
+                            );
+                          })}
+                        </div>
+                      </div>
                     );
                   })}
                 </div>

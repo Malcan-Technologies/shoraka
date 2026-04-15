@@ -3,10 +3,6 @@
 
 import { formatMoney } from "@cashsouk/ui";
 import { format, subDays, addDays } from "date-fns";
-import {
-  FINANCIAL_DEV_CASE_KEY,
-  pickRandomFinancialQuestionnaireDevCase,
-} from "../steps/financial-statements-step";
 
 function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -65,22 +61,17 @@ export function generateContractData(): Record<string, unknown> {
 }
 
 /**
- * Financial statements data. All 15 fields.
- * - turnover: >= 0 (validation rule)
- * - plnpbt, plnpat, plyear: may be negative
- * - plnetdiv: positive only (no allowNegative in form)
- * - All money: 2 decimal places, max 15 int digits
+ * Financial statements v2 payload for dev fill (questionnaire + per-year money strings).
  */
 export function generateFinancialData(): Record<string, unknown> {
   const today = new Date();
-  const financialYear = String(today.getFullYear() - 1);
-  const dataUntil = format(subDays(today, 30), "dd/MM/yyyy");
+  const closing = format(subDays(today, 30), "yyyy-MM-dd");
+  const currentYear = today.getFullYear();
   const turnover = randomDecimal(500000, 5000000);
   const plnpat = randomMoneyAllowNegative(10000, 500000);
   const plyear = randomMoneyAllowNegative(10000, 200000);
-  return {
-    pldd: financialYear,
-    bsdd: dataUntil,
+  const block = () => ({
+    pldd: closing,
     bsfatot: formatMoney(randomDecimal(100000, 500000)),
     othass: formatMoney(randomDecimal(20000, 100000)),
     bscatot: formatMoney(randomDecimal(100000, 300000)),
@@ -94,7 +85,13 @@ export function generateFinancialData(): Record<string, unknown> {
     plnpat: formatMoney(plnpat),
     plnetdiv: formatMoney(randomDecimal(10000, Math.abs(plyear) * 0.5)),
     plyear: formatMoney(plyear),
-    [FINANCIAL_DEV_CASE_KEY]: pickRandomFinancialQuestionnaireDevCase(),
+  });
+  return {
+    questionnaire: { last_closing_date: closing, is_submitted_to_ssm: false },
+    unaudited_by_year: {
+      [String(currentYear)]: block(),
+      [String(currentYear - 1)]: block(),
+    },
   };
 }
 

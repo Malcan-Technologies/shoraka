@@ -119,11 +119,12 @@ export const businessDetailsDataSchema = z
     }
   });
 
-/** Validates stored input fields for financial_statements step. Flat storage; no computed fields. */
+const isoDateOnly = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Validates stored input fields for financial_statements step. Per-year block; no bsdd. */
 const numSchema = z.union([z.string(), z.number()]).optional().default(0);
 export const financialStatementsInputSchema = z.object({
-  pldd: z.string().optional().default(""),
-  bsdd: z.string().optional().default(""),
+  pldd: z.string().regex(isoDateOnly, "Must be YYYY-MM-DD"),
   bsfatot: numSchema,
   othass: numSchema,
   bscatot: numSchema,
@@ -141,11 +142,9 @@ export const financialStatementsInputSchema = z.object({
 
 export type FinancialStatementsStoredData = z.infer<typeof financialStatementsInputSchema>;
 
-/** Q1–Q3 before per-year grids; Y = latest_financial_year. */
 export const financialStatementsQuestionnaireSchema = z.object({
-  latest_financial_year: z.number().int(),
-  submitted_this_financial_year: z.boolean(),
-  has_data_for_next_financial_year: z.boolean(),
+  last_closing_date: z.string().regex(isoDateOnly, "Must be YYYY-MM-DD"),
+  is_submitted_to_ssm: z.boolean(),
 });
 
 export const financialStatementsV2Schema = z.object({

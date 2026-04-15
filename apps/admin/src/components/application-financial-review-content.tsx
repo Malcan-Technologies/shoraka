@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Table,
   TableBody,
@@ -32,28 +31,22 @@ import {
 import { cn } from "@/lib/utils";
 import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
 import { reviewEmptyStateClass } from "@/components/application-review/review-section-styles";
-import {
-  CheckCircleIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
-  InformationCircleIcon,
-} from "@heroicons/react/24/outline";
+import { CheckCircleIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import { formatCurrency, formatNumber, useAuthToken } from "@cashsouk/config";
 import {
   FINANCIAL_FIELD_LABELS,
   computeColumnMetrics,
   computeTurnoverGrowth,
   financialFormToBsPl,
-  getCtosLatestYear,
   getLatestThreeCtosYears,
   governmentIdFromDirectorKycForEod,
-  validateUnauditedColumn,
   normalizeFinancialStatementsQuestionnaire,
   type ColumnComputedMetrics,
   type FinancialStatementsInput,
   type FinancialStatementsQuestionnaire,
 } from "@cashsouk/types";
 import { toast } from "sonner";
+import { format, isValid, parse, parseISO } from "date-fns";
 import {
   useAdminApplicationCtosReports,
   useAdminApplicationCtosSubjectReports,
@@ -68,97 +61,28 @@ const HEADER_PLACEHOLDER = "\u2014";
 
 type CtosFetchState = "not_pulled" | "no_records" | "has_data";
 
-function getUnauditedDisplayStatus(
-  year: number | null,
-  ctosLatestYear: number | null,
-  questionnaire: FinancialStatementsQuestionnaire | null,
-  ctosFetchState: CtosFetchState
-): string {
-  if (year == null) return "Not provided";
-  if (ctosFetchState === "not_pulled" || ctosFetchState === "no_records" || ctosLatestYear === null) {
-    return "Needs review";
+/** Show financial dates with slashes (d/M/yyyy) for CTOS and user columns. */
+function formatFinancialDateDisplay(raw: string | null | undefined): string {
+  if (raw == null || String(raw).trim() === "") return "\u2014";
+  const s = String(raw).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const d = parseISO(s);
+    if (isValid(d)) return format(d, "d/M/yyyy");
   }
-  const Y = year;
-  const X = ctosLatestYear;
-  if (Y === X + 1) return "Valid";
-  if (questionnaire?.submitted_this_financial_year && Y > X) return "Needs review";
-  if (Y < X) return "Invalid";
-  if (Y > X + 1) return "Invalid";
-  return "Needs review";
-}
-
-function adminCtosStatusLabel(spec: { kind: string; year: number | null }, ctosFetchState: CtosFetchState): string {
-  if (spec.kind !== "ctos") return "";
-  if (ctosFetchState === "not_pulled") return "Not fetched";
-  if (ctosFetchState === "no_records") return "No record found";
-  if (spec.year == null) return "—";
-  return "Verified";
-}
-
-function adminColumnStatusLabel(
-  spec: ColumnSpec,
-  ctosFetchState: CtosFetchState,
-  ctosLatestYear: number | null,
-  questionnaire: FinancialStatementsQuestionnaire | null
-): string {
-  if (spec.kind === "ctos") {
-    return adminCtosStatusLabel(spec, ctosFetchState);
+  try {
+    const dmy = parse(s, "d/M/yyyy", new Date());
+    if (isValid(dmy)) return format(dmy, "d/M/yyyy");
+  } catch {
+    /* ignore */
   }
-  return getUnauditedDisplayStatus(spec.year, ctosLatestYear, questionnaire, ctosFetchState);
-}
-
-function financialSummaryStatusToneClass(statusLabel: string): string {
-  if (statusLabel === "Verified" || statusLabel === "Valid") {
-    return "border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100";
+  try {
+    const d2 = parse(s, "dd/MM/yyyy", new Date());
+    if (isValid(d2)) return format(d2, "d/M/yyyy");
+  } catch {
+    /* ignore */
   }
-  if (statusLabel === "Needs review") {
-    return "border-amber-500/45 bg-amber-500/10 text-amber-950 dark:text-amber-100";
-  }
-  if (statusLabel === "Invalid") {
-    return "border-destructive/45 bg-destructive/10 text-destructive";
-  }
-  return "border-border bg-muted/50 text-muted-foreground";
+  return s;
 }
-
-/** Copy for Financial Summary status legend (single source). */
-const FINANCIAL_SUMMARY_STATUS_EXPLANATIONS: Record<string, string> = {
-  "Not fetched": "CTOS has not been retrieved for this application.",
-  "No record found": "CTOS has no financial records on file for this organization.",
-  Verified: "This column has official financial data from CTOS for the year shown.",
-  "\u2014": "This CTOS column has no reporting year in this slot.",
-  "Not provided": "This unaudited column has no data entered.",
-  Valid: "The unaudited year is the year immediately after the latest CTOS year.",
-  "Needs review": "This unaudited year could not be confirmed automatically against CTOS.",
-  Invalid: "This unaudited year is outside the allowed range relative to the latest CTOS year.",
-};
-
-function FinancialSummaryStatusBadge({ statusLabel }: { statusLabel: string }) {
-  return (
-    <span className="inline-flex max-w-full">
-      <Badge
-        variant="outline"
-        className={cn(
-          "shrink-0 font-semibold text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
-          financialSummaryStatusToneClass(statusLabel)
-        )}
-      >
-        {statusLabel}
-      </Badge>
-    </span>
-  );
-}
-
-/** Legend order: confidence / outcome first, then empty and CTOS pipeline. */
-const FINANCIAL_SUMMARY_LEGEND_ORDER: { term: string }[] = [
-  { term: "Verified" },
-  { term: "Valid" },
-  { term: "Needs review" },
-  { term: "Invalid" },
-  { term: "Not provided" },
-  { term: "No record found" },
-  { term: "Not fetched" },
-  { term: "\u2014" },
-];
 
 function financialSummaryColumnShellClass(kind: "ctos" | "unaudited", colIndex: number, extra?: string) {
   const isFirstUnaudited = kind === "unaudited" && colIndex === 3;
@@ -182,7 +106,7 @@ const COMPUTED_FIELD_LABELS: Record<string, string> = {
 
 /** One year row from CTOS `financials_json` (parser matches ctos.new.ts harness). */
 interface CtosFinRow {
-  reporting_year: number | null;
+  financial_year: number | null;
   dates: { pldd: string | null; bsdd: string | null };
   account: Record<string, number | null>;
 }
@@ -210,18 +134,6 @@ export function parseFinancialStatements(raw: unknown): Record<string, unknown> 
   return obj;
 }
 
-function normalizePlddToYearString(val: unknown): string {
-  if (val === undefined || val === null) return "";
-  const s = String(val).trim();
-  if (s === "") return "";
-  if (/^\d{4}$/.test(s)) return s;
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 4);
-  const asDate = new Date(s);
-  if (!Number.isNaN(asDate.getTime())) return String(asDate.getFullYear());
-  const m = s.match(/\b(19|20)\d{2}\b/);
-  return m ? m[0] : "";
-}
-
 export function extractQuestionnaireAndUnaudited(financialRaw: unknown): {
   questionnaire: FinancialStatementsQuestionnaire | null;
   unauditedByYear: Record<string, Record<string, unknown>>;
@@ -242,27 +154,7 @@ export function extractQuestionnaireAndUnaudited(financialRaw: unknown): {
     const questionnaire = normalizeFinancialStatementsQuestionnaire(qRaw);
     return { questionnaire, unauditedByYear: byYear };
   }
-  const flat = parseFinancialStatements(financialRaw);
-  const yStr = normalizePlddToYearString(flat.pldd);
-  const hasOther =
-    yStr &&
-    Object.keys(flat).some((k) => {
-      if (k === "pldd") return false;
-      const v = flat[k];
-      return v != null && String(v).trim() !== "";
-    });
-  if (!yStr || !hasOther) {
-    return { questionnaire: null, unauditedByYear: {} };
-  }
-  const y = parseInt(yStr, 10);
-  return {
-    questionnaire: {
-      latest_financial_year: y,
-      submitted_this_financial_year: false,
-      has_data_for_next_financial_year: false,
-    },
-    unauditedByYear: { [yStr]: flat as Record<string, unknown> },
-  };
+  return { questionnaire: null, unauditedByYear: {} };
 }
 
 export function firstUnauditedYearFinancialBlock(raw: unknown): Record<string, unknown> {
@@ -273,20 +165,13 @@ export function firstUnauditedYearFinancialBlock(raw: unknown): Record<string, u
   return block && typeof block === "object" ? (block as Record<string, unknown>) : {};
 }
 
-type ColumnSpec =
-  | { kind: "ctos"; year: number | null }
-  | {
-      kind: "unaudited";
-      year: number | null;
-      validation: ReturnType<typeof validateUnauditedColumn>;
-    };
+type ColumnSpec = { kind: "ctos"; year: number | null } | { kind: "unaudited"; year: number | null };
 
 function ctosFinToFs(r: CtosFinRow): Record<string, unknown> {
   const a = r.account;
   const n = (k: string) => (a[k] != null ? a[k] : "");
   return {
     pldd: r.dates.pldd ?? "",
-    bsdd: r.dates.bsdd ?? "",
     bsfatot: n("bsfatot"),
     othass: n("othass"),
     bscatot: n("bscatot"),
@@ -1504,7 +1389,6 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
   const createCtos = useCreateAdminApplicationCtosReport(applicationId);
   const { data: ctosSubjectList, isLoading: ctosSubjectLoading } = useAdminApplicationCtosSubjectReports(applicationId);
   const createSubjectCtos = useCreateAdminApplicationCtosSubjectReport(applicationId);
-  const [financialSummaryLegendOpen, setFinancialSummaryLegendOpen] = React.useState(false);
   const [directorCtosChecksExpanded, setDirectorCtosChecksExpanded] = React.useState<Record<string, boolean>>({});
   const [orgCtosConfirmOpen, setOrgCtosConfirmOpen] = React.useState(false);
 
@@ -1538,7 +1422,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
     return m;
   }, [ctosSubjectList]);
 
-  const { questionnaire, unauditedByYear } = React.useMemo(
+  const { unauditedByYear } = React.useMemo(
     () => extractQuestionnaireAndUnaudited(app.financial_statements),
     [app.financial_statements]
   );
@@ -1569,19 +1453,19 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
   const byYear = React.useMemo(() => {
     const m = new Map<number, CtosFinRow>();
     for (const r of financialRows) {
-      if (r.reporting_year != null) m.set(r.reporting_year, r);
+      if (r.financial_year != null) m.set(r.financial_year, r);
     }
     return m;
   }, [financialRows]);
 
-  const ctosLatestYear = React.useMemo(() => getCtosLatestYear(financialRows), [financialRows]);
-
   const ctosYears = React.useMemo(() => getLatestThreeCtosYears(financialRows), [financialRows]);
 
-  const ctosReportingYearsSet = React.useMemo(() => {
+  const ctosFinancialYearsSet = React.useMemo(() => {
     const s = new Set<number>();
     for (const r of financialRows) {
-      if (r.reporting_year != null && Number.isFinite(r.reporting_year)) s.add(r.reporting_year);
+      if (r.financial_year != null && Number.isFinite(r.financial_year)) {
+        s.add(r.financial_year);
+      }
     }
     return s;
   }, [financialRows]);
@@ -1596,8 +1480,8 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
   );
 
   const filteredUnauditedYears = React.useMemo(
-    () => rawUnauditedYears.filter((y) => !ctosReportingYearsSet.has(y)),
-    [rawUnauditedYears, ctosReportingYearsSet]
+    () => rawUnauditedYears.filter((y) => !ctosFinancialYearsSet.has(y)),
+    [rawUnauditedYears, ctosFinancialYearsSet]
   );
 
   const columns = React.useMemo((): ColumnSpec[] => {
@@ -1617,54 +1501,10 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
     const unPart: ColumnSpec[] = [u0, u1].map((year) => ({
       kind: "unaudited" as const,
       year,
-      validation:
-        year != null && questionnaire
-          ? validateUnauditedColumn({
-              ctosLatestYear,
-              unauditedYear: year,
-              latestYearSubmitted: questionnaire.submitted_this_financial_year,
-              financialYearEndYear: questionnaire.latest_financial_year,
-            })
-          : {
-              status: "PENDING" as const,
-              reason: year == null ? "No unaudited data" : "No questionnaire on file",
-            },
     }));
 
-    const finalCols = [...ctosPart, ...unPart];
-    const validationResults = finalCols.map((c, columnIndex) => {
-      if (c.kind === "unaudited") {
-        return {
-          columnIndex,
-          kind: "unaudited" as const,
-          year: c.year,
-          displayStatus: adminColumnStatusLabel(c, ctosFetchState, ctosLatestYear, questionnaire),
-          validation: c.validation,
-        };
-      }
-      return {
-        columnIndex,
-        kind: "ctos" as const,
-        year: c.year,
-        displayStatus: adminColumnStatusLabel(c, ctosFetchState, ctosLatestYear, questionnaire),
-      };
-    });
-    console.log("CTOS years:", ctosYears);
-    console.log("CTOS state:", ctosFetchState);
-    console.log("Unaudited years (raw):", rawUnauditedYears);
-    console.log("Unaudited years (filtered):", filteredUnauditedYears);
-    console.log("Latest CTOS year:", ctosLatestYear);
-    console.log("Validation results:", validationResults);
-    console.log("Final columns:", finalCols);
-    return finalCols;
-  }, [
-    ctosYears,
-    filteredUnauditedYears,
-    questionnaire,
-    ctosLatestYear,
-    ctosFetchState,
-    rawUnauditedYears,
-  ]);
+    return [...ctosPart, ...unPart];
+  }, [ctosYears, filteredUnauditedYears]);
 
   const turnovers = React.useMemo(() => {
     return columns.map((spec) => {
@@ -1855,7 +1695,6 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
 
   const rowLabels: { id: string; label: string }[] = [
     { id: "pldd", label: FINANCIAL_FIELD_LABELS.pldd },
-    { id: "bsdd", label: FINANCIAL_FIELD_LABELS.bsdd },
     { id: "bsfatot", label: FINANCIAL_FIELD_LABELS.bsfatot },
     { id: "othass", label: FINANCIAL_FIELD_LABELS.othass },
     { id: "bscatot", label: FINANCIAL_FIELD_LABELS.bscatot },
@@ -1894,9 +1733,9 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
 
     switch (rowId) {
       case "pldd":
-        return formatCell(colIdx, true, !fs || fs.pldd == null || fs.pldd === "", () => String(fs!.pldd));
-      case "bsdd":
-        return formatCell(colIdx, true, !fs || fs.bsdd == null || fs.bsdd === "", () => String(fs!.bsdd));
+        return formatCell(colIdx, true, !fs || fs.pldd == null || fs.pldd === "", () =>
+          formatFinancialDateDisplay(String(fs!.pldd))
+        );
       case "bsfatot":
         return formatCell(colIdx, true, !fs || fs.bsfatot == null || fs.bsfatot === "", () =>
           formatCurrency(toNum(fs!.bsfatot), { decimals: 0 })
@@ -2028,7 +1867,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
     ? new Date(latestCtos.fetched_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
     : null;
 
-  const hadCtosUnauditedOverride = rawUnauditedYears.some((y) => ctosReportingYearsSet.has(y));
+  const hadCtosUnauditedOverride = rawUnauditedYears.some((y) => ctosFinancialYearsSet.has(y));
 
   const isMutedFinancialCell = (text: string) =>
     text === "—" ||
@@ -2097,62 +1936,10 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
 
       <ReviewFieldBlock title="Financial Summary">
         <p className="-mt-1 mb-3 max-w-3xl text-xs leading-relaxed text-muted-foreground">
-          CTOS reporting years compared with issuer unaudited columns.
+          CTOS financial years (from reports) and issuer-entered figures by calendar year. Dates use the same display
+          format across columns.
         </p>
         <div className={applicationTableWrapperClass}>
-          <Collapsible open={financialSummaryLegendOpen} onOpenChange={setFinancialSummaryLegendOpen}>
-            <div className="border-b border-border bg-muted/15">
-              <CollapsibleTrigger asChild>
-                <button
-                  type="button"
-                  className={cn(
-                    "flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm transition-colors",
-                    "hover:bg-muted/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  )}
-                >
-                  <span className="flex min-w-0 items-center gap-2">
-                    <InformationCircleIcon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-                    <span className="font-semibold text-foreground">Status meanings</span>
-                    <span className="hidden truncate text-xs font-normal text-muted-foreground sm:inline">
-                      Definitions for each status label in the Financial Summary table.
-                    </span>
-                  </span>
-                  <ChevronDownIcon
-                    className={cn(
-                      "h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200",
-                      financialSummaryLegendOpen && "rotate-180"
-                    )}
-                    aria-hidden
-                  />
-                </button>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <div className="border-t border-border/80 bg-gradient-to-br from-muted/30 via-card to-muted/10 px-4 pb-3 pt-2">
-                  <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
-                    {FINANCIAL_SUMMARY_LEGEND_ORDER.map((item) => (
-                      <div
-                        key={item.term}
-                        className="flex gap-2 rounded-md border border-border/80 bg-card/90 p-2 shadow-sm"
-                      >
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "h-fit shrink-0 font-semibold text-[11px] leading-tight px-2 py-0.5 rounded-md shadow-none",
-                            financialSummaryStatusToneClass(item.term)
-                          )}
-                        >
-                          {item.term}
-                        </Badge>
-                        <p className="m-0 min-w-0 text-[11px] leading-relaxed text-muted-foreground">
-                          {FINANCIAL_SUMMARY_STATUS_EXPLANATIONS[item.term] ?? item.term}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </CollapsibleContent>
-            </div>
-          </Collapsible>
           <div className="overflow-x-auto">
             <Table className="table-fixed w-full min-w-[760px] text-[15px]">
               <TableHeader className={cn(applicationTableHeaderBgClass, "[&_tr]:border-b-border")}>
@@ -2198,34 +1985,21 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                         spec.kind === "unaudited" && "font-semibold text-foreground"
                       )}
                     >
-                      {spec.kind === "ctos" ? "CTOS" : "Unaudited"}
+                      <div className="flex justify-end">
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "shrink-0 font-semibold text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
+                            spec.kind === "ctos"
+                              ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100"
+                              : "border-border bg-muted/50 text-foreground"
+                          )}
+                        >
+                          {spec.kind === "ctos" ? "CTOS" : "User Input"}
+                        </Badge>
+                      </div>
                     </TableHead>
                   ))}
-                </TableRow>
-                <TableRow className="hover:bg-transparent border-b border-border">
-                  <TableHead
-                    className={cn(applicationTableHeaderClass, "border-r border-border bg-muted/30 align-middle")}
-                  >
-                    Status
-                  </TableHead>
-                  {columns.map((spec, i) => {
-                    const statusLabel = adminColumnStatusLabel(spec, ctosFetchState, ctosLatestYear, questionnaire);
-                    return (
-                      <TableHead
-                        key={`st-${i}-${spec.kind}-${spec.year ?? "dash"}`}
-                        className={cn(
-                          applicationTableHeaderClass,
-                          "align-middle text-right tabular-nums",
-                          i < columns.length - 1 ? "border-r border-border" : "",
-                          financialSummaryColumnShellClass(spec.kind, i)
-                        )}
-                      >
-                        <div className="flex justify-end">
-                          <FinancialSummaryStatusBadge statusLabel={statusLabel} />
-                        </div>
-                      </TableHead>
-                    );
-                  })}
                 </TableRow>
               </TableHeader>
               <TableBody>

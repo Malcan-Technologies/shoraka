@@ -36,7 +36,8 @@ export type CtosFinancialAccountJson = {
 };
 
 export interface CtosFinancialYearRow {
-  reporting_year: number | null;
+  /** Calendar year from pldd minus one (display / admin column year). */
+  financial_year: number | null;
   dates: { pldd: string | null; bsdd: string | null };
   account: CtosFinancialAccountJson;
 }

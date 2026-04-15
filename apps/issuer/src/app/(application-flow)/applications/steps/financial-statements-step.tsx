@@ -40,44 +40,31 @@ import { parseMoney, formatMoney } from "@cashsouk/ui";
 import { FinancialStatementsSkeleton } from "@/app/(application-flow)/applications/components/financial-statements-skeleton";
 import {
   FINANCIAL_FIELD_LABELS,
-  getExpectedUnauditedYearsFromQuestionnaire,
+  getIssuerFinancialInputYearsFromQuestionnaire,
   normalizeFinancialStatementsQuestionnaire,
   type FinancialStatementsQuestionnaire,
 } from "@cashsouk/types";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
-import { parse, isValid as isValidDate, startOfDay, format, subMonths } from "date-fns";
+import { isValid as isValidDate, format, subMonths, parseISO, getYear } from "date-fns";
 import { toast } from "sonner";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 
-/** CTOS-style questionnaire outcomes (see getExpectedUnauditedYearsFromQuestionnaire). Dev-only. */
-export type FinancialQuestionnaireDevCase = "A" | "B" | "C" | "D";
-
-const FINANCIAL_DEV_CASES: FinancialQuestionnaireDevCase[] = ["A", "B", "C", "D"];
-
-export function pickRandomFinancialQuestionnaireDevCase(): FinancialQuestionnaireDevCase {
-  return FINANCIAL_DEV_CASES[Math.floor(Math.random() * FINANCIAL_DEV_CASES.length)]!;
-}
-
-/** Dev auto-fill payload key — read by financial step effect; not sent to API. */
-export const FINANCIAL_DEV_CASE_KEY = "__financial_dev_case";
+/** Dev auto-fill: optional SSM flag for questionnaire (not sent as this key). */
+export const FINANCIAL_DEV_SUBMITTED_SSM_KEY = "__financial_dev_submitted_ssm";
 
 /**
- * Mock data for dev Auto Fill. All 15 fields.
- * - pldd: four-digit financial year; bsdd: date string.
- * - turnover: >= 0; plnpbt, plnpat, plyear: may be negative; plnetdiv: positive.
- * - Random A–D: one tab [Y], two tabs [Y,Y+1], Case C (no figures), one tab [Y+1].
+ * Mock data for dev Auto Fill (money fields). Questionnaire date/SSM set by effect from keys below.
  */
 export function generateMockData(): Record<string, unknown> {
   const today = new Date();
-  const financialYear = String(subMonths(today, 6).getFullYear());
-  const dataUntil = format(subMonths(today, 1), "dd/MM/yyyy");
+  const isoClosing = format(subMonths(today, 1), "yyyy-MM-dd");
   const plnpat = 120000.45;
   const plyear = 100000.25;
   return {
-    pldd: financialYear,
-    bsdd: dataUntil,
+    __financial_last_closing_date: isoClosing,
+    [FINANCIAL_DEV_SUBMITTED_SSM_KEY]: false,
     bsfatot: formatMoney(500000.12),
     othass: formatMoney(100000.88),
     bscatot: formatMoney(200000.5),
@@ -91,31 +78,7 @@ export function generateMockData(): Record<string, unknown> {
     plnpat: formatMoney(plnpat),
     plnetdiv: formatMoney(50000.77),
     plyear: formatMoney(plyear),
-    [FINANCIAL_DEV_CASE_KEY]: pickRandomFinancialQuestionnaireDevCase(),
   };
-}
-
-function devCaseToQuestionnaireFlags(
-  c: FinancialQuestionnaireDevCase
-): { submitted: boolean; nextYear: boolean } {
-  switch (c) {
-    case "A":
-      return { submitted: false, nextYear: false };
-    case "B":
-      return { submitted: false, nextYear: true };
-    case "C":
-      return { submitted: true, nextYear: false };
-    case "D":
-      return { submitted: true, nextYear: true };
-  }
-}
-
-/** Clone per-year block with a new pldd year key (dev auto-fill multi-year). */
-function clonePayloadForFinancialYear(
-  base: FinancialStatementsPayload,
-  yearKey: string
-): FinancialStatementsPayload {
-  return { ...base, pldd: yearKey };
 }
 
 /* ================================================================
@@ -125,7 +88,6 @@ function clonePayloadForFinancialYear(
 /** API/DB shape: flat canonical keys. plyear stored as string in form; parsed to number for API. */
 interface FinancialStatementsPayload {
   pldd: string;
-  bsdd: string;
   bsfatot: string;
   othass: string;
   bscatot: string;
@@ -143,7 +105,6 @@ interface FinancialStatementsPayload {
 
 const DEFAULT_PAYLOAD: FinancialStatementsPayload = {
   pldd: "",
-  bsdd: "",
   bsfatot: "",
   othass: "",
   bscatot: "",
@@ -159,24 +120,6 @@ const DEFAULT_PAYLOAD: FinancialStatementsPayload = {
   plyear: "",
 };
 
-/** Legacy key mapping for backward compatibility */
-const LEGACY_KEY_MAP: Record<string, keyof FinancialStatementsPayload> = {
-  financing_year_end: "pldd",
-  balance_sheet_financial_year: "bsdd",
-  fixed_assets: "bsfatot",
-  other_assets: "othass",
-  current_assets: "bscatot",
-  non_current_assets: "bsclbank",
-  current_liability: "curlib",
-  long_term_liability: "bsslltd",
-  non_current_liability: "bsclstd",
-  paid_up: "bsqpuc",
-  profit_before_tax: "plnpbt",
-  profit_after_tax: "plnpat",
-  net_dividend: "plnetdiv",
-  profit_and_loss_year: "plyear",
-};
-
 /* ================================================================
    HELPERS
    ================================================================ */
@@ -187,34 +130,15 @@ function toNum(v: unknown): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
-/** Load pldd as a four-digit year. Migrates legacy full-date values from JSON. */
-function normalizePlddFromSaved(val: unknown): string {
-  if (val === undefined || val === null) return "";
-  const s = String(val).trim();
-  if (s === "") return "";
-  if (/^\d{4}$/.test(s)) return s;
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 4);
-  try {
-    const parsed = parse(s, "d/M/yyyy", new Date());
-    if (isValidDate(parsed)) return String(parsed.getFullYear());
-  } catch {
-    /* ignore */
-  }
-  const asDate = new Date(s);
-  if (!Number.isNaN(asDate.getTime())) return String(asDate.getFullYear());
-  const m = s.match(/\b(19|20)\d{2}\b/);
-  return m ? m[0] : "";
+function normalizePlddIsoFromSaved(val: unknown): string {
+  const s = String(val ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return "";
+  const d = parseISO(s);
+  return isValidDate(d) ? s : "";
 }
 
-function normalizePlddForApi(s: string): string {
-  const t = s.trim();
-  if (/^\d{4}$/.test(t)) return t;
-  return normalizePlddFromSaved(t);
-}
-
-/** Questionnaire year and per-row `pldd` year: exactly four digits (no range check). */
-function isFourDigitYearString(s: string): boolean {
-  return /^\d{4}$/.test(s.trim());
+function isValidIsoDate(s: string): boolean {
+  return normalizePlddIsoFromSaved(s) !== "";
 }
 
 function fromSaved(saved: unknown): FinancialStatementsPayload {
@@ -227,11 +151,7 @@ function fromSaved(saved: unknown): FinancialStatementsPayload {
   const setVal = (key: keyof FinancialStatementsPayload, val: unknown) => {
     if (val === undefined || val === null) return;
     if (key === "pldd") {
-      out.pldd = normalizePlddFromSaved(val);
-      return;
-    }
-    if (key === "bsdd") {
-      out.bsdd = String(val);
+      out.pldd = normalizePlddIsoFromSaved(val);
       return;
     }
     const n = toNum(val);
@@ -241,23 +161,16 @@ function fromSaved(saved: unknown): FinancialStatementsPayload {
   for (const key of Object.keys(DEFAULT_PAYLOAD) as (keyof FinancialStatementsPayload)[]) {
     setVal(key, data[key]);
   }
-  for (const [legacyKey, canonicalKey] of Object.entries(LEGACY_KEY_MAP)) {
-    if (out[canonicalKey] === DEFAULT_PAYLOAD[canonicalKey]) {
-      setVal(canonicalKey, data[legacyKey]);
-    }
-  }
 
   return out;
 }
 
 function toApiPayload(form: FinancialStatementsPayload): Record<string, unknown> {
   const out: Record<string, unknown> = {};
+  out.pldd = String(form.pldd ?? "").trim();
   for (const k of Object.keys(DEFAULT_PAYLOAD) as (keyof FinancialStatementsPayload)[]) {
-    if (k === "pldd") {
-      out[k] = normalizePlddForApi(form.pldd ?? "");
-    } else if (k === "bsdd") {
-      out[k] = form.bsdd;
-    } else if (k === "plyear") {
+    if (k === "pldd") continue;
+    if (k === "plyear") {
       out[k] = parseMoney(form.plyear ?? "");
     } else {
       const val = (form as unknown as Record<string, unknown>)[k];
@@ -280,15 +193,6 @@ function isV2FinancialSaved(saved: unknown): saved is {
     typeof o.unaudited_by_year === "object" &&
     !Array.isArray(o.unaudited_by_year)
   );
-}
-
-function legacyHasAnyInput(data: FinancialStatementsPayload): boolean {
-  const keys = Object.keys(DEFAULT_PAYLOAD) as (keyof FinancialStatementsPayload)[];
-  for (const k of keys) {
-    if (k === "pldd" && normalizePlddFromSaved(data.pldd)) return true;
-    if (k !== "pldd" && String(data[k] ?? "").trim() !== "") return true;
-  }
-  return false;
 }
 
 /* ================================================================
@@ -429,8 +333,6 @@ function FinancialYesNoRadioGroup({
    ================================================================ */
 
 const NEGATIVE_TOOLTIP_TEXT = "Negative values are allowed for losses.\nExample: -5000.";
-const FINANCIAL_DATA_UNTIL_TOOLTIP =
-  "Latest date your figures are updated to (e.g. management accounts).";
 
 function MoneyFieldRow({
   id,
@@ -518,8 +420,8 @@ interface FinancialStatementsStepProps {
   readOnly?: boolean;
 }
 
-function emptyQuestionnaireBlock(yearKey: string): FinancialStatementsPayload {
-  return { ...DEFAULT_PAYLOAD, pldd: yearKey };
+function emptyQuestionnaireBlock(closingIso: string): FinancialStatementsPayload {
+  return { ...DEFAULT_PAYLOAD, pldd: closingIso };
 }
 
 function buildV2ApiPayload(
@@ -529,28 +431,14 @@ function buildV2ApiPayload(
   questionnaire: FinancialStatementsQuestionnaire;
   unaudited_by_year: Record<string, Record<string, unknown>>;
 } {
-  const expected = getExpectedUnauditedYearsFromQuestionnaire(q);
+  const expected = getIssuerFinancialInputYearsFromQuestionnaire(q);
   const unaudited_by_year: Record<string, Record<string, unknown>> = {};
   for (const y of expected) {
     const k = String(y);
-    const form = forms[k] ?? emptyQuestionnaireBlock(k);
-    unaudited_by_year[k] = toApiPayload({ ...form, pldd: k });
+    const form = forms[k] ?? emptyQuestionnaireBlock(q.last_closing_date);
+    unaudited_by_year[k] = toApiPayload({ ...form, pldd: q.last_closing_date });
   }
   return { questionnaire: q, unaudited_by_year };
-}
-
-function parseDateLocal(s: string): Date | null {
-  if (!s?.trim()) return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
-    const d = new Date(s);
-    return isValidDate(d) ? d : null;
-  }
-  try {
-    const parsed = parse(s, "d/M/yyyy", new Date());
-    return isValidDate(parsed) ? parsed : null;
-  } catch {
-    return null;
-  }
 }
 
 const YEAR_MONEY_FIELDS: (keyof FinancialStatementsPayload)[] = [
@@ -570,30 +458,13 @@ const YEAR_MONEY_FIELDS: (keyof FinancialStatementsPayload)[] = [
 ];
 
 type YearBlockFieldErrors = {
-  bsdd?: string;
-  pldd?: string;
   money: Partial<Record<keyof FinancialStatementsPayload, string>>;
 };
 
 function getYearBlockFieldErrors(form: FinancialStatementsPayload): YearBlockFieldErrors {
   const hasValue = (v: unknown) => String(v ?? "").trim() !== "";
   const money: Partial<Record<keyof FinancialStatementsPayload, string>> = {};
-  let bsdd: string | undefined;
-  let pldd: string | undefined;
 
-  if (!hasValue(form.pldd) || !isFourDigitYearString(String(form.pldd ?? ""))) {
-    pldd = "Required";
-  }
-  if (!hasValue(form.bsdd)) {
-    bsdd = "Required";
-  } else {
-    const d = parseDateLocal(form.bsdd ?? "");
-    if (!d) {
-      bsdd = "Invalid date";
-    } else if (startOfDay(d) > startOfDay(new Date())) {
-      bsdd = "Financial data date cannot be in the future.";
-    }
-  }
   for (const k of YEAR_MONEY_FIELDS) {
     if (!hasValue(form[k])) {
       money[k] = "Required";
@@ -602,21 +473,19 @@ function getYearBlockFieldErrors(form: FinancialStatementsPayload): YearBlockFie
   if (hasValue(form.turnover) && parseMoney(form.turnover ?? "") < 0) {
     money.turnover = "Turnover must be 0 or greater";
   }
-  return { bsdd, pldd, money };
+  return { money };
 }
 
 function yearFormIsValid(form: FinancialStatementsPayload): boolean {
   const e = getYearBlockFieldErrors(form);
-  if (e.bsdd || e.pldd) return false;
   if (Object.keys(e.money).length > 0) return false;
   return true;
 }
 
-/** Same idea as contract-details Save gate: filled + parseable date (future allowed); strict rules on submit only. */
+/** Save gate: all money fields filled (pldd is set from questionnaire, read-only). */
 function yearFormFilledForSaveButton(form: FinancialStatementsPayload): boolean {
   const hasValue = (v: unknown) => String(v ?? "").trim() !== "";
-  if (!hasValue(form.pldd) || !isFourDigitYearString(String(form.pldd ?? ""))) return false;
-  if (!hasValue(form.bsdd) || parseDateLocal(form.bsdd ?? "") == null) return false;
+  if (!hasValue(form.pldd) || !isValidIsoDate(String(form.pldd ?? ""))) return false;
   for (const k of YEAR_MONEY_FIELDS) {
     if (!hasValue(form[k])) return false;
   }
@@ -631,9 +500,8 @@ export function FinancialStatementsStep({
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   const devTools = useDevTools();
 
-  const [fyeInput, setFyeInput] = React.useState("");
+  const [lastClosingDate, setLastClosingDate] = React.useState("");
   const [qSubmitted, setQSubmitted] = React.useState<boolean | null>(null);
-  const [qNextYear, setQNextYear] = React.useState<boolean | null>(null);
   const [formsByYear, setFormsByYear] = React.useState<Record<string, FinancialStatementsPayload>>({});
   const [isInitialized, setIsInitialized] = React.useState(false);
   const [hasSubmitted, setHasSubmitted] = React.useState(false);
@@ -654,89 +522,65 @@ export function FinancialStatementsStep({
       const map: Record<string, FinancialStatementsPayload> = {};
       for (const [k, v] of Object.entries(saved.unaudited_by_year)) {
         map[k] = fromSaved(v);
-        map[k].pldd = k;
       }
       setFormsByYear(map);
       if (qNorm) {
-        setFyeInput(String(qNorm.latest_financial_year));
-        setQSubmitted(qNorm.submitted_this_financial_year);
-        setQNextYear(qNorm.has_data_for_next_financial_year);
+        setLastClosingDate(qNorm.last_closing_date);
+        setQSubmitted(qNorm.is_submitted_to_ssm);
         const built = buildV2ApiPayload(qNorm, map);
         initialPayloadRef.current = JSON.stringify(built);
         console.log("Financial step loaded v2; years in payload:", Object.keys(saved.unaudited_by_year));
       } else {
         initialPayloadRef.current = JSON.stringify({
-          questionnaire: {
-            latest_financial_year: 0,
-            submitted_this_financial_year: false,
-            has_data_for_next_financial_year: false,
-          },
+          questionnaire: { last_closing_date: "", is_submitted_to_ssm: false },
           unaudited_by_year: map,
         });
         console.log("Financial step v2 payload missing valid questionnaire; forms only");
       }
     } else {
-      const flat = fromSaved(saved);
-      if (legacyHasAnyInput(flat) && normalizePlddFromSaved(flat.pldd)) {
-        const y = normalizePlddFromSaved(flat.pldd);
-        setFyeInput(y);
-        setQSubmitted(false);
-        setQNextYear(false);
-        setFormsByYear({ [y]: { ...flat, pldd: y } });
-        const qLegacy: FinancialStatementsQuestionnaire = {
-          latest_financial_year: parseInt(y, 10),
-          submitted_this_financial_year: false,
-          has_data_for_next_financial_year: false,
-        };
-        initialPayloadRef.current = JSON.stringify(buildV2ApiPayload(qLegacy, { [y]: { ...flat, pldd: y } }));
-        console.log("Financial step loaded legacy flat as single year:", y);
-      } else {
-        initialPayloadRef.current = JSON.stringify({
-          questionnaire: {
-            latest_financial_year: 0,
-            submitted_this_financial_year: false,
-            has_data_for_next_financial_year: false,
-          },
-          unaudited_by_year: {},
-        });
-        console.log("Financial step empty — start questionnaire");
-      }
+      initialPayloadRef.current = JSON.stringify({
+        questionnaire: { last_closing_date: "", is_submitted_to_ssm: false },
+        unaudited_by_year: {},
+      });
+      console.log("Financial step empty — start questionnaire");
     }
     setIsInitialized(true);
   }, [application, isInitialized]);
 
   const questionnaireDto = React.useMemo((): FinancialStatementsQuestionnaire | null => {
-    if (!isFourDigitYearString(fyeInput)) return null;
-    if (qSubmitted === null || qNextYear === null) return null;
+    if (!isValidIsoDate(lastClosingDate.trim())) return null;
+    if (qSubmitted === null) return null;
     return {
-      latest_financial_year: parseInt(fyeInput, 10),
-      submitted_this_financial_year: qSubmitted,
-      has_data_for_next_financial_year: qNextYear,
+      last_closing_date: lastClosingDate.trim(),
+      is_submitted_to_ssm: qSubmitted,
     };
-  }, [fyeInput, qSubmitted, qNextYear]);
+  }, [lastClosingDate, qSubmitted]);
 
   const yearsToShow = React.useMemo(() => {
     if (!questionnaireDto) return [] as number[];
-    const years = getExpectedUnauditedYearsFromQuestionnaire(questionnaireDto);
+    const years = getIssuerFinancialInputYearsFromQuestionnaire(questionnaireDto);
     console.log("Years to show on issuer form:", years);
     return years;
   }, [questionnaireDto]);
 
   React.useEffect(() => {
     if (!questionnaireDto) return;
+    const cy = getYear(parseISO(questionnaireDto.last_closing_date));
+    console.log("Last Closing Date:", questionnaireDto.last_closing_date);
+    console.log("Derived Current Year:", cy);
+    console.log("Submitted to SSM:", questionnaireDto.is_submitted_to_ssm);
+  }, [questionnaireDto]);
 
-    if (yearsToShow.length === 0) {
-      setFormsByYear({});
-      console.log("Financial step: Case C (no unaudited years) — cleared in-memory year forms");
-      return;
-    }
+  React.useEffect(() => {
+    if (!questionnaireDto) return;
+    const closing = questionnaireDto.last_closing_date;
 
     setFormsByYear((prev) => {
       const next = { ...prev };
       for (const y of yearsToShow) {
         const k = String(y);
-        if (!next[k]) next[k] = emptyQuestionnaireBlock(k);
-        else next[k] = { ...next[k], pldd: k };
+        if (!next[k]) next[k] = emptyQuestionnaireBlock(closing);
+        else next[k] = { ...next[k], pldd: closing };
       }
       for (const key of Object.keys(next)) {
         if (!yearsToShow.includes(parseInt(key, 10))) delete next[key];
@@ -752,45 +596,41 @@ export function FinancialStatementsStep({
         : devTools?.autoFillDataMap?.["financial_statements"];
     if (!raw) return;
     const mock = raw as Partial<FinancialStatementsPayload> & Record<string, unknown>;
-    const rawCase = mock[FINANCIAL_DEV_CASE_KEY];
-    const devCase: FinancialQuestionnaireDevCase =
-      rawCase === "A" || rawCase === "B" || rawCase === "C" || rawCase === "D" ? rawCase : "A";
-    const yStr =
-      mock.pldd != null && String(mock.pldd).trim()
-        ? normalizePlddFromSaved(mock.pldd)
-        : String(subMonths(new Date(), 6).getFullYear());
-    const merged: FinancialStatementsPayload = { ...DEFAULT_PAYLOAD, pldd: yStr };
+    const isoFromMock =
+      typeof mock.__financial_last_closing_date === "string" && isValidIsoDate(mock.__financial_last_closing_date)
+        ? mock.__financial_last_closing_date
+        : format(subMonths(new Date(), 1), "yyyy-MM-dd");
+    const submittedKey = FINANCIAL_DEV_SUBMITTED_SSM_KEY as keyof typeof mock;
+    const submitted =
+      typeof mock[submittedKey] === "boolean" ? (mock[submittedKey] as boolean) : false;
+
+    const merged: FinancialStatementsPayload = { ...DEFAULT_PAYLOAD, pldd: isoFromMock };
     for (const k of Object.keys(DEFAULT_PAYLOAD) as (keyof FinancialStatementsPayload)[]) {
       if (mock[k] !== undefined && mock[k] !== null) {
         (merged as unknown as Record<string, unknown>)[k] = String(mock[k]);
       }
     }
-    const { submitted, nextYear } = devCaseToQuestionnaireFlags(devCase);
-    setFyeInput(yStr);
+    setLastClosingDate(isoFromMock);
     setQSubmitted(submitted);
-    setQNextYear(nextYear);
 
-    const Y = parseInt(yStr, 10);
-    if (devCase === "A") {
-      setFormsByYear({ [yStr]: clonePayloadForFinancialYear(merged, yStr) });
-    } else if (devCase === "B") {
-      const y2 = String(Y + 1);
-      setFormsByYear({
-        [yStr]: clonePayloadForFinancialYear(merged, yStr),
-        [y2]: clonePayloadForFinancialYear(merged, y2),
-      });
-    } else if (devCase === "C") {
-      setFormsByYear({});
-    } else {
-      const yNext = String(Y + 1);
-      setFormsByYear({ [yNext]: clonePayloadForFinancialYear(merged, yNext) });
+    const q: FinancialStatementsQuestionnaire = {
+      last_closing_date: isoFromMock,
+      is_submitted_to_ssm: submitted,
+    };
+    const years = getIssuerFinancialInputYearsFromQuestionnaire(q);
+    const map: Record<string, FinancialStatementsPayload> = {};
+    for (const y of years) {
+      const k = String(y);
+      map[k] = { ...merged, pldd: isoFromMock };
     }
+    setFormsByYear(map);
 
     if (devTools) {
       if (devTools.autoFillData?.stepKey === "financial_statements") devTools.clearAutoFill();
       else devTools.clearAutoFillForStep("financial_statements");
     }
-    console.log("Financial dev auto-fill: case", devCase, "latest FY", yStr, "submitted", submitted, "nextYear", nextYear);
+    const cy = getYear(parseISO(isoFromMock));
+    console.log("Last Closing Date:", isoFromMock, "Derived Current Year:", cy, "Submitted to SSM:", submitted);
   }, [devTools]);
 
   const buildV2ApiPayloadInner = React.useCallback(() => {
@@ -815,21 +655,18 @@ export function FinancialStatementsStep({
 
     if (!questionnaireDto) {
       const initQNorm = normalizeFinancialStatementsQuestionnaire(initialParsed?.questionnaire);
-      const initHasRealQ =
-        initQNorm != null && initQNorm.latest_financial_year > 0;
+      const initHasRealQ = initQNorm != null && isValidIsoDate(initQNorm.last_closing_date);
 
       if (!initHasRealQ) {
-        const touched =
-          fyeInput.trim() !== "" || qSubmitted !== null || qNextYear !== null;
+        const touched = lastClosingDate.trim() !== "" || qSubmitted !== null;
         console.log("Financial step pending (questionnaire draft):", touched);
         return touched;
       }
 
       const same =
-        isFourDigitYearString(fyeInput) &&
-        parseInt(fyeInput, 10) === initQNorm.latest_financial_year &&
-        qSubmitted === initQNorm.submitted_this_financial_year &&
-        qNextYear === initQNorm.has_data_for_next_financial_year;
+        isValidIsoDate(lastClosingDate.trim()) &&
+        lastClosingDate.trim() === initQNorm.last_closing_date &&
+        qSubmitted === initQNorm.is_submitted_to_ssm;
       const pending = !same;
       console.log("Financial step pending (questionnaire vs loaded):", pending);
       return pending;
@@ -843,36 +680,30 @@ export function FinancialStatementsStep({
     } catch {
       return true;
     }
-  }, [
-    isInitialized,
-    questionnaireDto,
-    buildV2ApiPayloadInner,
-    fyeInput,
-    qSubmitted,
-    qNextYear,
-  ]);
+  }, [isInitialized, questionnaireDto, buildV2ApiPayloadInner, lastClosingDate, qSubmitted]);
 
-  const caseCInfoOnly = Boolean(questionnaireDto && yearsToShow.length === 0);
+  const closingForBlocks = isValidIsoDate(lastClosingDate.trim()) ? lastClosingDate.trim() : "";
 
   /** Full validation: used by saveFunction and inline errors after submit (future date, turnover sign, etc.). */
   const allYearFormsValid = React.useMemo(() => {
     if (yearsToShow.length === 0) return true;
-    return yearsToShow.every((y) => yearFormIsValid(formsByYear[String(y)] ?? emptyQuestionnaireBlock(String(y))));
-  }, [yearsToShow, formsByYear]);
+    return yearsToShow.every((y) =>
+      yearFormIsValid(formsByYear[String(y)] ?? emptyQuestionnaireBlock(closingForBlocks))
+    );
+  }, [yearsToShow, formsByYear, closingForBlocks]);
 
-  /** Save gate only: like contract-details — required values + parseable bsdd; no future-date or turnover checks. */
+  /** Save gate: questionnaire complete and all money fields filled per tab. */
   const allYearFormsFilled = React.useMemo(() => {
     if (yearsToShow.length === 0) return true;
     return yearsToShow.every((y) =>
-      yearFormFilledForSaveButton(formsByYear[String(y)] ?? emptyQuestionnaireBlock(String(y)))
+      yearFormFilledForSaveButton(formsByYear[String(y)] ?? emptyQuestionnaireBlock(closingForBlocks))
     );
-  }, [yearsToShow, formsByYear]);
+  }, [yearsToShow, formsByYear, closingForBlocks]);
 
-  const questionsAnswered =
-    isFourDigitYearString(fyeInput) && qSubmitted !== null && qNextYear !== null;
+  const questionsAnswered = isValidIsoDate(lastClosingDate.trim()) && qSubmitted !== null;
 
   /** Save enabled when questionnaire + all year rows are “filled”; submit applies strict validation. */
-  const isValidForButton = readOnly || (caseCInfoOnly ? questionsAnswered : questionsAnswered && allYearFormsFilled);
+  const isValidForButton = readOnly || (questionsAnswered && allYearFormsFilled);
 
   React.useEffect(() => {
     if (yearsToShow.length <= 1) return;
@@ -885,30 +716,21 @@ export function FinancialStatementsStep({
 
   React.useEffect(() => {
     setHasSubmitted(false);
-  }, [fyeInput, qSubmitted, qNextYear, formsByYear]);
+  }, [lastClosingDate, qSubmitted, formsByYear]);
 
   const saveFunction = React.useCallback(async () => {
     setHasSubmitted(true);
     if (!questionnaireDto) {
       console.log("Financial save blocked: questionnaire incomplete", {
-        fyeInput,
+        lastClosingDate,
         qSubmitted,
-        qNextYear,
       });
       toast.error("Please fix the highlighted fields");
       throw new Error("VALIDATION_REQUIRED");
     }
-    if (caseCInfoOnly) {
-      const payload = {
-        questionnaire: questionnaireDto,
-        unaudited_by_year: {} as Record<string, Record<string, unknown>>,
-      };
-      console.log("Saving financial Case C (no unaudited rows):", payload.questionnaire);
-      return payload;
-    }
     if (!allYearFormsValid) {
       const firstBad = yearsToShow.find(
-        (y) => !yearFormIsValid(formsByYear[String(y)] ?? emptyQuestionnaireBlock(String(y)))
+        (y) => !yearFormIsValid(formsByYear[String(y)] ?? emptyQuestionnaireBlock(questionnaireDto.last_closing_date))
       );
       if (firstBad != null) {
         setActiveYearTab(String(firstBad));
@@ -921,7 +743,7 @@ export function FinancialStatementsStep({
     const payload = buildV2ApiPayload(questionnaireDto, formsByYear);
     console.log("Saving financial v2 payload keys:", Object.keys(payload.unaudited_by_year));
     return payload;
-  }, [questionnaireDto, caseCInfoOnly, allYearFormsValid, formsByYear, fyeInput, qSubmitted, qNextYear]);
+  }, [questionnaireDto, allYearFormsValid, formsByYear, yearsToShow]);
 
   React.useEffect(() => {
     if (!onDataChangeRef.current || !isInitialized) return;
@@ -932,52 +754,60 @@ export function FinancialStatementsStep({
     });
   }, [hasPendingChanges, isValidForButton, isInitialized, saveFunction]);
 
-  const updateFormYear = React.useCallback((yearKey: string, field: keyof FinancialStatementsPayload, value: string) => {
-    setFormsByYear((prev) => ({
-      ...prev,
-      [yearKey]: { ...(prev[yearKey] ?? emptyQuestionnaireBlock(yearKey)), [field]: value, pldd: yearKey },
-    }));
-  }, []);
+  const updateFormYear = React.useCallback(
+    (yearKey: string, field: keyof FinancialStatementsPayload, value: string) => {
+      const closing = lastClosingDate.trim();
+      const plddVal = isValidIsoDate(closing) ? closing : "";
+      setFormsByYear((prev) => ({
+        ...prev,
+        [yearKey]: {
+          ...(prev[yearKey] ?? emptyQuestionnaireBlock(plddVal || closing)),
+          [field]: value,
+          pldd: plddVal || (prev[yearKey]?.pldd ?? ""),
+        },
+      }));
+    },
+    [lastClosingDate]
+  );
 
   const getLabel = (key: keyof FinancialStatementsPayload) => FINANCIAL_FIELD_LABELS[key] ?? key;
 
+  const LAST_CLOSE_TOOLTIP =
+    "Select the last day your company completed a financial year.\nExample: If your accounts run from 1 April 2025 to 31 March 2026, select 31 March 2026.";
+  const SSM_TOOLTIP =
+    "Select 'Yes' if you have already submitted your accounts to SSM.\nSelect 'No' if they are still being prepared or not submitted yet.";
+
   const showOverviewErrors = hasSubmitted && !readOnly;
-  const fyeFieldError = showOverviewErrors
-    ? fyeInput.trim() === ""
+  const closingFieldError = showOverviewErrors
+    ? lastClosingDate.trim() === ""
       ? "Required"
-      : !isFourDigitYearString(fyeInput)
-        ? "Enter a 4-digit year"
+      : !isValidIsoDate(lastClosingDate.trim())
+        ? "Use a valid date (YYYY-MM-DD)"
         : undefined
     : undefined;
   const qSubmittedFieldError =
     showOverviewErrors && qSubmitted === null ? "Please select Yes or No" : undefined;
-  const qNextYearFieldError =
-    showOverviewErrors && qNextYear === null ? "Please select Yes or No" : undefined;
 
   const renderYearBlock = (year: number) => {
     const yearKey = String(year);
-    const form = formsByYear[yearKey] ?? emptyQuestionnaireBlock(yearKey);
+    const closing = questionnaireDto?.last_closing_date ?? closingForBlocks;
+    const form = formsByYear[yearKey] ?? emptyQuestionnaireBlock(closing);
     const showYearFieldErrors = hasSubmitted && !readOnly;
     const yearErrors: YearBlockFieldErrors = showYearFieldErrors
       ? getYearBlockFieldErrors(form)
-      : { bsdd: undefined, pldd: undefined, money: {} };
+      : { money: {} };
 
     return (
       <div key={yearKey} className="space-y-3 border border-border rounded-xl p-4 md:p-6">
         <section className={`${sectionWrapperClassName} space-y-3`}>
           <h4 className={subsectionHeadingClassName}>Reporting Period</h4>
           <div className={rowGridBaseClassName}>
-            <Label className={labelClassName}>Financial Year</Label>
+            <Label className={labelClassName}>Financial year (figures)</Label>
             <div className="flex min-w-0 flex-col gap-1">
               <Input value={yearKey} disabled className={cn(inputClassName, formInputDisabledClassName)} />
-              {yearErrors.pldd ? (
-                <p className="text-xs text-destructive">{yearErrors.pldd}</p>
-              ) : null}
             </div>
             <div className={cn("flex items-center", fieldTooltipLabelGap)}>
-              <Label className={labelClassName}>
-                {getLabel("bsdd")}
-              </Label>
+              <Label className={labelClassName}>When did you last close your accounts?</Label>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <span className={fieldTooltipTriggerClassName}>
@@ -985,22 +815,18 @@ export function FinancialStatementsStep({
                   </span>
                 </TooltipTrigger>
                 <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
-                  {FINANCIAL_DATA_UNTIL_TOOLTIP}
+                  {LAST_CLOSE_TOOLTIP}
                 </TooltipContent>
               </Tooltip>
             </div>
             <div className="flex flex-col gap-1">
               <DateInput
-                value={form.bsdd}
-                onChange={(v) => updateFormYear(yearKey, "bsdd", v)}
-                disabled={readOnly}
-                className={cn(inputClassName, readOnly && formInputDisabledClassName)}
-                placeholder="eg. 31/12/2025"
-                isInvalid={Boolean(yearErrors.bsdd)}
+                value={form.pldd}
+                onChange={() => {}}
+                disabled
+                className={cn(inputClassName, formInputDisabledClassName)}
+                placeholder="YYYY-MM-DD"
               />
-              {yearErrors.bsdd ? (
-                <p className="text-xs text-destructive">{yearErrors.bsdd}</p>
-              ) : null}
             </div>
           </div>
         </section>
@@ -1126,42 +952,56 @@ export function FinancialStatementsStep({
           </div>
 
           <div className={rowGridClassName}>
-            <div className="space-y-2">
-              <Label htmlFor="fye-year" className={labelClassName}>
-                What Is Your Latest Financial Year?
+            <div className={cn("flex items-center", fieldTooltipLabelGap)}>
+              <Label htmlFor="last-closing-date" className={labelClassName}>
+                When did you last close your accounts?
               </Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className={fieldTooltipTriggerClassName}>
+                    <InformationCircleIcon className="h-4 w-4" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
+                  {LAST_CLOSE_TOOLTIP}
+                </TooltipContent>
+              </Tooltip>
             </div>
             <div className="flex min-w-0 flex-col gap-1">
-              <Input
-                id="fye-year"
-                value={fyeInput}
-                onChange={(e) => setFyeInput(e.target.value.replace(/\D/g, "").slice(0, 4))}
+              <DateInput
+                id="last-closing-date"
+                value={lastClosingDate}
+                onChange={(v) => setLastClosingDate(v)}
                 disabled={readOnly}
-                placeholder="eg. 2025"
-                className={withFieldError(inputClassName, Boolean(fyeFieldError))}
-                inputMode="numeric"
-                maxLength={4}
-                aria-describedby={fyeFieldError ? "fye-year-error" : "fye-year-hint"}
+                placeholder="YYYY-MM-DD"
+                className={withFieldError(inputClassName, Boolean(closingFieldError))}
+                isInvalid={Boolean(closingFieldError)}
               />
-              {fyeFieldError ? (
-                <p id="fye-year-error" className="text-xs text-destructive">
-                  {fyeFieldError}
-                </p>
+              {closingFieldError ? (
+                <p className="text-xs text-destructive">{closingFieldError}</p>
               ) : (
-                <p id="fye-year-hint" className="text-xs text-muted-foreground">
-                  4 digits
-                </p>
+                <p className="text-xs text-muted-foreground">Stored as YYYY-MM-DD</p>
               )}
             </div>
 
-            <div className="space-y-2">
-              <Label className={labelClassName}>Have You Submitted This Financial Year?</Label>
+            <div className={cn("flex items-center", fieldTooltipLabelGap)}>
+              <Label className={labelClassName}>Have you submitted your accounts to SSM?</Label>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className={fieldTooltipTriggerClassName}>
+                    <InformationCircleIcon className="h-4 w-4" />
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
+                  {SSM_TOOLTIP}
+                </TooltipContent>
+              </Tooltip>
             </div>
             <div className="flex min-w-0 w-full flex-col gap-1">
               <div className="flex h-11 w-full min-w-0 items-center">
                 <FinancialYesNoRadioGroup
-                  name="financial-statements-q-submitted"
-                  aria-label="Have You Submitted This Financial Year?"
+                  name="financial-statements-q-ssm"
+                  aria-label="Have you submitted your accounts to SSM?"
                   value={qSubmitted === null ? "" : qSubmitted ? "yes" : "no"}
                   onValueChange={(v) => setQSubmitted(v === "yes")}
                   disabled={readOnly}
@@ -1169,24 +1009,6 @@ export function FinancialStatementsStep({
               </div>
               {qSubmittedFieldError ? (
                 <p className="text-xs text-destructive">{qSubmittedFieldError}</p>
-              ) : null}
-            </div>
-
-            <div className="space-y-2">
-              <Label className={labelClassName}>Do You Have Data for the Next Financial Year?</Label>
-            </div>
-            <div className="flex min-w-0 w-full flex-col gap-1">
-              <div className="flex h-11 w-full min-w-0 items-center">
-                <FinancialYesNoRadioGroup
-                  name="financial-statements-q-next-year"
-                  aria-label="Do You Have Data for the Next Financial Year?"
-                  value={qNextYear === null ? "" : qNextYear ? "yes" : "no"}
-                  onValueChange={(v) => setQNextYear(v === "yes")}
-                  disabled={readOnly}
-                />
-              </div>
-              {qNextYearFieldError ? (
-                <p className="text-xs text-destructive">{qNextYearFieldError}</p>
               ) : null}
             </div>
           </div>
@@ -1205,24 +1027,16 @@ export function FinancialStatementsStep({
           {!questionnaireDto ? (
             <div className={financialDetailsCenteredMessageBoxClassName}>
               <p className={financialDetailsCenteredMessageTextClassName}>
-                Complete the three answers above, then enter amounts here
+                Complete the two answers above, then enter amounts here
               </p>
             </div>
           ) : null}
 
-          {questionnaireDto && caseCInfoOnly ? (
-            <div className={financialDetailsCenteredMessageBoxClassName}>
-              <p className={financialDetailsCenteredMessageTextClassName}>
-                Latest year is already submitted. No figures needed in this step
-              </p>
-            </div>
-          ) : null}
-
-          {questionnaireDto && !caseCInfoOnly && yearsToShow.length === 1 ? (
+          {questionnaireDto && yearsToShow.length === 1 ? (
             <div>{renderYearBlock(yearsToShow[0])}</div>
           ) : null}
 
-          {questionnaireDto && !caseCInfoOnly && yearsToShow.length > 1 ? (
+          {questionnaireDto && yearsToShow.length > 1 ? (
             <div className="w-full">
               <Tabs
                 key={yearsToShow.join("-")}

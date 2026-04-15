@@ -47,7 +47,7 @@ import {
   ContractStatus,
   InvoiceStatus,
   WithdrawReason,
-  getExpectedUnauditedYearsFromQuestionnaire,
+  getIssuerFinancialInputYearsFromQuestionnaire,
 } from "@cashsouk/types";
 import { computeApplicationStatus } from "./lifecycle";
 import * as crypto from "crypto";
@@ -160,10 +160,9 @@ function parseBsddDateFinancial(s: string): Date | null {
   return d;
 }
 
-/** Business rules shared by legacy flat and v2 per-year blocks. */
+/** Business rules for v2 per-year financial blocks (no bsdd). */
 function validateFinancialYearBlockOrThrow(raw: {
   pldd?: string;
-  bsdd?: string;
   bsfatot?: unknown;
   othass?: unknown;
   bscatot?: unknown;
@@ -197,12 +196,12 @@ function validateFinancialYearBlockOrThrow(raw: {
     }
   }
 
-  const bsddDate = parseBsddDateFinancial(String(raw.bsdd ?? ""));
-  if (bsddDate) {
+  const plddDate = parseBsddDateFinancial(String(raw.pldd ?? ""));
+  if (plddDate) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    if (bsddDate > today) {
-      throw new AppError(400, "VALIDATION_ERROR", "Financial data date cannot be in the future.");
+    if (plddDate > today) {
+      throw new AppError(400, "VALIDATION_ERROR", "Last closing date cannot be in the future.");
     }
   }
 }
@@ -212,7 +211,6 @@ function normalizeFinancialYearBlock(
 ): Prisma.InputJsonValue {
   return {
     pldd: String(raw.pldd ?? ""),
-    bsdd: String(raw.bsdd ?? ""),
     bsfatot: financialToNum(raw.bsfatot),
     othass: financialToNum(raw.othass),
     bscatot: financialToNum(raw.bscatot),
@@ -725,57 +723,61 @@ export class ApplicationService {
 
     if (fieldName === "financial_statements") {
       const payload = input.data as Record<string, unknown>;
-      const isV2 =
-        payload &&
-        typeof payload === "object" &&
-        payload.questionnaire != null &&
-        typeof payload.questionnaire === "object";
+      if (
+        !payload ||
+        typeof payload !== "object" ||
+        payload.questionnaire == null ||
+        typeof payload.questionnaire !== "object"
+      ) {
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          "financial_statements must be v2: questionnaire and unaudited_by_year are required"
+        );
+      }
 
-      if (isV2) {
-        const v2 = financialStatementsV2Schema.safeParse(payload);
-        if (!v2.success) {
-          const message = v2.error.errors.map((e) => e.message).join("; ");
-          throw new AppError(400, "VALIDATION_ERROR", message);
+      const v2 = financialStatementsV2Schema.safeParse(payload);
+      if (!v2.success) {
+        const message = v2.error.errors.map((e) => e.message).join("; ");
+        throw new AppError(400, "VALIDATION_ERROR", message);
+      }
+      const { questionnaire, unaudited_by_year } = v2.data;
+      const expectedYears = getIssuerFinancialInputYearsFromQuestionnaire(questionnaire);
+      const actualKeys = Object.keys(unaudited_by_year).sort();
+      const expectedStr = expectedYears.map((y) => String(y)).sort();
+      if (actualKeys.length !== expectedStr.length || actualKeys.some((k, i) => k !== expectedStr[i])) {
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          `Unaudited years must match questionnaire: expected ${expectedStr.join(", ") || "(none)"}`
+        );
+      }
+
+      const closing = questionnaire.last_closing_date;
+      const normalizedByYear: Record<string, Prisma.InputJsonValue> = {};
+      for (const y of expectedYears) {
+        const key = String(y);
+        const blockResult = financialStatementsInputSchema.safeParse(unaudited_by_year[key]);
+        if (!blockResult.success) {
+          const message = blockResult.error.errors.map((e) => e.message).join("; ");
+          throw new AppError(400, "VALIDATION_ERROR", `${key}: ${message}`);
         }
-        const { questionnaire, unaudited_by_year } = v2.data;
-        const expectedYears = getExpectedUnauditedYearsFromQuestionnaire(questionnaire);
-        const actualKeys = Object.keys(unaudited_by_year).sort();
-        const expectedStr = expectedYears.map((y) => String(y)).sort();
-        if (actualKeys.length !== expectedStr.length || actualKeys.some((k, i) => k !== expectedStr[i])) {
+        if (blockResult.data.pldd !== closing) {
           throw new AppError(
             400,
             "VALIDATION_ERROR",
-            `Unaudited years must match questionnaire: expected ${expectedStr.join(", ") || "(none)"}`
+            `Each year block pldd must equal questionnaire last_closing_date (${closing})`
           );
         }
-
-        const normalizedByYear: Record<string, Prisma.InputJsonValue> = {};
-        for (const y of expectedYears) {
-          const key = String(y);
-          const blockResult = financialStatementsInputSchema.safeParse(unaudited_by_year[key]);
-          if (!blockResult.success) {
-            const message = blockResult.error.errors.map((e) => e.message).join("; ");
-            throw new AppError(400, "VALIDATION_ERROR", `${key}: ${message}`);
-          }
-          const block = { ...blockResult.data, pldd: String(y) };
-          validateFinancialYearBlockOrThrow(block);
-          normalizedByYear[key] = normalizeFinancialYearBlock(block as Record<string, unknown>);
-        }
-
-        dataToStore = {
-          questionnaire,
-          unaudited_by_year: normalizedByYear,
-        } as Prisma.InputJsonValue;
-      } else {
-        const result = financialStatementsInputSchema.safeParse(input.data);
-        if (!result.success) {
-          const message = result.error.errors.map((e) => e.message).join("; ");
-          throw new AppError(400, "VALIDATION_ERROR", message);
-        }
-        const raw = result.data;
-        validateFinancialYearBlockOrThrow(raw);
-        dataToStore = normalizeFinancialYearBlock(raw as Record<string, unknown>);
+        const block = { ...blockResult.data, pldd: closing };
+        validateFinancialYearBlockOrThrow(block);
+        normalizedByYear[key] = normalizeFinancialYearBlock(block as Record<string, unknown>);
       }
+
+      dataToStore = {
+        questionnaire,
+        unaudited_by_year: normalizedByYear,
+      } as Prisma.InputJsonValue;
     }
 
     /** financing_type stores only product_id; product_version lives in application.product_version column. */

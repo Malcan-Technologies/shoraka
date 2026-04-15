@@ -156,17 +156,16 @@ export function buildBusinessDetails(): Record<string, unknown> {
   };
 }
 
-/** financial_statements: flat fields (numeric or date string). Schema accepts string|number. */
+/** financial_statements: v2 questionnaire + unaudited_by_year (numbers per field). */
 export function buildFinancialStatements(): Record<string, unknown> {
   const today = new Date();
-  const pldd = String(today.getFullYear() - 1);
-  const bsdd = formatDate(new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000));
+  const closing = formatDate(new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000));
+  const currentYear = parseInt(closing.slice(0, 4), 10);
   const turnover = randomInt(500000, 5000000);
   const plnpat = randomInt(100000, 500000);
   const plyear = randomInt(100000, 300000);
-  return {
-    pldd,
-    bsdd,
+  const yearBlock = () => ({
+    pldd: closing,
     bsfatot: randomInt(100000, 500000),
     othass: randomInt(20000, 100000),
     bscatot: randomInt(100000, 300000),
@@ -180,6 +179,13 @@ export function buildFinancialStatements(): Record<string, unknown> {
     plnpat,
     plnetdiv: randomInt(10000, 100000),
     plyear,
+  });
+  return {
+    questionnaire: { last_closing_date: closing, is_submitted_to_ssm: false },
+    unaudited_by_year: {
+      [String(currentYear)]: yearBlock(),
+      [String(currentYear - 1)]: yearBlock(),
+    },
   };
 }
 
