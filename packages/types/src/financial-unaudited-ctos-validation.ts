@@ -1,9 +1,5 @@
 /**
- * SECTION: Issuer financial questionnaire + CTOS financial year helpers
- * WHY: Single rules for which user-input years to show and how CTOS rows are keyed for admin.
- * INPUT: questionnaire JSON; CTOS financial rows with financial_year
- * OUTPUT: Normalized questionnaire, year list for tabs, latest N CTOS financial years
- * WHERE USED: Issuer financial step, API save validation, admin financial summary
+ * Issuer financial questionnaire helpers, CTOS financial year lists, and fixed tab years (system date).
  */
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -14,7 +10,7 @@ export type FinancialStatementsQuestionnaire = {
   is_submitted_to_ssm: boolean;
 };
 
-export function calendarYearFromLastClosingDate(iso: string): number | null {
+function calendarYearFromLastClosingDate(iso: string): number | null {
   const t = iso.trim();
   if (!ISO_DATE.test(t)) return null;
   const y = Number(t.slice(0, 4));
@@ -28,21 +24,8 @@ export function calendarYearFromLastClosingDate(iso: string): number | null {
 }
 
 /**
- * Issuer per-year block `pldd`: current calendar year (from last closing) is in progress — empty string.
- * Prior calendar year uses questionnaire `last_closing_date` as financial year end.
- */
-export function issuerPlddForUnauditedYear(year: number, lastClosingIso: string): string {
-  const cy = calendarYearFromLastClosingDate(lastClosingIso);
-  if (cy == null) return "";
-  if (year === cy) return "";
-  if (year === cy - 1) return lastClosingIso.trim();
-  return "";
-}
-
-/**
  * Parse stored questionnaire JSON (current keys only).
- * INPUT: raw `questionnaire` object from JSON
- * OUTPUT: typed object or null if missing or wrong shape
+ * `last_closing_date` is reference only; tab years use {@link getFinancialInputBaseYears}.
  */
 export function normalizeFinancialStatementsQuestionnaire(
   raw: unknown
@@ -57,21 +40,54 @@ export function normalizeFinancialStatementsQuestionnaire(
   return { last_closing_date: last_closing_date.trim(), is_submitted_to_ssm };
 }
 
+/** year2 = calendar year of `ref` (local); year1 = year2 - 1 (start years for tabs / admin columns). */
+export function getFinancialInputBaseYears(ref: Date = new Date()): { year1: number; year2: number } {
+  const year2 = ref.getFullYear();
+  return { year1: year2 - 1, year2 };
+}
+
 /**
- * Calendar year keys for unaudited_by_year from questionnaire.
- * Ascending order (older year first) for two tabs; single tab is current year only.
+ * Issuer tab years (start year per tab). Uses system date only, not `last_closing_date`.
+ * Submitted to SSM: one tab (year2). Not submitted: year1 then year2.
  */
-export function getIssuerFinancialInputYearsFromQuestionnaire(
-  q: FinancialStatementsQuestionnaire
-): number[] {
-  const currentYear = calendarYearFromLastClosingDate(q.last_closing_date);
-  if (currentYear == null) return [];
-  if (q.is_submitted_to_ssm) return [currentYear];
-  return [currentYear - 1, currentYear];
+export function getIssuerFinancialTabYears(isSubmittedToSsm: boolean, ref: Date = new Date()): number[] {
+  const { year1, year2 } = getFinancialInputBaseYears(ref);
+  return isSubmittedToSsm ? [year2] : [year1, year2];
+}
+
+/** Admin: fixed user-input column headers (always two), left = year1, right = year2. */
+export function getAdminUserInputColumnYears(ref: Date = new Date()): [number, number] {
+  const { year1, year2 } = getFinancialInputBaseYears(ref);
+  return [year1, year2];
 }
 
 /** CTOS financial row shape used by helpers (stored as financial_year on each row). */
 export type CtosFinancialYearRowInput = { financial_year?: number | null };
+
+/** Latest N CTOS financial years (ascending). */
+export function getLatestNCtosYears(rows: CtosFinancialYearRowInput[], count: number): number[] {
+  const set = new Set<number>();
+  for (const r of rows) {
+    const y = r.financial_year;
+    if (y != null && Number.isFinite(y)) set.add(y);
+  }
+  const sorted = [...set].sort((a, b) => a - b);
+  if (sorted.length <= count) return sorted;
+  return sorted.slice(sorted.length - count);
+}
+
+/** Latest three CTOS financial years for admin (oldest to newest among the three). */
+export function getLatestThreeCtosYears(rows: CtosFinancialYearRowInput[]): number[] {
+  return getLatestNCtosYears(rows, 3);
+}
+
+/** Always three CTOS column slots, ascending; pad with null on the right when fewer than three years. */
+export function getLatestThreeCtosYearSlots(rows: CtosFinancialYearRowInput[]): (number | null)[] {
+  const ys = getLatestThreeCtosYears(rows);
+  const out: (number | null)[] = ys.map((y) => y);
+  while (out.length < 3) out.push(null);
+  return out.slice(0, 3);
+}
 
 /**
  * Max financial_year from CTOS financial rows.
@@ -84,23 +100,4 @@ export function getCtosLatestYear(rows: CtosFinancialYearRowInput[]): number | n
     if (max === null || y > max) max = y;
   }
   return max;
-}
-
-/**
- * Distinct financial years, sorted ascending; keep only the last `count` (most recent).
- */
-export function getLatestNCtosYears(rows: CtosFinancialYearRowInput[], count: number): number[] {
-  const set = new Set<number>();
-  for (const r of rows) {
-    const y = r.financial_year;
-    if (y != null && Number.isFinite(y)) set.add(y);
-  }
-  const sorted = [...set].sort((a, b) => a - b);
-  if (sorted.length <= count) return sorted;
-  return sorted.slice(sorted.length - count);
-}
-
-/** Latest three CTOS financial years for admin display (oldest to newest). */
-export function getLatestThreeCtosYears(rows: CtosFinancialYearRowInput[]): number[] {
-  return getLatestNCtosYears(rows, 3);
 }

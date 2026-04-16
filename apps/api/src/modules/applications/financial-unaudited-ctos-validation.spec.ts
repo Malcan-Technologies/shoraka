@@ -1,15 +1,17 @@
 import {
   getCtosLatestYear,
+  getFinancialInputBaseYears,
+  getIssuerFinancialTabYears,
+  getLatestThreeCtosYearSlots,
   getLatestThreeCtosYears,
-  getIssuerFinancialInputYearsFromQuestionnaire,
-  issuerPlddForUnauditedYear,
   normalizeFinancialStatementsQuestionnaire,
 } from "@cashsouk/types";
 import { financialStatementsV2Schema } from "./schemas";
 
 const closing = "2026-03-31";
-const block = (y: string) => ({
-  pldd: issuerPlddForUnauditedYear(parseInt(y, 10), closing),
+const ref2026 = new Date("2026-06-15");
+
+const block = () => ({
   bsfatot: 0,
   othass: 0,
   bscatot: 0,
@@ -54,22 +56,23 @@ describe("financial-unaudited-ctos-validation", () => {
     });
   });
 
-  describe("getIssuerFinancialInputYearsFromQuestionnaire", () => {
-    it("submitted: one year from closing date", () => {
-      expect(
-        getIssuerFinancialInputYearsFromQuestionnaire({
-          last_closing_date: closing,
-          is_submitted_to_ssm: true,
-        })
-      ).toEqual([2026]);
+  describe("getLatestThreeCtosYearSlots", () => {
+    it("pads with null on the right to three slots", () => {
+      expect(getLatestThreeCtosYearSlots([{ financial_year: 2025 }])).toEqual([2025, null, null]);
+      expect(getLatestThreeCtosYearSlots([{ financial_year: 2024 }, { financial_year: 2025 }])).toEqual([
+        2024,
+        2025,
+        null,
+      ]);
     });
-    it("not submitted: prior year then current (ascending)", () => {
-      expect(
-        getIssuerFinancialInputYearsFromQuestionnaire({
-          last_closing_date: closing,
-          is_submitted_to_ssm: false,
-        })
-      ).toEqual([2025, 2026]);
+  });
+
+  describe("getIssuerFinancialTabYears", () => {
+    it("submitted: year2 only from ref", () => {
+      expect(getIssuerFinancialTabYears(true, ref2026)).toEqual([2026]);
+    });
+    it("not submitted: year1 then year2 from ref", () => {
+      expect(getIssuerFinancialTabYears(false, ref2026)).toEqual([2025, 2026]);
     });
   });
 
@@ -98,6 +101,7 @@ describe("financial-unaudited-ctos-validation", () => {
 
   describe("financialStatementsV2Schema", () => {
     it("rejects legacy questionnaire keys", () => {
+      const { year1, year2 } = getFinancialInputBaseYears(ref2026);
       const parsed = financialStatementsV2Schema.safeParse({
         questionnaire: {
           latest_financial_year: 2025,
@@ -105,21 +109,22 @@ describe("financial-unaudited-ctos-validation", () => {
           has_data_for_next_financial_year: true,
         },
         unaudited_by_year: {
-          "2025": block("2025"),
-          "2026": block("2026"),
+          [String(year1)]: block(),
+          [String(year2)]: block(),
         },
       });
       expect(parsed.success).toBe(false);
     });
-    it("accepts current questionnaire keys and matching pldd", () => {
+    it("accepts questionnaire and two unaudited years without pldd", () => {
+      const { year1, year2 } = getFinancialInputBaseYears(ref2026);
       const parsed = financialStatementsV2Schema.safeParse({
         questionnaire: {
           last_closing_date: closing,
           is_submitted_to_ssm: false,
         },
         unaudited_by_year: {
-          "2025": block("2025"),
-          "2026": block("2026"),
+          [String(year1)]: block(),
+          [String(year2)]: block(),
         },
       });
       expect(parsed.success).toBe(true);
@@ -128,33 +133,33 @@ describe("financial-unaudited-ctos-validation", () => {
           last_closing_date: closing,
           is_submitted_to_ssm: false,
         });
-        expect(parsed.data.unaudited_by_year["2026"].pldd).toBe("");
-        expect(parsed.data.unaudited_by_year["2025"].pldd).toBe(closing);
+        expect("pldd" in parsed.data.unaudited_by_year[String(year1)]).toBe(false);
       }
     });
-    it("accepts submitted SSM with empty pldd on current year only", () => {
+    it("accepts submitted SSM with one unaudited year (year2)", () => {
+      const { year2 } = getFinancialInputBaseYears(ref2026);
       const parsed = financialStatementsV2Schema.safeParse({
         questionnaire: {
           last_closing_date: closing,
           is_submitted_to_ssm: true,
         },
         unaudited_by_year: {
-          "2026": block("2026"),
+          [String(year2)]: block(),
         },
       });
       expect(parsed.success).toBe(true);
-      if (parsed.success) expect(parsed.data.unaudited_by_year["2026"].pldd).toBe("");
     });
     it("rejects last_closing_date in the future", () => {
       const futureClosing = "2099-12-31";
+      const { year1, year2 } = getFinancialInputBaseYears();
       const parsed = financialStatementsV2Schema.safeParse({
         questionnaire: {
           last_closing_date: futureClosing,
           is_submitted_to_ssm: false,
         },
         unaudited_by_year: {
-          "2098": { ...block("2098"), pldd: issuerPlddForUnauditedYear(2098, futureClosing) },
-          "2099": { ...block("2099"), pldd: issuerPlddForUnauditedYear(2099, futureClosing) },
+          [String(year1)]: block(),
+          [String(year2)]: block(),
         },
       });
       expect(parsed.success).toBe(false);

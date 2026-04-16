@@ -14,7 +14,7 @@ import {
   FINANCIAL_FIELD_LABELS,
   computeColumnMetrics,
   financialFormToBsPl,
-  issuerPlddForUnauditedYear,
+  getIssuerFinancialTabYears,
   type FinancialStatementsInput,
 } from "@cashsouk/types";
 import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
@@ -55,6 +55,9 @@ const USE_MOCK_FINANCIAL_RESUBMIT_COMPARISON = false;
 const MOCK_UNAUDITED_YEAR_COUNT: 1 | 2 = 1;
 
 const MOCK_LAST_CLOSING_DATE = "2023-06-30";
+const MOCK_TAB_REF = new Date("2023-08-01");
+const MOCK_Y_SUBMITTED = getIssuerFinancialTabYears(true, MOCK_TAB_REF)[0];
+const [MOCK_Y1, MOCK_Y2] = getIssuerFinancialTabYears(false, MOCK_TAB_REF);
 
 function formatFinancialDateDisplay(raw: string | null | undefined): string {
   if (raw == null || String(raw).trim() === "") return "\u2014";
@@ -78,12 +81,8 @@ function formatFinancialDateDisplay(raw: string | null | undefined): string {
   return s;
 }
 
-function mockUnauditedYearBlock(
-  year: number,
-  overrides: Record<string, unknown> = {}
-): Record<string, unknown> {
+function mockUnauditedYearBlock(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    pldd: issuerPlddForUnauditedYear(year, MOCK_LAST_CLOSING_DATE),
     bsfatot: 180_000,
     othass: 45_000,
     bscatot: 220_000,
@@ -116,7 +115,7 @@ function buildMockFinancialResubmitPayload(yearCount: 1 | 2): MockFinancialResub
           is_submitted_to_ssm: true,
         },
         unaudited_by_year: {
-          "2023": mockUnauditedYearBlock(2023, { turnover: 1_050_000, plnpat: 48_000 }),
+          [String(MOCK_Y_SUBMITTED)]: mockUnauditedYearBlock({ turnover: 1_050_000, plnpat: 48_000 }),
         },
       },
       after: {
@@ -125,10 +124,10 @@ function buildMockFinancialResubmitPayload(yearCount: 1 | 2): MockFinancialResub
           is_submitted_to_ssm: true,
         },
         unaudited_by_year: {
-          "2023": mockUnauditedYearBlock(2023, { turnover: 1_180_000, plnpat: 48_000 }),
+          [String(MOCK_Y_SUBMITTED)]: mockUnauditedYearBlock({ turnover: 1_180_000, plnpat: 48_000 }),
         },
       },
-      changedPaths: new Set(["financial_statements.unaudited_by_year.2023.turnover"]),
+      changedPaths: new Set([`financial_statements.unaudited_by_year.${MOCK_Y_SUBMITTED}.turnover`]),
     };
   }
   return {
@@ -138,8 +137,8 @@ function buildMockFinancialResubmitPayload(yearCount: 1 | 2): MockFinancialResub
         is_submitted_to_ssm: false,
       },
       unaudited_by_year: {
-        "2022": mockUnauditedYearBlock(2022, { turnover: 880_000, plnpat: 41_000 }),
-        "2023": mockUnauditedYearBlock(2023, { turnover: 1_050_000, plnpat: 48_000 }),
+        [String(MOCK_Y1)]: mockUnauditedYearBlock({ turnover: 880_000, plnpat: 41_000 }),
+        [String(MOCK_Y2)]: mockUnauditedYearBlock({ turnover: 1_050_000, plnpat: 48_000 }),
       },
     },
     after: {
@@ -148,13 +147,13 @@ function buildMockFinancialResubmitPayload(yearCount: 1 | 2): MockFinancialResub
         is_submitted_to_ssm: false,
       },
       unaudited_by_year: {
-        "2022": mockUnauditedYearBlock(2022, { turnover: 965_000, plnpat: 41_000 }),
-        "2023": mockUnauditedYearBlock(2023, { turnover: 1_050_000, plnpat: 61_000 }),
+        [String(MOCK_Y1)]: mockUnauditedYearBlock({ turnover: 965_000, plnpat: 41_000 }),
+        [String(MOCK_Y2)]: mockUnauditedYearBlock({ turnover: 1_050_000, plnpat: 61_000 }),
       },
     },
     changedPaths: new Set([
-      "financial_statements.unaudited_by_year.2022.turnover",
-      "financial_statements.unaudited_by_year.2023.plnpat",
+      `financial_statements.unaudited_by_year.${MOCK_Y1}.turnover`,
+      `financial_statements.unaudited_by_year.${MOCK_Y2}.plnpat`,
     ]),
   };
 }

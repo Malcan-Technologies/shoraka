@@ -4,7 +4,7 @@
  * Matches structure of production applications (e.g. cmmk5fh77001vu60ut7tk3apd).
  */
 
-import { issuerPlddForUnauditedYear } from "@cashsouk/types";
+import { getIssuerFinancialTabYears } from "@cashsouk/types";
 
 function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -162,12 +162,11 @@ export function buildBusinessDetails(): Record<string, unknown> {
 export function buildFinancialStatements(): Record<string, unknown> {
   const today = new Date();
   const closing = formatDate(new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000));
-  const currentYear = parseInt(closing.slice(0, 4), 10);
+  const tabYears = getIssuerFinancialTabYears(false, today);
   const turnover = randomInt(500000, 5000000);
   const plnpat = randomInt(100000, 500000);
   const plyear = randomInt(100000, 300000);
-  const yearBlock = (calendarYear: number) => ({
-    pldd: issuerPlddForUnauditedYear(calendarYear, closing),
+  const yearBlock = () => ({
     bsfatot: randomInt(100000, 500000),
     othass: randomInt(20000, 100000),
     bscatot: randomInt(100000, 300000),
@@ -185,8 +184,8 @@ export function buildFinancialStatements(): Record<string, unknown> {
   return {
     questionnaire: { last_closing_date: closing, is_submitted_to_ssm: false },
     unaudited_by_year: {
-      [String(currentYear)]: yearBlock(currentYear),
-      [String(currentYear - 1)]: yearBlock(currentYear - 1),
+      [String(tabYears[0])]: yearBlock(),
+      [String(tabYears[1])]: yearBlock(),
     },
   };
 }

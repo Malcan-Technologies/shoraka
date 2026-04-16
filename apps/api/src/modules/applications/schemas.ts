@@ -136,7 +136,6 @@ function isoCalendarDateOnOrBeforeToday(iso: string): boolean {
 /** Validates stored input fields for financial_statements step. Per-year block; no bsdd. */
 const numSchema = z.union([z.string(), z.number()]).optional().default(0);
 export const financialStatementsInputSchema = z.object({
-  pldd: z.union([z.literal(""), z.string().regex(isoDateOnly, "Must be YYYY-MM-DD")]),
   bsfatot: numSchema,
   othass: numSchema,
   bscatot: numSchema,

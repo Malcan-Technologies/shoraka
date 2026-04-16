@@ -38,7 +38,8 @@ import {
   computeColumnMetrics,
   computeTurnoverGrowth,
   financialFormToBsPl,
-  getLatestThreeCtosYears,
+  getAdminUserInputColumnYears,
+  getLatestThreeCtosYearSlots,
   governmentIdFromDirectorKycForEod,
   normalizeFinancialStatementsQuestionnaire,
   type ColumnComputedMetrics,
@@ -1459,8 +1460,6 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
     return m;
   }, [financialRows]);
 
-  const ctosYears = React.useMemo(() => getLatestThreeCtosYears(financialRows), [financialRows]);
-
   const ctosFinancialYearsSet = React.useMemo(() => {
     const s = new Set<number>();
     for (const r of financialRows) {
@@ -1480,32 +1479,21 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
     [unauditedByYear]
   );
 
-  const filteredUnauditedYears = React.useMemo(
-    () => rawUnauditedYears.filter((y) => !ctosFinancialYearsSet.has(y)),
-    [rawUnauditedYears, ctosFinancialYearsSet]
-  );
-
   const columns = React.useMemo((): ColumnSpec[] => {
-    const ctosSlots: (number | null)[] = [null, null, null];
-    const offset = 3 - ctosYears.length;
-    for (let i = 0; i < ctosYears.length; i++) {
-      ctosSlots[offset + i] = ctosYears[i]!;
-    }
-    const u0 = filteredUnauditedYears[0] ?? null;
-    const u1 = filteredUnauditedYears[1] ?? null;
-
-    const ctosPart: ColumnSpec[] = ctosSlots.map((year) => ({
+    const ctosSlotYears = getLatestThreeCtosYearSlots(financialRows);
+    const ctosPart: ColumnSpec[] = ctosSlotYears.map((year) => ({
       kind: "ctos" as const,
       year,
     }));
 
-    const unPart: ColumnSpec[] = [u0, u1].map((year) => ({
-      kind: "unaudited" as const,
-      year,
-    }));
+    const [u0, u1] = getAdminUserInputColumnYears();
+    const unPart: ColumnSpec[] = [
+      { kind: "unaudited" as const, year: u0 },
+      { kind: "unaudited" as const, year: u1 },
+    ];
 
     return [...ctosPart, ...unPart];
-  }, [ctosYears, filteredUnauditedYears]);
+  }, [financialRows]);
 
   const turnovers = React.useMemo(() => {
     return columns.map((spec) => {
@@ -1741,8 +1729,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
     switch (rowId) {
       case "pldd":
         if (specCol.kind === "unaudited") {
-          if (!fs || fs.pldd == null || String(fs.pldd).trim() === "") return "—";
-          return formatFinancialDateDisplay(String(fs.pldd));
+          return "—";
         }
         return formatCell(colIdx, true, !fs || fs.pldd == null || fs.pldd === "", () =>
           formatFinancialDateDisplay(String(fs!.pldd))

@@ -47,8 +47,8 @@ import {
   ContractStatus,
   InvoiceStatus,
   WithdrawReason,
-  getIssuerFinancialInputYearsFromQuestionnaire,
-  issuerPlddForUnauditedYear,
+  getFinancialInputBaseYears,
+  getIssuerFinancialTabYears,
 } from "@cashsouk/types";
 import { computeApplicationStatus } from "./lifecycle";
 import * as crypto from "crypto";
@@ -163,7 +163,6 @@ function parseBsddDateFinancial(s: string): Date | null {
 
 /** Business rules for v2 per-year financial blocks (no bsdd). */
 function validateFinancialYearBlockOrThrow(raw: {
-  pldd?: string;
   bsfatot?: unknown;
   othass?: unknown;
   bscatot?: unknown;
@@ -197,22 +196,12 @@ function validateFinancialYearBlockOrThrow(raw: {
     }
   }
 
-  const plddRaw = String(raw.pldd ?? "").trim();
-  const plddDate = plddRaw === "" ? null : parseBsddDateFinancial(plddRaw);
-  if (plddDate) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (plddDate > today) {
-      throw new AppError(400, "VALIDATION_ERROR", "Last closing date cannot be in the future.");
-    }
-  }
 }
 
 function normalizeFinancialYearBlock(
   raw: Record<string, unknown>
 ): Prisma.InputJsonValue {
   return {
-    pldd: String(raw.pldd ?? ""),
     bsfatot: financialToNum(raw.bsfatot),
     othass: financialToNum(raw.othass),
     bscatot: financialToNum(raw.bscatot),
@@ -744,18 +733,18 @@ export class ApplicationService {
         throw new AppError(400, "VALIDATION_ERROR", message);
       }
       const { questionnaire, unaudited_by_year } = v2.data;
-      const expectedYears = getIssuerFinancialInputYearsFromQuestionnaire(questionnaire);
+      const expectedYears = getIssuerFinancialTabYears(questionnaire.is_submitted_to_ssm);
       const actualKeys = Object.keys(unaudited_by_year).sort();
       const expectedStr = expectedYears.map((y) => String(y)).sort();
       if (actualKeys.length !== expectedStr.length || actualKeys.some((k, i) => k !== expectedStr[i])) {
+        const { year1, year2 } = getFinancialInputBaseYears();
         throw new AppError(
           400,
           "VALIDATION_ERROR",
-          `Unaudited years must match questionnaire: expected ${expectedStr.join(", ") || "(none)"}`
+          `Unaudited years must match current rules: expected ${expectedStr.join(", ") || "(none)"} (year1=${year1}, year2=${year2}, submitted=${questionnaire.is_submitted_to_ssm})`
         );
       }
 
-      const closing = questionnaire.last_closing_date;
       const normalizedByYear: Record<string, Prisma.InputJsonValue> = {};
       for (const y of expectedYears) {
         const key = String(y);
@@ -764,15 +753,7 @@ export class ApplicationService {
           const message = blockResult.error.errors.map((e) => e.message).join("; ");
           throw new AppError(400, "VALIDATION_ERROR", `${key}: ${message}`);
         }
-        const expectedPldd = issuerPlddForUnauditedYear(y, closing);
-        if (blockResult.data.pldd !== expectedPldd) {
-          throw new AppError(
-            400,
-            "VALIDATION_ERROR",
-            `${key}: pldd must be ${expectedPldd === "" ? "empty for the current year" : `last_closing_date (${closing})`}`
-          );
-        }
-        const block = { ...blockResult.data, pldd: expectedPldd };
+        const block = blockResult.data;
         validateFinancialYearBlockOrThrow(block);
         normalizedByYear[key] = normalizeFinancialYearBlock(block as Record<string, unknown>);
       }

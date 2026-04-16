@@ -6,63 +6,31 @@ This guide describes the **v2** Financial Statements step: questionnaire, per-ye
 
 ## Overview
 
-Issuers answer two questions and enter figures for one or two **calendar years** (tabs). Only raw input values are stored. Computed metrics (`totass`, ratios, etc.) are derived with `calculateFinancialMetrics()` in `packages/types/src/financial-calculator.ts` and are not persisted.
+Issuers answer two questions and enter figures for one or two **start years** (tabs). Tab years come from the **system calendar year** (`new Date().getFullYear()`): **year1 = currentYear − 1**, **year2 = currentYear**. `last_closing_date` is **reference only** (not used to derive tab years). Only raw input values are stored. Computed metrics (`totass`, ratios, etc.) are derived with `calculateFinancialMetrics()` in `packages/types/src/financial-calculator.ts` and are not persisted.
 
 ---
 
 ## Database shape (`financial_statements` JSON)
 
-The column stores a single object (no legacy flat root, no `input` wrapper):
-
 | Key | Meaning |
 |-----|---------|
-| `questionnaire` | `{ last_closing_date: "YYYY-MM-DD", is_submitted_to_ssm: boolean }` (issuer `DateInput` shows `d/M/yyyy` until save; same rules as contract dates — `application-flow-dates.ts`) |
-| `unaudited_by_year` | Map of year string → per-year block of numeric fields + `pldd` |
+| `questionnaire` | `{ last_closing_date: "YYYY-MM-DD", is_submitted_to_ssm: boolean }` |
+| `unaudited_by_year` | Map of **start year** string → per-year block of numeric fields (**no** `pldd` / `bsdd` on issuer rows) |
 
-**Year tabs** — Derived in `@cashsouk/types` via `getIssuerFinancialInputYearsFromQuestionnaire`: calendar year from `last_closing_date`; if not submitted to SSM, tabs are **prior year** then **current year** (ascending); if submitted, **current year only**.
+**Year tabs (issuer)** — `getIssuerFinancialTabYears` in `@cashsouk/types`: if **not** submitted to SSM → tabs **year1**, **year2** (ascending); if **submitted** → **year2** only.
 
-**Per-year `pldd`** — Current-year block: empty string (in-progress year). Prior-year block (when two tabs): `questionnaire.last_closing_date`. There is **no** `bsdd` on issuer rows.
+**Admin Financial Summary** — Three fixed CTOS columns (latest three CTOS `financial_year` values, ascending, padded with empty slots on the right) and **two** fixed user columns (`getAdminUserInputColumnYears()`). User cells use `unaudited_by_year[String(year)]` or "—" when missing.
+
+**CTOS `financial_year`** — Parsed as calendar year from CTOS `pldd` minus one (see `apps/api/src/modules/ctos/parser.ts`).
 
 ---
 
 ## Stored field keys (per year)
 
-Same numeric keys as before (`bsfatot`, `othass`, `bscatot`, …, `plyear`) plus **`pldd`** (ISO date string). See `financialStatementsYearBlockSchema` in `apps/api/src/modules/applications/schemas.ts`.
+Numeric keys: `bsfatot`, `othass`, `bscatot`, …, `plyear`. See `financialStatementsInputSchema` in `apps/api/src/modules/applications/schemas.ts`.
 
 ---
 
 ## API
 
-**Route:** `PATCH /v1/applications/:id/step` with financial step `data`.
-
-**Files:** `schemas.ts` (`financialStatementsV2Schema`), `service.ts` (normalize each block: strip unknown keys, set `pldd` from questionnaire, reject mismatch).
-
----
-
-## Frontend
-
-**File:** `apps/issuer/src/app/(application-flow)/applications/steps/financial-statements-step.tsx`
-
-Questionnaire UI uses the shared `DateInput` pattern (placeholders match other steps). Save sends v2 payload only.
-
-**After this step:** the issuer flow continues per product workflow; declarations is the final step before submit.
-
----
-
-## CTOS alignment
-
-CTOS `financials_json` rows use **`financial_year`** (stored display year): calendar year parsed from CTOS **`pldd`**, minus one. Admin Financial Summary columns use that value as-is. Old snapshots that only have `reporting_year` are not read by current code — see [CTOS financial JSON migration](../migrations/ctos-financial-year-json.md).
-
----
-
-## Key files
-
-| Purpose | Path |
-|---------|------|
-| Prisma | `apps/api/prisma/schema.prisma` |
-| Zod | `apps/api/src/modules/applications/schemas.ts` |
-| Service | `apps/api/src/modules/applications/service.ts` |
-| Questionnaire + year helper | `packages/types/src/financial-unaudited-ctos-validation.ts` |
-| Labels | `packages/types/src/financial-field-labels.ts` |
-| Calculator | `packages/types/src/financial-calculator.ts` |
-| Issuer step | `apps/issuer/.../financial-statements-step.tsx` |
+Save path validates `unaudited_by_year` keys against `getIssuerFinancialTabYears(questionnaire.is_submitted_to_ssm)` (server date). See `apps/api/src/modules/applications/service.ts`.

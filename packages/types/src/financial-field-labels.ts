@@ -4,7 +4,6 @@
  */
 
 export const FINANCIAL_FIELD_LABELS: Record<string, string> = {
-  pldd: "Last accounts closed (date)",
   bsfatot: "Fixed Assets",
   othass: "Other Assets",
   bscatot: "Current Assets",
