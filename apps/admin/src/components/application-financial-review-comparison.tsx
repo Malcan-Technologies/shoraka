@@ -310,7 +310,7 @@ function formatIssuerFinancialCell(rowId: string, fs: Record<string, unknown> | 
 }
 
 const ROW_LABELS: { id: string; label: string }[] = [
-  { id: "pldd", label: FINANCIAL_FIELD_LABELS.pldd },
+  { id: "pldd", label: "Financial Year End" },
   { id: "bsfatot", label: FINANCIAL_FIELD_LABELS.bsfatot },
   { id: "othass", label: FINANCIAL_FIELD_LABELS.othass },
   { id: "bscatot", label: FINANCIAL_FIELD_LABELS.bscatot },

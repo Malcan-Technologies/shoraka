@@ -239,7 +239,8 @@ export interface DirectorShareholderRow {
 }
 
 /** TEMP: set to false to use real issuer organization data. Remove when CTOS cross-check table is done. */
-const USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS = false;
+/** Temporary: mock issuer + CTOS director rows on the Financial tab. Set back to `false` when done. */
+const USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS = true;
 
 /**
  * Mock issuer rows: order matches cross-check walk. Covers MATCH, each MISMATCH shape, NOT FOUND (no IC / missing in
@@ -1523,22 +1524,28 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
     });
   }, [columns, byYear, unauditedByYear, hasIssuerFinancialData]);
 
+  /** Calendar-year turnover for growth (do not use the physical column to the left — gaps/null CTOS slots broke YoY). */
+  const turnoverByYear = React.useMemo(() => {
+    const m = new Map<number, number | null>();
+    columns.forEach((spec, i) => {
+      if (spec.year == null) return;
+      m.set(spec.year, turnovers[i]?.turnover ?? null);
+    });
+    return m;
+  }, [columns, turnovers]);
+
   const columnMetrics = React.useMemo((): (ColumnComputedMetrics | null)[] => {
-    return columns.map((spec, idx) => {
+    return columns.map((spec) => {
+      const y = spec.year;
       const g =
-        idx === 0
+        y == null
           ? null
-          : (() => {
-              const t = turnovers[idx];
-              const p = turnovers[idx - 1];
-              if (t.year == null || p.year == null) return null;
-              return computeTurnoverGrowth({
-                targetYear: t.year,
-                targetTurnover: t.turnover,
-                priorYear: p.year,
-                priorTurnover: p.turnover,
-              });
-            })();
+          : computeTurnoverGrowth({
+              targetYear: y,
+              targetTurnover: turnoverByYear.get(y) ?? null,
+              priorYear: y - 1,
+              priorTurnover: turnoverByYear.get(y - 1) ?? null,
+            });
 
       if (spec.kind === "ctos") {
         if (spec.year == null) return null;
@@ -1572,7 +1579,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
       const { bs, pl } = financialFormToBsPl(input);
       return computeColumnMetrics(bs, pl, g);
     });
-  }, [columns, byYear, turnovers, hasIssuerFinancialData, unauditedByYear]);
+  }, [columns, byYear, turnovers, turnoverByYear, hasIssuerFinancialData, unauditedByYear]);
 
   const getFsCol = React.useCallback(
     (idx: number): Record<string, unknown> | null => {
@@ -1694,7 +1701,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
   };
 
   const rowLabels: { id: string; label: string }[] = [
-    { id: "pldd", label: FINANCIAL_FIELD_LABELS.pldd },
+    { id: "pldd", label: "Financial Year End" },
     { id: "bsfatot", label: FINANCIAL_FIELD_LABELS.bsfatot },
     { id: "othass", label: FINANCIAL_FIELD_LABELS.othass },
     { id: "bscatot", label: FINANCIAL_FIELD_LABELS.bscatot },
