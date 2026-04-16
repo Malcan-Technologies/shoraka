@@ -1,4 +1,5 @@
 import {
+  getAdminFinancialSummaryUserColumnYears,
   getCtosLatestYear,
   getFinancialInputBaseYears,
   getIssuerFinancialTabYears,
@@ -67,6 +68,21 @@ describe("financial-unaudited-ctos-validation", () => {
         2024,
         2025,
       ]);
+    });
+  });
+
+  describe("getAdminFinancialSummaryUserColumnYears", () => {
+    it("returns empty when nothing submitted in window", () => {
+      expect(getAdminFinancialSummaryUserColumnYears([], ref2026)).toEqual([]);
+      expect(getAdminFinancialSummaryUserColumnYears([2024], ref2026)).toEqual([]);
+    });
+    it("returns one year when only that tab exists (ref 2026 → window 2025–2026)", () => {
+      expect(getAdminFinancialSummaryUserColumnYears([2025], ref2026)).toEqual([2025]);
+      expect(getAdminFinancialSummaryUserColumnYears([2026], ref2026)).toEqual([2026]);
+    });
+    it("returns both years ascending when both submitted", () => {
+      expect(getAdminFinancialSummaryUserColumnYears([2025, 2026], ref2026)).toEqual([2025, 2026]);
+      expect(getAdminFinancialSummaryUserColumnYears([2026, 2025], ref2026)).toEqual([2025, 2026]);
     });
   });
 

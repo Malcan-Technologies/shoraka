@@ -72,10 +72,25 @@ export function issuerUnauditedPlddForStartYear(
   return "";
 }
 
-/** Admin: fixed user-input column headers (always two), left = year1, right = year2. */
+/** Issuer window for a given date: [year1, year2] (convenience for callers that need both). */
 export function getAdminUserInputColumnYears(ref: Date = new Date()): [number, number] {
   const { year1, year2 } = getFinancialInputBaseYears(ref);
   return [year1, year2];
+}
+
+/**
+ * Admin Financial Summary: which User Input column years to render (0–2).
+ * Keeps only submitted years that fall in {@link getFinancialInputBaseYears} for `ref`, sorted ascending (smallest left).
+ */
+export function getAdminFinancialSummaryUserColumnYears(
+  submittedYearKeys: readonly number[],
+  ref: Date = new Date()
+): number[] {
+  const { year1, year2 } = getFinancialInputBaseYears(ref);
+  const allowed = new Set<number>([year1, year2]);
+  const filtered = [...new Set(submittedYearKeys.filter((y) => allowed.has(y)))];
+  filtered.sort((a, b) => a - b);
+  return filtered.slice(0, 2);
 }
 
 /** CTOS financial row shape used by helpers (stored as financial_year on each row). */

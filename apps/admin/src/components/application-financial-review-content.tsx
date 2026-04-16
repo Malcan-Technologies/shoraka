@@ -38,7 +38,7 @@ import {
   computeColumnMetrics,
   computeTurnoverGrowth,
   financialFormToBsPl,
-  getAdminUserInputColumnYears,
+  getAdminFinancialSummaryUserColumnYears,
   getLatestThreeCtosYearSlots,
   governmentIdFromDirectorKycForEod,
   normalizeFinancialStatementsQuestionnaire,
@@ -1486,6 +1486,11 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
     [unauditedByYear]
   );
 
+  const adminUserYears = React.useMemo(
+    () => getAdminFinancialSummaryUserColumnYears(rawUnauditedYears),
+    [rawUnauditedYears]
+  );
+
   const columns = React.useMemo((): ColumnSpec[] => {
     const ctosSlotYears = getLatestThreeCtosYearSlots(financialRows);
     const ctosPart: ColumnSpec[] = ctosSlotYears.map((year) => ({
@@ -1493,14 +1498,13 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
       year,
     }));
 
-    const [u0, u1] = getAdminUserInputColumnYears();
-    const unPart: ColumnSpec[] = [
-      { kind: "unaudited" as const, year: u0 },
-      { kind: "unaudited" as const, year: u1 },
-    ];
+    const unPart: ColumnSpec[] = adminUserYears.map((year) => ({
+      kind: "unaudited" as const,
+      year,
+    }));
 
     return [...ctosPart, ...unPart];
-  }, [financialRows]);
+  }, [financialRows, adminUserYears]);
 
   const turnovers = React.useMemo(() => {
     return columns.map((spec) => {
@@ -1951,9 +1955,10 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
 
       <ReviewFieldBlock title="Financial Summary">
         <p className="-mt-1 mb-2 max-w-3xl text-xs leading-relaxed text-muted-foreground">
-          CTOS columns use years from the latest organization report; user columns use issuer start years. Empty CTOS
-          slots (dimmed, left side) pad when the report has fewer than three years so the latest CTOS year stays next to
-          user columns. <span className="font-medium text-foreground">N/A</span>{" "}
+          CTOS columns use years from the latest organization report. User columns show only issuer-submitted years in
+          the current window (up to two), smallest first; none appear if nothing was submitted. Empty CTOS slots
+          (dimmed, left side) pad when the report has fewer than three years so the latest CTOS year stays next to user
+          columns. <span className="font-medium text-foreground">N/A</span>{" "}
           means a ratio cannot be computed from the numbers present (see one-line formula under each computed row label).
         </p>
         <div className={applicationTableWrapperClass}>
