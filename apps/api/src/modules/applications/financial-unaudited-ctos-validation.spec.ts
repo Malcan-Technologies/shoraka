@@ -60,12 +60,12 @@ describe("financial-unaudited-ctos-validation", () => {
   });
 
   describe("getLatestThreeCtosYearSlots", () => {
-    it("pads with null on the right to three slots", () => {
-      expect(getLatestThreeCtosYearSlots([{ financial_year: 2025 }])).toEqual([2025, null, null]);
+    it("pads with null on the left so newest CTOS column is rightmost", () => {
+      expect(getLatestThreeCtosYearSlots([{ financial_year: 2025 }])).toEqual([null, null, 2025]);
       expect(getLatestThreeCtosYearSlots([{ financial_year: 2024 }, { financial_year: 2025 }])).toEqual([
+        null,
         2024,
         2025,
-        null,
       ]);
     });
   });

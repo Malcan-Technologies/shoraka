@@ -19,7 +19,7 @@ Issuers answer two questions and enter figures for one or two **start years** (t
 
 **Year tabs (issuer)** — `getIssuerFinancialTabYears` in `@cashsouk/types`: if **not** submitted to SSM → tabs **year1**, **year2** (ascending); if **submitted** → **year2** only.
 
-**Admin Financial Summary** — Three fixed CTOS columns (latest three CTOS `financial_year` values, ascending, padded with empty slots on the right) and **two** fixed user columns (`getAdminUserInputColumnYears()`). User cells use `unaudited_by_year[String(year)]` or "—" when missing.
+**Admin Financial Summary** — Three fixed CTOS columns (latest three CTOS `financial_year` values, ascending, padded with empty slots on the **left** so the newest CTOS year sits next to user columns) and **two** fixed user columns (`getAdminUserInputColumnYears()`). User cells use `unaudited_by_year[String(year)]` or "—" when missing.
 
 **CTOS `financial_year`** — Parsed as calendar year from CTOS `pldd` minus one (see `apps/api/src/modules/ctos/parser.ts`).
 

@@ -98,11 +98,14 @@ export function getLatestThreeCtosYears(rows: CtosFinancialYearRowInput[]): numb
   return getLatestNCtosYears(rows, 3);
 }
 
-/** Always three CTOS column slots, ascending; pad with null on the right when fewer than three years. */
+/**
+ * Always three CTOS column slots. Real years stay ascending (oldest → newest). When there are fewer than
+ * three years, pad with null on the left so the newest CTOS column sits next to user-input columns.
+ */
 export function getLatestThreeCtosYearSlots(rows: CtosFinancialYearRowInput[]): (number | null)[] {
   const ys = getLatestThreeCtosYears(rows);
   const out: (number | null)[] = ys.map((y) => y);
-  while (out.length < 3) out.push(null);
+  while (out.length < 3) out.unshift(null);
   return out.slice(0, 3);
 }
 
