@@ -10,6 +10,8 @@ For **CTOS** columns in the application financial review table, each cell **pref
 
 Dates (`pldd`, `bsdd`) and line items (`bsfatot` through `plyear`) have **no formula**: if CTOS did not supply a value, the cell shows empty / the usual missing copy.
 
+For **computed** rows (total assets, total liabilities, net worth, turnover growth, profit margin, ROE, current ratio, working capital), when inputs are missing or a rule blocks the calculation, the admin table shows **N/A** (muted, same visual weight as **—**).
+
 ## Fallback formulas (CTOS column only)
 
 Implementations live in `packages/types/src/ctos-report-table-math.ts` and are wired through `columnMetrics` in `apps/admin/src/components/application-financial-review-content.tsx`.

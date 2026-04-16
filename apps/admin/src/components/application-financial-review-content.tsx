@@ -85,11 +85,18 @@ function formatFinancialDateDisplay(raw: string | null | undefined): string {
   return s;
 }
 
-function financialSummaryColumnShellClass(kind: "ctos" | "unaudited", colIndex: number, extra?: string) {
+function financialSummaryColumnShellClass(
+  kind: "ctos" | "unaudited",
+  colIndex: number,
+  year: number | null,
+  extra?: string
+) {
   const isFirstUnaudited = kind === "unaudited" && colIndex === 3;
+  const emptyCtosSlot = kind === "ctos" && year == null;
   return cn(
     kind === "ctos" ? "bg-muted/25" : "bg-background/80",
     isFirstUnaudited && "border-l-2 border-l-border",
+    emptyCtosSlot && "bg-muted/30 opacity-70",
     extra
   );
 }
@@ -1688,29 +1695,38 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
     );
   };
 
-  const rowLabels: { id: string; label: string }[] = [
+  /** Short hint under label for computed rows (admin scan speed). */
+  const rowLabels: { id: string; label: string; formulaHint?: string }[] = [
     { id: "pldd", label: "Financial Year End" },
     { id: "bsfatot", label: FINANCIAL_FIELD_LABELS.bsfatot },
     { id: "othass", label: FINANCIAL_FIELD_LABELS.othass },
     { id: "bscatot", label: FINANCIAL_FIELD_LABELS.bscatot },
     { id: "bsclbank", label: FINANCIAL_FIELD_LABELS.bsclbank },
-    { id: "totass", label: COMPUTED_FIELD_LABELS.totass },
+    { id: "totass", label: COMPUTED_FIELD_LABELS.totass, formulaHint: "Fixed + other + current + non-current assets." },
     { id: "curlib", label: FINANCIAL_FIELD_LABELS.curlib },
     { id: "bsslltd", label: FINANCIAL_FIELD_LABELS.bsslltd },
     { id: "bsclstd", label: FINANCIAL_FIELD_LABELS.bsclstd },
-    { id: "totlib", label: COMPUTED_FIELD_LABELS.totlib },
-    { id: "networth", label: COMPUTED_FIELD_LABELS.networth },
+    { id: "totlib", label: COMPUTED_FIELD_LABELS.totlib, formulaHint: "Current + long-term + non-current liabilities." },
+    { id: "networth", label: COMPUTED_FIELD_LABELS.networth, formulaHint: "Total assets − total liabilities." },
     { id: "bsqpuc", label: FINANCIAL_FIELD_LABELS.bsqpuc },
     { id: "turnover", label: FINANCIAL_FIELD_LABELS.turnover },
     { id: "plnpbt", label: FINANCIAL_FIELD_LABELS.plnpbt },
     { id: "plnpat", label: FINANCIAL_FIELD_LABELS.plnpat },
     { id: "plnetdiv", label: FINANCIAL_FIELD_LABELS.plnetdiv },
     { id: "plyear", label: FINANCIAL_FIELD_LABELS.plyear },
-    { id: "turnover_growth", label: COMPUTED_FIELD_LABELS.turnover_growth },
-    { id: "profit_margin", label: COMPUTED_FIELD_LABELS.profit_margin },
-    { id: "return_of_equity", label: COMPUTED_FIELD_LABELS.return_of_equity },
-    { id: "currat", label: COMPUTED_FIELD_LABELS.currat },
-    { id: "workcap", label: COMPUTED_FIELD_LABELS.workcap },
+    {
+      id: "turnover_growth",
+      label: COMPUTED_FIELD_LABELS.turnover_growth,
+      formulaHint: "(This year turnover − prior year) ÷ prior year. Prior column year must be exactly one less.",
+    },
+    { id: "profit_margin", label: COMPUTED_FIELD_LABELS.profit_margin, formulaHint: "Profit after tax ÷ turnover." },
+    {
+      id: "return_of_equity",
+      label: COMPUTED_FIELD_LABELS.return_of_equity,
+      formulaHint: "Profit after tax ÷ paid-up capital.",
+    },
+    { id: "currat", label: COMPUTED_FIELD_LABELS.currat, formulaHint: "Current assets ÷ current liabilities." },
+    { id: "workcap", label: COMPUTED_FIELD_LABELS.workcap, formulaHint: "Current assets − current liabilities." },
   ];
 
   const renderRowCell = (rowId: string, colIdx: number): string => {
@@ -1757,7 +1773,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
           const raw = toNum(fs.totass);
           return raw === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(raw, { decimals: 0 });
         }
-        if (!computed) return "Cannot compute from available data";
+        if (!computed) return "N/A";
         const n = computed.totass;
         return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
       }
@@ -1779,7 +1795,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
           const raw = toNum(fs.totlib);
           return raw === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(raw, { decimals: 0 });
         }
-        if (!computed) return "Cannot compute from available data";
+        if (!computed) return "N/A";
         const n = computed.totlib;
         return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
       }
@@ -1789,7 +1805,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
           const raw = toNum(fs.networth);
           return raw === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(raw, { decimals: 0 });
         }
-        if (!computed) return "Cannot compute from available data";
+        if (!computed) return "N/A";
         const n = computed.networth;
         return n === 0 ? formatCurrency(0, { decimals: 0 }) : formatCurrency(n, { decimals: 0 });
       }
@@ -1822,7 +1838,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
         if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "turnover_growth")) {
           return formatNumber(toNum(fs.turnover_growth), 2) + "%";
         }
-        if (!computed || computed.turnover_growth == null) return "Cannot compute from available data";
+        if (!computed || computed.turnover_growth == null) return "N/A";
         return formatNumber(computed.turnover_growth * 100, 2) + "%";
       }
       case "profit_margin": {
@@ -1830,7 +1846,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
         if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "profit_margin")) {
           return formatNumber(toNum(fs.profit_margin), 2) + "%";
         }
-        if (!computed || computed.profit_margin == null) return "Cannot compute from available data";
+        if (!computed || computed.profit_margin == null) return "N/A";
         return formatNumber(computed.profit_margin * 100, 2) + "%";
       }
       case "return_of_equity": {
@@ -1838,7 +1854,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
         if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "return_on_equity")) {
           return formatNumber(toNum(fs.return_on_equity), 2) + "%";
         }
-        if (!computed || computed.return_of_equity == null) return "Cannot compute from available data";
+        if (!computed || computed.return_of_equity == null) return "N/A";
         return formatNumber(computed.return_of_equity * 100, 2) + "%";
       }
       case "currat": {
@@ -1846,7 +1862,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
         if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "currat")) {
           return formatNumber(toNum(fs.currat), 2);
         }
-        if (!computed || computed.currat == null) return "Cannot compute from available data";
+        if (!computed || computed.currat == null) return "N/A";
         return formatNumber(computed.currat, 2);
       }
       case "workcap": {
@@ -1854,7 +1870,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
         if (specCol.kind === "ctos" && fs && ctosFlatNumericPresent(fs, "workcap")) {
           return formatCurrency(toNum(fs.workcap), { decimals: 0 });
         }
-        if (!computed) return "Cannot compute from available data";
+        if (!computed) return "N/A";
         return formatCurrency(computed.workcap, { decimals: 0 });
       }
       default:
@@ -1870,10 +1886,10 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
 
   const isMutedFinancialCell = (text: string) =>
     text === "—" ||
+    text === "N/A" ||
     text === "Missing in CTOS extract" ||
     text === "Field empty in CTOS" ||
-    text === "Not provided in issuer form" ||
-    text === "Cannot compute from available data";
+    text === "Not provided in issuer form";
 
   return (
     <>
@@ -1934,9 +1950,10 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
       </ReviewFieldBlock>
 
       <ReviewFieldBlock title="Financial Summary">
-        <p className="-mt-1 mb-3 max-w-3xl text-xs leading-relaxed text-muted-foreground">
-          CTOS financial years (from reports) and issuer-entered figures by calendar year. Dates use the same display
-          format across columns.
+        <p className="-mt-1 mb-2 max-w-3xl text-xs leading-relaxed text-muted-foreground">
+          CTOS columns use years from the latest organization report; user columns use issuer start years. Empty CTOS
+          slots are placeholders when the report has fewer than three years. <span className="font-medium text-foreground">N/A</span>{" "}
+          means a ratio cannot be computed from the numbers present (see one-line formula under each computed row label).
         </p>
         <div className={applicationTableWrapperClass}>
           <div className="overflow-x-auto">
@@ -1958,11 +1975,11 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                         applicationTableHeaderClass,
                         "w-[15.5%] align-middle text-right tabular-nums",
                         i < columns.length - 1 ? "border-r border-border" : "",
-                        financialSummaryColumnShellClass(spec.kind, i)
+                        financialSummaryColumnShellClass(spec.kind, i, spec.year)
                       )}
                     >
                       <span className={spec.year != null ? "text-foreground" : "text-muted-foreground"}>
-                        {spec.year != null ? String(spec.year) : HEADER_PLACEHOLDER}
+                        {spec.year != null ? String(spec.year) : spec.kind === "ctos" ? "No year" : HEADER_PLACEHOLDER}
                       </span>
                     </TableHead>
                   ))}
@@ -1980,7 +1997,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                         applicationTableHeaderClass,
                         "align-middle text-right tabular-nums",
                         i < columns.length - 1 ? "border-r border-border" : "",
-                        financialSummaryColumnShellClass(spec.kind, i),
+                        financialSummaryColumnShellClass(spec.kind, i, spec.year),
                         spec.kind === "unaudited" && "font-semibold text-foreground"
                       )}
                     >
@@ -1989,12 +2006,14 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                           variant="outline"
                           className={cn(
                             "shrink-0 font-semibold text-[11px] leading-tight px-2.5 py-0.5 rounded-md shadow-none",
-                            spec.kind === "ctos"
+                            spec.kind === "ctos" && spec.year != null
                               ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100"
-                              : "border-border bg-muted/50 text-foreground"
+                              : spec.kind === "ctos"
+                                ? "border-border bg-muted/40 text-muted-foreground"
+                                : "border-border bg-muted/50 text-foreground"
                           )}
                         >
-                          {spec.kind === "ctos" ? "CTOS" : "User Input"}
+                          {spec.kind === "ctos" ? (spec.year == null ? "No CTOS year" : "CTOS") : "User Input"}
                         </Badge>
                       </div>
                     </TableHead>
@@ -2010,7 +2029,14 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                         "border-r border-border bg-muted/20 font-medium text-foreground"
                       )}
                     >
-                      {row.label}
+                      <div className="flex min-w-0 flex-col items-start gap-0.5 text-left">
+                        <span>{row.label}</span>
+                        {row.formulaHint ? (
+                          <span className="max-w-[min(18rem,100%)] text-[11px] font-normal leading-snug text-muted-foreground">
+                            {row.formulaHint}
+                          </span>
+                        ) : null}
+                      </div>
                     </TableCell>
                     {columns.map((spec, ci) => {
                       const cellText = renderRowCell(row.id, ci);
@@ -2021,12 +2047,12 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                           className={cn(
                             applicationTableCellClass,
                             "border-r border-border text-right tabular-nums last:border-r-0",
-                            financialSummaryColumnShellClass(spec.kind, ci),
+                            financialSummaryColumnShellClass(spec.kind, ci, spec.year),
                             !muted && "text-foreground"
                           )}
                         >
                           {muted ? (
-                            cellText === "—" ? (
+                            cellText === "—" || cellText === "N/A" ? (
                               <span className="text-muted-foreground">{cellText}</span>
                             ) : (
                               <span className="inline-block max-w-full rounded-md border border-dashed border-border/70 bg-muted/25 px-2 py-0.5 text-xs leading-snug text-muted-foreground">
