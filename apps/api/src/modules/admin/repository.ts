@@ -23,6 +23,7 @@ import type {
   GetOnboardingLogsQuery,
   GetAdminApplicationsQuery,
   GetAdminContractsQuery,
+  GetGuarantorsQuery,
 } from "./schemas";
 import {
   resolveRequestedFacility,
@@ -1648,6 +1649,110 @@ export class AdminRepository {
     };
   }
 
+  async getGuarantors(params: GetGuarantorsQuery): Promise<{
+    guarantors: Array<{
+      id: string;
+      guarantorType: "individual" | "company";
+      displayName: string;
+      email: string;
+      icNumber: string | null;
+      ssmNumber: string | null;
+      amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
+      amlMessageStatus: "DONE" | "PENDING" | "ERROR";
+      amlRiskScore: number | null;
+      amlRiskLevel: string | null;
+      onboardingStatus: string | null;
+      onboardingSubstatus: string | null;
+      regtankPortalUrl: string | null;
+      linkedApplicationsCount: number;
+      createdAt: Date;
+      updatedAt: Date;
+    }>;
+    total: number;
+  }> {
+    const { page, pageSize, search, guarantorType, amlStatus } = params;
+    const skip = (page - 1) * pageSize;
+
+    const where: Prisma.GuarantorWhereInput = {};
+    if (guarantorType) where.guarantor_type = guarantorType;
+    if (amlStatus) where.aml_status = amlStatus;
+    if (search) {
+      where.OR = [
+        { email: { contains: search, mode: "insensitive" } },
+        { first_name: { contains: search, mode: "insensitive" } },
+        { last_name: { contains: search, mode: "insensitive" } },
+        { company_name: { contains: search, mode: "insensitive" } },
+        { ic_number: { contains: search, mode: "insensitive" } },
+        { ssm_number: { contains: search, mode: "insensitive" } },
+      ];
+    }
+
+    const [rows, total] = await Promise.all([
+      prisma.guarantor.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { updated_at: "desc" },
+        include: {
+          _count: { select: { application_links: true } },
+        },
+      }),
+      prisma.guarantor.count({ where }),
+    ]);
+
+    return {
+      guarantors: rows.map((row) => ({
+        id: row.id,
+        guarantorType: row.guarantor_type,
+        displayName:
+          row.guarantor_type === "company"
+            ? row.company_name || row.email
+            : [row.first_name, row.last_name].filter(Boolean).join(" ").trim() || row.email,
+        email: row.email,
+        icNumber: row.ic_number,
+        ssmNumber: row.ssm_number,
+        amlStatus: row.aml_status,
+        amlMessageStatus: row.aml_message_status,
+        amlRiskScore: row.aml_risk_score,
+        amlRiskLevel: row.aml_risk_level,
+        onboardingStatus: row.onboarding_status,
+        onboardingSubstatus: row.onboarding_substatus,
+        regtankPortalUrl: row.regtank_portal_url,
+        linkedApplicationsCount: row._count.application_links,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      })),
+      total,
+    };
+  }
+
+  async getGuarantorById(id: string) {
+    return prisma.guarantor.findUnique({
+      where: { id },
+      include: {
+        application_links: {
+          orderBy: { created_at: "desc" },
+          include: {
+            application: {
+              select: {
+                id: true,
+                status: true,
+                financing_type: true,
+                product_version: true,
+                submitted_at: true,
+                created_at: true,
+                updated_at: true,
+                issuer_organization: {
+                  select: { id: true, name: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
   /**
    * Get a single organization by portal type and ID with full details
    */
@@ -2522,6 +2627,12 @@ export class AdminRepository {
               },
             },
           },
+        },
+        application_guarantors: {
+          include: {
+            guarantor: true,
+          },
+          orderBy: { position: "asc" },
         },
       },
     });

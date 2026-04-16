@@ -405,6 +405,79 @@ export interface OrganizationsResponse {
   pagination: PaginationResponse;
 }
 
+export type GuarantorTypeEnum = "individual" | "company";
+export type GuarantorAmlStatusEnum = "Unresolved" | "Approved" | "Rejected" | "Pending";
+export type GuarantorAmlMessageStatusEnum = "DONE" | "PENDING" | "ERROR";
+
+export interface GetGuarantorsParams extends PaginationParams {
+  search?: string;
+  guarantorType?: GuarantorTypeEnum;
+  amlStatus?: GuarantorAmlStatusEnum;
+}
+
+export interface GuarantorListItem {
+  id: string;
+  guarantorType: GuarantorTypeEnum;
+  displayName: string;
+  email: string;
+  icNumber: string | null;
+  ssmNumber: string | null;
+  amlStatus: GuarantorAmlStatusEnum;
+  amlMessageStatus: GuarantorAmlMessageStatusEnum;
+  amlRiskScore: number | null;
+  amlRiskLevel: string | null;
+  onboardingStatus: string | null;
+  onboardingSubstatus: string | null;
+  regtankPortalUrl: string | null;
+  linkedApplicationsCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GuarantorsResponse {
+  guarantors: GuarantorListItem[];
+  pagination: PaginationResponse;
+}
+
+export interface GuarantorDetailResponse {
+  id: string;
+  canonicalKey: string;
+  guarantorType: GuarantorTypeEnum;
+  displayName: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  companyName: string | null;
+  icNumber: string | null;
+  ssmNumber: string | null;
+  amlStatus: GuarantorAmlStatusEnum;
+  amlMessageStatus: GuarantorAmlMessageStatusEnum;
+  amlRiskScore: number | null;
+  amlRiskLevel: string | null;
+  onboardingRequestId: string | null;
+  onboardingVerifyLink: string | null;
+  kycId: string | null;
+  kybId: string | null;
+  onboardingStatus: string | null;
+  onboardingSubstatus: string | null;
+  regtankPortalUrl: string | null;
+  lastSyncedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  linkedApplicationIds: string[];
+  linkedApplications: Array<{
+    id: string;
+    productId: string | null;
+    status: string;
+    productVersion: number;
+    submittedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+    relationship: string | null;
+    issuerOrganization: { id: string; name: string | null };
+  }>;
+}
+
 // Organization Detail Types (for View More modal)
 export interface OrganizationMemberDetail {
   id: string;

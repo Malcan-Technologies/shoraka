@@ -160,7 +160,12 @@ export async function resubmitApplication(
 
   const appFullCurrent = await prisma.application.findUnique({
     where: { id: applicationId },
-    include: { contract: true, invoices: true, issuer_organization: true },
+    include: {
+      contract: true,
+      invoices: true,
+      issuer_organization: true,
+      application_guarantors: { include: { guarantor: true }, orderBy: { position: "asc" } },
+    },
   });
 
   const previousCycle = (application as any).review_cycle ?? 1;
@@ -178,6 +183,7 @@ export async function resubmitApplication(
         financing_structure: appFullCurrent.financing_structure,
         company_details: appFullCurrent.company_details,
         business_details: appFullCurrent.business_details,
+        application_guarantors: appFullCurrent.application_guarantors,
         financial_statements: appFullCurrent.financial_statements,
         supporting_documents: appFullCurrent.supporting_documents,
         declarations: appFullCurrent.declarations,

@@ -12,6 +12,7 @@ export type BuildApplicationRevisionSnapshotInput = {
   financing_structure: Prisma.JsonValue | null;
   company_details: Prisma.JsonValue | null;
   business_details: Prisma.JsonValue | null;
+  application_guarantors?: unknown;
   financial_statements: Prisma.JsonValue | null;
   supporting_documents: Prisma.JsonValue | null;
   declarations: Prisma.JsonValue | null;
@@ -33,6 +34,44 @@ export function buildApplicationRevisionSnapshot(
     ? ackRaw.filter((id): id is string => typeof id === "string")
     : [];
 
+  const applicationGuarantors = Array.isArray(appFull.application_guarantors)
+    ? appFull.application_guarantors
+    : [];
+  const guarantors = applicationGuarantors.map((row) => {
+    const link =
+      row && typeof row === "object" && !Array.isArray(row)
+        ? (row as Record<string, unknown>)
+        : {};
+    const guarantor =
+      link.guarantor && typeof link.guarantor === "object" && !Array.isArray(link.guarantor)
+        ? (link.guarantor as Record<string, unknown>)
+        : {};
+    return {
+      id: guarantor.id ?? null,
+      canonical_key: guarantor.canonical_key ?? null,
+      guarantor_type: guarantor.guarantor_type ?? null,
+      email: guarantor.email ?? null,
+      first_name: guarantor.first_name ?? null,
+      last_name: guarantor.last_name ?? null,
+      company_name: guarantor.company_name ?? null,
+      ic_number: guarantor.ic_number ?? null,
+      ssm_number: guarantor.ssm_number ?? null,
+      relationship: link.relationship ?? null,
+      position: link.position ?? null,
+      aml_status: guarantor.aml_status ?? null,
+      aml_message_status: guarantor.aml_message_status ?? null,
+      aml_risk_score: guarantor.aml_risk_score ?? null,
+      aml_risk_level: guarantor.aml_risk_level ?? null,
+      onboarding_request_id: guarantor.onboarding_request_id ?? null,
+      onboarding_verify_link: guarantor.onboarding_verify_link ?? null,
+      regtank_portal_url: guarantor.regtank_portal_url ?? null,
+      onboarding_status: guarantor.onboarding_status ?? null,
+      onboarding_substatus: guarantor.onboarding_substatus ?? null,
+      last_synced_at: guarantor.last_synced_at ?? null,
+      updated_at: guarantor.updated_at ?? null,
+    };
+  });
+
   return {
     product: {
       id: ft?.product_id ?? null,
@@ -44,6 +83,7 @@ export function buildApplicationRevisionSnapshot(
       financing_structure: appFull.financing_structure,
       company_details: appFull.company_details,
       business_details: appFull.business_details,
+      guarantors,
       financial_statements: appFull.financial_statements,
       supporting_documents: appFull.supporting_documents,
       declarations: appFull.declarations,

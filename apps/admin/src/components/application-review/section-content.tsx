@@ -46,6 +46,7 @@ export type ReviewApplicationView = {
   id?: string;
   created_at?: string;
   business_details?: unknown;
+  application_guarantors?: unknown;
   supporting_documents?: unknown;
   financing_type?: unknown;
   financing_structure?: unknown;
@@ -239,7 +240,7 @@ export function SectionContent({
       return (
         <BusinessSection
           businessDetails={app.business_details}
-          issuerOrganizationBusinessAmlStatus={app.issuer_organization?.business_aml_status}
+          applicationGuarantors={app.application_guarantors}
           section={section}
           isReviewable={isReviewable}
           approvePending={approveSectionPending}
@@ -263,6 +264,12 @@ export function SectionContent({
               ? {
                   beforeDetails: sectionComparison.beforeApp.business_details,
                   afterDetails: sectionComparison.afterApp.business_details,
+                  beforeGuarantors:
+                    (sectionComparison.beforeApp as { application?: { guarantors?: unknown } })
+                      ?.application?.guarantors ?? sectionComparison.beforeApp.application_guarantors,
+                  afterGuarantors:
+                    (sectionComparison.afterApp as { application?: { guarantors?: unknown } })
+                      ?.application?.guarantors ?? sectionComparison.afterApp.application_guarantors,
                   isPathChanged: sectionComparison.isPathChanged,
                 }
               : undefined

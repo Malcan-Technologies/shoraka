@@ -37,6 +37,7 @@ import type {
   GetOnboardingApplicationsQuery,
   GetAdminApplicationsQuery,
   GetAdminContractsQuery,
+  GetGuarantorsQuery,
 } from "./schemas";
 import { RegTankRepository, OnboardingApplicationRecord } from "../regtank/repository";
 import { RegTankAPIClient } from "../regtank/api-client";
@@ -78,18 +79,12 @@ import { computeSupportingDocumentsSectionStatus } from "../applications/support
 import { computeInvoiceDetailsSectionStatus } from "../applications/invoice-details-section-status";
 import { assertMaturityForSendInvoiceOffer } from "../products/validate-financial-config";
 import {
-  buildOrganizationGuarantorKey,
   buildRegTankPortalUrl,
   extractKybId,
   extractKycId,
   mapScreeningStatusToAml,
-  parseApplicationGuarantors,
-  readGuarantorAmlStore,
-  upsertGuarantorAmlRecord,
-  writeGuarantorAmlStore,
-  type GuarantorAmlRecord,
-  type GuarantorAmlStore,
 } from "./guarantor-aml";
+import { buildGuarantorCanonicalKey } from "../guarantors/utils";
 import type {
   RegTankCorporateOnboardingRequest,
   RegTankIndividualOnboardingRequest,
@@ -1703,6 +1698,121 @@ export class AdminService {
         totalCount: result.total,
         totalPages: Math.ceil(result.total / params.pageSize),
       },
+    };
+  }
+
+  async getGuarantors(params: GetGuarantorsQuery) {
+    const result = await this.repository.getGuarantors(params);
+    return {
+      guarantors: result.guarantors.map((row) => ({
+        ...row,
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString(),
+      })),
+      pagination: {
+        page: params.page,
+        pageSize: params.pageSize,
+        totalCount: result.total,
+        totalPages: Math.ceil(result.total / params.pageSize),
+      },
+    };
+  }
+
+  async getGuarantorDetail(id: string) {
+    const guarantor = await this.repository.getGuarantorById(id);
+    if (!guarantor) {
+      throw new AppError(404, "NOT_FOUND", "Guarantor not found");
+    }
+
+    const resolveProductIdFromFinancingType = (financingType: unknown): string | null => {
+      if (!financingType || typeof financingType !== "object" || Array.isArray(financingType)) {
+        return null;
+      }
+      const productId = (financingType as Record<string, unknown>).product_id;
+      return typeof productId === "string" && productId.length > 0 ? productId : null;
+    };
+
+    const linkedApplicationIds = guarantor.application_links.map((link) => link.application_id);
+    return {
+      id: guarantor.id,
+      canonicalKey: guarantor.canonical_key,
+      guarantorType: guarantor.guarantor_type,
+      displayName:
+        guarantor.guarantor_type === "company"
+          ? guarantor.company_name || guarantor.email
+          : [guarantor.first_name, guarantor.last_name].filter(Boolean).join(" ").trim() ||
+            guarantor.email,
+      email: guarantor.email,
+      firstName: guarantor.first_name,
+      lastName: guarantor.last_name,
+      companyName: guarantor.company_name,
+      icNumber: guarantor.ic_number,
+      ssmNumber: guarantor.ssm_number,
+      amlStatus: guarantor.aml_status,
+      amlMessageStatus: guarantor.aml_message_status,
+      amlRiskScore: guarantor.aml_risk_score,
+      amlRiskLevel: guarantor.aml_risk_level,
+      onboardingRequestId: guarantor.onboarding_request_id,
+      onboardingVerifyLink: guarantor.onboarding_verify_link,
+      kycId: guarantor.kyc_id,
+      kybId: guarantor.kyb_id,
+      onboardingStatus: guarantor.onboarding_status,
+      onboardingSubstatus: guarantor.onboarding_substatus,
+      regtankPortalUrl: guarantor.regtank_portal_url,
+      lastSyncedAt: guarantor.last_synced_at?.toISOString() ?? null,
+      createdAt: guarantor.created_at.toISOString(),
+      updatedAt: guarantor.updated_at.toISOString(),
+      linkedApplications: guarantor.application_links.map((link) => ({
+        id: link.application.id,
+        productId: resolveProductIdFromFinancingType(link.application.financing_type),
+        status: link.application.status,
+        productVersion: link.application.product_version,
+        submittedAt: link.application.submitted_at?.toISOString() ?? null,
+        createdAt: link.application.created_at.toISOString(),
+        updatedAt: link.application.updated_at.toISOString(),
+        relationship: link.relationship,
+        issuerOrganization: {
+          id: link.application.issuer_organization.id,
+          name: link.application.issuer_organization.name,
+        },
+      })),
+      linkedApplicationIds,
+    };
+  }
+
+  async restartGuarantorOnboarding(guarantorId: string, adminUserId: string) {
+    const guarantor = await prisma.guarantor.findUnique({ where: { id: guarantorId } });
+    if (!guarantor) {
+      throw new AppError(404, "NOT_FOUND", "Guarantor not found");
+    }
+    if (!guarantor.onboarding_request_id) {
+      throw new AppError(400, "INVALID_STATE", "Guarantor onboarding has not been started");
+    }
+    const restartResponse = await this.regTankApiClient.restartOnboarding(guarantor.onboarding_request_id);
+    const requestId = restartResponse.requestId || guarantor.onboarding_request_id;
+    const regtankPortalUrl = buildRegTankPortalUrl(getRegTankConfig().adminPortalUrl, requestId);
+    const updated = await prisma.guarantor.update({
+      where: { id: guarantor.id },
+      data: {
+        onboarding_request_id: requestId,
+        onboarding_verify_link: restartResponse.verifyLink ?? guarantor.onboarding_verify_link,
+        regtank_portal_url: regtankPortalUrl,
+        onboarding_status: "PENDING",
+        onboarding_substatus: null,
+        aml_status: "Pending",
+        aml_message_status: "PENDING",
+        aml_risk_score: null,
+        aml_risk_level: null,
+        last_triggered_at: new Date(),
+        triggered_by_admin_user_id: adminUserId,
+      },
+    });
+    return {
+      id: updated.id,
+      onboardingRequestId: updated.onboarding_request_id,
+      onboardingVerifyLink: updated.onboarding_verify_link,
+      regtankPortalUrl: updated.regtank_portal_url,
+      amlStatus: updated.aml_status,
     };
   }
 
@@ -4145,80 +4255,17 @@ export class AdminService {
     };
   }
 
-  private readGuarantorAmlStoreFromIssuerOrg(application: {
-    issuer_organization?: { business_aml_status?: unknown } | null;
-  }): GuarantorAmlStore {
-    return readGuarantorAmlStore(application.issuer_organization?.business_aml_status);
-  }
-
-  private async persistGuarantorAmlStore(
-    issuerOrganizationId: string,
-    previousRaw: unknown,
-    store: GuarantorAmlStore
-  ): Promise<void> {
-    const payload = writeGuarantorAmlStore(previousRaw, store);
-    await prisma.issuerOrganization.update({
-      where: { id: issuerOrganizationId },
-      data: { business_aml_status: payload as Prisma.InputJsonValue },
-    });
-  }
-
-  private buildDefaultGuarantorAmlRecord(input: {
-    applicationId: string;
-    guarantor: ReturnType<typeof parseApplicationGuarantors>[number];
-    orgGuarantorKey: string;
-    triggeredByAdminUserId: string;
-  }): GuarantorAmlRecord {
-    const nowIso = new Date().toISOString();
-    return {
-      orgGuarantorKey: input.orgGuarantorKey,
-      guarantorType: input.guarantor.guarantorType,
-      guarantorId: input.guarantor.guarantorId,
-      applicationId: input.applicationId,
-      linkedApplicationIds: [input.applicationId],
-      email: input.guarantor.email,
-      firstName: input.guarantor.firstName,
-      lastName: input.guarantor.lastName,
-      companyName: input.guarantor.companyName,
-      icNumber: input.guarantor.icNumber,
-      ssmNumber: input.guarantor.ssmNumber,
-      amlStatus: "Pending",
-      amlMessageStatus: "PENDING",
-      amlRiskScore: null,
-      amlRiskLevel: null,
-      triggeredAt: nowIso,
-      lastSyncedAt: nowIso,
-      lastUpdated: nowIso,
-      triggeredByAdminUserId: input.triggeredByAdminUserId,
-    };
-  }
-
-  private mergeGuarantorRecord(
-    existing: GuarantorAmlRecord | undefined,
-    base: GuarantorAmlRecord,
-    applicationId: string
-  ): GuarantorAmlRecord {
-    if (!existing) return base;
-    const linked = new Set<string>([...existing.linkedApplicationIds, applicationId].filter(Boolean));
-    return {
-      ...existing,
-      ...base,
-      requestId: base.requestId ?? existing.requestId,
-      onboardingVerifyLink: base.onboardingVerifyLink ?? existing.onboardingVerifyLink,
-      kycId: base.kycId ?? existing.kycId,
-      kybId: base.kybId ?? existing.kybId,
-      regtankPortalUrl: base.regtankPortalUrl ?? existing.regtankPortalUrl,
-      onboardingStatus: base.onboardingStatus ?? existing.onboardingStatus,
-      onboardingSubstatus: base.onboardingSubstatus ?? existing.onboardingSubstatus,
-      triggeredAt: existing.triggeredAt || base.triggeredAt,
-      linkedApplicationIds: Array.from(linked),
-      applicationId,
-    };
-  }
-
   private async triggerRegTankForGuarantor(
     issuerOrganizationId: string,
-    guarantor: ReturnType<typeof parseApplicationGuarantors>[number]
+    guarantor: {
+      guarantorId: string;
+      guarantorType: "individual" | "company";
+      email: string;
+      firstName?: string | null;
+      lastName?: string | null;
+      companyName?: string | null;
+      icNumber?: string | null;
+    }
   ): Promise<{ requestId: string; regtankPortalUrl: string; onboardingVerifyLink: string }> {
     const adminPortalUrl = getRegTankConfig().adminPortalUrl;
     const referenceId = this.buildGuarantorReferenceId(
@@ -4267,22 +4314,27 @@ export class AdminService {
   }
 
   private async refreshGuarantorAmlFromRegTank(
-    record: GuarantorAmlRecord
-  ): Promise<Pick<
-    GuarantorAmlRecord,
-    | "requestId"
-    | "kycId"
-    | "kybId"
-    | "regtankPortalUrl"
-    | "onboardingStatus"
-    | "onboardingSubstatus"
-    | "amlStatus"
-    | "amlMessageStatus"
-    | "amlRiskScore"
-    | "amlRiskLevel"
-    | "lastSyncedAt"
-    | "lastUpdated"
-  >> {
+    record: {
+      requestId?: string | null;
+      guarantorType: "individual" | "company";
+      kycId?: string | null;
+      kybId?: string | null;
+      onboardingStatus?: string | null;
+      onboardingSubstatus?: string | null;
+    }
+  ): Promise<{
+    requestId: string;
+    kycId?: string;
+    kybId?: string;
+    regtankPortalUrl: string;
+    onboardingStatus?: string;
+    onboardingSubstatus?: string;
+    amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
+    amlMessageStatus: "DONE" | "PENDING" | "ERROR";
+    amlRiskScore: number | null;
+    amlRiskLevel: string | null;
+    lastSyncedAt: string;
+  }> {
     if (!record.requestId) {
       throw new AppError(400, "INVALID_STATE", "Guarantor AML request has not been triggered");
     }
@@ -4319,7 +4371,6 @@ export class AdminService {
         amlRiskLevel:
           typeof kycStatus?.riskLevel === "string" ? kycStatus.riskLevel : null,
         lastSyncedAt: nowIso,
-        lastUpdated: nowIso,
       };
     }
 
@@ -4359,16 +4410,90 @@ export class AdminService {
       amlRiskLevel:
         typeof kybStatus?.riskLevel === "string" ? kybStatus.riskLevel : null,
       lastSyncedAt: nowIso,
-      lastUpdated: nowIso,
     };
   }
 
-  private getApplicationGuarantorForAction(application: {
-    business_details?: unknown;
-  }, guarantorId: string) {
-    const parsed = parseApplicationGuarantors(application.business_details);
-    const target = parsed.find((g) => g.guarantorId === guarantorId);
-    return { parsed, target };
+  private mapGuarantorAmlResponse(
+    guarantor: {
+      id: string;
+      guarantor_type: "individual" | "company";
+      email: string;
+      first_name: string | null;
+      last_name: string | null;
+      company_name: string | null;
+      ic_number: string | null;
+      ssm_number: string | null;
+      onboarding_request_id: string | null;
+      onboarding_verify_link: string | null;
+      kyc_id: string | null;
+      kyb_id: string | null;
+      regtank_portal_url: string | null;
+      onboarding_status: string | null;
+      onboarding_substatus: string | null;
+      aml_status: "Unresolved" | "Approved" | "Rejected" | "Pending";
+      aml_message_status: "DONE" | "PENDING" | "ERROR";
+      aml_risk_score: number | null;
+      aml_risk_level: string | null;
+      updated_at: Date;
+    },
+    applicationId: string,
+    linkedApplicationIds: string[]
+  ) {
+    return {
+      orgGuarantorKey: buildGuarantorCanonicalKey({
+        guarantorType: guarantor.guarantor_type,
+        icNumber: guarantor.ic_number ?? undefined,
+        ssmNumber: guarantor.ssm_number ?? undefined,
+        email: guarantor.email,
+      }),
+      guarantorType: guarantor.guarantor_type,
+      guarantorId: guarantor.id,
+      applicationId,
+      linkedApplicationIds,
+      email: guarantor.email,
+      firstName: guarantor.first_name ?? undefined,
+      lastName: guarantor.last_name ?? undefined,
+      companyName: guarantor.company_name ?? undefined,
+      icNumber: guarantor.ic_number ?? undefined,
+      ssmNumber: guarantor.ssm_number ?? undefined,
+      requestId: guarantor.onboarding_request_id ?? undefined,
+      onboardingVerifyLink: guarantor.onboarding_verify_link ?? undefined,
+      kycId: guarantor.kyc_id ?? undefined,
+      kybId: guarantor.kyb_id ?? undefined,
+      regtankPortalUrl: guarantor.regtank_portal_url ?? undefined,
+      onboardingStatus: guarantor.onboarding_status ?? undefined,
+      onboardingSubstatus: guarantor.onboarding_substatus ?? undefined,
+      amlStatus: guarantor.aml_status,
+      amlMessageStatus: guarantor.aml_message_status,
+      amlRiskScore: guarantor.aml_risk_score,
+      amlRiskLevel: guarantor.aml_risk_level,
+      triggeredAt: guarantor.updated_at.toISOString(),
+      lastSyncedAt: guarantor.updated_at.toISOString(),
+      lastUpdated: guarantor.updated_at.toISOString(),
+    };
+  }
+
+  private async getApplicationGuarantorForAction(applicationId: string, guarantorId: string) {
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: {
+        id: true,
+        issuer_organization_id: true,
+        application_guarantors: {
+          include: { guarantor: true },
+        },
+      },
+    });
+    if (!application) {
+      throw new AppError(404, "NOT_FOUND", "Application not found");
+    }
+    const link = application.application_guarantors.find(
+      (entry) => entry.guarantor_id === guarantorId
+    );
+    if (!link) {
+      throw new AppError(404, "NOT_FOUND", "Guarantor not found on this application");
+    }
+    return { application, link };
   }
 
   async triggerApplicationGuarantorAml(
@@ -4376,146 +4501,152 @@ export class AdminService {
     guarantorId: string,
     adminUserId: string
   ) {
-    const application = await this.repository.getApplicationById(applicationId);
-    if (!application) {
-      throw new AppError(404, "NOT_FOUND", "Application not found");
-    }
+    const { application, link } = await this.getApplicationGuarantorForAction(applicationId, guarantorId);
     if (!application.issuer_organization_id) {
       throw new AppError(400, "INVALID_STATE", "Application has no issuer organization");
     }
-    const { target } = this.getApplicationGuarantorForAction(application, guarantorId);
-    if (!target) {
-      throw new AppError(404, "NOT_FOUND", "Guarantor not found on this application");
-    }
-    if (!target.email) {
+    if (!link.guarantor.email) {
       throw new AppError(400, "VALIDATION_ERROR", "Guarantor email is required before AML trigger");
     }
 
-    const currentStore = this.readGuarantorAmlStoreFromIssuerOrg(application);
-    const orgGuarantorKey = buildOrganizationGuarantorKey(target);
-    const existing = currentStore.guarantors.find((g) => g.orgGuarantorKey === orgGuarantorKey);
-    const seed = this.buildDefaultGuarantorAmlRecord({
-      applicationId,
-      guarantor: target,
-      orgGuarantorKey,
-      triggeredByAdminUserId: adminUserId,
-    });
-
-    let merged = this.mergeGuarantorRecord(existing, seed, applicationId);
-    if (!merged.requestId) {
+    let requestId = link.guarantor.onboarding_request_id;
+    let onboardingVerifyLink = link.guarantor.onboarding_verify_link;
+    let regtankPortalUrl = link.guarantor.regtank_portal_url;
+    if (!requestId) {
       const regtank = await this.triggerRegTankForGuarantor(
         application.issuer_organization_id,
-        target
+        {
+          guarantorId: link.guarantor.id,
+          guarantorType: link.guarantor.guarantor_type,
+          email: link.guarantor.email,
+          firstName: link.guarantor.first_name,
+          lastName: link.guarantor.last_name,
+          companyName: link.guarantor.company_name,
+          icNumber: link.guarantor.ic_number,
+        }
       );
-      merged = {
-        ...merged,
-        requestId: regtank.requestId,
-        onboardingVerifyLink: regtank.onboardingVerifyLink,
-        regtankPortalUrl: regtank.regtankPortalUrl,
-        amlStatus: "Pending",
-        amlMessageStatus: "PENDING",
-        onboardingStatus: "PENDING",
-        lastUpdated: new Date().toISOString(),
-      };
+      requestId = regtank.requestId;
+      onboardingVerifyLink = regtank.onboardingVerifyLink;
+      regtankPortalUrl = regtank.regtankPortalUrl;
     }
 
-    const nextStore = upsertGuarantorAmlRecord(currentStore, merged);
-    await this.persistGuarantorAmlStore(
-      application.issuer_organization_id,
-      application.issuer_organization?.business_aml_status,
-      nextStore
-    );
-    return merged;
+    const updated = await prisma.guarantor.update({
+      where: { id: link.guarantor.id },
+      data: {
+        onboarding_request_id: requestId ?? null,
+        onboarding_verify_link: onboardingVerifyLink ?? null,
+        regtank_portal_url: regtankPortalUrl ?? null,
+        onboarding_status: "PENDING",
+        aml_status: "Pending",
+        aml_message_status: "PENDING",
+        last_triggered_at: new Date(),
+        triggered_by_admin_user_id: adminUserId,
+      },
+    });
+    const linkedApplicationIds = application.application_guarantors.map((entry) => entry.application_id);
+    return this.mapGuarantorAmlResponse(updated, applicationId, linkedApplicationIds);
   }
 
   async refreshApplicationGuarantorAml(
     applicationId: string,
     guarantorId: string
   ) {
-    const application = await this.repository.getApplicationById(applicationId);
-    if (!application) {
-      throw new AppError(404, "NOT_FOUND", "Application not found");
-    }
+    const { application, link } = await this.getApplicationGuarantorForAction(applicationId, guarantorId);
     if (!application.issuer_organization_id) {
       throw new AppError(400, "INVALID_STATE", "Application has no issuer organization");
     }
-    const { target } = this.getApplicationGuarantorForAction(application, guarantorId);
-    if (!target) {
-      throw new AppError(404, "NOT_FOUND", "Guarantor not found on this application");
-    }
-
-    const currentStore = this.readGuarantorAmlStoreFromIssuerOrg(application);
-    const orgGuarantorKey = buildOrganizationGuarantorKey(target);
-    const existing = currentStore.guarantors.find((g) => g.orgGuarantorKey === orgGuarantorKey);
-    if (!existing?.requestId) {
+    if (!link.guarantor.onboarding_request_id) {
       throw new AppError(400, "INVALID_STATE", "Guarantor AML has not been triggered yet");
     }
 
-    const refreshed = await this.refreshGuarantorAmlFromRegTank(existing);
-    const merged = this.mergeGuarantorRecord(
-      existing,
-      {
-        ...existing,
-        ...refreshed,
+    const refreshed = await this.refreshGuarantorAmlFromRegTank({
+      requestId: link.guarantor.onboarding_request_id,
+      guarantorType: link.guarantor.guarantor_type,
+      kycId: link.guarantor.kyc_id,
+      kybId: link.guarantor.kyb_id,
+      onboardingStatus: link.guarantor.onboarding_status,
+      onboardingSubstatus: link.guarantor.onboarding_substatus,
+    });
+    const updated = await prisma.guarantor.update({
+      where: { id: link.guarantor.id },
+      data: {
+        onboarding_request_id: refreshed.requestId,
+        kyc_id: refreshed.kycId ?? null,
+        kyb_id: refreshed.kybId ?? null,
+        regtank_portal_url: refreshed.regtankPortalUrl,
+        onboarding_status: refreshed.onboardingStatus ?? null,
+        onboarding_substatus: refreshed.onboardingSubstatus ?? null,
+        aml_status: refreshed.amlStatus,
+        aml_message_status: refreshed.amlMessageStatus,
+        aml_risk_score: refreshed.amlRiskScore,
+        aml_risk_level: refreshed.amlRiskLevel,
+        last_synced_at: new Date(refreshed.lastSyncedAt),
       },
-      applicationId
-    );
-    const nextStore = upsertGuarantorAmlRecord(currentStore, merged);
-    await this.persistGuarantorAmlStore(
-      application.issuer_organization_id,
-      application.issuer_organization?.business_aml_status,
-      nextStore
-    );
-    return merged;
+    });
+    const linkedApplicationIds = application.application_guarantors.map((entry) => entry.application_id);
+    return this.mapGuarantorAmlResponse(updated, applicationId, linkedApplicationIds);
   }
 
   async refreshAllApplicationGuarantorAml(applicationId: string) {
-    const application = await this.repository.getApplicationById(applicationId);
+    const application = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: {
+        id: true,
+        issuer_organization_id: true,
+        application_guarantors: {
+          include: { guarantor: true },
+        },
+      },
+    });
     if (!application) {
       throw new AppError(404, "NOT_FOUND", "Application not found");
     }
     if (!application.issuer_organization_id) {
       throw new AppError(400, "INVALID_STATE", "Application has no issuer organization");
     }
-    const parsedGuarantors = parseApplicationGuarantors(application.business_details);
-    const currentStore = this.readGuarantorAmlStoreFromIssuerOrg(application);
-    const updated: GuarantorAmlRecord[] = [];
-    let nextStore = currentStore;
-
-    for (const guarantor of parsedGuarantors) {
-      const key = buildOrganizationGuarantorKey(guarantor);
-      const existing = nextStore.guarantors.find((entry) => entry.orgGuarantorKey === key);
-      if (!existing?.requestId) continue;
+    const updated: Array<Record<string, unknown>> = [];
+    for (const link of application.application_guarantors) {
+      const existing = link.guarantor;
+      if (!existing.onboarding_request_id) continue;
       try {
-        const refreshed = await this.refreshGuarantorAmlFromRegTank(existing);
-        const merged = this.mergeGuarantorRecord(
-          existing,
-          {
-            ...existing,
-            ...refreshed,
+        const refreshed = await this.refreshGuarantorAmlFromRegTank({
+          requestId: existing.onboarding_request_id,
+          guarantorType: existing.guarantor_type,
+          kycId: existing.kyc_id,
+          kybId: existing.kyb_id,
+          onboardingStatus: existing.onboarding_status,
+          onboardingSubstatus: existing.onboarding_substatus,
+        });
+        const next = await prisma.guarantor.update({
+          where: { id: existing.id },
+          data: {
+            onboarding_request_id: refreshed.requestId,
+            kyc_id: refreshed.kycId ?? null,
+            kyb_id: refreshed.kybId ?? null,
+            regtank_portal_url: refreshed.regtankPortalUrl,
+            onboarding_status: refreshed.onboardingStatus ?? null,
+            onboarding_substatus: refreshed.onboardingSubstatus ?? null,
+            aml_status: refreshed.amlStatus,
+            aml_message_status: refreshed.amlMessageStatus,
+            aml_risk_score: refreshed.amlRiskScore,
+            aml_risk_level: refreshed.amlRiskLevel,
+            last_synced_at: new Date(refreshed.lastSyncedAt),
           },
-          applicationId
+        });
+        updated.push(
+          this.mapGuarantorAmlResponse(next, applicationId, [applicationId]) as Record<string, unknown>
         );
-        nextStore = upsertGuarantorAmlRecord(nextStore, merged);
-        updated.push(merged);
       } catch (error) {
         logger.warn(
           {
             applicationId,
-            guarantorId: guarantor.guarantorId,
-            orgGuarantorKey: key,
+            guarantorId: existing.id,
             error: error instanceof Error ? error.message : String(error),
           },
           "Failed to refresh guarantor AML status"
         );
       }
     }
-
-    await this.persistGuarantorAmlStore(
-      application.issuer_organization_id,
-      application.issuer_organization?.business_aml_status,
-      nextStore
-    );
 
     return {
       guarantors: updated,

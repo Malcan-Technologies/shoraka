@@ -19,6 +19,7 @@ import {
   FolderOpenIcon,
   DocumentDuplicateIcon,
   CubeIcon,
+  IdentificationIcon,
 } from "@heroicons/react/24/outline";
 
 import { NavUser } from "@/components/nav-user";
@@ -71,6 +72,11 @@ const navPlatform = [
     title: "Organizations",
     url: "/organizations",
     icon: BuildingOffice2Icon,
+  },
+  {
+    title: "Guarantors",
+    url: "/guarantors",
+    icon: IdentificationIcon,
   },
   {
     title: "Notes",
