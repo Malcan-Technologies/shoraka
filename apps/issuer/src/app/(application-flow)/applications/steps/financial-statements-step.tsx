@@ -750,7 +750,7 @@ export function FinancialStatementsStep({
     setActiveYearTab((prev) => {
       const ids = yearsToShow.map(String);
       if (prev && ids.includes(prev)) return prev;
-      return ids[ids.length - 1] ?? "";
+      return ids[0] ?? "";
     });
   }, [yearsToShow]);
 
