@@ -840,6 +840,20 @@ function AdminGuarantorComparisonList({
                     after={gA?.kind === "individual" ? gA.relationshipLabel : "—"}
                     changed={changed}
                   />
+                  <ComparisonFieldRow
+                    label="Email"
+                    before={
+                      gB?.kind === "individual"
+                        ? gB.email || REVIEW_EMPTY_LABEL
+                        : "—"
+                    }
+                    after={
+                      gA?.kind === "individual"
+                        ? gA.email || REVIEW_EMPTY_LABEL
+                        : "—"
+                    }
+                    changed={changed}
+                  />
                 </div>
               ) : null}
               {showCompany ? (
@@ -861,6 +875,16 @@ function AdminGuarantorComparisonList({
                     label="Relationship"
                     before={gB?.kind === "company" ? gB.relationshipLabel : "—"}
                     after={gA?.kind === "company" ? gA.relationshipLabel : "—"}
+                    changed={changed}
+                  />
+                  <ComparisonFieldRow
+                    label="Email"
+                    before={
+                      gB?.kind === "company" ? gB.email || REVIEW_EMPTY_LABEL : "—"
+                    }
+                    after={
+                      gA?.kind === "company" ? gA.email || REVIEW_EMPTY_LABEL : "—"
+                    }
                     changed={changed}
                   />
                 </div>
