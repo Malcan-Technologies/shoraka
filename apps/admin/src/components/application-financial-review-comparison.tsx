@@ -15,6 +15,7 @@ import {
   computeColumnMetrics,
   financialFormToBsPl,
   getIssuerFinancialTabYears,
+  issuerUnauditedPlddForStartYear,
   type FinancialStatementsInput,
 } from "@cashsouk/types";
 import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
@@ -81,8 +82,17 @@ function formatFinancialDateDisplay(raw: string | null | undefined): string {
   return s;
 }
 
-function mockUnauditedYearBlock(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+function mockUnauditedYearBlock(
+  startYear: number,
+  isSubmittedToSsm: boolean,
+  overrides: Record<string, unknown> = {}
+): Record<string, unknown> {
+  const q = {
+    last_closing_date: MOCK_LAST_CLOSING_DATE,
+    is_submitted_to_ssm: isSubmittedToSsm,
+  };
   return {
+    pldd: issuerUnauditedPlddForStartYear(startYear, q, MOCK_TAB_REF),
     bsfatot: 180_000,
     othass: 45_000,
     bscatot: 220_000,
@@ -115,7 +125,10 @@ function buildMockFinancialResubmitPayload(yearCount: 1 | 2): MockFinancialResub
           is_submitted_to_ssm: true,
         },
         unaudited_by_year: {
-          [String(MOCK_Y_SUBMITTED)]: mockUnauditedYearBlock({ turnover: 1_050_000, plnpat: 48_000 }),
+          [String(MOCK_Y_SUBMITTED)]: mockUnauditedYearBlock(MOCK_Y_SUBMITTED, true, {
+            turnover: 1_050_000,
+            plnpat: 48_000,
+          }),
         },
       },
       after: {
@@ -124,7 +137,10 @@ function buildMockFinancialResubmitPayload(yearCount: 1 | 2): MockFinancialResub
           is_submitted_to_ssm: true,
         },
         unaudited_by_year: {
-          [String(MOCK_Y_SUBMITTED)]: mockUnauditedYearBlock({ turnover: 1_180_000, plnpat: 48_000 }),
+          [String(MOCK_Y_SUBMITTED)]: mockUnauditedYearBlock(MOCK_Y_SUBMITTED, true, {
+            turnover: 1_180_000,
+            plnpat: 48_000,
+          }),
         },
       },
       changedPaths: new Set([`financial_statements.unaudited_by_year.${MOCK_Y_SUBMITTED}.turnover`]),
@@ -137,8 +153,8 @@ function buildMockFinancialResubmitPayload(yearCount: 1 | 2): MockFinancialResub
         is_submitted_to_ssm: false,
       },
       unaudited_by_year: {
-        [String(MOCK_Y1)]: mockUnauditedYearBlock({ turnover: 880_000, plnpat: 41_000 }),
-        [String(MOCK_Y2)]: mockUnauditedYearBlock({ turnover: 1_050_000, plnpat: 48_000 }),
+        [String(MOCK_Y1)]: mockUnauditedYearBlock(MOCK_Y1, false, { turnover: 880_000, plnpat: 41_000 }),
+        [String(MOCK_Y2)]: mockUnauditedYearBlock(MOCK_Y2, false, { turnover: 1_050_000, plnpat: 48_000 }),
       },
     },
     after: {
@@ -147,8 +163,8 @@ function buildMockFinancialResubmitPayload(yearCount: 1 | 2): MockFinancialResub
         is_submitted_to_ssm: false,
       },
       unaudited_by_year: {
-        [String(MOCK_Y1)]: mockUnauditedYearBlock({ turnover: 965_000, plnpat: 41_000 }),
-        [String(MOCK_Y2)]: mockUnauditedYearBlock({ turnover: 1_050_000, plnpat: 61_000 }),
+        [String(MOCK_Y1)]: mockUnauditedYearBlock(MOCK_Y1, false, { turnover: 965_000, plnpat: 41_000 }),
+        [String(MOCK_Y2)]: mockUnauditedYearBlock(MOCK_Y2, false, { turnover: 1_050_000, plnpat: 61_000 }),
       },
     },
     changedPaths: new Set([

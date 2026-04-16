@@ -49,6 +49,7 @@ import {
   WithdrawReason,
   getFinancialInputBaseYears,
   getIssuerFinancialTabYears,
+  issuerUnauditedPlddForStartYear,
 } from "@cashsouk/types";
 import { computeApplicationStatus } from "./lifecycle";
 import * as crypto from "crypto";
@@ -163,6 +164,7 @@ function parseBsddDateFinancial(s: string): Date | null {
 
 /** Business rules for v2 per-year financial blocks (no bsdd). */
 function validateFinancialYearBlockOrThrow(raw: {
+  pldd?: string;
   bsfatot?: unknown;
   othass?: unknown;
   bscatot?: unknown;
@@ -196,12 +198,22 @@ function validateFinancialYearBlockOrThrow(raw: {
     }
   }
 
+  const plddRaw = String(raw.pldd ?? "").trim();
+  const plddDate = plddRaw === "" ? null : parseBsddDateFinancial(plddRaw);
+  if (plddDate) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (plddDate > today) {
+      throw new AppError(400, "VALIDATION_ERROR", "Last closing date cannot be in the future.");
+    }
+  }
 }
 
 function normalizeFinancialYearBlock(
   raw: Record<string, unknown>
 ): Prisma.InputJsonValue {
   return {
+    pldd: String(raw.pldd ?? ""),
     bsfatot: financialToNum(raw.bsfatot),
     othass: financialToNum(raw.othass),
     bscatot: financialToNum(raw.bscatot),
@@ -753,7 +765,15 @@ export class ApplicationService {
           const message = blockResult.error.errors.map((e) => e.message).join("; ");
           throw new AppError(400, "VALIDATION_ERROR", `${key}: ${message}`);
         }
-        const block = blockResult.data;
+        const expectedPldd = issuerUnauditedPlddForStartYear(y, questionnaire);
+        if (blockResult.data.pldd !== expectedPldd) {
+          throw new AppError(
+            400,
+            "VALIDATION_ERROR",
+            `${key}: pldd must match rules (previous completed year = last_closing_date when not submitted; ongoing year empty)`
+          );
+        }
+        const block = { ...blockResult.data, pldd: expectedPldd };
         validateFinancialYearBlockOrThrow(block);
         normalizedByYear[key] = normalizeFinancialYearBlock(block as Record<string, unknown>);
       }

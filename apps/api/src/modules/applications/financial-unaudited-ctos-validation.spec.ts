@@ -4,14 +4,17 @@ import {
   getIssuerFinancialTabYears,
   getLatestThreeCtosYearSlots,
   getLatestThreeCtosYears,
+  issuerUnauditedPlddForStartYear,
   normalizeFinancialStatementsQuestionnaire,
 } from "@cashsouk/types";
 import { financialStatementsV2Schema } from "./schemas";
 
 const closing = "2026-03-31";
 const ref2026 = new Date("2026-06-15");
+const qTwo = { last_closing_date: closing, is_submitted_to_ssm: false as const };
 
-const block = () => ({
+const block = (startYear: number, q: { last_closing_date: string; is_submitted_to_ssm: boolean } = qTwo) => ({
+  pldd: issuerUnauditedPlddForStartYear(startYear, q, ref2026),
   bsfatot: 0,
   othass: 0,
   bscatot: 0,
@@ -109,13 +112,13 @@ describe("financial-unaudited-ctos-validation", () => {
           has_data_for_next_financial_year: true,
         },
         unaudited_by_year: {
-          [String(year1)]: block(),
-          [String(year2)]: block(),
+          [String(year1)]: block(year1),
+          [String(year2)]: block(year2),
         },
       });
       expect(parsed.success).toBe(false);
     });
-    it("accepts questionnaire and two unaudited years without pldd", () => {
+    it("accepts questionnaire and two unaudited years with pldd rules", () => {
       const { year1, year2 } = getFinancialInputBaseYears(ref2026);
       const parsed = financialStatementsV2Schema.safeParse({
         questionnaire: {
@@ -123,8 +126,8 @@ describe("financial-unaudited-ctos-validation", () => {
           is_submitted_to_ssm: false,
         },
         unaudited_by_year: {
-          [String(year1)]: block(),
-          [String(year2)]: block(),
+          [String(year1)]: block(year1),
+          [String(year2)]: block(year2),
         },
       });
       expect(parsed.success).toBe(true);
@@ -133,18 +136,20 @@ describe("financial-unaudited-ctos-validation", () => {
           last_closing_date: closing,
           is_submitted_to_ssm: false,
         });
-        expect("pldd" in parsed.data.unaudited_by_year[String(year1)]).toBe(false);
+        expect(parsed.data.unaudited_by_year[String(year1)].pldd).toBe(closing);
+        expect(parsed.data.unaudited_by_year[String(year2)].pldd).toBe("");
       }
     });
     it("accepts submitted SSM with one unaudited year (year2)", () => {
       const { year2 } = getFinancialInputBaseYears(ref2026);
+      const qSub = { last_closing_date: closing, is_submitted_to_ssm: true as const };
       const parsed = financialStatementsV2Schema.safeParse({
         questionnaire: {
           last_closing_date: closing,
           is_submitted_to_ssm: true,
         },
         unaudited_by_year: {
-          [String(year2)]: block(),
+          [String(year2)]: block(year2, qSub),
         },
       });
       expect(parsed.success).toBe(true);
@@ -158,8 +163,8 @@ describe("financial-unaudited-ctos-validation", () => {
           is_submitted_to_ssm: false,
         },
         unaudited_by_year: {
-          [String(year1)]: block(),
-          [String(year2)]: block(),
+          [String(year1)]: { ...block(year1), pldd: "" },
+          [String(year2)]: { ...block(year2), pldd: "" },
         },
       });
       expect(parsed.success).toBe(false);

@@ -55,6 +55,23 @@ export function getIssuerFinancialTabYears(isSubmittedToSsm: boolean, ref: Date 
   return isSubmittedToSsm ? [year2] : [year1, year2];
 }
 
+/**
+ * Stored per-year `pldd` (FY end) for issuer blocks: not submitted → previous tab (year1) copies
+ * `last_closing_date`; ongoing tab (year2) is empty. Submitted (year2 only) → empty.
+ */
+export function issuerUnauditedPlddForStartYear(
+  startYear: number,
+  questionnaire: Pick<FinancialStatementsQuestionnaire, "is_submitted_to_ssm" | "last_closing_date">,
+  ref: Date = new Date()
+): string {
+  const { year1, year2 } = getFinancialInputBaseYears(ref);
+  const closing = questionnaire.last_closing_date.trim();
+  if (calendarYearFromLastClosingDate(closing) == null) return "";
+  if (startYear === year2) return "";
+  if (!questionnaire.is_submitted_to_ssm && startYear === year1) return closing;
+  return "";
+}
+
 /** Admin: fixed user-input column headers (always two), left = year1, right = year2. */
 export function getAdminUserInputColumnYears(ref: Date = new Date()): [number, number] {
   const { year1, year2 } = getFinancialInputBaseYears(ref);

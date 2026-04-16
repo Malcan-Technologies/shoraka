@@ -2,7 +2,7 @@
 // Safe to delete. Used only for development testing.
 
 import { formatMoney } from "@cashsouk/ui";
-import { getIssuerFinancialTabYears } from "@cashsouk/types";
+import { getIssuerFinancialTabYears, issuerUnauditedPlddForStartYear } from "@cashsouk/types";
 import { format, subDays, addDays } from "date-fns";
 
 function randomInt(min: number, max: number): number {
@@ -68,10 +68,12 @@ export function generateFinancialData(): Record<string, unknown> {
   const today = new Date();
   const closing = format(subDays(today, 30), "yyyy-MM-dd");
   const tabYears = getIssuerFinancialTabYears(false, today);
+  const qDev = { last_closing_date: closing, is_submitted_to_ssm: false };
   const turnover = randomDecimal(500000, 5000000);
   const plnpat = randomMoneyAllowNegative(10000, 500000);
   const plyear = randomMoneyAllowNegative(10000, 200000);
-  const block = () => ({
+  const block = (startYear: number) => ({
+    pldd: issuerUnauditedPlddForStartYear(startYear, qDev, today),
     bsfatot: formatMoney(randomDecimal(100000, 500000)),
     othass: formatMoney(randomDecimal(20000, 100000)),
     bscatot: formatMoney(randomDecimal(100000, 300000)),
@@ -89,8 +91,8 @@ export function generateFinancialData(): Record<string, unknown> {
   return {
     questionnaire: { last_closing_date: closing, is_submitted_to_ssm: false },
     unaudited_by_year: {
-      [String(tabYears[0])]: block(),
-      [String(tabYears[1])]: block(),
+      [String(tabYears[0])]: block(tabYears[0]),
+      [String(tabYears[1])]: block(tabYears[1]),
     },
   };
 }

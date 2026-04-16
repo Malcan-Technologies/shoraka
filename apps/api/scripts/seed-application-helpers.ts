@@ -4,7 +4,7 @@
  * Matches structure of production applications (e.g. cmmk5fh77001vu60ut7tk3apd).
  */
 
-import { getIssuerFinancialTabYears } from "@cashsouk/types";
+import { getIssuerFinancialTabYears, issuerUnauditedPlddForStartYear } from "@cashsouk/types";
 
 function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -184,8 +184,8 @@ export function buildFinancialStatements(): Record<string, unknown> {
   return {
     questionnaire: { last_closing_date: closing, is_submitted_to_ssm: false },
     unaudited_by_year: {
-      [String(tabYears[0])]: yearBlock(),
-      [String(tabYears[1])]: yearBlock(),
+      [String(tabYears[0])]: yearBlock(tabYears[0]),
+      [String(tabYears[1])]: yearBlock(tabYears[1]),
     },
   };
 }

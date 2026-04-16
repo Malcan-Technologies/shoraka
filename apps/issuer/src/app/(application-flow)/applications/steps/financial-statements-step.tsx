@@ -41,13 +41,14 @@ import { FinancialStatementsSkeleton } from "@/app/(application-flow)/applicatio
 import {
   FINANCIAL_FIELD_LABELS,
   getIssuerFinancialTabYears,
+  issuerUnauditedPlddForStartYear,
   normalizeFinancialStatementsQuestionnaire,
   type FinancialStatementsQuestionnaire,
 } from "@cashsouk/types";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
-import { format, subMonths } from "date-fns";
+import { format, subMonths, parseISO, isValid as isValidDate } from "date-fns";
 import { toast } from "sonner";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import {
@@ -93,6 +94,7 @@ export function generateMockData(): Record<string, unknown> {
 
 /** API/DB shape: flat canonical keys. plyear stored as string in form; parsed to number for API. */
 interface FinancialStatementsPayload {
+  pldd: string;
   bsfatot: string;
   othass: string;
   bscatot: string;
@@ -109,6 +111,7 @@ interface FinancialStatementsPayload {
 }
 
 const DEFAULT_PAYLOAD: FinancialStatementsPayload = {
+  pldd: "",
   bsfatot: "",
   othass: "",
   bscatot: "",
@@ -134,6 +137,13 @@ function toNum(v: unknown): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
+function normalizePlddIsoFromSaved(val: unknown): string {
+  const s = String(val ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return "";
+  const d = parseISO(s);
+  return isValidDate(d) ? s : "";
+}
+
 function fromSaved(saved: unknown): FinancialStatementsPayload {
   const raw = saved as { input?: Record<string, unknown> } | Record<string, unknown> | null | undefined;
   const data = (raw && typeof raw === "object" && "input" in raw ? raw.input : raw) as Record<string, unknown> | null | undefined;
@@ -143,6 +153,10 @@ function fromSaved(saved: unknown): FinancialStatementsPayload {
 
   const setVal = (key: keyof FinancialStatementsPayload, val: unknown) => {
     if (val === undefined || val === null) return;
+    if (key === "pldd") {
+      out.pldd = normalizePlddIsoFromSaved(val);
+      return;
+    }
     const n = toNum(val);
     (out as unknown as Record<string, unknown>)[key] = formatMoney(n);
   };
@@ -156,7 +170,9 @@ function fromSaved(saved: unknown): FinancialStatementsPayload {
 
 function toApiPayload(form: FinancialStatementsPayload): Record<string, unknown> {
   const out: Record<string, unknown> = {};
+  out.pldd = String(form.pldd ?? "").trim();
   for (const k of Object.keys(DEFAULT_PAYLOAD) as (keyof FinancialStatementsPayload)[]) {
+    if (k === "pldd") continue;
     if (k === "plyear") {
       out[k] = parseMoney(form.plyear ?? "");
     } else {
@@ -430,7 +446,9 @@ function buildV2ApiPayload(
   for (const y of expected) {
     const k = String(y);
     const form = forms[k] ?? emptyQuestionnaireBlock();
-    unaudited_by_year[k] = toApiPayload(form);
+    const row = toApiPayload(form);
+    row.pldd = issuerUnauditedPlddForStartYear(y, q);
+    unaudited_by_year[k] = row;
   }
   return { questionnaire: q, unaudited_by_year };
 }
@@ -476,8 +494,18 @@ function yearFormIsValid(form: FinancialStatementsPayload): boolean {
   return true;
 }
 
-/** Save gate: all money fields filled for the tab. */
-function yearFormFilledForSaveButton(form: FinancialStatementsPayload): boolean {
+/** Save gate: money fields filled; pldd must match closing rules for this start year. */
+function yearFormFilledForSaveButton(
+  startYear: number,
+  q: FinancialStatementsQuestionnaire,
+  form: FinancialStatementsPayload
+): boolean {
+  const expected = issuerUnauditedPlddForStartYear(startYear, q);
+  if (expected === "") {
+    if (String(form.pldd ?? "").trim() !== "") return false;
+  } else if (form.pldd !== expected) {
+    return false;
+  }
   const hasValue = (v: unknown) => String(v ?? "").trim() !== "";
   for (const k of YEAR_MONEY_FIELDS) {
     if (!hasValue(form[k])) return false;
@@ -565,7 +593,9 @@ export function FinancialStatementsStep({
       const next = { ...prev };
       for (const y of yearsToShow) {
         const k = String(y);
-        if (!next[k]) next[k] = emptyQuestionnaireBlock();
+        const p = issuerUnauditedPlddForStartYear(y, questionnaireDto);
+        if (!next[k]) next[k] = { ...emptyQuestionnaireBlock(), pldd: p };
+        else next[k] = { ...next[k], pldd: p };
       }
       for (const key of Object.keys(next)) {
         if (!yearsToShow.includes(parseInt(key, 10))) delete next[key];
@@ -607,7 +637,7 @@ export function FinancialStatementsStep({
     const map: Record<string, FinancialStatementsPayload> = {};
     for (const y of years) {
       const k = String(y);
-      map[k] = { ...merged };
+      map[k] = { ...merged, pldd: issuerUnauditedPlddForStartYear(y, q) };
     }
     setFormsByYear(map);
 
@@ -680,11 +710,12 @@ export function FinancialStatementsStep({
 
   /** Save gate: questionnaire complete and all money fields filled per tab. */
   const allYearFormsFilled = React.useMemo(() => {
-    if (yearsToShow.length === 0) return true;
+    if (!questionnaireDto || yearsToShow.length === 0) return true;
+    const q = questionnaireDto;
     return yearsToShow.every((y) =>
-      yearFormFilledForSaveButton(formsByYear[String(y)] ?? emptyQuestionnaireBlock())
+      yearFormFilledForSaveButton(y, q, formsByYear[String(y)] ?? emptyQuestionnaireBlock())
     );
-  }, [yearsToShow, formsByYear]);
+  }, [yearsToShow, formsByYear, questionnaireDto]);
 
   const questionsAnswered =
     applicationFlowDateToIso(lastClosingDate) != null &&
@@ -751,15 +782,20 @@ export function FinancialStatementsStep({
     });
   }, [hasPendingChanges, isValidForButton, isInitialized, saveFunction, readOnly]);
 
-  const updateFormYear = React.useCallback((yearKey: string, field: keyof FinancialStatementsPayload, value: string) => {
-    setFormsByYear((prev) => ({
-      ...prev,
-      [yearKey]: {
-        ...(prev[yearKey] ?? emptyQuestionnaireBlock()),
-        [field]: value,
-      },
-    }));
-  }, []);
+  const updateFormYear = React.useCallback(
+    (yearKey: string, field: keyof FinancialStatementsPayload, value: string) => {
+      setFormsByYear((prev) => {
+        const y = parseInt(yearKey, 10);
+        const base = prev[yearKey] ?? emptyQuestionnaireBlock();
+        const nextRow: FinancialStatementsPayload = { ...base, [field]: value };
+        if (questionnaireDto) {
+          nextRow.pldd = issuerUnauditedPlddForStartYear(y, questionnaireDto);
+        }
+        return { ...prev, [yearKey]: nextRow };
+      });
+    },
+    [questionnaireDto]
+  );
 
   const getLabel = (key: keyof FinancialStatementsPayload) => FINANCIAL_FIELD_LABELS[key] ?? key;
 

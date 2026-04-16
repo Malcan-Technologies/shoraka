@@ -15,7 +15,7 @@ Issuers answer two questions and enter figures for one or two **start years** (t
 | Key | Meaning |
 |-----|---------|
 | `questionnaire` | `{ last_closing_date: "YYYY-MM-DD", is_submitted_to_ssm: boolean }` |
-| `unaudited_by_year` | Map of **start year** string → per-year block of numeric fields (**no** `pldd` / `bsdd` on issuer rows) |
+| `unaudited_by_year` | Map of **start year** string → per-year block: numeric fields + **`pldd`** (FY end: when not submitted to SSM, **year1** = `last_closing_date`; **year2** = `""`; submitted-only tab = `""`). No **`bsdd`** on issuer rows. |
 
 **Year tabs (issuer)** — `getIssuerFinancialTabYears` in `@cashsouk/types`: if **not** submitted to SSM → tabs **year1**, **year2** (ascending); if **submitted** → **year2** only.
 
