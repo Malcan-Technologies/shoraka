@@ -1740,6 +1740,10 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
 
     switch (rowId) {
       case "pldd":
+        if (specCol.kind === "unaudited") {
+          if (!fs || fs.pldd == null || String(fs.pldd).trim() === "") return "—";
+          return formatFinancialDateDisplay(String(fs.pldd));
+        }
         return formatCell(colIdx, true, !fs || fs.pldd == null || fs.pldd === "", () =>
           formatFinancialDateDisplay(String(fs!.pldd))
         );

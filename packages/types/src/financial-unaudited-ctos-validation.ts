@@ -14,7 +14,7 @@ export type FinancialStatementsQuestionnaire = {
   is_submitted_to_ssm: boolean;
 };
 
-function calendarYearFromLastClosingDate(iso: string): number | null {
+export function calendarYearFromLastClosingDate(iso: string): number | null {
   const t = iso.trim();
   if (!ISO_DATE.test(t)) return null;
   const y = Number(t.slice(0, 4));
@@ -25,6 +25,18 @@ function calendarYearFromLastClosingDate(iso: string): number | null {
   const dt = new Date(y, m - 1, d);
   if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
   return y;
+}
+
+/**
+ * Issuer per-year block `pldd`: current calendar year (from last closing) is in progress — empty string.
+ * Prior calendar year uses questionnaire `last_closing_date` as financial year end.
+ */
+export function issuerPlddForUnauditedYear(year: number, lastClosingIso: string): string {
+  const cy = calendarYearFromLastClosingDate(lastClosingIso);
+  if (cy == null) return "";
+  if (year === cy) return "";
+  if (year === cy - 1) return lastClosingIso.trim();
+  return "";
 }
 
 /**
@@ -47,7 +59,7 @@ export function normalizeFinancialStatementsQuestionnaire(
 
 /**
  * Calendar year keys for unaudited_by_year from questionnaire.
- * Higher year first (current / partial, then last completed when two tabs).
+ * Ascending order (older year first) for two tabs; single tab is current year only.
  */
 export function getIssuerFinancialInputYearsFromQuestionnaire(
   q: FinancialStatementsQuestionnaire
@@ -55,7 +67,7 @@ export function getIssuerFinancialInputYearsFromQuestionnaire(
   const currentYear = calendarYearFromLastClosingDate(q.last_closing_date);
   if (currentYear == null) return [];
   if (q.is_submitted_to_ssm) return [currentYear];
-  return [currentYear, currentYear - 1];
+  return [currentYear - 1, currentYear];
 }
 
 /** CTOS financial row shape used by helpers (stored as financial_year on each row). */

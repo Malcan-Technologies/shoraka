@@ -14,6 +14,7 @@ import {
   FINANCIAL_FIELD_LABELS,
   computeColumnMetrics,
   financialFormToBsPl,
+  issuerPlddForUnauditedYear,
   type FinancialStatementsInput,
 } from "@cashsouk/types";
 import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
@@ -78,11 +79,11 @@ function formatFinancialDateDisplay(raw: string | null | undefined): string {
 }
 
 function mockUnauditedYearBlock(
-  _year: number,
+  year: number,
   overrides: Record<string, unknown> = {}
 ): Record<string, unknown> {
   return {
-    pldd: MOCK_LAST_CLOSING_DATE,
+    pldd: issuerPlddForUnauditedYear(year, MOCK_LAST_CLOSING_DATE),
     bsfatot: 180_000,
     othass: 45_000,
     bscatot: 220_000,

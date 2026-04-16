@@ -2,13 +2,14 @@ import {
   getCtosLatestYear,
   getLatestThreeCtosYears,
   getIssuerFinancialInputYearsFromQuestionnaire,
+  issuerPlddForUnauditedYear,
   normalizeFinancialStatementsQuestionnaire,
 } from "@cashsouk/types";
 import { financialStatementsV2Schema } from "./schemas";
 
 const closing = "2026-03-31";
 const block = (y: string) => ({
-  pldd: closing,
+  pldd: issuerPlddForUnauditedYear(parseInt(y, 10), closing),
   bsfatot: 0,
   othass: 0,
   bscatot: 0,
@@ -62,13 +63,13 @@ describe("financial-unaudited-ctos-validation", () => {
         })
       ).toEqual([2026]);
     });
-    it("not submitted: current and prior year", () => {
+    it("not submitted: prior year then current (ascending)", () => {
       expect(
         getIssuerFinancialInputYearsFromQuestionnaire({
           last_closing_date: closing,
           is_submitted_to_ssm: false,
         })
-      ).toEqual([2026, 2025]);
+      ).toEqual([2025, 2026]);
     });
   });
 
@@ -127,7 +128,22 @@ describe("financial-unaudited-ctos-validation", () => {
           last_closing_date: closing,
           is_submitted_to_ssm: false,
         });
+        expect(parsed.data.unaudited_by_year["2026"].pldd).toBe("");
+        expect(parsed.data.unaudited_by_year["2025"].pldd).toBe(closing);
       }
+    });
+    it("accepts submitted SSM with empty pldd on current year only", () => {
+      const parsed = financialStatementsV2Schema.safeParse({
+        questionnaire: {
+          last_closing_date: closing,
+          is_submitted_to_ssm: true,
+        },
+        unaudited_by_year: {
+          "2026": block("2026"),
+        },
+      });
+      expect(parsed.success).toBe(true);
+      if (parsed.success) expect(parsed.data.unaudited_by_year["2026"].pldd).toBe("");
     });
     it("rejects last_closing_date in the future", () => {
       const futureClosing = "2099-12-31";
@@ -137,8 +153,8 @@ describe("financial-unaudited-ctos-validation", () => {
           is_submitted_to_ssm: false,
         },
         unaudited_by_year: {
-          "2098": { ...block("2098"), pldd: futureClosing },
-          "2099": { ...block("2099"), pldd: futureClosing },
+          "2098": { ...block("2098"), pldd: issuerPlddForUnauditedYear(2098, futureClosing) },
+          "2099": { ...block("2099"), pldd: issuerPlddForUnauditedYear(2099, futureClosing) },
         },
       });
       expect(parsed.success).toBe(false);

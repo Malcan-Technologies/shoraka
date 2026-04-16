@@ -2,6 +2,7 @@
 // Safe to delete. Used only for development testing.
 
 import { formatMoney } from "@cashsouk/ui";
+import { issuerPlddForUnauditedYear } from "@cashsouk/types";
 import { format, subDays, addDays } from "date-fns";
 
 function randomInt(min: number, max: number): number {
@@ -66,12 +67,12 @@ export function generateContractData(): Record<string, unknown> {
 export function generateFinancialData(): Record<string, unknown> {
   const today = new Date();
   const closing = format(subDays(today, 30), "yyyy-MM-dd");
-  const currentYear = today.getFullYear();
+  const closingYear = parseInt(closing.slice(0, 4), 10);
   const turnover = randomDecimal(500000, 5000000);
   const plnpat = randomMoneyAllowNegative(10000, 500000);
   const plyear = randomMoneyAllowNegative(10000, 200000);
-  const block = () => ({
-    pldd: closing,
+  const block = (calendarYear: number) => ({
+    pldd: issuerPlddForUnauditedYear(calendarYear, closing),
     bsfatot: formatMoney(randomDecimal(100000, 500000)),
     othass: formatMoney(randomDecimal(20000, 100000)),
     bscatot: formatMoney(randomDecimal(100000, 300000)),
@@ -89,8 +90,8 @@ export function generateFinancialData(): Record<string, unknown> {
   return {
     questionnaire: { last_closing_date: closing, is_submitted_to_ssm: false },
     unaudited_by_year: {
-      [String(currentYear)]: block(),
-      [String(currentYear - 1)]: block(),
+      [String(closingYear)]: block(closingYear),
+      [String(closingYear - 1)]: block(closingYear - 1),
     },
   };
 }

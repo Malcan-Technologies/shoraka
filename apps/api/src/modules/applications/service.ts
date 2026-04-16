@@ -48,6 +48,7 @@ import {
   InvoiceStatus,
   WithdrawReason,
   getIssuerFinancialInputYearsFromQuestionnaire,
+  issuerPlddForUnauditedYear,
 } from "@cashsouk/types";
 import { computeApplicationStatus } from "./lifecycle";
 import * as crypto from "crypto";
@@ -196,7 +197,8 @@ function validateFinancialYearBlockOrThrow(raw: {
     }
   }
 
-  const plddDate = parseBsddDateFinancial(String(raw.pldd ?? ""));
+  const plddRaw = String(raw.pldd ?? "").trim();
+  const plddDate = plddRaw === "" ? null : parseBsddDateFinancial(plddRaw);
   if (plddDate) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -762,14 +764,15 @@ export class ApplicationService {
           const message = blockResult.error.errors.map((e) => e.message).join("; ");
           throw new AppError(400, "VALIDATION_ERROR", `${key}: ${message}`);
         }
-        if (blockResult.data.pldd !== closing) {
+        const expectedPldd = issuerPlddForUnauditedYear(y, closing);
+        if (blockResult.data.pldd !== expectedPldd) {
           throw new AppError(
             400,
             "VALIDATION_ERROR",
-            `Each year block pldd must equal questionnaire last_closing_date (${closing})`
+            `${key}: pldd must be ${expectedPldd === "" ? "empty for the current year" : `last_closing_date (${closing})`}`
           );
         }
-        const block = { ...blockResult.data, pldd: closing };
+        const block = { ...blockResult.data, pldd: expectedPldd };
         validateFinancialYearBlockOrThrow(block);
         normalizedByYear[key] = normalizeFinancialYearBlock(block as Record<string, unknown>);
       }
