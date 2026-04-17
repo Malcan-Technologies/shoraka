@@ -9,6 +9,7 @@
 import * as React from "react";
 import { useApplication } from "@/hooks/use-applications";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TextareaWithCharCount } from "@/components/textarea-with-char-count";
@@ -82,6 +83,7 @@ const SAME_INVOICE_OTHER_P2P_ERROR =
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 const GUARANTOR_EMAIL_STRICT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_GUARANTOR_RELATIONSHIP_OTHER = 500;
 
 /** “What does your company do?” and “Business plan” share the longer limit; other business textareas use the shorter limit. */
 const MAX_CHARS_WHAT_COMPANY_DO = 1000;
@@ -126,6 +128,7 @@ interface GuarantorIndividualRow {
   lastName: string;
   icNumber: string;
   relationship: GuarantorIndividualRelationship | "";
+  relationshipOther: string;
 }
 
 interface GuarantorCompanyRow {
@@ -145,11 +148,21 @@ function guarantorCardSummarySubtitle(row: GuarantorFormRow): string {
       .map((s) => s.trim())
       .filter(Boolean)
       .join(" ");
-    const rel =
+    let rel = "";
+    if (
       row.relationship &&
       GUARANTOR_INDIVIDUAL_RELATIONSHIPS.includes(row.relationship as GuarantorIndividualRelationship)
-        ? GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS[row.relationship as GuarantorIndividualRelationship]
-        : "";
+    ) {
+      const key = row.relationship as GuarantorIndividualRelationship;
+      if (key === "others") {
+        const detail = row.relationshipOther.trim();
+        rel = detail
+          ? `Others: ${detail.length > 48 ? `${detail.slice(0, 48)}…` : detail}`
+          : GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS.others;
+      } else {
+        rel = GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS[key];
+      }
+    }
     if (name && rel) return `${name} (${rel})`;
     if (name) return name;
     if (rel) return `(${rel})`;
@@ -176,6 +189,7 @@ function emptyIndividualGuarantor(): GuarantorIndividualRow {
     lastName: "",
     icNumber: "",
     relationship: "",
+    relationshipOther: "",
   };
 }
 
@@ -232,6 +246,7 @@ interface BusinessDetailsSnake {
         last_name: string;
         ic_number: string;
         relationship: GuarantorIndividualRelationship;
+        relationship_other?: string | null;
       }
     | {
         guarantor_id: string;
@@ -317,6 +332,10 @@ function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
             last_name: g.lastName.trim(),
             ic_number: malaysianNricDigits(g.icNumber),
             relationship: g.relationship as GuarantorIndividualRelationship,
+            relationship_other:
+              g.relationship === "others"
+                ? g.relationshipOther.trim().slice(0, MAX_GUARANTOR_RELATIONSHIP_OTHER) || null
+                : null,
           }
         : {
             guarantor_id: g.guarantorId,
@@ -392,6 +411,11 @@ function parseGuarantorsFromRaw(raw: unknown): GuarantorFormRow[] {
       const relationshipOk =
         typeof rel === "string" &&
         (GUARANTOR_INDIVIDUAL_RELATIONSHIPS as readonly string[]).includes(rel);
+      const otherRaw = o.relationship_other ?? o.relationshipOther;
+      const relationshipOther =
+        relationshipOk && rel === "others"
+          ? String(otherRaw ?? "").slice(0, MAX_GUARANTOR_RELATIONSHIP_OTHER)
+          : "";
       out.push({
         guarantorId:
           String(o.guarantor_id ?? o.guarantorId ?? "").trim() ||
@@ -406,6 +430,7 @@ function parseGuarantorsFromRaw(raw: unknown): GuarantorFormRow[] {
         lastName: String(o.last_name ?? o.lastName ?? ""),
         icNumber: clampGuarantorIcInput(String(o.ic_number ?? o.icNumber ?? "")),
         relationship: relationshipOk ? (rel as GuarantorIndividualRelationship) : "",
+        relationshipOther,
       });
     } else if (gt === "company") {
       const rel = o.relationship;
@@ -783,12 +808,14 @@ function GuarantorCardFields({
             <Select
               value={row.relationship || undefined}
               disabled={readOnly}
-              onValueChange={(v) =>
+              onValueChange={(v) => {
+                const rel = v as GuarantorIndividualRelationship;
                 replaceGuarantorRow(index, {
                   ...row,
-                  relationship: v as GuarantorIndividualRelationship,
-                })
-              }
+                  relationship: rel,
+                  relationshipOther: rel === "others" ? row.relationshipOther : "",
+                });
+              }}
             >
               <SelectTrigger
                 className={cn(
@@ -814,6 +841,34 @@ function GuarantorCardFields({
                 row.relationship as GuarantorIndividualRelationship
               )) ? (
               <p className="text-xs text-destructive">Select a relationship</p>
+            ) : null}
+            {row.relationship === "others" ? (
+              <div className="space-y-2 pt-1">
+                <Label htmlFor={`g-${index}-relationship-other`} className={labelInputClassName}>
+                  Specify relationship
+                </Label>
+                <Textarea
+                  id={`g-${index}-relationship-other`}
+                  value={row.relationshipOther}
+                  onChange={(e) =>
+                    replaceGuarantorRow(index, {
+                      ...row,
+                      relationshipOther: e.target.value.slice(0, MAX_GUARANTOR_RELATIONSHIP_OTHER),
+                    })
+                  }
+                  placeholder="Describe how this person is related to the business"
+                  className={cn(textareaClassName, readOnly && formInputDisabledClassName)}
+                  disabled={readOnly}
+                  maxLength={MAX_GUARANTOR_RELATIONSHIP_OTHER}
+                  rows={3}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {row.relationshipOther.length}/{MAX_GUARANTOR_RELATIONSHIP_OTHER} characters
+                </p>
+                {hasAttemptedSave && !row.relationshipOther.trim() ? (
+                  <p className="text-xs text-destructive">Enter how this guarantor is related</p>
+                ) : null}
+              </div>
             ) : null}
           </div>
         </>
@@ -1044,6 +1099,11 @@ export function BusinessDetailsStep({
             !GUARANTOR_INDIVIDUAL_RELATIONSHIPS.includes(g.relationship as GuarantorIndividualRelationship)
           ) {
             return false;
+          }
+          if (g.relationship === "others") {
+            const other = g.relationshipOther.trim();
+            if (!other) return false;
+            if (mode === "strict" && other.length > MAX_GUARANTOR_RELATIONSHIP_OTHER) return false;
           }
         } else {
           if (

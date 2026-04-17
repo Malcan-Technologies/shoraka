@@ -6,6 +6,7 @@ export const GUARANTOR_INDIVIDUAL_RELATIONSHIPS = [
   "family_members_of_director",
   "director_shareholder",
   "unrelated_party",
+  "others",
 ] as const;
 
 export const GUARANTOR_COMPANY_RELATIONSHIPS = [
@@ -24,6 +25,7 @@ export const GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS: Record<
   family_members_of_director: "Family members of director",
   director_shareholder: "Director / shareholder",
   unrelated_party: "Unrelated party",
+  others: "Others",
 };
 
 export const GUARANTOR_COMPANY_RELATIONSHIP_LABELS: Record<GuarantorCompanyRelationship, string> =

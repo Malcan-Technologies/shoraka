@@ -83,7 +83,9 @@ const guarantorIndividualSchema = z.object({
     "family_members_of_director",
     "director_shareholder",
     "unrelated_party",
+    "others",
   ]),
+  relationship_other: z.string().max(500).nullable().optional(),
 });
 
 const guarantorCompanySchema = z.object({
@@ -117,6 +119,17 @@ export const businessDetailsDataSchema = z
         path: ["why_raising_funds", "same_invoice_used"],
       });
     }
+    data.guarantors.forEach((g, i) => {
+      if (g.guarantor_type !== "individual" || g.relationship !== "others") return;
+      const t = (g.relationship_other ?? "").trim();
+      if (!t) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Please describe the relationship when Others is selected",
+          path: ["guarantors", i, "relationship_other"],
+        });
+      }
+    });
   });
 
 const isoDateOnly = /^\d{4}-\d{2}-\d{2}$/;
