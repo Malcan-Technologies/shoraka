@@ -23,6 +23,8 @@ import {
   exportSecurityLogsQuerySchema,
   resetOnboardingSchema,
   getOrganizationsQuerySchema,
+  getGuarantorsQuerySchema,
+  guarantorIdParamSchema,
   getOnboardingApplicationsQuerySchema,
   updateSophisticatedStatusSchema,
   getAdminApplicationsQuerySchema,
@@ -463,6 +465,61 @@ router.get(
             ? new AppError(400, "VALIDATION_ERROR", error.message)
             : error
       );
+    }
+  }
+);
+
+router.get(
+  "/guarantors",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const validated = getGuarantorsQuerySchema.parse(req.query);
+      const result = await adminService.getGuarantors(validated);
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
+    }
+  }
+);
+
+router.get(
+  "/guarantors/:id",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = guarantorIdParamSchema.parse(req.params);
+      const result = await adminService.getGuarantorDetail(id);
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/guarantors/:id/restart-onboarding",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id } = guarantorIdParamSchema.parse(req.params);
+      const result = await adminService.restartGuarantorOnboarding(id, req.user.user_id);
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
     }
   }
 );

@@ -60,12 +60,14 @@ import {
 export type BusinessSectionComparisonProps = {
   beforeDetails: unknown;
   afterDetails: unknown;
+  beforeGuarantors?: unknown;
+  afterGuarantors?: unknown;
   isPathChanged: (path: string) => boolean;
 };
 
 export interface BusinessSectionProps {
   businessDetails: unknown;
-  issuerOrganizationBusinessAmlStatus?: unknown;
+  applicationGuarantors?: unknown;
   section: ReviewSectionId;
   /** When set, renders read-only before/after grid and hides review actions. */
   sectionComparison?: BusinessSectionComparisonProps;
@@ -270,6 +272,12 @@ interface GuarantorAmlEntry {
   lastUpdated?: string;
 }
 
+interface RelationalGuarantorEntry {
+  position?: number;
+  relationship?: string | null;
+  guarantor?: Record<string, unknown> | null;
+}
+
 /** Normalized view model for Business Details review. Supports snake_case and camelCase from API/DB. */
 interface BusinessDetailsView {
   about: {
@@ -394,39 +402,85 @@ function buildGuarantorAmlKey(row: GuarantorReviewRow): string {
 }
 
 function parseGuarantorAmlEntries(raw: unknown): GuarantorAmlEntry[] {
-  if (!raw || typeof raw !== "object") return [];
-  const record = raw as Record<string, unknown>;
-  if (!Array.isArray(record.guarantors)) return [];
+  if (!Array.isArray(raw)) return [];
   const entries: GuarantorAmlEntry[] = [];
-  for (const item of record.guarantors) {
+  for (const item of raw) {
     if (!item || typeof item !== "object") continue;
     const row = item as Record<string, unknown>;
-    const orgGuarantorKey = reviewStr(row.orgGuarantorKey);
-    if (!orgGuarantorKey) continue;
-    const status = reviewStr(row.amlStatus) as GuarantorAmlStatus;
+    const guarantor = (row.guarantor ?? {}) as Record<string, unknown>;
+    const guarantorType = guarantor.guarantor_type === "company" ? "company" : "individual";
+    const orgGuarantorKey = reviewStr(guarantor.canonical_key);
+    if (!orgGuarantorKey || !reviewStr(guarantor.id)) continue;
     const message = reviewStr(row.amlMessageStatus) as GuarantorAmlMessageStatus;
+    const amlStatus = reviewStr(guarantor.aml_status) as GuarantorAmlStatus;
+    const amlMessageStatus = reviewStr(guarantor.aml_message_status) as GuarantorAmlMessageStatus;
     const isStatusValid =
-      status === "Approved" || status === "Rejected" || status === "Unresolved" || status === "Pending";
+      amlStatus === "Approved" ||
+      amlStatus === "Rejected" ||
+      amlStatus === "Unresolved" ||
+      amlStatus === "Pending";
     const isMessageValid = message === "DONE" || message === "PENDING" || message === "ERROR";
+    const isAmlMessageValid =
+      amlMessageStatus === "DONE" || amlMessageStatus === "PENDING" || amlMessageStatus === "ERROR";
 
     entries.push({
       orgGuarantorKey,
-      guarantorType: row.guarantorType === "company" ? "company" : "individual",
-      guarantorId: reviewStr(row.guarantorId),
-      email: normalizeEmail(row.email),
-      icNumber: reviewStr(row.icNumber) || undefined,
-      ssmNumber: reviewStr(row.ssmNumber) || undefined,
-      requestId: reviewStr(row.requestId) || undefined,
-      onboardingVerifyLink: reviewStr(row.onboardingVerifyLink) || undefined,
-      regtankPortalUrl: reviewStr(row.regtankPortalUrl) || undefined,
-      amlStatus: isStatusValid ? status : "Pending",
-      amlMessageStatus: isMessageValid ? message : "PENDING",
-      amlRiskScore: typeof row.amlRiskScore === "number" ? row.amlRiskScore : null,
-      amlRiskLevel: reviewStr(row.amlRiskLevel) || null,
-      lastUpdated: reviewStr(row.lastUpdated) || undefined,
+      guarantorType,
+      guarantorId: reviewStr(guarantor.id),
+      email: normalizeEmail(guarantor.email),
+      icNumber: reviewStr(guarantor.ic_number) || undefined,
+      ssmNumber: reviewStr(guarantor.ssm_number) || undefined,
+      requestId: reviewStr(guarantor.onboarding_request_id) || undefined,
+      onboardingVerifyLink: reviewStr(guarantor.onboarding_verify_link) || undefined,
+      regtankPortalUrl: reviewStr(guarantor.regtank_portal_url) || undefined,
+      amlStatus: isStatusValid ? amlStatus : "Pending",
+      amlMessageStatus: isAmlMessageValid ? amlMessageStatus : isMessageValid ? message : "PENDING",
+      amlRiskScore:
+        typeof guarantor.aml_risk_score === "number" ? (guarantor.aml_risk_score as number) : null,
+      amlRiskLevel: reviewStr(guarantor.aml_risk_level) || null,
+      lastUpdated: reviewStr(guarantor.updated_at) || undefined,
     });
   }
   return entries;
+}
+
+function parseRelationalGuarantors(raw: unknown): GuarantorReviewRow[] {
+  if (!Array.isArray(raw)) return [];
+  const rows: GuarantorReviewRow[] = [];
+  const sorted = [...raw]
+    .map((item) => (item && typeof item === "object" ? (item as RelationalGuarantorEntry) : null))
+    .filter((item): item is RelationalGuarantorEntry => Boolean(item))
+    .sort((a, b) => (typeof a.position === "number" ? a.position : 0) - (typeof b.position === "number" ? b.position : 0));
+
+  for (const entry of sorted) {
+    const guarantor =
+      entry.guarantor && typeof entry.guarantor === "object"
+        ? entry.guarantor
+        : ((entry as unknown as Record<string, unknown>) ?? null);
+    if (!guarantor) continue;
+    const guarantorType = guarantor.guarantor_type === "company" ? "company" : "individual";
+    if (guarantorType === "individual") {
+      rows.push({
+        kind: "individual",
+        guarantorId: reviewStr(guarantor.id),
+        firstName: reviewStr(guarantor.first_name),
+        lastName: reviewStr(guarantor.last_name),
+        email: normalizeEmail(guarantor.email),
+        icNumber: reviewStr(guarantor.ic_number),
+        relationshipLabel: reviewStr(entry.relationship) || REVIEW_EMPTY_LABEL,
+      });
+      continue;
+    }
+    rows.push({
+      kind: "company",
+      guarantorId: reviewStr(guarantor.id),
+      companyName: reviewStr(guarantor.company_name),
+      email: normalizeEmail(guarantor.email),
+      ssmNumber: reviewStr(guarantor.ssm_number),
+      relationshipLabel: reviewStr(entry.relationship) || REVIEW_EMPTY_LABEL,
+    });
+  }
+  return rows;
 }
 
 function amlBadge(status: GuarantorAmlStatus) {
@@ -462,7 +516,7 @@ function amlBadge(status: GuarantorAmlStatus) {
   );
 }
 
-export function parseBusinessDetails(raw: unknown): BusinessDetailsView | null {
+export function parseBusinessDetails(raw: unknown, relationalGuarantors?: GuarantorReviewRow[]): BusinessDetailsView | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
   const a = (r.about_your_business ?? r.aboutYourBusiness) as Record<string, unknown> | undefined;
@@ -522,7 +576,10 @@ export function parseBusinessDetails(raw: unknown): BusinessDetailsView | null {
       supportingDocuments,
     },
     declarationConfirmed: Boolean(r.declaration_confirmed ?? r.declarationConfirmed),
-    guarantors: parseGuarantors(r.guarantors),
+    guarantors:
+      relationalGuarantors && relationalGuarantors.length > 0
+        ? relationalGuarantors
+        : parseGuarantors(r.guarantors),
   };
 }
 
@@ -792,6 +849,20 @@ function AdminGuarantorComparisonList({
                     after={gA?.kind === "individual" ? gA.relationshipLabel : "—"}
                     changed={changed}
                   />
+                  <ComparisonFieldRow
+                    label="Email"
+                    before={
+                      gB?.kind === "individual"
+                        ? gB.email || REVIEW_EMPTY_LABEL
+                        : "—"
+                    }
+                    after={
+                      gA?.kind === "individual"
+                        ? gA.email || REVIEW_EMPTY_LABEL
+                        : "—"
+                    }
+                    changed={changed}
+                  />
                 </div>
               ) : null}
               {showCompany ? (
@@ -813,6 +884,16 @@ function AdminGuarantorComparisonList({
                     label="Relationship"
                     before={gB?.kind === "company" ? gB.relationshipLabel : "—"}
                     after={gA?.kind === "company" ? gA.relationshipLabel : "—"}
+                    changed={changed}
+                  />
+                  <ComparisonFieldRow
+                    label="Email"
+                    before={
+                      gB?.kind === "company" ? gB.email || REVIEW_EMPTY_LABEL : "—"
+                    }
+                    after={
+                      gA?.kind === "company" ? gA.email || REVIEW_EMPTY_LABEL : "—"
+                    }
                     changed={changed}
                   />
                 </div>
@@ -916,7 +997,7 @@ const yesNoScaleWrapper = "inline-block scale-[0.88] origin-left";
 
 export function BusinessSection({
   businessDetails,
-  issuerOrganizationBusinessAmlStatus,
+  applicationGuarantors,
   section,
   isReviewable,
   approvePending,
@@ -939,8 +1020,8 @@ export function BusinessSection({
   hideSectionComments = false,
 }: BusinessSectionProps) {
   const guarantorAmlEntries = React.useMemo(
-    () => parseGuarantorAmlEntries(issuerOrganizationBusinessAmlStatus),
-    [issuerOrganizationBusinessAmlStatus]
+    () => parseGuarantorAmlEntries(applicationGuarantors),
+    [applicationGuarantors]
   );
   const guarantorAmlByKey = React.useMemo(() => {
     const m = new Map<string, GuarantorAmlEntry>();
@@ -951,8 +1032,14 @@ export function BusinessSection({
   }, [guarantorAmlEntries]);
 
   if (sectionComparison) {
-    const vb = parseBusinessDetails(sectionComparison.beforeDetails);
-    const va = parseBusinessDetails(sectionComparison.afterDetails);
+    const vb = parseBusinessDetails(
+      sectionComparison.beforeDetails,
+      parseRelationalGuarantors(sectionComparison.beforeGuarantors)
+    );
+    const va = parseBusinessDetails(
+      sectionComparison.afterDetails,
+      parseRelationalGuarantors(sectionComparison.afterGuarantors)
+    );
     const { isPathChanged } = sectionComparison;
     const money = (n: number | null) => (n != null ? formatCurrency(n) : REVIEW_EMPTY_LABEL);
     if (!vb && !va) {
@@ -1114,7 +1201,7 @@ export function BusinessSection({
     );
   }
 
-  const view = parseBusinessDetails(businessDetails);
+  const view = parseBusinessDetails(businessDetails, parseRelationalGuarantors(applicationGuarantors));
   const showP2PFields = view?.whyRaisingFunds.raisingOnOtherP2P === true;
   const supportingFiles = view?.whyRaisingFunds.supportingDocuments ?? [];
   const canViewMultiple = supportingFiles.length > 1;

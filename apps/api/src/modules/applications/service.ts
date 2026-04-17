@@ -73,6 +73,10 @@ import type { OfferSigningRecord } from "../signingcloud/types";
 import { NotificationService } from "../notification/service";
 import { NotificationTypeIds } from "../notification/registry";
 import { getIssuerRecipientUserIdsForApplication } from "../notification/application-recipients";
+import {
+  buildGuarantorCanonicalKey,
+  parseGuarantorsFromBusinessDetails,
+} from "../guarantors/utils";
 
 /**
  * Return URL after manual signing. Prefer SIGNINGCLOUD_ISSUER_RETURN_URL (full URL to applications page);
@@ -263,6 +267,57 @@ export class ApplicationService {
         )
       )
     );
+  }
+
+  private async syncApplicationGuarantors(
+    tx: Prisma.TransactionClient,
+    applicationId: string,
+    businessDetails: unknown
+  ): Promise<void> {
+    const parsed = parseGuarantorsFromBusinessDetails(businessDetails);
+    await tx.applicationGuarantor.deleteMany({ where: { application_id: applicationId } });
+    if (parsed.length === 0) return;
+
+    for (const row of parsed) {
+      const canonicalKey = buildGuarantorCanonicalKey({
+        guarantorType: row.guarantorType,
+        icNumber: row.icNumber,
+        ssmNumber: row.ssmNumber,
+        email: row.email,
+      });
+      const guarantor = await tx.guarantor.upsert({
+        where: { canonical_key: canonicalKey },
+        create: {
+          canonical_key: canonicalKey,
+          guarantor_type: row.guarantorType,
+          email: row.email,
+          first_name: row.firstName,
+          last_name: row.lastName,
+          company_name: row.companyName,
+          ic_number: row.icNumber,
+          ssm_number: row.ssmNumber,
+        },
+        update: {
+          email: row.email,
+          first_name: row.firstName,
+          last_name: row.lastName,
+          company_name: row.companyName,
+          ic_number: row.icNumber,
+          ssm_number: row.ssmNumber,
+        },
+        select: { id: true },
+      });
+
+      await tx.applicationGuarantor.create({
+        data: {
+          application_id: applicationId,
+          guarantor_id: guarantor.id,
+          position: row.position,
+          relationship: row.relationship,
+          source_data: row.sourceData as Prisma.InputJsonValue,
+        },
+      });
+    }
   }
 
   /**
@@ -722,7 +777,8 @@ export class ApplicationService {
         const message = result.error.errors.map((e) => e.message).join("; ");
         throw new AppError(400, "VALIDATION_ERROR", message);
       }
-      dataToStore = result.data as Prisma.InputJsonValue;
+      const { guarantors: _guarantors, ...businessDetailsWithoutGuarantors } = result.data;
+      dataToStore = businessDetailsWithoutGuarantors as Prisma.InputJsonValue;
     }
 
     if (fieldName === "financial_statements") {
@@ -873,6 +929,17 @@ export class ApplicationService {
         await this.deleteOrphanS3Keys(newKeys);
         throw err;
       }
+    }
+
+    if (fieldName === "business_details") {
+      return prisma.$transaction(async (tx) => {
+        const updated = await tx.application.update({
+          where: { id },
+          data: updateData,
+        });
+        await this.syncApplicationGuarantors(tx, id, input.data);
+        return updated as Application;
+      });
     }
 
     return this.repository.update(id, updateData);
@@ -1212,7 +1279,12 @@ export class ApplicationService {
       }
       const appFull = await prisma.application.findUnique({
         where: { id },
-        include: { contract: true, invoices: true, issuer_organization: true },
+        include: {
+          contract: true,
+          invoices: true,
+          issuer_organization: true,
+          application_guarantors: { include: { guarantor: true }, orderBy: { position: "asc" } },
+        },
       });
       if (appFull) {
         const snapshot = buildApplicationRevisionSnapshot({
@@ -1222,6 +1294,7 @@ export class ApplicationService {
           financing_structure: appFull.financing_structure,
           company_details: appFull.company_details,
           business_details: appFull.business_details,
+          application_guarantors: appFull.application_guarantors,
           financial_statements: appFull.financial_statements,
           supporting_documents: appFull.supporting_documents,
           declarations: appFull.declarations,

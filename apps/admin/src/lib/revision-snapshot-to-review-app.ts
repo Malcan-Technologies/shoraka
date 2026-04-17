@@ -28,6 +28,7 @@ export function revisionSnapshotToReviewApp(
     financing_structure: app.financing_structure,
     company_details: app.company_details,
     business_details: app.business_details,
+    application_guarantors: Array.isArray(app.guarantors) ? app.guarantors : [],
     financial_statements: app.financial_statements,
     supporting_documents: app.supporting_documents,
     declarations: app.declarations,

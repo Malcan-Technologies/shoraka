@@ -382,7 +382,6 @@ export function SupportingDocumentsStep({
 
           const base = {
             title: document.title,
-            allow_multiple: mode === "multiple",
           } as Record<string, unknown>;
 
           if (normalized.length === 0) {

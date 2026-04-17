@@ -11,6 +11,18 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { TextareaWithCharCount } from "@/components/textarea-with-char-count";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  ISSUER_OFFER_DECLINE_REASONS,
+  OTHER_ISSUER_DECLINE_REASON_VALUE,
+  resolveIssuerOfferDeclineReason,
+} from "@/lib/issuer-offer-decline-reasons";
 import { useContract } from "@/hooks/use-contracts";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { useAcceptInvoiceOffer, useRejectContractOffer, useRejectInvoiceOffer } from "@/hooks/use-applications";
@@ -76,7 +88,9 @@ export function ReviewOfferModal({
   const [acceptSigningLoading, setAcceptSigningLoading] = React.useState(false);
   const [acceptOverrideLoading, setAcceptOverrideLoading] = React.useState(false);
   const [rejectionReason, setRejectionReason] = React.useState("");
+  const [selectedDeclineReason, setSelectedDeclineReason] = React.useState("");
   const [isRejectMode, setIsRejectMode] = React.useState(false);
+  const isOtherDeclineReason = selectedDeclineReason === OTHER_ISSUER_DECLINE_REASON_VALUE;
   const isSigningOverrideEnabled = process.env.NODE_ENV !== "production";
 
   const contractDetails = (contractRecord as { contract_details?: Record<string, unknown> } | null)
@@ -161,10 +175,13 @@ export function ReviewOfferModal({
     }
   };
 
+  const resolvedDeclineReason = resolveIssuerOfferDeclineReason(selectedDeclineReason, rejectionReason);
+
   const handleReject = async () => {
+    if (!resolvedDeclineReason) return;
     if (type === "contract") {
       try {
-        await rejectContract.mutateAsync({ applicationId, reason: rejectionReason || undefined });
+        await rejectContract.mutateAsync({ applicationId, reason: resolvedDeclineReason });
         toast.success("Offer declined");
         onClose();
       } catch {
@@ -176,7 +193,7 @@ export function ReviewOfferModal({
         await rejectInvoice.mutateAsync({
           applicationId,
           invoiceId: invoice.id,
-          reason: rejectionReason || undefined,
+          reason: resolvedDeclineReason,
         });
         toast.success("Offer declined");
         onClose();
@@ -263,6 +280,11 @@ export function ReviewOfferModal({
     rejectContract.isPending ||
     rejectInvoice.isPending;
 
+  const confirmDeclineDisabled =
+    isPending ||
+    !selectedDeclineReason ||
+    (isOtherDeclineReason && rejectionReason.trim() === "");
+
   const canDownload =
     type === "contract" || (type === "invoice" && !!invoice?.id);
 
@@ -339,7 +361,15 @@ export function ReviewOfferModal({
               <Button
                 variant="outline"
                 size="lg"
-                onClick={() => setIsRejectMode((prev) => !prev)}
+                onClick={() =>
+                  setIsRejectMode((prev) => {
+                    if (prev) {
+                      setRejectionReason("");
+                      setSelectedDeclineReason("");
+                    }
+                    return !prev;
+                  })
+                }
                 disabled={isPending}
                 className={
                   isRejectMode
@@ -408,7 +438,7 @@ export function ReviewOfferModal({
                 <Button
                   size="sm"
                   onClick={handleReject}
-                  disabled={isPending}
+                  disabled={confirmDeclineDisabled}
                   className="inline-flex h-9 min-h-[36px] items-center justify-center gap-2 rounded-xl border border-[#e3e8ee] bg-[#edf1f5] px-3.5 text-[15px] font-medium text-[#444] hover:bg-[#e6ebf0]"
                 >
                   <CheckCircleIcon className="h-4 w-4" />

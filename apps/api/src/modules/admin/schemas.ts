@@ -196,6 +196,20 @@ export const getOrganizationsQuerySchema = z.object({
 
 export type GetOrganizationsQuery = z.infer<typeof getOrganizationsQuerySchema>;
 
+export const getGuarantorsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(10),
+  search: z.string().optional(),
+  guarantorType: z.enum(["individual", "company"]).optional(),
+  amlStatus: z.enum(["Unresolved", "Approved", "Rejected", "Pending"]).optional(),
+});
+
+export type GetGuarantorsQuery = z.infer<typeof getGuarantorsQuerySchema>;
+
+export const guarantorIdParamSchema = z.object({
+  id: z.string().min(1),
+});
+
 // Update sophisticated investor status schema
 export const updateSophisticatedStatusSchema = z.object({
   isSophisticatedInvestor: z.boolean(),

@@ -13,6 +13,18 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  ISSUER_OFFER_DECLINE_REASONS,
+  OTHER_ISSUER_DECLINE_REASON_VALUE,
+  resolveIssuerOfferDeclineReason,
+} from "@/lib/issuer-offer-decline-reasons";
+import {
   useAcceptContractOffer,
   useRejectContractOffer,
   useAcceptInvoiceOffer,
@@ -48,6 +60,8 @@ export function ReviewOfferModal({ open, onOpenChange, context }: ReviewOfferMod
   const acceptInvoice = useAcceptInvoiceOffer();
   const rejectInvoice = useRejectInvoiceOffer();
   const [rejectionReason, setRejectionReason] = React.useState("");
+  const [selectedDeclineReason, setSelectedDeclineReason] = React.useState("");
+  const isOtherDeclineReason = selectedDeclineReason === OTHER_ISSUER_DECLINE_REASON_VALUE;
 
   const isPending =
     acceptContract.isPending ||
@@ -73,19 +87,21 @@ export function ReviewOfferModal({ open, onOpenChange, context }: ReviewOfferMod
     }
   };
 
+  const resolvedDeclineReason = resolveIssuerOfferDeclineReason(selectedDeclineReason, rejectionReason);
+
   const handleReject = async () => {
-    if (!context) return;
+    if (!context || !resolvedDeclineReason) return;
     try {
       if (context.type === "contract") {
         await rejectContract.mutateAsync({
           applicationId: context.applicationId,
-          reason: rejectionReason || undefined,
+          reason: resolvedDeclineReason,
         });
       } else {
         await rejectInvoice.mutateAsync({
           applicationId: context.applicationId,
           invoiceId: context.invoiceId,
-          reason: rejectionReason || undefined,
+          reason: resolvedDeclineReason,
         });
       }
       toast.success("Offer declined");
@@ -95,13 +111,26 @@ export function ReviewOfferModal({ open, onOpenChange, context }: ReviewOfferMod
     }
   };
 
+  const handleDialogOpenChange = (next: boolean) => {
+    if (!next) {
+      setRejectionReason("");
+      setSelectedDeclineReason("");
+    }
+    onOpenChange(next);
+  };
+
+  const declineDisabled =
+    isPending ||
+    !selectedDeclineReason ||
+    (isOtherDeclineReason && rejectionReason.trim() === "");
+
   if (!context) return null;
 
   const od = context.type === "contract" ? context.contract?.offer_details : context.invoice?.offer_details;
   const details = od as Record<string, unknown> | null | undefined;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>Review offer</DialogTitle>
@@ -163,18 +192,56 @@ export function ReviewOfferModal({ open, onOpenChange, context }: ReviewOfferMod
               </dd>
             </dl>
           )}
-          <div className="space-y-2">
-            <Label htmlFor="rejection-reason" className="text-sm text-muted-foreground">
-              Please provide a reason for declining this offer.
-            </Label>
-            <Textarea
-              id="rejection-reason"
-              placeholder="e.g. Enter reason"
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
-              rows={3}
-              className="resize-none"
-            />
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="decline-primary-reason" className="text-sm font-medium">
+                Reason (required)
+              </Label>
+              <Select
+                value={selectedDeclineReason}
+                onValueChange={(value) => {
+                  setSelectedDeclineReason(value);
+                  if (value !== OTHER_ISSUER_DECLINE_REASON_VALUE) {
+                    setRejectionReason("");
+                  }
+                }}
+                disabled={isPending}
+              >
+                <SelectTrigger id="decline-primary-reason" className="rounded-xl">
+                  <SelectValue placeholder="Select a primary reason" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ISSUER_OFFER_DECLINE_REASONS.map((reason) => (
+                    <SelectItem key={reason} value={reason}>
+                      {reason}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={OTHER_ISSUER_DECLINE_REASON_VALUE}>
+                    Other (manual reason)
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="rejection-reason" className="text-sm text-muted-foreground">
+                {isOtherDeclineReason
+                  ? "Additional context (required)"
+                  : "Additional context (optional)"}
+              </Label>
+              <Textarea
+                id="rejection-reason"
+                placeholder={
+                  isOtherDeclineReason
+                    ? "Enter the primary reason and any details."
+                    : "Add any extra details (optional)."
+                }
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                rows={3}
+                className="resize-none rounded-xl"
+                maxLength={2000}
+              />
+            </div>
           </div>
         </div>
 
@@ -191,7 +258,7 @@ export function ReviewOfferModal({ open, onOpenChange, context }: ReviewOfferMod
             type="button"
             variant="destructive"
             onClick={handleReject}
-            disabled={isPending}
+            disabled={declineDisabled}
           >
             {isPending ? "Processing..." : "Decline"}
           </Button>
