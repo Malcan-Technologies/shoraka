@@ -4,8 +4,12 @@
  * Used by amendments resubmit → APPLICATION_RESUBMITTED metadata; admin UI reads that metadata.
  */
 
+import { isMeaningfulResubmitSnapshotFieldPath } from "@cashsouk/types";
+
 const MAX_FIELD_PATHS = 80;
 const MAX_SERIALIZED_VALUE_CHARS = 5000;
+const MAX_ACTIVITY_FIELD_LINES = 40;
+const MAX_ACTIVITY_CHARS = 3500;
 
 const APPLICATION_JSON_KEYS = [
   "financing_type",
@@ -218,11 +222,6 @@ export function summarizeResubmitSnapshotDiff(
   const prevApp = getSnapshotApplication(previousSnapshot);
   const nextApp = getSnapshotApplication(nextSnapshot);
 
-  console.log("[resubmit-diff] start", {
-    hasPrevApp: !!prevApp,
-    hasNextApp: !!nextApp,
-  });
-
   if (prevApp && nextApp) {
     for (const key of APPLICATION_JSON_KEYS) {
       collectFieldChangeLeaves(prevApp[key], nextApp[key], key, fieldLeaves, MAX_FIELD_PATHS);
@@ -238,11 +237,6 @@ export function summarizeResubmitSnapshotDiff(
   const nextContract = nextContractRaw != null ? stripVolatileTimestamps(nextContractRaw) : null;
 
   const contractEqualAfterStrip = deepEqualJson(prevContract, nextContract);
-  console.log("[resubmit-diff] contract compare", {
-    hadPrev: prevContractRaw != null,
-    hadNext: nextContractRaw != null,
-    equalAfterStrippingVolatile: contractEqualAfterStrip,
-  });
 
   if (!contractEqualAfterStrip) {
     const contractLeaves: FieldChangeLeaf[] = [];
@@ -252,10 +246,6 @@ export function summarizeResubmitSnapshotDiff(
       "contract",
       contractLeaves,
       MAX_FIELD_PATHS
-    );
-    console.log(
-      "[resubmit-diff] contract differing paths (sample)",
-      contractLeaves.slice(0, 20).map((l) => l.path)
     );
     fieldLeaves.push(...contractLeaves);
   }
@@ -273,11 +263,6 @@ export function summarizeResubmitSnapshotDiff(
   const nextInv = stripVolatileTimestamps(nextInvRaw) as unknown[];
 
   const invoicesEqualAfterStrip = deepEqualJson(prevInv, nextInv);
-  console.log("[resubmit-diff] invoices compare", {
-    prevCount: prevInv.length,
-    nextCount: nextInv.length,
-    equalAfterStrippingVolatile: invoicesEqualAfterStrip,
-  });
 
   if (!invoicesEqualAfterStrip) {
     const prevById = new Map<string, unknown>();
@@ -311,9 +296,8 @@ export function summarizeResubmitSnapshotDiff(
     });
   }
 
-  console.log(
-    "[resubmit-diff] value preview (first change)",
-    field_changes[0] ?? "no field changes"
+  const field_changes_meaningful = field_changes.filter((fc) =>
+    isMeaningfulResubmitSnapshotFieldPath(fc.path)
   );
 
   const sectionOrder = new Map<string, number>();
@@ -325,32 +309,41 @@ export function summarizeResubmitSnapshotDiff(
   sectionOrder.set("contract", 100);
   sectionOrder.set("invoices", 101);
 
-  const changedSectionKeys = [...new Set(field_changes.map((f) => f.section_key))].sort(
+  const changedSectionKeys = [...new Set(field_changes_meaningful.map((f) => f.section_key))].sort(
     (a, b) => (sectionOrder.get(a) ?? 99) - (sectionOrder.get(b) ?? 99)
   );
   const changedSectionLabels = changedSectionKeys.map(sectionLabelForKey);
 
-  const contractChanged = field_changes.some((f) => f.section_key === "contract");
-  const invoicesChanged = field_changes.some((f) => f.section_key === "invoices");
+  const contractChanged = field_changes_meaningful.some((f) => f.section_key === "contract");
+  const invoicesChanged = field_changes_meaningful.some((f) => f.section_key === "invoices");
 
   const uniqueLabels = [...new Set(changedSectionLabels)];
-  const activitySummary =
-    uniqueLabels.length > 0
-      ? `Changes: ${uniqueLabels.join(", ")}`
-      : "Changes: (none detected — compare snapshots if needed)";
 
-  console.log("[resubmit-diff] summary", {
-    sections: changedSectionKeys,
-    pathCount: field_changes.length,
-    activitySummary,
-  });
+  let activitySummary: string;
+  if (uniqueLabels.length === 0) {
+    activitySummary = "Changes: (none detected, compare snapshots if needed)";
+  } else {
+    const sectionLine = `Changes: ${uniqueLabels.join(", ")}`;
+    const detailLines = field_changes_meaningful
+      .slice(0, MAX_ACTIVITY_FIELD_LINES)
+      .map((fc) => `• ${fc.section_label}: ${fc.field_label}`);
+    const more =
+      field_changes_meaningful.length > MAX_ACTIVITY_FIELD_LINES
+        ? `\n• …and ${field_changes_meaningful.length - MAX_ACTIVITY_FIELD_LINES} more fields`
+        : "";
+    const body = `${sectionLine}\n${detailLines.join("\n")}${more}`;
+    activitySummary =
+      body.length > MAX_ACTIVITY_CHARS
+        ? `${body.slice(0, MAX_ACTIVITY_CHARS - 24)}\n…(truncated)`
+        : body;
+  }
 
   return {
     changedSectionKeys,
     changedSectionLabels: uniqueLabels,
     contractChanged,
     invoicesChanged,
-    field_changes,
+    field_changes: field_changes_meaningful,
     activitySummary,
   };
 }

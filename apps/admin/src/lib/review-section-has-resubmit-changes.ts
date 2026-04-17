@@ -1,53 +1,15 @@
 /**
- * SECTION: Which review tabs have field changes in a resubmit comparison
- * WHY: Tab "Diff" follows field_changes paths the comparison UI can show, same rule for every tab.
- * INPUT: reviewSection, field_changes from resubmit metadata
- * OUTPUT: boolean
- * WHERE USED: ApplicationReviewTabs in ResubmitComparisonModal
+ * Which review tabs have field changes in a resubmit comparison.
+ * Contract / invoice rules match @cashsouk/types `isMeaningfulResubmitSnapshotFieldPath` (same as API resubmit summary).
  */
 
 import type { ReviewSectionId } from "@/components/application-review/review-registry";
+import { isMeaningfulResubmitSnapshotFieldPath } from "@cashsouk/types";
 
 type FieldChangeWithPath = { path: string };
 
-/** True when path is that JSON root or any nested/array path under it. */
 function pathUnderRoot(path: string, root: string): boolean {
-  return (
-    path === root ||
-    path.startsWith(`${root}.`) ||
-    path.startsWith(`${root}[`)
-  );
-}
-
-/**
- * Comparison UI reads contract_details, customer_details, offer_details under snapshot `contract`.
- * Skip contract.id, contract.status, relations, etc. (still in JSON diff but not shown as field rows).
- */
-function isContractTabMeaningfulDiffPath(path: string): boolean {
-  if (path.startsWith("contract_details")) return false;
-  if (path === "contract") return true;
-  if (!path.startsWith("contract.")) return false;
-  const sub = path.slice("contract.".length);
-  const head = sub.split(/[.[\]]/)[0] ?? "";
-  return (
-    head === "contract_details" ||
-    head === "customer_details" ||
-    head === "offer_details"
-  );
-}
-
-/**
- * Invoice comparison UI focuses on `details` and `offer_details` per row (and whole-row replacement).
- * Skip plain status / application_id–only churn that does not drive those blocks.
- */
-function isInvoiceTabMeaningfulDiffPath(path: string): boolean {
-  if (path === "invoices") return true;
-  if (/^invoices\[[^\]]+\]$/.test(path)) return true;
-  return (
-    /invoices\[[^\]]+\]\.details(?:\.|$)/.test(path) ||
-    /invoices\[[^\]]+\]\.offer_details(?:\.|$)/.test(path) ||
-    /invoices\[[^\]]+\]\.offer_signing(?:\.|$)/.test(path)
-  );
+  return path === root || path.startsWith(`${root}.`) || path.startsWith(`${root}[`);
 }
 
 export function reviewSectionHasResubmitChanges(
@@ -74,9 +36,15 @@ export function reviewSectionHasResubmitChanges(
     case "supporting_documents":
       return fieldChanges.some((f) => pathUnderRoot(f.path, "supporting_documents"));
     case "contract_details":
-      return fieldChanges.some((f) => isContractTabMeaningfulDiffPath(f.path));
+      return fieldChanges.some((f) => {
+        const p = f.path;
+        if (pathUnderRoot(p, "contract_details")) return true;
+        return p.startsWith("contract.") && isMeaningfulResubmitSnapshotFieldPath(p);
+      });
     case "invoice_details":
-      return fieldChanges.some((f) => isInvoiceTabMeaningfulDiffPath(f.path));
+      return fieldChanges.some(
+        (f) => f.path.startsWith("invoices") && isMeaningfulResubmitSnapshotFieldPath(f.path)
+      );
     default:
       return false;
   }

@@ -475,7 +475,9 @@ export function AdminActivityTimeline({
                             {log.activity && (
                                 <p
                                   className={`text-xs text-muted-foreground mt-0.5 ${
-                                    eventType === "APPLICATION_RESUBMITTED" ? "" : "line-clamp-2"
+                                    eventType === "APPLICATION_RESUBMITTED"
+                                      ? "whitespace-pre-line"
+                                      : "line-clamp-2"
                                   }`}
                                 >
                                   {log.activity}
@@ -517,10 +519,6 @@ export function AdminActivityTimeline({
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    console.log("Open resubmit comparison", {
-                                      applicationId,
-                                      reviewCycle: reviewCycleFromLog,
-                                    });
                                     setComparisonContext({
                                       reviewCycle: reviewCycleFromLog!,
                                       fieldChanges: Array.isArray(resubmitChanges?.field_changes)

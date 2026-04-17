@@ -29,6 +29,8 @@ describe("summarizeResubmitSnapshotDiff", () => {
     expect(s.field_changes.some((f) => f.path.includes("supporting_documents"))).toBe(true);
     expect(s.changedSectionKeys).toContain("supporting_documents");
     expect(s.activitySummary.startsWith("Changes:")).toBe(true);
+    expect(s.activitySummary).toContain("Supporting documents");
+    expect(s.activitySummary).toContain("•");
     const fc = s.field_changes.find((f) => f.path.includes("supporting_documents"));
     expect(fc?.previous_value).toBeDefined();
     expect(fc?.next_value).toBeDefined();
@@ -83,5 +85,37 @@ describe("summarizeResubmitSnapshotDiff", () => {
     expect(contractFc).toBeDefined();
     expect(contractFc?.previous_value).toContain("1");
     expect(contractFc?.next_value).toContain("2");
+  });
+
+  it("drops invoice rows when only non-UI fields (e.g. status) differ", () => {
+    const invId = "inv-1";
+    const prev = {
+      application: baseApp,
+      contract: null,
+      invoices: [
+        {
+          id: invId,
+          status: "DRAFT",
+          application_id: "app-1",
+          details: { amount: 100 },
+        },
+      ],
+    };
+    const next = {
+      application: baseApp,
+      contract: null,
+      invoices: [
+        {
+          id: invId,
+          status: "SUBMITTED",
+          application_id: "app-1",
+          details: { amount: 100 },
+        },
+      ],
+    };
+    const s = summarizeResubmitSnapshotDiff(prev, next);
+    expect(s.field_changes.some((f) => f.path.includes("status"))).toBe(false);
+    expect(s.invoicesChanged).toBe(false);
+    expect(s.activitySummary).toContain("none detected");
   });
 });
