@@ -37,17 +37,17 @@ const yesNoBooleanSchema = z
   .optional();
 
 const aboutYourBusinessSchema = z.object({
-  what_does_company_do: z.string().max(200).optional().default(""),
-  main_customers: z.string().max(200).optional().default(""),
+  what_does_company_do: z.string().max(1000).optional().default(""),
+  main_customers: z.string().max(400).optional().default(""),
   single_customer_over_50_revenue: yesNoBooleanSchema,
 });
 
 const whyRaisingFundsSchema = z.object({
-  financing_for: z.string().max(200).optional().default(""),
-  how_funds_used: z.string().max(200).optional().default(""),
+  financing_for: z.string().max(400).optional().default(""),
+  how_funds_used: z.string().max(400).optional().default(""),
   business_plan: z.string().max(1000).optional().default(""),
-  risks_delay_repayment: z.string().max(200).optional().default(""),
-  backup_plan: z.string().max(200).optional().default(""),
+  risks_delay_repayment: z.string().max(400).optional().default(""),
+  backup_plan: z.string().max(400).optional().default(""),
   raising_on_other_p2p: yesNoBooleanSchema,
   platform_name: z.string().max(200).nullable().optional(),
   amount_raised: z.union([z.string(), z.number()]).nullable().optional(),

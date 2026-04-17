@@ -83,6 +83,11 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 const GUARANTOR_EMAIL_STRICT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** “What does your company do?” and “Business plan” share the longer limit; other business textareas use the shorter limit. */
+const MAX_CHARS_WHAT_COMPANY_DO = 1000;
+const MAX_CHARS_BUSINESS_PLAN = 1000;
+const MAX_CHARS_OTHER_BUSINESS_TEXTAREA = 400;
+
 type YesNo = "yes" | "no";
 
 interface AboutYourBusiness {
@@ -1450,13 +1455,13 @@ export function BusinessDetailsStep({
             onChange={(e) =>
               setAboutYourBusiness((prev) => ({
                 ...prev,
-                whatDoesCompanyDo: e.target.value.slice(0, 200),
+                whatDoesCompanyDo: e.target.value.slice(0, MAX_CHARS_WHAT_COMPANY_DO),
               }))
             }
             placeholder="Add details"
-            maxLength={200}
+            maxLength={MAX_CHARS_WHAT_COMPANY_DO}
             className={textareaClassName}
-            countLabel={`${aboutYourBusiness.whatDoesCompanyDo.length}/200 characters`}
+            countLabel={`${aboutYourBusiness.whatDoesCompanyDo.length}/${MAX_CHARS_WHAT_COMPANY_DO} characters`}
             disabled={fieldsLocked}
           />
 
@@ -1469,13 +1474,13 @@ export function BusinessDetailsStep({
             onChange={(e) =>
               setAboutYourBusiness((prev) => ({
                 ...prev,
-                mainCustomers: e.target.value.slice(0, 200),
+                mainCustomers: e.target.value.slice(0, MAX_CHARS_OTHER_BUSINESS_TEXTAREA),
               }))
             }
             placeholder="Add details"
-            maxLength={200}
+            maxLength={MAX_CHARS_OTHER_BUSINESS_TEXTAREA}
             className={textareaClassName}
-            countLabel={`${aboutYourBusiness.mainCustomers.length}/200 characters`}
+            countLabel={`${aboutYourBusiness.mainCustomers.length}/${MAX_CHARS_OTHER_BUSINESS_TEXTAREA} characters`}
             disabled={fieldsLocked}
           />
 
@@ -1533,13 +1538,13 @@ export function BusinessDetailsStep({
               onChange={(e) =>
                 setWhyRaisingFunds((prev) => ({
                   ...prev,
-                  financingFor: e.target.value.slice(0, 200),
+                  financingFor: e.target.value.slice(0, MAX_CHARS_OTHER_BUSINESS_TEXTAREA),
                 }))
               }
               placeholder="Add details"
-              maxLength={200}
+              maxLength={MAX_CHARS_OTHER_BUSINESS_TEXTAREA}
               className={textareaClassName}
-              countLabel={`${whyRaisingFunds.financingFor.length}/200 characters`}
+              countLabel={`${whyRaisingFunds.financingFor.length}/${MAX_CHARS_OTHER_BUSINESS_TEXTAREA} characters`}
               disabled={fieldsLocked}
             />
 
@@ -1552,13 +1557,13 @@ export function BusinessDetailsStep({
               onChange={(e) =>
                 setWhyRaisingFunds((prev) => ({
                   ...prev,
-                  howFundsUsed: e.target.value.slice(0, 200),
+                  howFundsUsed: e.target.value.slice(0, MAX_CHARS_OTHER_BUSINESS_TEXTAREA),
                 }))
               }
               placeholder="Add details"
-              maxLength={200}
+              maxLength={MAX_CHARS_OTHER_BUSINESS_TEXTAREA}
               className={textareaClassName}
-              countLabel={`${whyRaisingFunds.howFundsUsed.length}/200 characters`}
+              countLabel={`${whyRaisingFunds.howFundsUsed.length}/${MAX_CHARS_OTHER_BUSINESS_TEXTAREA} characters`}
               disabled={fieldsLocked}
             />
 
@@ -1571,13 +1576,13 @@ export function BusinessDetailsStep({
               onChange={(e) =>
                 setWhyRaisingFunds((prev) => ({
                   ...prev,
-                  businessPlan: e.target.value.slice(0, 1000),
+                  businessPlan: e.target.value.slice(0, MAX_CHARS_BUSINESS_PLAN),
                 }))
               }
               placeholder="Add details"
-              maxLength={1000}
+              maxLength={MAX_CHARS_BUSINESS_PLAN}
               className={textareaClassName}
-              countLabel={`${whyRaisingFunds.businessPlan.length}/1000 characters`}
+              countLabel={`${whyRaisingFunds.businessPlan.length}/${MAX_CHARS_BUSINESS_PLAN} characters`}
               disabled={fieldsLocked}
             />
 
@@ -1590,13 +1595,13 @@ export function BusinessDetailsStep({
               onChange={(e) =>
                 setWhyRaisingFunds((prev) => ({
                   ...prev,
-                  risksDelayRepayment: e.target.value.slice(0, 200),
+                  risksDelayRepayment: e.target.value.slice(0, MAX_CHARS_OTHER_BUSINESS_TEXTAREA),
                 }))
               }
               placeholder="Add details"
-              maxLength={200}
+              maxLength={MAX_CHARS_OTHER_BUSINESS_TEXTAREA}
               className={textareaClassName}
-              countLabel={`${whyRaisingFunds.risksDelayRepayment.length}/200 characters`}
+              countLabel={`${whyRaisingFunds.risksDelayRepayment.length}/${MAX_CHARS_OTHER_BUSINESS_TEXTAREA} characters`}
               disabled={fieldsLocked}
             />
 
@@ -1609,13 +1614,13 @@ export function BusinessDetailsStep({
               onChange={(e) =>
                 setWhyRaisingFunds((prev) => ({
                   ...prev,
-                  backupPlan: e.target.value.slice(0, 200),
+                  backupPlan: e.target.value.slice(0, MAX_CHARS_OTHER_BUSINESS_TEXTAREA),
                 }))
               }
               placeholder="Add details"
-              maxLength={200}
+              maxLength={MAX_CHARS_OTHER_BUSINESS_TEXTAREA}
               className={textareaClassName}
-              countLabel={`${whyRaisingFunds.backupPlan.length}/200 characters`}
+              countLabel={`${whyRaisingFunds.backupPlan.length}/${MAX_CHARS_OTHER_BUSINESS_TEXTAREA} characters`}
               disabled={fieldsLocked}
             />
           </div>
