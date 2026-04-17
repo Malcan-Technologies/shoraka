@@ -1966,13 +1966,6 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
       </ReviewFieldBlock>
 
       <ReviewFieldBlock title="Financial Summary">
-        <p className="-mt-1 mb-2 max-w-3xl text-xs leading-relaxed text-muted-foreground">
-          CTOS columns use years from the latest organization report. User columns show only issuer-submitted years in
-          the current window (up to two), smallest first; none appear if nothing was submitted. Empty CTOS slots
-          (dimmed, left side) pad when the report has fewer than three years so the latest CTOS year stays next to user
-          columns. <span className="font-medium text-foreground">N/A</span>{" "}
-          means a ratio cannot be computed from the numbers present (see one-line formula under each computed row label).
-        </p>
         <div className={applicationTableWrapperClass}>
           <div className="overflow-x-auto">
             <Table className="table-fixed w-full min-w-[760px] text-[15px]">
