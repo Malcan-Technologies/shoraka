@@ -1994,7 +1994,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                   <TableHead
                     className={cn(applicationTableHeaderClass, "border-r border-border bg-muted/30 align-middle")}
                   >
-                    Type
+                    Source
                   </TableHead>
                   {columns.map((spec, i) => (
                     <TableHead
@@ -2019,7 +2019,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                                 : "border-border bg-muted/50 text-foreground"
                           )}
                         >
-                          {spec.kind === "ctos" ? (spec.year == null ? "No CTOS year" : "CTOS") : "User Input"}
+                          {spec.kind === "ctos" ? "CTOS" : "User Input"}
                         </Badge>
                       </div>
                     </TableHead>
