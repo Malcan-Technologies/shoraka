@@ -25,10 +25,8 @@ import {
   ApplicationReviewTabContent,
 } from "@/components/application-review-tabs";
 import { SectionContent } from "@/components/application-review/section-content";
-import {
-  getReviewTabDescriptorsFromWorkflow,
-  type ReviewSectionId,
-} from "@/components/application-review/review-registry";
+import { type ReviewSectionId } from "@/components/application-review/review-registry";
+import { getEffectiveReviewTabDescriptors } from "@/lib/effective-review-tab-descriptors";
 import { revisionSnapshotToReviewApp } from "@/lib/revision-snapshot-to-review-app";
 import { ResubmitTabAmendmentNotesBar } from "@/components/resubmit-tab-amendment-notes";
 import { getSupportingDocumentsStepConfig } from "@/components/application-review/supporting-documents-admin-meta";
@@ -56,6 +54,8 @@ export interface ResubmitComparisonModalProps {
   fieldChanges?: ResubmitFieldChangeItem[];
   /** From application detail — aligns tab status dots with main review page (e.g. green when approved). */
   reviewTabSections?: { section: string; status: string }[];
+  /** Same as application detail `visible_review_sections` — when set, tab list matches main page API filter. */
+  visibleReviewSections?: unknown;
 }
 
 export function ResubmitComparisonModal({
@@ -66,16 +66,13 @@ export function ResubmitComparisonModal({
   reviewCycle,
   fieldChanges,
   reviewTabSections,
+  visibleReviewSections: visibleReviewSectionsFromParent,
 }: ResubmitComparisonModalProps) {
   const { data, isLoading, error, isError } = useResubmitComparison(applicationId, reviewCycle, open);
   const { data: productsData } = useProducts({ page: 1, pageSize: 100 });
   const product = React.useMemo(
     () => productsData?.products.find((p) => p.id === productKey),
     [productsData?.products, productKey]
-  );
-  const tabDescriptors = React.useMemo(
-    () => getReviewTabDescriptorsFromWorkflow(product?.workflow as unknown[] | undefined),
-    [product?.workflow]
   );
 
   const { viewDocumentPending, handleViewDocument, handleDownloadDocument } =
@@ -105,16 +102,6 @@ export function ResubmitComparisonModal({
     [effectiveFieldChanges]
   );
 
-  const tabStripSections = React.useMemo(() => {
-    const statusBySection = new Map(
-      (reviewTabSections ?? []).map((s) => [s.section, s.status])
-    );
-    return tabDescriptors.map((t) => ({
-      section: t.reviewSection,
-      status: statusBySection.get(t.reviewSection) ?? "PENDING",
-    }));
-  }, [reviewTabSections, tabDescriptors]);
-
   const beforeApp = React.useMemo(() => {
     if (!data?.previous_snapshot || !applicationId) return null;
     return revisionSnapshotToReviewApp(applicationId, data.previous_snapshot as Record<string, unknown>);
@@ -136,6 +123,31 @@ export function ResubmitComparisonModal({
     return { comparisonBeforeApp: b, comparisonAfterApp: a };
   }, [beforeApp, afterApp]);
 
+  const effectiveTabDescriptors = React.useMemo(() => {
+    const appShape = comparisonAfterApp
+      ? {
+          visible_review_sections:
+            visibleReviewSectionsFromParent ?? comparisonAfterApp.visible_review_sections,
+          financing_structure: comparisonAfterApp.financing_structure,
+          invoices: comparisonAfterApp.invoices,
+        }
+      : null;
+    return getEffectiveReviewTabDescriptors(
+      product?.workflow as unknown[] | undefined,
+      appShape
+    );
+  }, [product?.workflow, comparisonAfterApp, visibleReviewSectionsFromParent]);
+
+  const tabStripSections = React.useMemo(() => {
+    const statusBySection = new Map(
+      (reviewTabSections ?? []).map((s) => [s.section, s.status])
+    );
+    return effectiveTabDescriptors.map((t) => ({
+      section: t.reviewSection,
+      status: statusBySection.get(t.reviewSection) ?? "PENDING",
+    }));
+  }, [reviewTabSections, effectiveTabDescriptors]);
+
   const noopAsync = React.useCallback(async () => {}, []);
   const noop = React.useCallback(() => {}, []);
 
@@ -143,13 +155,13 @@ export function ResubmitComparisonModal({
 
   const [resubmitTabId, setResubmitTabId] = React.useState(RESUBMIT_FINANCIAL_TAB_ID);
   React.useEffect(() => {
-    if (!open || isLoading || tabDescriptors.length === 0) return;
-    setResubmitTabId(tabDescriptors[0]?.id ?? RESUBMIT_FINANCIAL_TAB_ID);
-  }, [open, isLoading, tabDescriptors]);
+    if (!open || isLoading || effectiveTabDescriptors.length === 0) return;
+    setResubmitTabId(effectiveTabDescriptors[0]?.id ?? RESUBMIT_FINANCIAL_TAB_ID);
+  }, [open, isLoading, effectiveTabDescriptors]);
 
   const activeTabDescriptor = React.useMemo(
-    () => tabDescriptors.find((d) => d.id === resubmitTabId),
-    [tabDescriptors, resubmitTabId]
+    () => effectiveTabDescriptors.find((d) => d.id === resubmitTabId),
+    [effectiveTabDescriptors, resubmitTabId]
   );
 
   const showResubmitBeforeAfterBanner =
@@ -222,7 +234,7 @@ export function ResubmitComparisonModal({
                 {error instanceof Error ? error.message : "Failed to load comparison"}
               </p>
             )}
-            {!isLoading && !isError && comparisonBeforeApp && comparisonAfterApp && tabDescriptors.length > 0 ? (
+            {!isLoading && !isError && comparisonBeforeApp && comparisonAfterApp && effectiveTabDescriptors.length > 0 ? (
               <>
                 {USE_MOCK_GUARANTOR_COMPARISON ? (
                   <p
@@ -235,14 +247,14 @@ export function ResubmitComparisonModal({
                 ) : null}
                 <ApplicationReviewTabs
                   sections={tabStripSections}
-                  tabDescriptors={tabDescriptors}
+                  tabDescriptors={effectiveTabDescriptors}
                   resubmitTabHasChanges={resubmitTabHasChanges}
                   stickyTabList
                   stickyTopSlot={resubmitBeforeAfterBanner}
                   tabValue={resubmitTabId}
                   onTabValueChange={setResubmitTabId}
                 >
-                  {tabDescriptors.map((descriptor) => (
+                  {effectiveTabDescriptors.map((descriptor) => (
                     <ApplicationReviewTabContent key={descriptor.id} value={descriptor.id}>
                       <ResubmitTabAmendmentNotesBar
                         reviewSection={descriptor.reviewSection}

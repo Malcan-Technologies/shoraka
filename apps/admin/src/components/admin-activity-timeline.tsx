@@ -136,6 +136,8 @@ interface AdminActivityTimelineProps {
   reviewTabSections?: { section: string; status: string }[];
   /** Override section labels for display (e.g. contract_details → "Customer" for invoice_only). */
   sectionLabelOverrides?: Record<string, string>;
+  /** Pass through to resubmit comparison modal so tabs match main application detail. */
+  visibleReviewSections?: unknown;
 }
 
 function getEventIcon(eventType: string) {
@@ -330,6 +332,7 @@ export function AdminActivityTimeline({
   productKey,
   reviewTabSections,
   sectionLabelOverrides,
+  visibleReviewSections,
 }: AdminActivityTimelineProps) {
   /**
    * Local state / hooks
@@ -671,6 +674,7 @@ export function AdminActivityTimeline({
       reviewCycle={comparisonContext?.reviewCycle ?? null}
       fieldChanges={comparisonContext?.fieldChanges}
       reviewTabSections={reviewTabSections}
+      visibleReviewSections={visibleReviewSections}
     />
     </>
   );

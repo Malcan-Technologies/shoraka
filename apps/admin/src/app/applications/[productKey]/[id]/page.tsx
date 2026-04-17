@@ -46,11 +46,11 @@ import {
 import { useProducts } from "@/hooks/use-products";
 import { productName } from "@/app/settings/products/product-utils";
 import {
-  getReviewTabDescriptorsFromWorkflow,
   getReviewTabLabel,
   getTabUnlockTooltip,
   isTabUnlocked,
 } from "@/components/application-review/review-registry";
+import { getEffectiveReviewTabDescriptors } from "@/lib/effective-review-tab-descriptors";
 import { format, addDays } from "date-fns";
 import { toast } from "sonner";
 import {
@@ -289,11 +289,6 @@ export default function DynamicApplicationDetailPage() {
     await handleViewDocument(signedContractOfferS3Key);
   }, [handleViewDocument, signedContractOfferS3Key]);
 
-  const tabDescriptors = React.useMemo(
-    () => getReviewTabDescriptorsFromWorkflow(currentProduct?.workflow),
-    [currentProduct?.workflow]
-  );
-
   const visibleReviewSectionsFromApi = React.useMemo(() => {
     const fromApi = (app as { visible_review_sections?: unknown } | undefined)
       ?.visible_review_sections;
@@ -304,23 +299,11 @@ export default function DynamicApplicationDetailPage() {
   }, [app]);
   const structureType = (app?.financing_structure as { structure_type?: string } | null | undefined)?.structure_type;
   const isInvoiceOnly = structureType === "invoice_only";
-  const invoiceCount = (app?.invoices as unknown[] | undefined)?.length ?? 0;
-  const isContractOnlyNoInvoices =
-    (structureType === "new_contract" || structureType === "existing_contract") && invoiceCount === 0;
-  const effectiveTabDescriptors = React.useMemo(() => {
-    let descriptors = visibleReviewSectionsFromApi
-      ? tabDescriptors.filter((d) => visibleReviewSectionsFromApi.has(d.reviewSection))
-      : tabDescriptors;
-    if (isContractOnlyNoInvoices) {
-      descriptors = descriptors.filter((d) => d.reviewSection !== "invoice_details");
-    }
-    if (isInvoiceOnly) {
-      descriptors = descriptors.map((d) =>
-        d.reviewSection === "contract_details" ? { ...d, label: "Customer" } : d
-      );
-    }
-    return descriptors;
-  }, [tabDescriptors, visibleReviewSectionsFromApi, isInvoiceOnly, isContractOnlyNoInvoices]);
+
+  const effectiveTabDescriptors = React.useMemo(
+    () => getEffectiveReviewTabDescriptors(currentProduct?.workflow, app ?? null),
+    [currentProduct?.workflow, app]
+  );
 
   const isExistingContract = React.useMemo(
     () =>
@@ -1127,6 +1110,7 @@ export default function DynamicApplicationDetailPage() {
                     applicationId={applicationId}
                     productKey={productKey}
                     sectionLabelOverrides={isInvoiceOnly ? { contract_details: "Customer" } : undefined}
+                    visibleReviewSections={app.visible_review_sections}
                   />
                 </div>
               </div>
