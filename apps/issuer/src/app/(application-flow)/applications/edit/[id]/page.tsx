@@ -84,7 +84,7 @@ import { DevToolsProvider, useDevTools } from "../../components/dev-tools-contex
 import { DevToolsPanel } from "../../components/dev-tools-panel";
 import "../../components/dev-tools-registry";
 
-/** Post-submit / post-resubmit list route (toast shows first, then client navigates here). */
+/** Post-submit / post-resubmit list route (toast + navigation run back-to-back after mutations). */
 const SUBMIT_SUCCESS_REDIRECT = "/applications";
 
 /**
@@ -929,6 +929,8 @@ function EditApplicationPageBody() {
 
   const stepReadOnly = isAmendmentModeEffective && !isStepFlagged;
 
+  const holdWizardDuringSubmit = isSubmittingApplication || isSubmittingRef.current;
+
   const renderStepComponent = () => {
     const financingType = application?.financing_type as Record<string, unknown>;
     const savedProductId = (financingType?.product_id as string) || "";
@@ -957,6 +959,10 @@ function EditApplicationPageBody() {
           onDataChange={handleDataChange}
           readOnly={stepReadOnly}
           resetCheckboxesForAmendment={isRealAmendmentMode && !stepReadOnly && isDeclarationsFinalStep}
+          savedDeclarationsField={application?.declarations}
+          hasApplicationPayload={Boolean(application)}
+          isDeclarationsHydrationLoading={isLoadingApp && !application}
+          suppressLoadingSkeleton={holdWizardDuringSubmit}
         />
       );
     }
@@ -1045,7 +1051,6 @@ function EditApplicationPageBody() {
       return;
     }
     if (!applicationId) return;
-    if (await versionBlocksNavigation()) return;
 
     const rawData = stepDataRef.current;
     if (!rawData || stepDataStepKeyRef.current !== "declarations") {
@@ -1063,11 +1068,19 @@ function EditApplicationPageBody() {
       return;
     }
 
+    /** Before any await: keeps edit layout on screen while React Query refetches (avoid wizard/step skeleton). */
     isSubmittingRef.current = true;
     setIsSubmittingApplication(true);
     let successPendingNav = false;
+    const wasAmendmentResubmit = application?.status === "AMENDMENT_REQUESTED";
 
     try {
+      if (await versionBlocksNavigation()) {
+        isSubmittingRef.current = false;
+        setIsSubmittingApplication(false);
+        return;
+      }
+
       const finalStepNumber = effectiveWorkflow.length;
       await updateStepMutation.mutateAsync({
         id: applicationId,
@@ -1078,31 +1091,40 @@ function EditApplicationPageBody() {
         },
       });
 
-      if (application?.status === "AMENDMENT_REQUESTED") {
+      if (wasAmendmentResubmit) {
         await resubmitMutation.mutateAsync(applicationId);
         successPendingNav = true;
-        toast.success("Application resubmitted successfully");
       } else {
         await updateStatusMutation.mutateAsync({
           id: applicationId,
           status: "SUBMITTED",
         });
         successPendingNav = true;
-        toast.success("Application submitted successfully");
       }
 
       if (successPendingNav) {
-        await router.replace(SUBMIT_SUCCESS_REDIRECT);
+        toast.success(
+          wasAmendmentResubmit
+            ? "Application resubmitted successfully"
+            : "Application submitted successfully"
+        );
+        try {
+          await router.replace(SUBMIT_SUCCESS_REDIRECT);
+        } catch {
+          isSubmittingRef.current = false;
+          setIsSubmittingApplication(false);
+        }
       }
     } catch {
       toast.error(
-        application?.status === "AMENDMENT_REQUESTED"
-          ? "Failed to resubmit application"
-          : "Failed to submit application"
+        wasAmendmentResubmit ? "Failed to resubmit application" : "Failed to submit application"
       );
     } finally {
-      isSubmittingRef.current = false;
-      setIsSubmittingApplication(false);
+      /** Do not clear on successful submit: status is already non-draft, and clearing here runs as soon as `router.replace` resolves—often before unmount—so the next paint would hit `isEditBlocked` and `return null` (white flash). */
+      if (!successPendingNav) {
+        isSubmittingRef.current = false;
+        setIsSubmittingApplication(false);
+      }
     }
   };
 
@@ -1514,12 +1536,13 @@ function EditApplicationPageBody() {
   const amendmentRouteReady =
     !isAmendmentModeEffective ||
     (amendmentContextStatus === "done" && isStructureResolved);
+
   const isStepRouteReady =
     !useBlockedFlowBackdrop &&
     hasStepQuery &&
     Boolean(application) &&
-    !isLoadingApp &&
-    !isLoadingProducts &&
+    (!isLoadingApp || holdWizardDuringSubmit) &&
+    (!isLoadingProducts || holdWizardDuringSubmit) &&
     effectiveWorkflow.length > 0 &&
     wizardState !== null &&
     amendmentRouteReady;
@@ -1529,7 +1552,9 @@ function EditApplicationPageBody() {
   const previewWizardLoadingShell =
     process.env.NODE_ENV === "development" && (devTools?.previewWizardLoadingShell ?? false);
   const useWizardContentShell =
-    useBlockedFlowBackdrop || showStepLoadingShell || previewWizardLoadingShell;
+    useBlockedFlowBackdrop ||
+    (!holdWizardDuringSubmit && showStepLoadingShell) ||
+    previewWizardLoadingShell;
   /** Keep footer visible during loading/block shell; buttons stay disabled so layout does not jump. */
   const footerActionsLocked = useWizardContentShell;
 
@@ -1591,7 +1616,9 @@ function EditApplicationPageBody() {
                   return (s.name as string) ?? "";
                 })}
                 currentStep={currentStep}
-                isLoading={isLoading || !effectiveWorkflow.length}
+                isLoading={
+                  holdWizardDuringSubmit ? false : isLoading || !effectiveWorkflow.length
+                }
                 isAmendmentMode={isAmendmentModeEffective}
                 amendmentFlaggedStepKeys={amendmentFlaggedStepKeys}
                 acknowledgedWorkflowIds={acknowledgedWorkflowIds}
