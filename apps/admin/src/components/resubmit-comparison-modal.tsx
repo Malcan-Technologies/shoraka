@@ -207,10 +207,6 @@ export function ResubmitComparisonModal({
           <DialogTitle className="text-[17px] leading-7">What changed in this application</DialogTitle>
           <DialogDescription className="text-sm">
             {applicationId ? `Application ${applicationId}` : "Application"}
-            <span className="mt-0.5 block text-xs text-muted-foreground">
-              Left: their old answers. Right: their new answers. This window is read only. You cannot
-              change anything here.
-            </span>
           </DialogDescription>
         </DialogHeader>
 
