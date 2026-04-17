@@ -394,17 +394,6 @@ export function ApplicationFinancialReviewComparison({
     [isPathChanged, mockFinancialPayload]
   );
 
-  React.useEffect(() => {
-    if (mockFinancialPayload) {
-      console.log(
-        "ApplicationFinancialReviewComparison: MOCK financial resubmit —",
-        MOCK_UNAUDITED_YEAR_COUNT === 1
-          ? "one unaudited year (2023); turnover diff."
-          : "two unaudited years (2022, 2023); turnover + plnpat diffs."
-      );
-    }
-  }, [mockFinancialPayload]);
-
   const beforeByYear = React.useMemo(
     () => extractQuestionnaireAndUnaudited(effectiveBeforeApp.financial_statements).unauditedByYear,
     [effectiveBeforeApp.financial_statements]
