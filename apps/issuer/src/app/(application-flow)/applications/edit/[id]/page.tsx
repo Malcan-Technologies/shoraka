@@ -1150,13 +1150,17 @@ function EditApplicationPageBody() {
     })();
   };
 
-  /** Amendment mode only: navigate to step via URL. Does not modify amendment_acknowledged_workflow_ids. */
+  /** Stepper: navigate by URL. Amendment — any step. Normal draft — only steps already reached (allowedMaxStep). */
   const handleStepClick = React.useCallback(
     (step: number) => {
       if (isSubmittingRef.current || isSavingRef.current) return;
-      safeNavigate(`/applications/edit/${applicationId}?step=${step}`, { leavingPage: false });
+      if (!isAmendmentModeEffective && wizardState !== null && step > wizardState.allowedMaxStep) {
+        toast.error("Please complete steps in order");
+        return;
+      }
+      void safeNavigate(`/applications/edit/${applicationId}?step=${step}`, { leavingPage: false });
     },
-    [safeNavigate, applicationId]
+    [safeNavigate, applicationId, isAmendmentModeEffective, wizardState]
   );
 
   const handleDataChange = React.useCallback((data: Record<string, unknown> | null) => {
@@ -1583,7 +1587,10 @@ function EditApplicationPageBody() {
                   (s: Record<string, unknown>) =>
                     getStepKeyFromStepId((s.id as string) || "") || ""
                 )}
-                onStepClick={isAmendmentModeEffective ? handleStepClick : undefined}
+                onStepClick={handleStepClick}
+                maxClickableStep={
+                  isAmendmentModeEffective ? undefined : wizardState?.allowedMaxStep
+                }
               />
             </ApplicationFlowBlockedBackdrop>
           ) : (
@@ -1619,7 +1626,10 @@ function EditApplicationPageBody() {
                   (s: Record<string, unknown>) =>
                     getStepKeyFromStepId((s.id as string) || "") || ""
                 )}
-                onStepClick={isAmendmentModeEffective ? handleStepClick : undefined}
+                onStepClick={handleStepClick}
+                maxClickableStep={
+                  isAmendmentModeEffective ? undefined : wizardState?.allowedMaxStep
+                }
               />
             </>
           )}
