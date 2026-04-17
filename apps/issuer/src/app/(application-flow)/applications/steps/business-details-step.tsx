@@ -654,22 +654,19 @@ function TextareaWithCharCount({
   disabled?: boolean;
 }) {
   return (
-    <div className="relative">
+    <div className="flex flex-col gap-1.5 min-w-0">
       <Textarea
         id={id}
         value={value}
         onChange={onChange}
         placeholder={placeholder}
         maxLength={maxLength}
-        className={cn(className, "pb-8", disabled && formInputDisabledClassName)}
+        className={cn(className, "resize-y", disabled && formInputDisabledClassName)}
         disabled={disabled}
       />
-      <span
-        className="absolute bottom-3 right-3 text-sm text-muted-foreground pointer-events-none"
-        aria-hidden
-      >
+      <p className="shrink-0 text-right text-sm tabular-nums text-muted-foreground" aria-live="polite">
         {countLabel}
-      </span>
+      </p>
     </div>
   );
 }
