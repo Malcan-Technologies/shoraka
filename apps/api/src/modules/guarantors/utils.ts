@@ -41,22 +41,6 @@ function deterministicGuarantorId(index: number, guarantorType: GuarantorType, t
   return `g-${guarantorType}-${safeToken(token || `idx${index + 1}`)}`;
 }
 
-export function buildGuarantorCanonicalKey(input: {
-  guarantorType: GuarantorType;
-  icNumber?: string;
-  ssmNumber?: string;
-  email?: string;
-}): string {
-  if (input.guarantorType === "individual") {
-    const ic = normalizeIdentifier(input.icNumber);
-    if (ic) return `individual:${ic}`;
-    return `individual:email:${normalizeEmail(input.email)}`;
-  }
-  const ssm = normalizeIdentifier(input.ssmNumber);
-  if (ssm) return `company:${ssm}`;
-  return `company:email:${normalizeEmail(input.email)}`;
-}
-
 export function parseGuarantorsFromBusinessDetails(businessDetails: unknown): ParsedGuarantorInput[] {
   const root = toRecord(businessDetails);
   const rawGuarantors = root.guarantors;

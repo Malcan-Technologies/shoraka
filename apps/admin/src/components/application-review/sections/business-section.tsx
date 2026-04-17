@@ -273,8 +273,17 @@ interface GuarantorAmlEntry {
 }
 
 interface RelationalGuarantorEntry {
+  id?: string;
   position?: number;
   relationship?: string | null;
+  client_guarantor_id?: string;
+  guarantor_type?: string;
+  email?: string;
+  first_name?: string;
+  last_name?: string;
+  company_name?: string;
+  ic_number?: string;
+  ssm_number?: string;
   guarantor?: Record<string, unknown> | null;
 }
 
@@ -407,13 +416,37 @@ function parseGuarantorAmlEntries(raw: unknown): GuarantorAmlEntry[] {
   for (const item of raw) {
     if (!item || typeof item !== "object") continue;
     const row = item as Record<string, unknown>;
-    const guarantor = (row.guarantor ?? {}) as Record<string, unknown>;
-    const guarantorType = guarantor.guarantor_type === "company" ? "company" : "individual";
-    const orgGuarantorKey = reviewStr(guarantor.canonical_key);
-    if (!orgGuarantorKey || !reviewStr(guarantor.id)) continue;
+    const nested =
+      row.guarantor && typeof row.guarantor === "object" && !Array.isArray(row.guarantor)
+        ? (row.guarantor as Record<string, unknown>)
+        : null;
+    const g = nested ?? row;
+    const guarantorType = g.guarantor_type === "company" ? "company" : "individual";
+    const reviewRow: GuarantorReviewRow =
+      guarantorType === "individual"
+        ? {
+            kind: "individual",
+            guarantorId: reviewStr(row.id ?? g.id),
+            firstName: reviewStr(g.first_name),
+            lastName: reviewStr(g.last_name),
+            email: normalizeEmail(g.email),
+            icNumber: reviewStr(g.ic_number),
+            relationshipLabel: "",
+          }
+        : {
+            kind: "company",
+            guarantorId: reviewStr(row.id ?? g.id),
+            companyName: reviewStr(g.company_name),
+            email: normalizeEmail(g.email),
+            ssmNumber: reviewStr(g.ssm_number),
+            relationshipLabel: "",
+          };
+    const orgGuarantorKey = buildGuarantorAmlKey(reviewRow);
+    const linkId = reviewStr(row.id) || reviewStr(g.id);
+    if (!orgGuarantorKey || !linkId || !reviewStr(g.email)) continue;
     const message = reviewStr(row.amlMessageStatus) as GuarantorAmlMessageStatus;
-    const amlStatus = reviewStr(guarantor.aml_status) as GuarantorAmlStatus;
-    const amlMessageStatus = reviewStr(guarantor.aml_message_status) as GuarantorAmlMessageStatus;
+    const amlStatus = reviewStr(g.aml_status) as GuarantorAmlStatus;
+    const amlMessageStatus = reviewStr(g.aml_message_status) as GuarantorAmlMessageStatus;
     const isStatusValid =
       amlStatus === "Approved" ||
       amlStatus === "Rejected" ||
@@ -426,19 +459,18 @@ function parseGuarantorAmlEntries(raw: unknown): GuarantorAmlEntry[] {
     entries.push({
       orgGuarantorKey,
       guarantorType,
-      guarantorId: reviewStr(guarantor.id),
-      email: normalizeEmail(guarantor.email),
-      icNumber: reviewStr(guarantor.ic_number) || undefined,
-      ssmNumber: reviewStr(guarantor.ssm_number) || undefined,
-      requestId: reviewStr(guarantor.onboarding_request_id) || undefined,
-      onboardingVerifyLink: reviewStr(guarantor.onboarding_verify_link) || undefined,
-      regtankPortalUrl: reviewStr(guarantor.regtank_portal_url) || undefined,
+      guarantorId: linkId,
+      email: normalizeEmail(g.email),
+      icNumber: reviewStr(g.ic_number) || undefined,
+      ssmNumber: reviewStr(g.ssm_number) || undefined,
+      requestId: reviewStr(g.onboarding_request_id) || undefined,
+      onboardingVerifyLink: reviewStr(g.onboarding_verify_link) || undefined,
+      regtankPortalUrl: reviewStr(g.regtank_portal_url) || undefined,
       amlStatus: isStatusValid ? amlStatus : "Pending",
       amlMessageStatus: isAmlMessageValid ? amlMessageStatus : isMessageValid ? message : "PENDING",
-      amlRiskScore:
-        typeof guarantor.aml_risk_score === "number" ? (guarantor.aml_risk_score as number) : null,
-      amlRiskLevel: reviewStr(guarantor.aml_risk_level) || null,
-      lastUpdated: reviewStr(guarantor.updated_at) || undefined,
+      amlRiskScore: typeof g.aml_risk_score === "number" ? (g.aml_risk_score as number) : null,
+      amlRiskLevel: reviewStr(g.aml_risk_level) || null,
+      lastUpdated: reviewStr(g.updated_at) || undefined,
     });
   }
   return entries;
@@ -453,30 +485,32 @@ function parseRelationalGuarantors(raw: unknown): GuarantorReviewRow[] {
     .sort((a, b) => (typeof a.position === "number" ? a.position : 0) - (typeof b.position === "number" ? b.position : 0));
 
   for (const entry of sorted) {
-    const guarantor =
-      entry.guarantor && typeof entry.guarantor === "object"
+    const nested =
+      entry.guarantor && typeof entry.guarantor === "object" && !Array.isArray(entry.guarantor)
         ? entry.guarantor
-        : ((entry as unknown as Record<string, unknown>) ?? null);
-    if (!guarantor) continue;
-    const guarantorType = guarantor.guarantor_type === "company" ? "company" : "individual";
+        : null;
+    const g = nested ?? entry;
+    const linkId = reviewStr(entry.id) || reviewStr(g.id);
+    if (!linkId) continue;
+    const guarantorType = g.guarantor_type === "company" ? "company" : "individual";
     if (guarantorType === "individual") {
       rows.push({
         kind: "individual",
-        guarantorId: reviewStr(guarantor.id),
-        firstName: reviewStr(guarantor.first_name),
-        lastName: reviewStr(guarantor.last_name),
-        email: normalizeEmail(guarantor.email),
-        icNumber: reviewStr(guarantor.ic_number),
+        guarantorId: linkId,
+        firstName: reviewStr(g.first_name),
+        lastName: reviewStr(g.last_name),
+        email: normalizeEmail(g.email),
+        icNumber: reviewStr(g.ic_number),
         relationshipLabel: reviewStr(entry.relationship) || REVIEW_EMPTY_LABEL,
       });
       continue;
     }
     rows.push({
       kind: "company",
-      guarantorId: reviewStr(guarantor.id),
-      companyName: reviewStr(guarantor.company_name),
-      email: normalizeEmail(guarantor.email),
-      ssmNumber: reviewStr(guarantor.ssm_number),
+      guarantorId: linkId,
+      companyName: reviewStr(g.company_name),
+      email: normalizeEmail(g.email),
+      ssmNumber: reviewStr(g.ssm_number),
       relationshipLabel: reviewStr(entry.relationship) || REVIEW_EMPTY_LABEL,
     });
   }

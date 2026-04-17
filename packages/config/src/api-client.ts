@@ -28,11 +28,8 @@ import type {
   GetPendingInvitationsParams,
   PendingInvitationsResponse,
   GetOrganizationsParams,
-  GetGuarantorsParams,
   OrganizationDetailResponse,
   OrganizationsResponse,
-  GuarantorsResponse,
-  GuarantorDetailResponse,
   GetOnboardingApplicationsParams,
   OnboardingApplicationsResponse,
   OnboardingApplicationResponse,
@@ -287,36 +284,6 @@ export class ApiClient {
     return this.get<OrganizationsResponse>(`/v1/admin/organizations?${queryParams.toString()}`);
   }
 
-  async getGuarantors(
-    params: GetGuarantorsParams
-  ): Promise<ApiResponse<GuarantorsResponse> | ApiError> {
-    const queryParams = new URLSearchParams();
-    queryParams.append("page", String(params.page));
-    queryParams.append("pageSize", String(params.pageSize));
-    if (params.search) queryParams.append("search", params.search);
-    if (params.guarantorType) queryParams.append("guarantorType", params.guarantorType);
-    if (params.amlStatus) queryParams.append("amlStatus", params.amlStatus);
-    return this.get<GuarantorsResponse>(`/v1/admin/guarantors?${queryParams.toString()}`);
-  }
-
-  async getGuarantorDetail(id: string): Promise<ApiResponse<GuarantorDetailResponse> | ApiError> {
-    return this.get<GuarantorDetailResponse>(`/v1/admin/guarantors/${id}`);
-  }
-
-  async restartGuarantorOnboarding(
-    id: string
-  ): Promise<
-    ApiResponse<{
-      id: string;
-      onboardingRequestId: string | null;
-      onboardingVerifyLink: string | null;
-      regtankPortalUrl: string | null;
-      amlStatus: string;
-    }> | ApiError
-  > {
-    return this.post(`/v1/admin/guarantors/${id}/restart-onboarding`, {});
-  }
-
   async getOrganizationDetail(
     portal: "investor" | "issuer",
     id: string
@@ -549,32 +516,6 @@ export class ApiClient {
       `/v1/admin/applications/${applicationId}/reviews/sections/${section}/reset-to-pending`,
       {}
     );
-  }
-
-  async triggerApplicationGuarantorAml(
-    applicationId: string,
-    guarantorId: string
-  ): Promise<ApiResponse<any> | ApiError> {
-    return this.post<any>(
-      `/v1/admin/applications/${applicationId}/guarantors/${encodeURIComponent(guarantorId)}/aml-trigger`,
-      {}
-    );
-  }
-
-  async refreshApplicationGuarantorAml(
-    applicationId: string,
-    guarantorId: string
-  ): Promise<ApiResponse<any> | ApiError> {
-    return this.post<any>(
-      `/v1/admin/applications/${applicationId}/guarantors/${encodeURIComponent(guarantorId)}/aml-refresh`,
-      {}
-    );
-  }
-
-  async refreshAllApplicationGuarantorAml(
-    applicationId: string
-  ): Promise<ApiResponse<any> | ApiError> {
-    return this.post<any>(`/v1/admin/applications/${applicationId}/guarantors/aml-refresh-all`, {});
   }
 
   async approveReviewItem(

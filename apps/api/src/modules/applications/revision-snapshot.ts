@@ -42,33 +42,25 @@ export function buildApplicationRevisionSnapshot(
       row && typeof row === "object" && !Array.isArray(row)
         ? (row as Record<string, unknown>)
         : {};
-    const guarantor =
-      link.guarantor && typeof link.guarantor === "object" && !Array.isArray(link.guarantor)
-        ? (link.guarantor as Record<string, unknown>)
-        : {};
     return {
-      id: guarantor.id ?? null,
-      canonical_key: guarantor.canonical_key ?? null,
-      guarantor_type: guarantor.guarantor_type ?? null,
-      email: guarantor.email ?? null,
-      first_name: guarantor.first_name ?? null,
-      last_name: guarantor.last_name ?? null,
-      company_name: guarantor.company_name ?? null,
-      ic_number: guarantor.ic_number ?? null,
-      ssm_number: guarantor.ssm_number ?? null,
+      id: link.id ?? null,
+      client_guarantor_id: link.client_guarantor_id ?? null,
+      guarantor_type: link.guarantor_type ?? null,
+      email: link.email ?? null,
+      first_name: link.first_name ?? null,
+      last_name: link.last_name ?? null,
+      company_name: link.company_name ?? null,
+      ic_number: link.ic_number ?? null,
+      ssm_number: link.ssm_number ?? null,
       relationship: link.relationship ?? null,
       position: link.position ?? null,
-      aml_status: guarantor.aml_status ?? null,
-      aml_message_status: guarantor.aml_message_status ?? null,
-      aml_risk_score: guarantor.aml_risk_score ?? null,
-      aml_risk_level: guarantor.aml_risk_level ?? null,
-      onboarding_request_id: guarantor.onboarding_request_id ?? null,
-      onboarding_verify_link: guarantor.onboarding_verify_link ?? null,
-      regtank_portal_url: guarantor.regtank_portal_url ?? null,
-      onboarding_status: guarantor.onboarding_status ?? null,
-      onboarding_substatus: guarantor.onboarding_substatus ?? null,
-      last_synced_at: guarantor.last_synced_at ?? null,
-      updated_at: guarantor.updated_at ?? null,
+      aml_status: link.aml_status ?? null,
+      aml_message_status: link.aml_message_status ?? null,
+      aml_risk_score: link.aml_risk_score ?? null,
+      aml_risk_level: link.aml_risk_level ?? null,
+      last_triggered_at: link.last_triggered_at ?? null,
+      last_synced_at: link.last_synced_at ?? null,
+      updated_at: link.updated_at ?? null,
     };
   });
 

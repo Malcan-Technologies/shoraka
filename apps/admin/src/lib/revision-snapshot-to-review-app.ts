@@ -12,7 +12,6 @@ export function revisionSnapshotToReviewApp(
   applicationId: string,
   snapshot: Record<string, unknown>
 ): ReviewApplicationView {
-  console.log("revisionSnapshotToReviewApp for applicationId:", applicationId);
   const app = (snapshot.application as Record<string, unknown> | undefined) ?? {};
   const issuerOrg = snapshot.issuer_organization as Record<string, unknown> | null | undefined;
   const issuerOrgId =

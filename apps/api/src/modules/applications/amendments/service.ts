@@ -164,7 +164,7 @@ export async function resubmitApplication(
       contract: true,
       invoices: true,
       issuer_organization: true,
-      application_guarantors: { include: { guarantor: true }, orderBy: { position: "asc" } },
+      application_guarantors: { orderBy: { position: "asc" } },
     },
   });
 

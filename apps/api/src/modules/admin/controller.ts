@@ -23,8 +23,6 @@ import {
   exportSecurityLogsQuerySchema,
   resetOnboardingSchema,
   getOrganizationsQuerySchema,
-  getGuarantorsQuerySchema,
-  guarantorIdParamSchema,
   getOnboardingApplicationsQuerySchema,
   updateSophisticatedStatusSchema,
   getAdminApplicationsQuerySchema,
@@ -39,7 +37,6 @@ import {
   reviewItemApproveSchema,
   reviewItemRejectSchema,
   reviewItemRequestAmendmentSchema,
-  guarantorAmlParamSchema,
   sendContractOfferSchema,
   sendInvoiceOfferSchema,
   addPendingAmendmentSchema,
@@ -465,61 +462,6 @@ router.get(
             ? new AppError(400, "VALIDATION_ERROR", error.message)
             : error
       );
-    }
-  }
-);
-
-router.get(
-  "/guarantors",
-  requireRole(UserRole.ADMIN),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const validated = getGuarantorsQuerySchema.parse(req.query);
-      const result = await adminService.getGuarantors(validated);
-      res.json({
-        success: true,
-        data: result,
-        correlationId: res.locals.correlationId,
-      });
-    } catch (error) {
-      next(error instanceof Error ? new AppError(400, "VALIDATION_ERROR", error.message) : error);
-    }
-  }
-);
-
-router.get(
-  "/guarantors/:id",
-  requireRole(UserRole.ADMIN),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { id } = guarantorIdParamSchema.parse(req.params);
-      const result = await adminService.getGuarantorDetail(id);
-      res.json({
-        success: true,
-        data: result,
-        correlationId: res.locals.correlationId,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-router.post(
-  "/guarantors/:id/restart-onboarding",
-  requireRole(UserRole.ADMIN),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
-      const { id } = guarantorIdParamSchema.parse(req.params);
-      const result = await adminService.restartGuarantorOnboarding(id, req.user.user_id);
-      res.json({
-        success: true,
-        data: result,
-        correlationId: res.locals.correlationId,
-      });
-    } catch (error) {
-      next(error);
     }
   }
 );
@@ -2675,69 +2617,6 @@ router.post(
         { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
       );
 
-      res.json({
-        success: true,
-        data: result,
-        correlationId: res.locals.correlationId,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-router.post(
-  "/applications/:id/guarantors/:guarantorId/aml-trigger",
-  requireRole(UserRole.ADMIN),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
-      const { id } = req.params;
-      const { guarantorId } = guarantorAmlParamSchema.parse(req.params);
-      const result = await adminService.triggerApplicationGuarantorAml(
-        id,
-        guarantorId,
-        req.user.user_id
-      );
-      res.json({
-        success: true,
-        data: result,
-        correlationId: res.locals.correlationId,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-router.post(
-  "/applications/:id/guarantors/:guarantorId/aml-refresh",
-  requireRole(UserRole.ADMIN),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
-      const { id } = req.params;
-      const { guarantorId } = guarantorAmlParamSchema.parse(req.params);
-      const result = await adminService.refreshApplicationGuarantorAml(id, guarantorId);
-      res.json({
-        success: true,
-        data: result,
-        correlationId: res.locals.correlationId,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-router.post(
-  "/applications/:id/guarantors/aml-refresh-all",
-  requireRole(UserRole.ADMIN),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
-      const { id } = req.params;
-      const result = await adminService.refreshAllApplicationGuarantorAml(id);
       res.json({
         success: true,
         data: result,

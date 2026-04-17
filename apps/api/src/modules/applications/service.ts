@@ -74,7 +74,6 @@ import { NotificationService } from "../notification/service";
 import { NotificationTypeIds } from "../notification/registry";
 import { getIssuerRecipientUserIdsForApplication } from "../notification/application-recipients";
 import {
-  buildGuarantorCanonicalKey,
   parseGuarantorsFromBusinessDetails,
 } from "../guarantors/utils";
 
@@ -279,41 +278,19 @@ export class ApplicationService {
     if (parsed.length === 0) return;
 
     for (const row of parsed) {
-      const canonicalKey = buildGuarantorCanonicalKey({
-        guarantorType: row.guarantorType,
-        icNumber: row.icNumber,
-        ssmNumber: row.ssmNumber,
-        email: row.email,
-      });
-      const guarantor = await tx.guarantor.upsert({
-        where: { canonical_key: canonicalKey },
-        create: {
-          canonical_key: canonicalKey,
-          guarantor_type: row.guarantorType,
-          email: row.email,
-          first_name: row.firstName,
-          last_name: row.lastName,
-          company_name: row.companyName,
-          ic_number: row.icNumber,
-          ssm_number: row.ssmNumber,
-        },
-        update: {
-          email: row.email,
-          first_name: row.firstName,
-          last_name: row.lastName,
-          company_name: row.companyName,
-          ic_number: row.icNumber,
-          ssm_number: row.ssmNumber,
-        },
-        select: { id: true },
-      });
-
       await tx.applicationGuarantor.create({
         data: {
           application_id: applicationId,
-          guarantor_id: guarantor.id,
+          client_guarantor_id: row.guarantorId,
+          guarantor_type: row.guarantorType,
+          email: row.email,
+          first_name: row.firstName ?? null,
+          last_name: row.lastName ?? null,
+          company_name: row.companyName ?? null,
+          ic_number: row.icNumber ?? null,
+          ssm_number: row.ssmNumber ?? null,
           position: row.position,
-          relationship: row.relationship,
+          relationship: row.relationship ?? null,
           source_data: row.sourceData as Prisma.InputJsonValue,
         },
       });
@@ -1283,7 +1260,7 @@ export class ApplicationService {
           contract: true,
           invoices: true,
           issuer_organization: true,
-          application_guarantors: { include: { guarantor: true }, orderBy: { position: "asc" } },
+          application_guarantors: { orderBy: { position: "asc" } },
         },
       });
       if (appFull) {

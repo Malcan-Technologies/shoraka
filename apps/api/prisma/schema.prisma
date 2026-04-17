@@ -39,7 +39,7 @@ model User {
   organization_memberships      OrganizationMember[]
   product_logs                  ProductLog[]
   regtank_onboarding            RegTankOnboarding[]
-  triggered_guarantors          Guarantor[]
+  triggered_application_guarantors ApplicationGuarantor[] @relation("ApplicationGuarantorTriggeredBy")
   security_logs                 SecurityLog[]
   notification_preferences      UserNotificationPreference[]
   sessions                      UserSession[]
@@ -378,60 +378,37 @@ model Application {
   @@map("applications")
 }
 
-model Guarantor {
-  id                        String                 @id @default(cuid())
-  canonical_key             String                 @unique
-  guarantor_type            GuarantorType
-  email                     String
-  first_name                String?
-  last_name                 String?
-  company_name              String?
-  ic_number                 String?
-  ssm_number                String?
-  onboarding_request_id     String?                @unique
-  onboarding_verify_link    String?
-  kyc_id                    String?                @unique
-  kyb_id                    String?                @unique
-  regtank_portal_url        String?
-  onboarding_status         String?
-  onboarding_substatus      String?
-  aml_status                GuarantorAmlStatus     @default(Pending)
-  aml_message_status        GuarantorAmlMessage    @default(PENDING)
-  aml_risk_score            Float?
-  aml_risk_level            String?
-  last_triggered_at         DateTime?
-  last_synced_at            DateTime?
-  triggered_by_admin_user_id String?
-  metadata                  Json?
-  created_at                DateTime               @default(now())
-  updated_at                DateTime               @updatedAt
-  application_links         ApplicationGuarantor[]
-  triggered_by_admin        User?                  @relation(fields: [triggered_by_admin_user_id], references: [user_id], onDelete: SetNull)
-
-  @@index([email])
-  @@index([ic_number])
-  @@index([ssm_number])
-  @@index([onboarding_request_id])
-  @@index([canonical_key])
-  @@map("guarantors")
-}
-
 model ApplicationGuarantor {
-  id            String     @id @default(cuid())
-  application_id String
-  guarantor_id  String
-  position      Int        @default(0)
-  relationship  String?
-  source_data   Json?
-  created_at    DateTime   @default(now())
-  updated_at    DateTime   @updatedAt
-  application   Application @relation(fields: [application_id], references: [id], onDelete: Cascade)
-  guarantor     Guarantor   @relation(fields: [guarantor_id], references: [id], onDelete: Cascade)
+  id                           String              @id @default(cuid())
+  application_id               String
+  client_guarantor_id          String
+  position                     Int                 @default(0)
+  relationship                 String?
+  source_data                  Json?
+  guarantor_type               GuarantorType
+  email                        String
+  first_name                   String?
+  last_name                    String?
+  company_name                 String?
+  ic_number                    String?
+  ssm_number                   String?
+  aml_status                   GuarantorAmlStatus  @default(Pending)
+  aml_message_status           GuarantorAmlMessage @default(PENDING)
+  aml_risk_score               Float?
+  aml_risk_level               String?
+  last_triggered_at            DateTime?
+  last_synced_at               DateTime?
+  triggered_by_admin_user_id   String?             @db.VarChar(5)
+  metadata                     Json?
+  created_at                   DateTime            @default(now())
+  updated_at                   DateTime            @updatedAt
+  application                  Application         @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  triggered_by_admin           User?               @relation("ApplicationGuarantorTriggeredBy", fields: [triggered_by_admin_user_id], references: [user_id], onDelete: SetNull)
 
-  @@unique([application_id, guarantor_id])
+  @@unique([application_id, client_guarantor_id])
   @@index([application_id])
-  @@index([guarantor_id])
   @@index([application_id, position])
+  @@index([email])
   @@map("application_guarantors")
 }
 

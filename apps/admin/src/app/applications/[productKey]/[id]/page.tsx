@@ -23,10 +23,7 @@ import {
   useAddPendingAmendment,
   useListPendingAmendments,
   useRemovePendingAmendment,
-  useRefreshAllApplicationGuarantorAml,
-  useRefreshApplicationGuarantorAml,
   useSubmitAmendmentRequest,
-  useTriggerApplicationGuarantorAml,
   useSendContractOffer,
   useSendInvoiceOffer,
 } from "@/hooks/use-application-review-actions";
@@ -145,9 +142,6 @@ export default function DynamicApplicationDetailPage() {
   const { data: pendingAmendments = [] } = useListPendingAmendments(applicationId);
   const removePendingAmendment = useRemovePendingAmendment();
   const submitAmendmentRequest = useSubmitAmendmentRequest();
-  const triggerGuarantorAml = useTriggerApplicationGuarantorAml();
-  const refreshGuarantorAml = useRefreshApplicationGuarantorAml();
-  const refreshAllGuarantorAml = useRefreshAllApplicationGuarantorAml();
   const sendContractOffer = useSendContractOffer();
   const sendInvoiceOffer = useSendInvoiceOffer();
   const [amendmentModalOpen, setAmendmentModalOpen] = React.useState(false);
@@ -935,44 +929,6 @@ export default function DynamicApplicationDetailPage() {
                             onRequestAmendmentSection={(s) =>
                               setNoteDialog({ open: true, action: "amend", section: s })
                             }
-                            onTriggerGuarantorAml={async (guarantorId) => {
-                              try {
-                                await triggerGuarantorAml.mutateAsync({ applicationId, guarantorId });
-                                toast.success("Guarantor AML check triggered");
-                              } catch (err) {
-                                toast.error(
-                                  err instanceof Error ? err.message : "Failed to trigger guarantor AML"
-                                );
-                              }
-                            }}
-                            onRefreshGuarantorAml={async (guarantorId) => {
-                              try {
-                                await refreshGuarantorAml.mutateAsync({ applicationId, guarantorId });
-                                toast.success("Guarantor AML status refreshed");
-                              } catch (err) {
-                                toast.error(
-                                  err instanceof Error ? err.message : "Failed to refresh guarantor AML"
-                                );
-                              }
-                            }}
-                            onRefreshAllGuarantorAml={async () => {
-                              try {
-                                const result = await refreshAllGuarantorAml.mutateAsync({
-                                  applicationId,
-                                });
-                                const count =
-                                  typeof (result as { refreshedCount?: unknown })?.refreshedCount === "number"
-                                    ? (result as { refreshedCount: number }).refreshedCount
-                                    : 0;
-                                toast.success(`Refreshed AML status for ${count} guarantor${count === 1 ? "" : "s"}`);
-                              } catch (err) {
-                                toast.error(
-                                  err instanceof Error
-                                    ? err.message
-                                    : "Failed to refresh guarantor AML statuses"
-                                );
-                              }
-                            }}
                             onViewDocument={handleViewDocument}
                             onDownloadDocument={handleDownloadDocument}
                             onDownloadAllDocuments={handleDownloadAllDocuments}
