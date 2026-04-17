@@ -147,50 +147,58 @@ export function ResubmitComparisonModal({
     setResubmitTabId(tabDescriptors[0]?.id ?? RESUBMIT_FINANCIAL_TAB_ID);
   }, [open, isLoading, tabDescriptors]);
 
-  const resubmitBeforeAfterBanner =
-    resubmitTabId === RESUBMIT_FINANCIAL_TAB_ID ? null : (
-      <div
-        className="isolate overflow-hidden rounded-lg border border-border"
-        role="presentation"
-      >
-        <div className="grid w-full grid-cols-2 items-stretch gap-0">
-          <div className="relative flex min-h-[3.25rem] h-full items-start justify-center gap-2 overflow-hidden border-r border-border px-4 py-2.5 text-center sm:justify-start">
-            <span aria-hidden className="pointer-events-none absolute inset-0 size-full bg-muted" />
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-0 size-full bg-status-rejected-bg dark:bg-status-rejected-text/22"
-            />
-            <span
-              className="relative z-10 mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-status-rejected-text/40 bg-background text-status-rejected-text"
-              title="Older version"
-            >
-              <XMarkIcon className="h-4 w-4" aria-hidden />
-            </span>
-            <div className="relative z-10 min-w-0 text-start">
-              <p className="text-xs font-semibold uppercase tracking-wide text-status-rejected-text">Before</p>
-              <p className="mt-0.5 text-[11px] font-normal leading-snug text-muted-foreground">Before resubmit</p>
-            </div>
+  const activeTabDescriptor = React.useMemo(
+    () => tabDescriptors.find((d) => d.id === resubmitTabId),
+    [tabDescriptors, resubmitTabId]
+  );
+
+  const showResubmitBeforeAfterBanner =
+    activeTabDescriptor != null &&
+    resubmitTabHasChanges(activeTabDescriptor.reviewSection);
+
+  const resubmitBeforeAfterBanner = showResubmitBeforeAfterBanner ? (
+    <div
+      className="isolate overflow-hidden rounded-lg border border-border"
+      role="presentation"
+    >
+      <div className="grid w-full grid-cols-2 items-stretch gap-0">
+        <div className="relative flex min-h-[3.25rem] h-full items-start justify-center gap-2 overflow-hidden border-r border-border px-4 py-2.5 text-center sm:justify-start">
+          <span aria-hidden className="pointer-events-none absolute inset-0 size-full bg-muted" />
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 size-full bg-status-rejected-bg dark:bg-status-rejected-text/22"
+          />
+          <span
+            className="relative z-10 mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-status-rejected-text/40 bg-background text-status-rejected-text"
+            title="Older version"
+          >
+            <XMarkIcon className="h-4 w-4" aria-hidden />
+          </span>
+          <div className="relative z-10 min-w-0 text-start">
+            <p className="text-xs font-semibold uppercase tracking-wide text-status-rejected-text">Before</p>
+            <p className="mt-0.5 text-[11px] font-normal leading-snug text-muted-foreground">Before resubmit</p>
           </div>
-          <div className="relative flex min-h-[3.25rem] h-full items-start justify-center gap-2 overflow-hidden px-4 py-2.5 text-center sm:justify-start">
-            <span aria-hidden className="pointer-events-none absolute inset-0 size-full bg-muted" />
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-0 size-full bg-status-action-bg dark:bg-status-action-text/26"
-            />
-            <span
-              className="relative z-10 mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-status-action-text/40 bg-background text-status-action-text"
-              title="Newer version"
-            >
-              <CheckIcon className="h-4 w-4" aria-hidden />
-            </span>
-            <div className="relative z-10 min-w-0 text-start">
-              <p className="text-xs font-semibold uppercase tracking-wide text-status-action-text">After</p>
-              <p className="mt-0.5 text-[11px] font-normal leading-snug text-muted-foreground">After resubmit</p>
-            </div>
+        </div>
+        <div className="relative flex min-h-[3.25rem] h-full items-start justify-center gap-2 overflow-hidden px-4 py-2.5 text-center sm:justify-start">
+          <span aria-hidden className="pointer-events-none absolute inset-0 size-full bg-muted" />
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 size-full bg-status-action-bg dark:bg-status-action-text/26"
+          />
+          <span
+            className="relative z-10 mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-status-action-text/40 bg-background text-status-action-text"
+            title="Newer version"
+          >
+            <CheckIcon className="h-4 w-4" aria-hidden />
+          </span>
+          <div className="relative z-10 min-w-0 text-start">
+            <p className="text-xs font-semibold uppercase tracking-wide text-status-action-text">After</p>
+            <p className="mt-0.5 text-[11px] font-normal leading-snug text-muted-foreground">After resubmit</p>
           </div>
         </div>
       </div>
-    );
+    </div>
+  ) : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
