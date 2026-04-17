@@ -32,6 +32,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -1731,11 +1732,24 @@ function EditApplicationPageBody() {
       <Dialog open={submitConfirmOpen} onOpenChange={setSubmitConfirmOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Submit Application</DialogTitle>
+            <DialogTitle>
+              {isAmendmentModeEffective ? "Confirm resubmission" : "Confirm submission"}
+            </DialogTitle>
+            <DialogDescription asChild>
+              <div className="space-y-3 pt-1 text-[15px] leading-7 text-muted-foreground">
+                <p>
+                  Please review everything you have entered across all steps of this application. Make sure
+                  all information is complete and accurate before you continue. Incorrect or incomplete details
+                  may delay review or affect the outcome of your application.
+                </p>
+                <p>
+                  {isAmendmentModeEffective
+                    ? "When you resubmit, our team will review your updated application."
+                    : "After you submit, you will not be able to edit this application unless we request changes."}
+                </p>
+              </div>
+            </DialogDescription>
           </DialogHeader>
-          <p className="text-[15px] leading-7 text-muted-foreground">
-            Are you sure you want to submit this application? You will not be able to edit after submission.
-          </p>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={() => setSubmitConfirmOpen(false)}>
               Cancel
@@ -1747,7 +1761,7 @@ function EditApplicationPageBody() {
                 void executeSubmitOrResubmit();
               }}
             >
-              Confirm
+              {isAmendmentModeEffective ? "Resubmit" : "Submit application"}
             </Button>
           </DialogFooter>
         </DialogContent>
