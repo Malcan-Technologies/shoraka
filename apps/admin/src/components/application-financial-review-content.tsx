@@ -62,23 +62,35 @@ const HEADER_PLACEHOLDER = "\u2014";
 
 type CtosFetchState = "not_pulled" | "no_records" | "has_data";
 
-/** Show financial dates with slashes (d/M/yyyy) for CTOS and user columns. */
+/** Show financial dates with dashes (d-M-yyyy) for CTOS and user table columns. */
 function formatFinancialDateDisplay(raw: string | null | undefined): string {
   if (raw == null || String(raw).trim() === "") return "\u2014";
   const s = String(raw).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
     const d = parseISO(s);
-    if (isValid(d)) return format(d, "d/M/yyyy");
+    if (isValid(d)) return format(d, "d-M-yyyy");
   }
   try {
     const dmy = parse(s, "d/M/yyyy", new Date());
-    if (isValid(dmy)) return format(dmy, "d/M/yyyy");
+    if (isValid(dmy)) return format(dmy, "d-M-yyyy");
   } catch {
     /* ignore */
   }
   try {
     const d2 = parse(s, "dd/MM/yyyy", new Date());
-    if (isValid(d2)) return format(d2, "d/M/yyyy");
+    if (isValid(d2)) return format(d2, "d-M-yyyy");
+  } catch {
+    /* ignore */
+  }
+  try {
+    const dDash = parse(s, "d-M-yyyy", new Date());
+    if (isValid(dDash)) return format(dDash, "d-M-yyyy");
+  } catch {
+    /* ignore */
+  }
+  try {
+    const dDash2 = parse(s, "dd-MM-yyyy", new Date());
+    if (isValid(dDash2)) return format(dDash2, "d-M-yyyy");
   } catch {
     /* ignore */
   }
