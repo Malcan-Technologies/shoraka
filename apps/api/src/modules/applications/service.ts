@@ -50,6 +50,7 @@ import {
   getFinancialInputBaseYears,
   getIssuerFinancialTabYears,
   issuerUnauditedPlddForStartYear,
+  getStepKeyFromStepId,
 } from "@cashsouk/types";
 import { computeApplicationStatus } from "./lifecycle";
 import * as crypto from "crypto";
@@ -1258,12 +1259,20 @@ export class ApplicationService {
       if (productId) {
         const product = await this.productRepository.findById(productId);
         if (product) {
-          const workflow = (product.workflow as any[]) || [];
-          const activeStepKeys = new Set(workflow.map((step: any) => {
-            const rawKey = step.id.replace(/_\d+$/, "");
-            if (rawKey === "verify_company_info") return "company_details";
-            return rawKey;
-          }));
+          const workflow = Array.isArray(product.workflow) ? (product.workflow as { id?: unknown }[]) : [];
+          /** Canonical keys only (same as issuer getStepKeyFromStepId); contract/invoice data live on relations, not JSON columns. */
+          const activeStepKeys = new Set<string>();
+          for (const step of workflow) {
+            const stepId = typeof step?.id === "string" ? step.id.trim() : "";
+            if (!stepId) continue;
+            const base = stepId.replace(/_\d+$/, "");
+            if (base === "verify_company_info") {
+              activeStepKeys.add("company_details");
+              continue;
+            }
+            const mapped = getStepKeyFromStepId(stepId);
+            if (mapped) activeStepKeys.add(mapped);
+          }
 
           const allStepColumns = [
             "financing_type",
@@ -1274,21 +1283,28 @@ export class ApplicationService {
             "supporting_documents",
             "declarations",
             "review_and_submit",
-          ];
+          ] as const;
 
-          allStepColumns.forEach(col => {
-            if (!activeStepKeys.has(col)) {
-              (updateData as any)[col] = Prisma.JsonNull;
+          if (activeStepKeys.size === 0) {
+            logger.warn(
+              { applicationId: id, productId },
+              "Submit cleanup skipped: product workflow has no usable step ids"
+            );
+          } else {
+            for (const col of allStepColumns) {
+              if (col === "financing_type") continue;
+              if (!activeStepKeys.has(col)) {
+                (updateData as any)[col] = Prisma.JsonNull;
+              }
             }
-          });
 
-          if (!activeStepKeys.has("contract_details") && application.contract_id) {
-            (updateData as any).contract = { disconnect: true };
+            if (!activeStepKeys.has("contract_details") && application.contract_id) {
+              (updateData as any).contract = { disconnect: true };
+            }
+
+            // Invoice rows live on `invoices`; no Application.invoice_details column. Deleting drafts here
+            // was commented out to avoid accidental data loss — revisit if product removes invoice_details only.
           }
-
-          // if (!activeStepKeys.has("invoice_details")) {
-          //   await prisma.invoice.deleteMany({ where: { application_id: id } });
-          // }
         }
       }
 
