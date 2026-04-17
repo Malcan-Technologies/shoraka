@@ -1092,9 +1092,7 @@ function EditApplicationPageBody() {
       }
 
       if (successPendingNav) {
-        queueMicrotask(() => {
-          router.replace(SUBMIT_SUCCESS_REDIRECT);
-        });
+        await router.replace(SUBMIT_SUCCESS_REDIRECT);
       }
     } catch {
       toast.error(
@@ -1103,10 +1101,8 @@ function EditApplicationPageBody() {
           : "Failed to submit application"
       );
     } finally {
-      if (!successPendingNav) {
-        isSubmittingRef.current = false;
-        setIsSubmittingApplication(false);
-      }
+      isSubmittingRef.current = false;
+      setIsSubmittingApplication(false);
     }
   };
 
@@ -1537,23 +1533,8 @@ function EditApplicationPageBody() {
   /** Keep footer visible during loading/block shell; buttons stay disabled so layout does not jump. */
   const footerActionsLocked = useWizardContentShell;
 
-  if (isEditBlocked) {
-    if (isSubmittingApplication || isSubmittingRef.current) {
-      return (
-        <div className="flex min-h-screen flex-col">
-          <main className="flex-1 overflow-y-auto p-3 sm:p-4">
-            <div className="mx-auto w-full max-w-7xl px-2 py-8 sm:px-4 sm:py-8">
-              <ApplicationFlowBlockedBackdrop>
-                <p className="text-center text-sm text-muted-foreground">
-                  Finishing up… Taking you to your applications.
-                </p>
-              </ApplicationFlowBlockedBackdrop>
-              <ApplicationFlowBlockedStepSkeleton />
-            </div>
-          </main>
-        </div>
-      );
-    }
+  /** After resubmit/submit, status leaves DRAFT/AMENDMENT_REQUESTED — stay on this page until navigation finishes so the footer can show Submitting… */
+  if (isEditBlocked && !isSubmittingApplication && !isSubmittingRef.current) {
     return null;
   }
 
