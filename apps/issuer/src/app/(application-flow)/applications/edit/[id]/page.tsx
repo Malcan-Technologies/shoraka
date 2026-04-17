@@ -1538,6 +1538,22 @@ function EditApplicationPageBody() {
   const footerActionsLocked = useWizardContentShell;
 
   if (isEditBlocked) {
+    if (isSubmittingApplication || isSubmittingRef.current) {
+      return (
+        <div className="flex min-h-screen flex-col">
+          <main className="flex-1 overflow-y-auto p-3 sm:p-4">
+            <div className="mx-auto w-full max-w-7xl px-2 py-8 sm:px-4 sm:py-8">
+              <ApplicationFlowBlockedBackdrop>
+                <p className="text-center text-sm text-muted-foreground">
+                  Finishing up… Taking you to your applications.
+                </p>
+              </ApplicationFlowBlockedBackdrop>
+              <ApplicationFlowBlockedStepSkeleton />
+            </div>
+          </main>
+        </div>
+      );
+    }
     return null;
   }
 

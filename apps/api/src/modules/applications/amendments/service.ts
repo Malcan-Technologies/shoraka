@@ -47,9 +47,9 @@ export async function getAmendmentAllowedSections(
     }
   }
 
-  if (process.env.NODE_ENV !== "production") {
-    console.debug("[AMENDMENT GUARD]", "allowedSections:", Array.from(allowedSections));
-  }
+  // Final issuer step (replaces legacy review_and_submit): always PATCHable during amendment
+  // so declaration checkboxes can be saved before resubmit even when no remark targets `declarations`.
+  allowedSections.add("declarations");
 
   return { allowedSections, allowedItemKeys };
 }

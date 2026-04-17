@@ -18,7 +18,7 @@ The `applications` table stores two fields used by the amendment flow.
 
 **`review_cycle`** (integer, default 1) — Tracks which submission round the application is in. Each resubmit increments this value.
 
-**`amendment_acknowledged_workflow_ids`** (string array, default empty) — Stores workflow step IDs that the issuer has acknowledged. When the issuer saves a flagged step, the frontend calls the acknowledge endpoint with that step’s workflow ID. The backend appends it to this array. Resubmit requires all flagged steps (except financial and review_and_submit) to be acknowledged before proceeding.
+**`amendment_acknowledged_workflow_ids`** (string array, default empty) — Stores workflow step IDs that the issuer has acknowledged. When the issuer saves a flagged step, the frontend calls the acknowledge endpoint with that step’s workflow ID. The backend appends it to this array. Resubmit requires all flagged steps (except financial and final declarations) to be acknowledged before proceeding. The `declarations` column is always allowed to PATCH during `AMENDMENT_REQUESTED` (final confirmations) even when no amendment remark targets that section.
 
 ### ApplicationReviewRemark Table
 
