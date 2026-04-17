@@ -9,7 +9,7 @@
 import * as React from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { TextareaWithCharCount } from "@/components/textarea-with-char-count";
 import { Label } from "@/components/ui/label";
 import { useContract } from "@/hooks/use-contracts";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
@@ -375,20 +375,16 @@ export function ReviewOfferModal({
                 <Label htmlFor="rejection-reason" className="block text-base font-semibold text-foreground">
                   Please provide a reason for declining this offer?
                 </Label>
-                <div className="relative">
-                  <Textarea
-                    id="rejection-reason"
-                    placeholder="Enter reason"
-                    value={rejectionReason}
-                    onChange={(e) => setRejectionReason(e.target.value)}
-                    rows={4}
-                    className="min-h-[92px] resize-none rounded-xl border-border bg-[#f9fafb] px-4 py-3.5 pb-8 focus:border-primary/35 focus:bg-background focus:outline-none focus:ring-4 focus:ring-primary/10"
-                    maxLength={200}
-                  />
-                  <p className="absolute right-3.5 bottom-2.5 text-[13px] text-muted-foreground pointer-events-none">
-                    {rejectionReason.length}/200 characters
-                  </p>
-                </div>
+                <TextareaWithCharCount
+                  id="rejection-reason"
+                  placeholder="Enter reason"
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  rows={4}
+                  className="min-h-[92px] resize-none rounded-xl border-border bg-[#f9fafb] px-4 py-3.5 focus:border-primary/35 focus:bg-background focus:outline-none focus:ring-4 focus:ring-primary/10"
+                  maxLength={200}
+                  countLabel={`${rejectionReason.length}/200 characters`}
+                />
               </div>
             )}
 

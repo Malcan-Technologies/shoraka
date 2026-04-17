@@ -10,8 +10,8 @@ import * as React from "react";
 import { useApplication } from "@/hooks/use-applications";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { TextareaWithCharCount } from "@/components/textarea-with-char-count";
 import { cn } from "@/lib/utils";
 import {
   applicationFlowLabelCellAlignInputClassName,
@@ -476,7 +476,7 @@ const labelTextareaClassName = cn(labelClassName, applicationFlowLabelCellAlignT
  * Inputs
  */
 const inputClassName = formInputClassName;
-const textareaClassName = cn(formTextareaClassName, "min-h-[100px]");
+const textareaClassName = cn(formTextareaClassName, "min-h-[100px] resize-y");
 
 /**
  * Core form grid
@@ -629,44 +629,6 @@ function YesNoRadioGroup({
         unselectedLabelClass={radioUnselectedLabel}
         disabled={disabled}
       />
-    </div>
-  );
-}
-
-
-function TextareaWithCharCount({
-  id,
-  value,
-  onChange,
-  placeholder,
-  maxLength,
-  className,
-  countLabel,
-  disabled,
-}: {
-  id: string;
-  value: string;
-  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-  placeholder: string;
-  maxLength: number;
-  className: string;
-  countLabel: string;
-  disabled?: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5 min-w-0">
-      <Textarea
-        id={id}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        maxLength={maxLength}
-        className={cn(className, "resize-y", disabled && formInputDisabledClassName)}
-        disabled={disabled}
-      />
-      <p className="shrink-0 text-right text-sm tabular-nums text-muted-foreground" aria-live="polite">
-        {countLabel}
-      </p>
     </div>
   );
 }
