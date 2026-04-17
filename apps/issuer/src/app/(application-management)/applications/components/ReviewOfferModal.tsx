@@ -9,7 +9,7 @@
 import * as React from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { TextareaWithCharCount } from "@/components/textarea-with-char-count";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -401,64 +401,20 @@ export function ReviewOfferModal({
             )}
 
             {isRejectMode && (
-              <div className="mt-6 space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="decline-primary-reason" className="block text-base font-semibold text-foreground">
-                    Reason (required)
-                  </Label>
-                  <Select
-                    value={selectedDeclineReason}
-                    onValueChange={(value) => {
-                      setSelectedDeclineReason(value);
-                      if (value !== OTHER_ISSUER_DECLINE_REASON_VALUE) {
-                        setRejectionReason("");
-                      }
-                    }}
-                    disabled={isPending}
-                  >
-                    <SelectTrigger
-                      id="decline-primary-reason"
-                      className="h-12 rounded-xl border-border bg-[#f9fafb] focus:ring-4 focus:ring-primary/10"
-                    >
-                      <SelectValue placeholder="Select a primary reason" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ISSUER_OFFER_DECLINE_REASONS.map((reason) => (
-                        <SelectItem key={reason} value={reason}>
-                          {reason}
-                        </SelectItem>
-                      ))}
-                      <SelectItem value={OTHER_ISSUER_DECLINE_REASON_VALUE}>
-                        Other (manual reason)
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="rejection-reason" className="block text-base font-semibold text-foreground">
-                    {isOtherDeclineReason
-                      ? "Additional context (required)"
-                      : "Additional context (optional)"}
-                  </Label>
-                  <div className="relative">
-                    <Textarea
-                      id="rejection-reason"
-                      placeholder={
-                        isOtherDeclineReason
-                          ? "Enter the primary reason and any details."
-                          : "Add any extra details (optional)."
-                      }
-                      value={rejectionReason}
-                      onChange={(e) => setRejectionReason(e.target.value)}
-                      rows={4}
-                      className="min-h-[92px] resize-none rounded-xl border-border bg-[#f9fafb] px-4 py-3.5 pb-8 focus:border-primary/35 focus:bg-background focus:outline-none focus:ring-4 focus:ring-primary/10"
-                      maxLength={200}
-                    />
-                    <p className="absolute right-3.5 bottom-2.5 text-[13px] text-muted-foreground pointer-events-none">
-                      {rejectionReason.length}/200 characters
-                    </p>
-                  </div>
-                </div>
+              <div className="mt-6 space-y-3">
+                <Label htmlFor="rejection-reason" className="block text-base font-semibold text-foreground">
+                  Please provide a reason for declining this offer?
+                </Label>
+                <TextareaWithCharCount
+                  id="rejection-reason"
+                  placeholder="Enter reason"
+                  value={rejectionReason}
+                  onChange={(e) => setRejectionReason(e.target.value)}
+                  rows={4}
+                  className="min-h-[92px] resize-none rounded-xl border-border bg-[#f9fafb] px-4 py-3.5 focus:border-primary/35 focus:bg-background focus:outline-none focus:ring-4 focus:ring-primary/10"
+                  maxLength={200}
+                  countLabel={`${rejectionReason.length}/200 characters`}
+                />
               </div>
             )}
 

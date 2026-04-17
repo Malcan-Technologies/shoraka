@@ -4,7 +4,7 @@
  * SECTION: Full-screen admin modal comparing two application revision snapshots
  * WHY: Mirrors review tabs read-only with before/after columns per plan.
  * INPUT: applicationId, productKey, reviewCycle, fieldChanges for highlights
- * OUTPUT: Dialog with ApplicationReviewTabs + SectionContent comparison mode
+ * OUTPUT: Dialog with optional Before/After banner + sticky tab strip + SectionContent comparison mode
  * WHERE USED: Admin activity timeline (resubmit events)
  */
 
@@ -25,10 +25,8 @@ import {
   ApplicationReviewTabContent,
 } from "@/components/application-review-tabs";
 import { SectionContent } from "@/components/application-review/section-content";
-import {
-  getReviewTabDescriptorsFromWorkflow,
-  type ReviewSectionId,
-} from "@/components/application-review/review-registry";
+import { type ReviewSectionId } from "@/components/application-review/review-registry";
+import { getEffectiveReviewTabDescriptors } from "@/lib/effective-review-tab-descriptors";
 import { revisionSnapshotToReviewApp } from "@/lib/revision-snapshot-to-review-app";
 import { ResubmitTabAmendmentNotesBar } from "@/components/resubmit-tab-amendment-notes";
 import { getSupportingDocumentsStepConfig } from "@/components/application-review/supporting-documents-admin-meta";
@@ -45,6 +43,8 @@ import {
 } from "@/lib/mock-guarantor-comparison";
 import { CheckIcon, XMarkIcon } from "@heroicons/react/24/outline";
 
+const RESUBMIT_FINANCIAL_TAB_ID = "financial";
+
 export interface ResubmitComparisonModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -54,6 +54,8 @@ export interface ResubmitComparisonModalProps {
   fieldChanges?: ResubmitFieldChangeItem[];
   /** From application detail — aligns tab status dots with main review page (e.g. green when approved). */
   reviewTabSections?: { section: string; status: string }[];
+  /** Same as application detail `visible_review_sections` — when set, tab list matches main page API filter. */
+  visibleReviewSections?: unknown;
 }
 
 export function ResubmitComparisonModal({
@@ -64,6 +66,7 @@ export function ResubmitComparisonModal({
   reviewCycle,
   fieldChanges,
   reviewTabSections,
+  visibleReviewSections: visibleReviewSectionsFromParent,
 }: ResubmitComparisonModalProps) {
   const { data, isLoading, error, isError } = useResubmitComparison(applicationId, reviewCycle, open);
   const { data: productsData } = useProducts({ page: 1, pageSize: 100 });
@@ -71,24 +74,17 @@ export function ResubmitComparisonModal({
     () => productsData?.products.find((p) => p.id === productKey),
     [productsData?.products, productKey]
   );
-  const tabDescriptors = React.useMemo(
-    () => getReviewTabDescriptorsFromWorkflow(product?.workflow as unknown[] | undefined),
-    [product?.workflow]
-  );
 
   const { viewDocumentPending, handleViewDocument, handleDownloadDocument } =
     useAdminS3DocumentViewDownload();
 
   const supportingDocumentsStepConfig = React.useMemo(() => {
-    const cfg = getSupportingDocumentsStepConfig(product?.workflow as unknown[] | undefined);
-    console.log("Resubmit modal supporting documents workflow hints:", cfg ? "found" : "none");
-    return cfg;
+    return getSupportingDocumentsStepConfig(product?.workflow as unknown[] | undefined);
   }, [product?.workflow]);
 
   const effectiveFieldChanges = React.useMemo(() => {
     if (!USE_MOCK_GUARANTOR_COMPARISON) return fieldChanges;
     const mockFc = getMockGuarantorFieldChanges();
-    console.log("ResubmitComparisonModal: mock guarantor paths appended, count:", mockFc.length);
     return [...(fieldChanges ?? []), ...mockFc];
   }, [fieldChanges]);
 
@@ -105,16 +101,6 @@ export function ResubmitComparisonModal({
     (section: ReviewSectionId) => reviewSectionHasResubmitChanges(section, effectiveFieldChanges),
     [effectiveFieldChanges]
   );
-
-  const tabStripSections = React.useMemo(() => {
-    const statusBySection = new Map(
-      (reviewTabSections ?? []).map((s) => [s.section, s.status])
-    );
-    return tabDescriptors.map((t) => ({
-      section: t.reviewSection,
-      status: statusBySection.get(t.reviewSection) ?? "PENDING",
-    }));
-  }, [reviewTabSections, tabDescriptors]);
 
   const beforeApp = React.useMemo(() => {
     if (!data?.previous_snapshot || !applicationId) return null;
@@ -137,10 +123,94 @@ export function ResubmitComparisonModal({
     return { comparisonBeforeApp: b, comparisonAfterApp: a };
   }, [beforeApp, afterApp]);
 
+  const effectiveTabDescriptors = React.useMemo(() => {
+    const appShape = comparisonAfterApp
+      ? {
+          visible_review_sections:
+            visibleReviewSectionsFromParent ?? comparisonAfterApp.visible_review_sections,
+          financing_structure: comparisonAfterApp.financing_structure,
+          invoices: comparisonAfterApp.invoices,
+        }
+      : null;
+    return getEffectiveReviewTabDescriptors(
+      product?.workflow as unknown[] | undefined,
+      appShape
+    );
+  }, [product?.workflow, comparisonAfterApp, visibleReviewSectionsFromParent]);
+
+  const tabStripSections = React.useMemo(() => {
+    const statusBySection = new Map(
+      (reviewTabSections ?? []).map((s) => [s.section, s.status])
+    );
+    return effectiveTabDescriptors.map((t) => ({
+      section: t.reviewSection,
+      status: statusBySection.get(t.reviewSection) ?? "PENDING",
+    }));
+  }, [reviewTabSections, effectiveTabDescriptors]);
+
   const noopAsync = React.useCallback(async () => {}, []);
   const noop = React.useCallback(() => {}, []);
 
   const amendmentRemarks = data?.amendment_remarks;
+
+  const [resubmitTabId, setResubmitTabId] = React.useState(RESUBMIT_FINANCIAL_TAB_ID);
+  React.useEffect(() => {
+    if (!open || isLoading || effectiveTabDescriptors.length === 0) return;
+    setResubmitTabId(effectiveTabDescriptors[0]?.id ?? RESUBMIT_FINANCIAL_TAB_ID);
+  }, [open, isLoading, effectiveTabDescriptors]);
+
+  const activeTabDescriptor = React.useMemo(
+    () => effectiveTabDescriptors.find((d) => d.id === resubmitTabId),
+    [effectiveTabDescriptors, resubmitTabId]
+  );
+
+  const showResubmitBeforeAfterBanner =
+    activeTabDescriptor != null &&
+    resubmitTabHasChanges(activeTabDescriptor.reviewSection);
+
+  const resubmitBeforeAfterBanner = showResubmitBeforeAfterBanner ? (
+    <div
+      className="isolate overflow-hidden rounded-lg border border-border"
+      role="presentation"
+    >
+      <div className="grid w-full grid-cols-2 items-stretch gap-0">
+        <div className="relative flex min-h-[3.25rem] h-full items-start justify-center gap-2 overflow-hidden border-r border-border px-4 py-2.5 text-center sm:justify-start">
+          <span aria-hidden className="pointer-events-none absolute inset-0 size-full bg-muted" />
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 size-full bg-status-rejected-bg dark:bg-status-rejected-text/22"
+          />
+          <span
+            className="relative z-10 mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-status-rejected-text/40 bg-background text-status-rejected-text"
+            title="Older version"
+          >
+            <XMarkIcon className="h-4 w-4" aria-hidden />
+          </span>
+          <div className="relative z-10 min-w-0 text-start">
+            <p className="text-xs font-semibold uppercase tracking-wide text-status-rejected-text">Before</p>
+            <p className="mt-0.5 text-[11px] font-normal leading-snug text-muted-foreground">Before resubmit</p>
+          </div>
+        </div>
+        <div className="relative flex min-h-[3.25rem] h-full items-start justify-center gap-2 overflow-hidden px-4 py-2.5 text-center sm:justify-start">
+          <span aria-hidden className="pointer-events-none absolute inset-0 size-full bg-muted" />
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 size-full bg-status-action-bg dark:bg-status-action-text/26"
+          />
+          <span
+            className="relative z-10 mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-status-action-text/40 bg-background text-status-action-text"
+            title="Newer version"
+          >
+            <CheckIcon className="h-4 w-4" aria-hidden />
+          </span>
+          <div className="relative z-10 min-w-0 text-start">
+            <p className="text-xs font-semibold uppercase tracking-wide text-status-action-text">After</p>
+            <p className="mt-0.5 text-[11px] font-normal leading-snug text-muted-foreground">After resubmit</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -149,10 +219,6 @@ export function ResubmitComparisonModal({
           <DialogTitle className="text-[17px] leading-7">What changed in this application</DialogTitle>
           <DialogDescription className="text-sm">
             {applicationId ? `Application ${applicationId}` : "Application"}
-            <span className="mt-0.5 block text-xs text-muted-foreground">
-              Left: their old answers. Right: their new answers. This window is read only. You cannot
-              change anything here.
-            </span>
           </DialogDescription>
         </DialogHeader>
 
@@ -168,7 +234,7 @@ export function ResubmitComparisonModal({
                 {error instanceof Error ? error.message : "Failed to load comparison"}
               </p>
             )}
-            {!isLoading && !isError && comparisonBeforeApp && comparisonAfterApp && tabDescriptors.length > 0 ? (
+            {!isLoading && !isError && comparisonBeforeApp && comparisonAfterApp && effectiveTabDescriptors.length > 0 ? (
               <>
                 {USE_MOCK_GUARANTOR_COMPARISON ? (
                   <p
@@ -179,61 +245,16 @@ export function ResubmitComparisonModal({
                     <code className="rounded bg-background/80 px-1 text-xs">mock-guarantor-comparison.ts</code>.
                   </p>
                 ) : null}
-                <div
-                  className="sticky top-0 z-20 -mx-6 mb-2 isolate overflow-hidden border border-border bg-background"
-                  role="presentation"
-                >
-                  <div className="grid w-full grid-cols-2 items-stretch gap-0">
-                    <div className="relative flex min-h-[3.25rem] h-full items-start justify-center gap-2 overflow-hidden border-r border-border px-4 py-2.5 text-center sm:justify-start">
-                      <span aria-hidden className="pointer-events-none absolute inset-0 size-full bg-muted" />
-                      <span
-                        aria-hidden
-                        className="pointer-events-none absolute inset-0 size-full bg-status-rejected-bg dark:bg-status-rejected-text/22"
-                      />
-                      <span
-                        className="relative z-10 mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-status-rejected-text/40 bg-background text-status-rejected-text"
-                        title="Older version"
-                      >
-                        <XMarkIcon className="h-4 w-4" aria-hidden />
-                      </span>
-                      <div className="relative z-10 min-w-0 text-start">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-status-rejected-text">
-                          Before
-                        </p>
-                        <p className="mt-0.5 text-[11px] font-normal leading-snug text-muted-foreground">
-                          Before resubmit
-                        </p>
-                      </div>
-                    </div>
-                    <div className="relative flex min-h-[3.25rem] h-full items-start justify-center gap-2 overflow-hidden px-4 py-2.5 text-center sm:justify-start">
-                      <span aria-hidden className="pointer-events-none absolute inset-0 size-full bg-muted" />
-                      <span
-                        aria-hidden
-                        className="pointer-events-none absolute inset-0 size-full bg-status-action-bg dark:bg-status-action-text/26"
-                      />
-                      <span
-                        className="relative z-10 mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-status-action-text/40 bg-background text-status-action-text"
-                        title="Newer version"
-                      >
-                        <CheckIcon className="h-4 w-4" aria-hidden />
-                      </span>
-                      <div className="relative z-10 min-w-0 text-start">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-status-action-text">
-                          After
-                        </p>
-                        <p className="mt-0.5 text-[11px] font-normal leading-snug text-muted-foreground">
-                          After resubmit
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
                 <ApplicationReviewTabs
                   sections={tabStripSections}
-                  tabDescriptors={tabDescriptors}
+                  tabDescriptors={effectiveTabDescriptors}
                   resubmitTabHasChanges={resubmitTabHasChanges}
+                  stickyTabList
+                  stickyTopSlot={resubmitBeforeAfterBanner}
+                  tabValue={resubmitTabId}
+                  onTabValueChange={setResubmitTabId}
                 >
-                  {tabDescriptors.map((descriptor) => (
+                  {effectiveTabDescriptors.map((descriptor) => (
                     <ApplicationReviewTabContent key={descriptor.id} value={descriptor.id}>
                       <ResubmitTabAmendmentNotesBar
                         reviewSection={descriptor.reviewSection}

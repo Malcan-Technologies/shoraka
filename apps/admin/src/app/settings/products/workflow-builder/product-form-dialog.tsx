@@ -45,6 +45,7 @@ import {
 import { uploadFileToS3 } from "../../../../hooks/use-site-documents";
 import { stepDisplayName, getDefaultWorkflowSteps, getRequiredFirstAndLastSteps, type WorkflowStepShape } from "../product-utils";
 import { getStepKeyFromStepId, STEP_KEY_DISPLAY, STEPS_WITHOUT_CONFIG } from "./workflow-registry";
+import { enforceDeclarationsLastAndDropReview } from "@cashsouk/types";
 import {
   getStepId,
   buildPayloadFromSteps,
@@ -141,7 +142,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       result = [firstStep, ...result];
     }
     if (!result.some((s) => getKey(s) === LAST_STEP_KEY)) {
-      result = [...result, lastStep];
+      result = [...result.filter((s) => getKey(s) !== LAST_STEP_KEY), lastStep];
     }
     return result;
   }
@@ -176,7 +177,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
     setSaveTriggered(false);
     if (isEdit && product) {
       const raw = product.workflow?.length
-        ? (product.workflow as unknown[])
+        ? enforceDeclarationsLastAndDropReview(product.workflow as { id?: string }[])
         : getDefaultWorkflowSteps();
       const stepsToSet = enforceFirstAndLast(ensureFirstAndLastPresent(raw));
       setSteps(stepsToSet);

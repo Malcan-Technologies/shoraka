@@ -35,6 +35,15 @@ export interface ApplicationReviewTabsProps {
    * When provided (e.g. resubmit comparison modal), tabs whose section appears in the diff show a marker.
    */
   resubmitTabHasChanges?: (reviewSection: ReviewSectionId) => boolean;
+  /**
+   * When true (resubmit comparison modal), tab strip stays visible at the top of the scroll container.
+   */
+  stickyTabList?: boolean;
+  /** When stickyTabList: optional block above the tab strip (e.g. Before/After banner). */
+  stickyTopSlot?: React.ReactNode;
+  /** Controlled tab value (e.g. resubmit modal to toggle stickyTopSlot). Omit for uncontrolled tabs. */
+  tabValue?: string;
+  onTabValueChange?: (value: string) => void;
 }
 
 export function ApplicationReviewTabs({
@@ -43,6 +52,10 @@ export function ApplicationReviewTabs({
   children,
   defaultTabId,
   resubmitTabHasChanges,
+  stickyTabList = false,
+  stickyTopSlot,
+  tabValue,
+  onTabValueChange,
 }: ApplicationReviewTabsProps) {
   const sectionMap = React.useMemo(() => {
     const m = new Map<string, string>();
@@ -53,41 +66,58 @@ export function ApplicationReviewTabs({
   }, [sections]);
 
   const defaultValue = defaultTabId ?? tabDescriptors[0]?.id ?? "financial";
+  const controlled = tabValue !== undefined && onTabValueChange !== undefined;
+
+  const tabListInner = (
+    <div className="w-full min-w-0 overflow-x-auto overflow-y-hidden rounded-xl bg-muted p-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/30">
+      <TabsList className="flex h-auto min-h-11 w-max min-w-full flex-nowrap justify-center gap-2 bg-transparent p-0 text-muted-foreground">
+        {tabDescriptors.map((tab) => {
+          const hasResubmitDiff = resubmitTabHasChanges?.(tab.reviewSection) ?? false;
+          const sectionStatus = sectionMap.get(tab.reviewSection) ?? "PENDING";
+          return (
+            <TabsTrigger
+              key={tab.id}
+              value={tab.id}
+              title={
+                hasResubmitDiff
+                  ? `${tab.label} (${sectionStatus.replace(/_/g, " ")}): edits in this resubmit`
+                  : undefined
+              }
+              className="flex shrink-0 items-center gap-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm px-3 sm:px-4 text-sm"
+            >
+              <StatusDot status={sectionStatus} />
+              <span className="truncate">{tab.label}</span>
+              {hasResubmitDiff ? (
+                <Badge
+                  variant="outline"
+                  className="h-5 shrink-0 border-border px-1.5 text-[10px] font-normal text-muted-foreground"
+                >
+                  <span className="sr-only">This section has edits in this resubmit. </span>
+                  Diff
+                </Badge>
+              ) : null}
+            </TabsTrigger>
+          );
+        })}
+      </TabsList>
+    </div>
+  );
 
   return (
-    <Tabs defaultValue={defaultValue} className="w-full min-w-0">
-      <div className="w-full min-w-0 overflow-x-auto overflow-y-hidden rounded-xl bg-muted p-1 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-muted-foreground/30">
-        <TabsList className="flex h-auto min-h-11 w-max min-w-full flex-nowrap justify-center gap-2 bg-transparent p-0 text-muted-foreground">
-          {tabDescriptors.map((tab) => {
-            const hasResubmitDiff = resubmitTabHasChanges?.(tab.reviewSection) ?? false;
-            const sectionStatus = sectionMap.get(tab.reviewSection) ?? "PENDING";
-            return (
-              <TabsTrigger
-                key={tab.id}
-                value={tab.id}
-                title={
-                  hasResubmitDiff
-                    ? `${tab.label} (${sectionStatus.replace(/_/g, " ")}): edits in this resubmit`
-                    : undefined
-                }
-                className="flex shrink-0 items-center gap-2 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm px-3 sm:px-4 text-sm"
-              >
-                <StatusDot status={sectionStatus} />
-                <span className="truncate">{tab.label}</span>
-                {hasResubmitDiff ? (
-                  <Badge
-                    variant="outline"
-                    className="h-5 shrink-0 border-border px-1.5 text-[10px] font-normal text-muted-foreground"
-                  >
-                    <span className="sr-only">This section has edits in this resubmit. </span>
-                    Diff
-                  </Badge>
-                ) : null}
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
-      </div>
+    <Tabs
+      className="w-full min-w-0"
+      {...(controlled
+        ? { value: tabValue, onValueChange: onTabValueChange }
+        : { defaultValue: defaultValue })}
+    >
+      {stickyTabList ? (
+        <div className="sticky top-0 z-20 -mx-6 mb-3 space-y-2 border-b border-border bg-background px-6 pb-2 pt-0">
+          {stickyTopSlot ? <div className="min-w-0">{stickyTopSlot}</div> : null}
+          {tabListInner}
+        </div>
+      ) : (
+        tabListInner
+      )}
       {children}
     </Tabs>
   );

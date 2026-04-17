@@ -13,7 +13,6 @@ export const APPLICATION_STEP_KEYS = [
   "financial_statements",
   "supporting_documents",
   "declarations",
-  "review_and_submit",
 ] as const;
 
 export type ApplicationStepKey = (typeof APPLICATION_STEP_KEYS)[number];
@@ -29,7 +28,6 @@ export const APPLICATION_STEP_KEYS_WITH_UI: ApplicationStepKey[] = [
   "financial_statements",
   "supporting_documents",
   "declarations",
-  "review_and_submit",
 ];
 
 export interface StepKeyDisplay {
@@ -84,11 +82,7 @@ export const STEP_KEY_DISPLAY: Record<ApplicationStepKey, StepKeyDisplay> = {
   declarations: {
     title: "Declarations",
     pageTitle: "Declarations",
-  },
-  review_and_submit: {
-    title: "Review & Submit",
-    pageTitle: "Review & Submit",
-    description: "Ensure that all information provided are accurate and up to date",
+    description: "Confirm the declarations below, then submit your application",
   },
 };
 
@@ -100,4 +94,24 @@ export function getStepKeyFromStepId(stepId: string): ApplicationStepKey | null 
   if (!stepId || typeof stepId !== "string") return null;
   const key = stepId.replace(/_\d+$/, "");
   return APPLICATION_STEP_KEYS.includes(key as ApplicationStepKey) ? (key as ApplicationStepKey) : null;
+}
+
+/** Base step id without trailing `_digits` (e.g. `declarations_2` → `declarations`). */
+export function getBaseStepIdFromStepId(stepId: string): string {
+  return String(stepId || "").replace(/_\d+$/, "");
+}
+
+/**
+ * Product / issuer workflow: drop legacy `review_and_submit` rows and pin every `declarations` step to the end.
+ */
+export function enforceDeclarationsLastAndDropReview<T extends { id?: string }>(workflow: T[]): T[] {
+  const filtered = workflow.filter((s) => getBaseStepIdFromStepId(String(s.id ?? "")) !== "review_and_submit");
+  const declarations: T[] = [];
+  const rest: T[] = [];
+  for (const row of filtered) {
+    if (getBaseStepIdFromStepId(String(row.id ?? "")) === "declarations") declarations.push(row);
+    else rest.push(row);
+  }
+  const decl = declarations.length ? [declarations[declarations.length - 1]] : [];
+  return [...rest, ...decl];
 }

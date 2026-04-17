@@ -136,6 +136,8 @@ interface AdminActivityTimelineProps {
   reviewTabSections?: { section: string; status: string }[];
   /** Override section labels for display (e.g. contract_details → "Customer" for invoice_only). */
   sectionLabelOverrides?: Record<string, string>;
+  /** Pass through to resubmit comparison modal so tabs match main application detail. */
+  visibleReviewSections?: unknown;
 }
 
 function getEventIcon(eventType: string) {
@@ -330,6 +332,7 @@ export function AdminActivityTimeline({
   productKey,
   reviewTabSections,
   sectionLabelOverrides,
+  visibleReviewSections,
 }: AdminActivityTimelineProps) {
   /**
    * Local state / hooks
@@ -475,7 +478,9 @@ export function AdminActivityTimeline({
                             {log.activity && (
                                 <p
                                   className={`text-xs text-muted-foreground mt-0.5 ${
-                                    eventType === "APPLICATION_RESUBMITTED" ? "" : "line-clamp-2"
+                                    eventType === "APPLICATION_RESUBMITTED"
+                                      ? "whitespace-pre-line"
+                                      : "line-clamp-2"
                                   }`}
                                 >
                                   {log.activity}
@@ -517,10 +522,6 @@ export function AdminActivityTimeline({
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    console.log("Open resubmit comparison", {
-                                      applicationId,
-                                      reviewCycle: reviewCycleFromLog,
-                                    });
                                     setComparisonContext({
                                       reviewCycle: reviewCycleFromLog!,
                                       fieldChanges: Array.isArray(resubmitChanges?.field_changes)
@@ -673,6 +674,7 @@ export function AdminActivityTimeline({
       reviewCycle={comparisonContext?.reviewCycle ?? null}
       fieldChanges={comparisonContext?.fieldChanges}
       reviewTabSections={reviewTabSections}
+      visibleReviewSections={visibleReviewSections}
     />
     </>
   );

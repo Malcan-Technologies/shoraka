@@ -409,14 +409,16 @@ export async function parseCtosReportXml(xmlStr: string): Promise<CtosReportPars
           const acc = accounts as Record<string, unknown>;
           const pldd = xmlText(safeGet(acc, ["pldd", 0]));
           const bsdd = xmlText(safeGet(acc, ["bsdd", 0]));
-          const reportingYear = parseYearFromPldd(pldd);
+          const plddCalYear = parseYearFromPldd(pldd);
+          const financialYear =
+            plddCalYear != null && Number.isFinite(plddCalYear) ? plddCalYear - 1 : null;
           return {
-            reporting_year: reportingYear,
+            financial_year: financialYear,
             dates: { pldd, bsdd },
             account: buildAccountCodenames(acc),
           };
         })
-        .filter((row) => row.reporting_year !== null);
+        .filter((row) => row.financial_year !== null);
 
   const totalLimit = toNumber(
     safeGet(ccris, ["summary", 0, "liabilities", 0, "borrower", 0, "$", "total_limit"])

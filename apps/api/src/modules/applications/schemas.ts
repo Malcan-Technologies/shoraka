@@ -37,17 +37,17 @@ const yesNoBooleanSchema = z
   .optional();
 
 const aboutYourBusinessSchema = z.object({
-  what_does_company_do: z.string().max(200).optional().default(""),
-  main_customers: z.string().max(200).optional().default(""),
+  what_does_company_do: z.string().max(1000).optional().default(""),
+  main_customers: z.string().max(400).optional().default(""),
   single_customer_over_50_revenue: yesNoBooleanSchema,
 });
 
 const whyRaisingFundsSchema = z.object({
-  financing_for: z.string().max(200).optional().default(""),
-  how_funds_used: z.string().max(200).optional().default(""),
+  financing_for: z.string().max(400).optional().default(""),
+  how_funds_used: z.string().max(400).optional().default(""),
   business_plan: z.string().max(1000).optional().default(""),
-  risks_delay_repayment: z.string().max(200).optional().default(""),
-  backup_plan: z.string().max(200).optional().default(""),
+  risks_delay_repayment: z.string().max(400).optional().default(""),
+  backup_plan: z.string().max(400).optional().default(""),
   raising_on_other_p2p: yesNoBooleanSchema,
   platform_name: z.string().max(200).nullable().optional(),
   amount_raised: z.union([z.string(), z.number()]).nullable().optional(),
@@ -83,7 +83,9 @@ const guarantorIndividualSchema = z.object({
     "family_members_of_director",
     "director_shareholder",
     "unrelated_party",
+    "others",
   ]),
+  relationship_other: z.string().max(500).nullable().optional(),
 });
 
 const guarantorCompanySchema = z.object({
@@ -117,13 +119,37 @@ export const businessDetailsDataSchema = z
         path: ["why_raising_funds", "same_invoice_used"],
       });
     }
+    data.guarantors.forEach((g, i) => {
+      if (g.guarantor_type !== "individual" || g.relationship !== "others") return;
+      const t = (g.relationship_other ?? "").trim();
+      if (!t) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Please describe the relationship when Others is selected",
+          path: ["guarantors", i, "relationship_other"],
+        });
+      }
+    });
   });
 
-/** Validates stored input fields for financial_statements step. Flat storage; no computed fields. */
+const isoDateOnly = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Local calendar day: ISO YYYY-MM-DD must not be after today (questionnaire last closing). */
+function isoCalendarDateOnOrBeforeToday(iso: string): boolean {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return false;
+  const chosen = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  if (Number.isNaN(chosen.getTime())) return false;
+  const t = new Date();
+  const today = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+  const c = new Date(chosen.getFullYear(), chosen.getMonth(), chosen.getDate());
+  return c.getTime() <= today.getTime();
+}
+
+/** Validates stored input fields for financial_statements step. Per-year block; no bsdd. */
 const numSchema = z.union([z.string(), z.number()]).optional().default(0);
 export const financialStatementsInputSchema = z.object({
-  pldd: z.string().optional().default(""),
-  bsdd: z.string().optional().default(""),
+  pldd: z.union([z.literal(""), z.string().regex(isoDateOnly, "Must be YYYY-MM-DD")]),
   bsfatot: numSchema,
   othass: numSchema,
   bscatot: numSchema,
@@ -141,11 +167,12 @@ export const financialStatementsInputSchema = z.object({
 
 export type FinancialStatementsStoredData = z.infer<typeof financialStatementsInputSchema>;
 
-/** Q1–Q3 before per-year grids; Y = latest_financial_year. */
 export const financialStatementsQuestionnaireSchema = z.object({
-  latest_financial_year: z.number().int(),
-  submitted_this_financial_year: z.boolean(),
-  has_data_for_next_financial_year: z.boolean(),
+  last_closing_date: z
+    .string()
+    .regex(isoDateOnly, "Must be YYYY-MM-DD")
+    .refine(isoCalendarDateOnOrBeforeToday, "Closing date must not be in the future"),
+  is_submitted_to_ssm: z.boolean(),
 });
 
 export const financialStatementsV2Schema = z.object({

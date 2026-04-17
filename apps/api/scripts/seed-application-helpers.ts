@@ -4,6 +4,8 @@
  * Matches structure of production applications (e.g. cmmk5fh77001vu60ut7tk3apd).
  */
 
+import { getIssuerFinancialTabYears, issuerUnauditedPlddForStartYear } from "@cashsouk/types";
+
 function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -156,17 +158,15 @@ export function buildBusinessDetails(): Record<string, unknown> {
   };
 }
 
-/** financial_statements: flat fields (numeric or date string). Schema accepts string|number. */
+/** financial_statements: v2 questionnaire + unaudited_by_year (numbers per field). */
 export function buildFinancialStatements(): Record<string, unknown> {
   const today = new Date();
-  const pldd = String(today.getFullYear() - 1);
-  const bsdd = formatDate(new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000));
+  const closing = formatDate(new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000));
+  const tabYears = getIssuerFinancialTabYears(false, today);
   const turnover = randomInt(500000, 5000000);
   const plnpat = randomInt(100000, 500000);
   const plyear = randomInt(100000, 300000);
-  return {
-    pldd,
-    bsdd,
+  const yearBlock = () => ({
     bsfatot: randomInt(100000, 500000),
     othass: randomInt(20000, 100000),
     bscatot: randomInt(100000, 300000),
@@ -180,6 +180,13 @@ export function buildFinancialStatements(): Record<string, unknown> {
     plnpat,
     plnetdiv: randomInt(10000, 100000),
     plyear,
+  });
+  return {
+    questionnaire: { last_closing_date: closing, is_submitted_to_ssm: false },
+    unaudited_by_year: {
+      [String(tabYears[0])]: yearBlock(tabYears[0]),
+      [String(tabYears[1])]: yearBlock(tabYears[1]),
+    },
   };
 }
 

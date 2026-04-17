@@ -14,8 +14,11 @@ import { parse, isValid, format, parseISO } from "date-fns";
 type DateInputSize = "default" | "compact";
 
 interface DateInputProps {
-  value: string; // raw user text (e.g., "1/2/2025" or "" or iso)
+  /** Display / typed text: `d/M/yyyy` (calendar) or `yyyy-MM-dd` (ISO) — see `application-flow-dates.ts`. */
+  value: string;
   onChange: (v: string) => void;
+  /** Forwarded to the visible text input (e.g. for `htmlFor` on a sibling `Label`). */
+  id?: string;
   className?: string;
   inputClassName?: string;
   popoverClassName?: string;
@@ -47,6 +50,7 @@ const sizePresets: Record<DateInputSize, {
 export function DateInput({
   value,
   onChange,
+  id,
   className,
   inputClassName,
   popoverClassName,
@@ -118,6 +122,7 @@ export function DateInput({
           )}
         >
           <input
+            id={id}
             value={value}
             onChange={(e) => !disabled && onChange(e.target.value)}
             onBlur={handleBlur}

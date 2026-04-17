@@ -341,6 +341,15 @@ function parseGuarantors(raw: unknown): GuarantorReviewRow[] {
         typeof rel === "string" && rel in GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS
           ? (rel as GuarantorIndividualRelationship)
           : null;
+      const otherText = reviewStr(o.relationship_other ?? o.relationshipOther);
+      const relationshipLabel =
+        relKey === "others"
+          ? otherText
+            ? `Others: ${otherText}`
+            : GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS.others
+          : relKey
+            ? GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS[relKey]
+            : REVIEW_EMPTY_LABEL;
       rows.push({
         kind: "individual",
         guarantorId:
@@ -354,7 +363,7 @@ function parseGuarantors(raw: unknown): GuarantorReviewRow[] {
         lastName: reviewStr(o.last_name ?? o.lastName),
         email: normalizeEmail(o.email),
         icNumber: reviewStr(o.ic_number ?? o.icNumber),
-        relationshipLabel: relKey ? GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS[relKey] : REVIEW_EMPTY_LABEL,
+        relationshipLabel,
       });
     } else if (gt === "company") {
       const rel = o.relationship;

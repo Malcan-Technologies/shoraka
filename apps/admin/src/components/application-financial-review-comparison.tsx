@@ -14,6 +14,8 @@ import {
   FINANCIAL_FIELD_LABELS,
   computeColumnMetrics,
   financialFormToBsPl,
+  getIssuerFinancialTabYears,
+  issuerUnauditedPlddForStartYear,
   type FinancialStatementsInput,
 } from "@cashsouk/types";
 import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
@@ -32,6 +34,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { format, isValid, parse, parseISO } from "date-fns";
 import {
   applicationTableHeaderBgClass,
   applicationTableHeaderClass,
@@ -52,14 +55,44 @@ const USE_MOCK_FINANCIAL_RESUBMIT_COMPARISON = false;
  */
 const MOCK_UNAUDITED_YEAR_COUNT: 1 | 2 = 1;
 
+const MOCK_LAST_CLOSING_DATE = "2023-06-30";
+const MOCK_TAB_REF = new Date("2023-08-01");
+const MOCK_Y_SUBMITTED = getIssuerFinancialTabYears(true, MOCK_TAB_REF)[0];
+const [MOCK_Y1, MOCK_Y2] = getIssuerFinancialTabYears(false, MOCK_TAB_REF);
+
+function formatFinancialDateDisplay(raw: string | null | undefined): string {
+  if (raw == null || String(raw).trim() === "") return "\u2014";
+  const s = String(raw).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const d = parseISO(s);
+    if (isValid(d)) return format(d, "d/M/yyyy");
+  }
+  try {
+    const dmy = parse(s, "d/M/yyyy", new Date());
+    if (isValid(dmy)) return format(dmy, "d/M/yyyy");
+  } catch {
+    /* ignore */
+  }
+  try {
+    const d2 = parse(s, "dd/MM/yyyy", new Date());
+    if (isValid(d2)) return format(d2, "d/M/yyyy");
+  } catch {
+    /* ignore */
+  }
+  return s;
+}
+
 function mockUnauditedYearBlock(
-  year: number,
+  startYear: number,
+  isSubmittedToSsm: boolean,
   overrides: Record<string, unknown> = {}
 ): Record<string, unknown> {
-  const y = String(year);
+  const q = {
+    last_closing_date: MOCK_LAST_CLOSING_DATE,
+    is_submitted_to_ssm: isSubmittedToSsm,
+  };
   return {
-    pldd: `${y}-12-31`,
-    bsdd: `${y}-12-31`,
+    pldd: issuerUnauditedPlddForStartYear(startYear, q, MOCK_TAB_REF),
     bsfatot: 180_000,
     othass: 45_000,
     bscatot: 220_000,
@@ -88,53 +121,55 @@ function buildMockFinancialResubmitPayload(yearCount: 1 | 2): MockFinancialResub
     return {
       before: {
         questionnaire: {
-          latest_financial_year: 2023,
-          submitted_this_financial_year: false,
-          has_data_for_next_financial_year: false,
+          last_closing_date: MOCK_LAST_CLOSING_DATE,
+          is_submitted_to_ssm: true,
         },
         unaudited_by_year: {
-          "2023": mockUnauditedYearBlock(2023, { turnover: 1_050_000, plnpat: 48_000 }),
+          [String(MOCK_Y_SUBMITTED)]: mockUnauditedYearBlock(MOCK_Y_SUBMITTED, true, {
+            turnover: 1_050_000,
+            plnpat: 48_000,
+          }),
         },
       },
       after: {
         questionnaire: {
-          latest_financial_year: 2023,
-          submitted_this_financial_year: false,
-          has_data_for_next_financial_year: false,
+          last_closing_date: MOCK_LAST_CLOSING_DATE,
+          is_submitted_to_ssm: true,
         },
         unaudited_by_year: {
-          "2023": mockUnauditedYearBlock(2023, { turnover: 1_180_000, plnpat: 48_000 }),
+          [String(MOCK_Y_SUBMITTED)]: mockUnauditedYearBlock(MOCK_Y_SUBMITTED, true, {
+            turnover: 1_180_000,
+            plnpat: 48_000,
+          }),
         },
       },
-      changedPaths: new Set(["financial_statements.unaudited_by_year.2023.turnover"]),
+      changedPaths: new Set([`financial_statements.unaudited_by_year.${MOCK_Y_SUBMITTED}.turnover`]),
     };
   }
   return {
     before: {
       questionnaire: {
-        latest_financial_year: 2023,
-        submitted_this_financial_year: false,
-        has_data_for_next_financial_year: true,
+        last_closing_date: MOCK_LAST_CLOSING_DATE,
+        is_submitted_to_ssm: false,
       },
       unaudited_by_year: {
-        "2022": mockUnauditedYearBlock(2022, { turnover: 880_000, plnpat: 41_000 }),
-        "2023": mockUnauditedYearBlock(2023, { turnover: 1_050_000, plnpat: 48_000 }),
+        [String(MOCK_Y1)]: mockUnauditedYearBlock(MOCK_Y1, false, { turnover: 880_000, plnpat: 41_000 }),
+        [String(MOCK_Y2)]: mockUnauditedYearBlock(MOCK_Y2, false, { turnover: 1_050_000, plnpat: 48_000 }),
       },
     },
     after: {
       questionnaire: {
-        latest_financial_year: 2023,
-        submitted_this_financial_year: false,
-        has_data_for_next_financial_year: true,
+        last_closing_date: MOCK_LAST_CLOSING_DATE,
+        is_submitted_to_ssm: false,
       },
       unaudited_by_year: {
-        "2022": mockUnauditedYearBlock(2022, { turnover: 965_000, plnpat: 41_000 }),
-        "2023": mockUnauditedYearBlock(2023, { turnover: 1_050_000, plnpat: 61_000 }),
+        [String(MOCK_Y1)]: mockUnauditedYearBlock(MOCK_Y1, false, { turnover: 965_000, plnpat: 41_000 }),
+        [String(MOCK_Y2)]: mockUnauditedYearBlock(MOCK_Y2, false, { turnover: 1_050_000, plnpat: 61_000 }),
       },
     },
     changedPaths: new Set([
-      "financial_statements.unaudited_by_year.2022.turnover",
-      "financial_statements.unaudited_by_year.2023.plnpat",
+      `financial_statements.unaudited_by_year.${MOCK_Y1}.turnover`,
+      `financial_statements.unaudited_by_year.${MOCK_Y2}.plnpat`,
     ]),
   };
 }
@@ -242,9 +277,7 @@ function formatIssuerFinancialCell(rowId: string, fs: Record<string, unknown> | 
 
   switch (rowId) {
     case "pldd":
-      return fs.pldd != null && fs.pldd !== "" ? String(fs.pldd) : "—";
-    case "bsdd":
-      return fs.bsdd != null && fs.bsdd !== "" ? String(fs.bsdd) : "—";
+      return fs.pldd != null && fs.pldd !== "" ? formatFinancialDateDisplay(String(fs.pldd)) : "—";
     case "bsfatot":
       return formatCurrency(toNum(fs.bsfatot), { decimals: 0 });
     case "othass":
@@ -293,8 +326,7 @@ function formatIssuerFinancialCell(rowId: string, fs: Record<string, unknown> | 
 }
 
 const ROW_LABELS: { id: string; label: string }[] = [
-  { id: "pldd", label: FINANCIAL_FIELD_LABELS.pldd },
-  { id: "bsdd", label: FINANCIAL_FIELD_LABELS.bsdd },
+  { id: "pldd", label: "Financial Year End" },
   { id: "bsfatot", label: FINANCIAL_FIELD_LABELS.bsfatot },
   { id: "othass", label: FINANCIAL_FIELD_LABELS.othass },
   { id: "bscatot", label: FINANCIAL_FIELD_LABELS.bscatot },
@@ -361,17 +393,6 @@ export function ApplicationFinancialReviewComparison({
     },
     [isPathChanged, mockFinancialPayload]
   );
-
-  React.useEffect(() => {
-    if (mockFinancialPayload) {
-      console.log(
-        "ApplicationFinancialReviewComparison: MOCK financial resubmit —",
-        MOCK_UNAUDITED_YEAR_COUNT === 1
-          ? "one unaudited year (2023); turnover diff."
-          : "two unaudited years (2022, 2023); turnover + plnpat diffs."
-      );
-    }
-  }, [mockFinancialPayload]);
 
   const beforeByYear = React.useMemo(
     () => extractQuestionnaireAndUnaudited(effectiveBeforeApp.financial_statements).unauditedByYear,

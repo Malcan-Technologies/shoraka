@@ -4,7 +4,7 @@
  * SECTION: Organization CTOS report history (admin sidebar)
  * WHY: Match KYC card typography, padding (p-6 pt-0), and date format (PPpp)
  * INPUT: portal + organization id
- * OUTPUT: Collapsible card with view (HTML) / download (PDF)
+ * OUTPUT: Collapsible card with view (HTML, eye icon) / download (PDF)
  * WHERE USED: OrganizationDetailPage (issuer or investor)
  */
 
@@ -32,9 +32,9 @@ import { cn } from "@/lib/utils";
 import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
-  ArrowTopRightOnSquareIcon,
   ChevronRightIcon,
   DocumentTextIcon,
+  EyeIcon,
 } from "@heroicons/react/24/outline";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -134,7 +134,6 @@ export function OrganizationIssuerCtosReportsCard({
 
   const downloadOrgReportPdf = React.useCallback(
     async (reportId: string, fetchedAt: string) => {
-      console.log("Downloading CTOS report PDF:", reportId);
       const token = await getAccessToken();
       if (!token) {
         toast.error("Not signed in");
@@ -260,11 +259,11 @@ export function OrganizationIssuerCtosReportsCard({
                             size="icon"
                             className="h-8 w-8 text-muted-foreground hover:text-foreground"
                             disabled={!r.has_report_html}
-                            title="View in new tab"
+                            title="View CTOS report in new tab"
                             onClick={() => void openOrgReportHtml(r.id)}
                           >
-                            <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                            <span className="sr-only">View report</span>
+                            <EyeIcon className="h-4 w-4" aria-hidden />
+                            <span className="sr-only">View CTOS report</span>
                           </Button>
                           <Button
                             type="button"

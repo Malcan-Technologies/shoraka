@@ -30,6 +30,8 @@ interface ProgressIndicatorProps {
   amendmentFlaggedStepKeys?: string[];
   acknowledgedWorkflowIds?: string[]; // Step keys the user has saved (from amendment_acknowledged_workflow_ids)
   stepKeys?: string[]; // Step key per index (from getStepKeyFromStepId)
+  /** Normal draft flow: steps above this index (1-based) are not clickable (no checkmark override). */
+  maxClickableStep?: number;
 }
 
 export function ProgressIndicator({
@@ -43,16 +45,11 @@ export function ProgressIndicator({
   amendmentFlaggedStepKeys = [],
   acknowledgedWorkflowIds = [],
   stepKeys = [],
+  maxClickableStep,
 }: ProgressIndicatorProps) {
   if (isLoading) {
     const skeletonCount =
       steps.length > 0 ? steps.length : DEFAULT_LOADING_PLACEHOLDER_STEPS;
-    if (steps.length === 0) {
-      console.log(
-        "ProgressIndicator: loading skeleton with placeholder step count:",
-        skeletonCount
-      );
-    }
     return (
       <div className="mt-3">
         <div className="relative flex items-start justify-between min-h-[80px]">
@@ -122,7 +119,7 @@ export function ProgressIndicator({
           const isAcknowledged = acknowledgedWorkflowIds.includes(stepKey);
           /** Plan: amendment flagged → acknowledgement; amendment NOT flagged → always checked; normal flow → stepIndex < currentStep. Never use lastCompletedStep for UI. */
           const isCompleted =
-            isAmendmentMode && stepKey === "review_and_submit"
+            isAmendmentMode && stepKey === "declarations"
               ? false
               : isAmendmentMode && isFlagged
                 ? isAcknowledged
@@ -132,7 +129,9 @@ export function ProgressIndicator({
           const isActive = stepNumber === currentStep;
           const isFilled = isCompleted || isActive;
           const isDisabled = disabledSteps.includes(stepNumber);
-
+          const isLockedFuture =
+            maxClickableStep != null && stepNumber > maxClickableStep && !isAmendmentMode;
+          const isNotClickable = isDisabled || isLockedFuture;
 
           const showFlaggedStyle = isFlagged && !(isCompleted || isDisabled);
 
@@ -142,15 +141,15 @@ export function ProgressIndicator({
             isAmendmentMode &&
             isFlagged;
 
-          // For disabled steps, always show as completed (locked)
-          const displayCompleted = isCompleted || isDisabled;
-          const displayFilled = isFilled || isDisabled;
+          // Legacy disabledSteps: show as completed (locked). Future-locked steps stay unfilled.
+          const displayCompleted = isCompleted || (isDisabled && !isLockedFuture);
+          const displayFilled = isFilled || (isDisabled && !isLockedFuture);
 
           /** Flagged + acknowledged = red circle with white check (saved amendment step). */
           const showAcknowledgedFlaggedStyle = isFlagged && isAcknowledged && displayCompleted;
 
           const handleClick = () => {
-            if (!isDisabled && onStepClick) {
+            if (!isNotClickable && onStepClick) {
               onStepClick(stepNumber);
             }
           };
@@ -158,7 +157,7 @@ export function ProgressIndicator({
           return (
             <div
               key={label}
-              className={`relative flex flex-1 flex-col items-center min-w-0 ${isDisabled ? "cursor-not-allowed opacity-50" : onStepClick ? "cursor-pointer" : ""}`}
+              className={`relative flex flex-1 flex-col items-center min-w-0 ${isNotClickable ? "cursor-not-allowed opacity-50" : onStepClick ? "cursor-pointer" : ""}`}
               onClick={handleClick}
             >
               {/* Connector — red when leading into current flagged step */}
@@ -177,7 +176,7 @@ export function ProgressIndicator({
 
               {/* Circle anchor */}
               <div className="relative flex items-center justify-center h-[36px] w-[36px]">
-                {isActive && !isDisabled && (
+                {isActive && !isNotClickable && (
                   <>
                     <div className="absolute inset-0 rounded-full bg-background z-10 transition-opacity duration-200 ease-out" />
                     <div
@@ -238,9 +237,9 @@ export function ProgressIndicator({
               <span
                 className={cn(
                   "mt-2.5 text-center text-[12px] leading-snug max-w-[90px] transition-colors duration-200 ease-out",
-                  isActive && isFlagged && !isDisabled
+                  isActive && isFlagged && !isNotClickable
                     ? "font-semibold text-destructive"
-                    : isActive && !isDisabled
+                    : isActive && !isNotClickable
                     ? "font-medium text-foreground"
                     : showFlaggedStyle || showAcknowledgedFlaggedStyle
                     ? "text-destructive"

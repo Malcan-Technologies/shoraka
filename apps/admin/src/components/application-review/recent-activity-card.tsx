@@ -22,6 +22,8 @@ export interface RecentActivityCardProps {
   productKey?: string | null;
   /** Override section labels for timeline display (e.g. contract_details → "Customer" for invoice_only). */
   sectionLabelOverrides?: Record<string, string>;
+  /** Same as application `visible_review_sections` — resubmit comparison tabs match main review. */
+  visibleReviewSections?: unknown;
 }
 
 export function RecentActivityCard({
@@ -31,6 +33,7 @@ export function RecentActivityCard({
   applicationId,
   productKey,
   sectionLabelOverrides,
+  visibleReviewSections,
 }: RecentActivityCardProps) {
   const recentActivity = React.useMemo(() => {
     const combined: {
@@ -70,6 +73,7 @@ export function RecentActivityCard({
         productKey={productKey}
         reviewTabSections={reviewTabSections}
         sectionLabelOverrides={sectionLabelOverrides}
+        visibleReviewSections={visibleReviewSections}
       />
     );
   }

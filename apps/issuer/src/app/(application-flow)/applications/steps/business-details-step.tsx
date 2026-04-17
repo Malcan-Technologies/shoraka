@@ -9,9 +9,10 @@
 import * as React from "react";
 import { useApplication } from "@/hooks/use-applications";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { TextareaWithCharCount } from "@/components/textarea-with-char-count";
 import { cn } from "@/lib/utils";
 import {
   applicationFlowLabelCellAlignInputClassName,
@@ -81,6 +82,14 @@ const SAME_INVOICE_OTHER_P2P_ERROR =
   "This invoice has already been applied on another P2P platform and cannot be submitted.";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
+const GUARANTOR_EMAIL_STRICT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MAX_GUARANTOR_RELATIONSHIP_OTHER = 500;
+
+/** “What does your company do?” and “Business plan” share the longer limit; other business textareas use the shorter limit. */
+const MAX_CHARS_WHAT_COMPANY_DO = 1000;
+const MAX_CHARS_BUSINESS_PLAN = 1000;
+const MAX_CHARS_OTHER_BUSINESS_TEXTAREA = 400;
+
 type YesNo = "yes" | "no";
 
 interface AboutYourBusiness {
@@ -119,6 +128,7 @@ interface GuarantorIndividualRow {
   lastName: string;
   icNumber: string;
   relationship: GuarantorIndividualRelationship | "";
+  relationshipOther: string;
 }
 
 interface GuarantorCompanyRow {
@@ -138,11 +148,21 @@ function guarantorCardSummarySubtitle(row: GuarantorFormRow): string {
       .map((s) => s.trim())
       .filter(Boolean)
       .join(" ");
-    const rel =
+    let rel = "";
+    if (
       row.relationship &&
       GUARANTOR_INDIVIDUAL_RELATIONSHIPS.includes(row.relationship as GuarantorIndividualRelationship)
-        ? GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS[row.relationship as GuarantorIndividualRelationship]
-        : "";
+    ) {
+      const key = row.relationship as GuarantorIndividualRelationship;
+      if (key === "others") {
+        const detail = row.relationshipOther.trim();
+        rel = detail
+          ? `Others: ${detail.length > 48 ? `${detail.slice(0, 48)}…` : detail}`
+          : GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS.others;
+      } else {
+        rel = GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS[key];
+      }
+    }
     if (name && rel) return `${name} (${rel})`;
     if (name) return name;
     if (rel) return `(${rel})`;
@@ -169,6 +189,7 @@ function emptyIndividualGuarantor(): GuarantorIndividualRow {
     lastName: "",
     icNumber: "",
     relationship: "",
+    relationshipOther: "",
   };
 }
 
@@ -225,6 +246,7 @@ interface BusinessDetailsSnake {
         last_name: string;
         ic_number: string;
         relationship: GuarantorIndividualRelationship;
+        relationship_other?: string | null;
       }
     | {
         guarantor_id: string;
@@ -310,6 +332,10 @@ function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
             last_name: g.lastName.trim(),
             ic_number: malaysianNricDigits(g.icNumber),
             relationship: g.relationship as GuarantorIndividualRelationship,
+            relationship_other:
+              g.relationship === "others"
+                ? g.relationshipOther.trim().slice(0, MAX_GUARANTOR_RELATIONSHIP_OTHER) || null
+                : null,
           }
         : {
             guarantor_id: g.guarantorId,
@@ -385,6 +411,11 @@ function parseGuarantorsFromRaw(raw: unknown): GuarantorFormRow[] {
       const relationshipOk =
         typeof rel === "string" &&
         (GUARANTOR_INDIVIDUAL_RELATIONSHIPS as readonly string[]).includes(rel);
+      const otherRaw = o.relationship_other ?? o.relationshipOther;
+      const relationshipOther =
+        relationshipOk && rel === "others"
+          ? String(otherRaw ?? "").slice(0, MAX_GUARANTOR_RELATIONSHIP_OTHER)
+          : "";
       out.push({
         guarantorId:
           String(o.guarantor_id ?? o.guarantorId ?? "").trim() ||
@@ -399,6 +430,7 @@ function parseGuarantorsFromRaw(raw: unknown): GuarantorFormRow[] {
         lastName: String(o.last_name ?? o.lastName ?? ""),
         icNumber: clampGuarantorIcInput(String(o.ic_number ?? o.icNumber ?? "")),
         relationship: relationshipOk ? (rel as GuarantorIndividualRelationship) : "",
+        relationshipOther,
       });
     } else if (gt === "company") {
       const rel = o.relationship;
@@ -469,7 +501,7 @@ const labelTextareaClassName = cn(labelClassName, applicationFlowLabelCellAlignT
  * Inputs
  */
 const inputClassName = formInputClassName;
-const textareaClassName = cn(formTextareaClassName, "min-h-[100px]");
+const textareaClassName = cn(formTextareaClassName, "min-h-[100px] resize-y");
 
 /**
  * Core form grid
@@ -626,47 +658,6 @@ function YesNoRadioGroup({
   );
 }
 
-
-function TextareaWithCharCount({
-  id,
-  value,
-  onChange,
-  placeholder,
-  maxLength,
-  className,
-  countLabel,
-  disabled,
-}: {
-  id: string;
-  value: string;
-  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
-  placeholder: string;
-  maxLength: number;
-  className: string;
-  countLabel: string;
-  disabled?: boolean;
-}) {
-  return (
-    <div className="relative">
-      <Textarea
-        id={id}
-        value={value}
-        onChange={onChange}
-        placeholder={placeholder}
-        maxLength={maxLength}
-        className={cn(className, "pb-8", disabled && formInputDisabledClassName)}
-        disabled={disabled}
-      />
-      <span
-        className="absolute bottom-3 right-3 text-sm text-muted-foreground pointer-events-none"
-        aria-hidden
-      >
-        {countLabel}
-      </span>
-    </div>
-  );
-}
-
 interface GuarantorCardFieldsProps {
   row: GuarantorFormRow;
   index: number;
@@ -717,19 +708,22 @@ function GuarantorCardFields({
               <Label htmlFor={`g-${index}-first`} className={labelInputClassName}>
                 First name
               </Label>
-              <Input
-                id={`g-${index}-first`}
-                value={row.firstName}
-                onChange={(e) =>
-                  replaceGuarantorRow(index, {
-                    ...row,
-                    firstName: e.target.value.slice(0, 100),
-                  })
-                }
-                placeholder="First name"
-                className={cn(inputClassName, readOnly && formInputDisabledClassName)}
-                disabled={readOnly}
-              />
+            <Input
+              id={`g-${index}-first`}
+              value={row.firstName}
+              onChange={(e) =>
+                replaceGuarantorRow(index, {
+                  ...row,
+                  firstName: e.target.value.slice(0, 100),
+                })
+              }
+              placeholder="First name"
+              className={cn(inputClassName, readOnly && formInputDisabledClassName)}
+              disabled={readOnly}
+            />
+            {hasAttemptedSave && row.guarantorType === "individual" && !row.firstName.trim() ? (
+              <p className="text-xs text-destructive">Required</p>
+            ) : null}
             </div>
             <div className="space-y-2 w-full min-w-0">
               <Label htmlFor={`g-${index}-last`} className={labelInputClassName}>
@@ -748,6 +742,9 @@ function GuarantorCardFields({
                 className={cn(inputClassName, readOnly && formInputDisabledClassName)}
                 disabled={readOnly}
               />
+              {hasAttemptedSave && row.guarantorType === "individual" && !row.lastName.trim() ? (
+                <p className="text-xs text-destructive">Required</p>
+              ) : null}
             </div>
           </div>
           <div className="space-y-2 w-full min-w-0">
@@ -768,6 +765,14 @@ function GuarantorCardFields({
               className={cn(inputClassName, readOnly && formInputDisabledClassName)}
               disabled={readOnly}
             />
+            {hasAttemptedSave && !row.email.trim() ? (
+              <p className="text-xs text-destructive">Required</p>
+            ) : null}
+            {hasAttemptedSave &&
+            row.email.trim().length > 0 &&
+            !GUARANTOR_EMAIL_STRICT.test(row.email.trim()) ? (
+              <p className="text-xs text-destructive">Enter a valid email address</p>
+            ) : null}
           </div>
           <div className="space-y-2 w-full min-w-0">
             <Label htmlFor={`g-${index}-ic`} className={labelInputClassName}>
@@ -803,12 +808,14 @@ function GuarantorCardFields({
             <Select
               value={row.relationship || undefined}
               disabled={readOnly}
-              onValueChange={(v) =>
+              onValueChange={(v) => {
+                const rel = v as GuarantorIndividualRelationship;
                 replaceGuarantorRow(index, {
                   ...row,
-                  relationship: v as GuarantorIndividualRelationship,
-                })
-              }
+                  relationship: rel,
+                  relationshipOther: rel === "others" ? row.relationshipOther : "",
+                });
+              }}
             >
               <SelectTrigger
                 className={cn(
@@ -827,6 +834,42 @@ function GuarantorCardFields({
                 ))}
               </SelectContent>
             </Select>
+            {hasAttemptedSave &&
+            row.guarantorType === "individual" &&
+            (!row.relationship ||
+              !GUARANTOR_INDIVIDUAL_RELATIONSHIPS.includes(
+                row.relationship as GuarantorIndividualRelationship
+              )) ? (
+              <p className="text-xs text-destructive">Select a relationship</p>
+            ) : null}
+            {row.relationship === "others" ? (
+              <div className="space-y-2 pt-1">
+                <Label htmlFor={`g-${index}-relationship-other`} className={labelInputClassName}>
+                  Specify relationship
+                </Label>
+                <Textarea
+                  id={`g-${index}-relationship-other`}
+                  value={row.relationshipOther}
+                  onChange={(e) =>
+                    replaceGuarantorRow(index, {
+                      ...row,
+                      relationshipOther: e.target.value.slice(0, MAX_GUARANTOR_RELATIONSHIP_OTHER),
+                    })
+                  }
+                  placeholder="Describe how this person is related to the business"
+                  className={cn(textareaClassName, readOnly && formInputDisabledClassName)}
+                  disabled={readOnly}
+                  maxLength={MAX_GUARANTOR_RELATIONSHIP_OTHER}
+                  rows={3}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {row.relationshipOther.length}/{MAX_GUARANTOR_RELATIONSHIP_OTHER} characters
+                </p>
+                {hasAttemptedSave && !row.relationshipOther.trim() ? (
+                  <p className="text-xs text-destructive">Enter how this guarantor is related</p>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </>
       ) : (
@@ -848,6 +891,9 @@ function GuarantorCardFields({
               className={cn(inputClassName, readOnly && formInputDisabledClassName)}
               disabled={readOnly}
             />
+            {hasAttemptedSave && row.guarantorType === "company" && !row.companyName.trim() ? (
+              <p className="text-xs text-destructive">Required</p>
+            ) : null}
           </div>
           <div className="space-y-2 w-full min-w-0">
             <Label htmlFor={`g-${index}-email`} className={labelInputClassName}>
@@ -867,6 +913,14 @@ function GuarantorCardFields({
               className={cn(inputClassName, readOnly && formInputDisabledClassName)}
               disabled={readOnly}
             />
+            {hasAttemptedSave && !row.email.trim() ? (
+              <p className="text-xs text-destructive">Required</p>
+            ) : null}
+            {hasAttemptedSave &&
+            row.email.trim().length > 0 &&
+            !GUARANTOR_EMAIL_STRICT.test(row.email.trim()) ? (
+              <p className="text-xs text-destructive">Enter a valid email address</p>
+            ) : null}
           </div>
           <div className="space-y-2 w-full min-w-0">
             <Label htmlFor={`g-${index}-ssm`} className={labelInputClassName}>
@@ -885,6 +939,9 @@ function GuarantorCardFields({
               className={cn(inputClassName, readOnly && formInputDisabledClassName)}
               disabled={readOnly}
             />
+            {hasAttemptedSave && row.guarantorType === "company" && !row.ssmNumber.trim() ? (
+              <p className="text-xs text-destructive">Required</p>
+            ) : null}
           </div>
           <div className="space-y-2 w-full min-w-0">
             <Label className={labelInputClassName}>Relationship</Label>
@@ -915,6 +972,12 @@ function GuarantorCardFields({
                 ))}
               </SelectContent>
             </Select>
+            {hasAttemptedSave &&
+            row.guarantorType === "company" &&
+            (!row.relationship ||
+              !GUARANTOR_COMPANY_RELATIONSHIPS.includes(row.relationship as GuarantorCompanyRelationship)) ? (
+              <p className="text-xs text-destructive">Select a relationship</p>
+            ) : null}
           </div>
         </>
       )}
@@ -968,150 +1031,106 @@ export function BusinessDetailsStep({
     setHasAttemptedSave(false);
   }, [applicationId]);
 
-  const areBusinessDetailsFieldsFilled = React.useCallback(() => {
-    const { whatDoesCompanyDo, mainCustomers, singleCustomerOver50Revenue } = aboutYourBusiness;
-    const {
-      financingFor,
-      howFundsUsed,
-      businessPlan,
-      risksDelayRepayment,
-      backupPlan,
-      raisingOnOtherP2P,
-      platformName,
-      amountRaised,
-      sameInvoiceUsed,
-      accountingSoftware,
-    } = whyRaisingFunds;
+  const guarantorEmailOk = React.useCallback((email: string, mode: "presence" | "strict") => {
+    const t = email.trim();
+    if (!t) return false;
+    if (mode === "presence") return true;
+    return GUARANTOR_EMAIL_STRICT.test(t);
+  }, []);
 
-    if (
-      !whatDoesCompanyDo.trim() ||
-      !mainCustomers.trim() ||
-      !singleCustomerOver50Revenue.trim() ||
-      !financingFor.trim() ||
-      !howFundsUsed.trim() ||
-      !businessPlan.trim() ||
-      !risksDelayRepayment.trim() ||
-      !backupPlan.trim() ||
-      !raisingOnOtherP2P.trim() ||
-      !accountingSoftware.trim() ||
-      !declarationConfirmed
-    ) {
-      return false;
-    }
+  /**
+   * presence: required inputs have a value — only used to enable Save and Continue (not format rules).
+   * strict: full validation when the user clicks Save (email shape, 12-digit IC, same-invoice block, etc.).
+   */
+  const evaluateBusinessDetails = React.useCallback(
+    (mode: "presence" | "strict") => {
+      const { whatDoesCompanyDo, mainCustomers, singleCustomerOver50Revenue } = aboutYourBusiness;
+      const {
+        financingFor,
+        howFundsUsed,
+        businessPlan,
+        risksDelayRepayment,
+        backupPlan,
+        raisingOnOtherP2P,
+        platformName,
+        amountRaised,
+        sameInvoiceUsed,
+        accountingSoftware,
+      } = whyRaisingFunds;
 
-    if (raisingOnOtherP2P === "yes") {
-      if (!platformName.trim() || !amountRaised.trim() || !sameInvoiceUsed.trim()) {
-        return false;
-      }
-      if (sameInvoiceUsed === "yes") {
-        return false;
-      }
-    }
-
-    if (guarantors.length < 1) return false;
-    for (const g of guarantors) {
-      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(g.email.trim());
-      if (g.guarantorType === "individual") {
-        if (
-          !emailOk ||
-          !g.firstName.trim() ||
-          !g.lastName.trim() ||
-          malaysianNricDigits(g.icNumber).length === 0 ||
-          !g.relationship ||
-          !GUARANTOR_INDIVIDUAL_RELATIONSHIPS.includes(g.relationship as GuarantorIndividualRelationship)
-        ) {
-          return false;
-        }
-      } else {
-        if (
-          !emailOk ||
-          !g.companyName.trim() ||
-          !g.ssmNumber.trim() ||
-          !g.relationship ||
-          !GUARANTOR_COMPANY_RELATIONSHIPS.includes(g.relationship as GuarantorCompanyRelationship)
-        ) {
-          return false;
-        }
-      }
-    }
-
-    return true;
-  }, [aboutYourBusiness, whyRaisingFunds, declarationConfirmed, guarantors]);
-
-  const validateBusinessDetails = React.useCallback(() => {
-    const { whatDoesCompanyDo, mainCustomers, singleCustomerOver50Revenue } = aboutYourBusiness;
-    const {
-      financingFor,
-      howFundsUsed,
-      businessPlan,
-      risksDelayRepayment,
-      backupPlan,
-      raisingOnOtherP2P,
-      platformName,
-      amountRaised,
-      sameInvoiceUsed,
-      accountingSoftware,
-    } = whyRaisingFunds;
-
-    if (
-      !whatDoesCompanyDo.trim() ||
-      !mainCustomers.trim() ||
-      !singleCustomerOver50Revenue.trim() ||
-      !financingFor.trim() ||
-      !howFundsUsed.trim() ||
-      !businessPlan.trim() ||
-      !risksDelayRepayment.trim() ||
-      !backupPlan.trim() ||
-      !raisingOnOtherP2P.trim() ||
-      !accountingSoftware.trim() ||
-      !declarationConfirmed
-    ) {
-      return false;
-    }
-
-    if (raisingOnOtherP2P === "yes") {
       if (
-        !platformName.trim() ||
-        !amountRaised.trim() ||
-        !sameInvoiceUsed.trim()
+        !whatDoesCompanyDo.trim() ||
+        !mainCustomers.trim() ||
+        !singleCustomerOver50Revenue.trim() ||
+        !financingFor.trim() ||
+        !howFundsUsed.trim() ||
+        !businessPlan.trim() ||
+        !risksDelayRepayment.trim() ||
+        !backupPlan.trim() ||
+        !raisingOnOtherP2P.trim() ||
+        !accountingSoftware.trim() ||
+        !declarationConfirmed
       ) {
         return false;
       }
-      if (sameInvoiceUsed === "yes") {
-        return false;
-      }
-    }
 
-    /* At least one guarantor; each row must be complete (applies to every added guarantor). */
-    if (guarantors.length < 1) return false;
-    for (const g of guarantors) {
-      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(g.email.trim());
-      if (g.guarantorType === "individual") {
-        if (
-          !emailOk ||
-          !g.firstName.trim() ||
-          !g.lastName.trim() ||
-          !isValidMalaysianNric(g.icNumber) ||
-          !g.relationship ||
-          !GUARANTOR_INDIVIDUAL_RELATIONSHIPS.includes(g.relationship as GuarantorIndividualRelationship)
-        ) {
+      if (raisingOnOtherP2P === "yes") {
+        if (!platformName.trim() || !amountRaised.trim() || !sameInvoiceUsed.trim()) {
           return false;
         }
-      } else {
-        if (
-          !emailOk ||
-          !g.companyName.trim() ||
-          !g.ssmNumber.trim() ||
-          !g.relationship ||
-          !GUARANTOR_COMPANY_RELATIONSHIPS.includes(g.relationship as GuarantorCompanyRelationship)
-        ) {
+        if (mode === "strict" && sameInvoiceUsed === "yes") {
           return false;
         }
       }
-    }
 
-    return true;
-  }, [aboutYourBusiness, whyRaisingFunds, declarationConfirmed, guarantors]);
+      if (guarantors.length < 1) return false;
+      for (const g of guarantors) {
+        if (!guarantorEmailOk(g.email, mode)) return false;
+        if (g.guarantorType === "individual") {
+          const icOk =
+            mode === "presence"
+              ? malaysianNricDigits(g.icNumber).length > 0
+              : isValidMalaysianNric(g.icNumber);
+          if (
+            !g.firstName.trim() ||
+            !g.lastName.trim() ||
+            !icOk ||
+            !g.relationship ||
+            !GUARANTOR_INDIVIDUAL_RELATIONSHIPS.includes(g.relationship as GuarantorIndividualRelationship)
+          ) {
+            return false;
+          }
+          if (g.relationship === "others") {
+            const other = g.relationshipOther.trim();
+            if (!other) return false;
+            if (mode === "strict" && other.length > MAX_GUARANTOR_RELATIONSHIP_OTHER) return false;
+          }
+        } else {
+          if (
+            !g.companyName.trim() ||
+            !g.ssmNumber.trim() ||
+            !g.relationship ||
+            !GUARANTOR_COMPANY_RELATIONSHIPS.includes(g.relationship as GuarantorCompanyRelationship)
+          ) {
+            return false;
+          }
+        }
+      }
+
+      return true;
+    },
+    [aboutYourBusiness, whyRaisingFunds, declarationConfirmed, guarantors, guarantorEmailOk]
+  );
+
+  const areBusinessDetailsFieldsFilled = React.useMemo(
+    () => evaluateBusinessDetails("presence"),
+    [evaluateBusinessDetails]
+  );
+
+  const validateBusinessDetails = React.useCallback(
+    () => evaluateBusinessDetails("strict"),
+    [evaluateBusinessDetails]
+  );
 
   React.useEffect(() => {
     if (application === undefined || isInitialized) return;
@@ -1316,10 +1335,14 @@ export function BusinessDetailsStep({
   React.useEffect(() => {
     if (!onDataChangeRef.current || !isInitialized) return;
 
+    /**
+     * Save stays enabled whenever required fields have values (presence). Format and business rules
+     * run only in saveFunction; inline errors use hasAttemptedSave and do not change isValid.
+     */
     onDataChangeRef.current({
       ...snakePayload,
       hasPendingChanges,
-      isValid: areBusinessDetailsFieldsFilled(),
+      isValid: readOnly || areBusinessDetailsFieldsFilled,
       saveFunction: async () => {
         setHasAttemptedSave(true);
         if (!validateBusinessDetails()) {
@@ -1336,6 +1359,7 @@ export function BusinessDetailsStep({
     snakePayload,
     hasPendingChanges,
     isInitialized,
+    readOnly,
     areBusinessDetailsFieldsFilled,
     validateBusinessDetails,
     pendingSupportingDocuments.length,
@@ -1450,13 +1474,13 @@ export function BusinessDetailsStep({
             onChange={(e) =>
               setAboutYourBusiness((prev) => ({
                 ...prev,
-                whatDoesCompanyDo: e.target.value.slice(0, 200),
+                whatDoesCompanyDo: e.target.value.slice(0, MAX_CHARS_WHAT_COMPANY_DO),
               }))
             }
             placeholder="Add details"
-            maxLength={200}
+            maxLength={MAX_CHARS_WHAT_COMPANY_DO}
             className={textareaClassName}
-            countLabel={`${aboutYourBusiness.whatDoesCompanyDo.length}/200 characters`}
+            countLabel={`${aboutYourBusiness.whatDoesCompanyDo.length}/${MAX_CHARS_WHAT_COMPANY_DO} characters`}
             disabled={fieldsLocked}
           />
 
@@ -1469,13 +1493,13 @@ export function BusinessDetailsStep({
             onChange={(e) =>
               setAboutYourBusiness((prev) => ({
                 ...prev,
-                mainCustomers: e.target.value.slice(0, 200),
+                mainCustomers: e.target.value.slice(0, MAX_CHARS_OTHER_BUSINESS_TEXTAREA),
               }))
             }
             placeholder="Add details"
-            maxLength={200}
+            maxLength={MAX_CHARS_OTHER_BUSINESS_TEXTAREA}
             className={textareaClassName}
-            countLabel={`${aboutYourBusiness.mainCustomers.length}/200 characters`}
+            countLabel={`${aboutYourBusiness.mainCustomers.length}/${MAX_CHARS_OTHER_BUSINESS_TEXTAREA} characters`}
             disabled={fieldsLocked}
           />
 
@@ -1533,13 +1557,13 @@ export function BusinessDetailsStep({
               onChange={(e) =>
                 setWhyRaisingFunds((prev) => ({
                   ...prev,
-                  financingFor: e.target.value.slice(0, 200),
+                  financingFor: e.target.value.slice(0, MAX_CHARS_OTHER_BUSINESS_TEXTAREA),
                 }))
               }
               placeholder="Add details"
-              maxLength={200}
+              maxLength={MAX_CHARS_OTHER_BUSINESS_TEXTAREA}
               className={textareaClassName}
-              countLabel={`${whyRaisingFunds.financingFor.length}/200 characters`}
+              countLabel={`${whyRaisingFunds.financingFor.length}/${MAX_CHARS_OTHER_BUSINESS_TEXTAREA} characters`}
               disabled={fieldsLocked}
             />
 
@@ -1552,13 +1576,13 @@ export function BusinessDetailsStep({
               onChange={(e) =>
                 setWhyRaisingFunds((prev) => ({
                   ...prev,
-                  howFundsUsed: e.target.value.slice(0, 200),
+                  howFundsUsed: e.target.value.slice(0, MAX_CHARS_OTHER_BUSINESS_TEXTAREA),
                 }))
               }
               placeholder="Add details"
-              maxLength={200}
+              maxLength={MAX_CHARS_OTHER_BUSINESS_TEXTAREA}
               className={textareaClassName}
-              countLabel={`${whyRaisingFunds.howFundsUsed.length}/200 characters`}
+              countLabel={`${whyRaisingFunds.howFundsUsed.length}/${MAX_CHARS_OTHER_BUSINESS_TEXTAREA} characters`}
               disabled={fieldsLocked}
             />
 
@@ -1571,13 +1595,13 @@ export function BusinessDetailsStep({
               onChange={(e) =>
                 setWhyRaisingFunds((prev) => ({
                   ...prev,
-                  businessPlan: e.target.value.slice(0, 1000),
+                  businessPlan: e.target.value.slice(0, MAX_CHARS_BUSINESS_PLAN),
                 }))
               }
               placeholder="Add details"
-              maxLength={1000}
+              maxLength={MAX_CHARS_BUSINESS_PLAN}
               className={textareaClassName}
-              countLabel={`${whyRaisingFunds.businessPlan.length}/1000 characters`}
+              countLabel={`${whyRaisingFunds.businessPlan.length}/${MAX_CHARS_BUSINESS_PLAN} characters`}
               disabled={fieldsLocked}
             />
 
@@ -1590,13 +1614,13 @@ export function BusinessDetailsStep({
               onChange={(e) =>
                 setWhyRaisingFunds((prev) => ({
                   ...prev,
-                  risksDelayRepayment: e.target.value.slice(0, 200),
+                  risksDelayRepayment: e.target.value.slice(0, MAX_CHARS_OTHER_BUSINESS_TEXTAREA),
                 }))
               }
               placeholder="Add details"
-              maxLength={200}
+              maxLength={MAX_CHARS_OTHER_BUSINESS_TEXTAREA}
               className={textareaClassName}
-              countLabel={`${whyRaisingFunds.risksDelayRepayment.length}/200 characters`}
+              countLabel={`${whyRaisingFunds.risksDelayRepayment.length}/${MAX_CHARS_OTHER_BUSINESS_TEXTAREA} characters`}
               disabled={fieldsLocked}
             />
 
@@ -1609,13 +1633,13 @@ export function BusinessDetailsStep({
               onChange={(e) =>
                 setWhyRaisingFunds((prev) => ({
                   ...prev,
-                  backupPlan: e.target.value.slice(0, 200),
+                  backupPlan: e.target.value.slice(0, MAX_CHARS_OTHER_BUSINESS_TEXTAREA),
                 }))
               }
               placeholder="Add details"
-              maxLength={200}
+              maxLength={MAX_CHARS_OTHER_BUSINESS_TEXTAREA}
               className={textareaClassName}
-              countLabel={`${whyRaisingFunds.backupPlan.length}/200 characters`}
+              countLabel={`${whyRaisingFunds.backupPlan.length}/${MAX_CHARS_OTHER_BUSINESS_TEXTAREA} characters`}
               disabled={fieldsLocked}
             />
           </div>
