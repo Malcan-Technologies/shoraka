@@ -837,7 +837,7 @@ export function FinancialStatementsStep({
           <div className={overviewFormRowGridClassName}>
             <div className={fieldLabelWithTooltipRowClassName}>
               <Label htmlFor="fye-financial-year-end" className={labelClassName}>
-                Financial Year End of your company
+                What is the financial year end of your company?
               </Label>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -869,14 +869,8 @@ export function FinancialStatementsStep({
 
         <section className={`${sectionWrapperClassName} w-full space-y-3`}>
           <div className="px-3">
-            <h3 className={applicationFlowSectionTitleClassName}>
-              Financial Details{" "}
-              <span className="font-normal text-muted-foreground">(Unaudited)</span>
-            </h3>
+            <h3 className={applicationFlowSectionTitleClassName}>Financial Details</h3>
             <div className={applicationFlowSectionDividerClassName} />
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Enter your full financial period for each year. Example: Jan–Dec or Apr–Mar depending on your company.
-            </p>
           </div>
 
           <div className="space-y-4 px-3">
