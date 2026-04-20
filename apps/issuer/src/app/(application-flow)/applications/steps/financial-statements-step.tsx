@@ -611,7 +611,7 @@ export function FinancialStatementsStep({
   const isValidForButton = readOnly || (questionsAnswered && allYearFormsFilled);
 
   React.useEffect(() => {
-    if (yearsToShow.length <= 1) return;
+    if (yearsToShow.length === 0) return;
     setActiveYearTab((prev) => {
       const ids = yearsToShow.map(String);
       if (prev && ids.includes(prev)) return prev;
@@ -882,11 +882,7 @@ export function FinancialStatementsStep({
             </div>
           ) : null}
 
-          {questionnaireDto && yearsToShow.length === 1 ? (
-            <div>{renderYearBlock(yearsToShow[0])}</div>
-          ) : null}
-
-          {questionnaireDto && yearsToShow.length > 1 ? (
+          {questionnaireDto && yearsToShow.length >= 1 ? (
             <div className="w-full">
               <Tabs
                 key={yearsToShow.join("-")}
