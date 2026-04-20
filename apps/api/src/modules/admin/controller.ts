@@ -2010,6 +2010,35 @@ router.get(
   }
 );
 
+/**
+ * POST /v1/admin/applications/:applicationId/guarantors/:clientGuarantorId/start-aml
+ * Starts RegTank Dow Jones KYC (individual) or KYB (company) screening — see /v3/djkyc/input and /v3/djkyb/input.
+ */
+router.post(
+  "/applications/:applicationId/guarantors/:clientGuarantorId/start-aml",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user?.user_id) {
+        throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      }
+      const { applicationId, clientGuarantorId } = req.params;
+      const result = await adminService.startApplicationGuarantorDowJonesScreening(
+        applicationId,
+        decodeURIComponent(clientGuarantorId),
+        req.user.user_id
+      );
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 router.get(
   "/applications/:id/resubmit-comparison",
   requireRole(UserRole.ADMIN),

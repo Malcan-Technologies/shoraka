@@ -12,6 +12,7 @@ import {
   ApplicationStatus,
   ReviewSection,
   ReviewStepStatus,
+  ApplicationGuarantor,
 } from "@prisma/client";
 import { Request } from "express";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
@@ -4104,6 +4105,119 @@ export class AdminService {
   }
 
   /**
+   * Expose RegTank screening fields stored on `metadata` at the top level for admin UI.
+   */
+  private mapApplicationGuarantorsForAdmin(guarantors: ApplicationGuarantor[] | undefined) {
+    if (!guarantors?.length) return guarantors;
+    return guarantors.map((ag) => {
+      const meta = isPlainObjectRecord(ag.metadata) ? ag.metadata : {};
+      return {
+        ...ag,
+        onboarding_request_id:
+          typeof meta.onboarding_request_id === "string" ? meta.onboarding_request_id : undefined,
+        regtank_portal_url:
+          typeof meta.regtank_portal_url === "string" ? meta.regtank_portal_url : undefined,
+        onboarding_verify_link:
+          typeof meta.onboarding_verify_link === "string" ? meta.onboarding_verify_link : undefined,
+      };
+    });
+  }
+
+  /**
+   * Start Dow Jones KYC/KYB AML screening for an application guarantor (RegTank `/v3/djkyc/input` or `/v3/djkyb/input`).
+   */
+  async startApplicationGuarantorDowJonesScreening(
+    applicationId: string,
+    clientGuarantorId: string,
+    adminUserId: string
+  ): Promise<{ requestId: string; regtank_portal_url: string }> {
+    const row = await prisma.applicationGuarantor.findFirst({
+      where: {
+        application_id: applicationId,
+        client_guarantor_id: clientGuarantorId,
+      },
+    });
+    if (!row) {
+      throw new AppError(404, "NOT_FOUND", "Application guarantor not found");
+    }
+
+    const referenceId = row.client_guarantor_id.trim();
+    if (!referenceId) {
+      throw new AppError(400, "VALIDATION_ERROR", "Guarantor has no client reference id");
+    }
+
+    const config = getRegTankConfig();
+    let screeningResponse: { requestId: string };
+
+    if (row.guarantor_type === "individual") {
+      const name = (row.name ?? "").trim();
+      const governmentIdNumber = (row.ic_number ?? "").replace(/\D/g, "");
+      const email = row.email.trim().toLowerCase();
+      if (!name) {
+        throw new AppError(400, "VALIDATION_ERROR", "Individual guarantor requires a name");
+      }
+      if (governmentIdNumber.length < 6) {
+        throw new AppError(400, "VALIDATION_ERROR", "Individual guarantor requires a valid IC number");
+      }
+      if (!email) {
+        throw new AppError(400, "VALIDATION_ERROR", "Guarantor requires an email");
+      }
+      screeningResponse = await this.regTankApiClient.createDowJonesKycInput({
+        name,
+        governmentIdNumber,
+        email,
+        referenceId,
+        enableReScreening: false,
+      });
+    } else {
+      const businessName = (row.business_name ?? "").trim();
+      const businessIdNumber = (row.ssm_number ?? "").trim();
+      const email = row.email.trim().toLowerCase();
+      if (!businessName) {
+        throw new AppError(400, "VALIDATION_ERROR", "Company guarantor requires a business name");
+      }
+      if (!businessIdNumber) {
+        throw new AppError(400, "VALIDATION_ERROR", "Company guarantor requires an SSM number");
+      }
+      if (!email) {
+        throw new AppError(400, "VALIDATION_ERROR", "Guarantor requires an email");
+      }
+      screeningResponse = await this.regTankApiClient.createDowJonesKybInput({
+        businessName,
+        businessIdNumber,
+        referenceId,
+        email,
+        enableReScreening: false,
+      });
+    }
+
+    const requestId = screeningResponse.requestId?.trim();
+    if (!requestId) {
+      throw new AppError(502, "REGTANK_ERROR", "RegTank did not return a screening request id");
+    }
+
+    const pathSegment = row.guarantor_type === "company" ? "dj-kyb" : "dj-kyc";
+    const regtankPortalUrl = `${config.adminPortalUrl}/app/${pathSegment}/result/${encodeURIComponent(requestId)}`;
+
+    const prevMeta = isPlainObjectRecord(row.metadata) ? row.metadata : {};
+    await prisma.applicationGuarantor.update({
+      where: { id: row.id },
+      data: {
+        last_triggered_at: new Date(),
+        triggered_by_admin_user_id: adminUserId,
+        aml_message_status: "PENDING",
+        metadata: {
+          ...prevMeta,
+          onboarding_request_id: requestId,
+          regtank_portal_url: regtankPortalUrl,
+        } as Prisma.InputJsonValue,
+      },
+    });
+
+    return { requestId, regtank_portal_url: regtankPortalUrl };
+  }
+
+  /**
    * Get financing application detail by ID
    */
   async getApplicationDetail(id: string) {
@@ -4121,6 +4235,7 @@ export class AdminService {
     );
     return {
       ...application,
+      application_guarantors: this.mapApplicationGuarantorsForAdmin(application.application_guarantors),
       required_review_sections: orderedRequiredSections,
       visible_review_sections: orderedVisibleSections,
       review_section_prerequisites: sectionPolicy.prerequisitesBySection,

@@ -105,6 +105,35 @@ export interface RegTankCorporateOnboardingRequest {
 }
 
 /**
+ * Dow Jones KYC screening — POST /v3/djkyc/input
+ * @see https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/3.-know-your-customer-kyc/3.9-dow-jones-kyc-endpoint-json-request
+ */
+export interface RegTankDowJonesKycInputRequest {
+  name: string;
+  governmentIdNumber: string;
+  email: string;
+  referenceId: string;
+  enableReScreening: boolean;
+}
+
+/**
+ * Dow Jones KYB screening — POST /v3/djkyb/input
+ * @see https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/4.-know-your-business-kyb/4.12-dow-jones-kyb-endpoint-json-request
+ */
+export interface RegTankDowJonesKybInputRequest {
+  businessName: string;
+  businessIdNumber: string;
+  referenceId: string;
+  email: string;
+  enableReScreening: boolean;
+}
+
+/** Response for DJ KYC/KYB input endpoints */
+export interface RegTankDowJonesScreeningResponse {
+  requestId: string;
+}
+
+/**
  * RegTank Individual Onboarding Webhook (6.2.6)
  * Reference: https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/6.-webhook/6.2-receiving-webhook-notifications/6.2.6-individual-onboarding-notification-definition
  */

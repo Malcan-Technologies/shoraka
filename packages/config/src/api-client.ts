@@ -383,6 +383,19 @@ export class ApiClient {
     return this.get<any>(`/v1/admin/applications/${id}`);
   }
 
+  async startAdminApplicationGuarantorAml(
+    applicationId: string,
+    clientGuarantorId: string
+  ): Promise<
+    ApiResponse<{ requestId: string; regtank_portal_url: string }> | ApiError
+  > {
+    const enc = encodeURIComponent(clientGuarantorId);
+    return this.post<{ requestId: string; regtank_portal_url: string }>(
+      `/v1/admin/applications/${encodeURIComponent(applicationId)}/guarantors/${enc}/start-aml`,
+      {}
+    );
+  }
+
   async getAdminApplicationResubmitComparison(
     applicationId: string,
     reviewCycle: number

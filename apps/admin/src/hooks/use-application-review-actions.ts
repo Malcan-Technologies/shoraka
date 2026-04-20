@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type { ApiError } from "@cashsouk/types";
 import { applicationLogsKeys } from "./use-application-logs";
+import { applicationsKeys } from "@/applications/query-keys";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -103,6 +104,37 @@ export function useAddSectionComment() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
+    },
+  });
+}
+
+export function useStartApplicationGuarantorAml() {
+  const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async ({
+      applicationId,
+      clientGuarantorId,
+    }: {
+      applicationId: string;
+      clientGuarantorId: string;
+    }) => {
+      const response = await apiClient.startAdminApplicationGuarantorAml(
+        applicationId,
+        clientGuarantorId
+      );
+      if (!response.success) {
+        throw new Error((response as ApiError).error?.message ?? "Failed to start AML screening");
+      }
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
+      queryClient.invalidateQueries({
+        queryKey: applicationsKeys.detail(variables.applicationId),
+      });
     },
   });
 }

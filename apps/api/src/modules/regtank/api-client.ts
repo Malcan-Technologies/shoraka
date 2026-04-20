@@ -5,6 +5,9 @@ import {
   RegTankCorporateOnboardingRequest,
   RegTankOnboardingResponse,
   RegTankOnboardingDetails,
+  RegTankDowJonesKycInputRequest,
+  RegTankDowJonesKybInputRequest,
+  RegTankDowJonesScreeningResponse,
 } from "./types";
 import { logger } from "../../lib/logger";
 import { AppError } from "../../lib/http/error-handler";
@@ -405,6 +408,40 @@ export class RegTankAPIClient {
     logger.debug({ kybId }, "Querying RegTank KYB status");
 
     return this.makeRequest(`/v3/kyb/query?requestId=${kybId}`);
+  }
+
+  /**
+   * Create Dow Jones KYC screening record (AML) — no full onboarding flow.
+   * @see https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/3.-know-your-customer-kyc/3.9-dow-jones-kyc-endpoint-json-request
+   */
+  async createDowJonesKycInput(
+    body: RegTankDowJonesKycInputRequest
+  ): Promise<RegTankDowJonesScreeningResponse> {
+    logger.info(
+      { referenceId: body.referenceId, email: body.email },
+      "Creating RegTank Dow Jones KYC (djkyc) screening"
+    );
+    return this.makeRequest<RegTankDowJonesScreeningResponse>("/v3/djkyc/input", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+  }
+
+  /**
+   * Create Dow Jones KYB screening record (AML) — no full onboarding flow.
+   * @see https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/4.-know-your-business-kyb/4.12-dow-jones-kyb-endpoint-json-request
+   */
+  async createDowJonesKybInput(
+    body: RegTankDowJonesKybInputRequest
+  ): Promise<RegTankDowJonesScreeningResponse> {
+    logger.info(
+      { referenceId: body.referenceId, email: body.email },
+      "Creating RegTank Dow Jones KYB (djkyb) screening"
+    );
+    return this.makeRequest<RegTankDowJonesScreeningResponse>("/v3/djkyb/input", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
   }
 
   /**
