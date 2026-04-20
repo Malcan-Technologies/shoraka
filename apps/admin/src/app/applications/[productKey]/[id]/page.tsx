@@ -1007,6 +1007,7 @@ export default function DynamicApplicationDetailPage() {
                               offeredAmount,
                               offeredRatioPercent,
                               offeredProfitRatePercent,
+                              risk_rating,
                             }) => {
                               try {
                                 const expiresAt = addDays(
@@ -1020,6 +1021,7 @@ export default function DynamicApplicationDetailPage() {
                                   offeredRatioPercent,
                                   offeredProfitRatePercent,
                                   expiresAt,
+                                  risk_rating,
                                 });
                                 toast.success("Invoice offer sent");
                               } catch (err) {

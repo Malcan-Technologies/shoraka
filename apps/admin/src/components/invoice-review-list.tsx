@@ -10,6 +10,7 @@ import {
   maturityMeetsMinimumMonthsFrom,
   parseInvoiceMaturityDate,
 } from "@cashsouk/config";
+import { isSoukscoreRiskRating, type SoukscoreRiskRating } from "@cashsouk/types";
 import { ItemActionDropdown } from "@/components/application-review/item-action-dropdown";
 import { ReviewStepStatusBadge } from "@/components/application-review/review-step-status-badge";
 import { REVIEW_EMPTY_LABEL } from "@/components/application-review/review-section-styles";
@@ -86,6 +87,7 @@ interface InvoiceReviewListProps {
     offeredAmount: number;
     offeredRatioPercent: number;
     offeredProfitRatePercent: number;
+    risk_rating: SoukscoreRiskRating;
   }) => Promise<void>;
   isSendInvoiceOfferPending?: boolean;
   /** Opens signed offer document using the same document view-url flow. */
@@ -198,6 +200,7 @@ export function InvoiceList({
     offeredRatioPercent: number;
     offeredProfitRatePercent: number;
     invoiceValue: number | null;
+    risk_rating: SoukscoreRiskRating;
   } | null>(null);
 
   React.useEffect(() => {
@@ -258,6 +261,35 @@ export function InvoiceList({
     }
   }, [initialOfferedFromInvoices]);
 
+  const initialRiskFromInvoices = React.useMemo(() => {
+    const result: Record<string, SoukscoreRiskRating> = {};
+    invoices.forEach((inv) => {
+      const raw = (inv.offer_details as Record<string, unknown> | null)?.risk_rating;
+      if (isSoukscoreRiskRating(raw)) result[inv.id] = raw;
+    });
+    return result;
+  }, [invoices]);
+
+  const [riskRatingByInvoiceId, setRiskRatingByInvoiceId] = React.useState<
+    Record<string, SoukscoreRiskRating | null>
+  >({});
+
+  React.useEffect(() => {
+    if (Object.keys(initialRiskFromInvoices).length > 0) {
+      setRiskRatingByInvoiceId((prev) => {
+        const next = { ...prev };
+        let changed = false;
+        for (const [invoiceId, rating] of Object.entries(initialRiskFromInvoices)) {
+          if (next[invoiceId] !== rating) {
+            next[invoiceId] = rating;
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }
+  }, [initialRiskFromInvoices]);
+
   const toggleExpanded = React.useCallback((invoiceId: string) => {
     setExpandedById((prev) => ({ ...prev, [invoiceId]: !prev[invoiceId] }));
   }, []);
@@ -287,11 +319,16 @@ export function InvoiceList({
 
   const handleConfirmInvoiceOffer = React.useCallback(async () => {
     if (!onSendInvoiceOffer || !invoiceOfferConfirm) return;
+    if (!invoiceOfferConfirm.risk_rating) {
+      alert("Please select a risk rating before sending the offer.");
+      return;
+    }
     await onSendInvoiceOffer({
       invoiceId: invoiceOfferConfirm.invoiceId,
       offeredAmount: invoiceOfferConfirm.offeredAmount,
       offeredRatioPercent: invoiceOfferConfirm.offeredRatioPercent,
       offeredProfitRatePercent: invoiceOfferConfirm.offeredProfitRatePercent,
+      risk_rating: invoiceOfferConfirm.risk_rating,
     });
     setInvoiceOfferConfirm(null);
   }, [onSendInvoiceOffer, invoiceOfferConfirm]);
@@ -681,6 +718,44 @@ export function InvoiceList({
                                     </Select>
                                   )}
                                 </div>
+                                {/* SECTION: Risk Rating (Manual SoukScore). WHY: placeholder until automation. INPUT: A|B|C. OUTPUT: offer_details.risk_rating. WHERE USED: Send Offer. */}
+                                <div className={applicationTableExpandableFieldBlockClass}>
+                                  <p className={applicationTableExpandableLabelClass}>Risk Rating</p>
+                                  {isOfferSent ? (
+                                    <p className={applicationTableExpandableValueClass}>
+                                      {(() => {
+                                        const raw = (inv.offer_details as Record<string, unknown> | null)
+                                          ?.risk_rating;
+                                        if (isSoukscoreRiskRating(raw)) return raw;
+                                        const fromState = riskRatingByInvoiceId[inv.id];
+                                        return fromState ?? REVIEW_EMPTY_LABEL;
+                                      })()}
+                                    </p>
+                                  ) : (
+                                    <Select
+                                      value={riskRatingByInvoiceId[inv.id] ?? undefined}
+                                      onValueChange={(value) => {
+                                        console.log("Risk Rating selected:", value);
+                                        if (isSoukscoreRiskRating(value)) {
+                                          setRiskRatingByInvoiceId((prev) => ({
+                                            ...prev,
+                                            [inv.id]: value,
+                                          }));
+                                        }
+                                      }}
+                                      disabled={isRowGreyedOut || isAdminRejected}
+                                    >
+                                      <SelectTrigger className="h-9 w-full max-w-[120px] rounded-xl border-border bg-background text-[15px]">
+                                        <SelectValue placeholder="Select risk rating" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="A">A</SelectItem>
+                                        <SelectItem value="B">B</SelectItem>
+                                        <SelectItem value="C">C</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  )}
+                                </div>
                                 <div className={applicationTableExpandableFieldBlockClass}>
                                   <p className={applicationTableExpandableLabelClass}>
                                     Estimated Profit
@@ -735,9 +810,15 @@ export function InvoiceList({
                                       disabled={
                                         isRowGreyedOut ||
                                         !!isSendInvoiceOfferPending ||
-                                        offeredAmount === null
+                                        offeredAmount === null ||
+                                        !riskRatingByInvoiceId[inv.id]
                                       }
-                                      onClick={() =>
+                                      onClick={() => {
+                                        const rr = riskRatingByInvoiceId[inv.id];
+                                        if (!rr) {
+                                          alert("Please select a risk rating before sending the offer.");
+                                          return;
+                                        }
                                         setInvoiceOfferConfirm({
                                           invoiceId: inv.id,
                                           invoiceNo,
@@ -745,8 +826,9 @@ export function InvoiceList({
                                           offeredRatioPercent: offered.ratio,
                                           offeredProfitRatePercent: offered.profitRate,
                                           invoiceValue,
-                                        })
-                                      }
+                                          risk_rating: rr,
+                                        });
+                                      }}
                                     >
                                       {isSendInvoiceOfferPending ? "Sending..." : "Send Offer"}
                                     </Button>
@@ -823,6 +905,12 @@ export function InvoiceList({
                   <span className="text-sm font-medium text-muted-foreground">Profit Rate</span>
                   <span className="text-[15px] font-medium tabular-nums">
                     {invoiceOfferConfirm.offeredProfitRatePercent}%
+                  </span>
+                </div>
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm font-medium text-muted-foreground">Risk Rating</span>
+                  <span className="text-[15px] font-medium tabular-nums">
+                    {invoiceOfferConfirm.risk_rating}
                   </span>
                 </div>
               </div>

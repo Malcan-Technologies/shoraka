@@ -2816,6 +2816,7 @@ router.post(
         validated.offeredRatioPercent ?? null,
         validated.offeredProfitRatePercent ?? null,
         validated.expiresAt ?? null,
+        validated.risk_rating,
         req.user.user_id,
         { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
       );

@@ -79,6 +79,7 @@ import type {
   AdminSeedTypesResponse,
   WithdrawReason,
   AdminCtosReportListItem,
+  SoukscoreRiskRating,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
 
@@ -600,6 +601,7 @@ export class ApiClient {
       offeredRatioPercent?: number | null;
       offeredProfitRatePercent?: number | null;
       expiresAt?: string | null;
+      risk_rating: SoukscoreRiskRating;
     }
   ): Promise<ApiResponse<any> | ApiError> {
     return this.post<any>(
@@ -609,6 +611,7 @@ export class ApiClient {
         offeredRatioPercent: payload.offeredRatioPercent ?? null,
         offeredProfitRatePercent: payload.offeredProfitRatePercent ?? null,
         expiresAt: payload.expiresAt ?? null,
+        risk_rating: payload.risk_rating,
       }
     );
   }

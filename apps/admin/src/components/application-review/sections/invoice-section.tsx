@@ -13,6 +13,7 @@ import {
   fileDocToComparisonChips,
 } from "../comparison-document-pair";
 import { formatCurrency, resolveOfferedAmount } from "@cashsouk/config";
+import type { SoukscoreRiskRating } from "@cashsouk/types";
 
 export interface InvoiceSectionProps {
   invoices: {
@@ -50,6 +51,7 @@ export interface InvoiceSectionProps {
     offeredAmount: number;
     offeredRatioPercent: number;
     offeredProfitRatePercent: number;
+    risk_rating: SoukscoreRiskRating;
   }) => Promise<void>;
   isSendInvoiceOfferPending?: boolean;
   comments: SectionCommentItem[];

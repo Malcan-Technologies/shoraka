@@ -22,6 +22,7 @@ import { InvoiceSection } from "./sections/invoice-section";
 import type { ReviewSectionId } from "./section-types";
 import type { ReviewTabDescriptor } from "./review-registry";
 import { isSignedOfferLetterAvailable } from "./offer-signing-availability";
+import type { SoukscoreRiskRating } from "@cashsouk/types";
 
 export interface SectionCommentRecord {
   id: string;
@@ -127,6 +128,7 @@ export interface SectionContentProps {
     offeredAmount: number;
     offeredRatioPercent: number;
     offeredProfitRatePercent: number;
+    risk_rating: SoukscoreRiskRating;
   }) => Promise<void>;
   sendContractOfferPending?: boolean;
   sendInvoiceOfferPending?: boolean;

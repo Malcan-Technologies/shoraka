@@ -56,6 +56,7 @@ import {
   parseItemScopeKey,
   REVIEW_SECTION_ORDER,
   getStepKeyFromStepId,
+  type SoukscoreRiskRating,
 } from "@cashsouk/types";
 import { AMLFetcherService } from "../regtank/aml-fetcher";
 import type { PortalType } from "../regtank/types";
@@ -5173,6 +5174,7 @@ export class AdminService {
     offeredRatioPercent: number | null,
     offeredProfitRatePercent: number | null,
     expiresAt: string | null,
+    riskRating: SoukscoreRiskRating,
     reviewerUserId: string,
     logContext?: AdminLogContext
   ) {
@@ -5284,12 +5286,14 @@ export class AdminService {
           ? previousOffer.version
           : 0;
       const now = new Date().toISOString();
+      console.log("Saving risk rating:", riskRating);
       const offerDetails = {
         requested_amount: requestedAmount,
         offered_amount: offeredAmount,
         requested_ratio_percent: requestedRatioPercent,
         offered_ratio_percent: offeredRatioPercent,
         offered_profit_rate_percent: offeredProfitRatePercent,
+        risk_rating: riskRating,
         expires_at: expiresAt,
         sent_at: now,
         responded_at: null,

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { UserRole, AdminRole, ApplicationStatus, ContractStatus, ReviewSection } from "@prisma/client";
+import { SOUKSCORE_RISK_RATING_GRADES } from "@cashsouk/types";
 
 // Helper for parsing boolean query params (handles "true"/"false" strings properly)
 const booleanQueryParam = z
@@ -351,6 +352,7 @@ export const sendInvoiceOfferSchema = z.object({
   offeredRatioPercent: z.coerce.number().min(0).max(100).optional().nullable(),
   offeredProfitRatePercent: z.coerce.number().min(0).max(100).optional().nullable(),
   expiresAt: z.string().datetime().optional().nullable(),
+  risk_rating: z.enum(SOUKSCORE_RISK_RATING_GRADES),
 });
 
 export const addPendingAmendmentSchema = z

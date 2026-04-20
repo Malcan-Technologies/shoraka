@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
-import type { ApiError } from "@cashsouk/types";
+import type { ApiError, SoukscoreRiskRating } from "@cashsouk/types";
 import { applicationLogsKeys } from "./use-application-logs";
 import { applicationsKeys } from "@/applications/query-keys";
 
@@ -336,6 +336,7 @@ export function useSendInvoiceOffer() {
       offeredRatioPercent,
       offeredProfitRatePercent,
       expiresAt,
+      risk_rating,
     }: {
       applicationId: string;
       invoiceId: string;
@@ -343,12 +344,14 @@ export function useSendInvoiceOffer() {
       offeredRatioPercent?: number | null;
       offeredProfitRatePercent?: number | null;
       expiresAt?: string | null;
+      risk_rating: SoukscoreRiskRating;
     }) => {
       const response = await apiClient.sendInvoiceOffer(applicationId, invoiceId, {
         offeredAmount,
         offeredRatioPercent,
         offeredProfitRatePercent,
         expiresAt,
+        risk_rating,
       });
       if (!response.success) {
         throw new Error((response as ApiError).error?.message ?? "Failed to send invoice offer");
