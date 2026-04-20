@@ -577,8 +577,11 @@ export function InvoiceList({
                                   className={`${applicationTableExpandableFieldBlockClass} border-t border-border pt-2 mt-2`}
                                 >
                                   <p className={applicationTableExpandableLabelClass}>Document</p>
-                                  <div className="flex items-center gap-2">
-                                    <p className={`${applicationTableExpandableValueClass} truncate`}>
+                                  <div className="flex min-w-0 items-center gap-2">
+                                    <p
+                                      className={`${applicationTableExpandableValueClass} min-w-0 flex-1 truncate`}
+                                      title={documentName}
+                                    >
                                       {documentName}
                                     </p>
                                     {invoiceDocument?.s3_key ? (
@@ -637,14 +640,16 @@ export function InvoiceList({
                             <div
                               className={
                                 isRowGreyedOut
-                                  ? `${applicationTableExpandableFieldGapClass} text-muted-foreground pointer-events-none select-none`
-                                  : applicationTableExpandableFieldGapClass
+                                  ? `${applicationTableExpandableFieldGapClass} text-muted-foreground pointer-events-none select-none md:min-w-[15rem]`
+                                  : `${applicationTableExpandableFieldGapClass} md:min-w-[15rem]`
                               }
                             >
                               <p className={applicationTableExpandableSectionTitleClass}>
                                 Offered by CashSouk
                               </p>
-                              <div className={`${applicationTableExpandableFieldGapClass} flex flex-col`}>
+                              <div
+                                className={`flex flex-col gap-3 rounded-xl border border-border bg-muted/25 p-3 sm:p-4`}
+                              >
                                 <div className={applicationTableExpandableFieldBlockClass}>
                                   <p className={applicationTableExpandableLabelClass}>
                                     Financing Ratio
@@ -705,7 +710,7 @@ export function InvoiceList({
                                         }
                                         disabled={isRowGreyedOut || isAdminRejected}
                                       >
-                                        <SelectTrigger className="h-9 w-full max-w-[88px] rounded-xl border-border bg-background text-[15px]">
+                                        <SelectTrigger className="h-9 w-full min-w-[5.5rem] max-w-[6.5rem] rounded-xl border-border bg-background text-[15px]">
                                         <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent className="max-h-[200px]">
@@ -745,8 +750,8 @@ export function InvoiceList({
                                       }}
                                       disabled={isRowGreyedOut || isAdminRejected}
                                     >
-                                      <SelectTrigger className="h-9 w-full max-w-[120px] rounded-xl border-border bg-background text-[15px]">
-                                        <SelectValue placeholder="Select risk rating" />
+                                      <SelectTrigger className="h-9 w-full min-w-[12rem] rounded-xl border-border bg-background text-[15px] sm:min-w-[13rem]">
+                                        <SelectValue placeholder="Pick grade (A–C)" />
                                       </SelectTrigger>
                                       <SelectContent>
                                         <SelectItem value="A">A</SelectItem>
