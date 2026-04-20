@@ -38,7 +38,7 @@ import {
   comparisonSplitBeforeColClass,
   comparisonSplitRowGridClass,
 } from "./review-section-styles";
-import { buildCategoryGroups, type DocFile } from "./document-list";
+import { buildCategoryGroups, type DocFile, SUPPORTING_DOC_ACTION_BTN_BASE_CLASS } from "./document-list";
 import { SupportingDocRequirementBadges } from "./supporting-doc-requirement-badges";
 import type { SupportingDocRowRequirementMeta } from "./supporting-documents-admin-meta";
 import { documentAmendmentScopeMatchesRow } from "@/lib/document-amendment-scope-match";
@@ -136,11 +136,11 @@ export function ComparisonFileChipList({
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-9 gap-1 rounded-lg border-0"
+                    className={SUPPORTING_DOC_ACTION_BTN_BASE_CLASS}
                     disabled={viewDocumentPending}
                     onClick={() => onViewDocument?.(f.s3Key)}
                   >
-                    <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                    <ArrowTopRightOnSquareIcon className="h-4 w-4 shrink-0" />
                     View
                   </Button>
                 ) : null}
@@ -149,11 +149,11 @@ export function ComparisonFileChipList({
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-9 gap-1 rounded-lg border-0"
+                    className={SUPPORTING_DOC_ACTION_BTN_BASE_CLASS}
                     disabled={viewDocumentPending}
                     onClick={() => onDownloadDocument?.(f.s3Key, f.label)}
                   >
-                    <ArrowDownTrayIcon className="h-4 w-4" />
+                    <ArrowDownTrayIcon className="h-4 w-4 shrink-0" />
                     Download
                   </Button>
                 ) : null}

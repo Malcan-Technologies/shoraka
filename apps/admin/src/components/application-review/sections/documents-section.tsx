@@ -205,7 +205,7 @@ export function DocumentsSection({
             type="button"
             variant="outline"
             size="sm"
-            className="gap-1.5"
+            className="shrink-0 gap-1.5 rounded-lg px-3"
             onClick={() => onDownloadAllDocuments(downloadableFiles)}
             disabled={isDownloadAllPending || downloadableFiles.length === 0}
           >
