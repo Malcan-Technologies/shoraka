@@ -1,3 +1,5 @@
+import { parseGuarantorsFromBusinessDetails } from "../guarantors/utils";
+
 type GuarantorType = "individual" | "company";
 
 export type GuarantorAmlStatus = "Unresolved" | "Approved" | "Rejected" | "Pending";
@@ -7,10 +9,9 @@ export interface ParsedApplicationGuarantor {
   guarantorId: string;
   guarantorType: GuarantorType;
   email: string;
-  firstName?: string;
-  lastName?: string;
-  companyName?: string;
+  name?: string;
   icNumber?: string;
+  businessName?: string;
   ssmNumber?: string;
 }
 
@@ -21,10 +22,9 @@ export interface GuarantorAmlRecord {
   applicationId: string;
   linkedApplicationIds: string[];
   email: string;
-  firstName?: string;
-  lastName?: string;
-  companyName?: string;
+  name?: string;
   icNumber?: string;
+  businessName?: string;
   ssmNumber?: string;
   requestId?: string;
   onboardingVerifyLink?: string;
@@ -35,8 +35,6 @@ export interface GuarantorAmlRecord {
   onboardingSubstatus?: string;
   amlStatus: GuarantorAmlStatus;
   amlMessageStatus: GuarantorAmlMessageStatus;
-  amlRiskScore: number | null;
-  amlRiskLevel: string | null;
   triggeredAt: string;
   lastSyncedAt: string;
   lastUpdated: string;
@@ -91,60 +89,35 @@ export function buildOrganizationGuarantorKey(guarantor: {
   email: string;
 }): string {
   if (guarantor.guarantorType === "individual") {
-    const ic = normalizeIdentifier(guarantor.icNumber ?? "");
-    if (ic.length > 0) return `individual:${ic}`;
+    const gid = normalizeIdentifier(guarantor.icNumber ?? "");
+    if (gid.length > 0) return `individual:${gid}`;
     return `individual:email:${normalizeEmail(guarantor.email)}`;
   }
-  const ssm = normalizeIdentifier(guarantor.ssmNumber ?? "");
-  if (ssm.length > 0) return `company:${ssm}`;
+  const bid = normalizeIdentifier(guarantor.ssmNumber ?? "");
+  if (bid.length > 0) return `company:${bid}`;
   return `company:email:${normalizeEmail(guarantor.email)}`;
 }
 
 export function parseApplicationGuarantors(businessDetails: unknown): ParsedApplicationGuarantor[] {
-  const row = toRecord(businessDetails);
-  const rawGuarantors = row.guarantors;
-  if (!Array.isArray(rawGuarantors)) return [];
-
-  const parsed: ParsedApplicationGuarantor[] = [];
-  for (let index = 0; index < rawGuarantors.length; index += 1) {
-    const raw = toRecord(rawGuarantors[index]);
-    const guarantorType = raw.guarantor_type === "company" ? "company" : "individual";
-    const email = normalizeEmail(raw.email);
-    if (!email) continue;
-
-    if (guarantorType === "individual") {
-      const icNumber = normalizeIdentifier(raw.ic_number ?? raw.icNumber);
-      const firstName = normalizeText(raw.first_name ?? raw.firstName);
-      const lastName = normalizeText(raw.last_name ?? raw.lastName);
-      const explicitId = normalizeText(raw.guarantor_id ?? raw.guarantorId);
-      parsed.push({
-        guarantorId:
-          explicitId ||
-          getDeterministicGuarantorId(index, guarantorType, icNumber, undefined),
-        guarantorType,
-        email,
-        firstName,
-        lastName,
-        icNumber,
-      });
-      continue;
-    }
-
-    const ssmNumber = normalizeIdentifier(raw.ssm_number ?? raw.ssmNumber);
-    const companyName = normalizeText(raw.company_name ?? raw.companyName);
-    const explicitId = normalizeText(raw.guarantor_id ?? raw.guarantorId);
-    parsed.push({
-      guarantorId:
-        explicitId ||
-        getDeterministicGuarantorId(index, guarantorType, undefined, ssmNumber),
+  return parseGuarantorsFromBusinessDetails(businessDetails).map(
+    ({
+      guarantorId,
       guarantorType,
       email,
-      companyName,
+      name,
+      icNumber,
+      businessName,
       ssmNumber,
-    });
-  }
-
-  return parsed;
+    }) => ({
+      guarantorId,
+      guarantorType,
+      email,
+      name,
+      icNumber,
+      businessName,
+      ssmNumber,
+    })
+  );
 }
 
 export function readGuarantorAmlStore(raw: unknown): GuarantorAmlStore {
@@ -154,6 +127,21 @@ export function readGuarantorAmlStore(raw: unknown): GuarantorAmlStore {
   for (const item of rawGuarantors) {
     const record = toRecord(item);
     if (typeof record.orgGuarantorKey !== "string") continue;
+    const legacyFirst = normalizeText(record["firstName"]);
+    const legacyLast = normalizeText(record["lastName"]);
+    const legacyName =
+      normalizeText(record["name"]) ||
+      [legacyFirst, legacyLast].filter(Boolean).join(" ").trim() ||
+      undefined;
+    const legacyIc =
+      normalizeIdentifier(record["icNumber"]) ||
+      normalizeIdentifier(record["governmentIdNumber"]) ||
+      undefined;
+    const legacyBizName =
+      normalizeText(record["businessName"] ?? record["companyName"]) || undefined;
+    const legacySsm =
+      normalizeText(record["ssmNumber"]) || normalizeText(record["businessIdNumber"]) || undefined;
+
     guarantors.push({
       orgGuarantorKey: record.orgGuarantorKey,
       guarantorType: record.guarantorType === "company" ? "company" : "individual",
@@ -163,11 +151,10 @@ export function readGuarantorAmlStore(raw: unknown): GuarantorAmlStore {
         ? record.linkedApplicationIds.filter((id): id is string => typeof id === "string")
         : [],
       email: normalizeEmail(record.email),
-      firstName: normalizeText(record.firstName) || undefined,
-      lastName: normalizeText(record.lastName) || undefined,
-      companyName: normalizeText(record.companyName) || undefined,
-      icNumber: normalizeIdentifier(record.icNumber) || undefined,
-      ssmNumber: normalizeIdentifier(record.ssmNumber) || undefined,
+      name: legacyName,
+      icNumber: legacyIc,
+      businessName: legacyBizName,
+      ssmNumber: legacySsm,
       requestId: normalizeText(record.requestId) || undefined,
       onboardingVerifyLink: normalizeText(record.onboardingVerifyLink) || undefined,
       kycId: normalizeText(record.kycId) || undefined,
@@ -183,8 +170,6 @@ export function readGuarantorAmlStore(raw: unknown): GuarantorAmlStore {
         record.amlMessageStatus === "ERROR"
           ? record.amlMessageStatus
           : "PENDING",
-      amlRiskScore: typeof record.amlRiskScore === "number" ? record.amlRiskScore : null,
-      amlRiskLevel: normalizeText(record.amlRiskLevel) || null,
       triggeredAt: normalizeText(record.triggeredAt) || new Date().toISOString(),
       lastSyncedAt: normalizeText(record.lastSyncedAt) || new Date().toISOString(),
       lastUpdated: normalizeText(record.lastUpdated) || new Date().toISOString(),

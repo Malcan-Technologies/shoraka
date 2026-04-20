@@ -383,19 +383,15 @@ model ApplicationGuarantor {
   application_id               String
   client_guarantor_id          String
   position                     Int                 @default(0)
-  relationship                 String?
   source_data                  Json?
   guarantor_type               GuarantorType
   email                        String
-  first_name                   String?
-  last_name                    String?
-  company_name                 String?
+  name                         String?
   ic_number                    String?
+  business_name                String?
   ssm_number                   String?
   aml_status                   GuarantorAmlStatus  @default(Pending)
   aml_message_status           GuarantorAmlMessage @default(PENDING)
-  aml_risk_score               Float?
-  aml_risk_level               String?
   last_triggered_at            DateTime?
   last_synced_at               DateTime?
   triggered_by_admin_user_id   String?             @db.VarChar(5)
