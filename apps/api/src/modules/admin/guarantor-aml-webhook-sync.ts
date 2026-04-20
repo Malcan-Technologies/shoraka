@@ -19,11 +19,25 @@ function toOptionalCount(v: unknown): number | undefined {
   return undefined;
 }
 
+function toOptionalRiskText(v: unknown): string | undefined {
+  if (v === undefined || v === null) return undefined;
+  if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  if (typeof v === "string") {
+    const t = v.trim();
+    return t.length > 0 ? t : undefined;
+  }
+  return undefined;
+}
+
 export interface RegTankGuarantorAmlWebhookFields {
   requestId: string;
   referenceId: string;
   status?: string;
   messageStatus?: string;
+  /** RegTank KYC/KYB webhook `riskScore` (string). */
+  riskScore?: unknown;
+  /** RegTank KYC/KYB webhook `riskLevel` (string). */
+  riskLevel?: unknown;
   possibleMatchCount?: unknown;
   blacklistedMatchCount?: unknown;
   timestamp?: string;
@@ -68,11 +82,16 @@ export async function syncApplicationGuarantorsFromRegTankAmlWebhook(
       ? { ...prevMeta.aml_screening }
       : {};
 
+    const riskScore = toOptionalRiskText(payload.riskScore) ?? toOptionalRiskText(prevScreening.riskScore);
+    const riskLevel = toOptionalRiskText(payload.riskLevel) ?? toOptionalRiskText(prevScreening.riskLevel);
+
     const aml_screening = {
       ...prevScreening,
       requestId: payload.requestId,
       regtankStatus: payload.status,
       messageStatus: payload.messageStatus,
+      riskScore,
+      riskLevel,
       possibleMatchCount: possible ?? prevScreening.possibleMatchCount,
       blacklistedMatchCount: blacklisted ?? prevScreening.blacklistedMatchCount,
       screeningUpdatedAt,

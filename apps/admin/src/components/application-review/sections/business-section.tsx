@@ -8,14 +8,11 @@ import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
   ArrowTopRightOnSquareIcon,
-  CheckCircleIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   DocumentTextIcon,
   ExclamationTriangleIcon,
   ShieldExclamationIcon,
-  XCircleIcon,
-  ClockIcon,
 } from "@heroicons/react/24/outline";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
@@ -207,7 +204,6 @@ function RegTankGuarantorControlRow({
             : undefined;
           return (
             <div className="flex flex-wrap items-center gap-2 justify-end">
-              {aml ? amlBadge(aml.amlStatus) : null}
               <Button
                 type="button"
                 variant="outline"
@@ -259,6 +255,9 @@ export interface GuarantorAmlScreeningSnapshot {
   blacklistedMatchCount?: number;
   regtankStatus?: string;
   messageStatus?: string;
+  /** RegTank webhook `riskScore` (displayed as “Score”). */
+  riskScore?: string;
+  riskLevel?: string;
   screeningUpdatedAt?: string;
   requestId?: string;
 }
@@ -277,7 +276,6 @@ interface GuarantorAmlEntry {
   regtankPortalUrl?: string;
   amlStatus: GuarantorAmlStatus;
   amlMessageStatus: GuarantorAmlMessageStatus;
-  lastUpdated?: string;
   amlScreening?: GuarantorAmlScreeningSnapshot;
 }
 
@@ -321,6 +319,10 @@ interface BusinessDetailsView {
 
 function reviewStr(v: unknown): string {
   return typeof v === "string" ? v.trim() : "";
+}
+
+function isPlainObjectRecord(v: unknown): v is Record<string, unknown> {
+  return Boolean(v) && typeof v === "object" && !Array.isArray(v);
 }
 
 function normalizeIdentifier(v: unknown): string {
@@ -426,15 +428,25 @@ function parseAmlScreening(raw: unknown): GuarantorAmlScreeningSnapshot | undefi
   const ms = reviewStr(o.messageStatus);
   const su = reviewStr(o.screeningUpdatedAt);
   const rid = reviewStr(o.requestId);
+  const rawRiskScore = o.riskScore;
+  const rScore =
+    typeof rawRiskScore === "number" && Number.isFinite(rawRiskScore)
+      ? String(rawRiskScore)
+      : reviewStr(rawRiskScore);
+  const rLevel = reviewStr(o.riskLevel);
   if (rs) screening.regtankStatus = rs;
   if (ms) screening.messageStatus = ms;
   if (su) screening.screeningUpdatedAt = su;
   if (rid) screening.requestId = rid;
+  if (rScore) screening.riskScore = rScore;
+  if (rLevel) screening.riskLevel = rLevel;
   if (
     screening.possibleMatchCount === undefined &&
     screening.blacklistedMatchCount === undefined &&
     !screening.regtankStatus &&
     !screening.messageStatus &&
+    !screening.riskScore &&
+    !screening.riskLevel &&
     !screening.screeningUpdatedAt &&
     !screening.requestId
   ) {
@@ -482,6 +494,9 @@ function parseGuarantorAmlEntries(raw: unknown): GuarantorAmlEntry[] {
     const amlScreening =
       parseAmlScreening(rowRec.aml_screening) ??
       parseAmlScreening(rowRec.amlScreening) ??
+      parseAmlScreening(
+        isPlainObjectRecord(rowRec.metadata) ? rowRec.metadata.aml_screening : undefined
+      ) ??
       parseAmlScreening((g as Record<string, unknown>).aml_screening);
     const message = reviewStr(row.amlMessageStatus) as GuarantorAmlMessageStatus;
     const amlStatus = reviewStr(g.aml_status) as GuarantorAmlStatus;
@@ -510,12 +525,6 @@ function parseGuarantorAmlEntries(raw: unknown): GuarantorAmlEntry[] {
       regtankPortalUrl: reviewStr(g.regtank_portal_url) || undefined,
       amlStatus: isStatusValid ? amlStatus : "Pending",
       amlMessageStatus: isAmlMessageValid ? amlMessageStatus : isMessageValid ? message : "PENDING",
-      lastUpdated:
-        amlScreening?.screeningUpdatedAt ||
-        reviewStr(rowRec.updated_at) ||
-        reviewStr(rowRec.updatedAt) ||
-        reviewStr(g.updated_at) ||
-        undefined,
       amlScreening,
     });
   }
@@ -565,39 +574,6 @@ function parseRelationalGuarantors(raw: unknown): GuarantorReviewRow[] {
   return rows;
 }
 
-function amlBadge(status: GuarantorAmlStatus) {
-  if (status === "Approved") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-md border border-green-500/30 bg-green-500/10 px-2 py-1 text-xs">
-        <CheckCircleIcon className="h-3.5 w-3.5 text-green-600" aria-hidden />
-        Approved
-      </span>
-    );
-  }
-  if (status === "Rejected") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1 text-xs">
-        <XCircleIcon className="h-3.5 w-3.5 text-destructive" aria-hidden />
-        Rejected
-      </span>
-    );
-  }
-  if (status === "Unresolved") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-2 py-1 text-xs">
-        <ExclamationTriangleIcon className="h-3.5 w-3.5 text-yellow-600" aria-hidden />
-        Unresolved
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 rounded-md border border-gray-400/30 bg-gray-400/10 px-2 py-1 text-xs">
-      <ClockIcon className="h-3.5 w-3.5 text-gray-500" aria-hidden />
-      Pending
-    </span>
-  );
-}
-
 function guarantorScreeningStatusBadgeClass(status: string | undefined): string {
   if (!status) return "bg-muted text-muted-foreground";
   const s = status.toLowerCase();
@@ -609,25 +585,14 @@ function guarantorScreeningStatusBadgeClass(status: string | undefined): string 
   return "bg-muted text-muted-foreground";
 }
 
-function guarantorScreeningMessageBadgeClass(messageStatus: string | undefined): string {
-  if (!messageStatus) return "bg-muted text-muted-foreground";
-  const u = messageStatus.toUpperCase();
-  if (u === "DONE")
-    return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400";
-  if (u === "ERROR") return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
-  if (u === "PENDING")
-    return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
-  return "bg-muted text-muted-foreground";
-}
-
 function GuarantorAmlScreeningCard({ screening }: { screening: GuarantorAmlScreeningSnapshot }) {
   const hasCounts =
     screening.possibleMatchCount !== undefined || screening.blacklistedMatchCount !== undefined;
-  const hasFooter =
-    screening.requestId ||
-    screening.messageStatus ||
-    screening.screeningUpdatedAt;
-  if (!screening.regtankStatus && !hasCounts && !hasFooter) {
+  const hasFooter = screening.requestId || screening.screeningUpdatedAt;
+  const scoreLabel = screening.riskScore?.trim() ?? "";
+  const hasScore = scoreLabel.length > 0;
+
+  if (!screening.regtankStatus && !hasCounts && !hasFooter && !hasScore) {
     return null;
   }
 
@@ -646,27 +611,26 @@ function GuarantorAmlScreeningCard({ screening }: { screening: GuarantorAmlScree
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 pb-3 pt-0">
-        <div className="flex flex-wrap gap-2">
-          {screening.regtankStatus ? (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-muted-foreground">Status</span>
-              <Badge className={guarantorScreeningStatusBadgeClass(screening.regtankStatus)}>
-                {screening.regtankStatus}
-              </Badge>
-            </div>
-          ) : null}
-          {screening.messageStatus ? (
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-muted-foreground">Message</span>
-              <Badge
-                variant="outline"
-                className={guarantorScreeningMessageBadgeClass(screening.messageStatus)}
-              >
-                {screening.messageStatus}
-              </Badge>
-            </div>
-          ) : null}
-        </div>
+        {screening.regtankStatus || hasScore ? (
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            {screening.regtankStatus ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] text-muted-foreground">Status</span>
+                <Badge className={guarantorScreeningStatusBadgeClass(screening.regtankStatus)}>
+                  {screening.regtankStatus}
+                </Badge>
+              </div>
+            ) : null}
+            {hasScore ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] text-muted-foreground">Score</span>
+                <Badge variant="outline" className="font-mono tabular-nums">
+                  {scoreLabel}
+                </Badge>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         {hasCounts ? (
           <div className="flex flex-wrap gap-3 rounded-lg bg-muted/50 p-2.5">
@@ -705,7 +669,7 @@ function GuarantorAmlScreeningCard({ screening }: { screening: GuarantorAmlScree
           </div>
         ) : null}
 
-        {screening.requestId || screening.messageStatus || screeningDate ? (
+        {screening.requestId || screeningDate ? (
           <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
             {screening.requestId ? (
               <div>
@@ -893,19 +857,15 @@ function AdminGuarantorSingleList({
                     <ReviewValue value={g.icNumber || REVIEW_EMPTY_LABEL} />
                     <Label className={reviewLabelClass}>Email</Label>
                     <ReviewValue value={g.email || REVIEW_EMPTY_LABEL} />
-                    <Label className={reviewLabelClass}>Last AML update</Label>
-                    <ReviewValue value={aml?.lastUpdated || REVIEW_EMPTY_LABEL} />
                   </>
                 ) : (
                   <>
                     <Label className={reviewLabelClass}>Business name</Label>
-                    <ReviewValue value={g.businessName || REVIEW_EMPTY_LABEL} multiline />
+                    <ReviewValue value={g.businessName || REVIEW_EMPTY_LABEL} />
                     <Label className={reviewLabelClass}>SSM number</Label>
                     <ReviewValue value={g.ssmNumber || REVIEW_EMPTY_LABEL} />
                     <Label className={reviewLabelClass}>Email</Label>
                     <ReviewValue value={g.email || REVIEW_EMPTY_LABEL} />
-                    <Label className={reviewLabelClass}>Last AML update</Label>
-                    <ReviewValue value={aml?.lastUpdated || REVIEW_EMPTY_LABEL} />
                   </>
                 )}
               </div>
@@ -1049,7 +1009,6 @@ function AdminGuarantorComparisonList({
                     before={gB?.kind === "company" ? gB.businessName : "—"}
                     after={gA?.kind === "company" ? gA.businessName : "—"}
                     changed={changed}
-                    multiline
                   />
                   <ComparisonFieldRow
                     label="SSM number"

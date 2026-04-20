@@ -189,6 +189,8 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
         referenceId,
         status,
         messageStatus,
+        riskScore,
+        riskLevel,
         possibleMatchCount,
         blacklistedMatchCount,
         timestamp: payload.timestamp,
