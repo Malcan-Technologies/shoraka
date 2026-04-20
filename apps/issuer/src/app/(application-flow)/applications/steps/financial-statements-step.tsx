@@ -837,7 +837,7 @@ export function FinancialStatementsStep({
           <div className={overviewFormRowGridClassName}>
             <div className={fieldLabelWithTooltipRowClassName}>
               <Label htmlFor="fye-financial-year-end" className={labelClassName}>
-                What is the financial year end of your company?
+                What is the Financial Year End of your company?
               </Label>
               <Tooltip>
                 <TooltipTrigger asChild>
