@@ -234,6 +234,32 @@ export function mapScreeningStatusToAml(status: string | undefined): GuarantorAm
   return "Pending";
 }
 
+/** RegTank Dow Jones KYC/KYB status values (e.g. "No Match", "Approved") → DB enum */
+export function mapRegTankDjkycStatusToPrismaAmlStatus(status: string | undefined): GuarantorAmlStatus {
+  if (!status) return "Pending";
+  const compact = status.toUpperCase().replace(/\s+/g, "_");
+  if (compact === "APPROVED") return "Approved";
+  if (compact === "REJECTED") return "Rejected";
+  if (compact === "TERMINATED") return "Rejected";
+  if (
+    compact === "UNRESOLVED" ||
+    compact === "NO_MATCH" ||
+    compact === "POSITIVE_MATCH"
+  ) {
+    return "Unresolved";
+  }
+  return "Pending";
+}
+
+export function mapRegTankDjkycMessageToPrisma(
+  messageStatus: string | undefined
+): GuarantorAmlMessageStatus {
+  const u = (messageStatus ?? "").toUpperCase();
+  if (u === "DONE") return "DONE";
+  if (u === "ERROR") return "ERROR";
+  return "PENDING";
+}
+
 export function extractKycId(raw: unknown): string | undefined {
   const obj = toRecord(raw);
   const direct = normalizeText(obj.kycId ?? obj.requestId);

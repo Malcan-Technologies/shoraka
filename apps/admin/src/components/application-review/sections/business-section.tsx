@@ -13,9 +13,13 @@ import {
   ChevronRightIcon,
   DocumentTextIcon,
   ExclamationTriangleIcon,
+  ShieldExclamationIcon,
   XCircleIcon,
   ClockIcon,
 } from "@heroicons/react/24/outline";
+import { format } from "date-fns";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReviewSectionCard } from "../review-section-card";
 import { ReviewFieldBlock } from "../review-field-block";
 import { ReviewValue } from "../review-value";
@@ -93,8 +97,8 @@ const REGTANK_PORTAL_BASE_URL =
 
 /**
  * Opens the Dow Jones screening result in the RegTank portal.
- * Individual: /app/dj-kyc/result/{requestId} — see RegTank DJ KYC API.
- * Company: /app/dj-kyb/result/{requestId} — see RegTank DJ KYB API.
+ * Individual: /app/dj-kyc/result/{requestId}
+ * Company: /app/dj-kyb/screen-djkyb/result/{requestId}
  */
 function regTankDjScreeningResultUrl(
   portalBaseUrl: string,
@@ -103,8 +107,11 @@ function regTankDjScreeningResultUrl(
 ): string | undefined {
   const base = portalBaseUrl.replace(/\/+$/, "");
   if (!base || !requestId) return undefined;
-  const segment = guarantorKind === "company" ? "dj-kyb" : "dj-kyc";
-  return `${base}/app/${segment}/result/${encodeURIComponent(requestId)}`;
+  const enc = encodeURIComponent(requestId);
+  if (guarantorKind === "company") {
+    return `${base}/app/dj-kyb/screen-djkyb/result/${enc}`;
+  }
+  return `${base}/app/dj-kyc/result/${enc}`;
 }
 
 function RegTankGuarantorLinkButton({
@@ -246,6 +253,16 @@ type GuarantorReviewRow =
 type GuarantorAmlStatus = "Unresolved" | "Approved" | "Rejected" | "Pending";
 type GuarantorAmlMessageStatus = "DONE" | "PENDING" | "ERROR";
 
+/** RegTank DJKYC/DJKYB snapshot from `metadata.aml_screening` (webhook-driven). */
+export interface GuarantorAmlScreeningSnapshot {
+  possibleMatchCount?: number;
+  blacklistedMatchCount?: number;
+  regtankStatus?: string;
+  messageStatus?: string;
+  screeningUpdatedAt?: string;
+  requestId?: string;
+}
+
 interface GuarantorAmlEntry {
   orgGuarantorKey: string;
   guarantorType: "individual" | "company";
@@ -261,6 +278,7 @@ interface GuarantorAmlEntry {
   amlStatus: GuarantorAmlStatus;
   amlMessageStatus: GuarantorAmlMessageStatus;
   lastUpdated?: string;
+  amlScreening?: GuarantorAmlScreeningSnapshot;
 }
 
 interface RelationalGuarantorEntry {
@@ -274,6 +292,7 @@ interface RelationalGuarantorEntry {
   business_name?: string | null;
   ssm_number?: string | null;
   guarantor?: Record<string, unknown> | null;
+  aml_screening?: unknown;
 }
 
 /** Normalized view model for Business Details review. Supports snake_case and camelCase from API/DB. */
@@ -379,6 +398,51 @@ function buildGuarantorAmlKey(row: GuarantorReviewRow): string {
   return `company:email:${normalizeEmail(row.email)}`;
 }
 
+function parseAmlScreening(raw: unknown): GuarantorAmlScreeningSnapshot | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const o = raw as Record<string, unknown>;
+  const pm = o.possibleMatchCount;
+  const bm = o.blacklistedMatchCount;
+  const possibleMatchCount =
+    typeof pm === "number" && Number.isFinite(pm)
+      ? pm
+      : typeof pm === "string"
+        ? parseInt(pm, 10)
+        : undefined;
+  const blacklistedMatchCount =
+    typeof bm === "number" && Number.isFinite(bm)
+      ? bm
+      : typeof bm === "string"
+        ? parseInt(bm, 10)
+        : undefined;
+  const screening: GuarantorAmlScreeningSnapshot = {};
+  if (possibleMatchCount !== undefined && !Number.isNaN(possibleMatchCount)) {
+    screening.possibleMatchCount = possibleMatchCount;
+  }
+  if (blacklistedMatchCount !== undefined && !Number.isNaN(blacklistedMatchCount)) {
+    screening.blacklistedMatchCount = blacklistedMatchCount;
+  }
+  const rs = reviewStr(o.regtankStatus);
+  const ms = reviewStr(o.messageStatus);
+  const su = reviewStr(o.screeningUpdatedAt);
+  const rid = reviewStr(o.requestId);
+  if (rs) screening.regtankStatus = rs;
+  if (ms) screening.messageStatus = ms;
+  if (su) screening.screeningUpdatedAt = su;
+  if (rid) screening.requestId = rid;
+  if (
+    screening.possibleMatchCount === undefined &&
+    screening.blacklistedMatchCount === undefined &&
+    !screening.regtankStatus &&
+    !screening.messageStatus &&
+    !screening.screeningUpdatedAt &&
+    !screening.requestId
+  ) {
+    return undefined;
+  }
+  return screening;
+}
+
 function parseGuarantorAmlEntries(raw: unknown): GuarantorAmlEntry[] {
   if (!Array.isArray(raw)) return [];
   const entries: GuarantorAmlEntry[] = [];
@@ -414,6 +478,11 @@ function parseGuarantorAmlEntries(raw: unknown): GuarantorAmlEntry[] {
           };
     const orgGuarantorKey = buildGuarantorAmlKey(reviewRow);
     if (!orgGuarantorKey || !linkId || !reviewStr(g.email)) continue;
+    const rowRec = row as Record<string, unknown>;
+    const amlScreening =
+      parseAmlScreening(rowRec.aml_screening) ??
+      parseAmlScreening(rowRec.amlScreening) ??
+      parseAmlScreening((g as Record<string, unknown>).aml_screening);
     const message = reviewStr(row.amlMessageStatus) as GuarantorAmlMessageStatus;
     const amlStatus = reviewStr(g.aml_status) as GuarantorAmlStatus;
     const amlMessageStatus = reviewStr(g.aml_message_status) as GuarantorAmlMessageStatus;
@@ -441,7 +510,13 @@ function parseGuarantorAmlEntries(raw: unknown): GuarantorAmlEntry[] {
       regtankPortalUrl: reviewStr(g.regtank_portal_url) || undefined,
       amlStatus: isStatusValid ? amlStatus : "Pending",
       amlMessageStatus: isAmlMessageValid ? amlMessageStatus : isMessageValid ? message : "PENDING",
-      lastUpdated: reviewStr(g.updated_at) || undefined,
+      lastUpdated:
+        amlScreening?.screeningUpdatedAt ||
+        reviewStr(rowRec.updated_at) ||
+        reviewStr(rowRec.updatedAt) ||
+        reviewStr(g.updated_at) ||
+        undefined,
+      amlScreening,
     });
   }
   return entries;
@@ -520,6 +595,134 @@ function amlBadge(status: GuarantorAmlStatus) {
       <ClockIcon className="h-3.5 w-3.5 text-gray-500" aria-hidden />
       Pending
     </span>
+  );
+}
+
+function guarantorScreeningStatusBadgeClass(status: string | undefined): string {
+  if (!status) return "bg-muted text-muted-foreground";
+  const s = status.toLowerCase();
+  if (s === "approved")
+    return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400";
+  if (s === "rejected") return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
+  if (s.includes("pending"))
+    return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
+  return "bg-muted text-muted-foreground";
+}
+
+function guarantorScreeningMessageBadgeClass(messageStatus: string | undefined): string {
+  if (!messageStatus) return "bg-muted text-muted-foreground";
+  const u = messageStatus.toUpperCase();
+  if (u === "DONE")
+    return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400";
+  if (u === "ERROR") return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
+  if (u === "PENDING")
+    return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
+  return "bg-muted text-muted-foreground";
+}
+
+function GuarantorAmlScreeningCard({ screening }: { screening: GuarantorAmlScreeningSnapshot }) {
+  const hasCounts =
+    screening.possibleMatchCount !== undefined || screening.blacklistedMatchCount !== undefined;
+  const hasFooter =
+    screening.requestId ||
+    screening.messageStatus ||
+    screening.screeningUpdatedAt;
+  if (!screening.regtankStatus && !hasCounts && !hasFooter) {
+    return null;
+  }
+
+  let screeningDate: string | null = null;
+  if (screening.screeningUpdatedAt) {
+    const d = new Date(screening.screeningUpdatedAt);
+    screeningDate = Number.isNaN(d.getTime()) ? null : format(d, "PPpp");
+  }
+
+  return (
+    <Card className="rounded-xl border-dashed">
+      <CardHeader className="pb-2 pt-3">
+        <CardTitle className="text-xs font-medium flex items-center gap-2">
+          <ShieldExclamationIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          KYC/AML screening (RegTank)
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3 pb-3 pt-0">
+        <div className="flex flex-wrap gap-2">
+          {screening.regtankStatus ? (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-muted-foreground">Status</span>
+              <Badge className={guarantorScreeningStatusBadgeClass(screening.regtankStatus)}>
+                {screening.regtankStatus}
+              </Badge>
+            </div>
+          ) : null}
+          {screening.messageStatus ? (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-muted-foreground">Message</span>
+              <Badge
+                variant="outline"
+                className={guarantorScreeningMessageBadgeClass(screening.messageStatus)}
+              >
+                {screening.messageStatus}
+              </Badge>
+            </div>
+          ) : null}
+        </div>
+
+        {hasCounts ? (
+          <div className="flex flex-wrap gap-3 rounded-lg bg-muted/50 p-2.5">
+            {screening.possibleMatchCount !== undefined ? (
+              <div className="flex items-center gap-2">
+                <ExclamationTriangleIcon
+                  className={`h-3.5 w-3.5 shrink-0 ${
+                    screening.possibleMatchCount > 0 ? "text-amber-500" : "text-muted-foreground"
+                  }`}
+                  aria-hidden
+                />
+                <span className="text-xs">
+                  <span className="font-medium">{screening.possibleMatchCount}</span>{" "}
+                  <span className="text-muted-foreground">
+                    possible {screening.possibleMatchCount === 1 ? "match" : "matches"}
+                  </span>
+                </span>
+              </div>
+            ) : null}
+            {screening.blacklistedMatchCount !== undefined ? (
+              <div className="flex items-center gap-2">
+                <ShieldExclamationIcon
+                  className={`h-3.5 w-3.5 shrink-0 ${
+                    screening.blacklistedMatchCount > 0 ? "text-red-500" : "text-muted-foreground"
+                  }`}
+                  aria-hidden
+                />
+                <span className="text-xs">
+                  <span className="font-medium">{screening.blacklistedMatchCount}</span>{" "}
+                  <span className="text-muted-foreground">
+                    blacklisted {screening.blacklistedMatchCount === 1 ? "match" : "matches"}
+                  </span>
+                </span>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {screening.requestId || screening.messageStatus || screeningDate ? (
+          <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+            {screening.requestId ? (
+              <div>
+                <div className="text-[11px] text-muted-foreground">Request ID</div>
+                <div className="font-mono text-xs break-all">{screening.requestId}</div>
+              </div>
+            ) : null}
+            {screeningDate ? (
+              <div className="sm:col-span-2">
+                <div className="text-[11px] text-muted-foreground">Screening updated</div>
+                <div>{screeningDate}</div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -678,7 +881,7 @@ function AdminGuarantorSingleList({
                 </div>
               </div>
             </summary>
-            <div className="px-4 pb-4 pt-3">
+            <div className="px-4 pb-4 pt-3 space-y-4">
               <div className={reviewRowGridClass}>
                 <Label className={reviewLabelClass}>Guarantor type</Label>
                 <ReviewValue value={guarantorKindLabel(g.kind)} />
@@ -706,6 +909,9 @@ function AdminGuarantorSingleList({
                   </>
                 )}
               </div>
+              {aml?.amlScreening ? (
+                <GuarantorAmlScreeningCard screening={aml.amlScreening} />
+              ) : null}
             </div>
           </details>
         );

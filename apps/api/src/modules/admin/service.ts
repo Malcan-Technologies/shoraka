@@ -4111,6 +4111,7 @@ export class AdminService {
     if (!guarantors?.length) return guarantors;
     return guarantors.map((ag) => {
       const meta = isPlainObjectRecord(ag.metadata) ? ag.metadata : {};
+      const amlScreening = isPlainObjectRecord(meta.aml_screening) ? meta.aml_screening : null;
       return {
         ...ag,
         onboarding_request_id:
@@ -4119,6 +4120,7 @@ export class AdminService {
           typeof meta.regtank_portal_url === "string" ? meta.regtank_portal_url : undefined,
         onboarding_verify_link:
           typeof meta.onboarding_verify_link === "string" ? meta.onboarding_verify_link : undefined,
+        aml_screening: amlScreening,
       };
     });
   }
@@ -4196,8 +4198,10 @@ export class AdminService {
       throw new AppError(502, "REGTANK_ERROR", "RegTank did not return a screening request id");
     }
 
-    const pathSegment = row.guarantor_type === "company" ? "dj-kyb" : "dj-kyc";
-    const regtankPortalUrl = `${config.adminPortalUrl}/app/${pathSegment}/result/${encodeURIComponent(requestId)}`;
+    const regtankPortalUrl =
+      row.guarantor_type === "company"
+        ? `${config.adminPortalUrl}/app/dj-kyb/screen-djkyb/result/${encodeURIComponent(requestId)}`
+        : `${config.adminPortalUrl}/app/dj-kyc/result/${encodeURIComponent(requestId)}`;
 
     const prevMeta = isPlainObjectRecord(row.metadata) ? row.metadata : {};
     await prisma.applicationGuarantor.update({

@@ -8,6 +8,7 @@ import { OrganizationRepository } from "../../organization/repository";
 import { OnboardingStatus, UserRole } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import type { PortalType } from "../types";
+import { syncApplicationGuarantorsFromRegTankAmlWebhook } from "../../admin/guarantor-aml-webhook-sync";
 
 /**
  * KYC (Know Your Customer) Webhook Handler
@@ -183,6 +184,28 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
     }
 
     if (!onboarding) {
+      const guarantorRows = await syncApplicationGuarantorsFromRegTankAmlWebhook({
+        requestId,
+        referenceId,
+        status,
+        messageStatus,
+        possibleMatchCount,
+        blacklistedMatchCount,
+        timestamp: payload.timestamp,
+      });
+      if (guarantorRows > 0) {
+        logger.info(
+          {
+            kycRequestId: requestId,
+            referenceId,
+            guarantorRows,
+            provider: this.provider,
+          },
+          "[KYC Webhook] ✓ Updated application guarantor(s) from AML webhook (referenceId = client_guarantor_id)"
+        );
+        return;
+      }
+
       logger.warn(
         {
           kycRequestId: requestId,

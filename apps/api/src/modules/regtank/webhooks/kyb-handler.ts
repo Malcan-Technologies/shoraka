@@ -10,6 +10,7 @@ import { OnboardingStatus, UserRole } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import type { PortalType } from "../types";
+import { syncApplicationGuarantorsFromRegTankAmlWebhook } from "../../admin/guarantor-aml-webhook-sync";
 
 /**
  * KYB (Know Your Business) Webhook Handler
@@ -134,6 +135,28 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
     const isMainCompanyCod = onboarding && onboarding.request_id === onboardingId && onboardingId?.startsWith("COD");
 
     if (!onboarding) {
+      const guarantorRows = await syncApplicationGuarantorsFromRegTankAmlWebhook({
+        requestId,
+        referenceId,
+        status,
+        messageStatus,
+        possibleMatchCount,
+        blacklistedMatchCount,
+        timestamp: payload.timestamp,
+      });
+      if (guarantorRows > 0) {
+        logger.info(
+          {
+            kybRequestId: requestId,
+            referenceId,
+            guarantorRows,
+            provider: this.provider,
+          },
+          "[KYB Webhook] ✓ Updated application guarantor(s) from AML webhook (referenceId = client_guarantor_id)"
+        );
+        return;
+      }
+
       logger.warn(
         {
           kybRequestId: requestId,
