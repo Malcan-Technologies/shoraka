@@ -75,7 +75,6 @@ export interface BusinessSectionProps {
   onReject: (section: ReviewSectionId) => void;
   onRequestAmendment: (section: ReviewSectionId) => void;
   onTriggerGuarantorAml?: (guarantorId: string) => Promise<void> | void;
-  onRefreshGuarantorAml?: (guarantorId: string) => Promise<void> | void;
   onRefreshAllGuarantorAml?: () => Promise<void> | void;
   onViewDocument: (s3Key: string) => void;
   onDownloadDocument: (s3Key: string, fileName?: string) => void;
@@ -87,6 +86,26 @@ export interface BusinessSectionProps {
 
 const DECLARATION_TEXT =
   "I confirm that all information provided is true, accurate, and not misleading, and I understand that false or incomplete information may result in removal from the platform and regulatory action.";
+
+/** RegTank client portal origin (no trailing slash), e.g. https://your-company.regtank.com */
+const REGTANK_PORTAL_BASE_URL =
+  typeof process !== "undefined" ? (process.env.NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL ?? "").trim() : "";
+
+/**
+ * Opens the Dow Jones screening result in the RegTank portal.
+ * Individual: /app/dj-kyc/result/{requestId} — see RegTank DJ KYC API.
+ * Company: /app/dj-kyb/result/{requestId} — see RegTank DJ KYB API.
+ */
+function regTankDjScreeningResultUrl(
+  portalBaseUrl: string,
+  guarantorKind: "individual" | "company",
+  requestId: string | undefined
+): string | undefined {
+  const base = portalBaseUrl.replace(/\/+$/, "");
+  if (!base || !requestId) return undefined;
+  const segment = guarantorKind === "company" ? "dj-kyb" : "dj-kyc";
+  return `${base}/app/${segment}/result/${encodeURIComponent(requestId)}`;
+}
 
 function RegTankGuarantorLinkButton({
   url,
@@ -103,10 +122,10 @@ function RegTankGuarantorLinkButton({
 }) {
   const label =
     side === "before"
-      ? "View guarantor in RegTank (before)"
+      ? "View in RegTank (before)"
       : side === "after"
-        ? "View guarantor in RegTank (after)"
-        : "View guarantor in RegTank";
+        ? "View in RegTank (after)"
+        : "View in RegTank";
 
   return (
     <Button
@@ -115,7 +134,7 @@ function RegTankGuarantorLinkButton({
       size="sm"
       className={cn("gap-1.5 h-9 shrink-0 px-3 text-sm", className)}
       disabled={disabled || !url}
-      title={disabled || !url ? disabledReason || "RegTank URL is not available yet." : undefined}
+      title={disabled || !url ? disabledReason || "RegTank screening result URL is not available yet." : undefined}
       onClick={(e) => {
         e.stopPropagation();
         if (!url) return;
@@ -132,14 +151,12 @@ function RegTankGuarantorControlRow({
   guarantor,
   amlByKey,
   onTriggerGuarantorAml,
-  onRefreshGuarantorAml,
   mode,
   comparisonSides,
 }: {
   guarantor?: GuarantorReviewRow;
   amlByKey: Map<string, GuarantorAmlEntry>;
   onTriggerGuarantorAml?: (guarantorId: string) => Promise<void> | void;
-  onRefreshGuarantorAml?: (guarantorId: string) => Promise<void> | void;
   mode: "single" | "comparison";
   /** When a side has no guarantor (e.g. newly added row), that RegTank button is disabled. */
   comparisonSides?: { beforeAvailable: boolean; afterAvailable: boolean };
@@ -173,6 +190,14 @@ function RegTankGuarantorControlRow({
         (() => {
           if (!guarantor) return <RegTankGuarantorLinkButton />;
           const aml = amlByKey.get(buildGuarantorAmlKey(guarantor));
+          const resultUrl =
+            regTankDjScreeningResultUrl(REGTANK_PORTAL_BASE_URL, guarantor.kind, aml?.requestId) ??
+            aml?.regtankPortalUrl;
+          const viewDisabledReason = !resultUrl
+            ? !aml?.requestId
+              ? "Start AML screening first, or configure NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL."
+              : "Configure NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL to open Dow Jones results in RegTank."
+            : undefined;
           return (
             <div className="flex flex-wrap items-center gap-2 justify-end">
               {aml ? amlBadge(aml.amlStatus) : null}
@@ -187,38 +212,13 @@ function RegTankGuarantorControlRow({
                   void onTriggerGuarantorAml?.(guarantor.referenceId);
                 }}
               >
-                Trigger AML
+                Start AML
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-1.5 h-9 shrink-0 px-3 text-sm"
-                disabled={!onRefreshGuarantorAml}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void onRefreshGuarantorAml?.(guarantor.referenceId);
-                }}
-              >
-                <ArrowPathIcon className="h-4 w-4 shrink-0" aria-hidden />
-                Refresh AML
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-1.5 h-9 shrink-0 px-3 text-sm"
-                disabled={!aml?.onboardingVerifyLink}
-                title={!aml?.onboardingVerifyLink ? "Onboarding link is not available yet." : undefined}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!aml?.onboardingVerifyLink) return;
-                  void navigator.clipboard?.writeText(aml.onboardingVerifyLink);
-                }}
-              >
-                Copy onboarding link
-              </Button>
-              <RegTankGuarantorLinkButton url={aml?.regtankPortalUrl} />
+              <RegTankGuarantorLinkButton
+                url={resultUrl}
+                disabled={!resultUrl}
+                disabledReason={viewDisabledReason}
+              />
             </div>
           );
         })()
@@ -610,12 +610,10 @@ function AdminGuarantorSingleList({
   guarantors,
   amlByKey,
   onTriggerGuarantorAml,
-  onRefreshGuarantorAml,
 }: {
   guarantors: GuarantorReviewRow[];
   amlByKey: Map<string, GuarantorAmlEntry>;
   onTriggerGuarantorAml?: (guarantorId: string) => Promise<void> | void;
-  onRefreshGuarantorAml?: (guarantorId: string) => Promise<void> | void;
 }) {
   const [panelOpen, setPanelOpen] = React.useState<Record<number, boolean>>({});
   const count = guarantors.length;
@@ -676,7 +674,6 @@ function AdminGuarantorSingleList({
                     guarantor={g}
                     amlByKey={amlByKey}
                     onTriggerGuarantorAml={onTriggerGuarantorAml}
-                    onRefreshGuarantorAml={onRefreshGuarantorAml}
                   />
                 </div>
               </div>
@@ -977,7 +974,6 @@ export function BusinessSection({
   onReject,
   onRequestAmendment,
   onTriggerGuarantorAml,
-  onRefreshGuarantorAml,
   onRefreshAllGuarantorAml,
   onViewDocument,
   onDownloadDocument,
@@ -1365,7 +1361,6 @@ export function BusinessSection({
                 guarantors={view.guarantors}
                 amlByKey={guarantorAmlByKey}
                 onTriggerGuarantorAml={onTriggerGuarantorAml}
-                onRefreshGuarantorAml={onRefreshGuarantorAml}
               />
             </ReviewFieldBlock>
           )}
