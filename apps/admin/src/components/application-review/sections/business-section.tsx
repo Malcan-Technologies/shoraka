@@ -45,12 +45,6 @@ import {
   businessSupportingDocsToChips,
 } from "../comparison-document-pair";
 import type { ReviewSectionId } from "../section-types";
-import {
-  GUARANTOR_COMPANY_RELATIONSHIP_LABELS,
-  GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS,
-  type GuarantorCompanyRelationship,
-  type GuarantorIndividualRelationship,
-} from "@cashsouk/types";
 import { cn } from "@/lib/utils";
 import {
   ComparisonFieldRow,
@@ -81,7 +75,6 @@ export interface BusinessSectionProps {
   onReject: (section: ReviewSectionId) => void;
   onRequestAmendment: (section: ReviewSectionId) => void;
   onTriggerGuarantorAml?: (guarantorId: string) => Promise<void> | void;
-  onRefreshGuarantorAml?: (guarantorId: string) => Promise<void> | void;
   onRefreshAllGuarantorAml?: () => Promise<void> | void;
   onViewDocument: (s3Key: string) => void;
   onDownloadDocument: (s3Key: string, fileName?: string) => void;
@@ -93,6 +86,26 @@ export interface BusinessSectionProps {
 
 const DECLARATION_TEXT =
   "I confirm that all information provided is true, accurate, and not misleading, and I understand that false or incomplete information may result in removal from the platform and regulatory action.";
+
+/** RegTank client portal origin (no trailing slash), e.g. https://your-company.regtank.com */
+const REGTANK_PORTAL_BASE_URL =
+  typeof process !== "undefined" ? (process.env.NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL ?? "").trim() : "";
+
+/**
+ * Opens the Dow Jones screening result in the RegTank portal.
+ * Individual: /app/dj-kyc/result/{requestId} — see RegTank DJ KYC API.
+ * Company: /app/dj-kyb/result/{requestId} — see RegTank DJ KYB API.
+ */
+function regTankDjScreeningResultUrl(
+  portalBaseUrl: string,
+  guarantorKind: "individual" | "company",
+  requestId: string | undefined
+): string | undefined {
+  const base = portalBaseUrl.replace(/\/+$/, "");
+  if (!base || !requestId) return undefined;
+  const segment = guarantorKind === "company" ? "dj-kyb" : "dj-kyc";
+  return `${base}/app/${segment}/result/${encodeURIComponent(requestId)}`;
+}
 
 function RegTankGuarantorLinkButton({
   url,
@@ -109,10 +122,10 @@ function RegTankGuarantorLinkButton({
 }) {
   const label =
     side === "before"
-      ? "View guarantor in RegTank (before)"
+      ? "View in RegTank (before)"
       : side === "after"
-        ? "View guarantor in RegTank (after)"
-        : "View guarantor in RegTank";
+        ? "View in RegTank (after)"
+        : "View in RegTank";
 
   return (
     <Button
@@ -121,7 +134,7 @@ function RegTankGuarantorLinkButton({
       size="sm"
       className={cn("gap-1.5 h-9 shrink-0 px-3 text-sm", className)}
       disabled={disabled || !url}
-      title={disabled || !url ? disabledReason || "RegTank URL is not available yet." : undefined}
+      title={disabled || !url ? disabledReason || "RegTank screening result URL is not available yet." : undefined}
       onClick={(e) => {
         e.stopPropagation();
         if (!url) return;
@@ -138,14 +151,12 @@ function RegTankGuarantorControlRow({
   guarantor,
   amlByKey,
   onTriggerGuarantorAml,
-  onRefreshGuarantorAml,
   mode,
   comparisonSides,
 }: {
   guarantor?: GuarantorReviewRow;
   amlByKey: Map<string, GuarantorAmlEntry>;
   onTriggerGuarantorAml?: (guarantorId: string) => Promise<void> | void;
-  onRefreshGuarantorAml?: (guarantorId: string) => Promise<void> | void;
   mode: "single" | "comparison";
   /** When a side has no guarantor (e.g. newly added row), that RegTank button is disabled. */
   comparisonSides?: { beforeAvailable: boolean; afterAvailable: boolean };
@@ -179,6 +190,14 @@ function RegTankGuarantorControlRow({
         (() => {
           if (!guarantor) return <RegTankGuarantorLinkButton />;
           const aml = amlByKey.get(buildGuarantorAmlKey(guarantor));
+          const resultUrl =
+            regTankDjScreeningResultUrl(REGTANK_PORTAL_BASE_URL, guarantor.kind, aml?.requestId) ??
+            aml?.regtankPortalUrl;
+          const viewDisabledReason = !resultUrl
+            ? !aml?.requestId
+              ? "Start AML screening first, or configure NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL."
+              : "Configure NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL to open Dow Jones results in RegTank."
+            : undefined;
           return (
             <div className="flex flex-wrap items-center gap-2 justify-end">
               {aml ? amlBadge(aml.amlStatus) : null}
@@ -190,41 +209,16 @@ function RegTankGuarantorControlRow({
                 disabled={!onTriggerGuarantorAml || !guarantor.email}
                 onClick={(e) => {
                   e.stopPropagation();
-                  void onTriggerGuarantorAml?.(guarantor.guarantorId);
+                  void onTriggerGuarantorAml?.(guarantor.referenceId);
                 }}
               >
-                Trigger AML
+                Start AML
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-1.5 h-9 shrink-0 px-3 text-sm"
-                disabled={!onRefreshGuarantorAml}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void onRefreshGuarantorAml?.(guarantor.guarantorId);
-                }}
-              >
-                <ArrowPathIcon className="h-4 w-4 shrink-0" aria-hidden />
-                Refresh AML
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="gap-1.5 h-9 shrink-0 px-3 text-sm"
-                disabled={!aml?.onboardingVerifyLink}
-                title={!aml?.onboardingVerifyLink ? "Onboarding link is not available yet." : undefined}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!aml?.onboardingVerifyLink) return;
-                  void navigator.clipboard?.writeText(aml.onboardingVerifyLink);
-                }}
-              >
-                Copy onboarding link
-              </Button>
-              <RegTankGuarantorLinkButton url={aml?.regtankPortalUrl} />
+              <RegTankGuarantorLinkButton
+                url={resultUrl}
+                disabled={!resultUrl}
+                disabledReason={viewDisabledReason}
+              />
             </div>
           );
         })()
@@ -236,20 +230,17 @@ function RegTankGuarantorControlRow({
 type GuarantorReviewRow =
   | {
       kind: "individual";
-      guarantorId: string;
-      firstName: string;
-      lastName: string;
-      email: string;
+      referenceId: string;
+      name: string;
       icNumber: string;
-      relationshipLabel: string;
+      email: string;
     }
   | {
       kind: "company";
-      guarantorId: string;
-      companyName: string;
-      email: string;
+      referenceId: string;
+      businessName: string;
       ssmNumber: string;
-      relationshipLabel: string;
+      email: string;
     };
 
 type GuarantorAmlStatus = "Unresolved" | "Approved" | "Rejected" | "Pending";
@@ -260,21 +251,28 @@ interface GuarantorAmlEntry {
   guarantorType: "individual" | "company";
   guarantorId: string;
   email: string;
+  name?: string;
   icNumber?: string;
+  businessName?: string;
   ssmNumber?: string;
   requestId?: string;
   onboardingVerifyLink?: string;
   regtankPortalUrl?: string;
   amlStatus: GuarantorAmlStatus;
   amlMessageStatus: GuarantorAmlMessageStatus;
-  amlRiskScore: number | null;
-  amlRiskLevel: string | null;
   lastUpdated?: string;
 }
 
 interface RelationalGuarantorEntry {
+  id?: string;
   position?: number;
-  relationship?: string | null;
+  client_guarantor_id?: string;
+  guarantor_type?: string;
+  email?: string;
+  name?: string | null;
+  ic_number?: string | null;
+  business_name?: string | null;
+  ssm_number?: string | null;
   guarantor?: Record<string, unknown> | null;
 }
 
@@ -335,55 +333,35 @@ function parseGuarantors(raw: unknown): GuarantorReviewRow[] {
     if (!item || typeof item !== "object") continue;
     const o = item as Record<string, unknown>;
     const gt = o.guarantor_type ?? o.guarantorType;
+    const ref =
+      reviewStr(o.reference_id ?? o.referenceId ?? o.guarantor_id ?? o.guarantorId) ||
+      deterministicGuarantorId(
+        index,
+        gt === "company" ? "company" : "individual",
+        normalizeIdentifier(
+          o.ic_number ?? o.icNumber ?? o.government_id_number ?? o.ssm_number ?? o.ssmNumber
+        )
+      );
     if (gt === "individual") {
-      const rel = o.relationship;
-      const relKey =
-        typeof rel === "string" && rel in GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS
-          ? (rel as GuarantorIndividualRelationship)
-          : null;
-      const otherText = reviewStr(o.relationship_other ?? o.relationshipOther);
-      const relationshipLabel =
-        relKey === "others"
-          ? otherText
-            ? `Others: ${otherText}`
-            : GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS.others
-          : relKey
-            ? GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS[relKey]
-            : REVIEW_EMPTY_LABEL;
+      const legacyFirst = reviewStr(o.first_name ?? o.firstName);
+      const legacyLast = reviewStr(o.last_name ?? o.lastName);
+      const nameFromLegacy = [legacyFirst, legacyLast].filter(Boolean).join(" ").trim();
+      const name = reviewStr(o.name) || nameFromLegacy;
+      const gov = reviewStr(o.ic_number ?? o.icNumber ?? o.government_id_number);
       rows.push({
         kind: "individual",
-        guarantorId:
-          reviewStr(o.guarantor_id ?? o.guarantorId) ||
-          deterministicGuarantorId(
-            index,
-            "individual",
-            normalizeIdentifier(o.ic_number ?? o.icNumber)
-          ),
-        firstName: reviewStr(o.first_name ?? o.firstName),
-        lastName: reviewStr(o.last_name ?? o.lastName),
+        referenceId: ref,
+        name,
+        icNumber: gov,
         email: normalizeEmail(o.email),
-        icNumber: reviewStr(o.ic_number ?? o.icNumber),
-        relationshipLabel,
       });
     } else if (gt === "company") {
-      const rel = o.relationship;
-      const relKey =
-        typeof rel === "string" && rel in GUARANTOR_COMPANY_RELATIONSHIP_LABELS
-          ? (rel as GuarantorCompanyRelationship)
-          : null;
       rows.push({
         kind: "company",
-        guarantorId:
-          reviewStr(o.guarantor_id ?? o.guarantorId) ||
-          deterministicGuarantorId(
-            index,
-            "company",
-            normalizeIdentifier(o.ssm_number ?? o.ssmNumber)
-          ),
-        companyName: reviewStr(o.company_name ?? o.companyName),
+        referenceId: ref,
+        businessName: reviewStr(o.business_name ?? o.businessName ?? o.company_name ?? o.companyName),
+        ssmNumber: reviewStr(o.ssm_number ?? o.ssmNumber ?? o.business_id_number),
         email: normalizeEmail(o.email),
-        ssmNumber: reviewStr(o.ssm_number ?? o.ssmNumber),
-        relationshipLabel: relKey ? GUARANTOR_COMPANY_RELATIONSHIP_LABELS[relKey] : REVIEW_EMPTY_LABEL,
       });
     }
   }
@@ -392,12 +370,12 @@ function parseGuarantors(raw: unknown): GuarantorReviewRow[] {
 
 function buildGuarantorAmlKey(row: GuarantorReviewRow): string {
   if (row.kind === "individual") {
-    const ic = normalizeIdentifier(row.icNumber);
-    if (ic) return `individual:${ic}`;
+    const gid = normalizeIdentifier(row.icNumber);
+    if (gid) return `individual:${gid}`;
     return `individual:email:${normalizeEmail(row.email)}`;
   }
-  const ssm = normalizeIdentifier(row.ssmNumber);
-  if (ssm) return `company:${ssm}`;
+  const bid = normalizeIdentifier(row.ssmNumber);
+  if (bid) return `company:${bid}`;
   return `company:email:${normalizeEmail(row.email)}`;
 }
 
@@ -407,13 +385,38 @@ function parseGuarantorAmlEntries(raw: unknown): GuarantorAmlEntry[] {
   for (const item of raw) {
     if (!item || typeof item !== "object") continue;
     const row = item as Record<string, unknown>;
-    const guarantor = (row.guarantor ?? {}) as Record<string, unknown>;
-    const guarantorType = guarantor.guarantor_type === "company" ? "company" : "individual";
-    const orgGuarantorKey = reviewStr(guarantor.canonical_key);
-    if (!orgGuarantorKey || !reviewStr(guarantor.id)) continue;
+    const nested =
+      row.guarantor && typeof row.guarantor === "object" && !Array.isArray(row.guarantor)
+        ? (row.guarantor as Record<string, unknown>)
+        : null;
+    const g = nested ?? row;
+    const guarantorType = g.guarantor_type === "company" ? "company" : "individual";
+    const linkId = reviewStr(row.id) || reviewStr(g.id);
+    const referenceId =
+      reviewStr(row.client_guarantor_id ?? g.client_guarantor_id) || linkId;
+    const reviewRow: GuarantorReviewRow =
+      guarantorType === "individual"
+        ? {
+            kind: "individual",
+            referenceId,
+            name:
+              reviewStr(g.name) ||
+              [reviewStr(g.first_name), reviewStr(g.last_name)].filter(Boolean).join(" ").trim(),
+            icNumber: reviewStr(g.ic_number ?? g.government_id_number),
+            email: normalizeEmail(g.email),
+          }
+        : {
+            kind: "company",
+            referenceId,
+            businessName: reviewStr(g.business_name ?? g.company_name),
+            ssmNumber: reviewStr(g.ssm_number ?? g.business_id_number),
+            email: normalizeEmail(g.email),
+          };
+    const orgGuarantorKey = buildGuarantorAmlKey(reviewRow);
+    if (!orgGuarantorKey || !linkId || !reviewStr(g.email)) continue;
     const message = reviewStr(row.amlMessageStatus) as GuarantorAmlMessageStatus;
-    const amlStatus = reviewStr(guarantor.aml_status) as GuarantorAmlStatus;
-    const amlMessageStatus = reviewStr(guarantor.aml_message_status) as GuarantorAmlMessageStatus;
+    const amlStatus = reviewStr(g.aml_status) as GuarantorAmlStatus;
+    const amlMessageStatus = reviewStr(g.aml_message_status) as GuarantorAmlMessageStatus;
     const isStatusValid =
       amlStatus === "Approved" ||
       amlStatus === "Rejected" ||
@@ -426,19 +429,19 @@ function parseGuarantorAmlEntries(raw: unknown): GuarantorAmlEntry[] {
     entries.push({
       orgGuarantorKey,
       guarantorType,
-      guarantorId: reviewStr(guarantor.id),
-      email: normalizeEmail(guarantor.email),
-      icNumber: reviewStr(guarantor.ic_number) || undefined,
-      ssmNumber: reviewStr(guarantor.ssm_number) || undefined,
-      requestId: reviewStr(guarantor.onboarding_request_id) || undefined,
-      onboardingVerifyLink: reviewStr(guarantor.onboarding_verify_link) || undefined,
-      regtankPortalUrl: reviewStr(guarantor.regtank_portal_url) || undefined,
+      guarantorId: linkId,
+      email: normalizeEmail(g.email),
+      name: reviewRow.kind === "individual" ? reviewRow.name : undefined,
+      icNumber:
+        reviewRow.kind === "individual" ? reviewRow.icNumber : undefined,
+      businessName: reviewRow.kind === "company" ? reviewRow.businessName : undefined,
+      ssmNumber: reviewRow.kind === "company" ? reviewRow.ssmNumber : undefined,
+      requestId: reviewStr(g.onboarding_request_id) || undefined,
+      onboardingVerifyLink: reviewStr(g.onboarding_verify_link) || undefined,
+      regtankPortalUrl: reviewStr(g.regtank_portal_url) || undefined,
       amlStatus: isStatusValid ? amlStatus : "Pending",
       amlMessageStatus: isAmlMessageValid ? amlMessageStatus : isMessageValid ? message : "PENDING",
-      amlRiskScore:
-        typeof guarantor.aml_risk_score === "number" ? (guarantor.aml_risk_score as number) : null,
-      amlRiskLevel: reviewStr(guarantor.aml_risk_level) || null,
-      lastUpdated: reviewStr(guarantor.updated_at) || undefined,
+      lastUpdated: reviewStr(g.updated_at) || undefined,
     });
   }
   return entries;
@@ -453,31 +456,35 @@ function parseRelationalGuarantors(raw: unknown): GuarantorReviewRow[] {
     .sort((a, b) => (typeof a.position === "number" ? a.position : 0) - (typeof b.position === "number" ? b.position : 0));
 
   for (const entry of sorted) {
-    const guarantor =
-      entry.guarantor && typeof entry.guarantor === "object"
+    const nested =
+      entry.guarantor && typeof entry.guarantor === "object" && !Array.isArray(entry.guarantor)
         ? entry.guarantor
-        : ((entry as unknown as Record<string, unknown>) ?? null);
-    if (!guarantor) continue;
-    const guarantorType = guarantor.guarantor_type === "company" ? "company" : "individual";
+        : null;
+    const g = (nested ?? entry) as Record<string, unknown>;
+    const linkId = reviewStr(entry.id) || reviewStr(g.id);
+    if (!linkId) continue;
+    const ref = reviewStr(entry.client_guarantor_id) || linkId;
+    const guarantorType = g.guarantor_type === "company" ? "company" : "individual";
     if (guarantorType === "individual") {
+      const legacyFirst = reviewStr(g.first_name);
+      const legacyLast = reviewStr(g.last_name);
+      const name =
+        reviewStr(g.name) || [legacyFirst, legacyLast].filter(Boolean).join(" ").trim();
       rows.push({
         kind: "individual",
-        guarantorId: reviewStr(guarantor.id),
-        firstName: reviewStr(guarantor.first_name),
-        lastName: reviewStr(guarantor.last_name),
-        email: normalizeEmail(guarantor.email),
-        icNumber: reviewStr(guarantor.ic_number),
-        relationshipLabel: reviewStr(entry.relationship) || REVIEW_EMPTY_LABEL,
+        referenceId: ref,
+        name,
+        icNumber: reviewStr(g.ic_number ?? g.government_id_number),
+        email: normalizeEmail(g.email),
       });
       continue;
     }
     rows.push({
       kind: "company",
-      guarantorId: reviewStr(guarantor.id),
-      companyName: reviewStr(guarantor.company_name),
-      email: normalizeEmail(guarantor.email),
-      ssmNumber: reviewStr(guarantor.ssm_number),
-      relationshipLabel: reviewStr(entry.relationship) || REVIEW_EMPTY_LABEL,
+      referenceId: ref,
+      businessName: reviewStr(g.business_name ?? g.company_name),
+      ssmNumber: reviewStr(g.ssm_number ?? g.business_id_number),
+      email: normalizeEmail(g.email),
     });
   }
   return rows;
@@ -587,27 +594,12 @@ function guarantorKindLabel(kind: "individual" | "company"): string {
   return kind === "individual" ? "Individual" : "Company";
 }
 
-/** Collapsed-card subtitle (name or company + relationship), aligned with issuer guarantor cards. */
+/** Collapsed-card subtitle (individual name or company name). */
 function guarantorReviewSubtitle(g: GuarantorReviewRow): string {
   if (g.kind === "individual") {
-    const name = [g.firstName, g.lastName]
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .join(" ");
-    const rel =
-      g.relationshipLabel && g.relationshipLabel !== REVIEW_EMPTY_LABEL ? g.relationshipLabel : "";
-    if (name && rel) return `${name} (${rel})`;
-    if (name) return name;
-    if (rel) return `(${rel})`;
-    return "";
+    return g.name.trim();
   }
-  const co = g.companyName.trim();
-  const rel =
-    g.relationshipLabel && g.relationshipLabel !== REVIEW_EMPTY_LABEL ? g.relationshipLabel : "";
-  if (co && rel) return `${co} (${rel})`;
-  if (co) return co;
-  if (rel) return `(${rel})`;
-  return "";
+  return g.businessName.trim();
 }
 
 function sideGuarantorTypeLabel(g: GuarantorReviewRow | undefined): string {
@@ -618,12 +610,10 @@ function AdminGuarantorSingleList({
   guarantors,
   amlByKey,
   onTriggerGuarantorAml,
-  onRefreshGuarantorAml,
 }: {
   guarantors: GuarantorReviewRow[];
   amlByKey: Map<string, GuarantorAmlEntry>;
   onTriggerGuarantorAml?: (guarantorId: string) => Promise<void> | void;
-  onRefreshGuarantorAml?: (guarantorId: string) => Promise<void> | void;
 }) {
   const [panelOpen, setPanelOpen] = React.useState<Record<number, boolean>>({});
   const count = guarantors.length;
@@ -684,7 +674,6 @@ function AdminGuarantorSingleList({
                     guarantor={g}
                     amlByKey={amlByKey}
                     onTriggerGuarantorAml={onTriggerGuarantorAml}
-                    onRefreshGuarantorAml={onRefreshGuarantorAml}
                   />
                 </div>
               </div>
@@ -695,14 +684,10 @@ function AdminGuarantorSingleList({
                 <ReviewValue value={guarantorKindLabel(g.kind)} />
                 {g.kind === "individual" ? (
                   <>
-                    <Label className={reviewLabelClass}>First name</Label>
-                    <ReviewValue value={g.firstName || REVIEW_EMPTY_LABEL} />
-                    <Label className={reviewLabelClass}>Last name</Label>
-                    <ReviewValue value={g.lastName || REVIEW_EMPTY_LABEL} />
+                    <Label className={reviewLabelClass}>Name</Label>
+                    <ReviewValue value={g.name || REVIEW_EMPTY_LABEL} />
                     <Label className={reviewLabelClass}>IC number</Label>
                     <ReviewValue value={g.icNumber || REVIEW_EMPTY_LABEL} />
-                    <Label className={reviewLabelClass}>Relationship</Label>
-                    <ReviewValue value={g.relationshipLabel} />
                     <Label className={reviewLabelClass}>Email</Label>
                     <ReviewValue value={g.email || REVIEW_EMPTY_LABEL} />
                     <Label className={reviewLabelClass}>Last AML update</Label>
@@ -710,12 +695,10 @@ function AdminGuarantorSingleList({
                   </>
                 ) : (
                   <>
-                    <Label className={reviewLabelClass}>Company name</Label>
-                    <ReviewValue value={g.companyName || REVIEW_EMPTY_LABEL} multiline />
+                    <Label className={reviewLabelClass}>Business name</Label>
+                    <ReviewValue value={g.businessName || REVIEW_EMPTY_LABEL} multiline />
                     <Label className={reviewLabelClass}>SSM number</Label>
                     <ReviewValue value={g.ssmNumber || REVIEW_EMPTY_LABEL} />
-                    <Label className={reviewLabelClass}>Relationship</Label>
-                    <ReviewValue value={g.relationshipLabel} />
                     <Label className={reviewLabelClass}>Email</Label>
                     <ReviewValue value={g.email || REVIEW_EMPTY_LABEL} />
                     <Label className={reviewLabelClass}>Last AML update</Label>
@@ -826,27 +809,15 @@ function AdminGuarantorComparisonList({
               {showIndividual ? (
                 <div className="space-y-2">
                   <ComparisonFieldRow
-                    label="First name"
-                    before={gB?.kind === "individual" ? gB.firstName : "—"}
-                    after={gA?.kind === "individual" ? gA.firstName : "—"}
-                    changed={changed}
-                  />
-                  <ComparisonFieldRow
-                    label="Last name"
-                    before={gB?.kind === "individual" ? gB.lastName : "—"}
-                    after={gA?.kind === "individual" ? gA.lastName : "—"}
+                    label="Name"
+                    before={gB?.kind === "individual" ? gB.name : "—"}
+                    after={gA?.kind === "individual" ? gA.name : "—"}
                     changed={changed}
                   />
                   <ComparisonFieldRow
                     label="IC number"
                     before={gB?.kind === "individual" ? gB.icNumber : "—"}
                     after={gA?.kind === "individual" ? gA.icNumber : "—"}
-                    changed={changed}
-                  />
-                  <ComparisonFieldRow
-                    label="Relationship"
-                    before={gB?.kind === "individual" ? gB.relationshipLabel : "—"}
-                    after={gA?.kind === "individual" ? gA.relationshipLabel : "—"}
                     changed={changed}
                   />
                   <ComparisonFieldRow
@@ -868,9 +839,9 @@ function AdminGuarantorComparisonList({
               {showCompany ? (
                 <div className="space-y-2">
                   <ComparisonFieldRow
-                    label="Company name"
-                    before={gB?.kind === "company" ? gB.companyName : "—"}
-                    after={gA?.kind === "company" ? gA.companyName : "—"}
+                    label="Business name"
+                    before={gB?.kind === "company" ? gB.businessName : "—"}
+                    after={gA?.kind === "company" ? gA.businessName : "—"}
                     changed={changed}
                     multiline
                   />
@@ -878,12 +849,6 @@ function AdminGuarantorComparisonList({
                     label="SSM number"
                     before={gB?.kind === "company" ? gB.ssmNumber : "—"}
                     after={gA?.kind === "company" ? gA.ssmNumber : "—"}
-                    changed={changed}
-                  />
-                  <ComparisonFieldRow
-                    label="Relationship"
-                    before={gB?.kind === "company" ? gB.relationshipLabel : "—"}
-                    after={gA?.kind === "company" ? gA.relationshipLabel : "—"}
                     changed={changed}
                   />
                   <ComparisonFieldRow
@@ -1009,7 +974,6 @@ export function BusinessSection({
   onReject,
   onRequestAmendment,
   onTriggerGuarantorAml,
-  onRefreshGuarantorAml,
   onRefreshAllGuarantorAml,
   onViewDocument,
   onDownloadDocument,
@@ -1397,7 +1361,6 @@ export function BusinessSection({
                 guarantors={view.guarantors}
                 amlByKey={guarantorAmlByKey}
                 onTriggerGuarantorAml={onTriggerGuarantorAml}
-                onRefreshGuarantorAml={onRefreshGuarantorAml}
               />
             </ReviewFieldBlock>
           )}

@@ -14,7 +14,7 @@ export const USE_MOCK_GUARANTOR_COMPARISON = false;
 
 /**
  * full — first guarantor: every scalar differs; second: new company.
- * partial — first guarantor: only last name + relationship differ; second: new company.
+ * partial — first guarantor: only name differs; second: new company.
  */
 export type MockGuarantorScenario = "full" | "partial";
 export const MOCK_GUARANTOR_SCENARIO: MockGuarantorScenario = "full";
@@ -47,10 +47,10 @@ const mockBusinessDetailsBefore: ReviewApplicationView["business_details"] = {
   guarantors: [
     {
       guarantor_type: "individual",
-      first_name: "Maria",
-      last_name: "Garcia",
-      ic_number: "850505-10-5555",
-      relationship: "family_members_of_director",
+      reference_id: "mock-ref-1",
+      name: "Maria Garcia",
+      ic_number: "850505105555",
+      email: "maria@example.com",
     },
   ],
 };
@@ -62,21 +62,22 @@ const mockBusinessDetailsAfterFull: ReviewApplicationView["business_details"] = 
   guarantors: [
     {
       guarantor_type: "individual",
-      first_name: "Siti",
-      last_name: "Norhaliza",
-      ic_number: "920315-08-1234",
-      relationship: "unrelated_party",
+      reference_id: "mock-ref-1",
+      name: "Siti Norhaliza",
+      ic_number: "920315081234",
+      email: "siti@example.com",
     },
     {
       guarantor_type: "company",
-      company_name: "Apex Logistics Sdn Bhd",
+      reference_id: "mock-ref-2",
+      business_name: "Apex Logistics Sdn Bhd",
       ssm_number: "202001012345",
-      relationship: "subsidiary",
+      email: "ops@apex.example.com",
     },
   ],
 };
 
-/** Same as before for first guarantor except last name + relationship (partial edit). */
+/** Same as before for first guarantor except name (partial edit). */
 const mockBusinessDetailsAfterPartial: ReviewApplicationView["business_details"] = {
   about_your_business: MOCK_ABOUT,
   why_raising_funds: MOCK_WHY,
@@ -84,52 +85,45 @@ const mockBusinessDetailsAfterPartial: ReviewApplicationView["business_details"]
   guarantors: [
     {
       guarantor_type: "individual",
-      first_name: "Maria",
-      last_name: "Norhaliza",
-      ic_number: "850505-10-5555",
-      relationship: "director_shareholder",
+      reference_id: "mock-ref-1",
+      name: "Maria Norhaliza",
+      ic_number: "850505105555",
+      email: "maria@example.com",
     },
     {
       guarantor_type: "company",
-      company_name: "Apex Logistics Sdn Bhd",
+      reference_id: "mock-ref-2",
+      business_name: "Apex Logistics Sdn Bhd",
       ssm_number: "202001012345",
-      relationship: "subsidiary",
+      email: "ops@apex.example.com",
     },
   ],
 };
 
 const mockGuarantorFieldChangesFull: ResubmitFieldChangeItem[] = [
   {
-    path: "business_details.guarantors[0].first_name",
+    path: "business_details.guarantors[0].name",
     section_key: "business_details",
     section_label: "Business details",
-    field_label: "Guarantor 1 — first name",
-    previous_value: "Maria",
-    next_value: "Siti",
-  },
-  {
-    path: "business_details.guarantors[0].last_name",
-    section_key: "business_details",
-    section_label: "Business details",
-    field_label: "Guarantor 1 — last name",
-    previous_value: "Garcia",
-    next_value: "Norhaliza",
+    field_label: "Guarantor 1 — name",
+    previous_value: "Maria Garcia",
+    next_value: "Siti Norhaliza",
   },
   {
     path: "business_details.guarantors[0].ic_number",
     section_key: "business_details",
     section_label: "Business details",
     field_label: "Guarantor 1 — IC number",
-    previous_value: "850505-10-5555",
-    next_value: "920315-08-1234",
+    previous_value: "850505105555",
+    next_value: "920315081234",
   },
   {
-    path: "business_details.guarantors[0].relationship",
+    path: "business_details.guarantors[0].email",
     section_key: "business_details",
     section_label: "Business details",
-    field_label: "Guarantor 1 — relationship",
-    previous_value: "family_members_of_director",
-    next_value: "unrelated_party",
+    field_label: "Guarantor 1 — email",
+    previous_value: "maria@example.com",
+    next_value: "siti@example.com",
   },
   {
     path: "business_details.guarantors[1]",
@@ -143,20 +137,12 @@ const mockGuarantorFieldChangesFull: ResubmitFieldChangeItem[] = [
 
 const mockGuarantorFieldChangesPartial: ResubmitFieldChangeItem[] = [
   {
-    path: "business_details.guarantors[0].last_name",
+    path: "business_details.guarantors[0].name",
     section_key: "business_details",
     section_label: "Business details",
-    field_label: "Guarantor 1 — last name",
-    previous_value: "Garcia",
-    next_value: "Norhaliza",
-  },
-  {
-    path: "business_details.guarantors[0].relationship",
-    section_key: "business_details",
-    section_label: "Business details",
-    field_label: "Guarantor 1 — relationship",
-    previous_value: "family_members_of_director",
-    next_value: "director_shareholder",
+    field_label: "Guarantor 1 — name",
+    previous_value: "Maria Garcia",
+    next_value: "Maria Norhaliza",
   },
   {
     path: "business_details.guarantors[1]",

@@ -112,7 +112,6 @@ export interface SectionContentProps {
   onRejectSection: (section: ReviewSectionId) => void;
   onRequestAmendmentSection: (section: ReviewSectionId) => void;
   onTriggerGuarantorAml?: (guarantorId: string) => Promise<void> | void;
-  onRefreshGuarantorAml?: (guarantorId: string) => Promise<void> | void;
   onRefreshAllGuarantorAml?: () => Promise<void> | void;
   onViewDocument: (s3Key: string) => void;
   onDownloadDocument: (s3Key: string, fileName?: string) => void;
@@ -169,7 +168,6 @@ export function SectionContent({
   onRejectSection,
   onRequestAmendmentSection,
   onTriggerGuarantorAml,
-  onRefreshGuarantorAml,
   onRefreshAllGuarantorAml,
   onViewDocument,
   onDownloadDocument,
@@ -254,7 +252,6 @@ export function SectionContent({
           onReject={onRejectSection}
           onRequestAmendment={onRequestAmendmentSection}
           onTriggerGuarantorAml={onTriggerGuarantorAml}
-          onRefreshGuarantorAml={onRefreshGuarantorAml}
           onRefreshAllGuarantorAml={onRefreshAllGuarantorAml}
           onViewDocument={onViewDocument}
           onDownloadDocument={onDownloadDocument}

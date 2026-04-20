@@ -9,7 +9,6 @@
 import * as React from "react";
 import { useApplication } from "@/hooks/use-applications";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { TextareaWithCharCount } from "@/components/textarea-with-char-count";
@@ -36,14 +35,6 @@ import {
   isValidMalaysianNric,
   malaysianNricDigits,
 } from "@/app/(application-flow)/applications/utils/malaysian-nric";
-import {
-  GUARANTOR_COMPANY_RELATIONSHIP_LABELS,
-  GUARANTOR_COMPANY_RELATIONSHIPS,
-  GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS,
-  GUARANTOR_INDIVIDUAL_RELATIONSHIPS,
-  type GuarantorCompanyRelationship,
-  type GuarantorIndividualRelationship,
-} from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -83,7 +74,6 @@ const SAME_INVOICE_OTHER_P2P_ERROR =
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 const GUARANTOR_EMAIL_STRICT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const MAX_GUARANTOR_RELATIONSHIP_OTHER = 500;
 
 /** “What does your company do?” and “Business plan” share the longer limit; other business textareas use the shorter limit. */
 const MAX_CHARS_WHAT_COMPANY_DO = 1000;
@@ -121,86 +111,47 @@ interface WhyRaisingFunds {
 type WhySupportingDocument = WhyRaisingFunds["supportingDocuments"][number];
 
 interface GuarantorIndividualRow {
-  guarantorId: string;
+  referenceId: string;
   guarantorType: "individual";
-  email: string;
-  firstName: string;
-  lastName: string;
+  name: string;
   icNumber: string;
-  relationship: GuarantorIndividualRelationship | "";
-  relationshipOther: string;
+  email: string;
 }
 
 interface GuarantorCompanyRow {
-  guarantorId: string;
+  referenceId: string;
   guarantorType: "company";
-  email: string;
-  companyName: string;
+  businessName: string;
   ssmNumber: string;
-  relationship: GuarantorCompanyRelationship | "";
+  email: string;
 }
 
 type GuarantorFormRow = GuarantorIndividualRow | GuarantorCompanyRow;
 
 function guarantorCardSummarySubtitle(row: GuarantorFormRow): string {
   if (row.guarantorType === "individual") {
-    const name = [row.firstName, row.lastName]
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .join(" ");
-    let rel = "";
-    if (
-      row.relationship &&
-      GUARANTOR_INDIVIDUAL_RELATIONSHIPS.includes(row.relationship as GuarantorIndividualRelationship)
-    ) {
-      const key = row.relationship as GuarantorIndividualRelationship;
-      if (key === "others") {
-        const detail = row.relationshipOther.trim();
-        rel = detail
-          ? `Others: ${detail.length > 48 ? `${detail.slice(0, 48)}…` : detail}`
-          : GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS.others;
-      } else {
-        rel = GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS[key];
-      }
-    }
-    if (name && rel) return `${name} (${rel})`;
-    if (name) return name;
-    if (rel) return `(${rel})`;
-    return "";
+    return row.name.trim();
   }
-  const co = row.companyName.trim();
-  const rel =
-    row.relationship &&
-    GUARANTOR_COMPANY_RELATIONSHIPS.includes(row.relationship as GuarantorCompanyRelationship)
-      ? GUARANTOR_COMPANY_RELATIONSHIP_LABELS[row.relationship as GuarantorCompanyRelationship]
-      : "";
-  if (co && rel) return `${co} (${rel})`;
-  if (co) return co;
-  if (rel) return `(${rel})`;
-  return "";
+  return row.businessName.trim();
 }
 
 function emptyIndividualGuarantor(): GuarantorIndividualRow {
   return {
-    guarantorId: makeClientId(),
+    referenceId: makeClientId(),
     guarantorType: "individual",
-    email: "",
-    firstName: "",
-    lastName: "",
+    name: "",
     icNumber: "",
-    relationship: "",
-    relationshipOther: "",
+    email: "",
   };
 }
 
 function emptyCompanyGuarantor(): GuarantorCompanyRow {
   return {
-    guarantorId: makeClientId(),
+    referenceId: makeClientId(),
     guarantorType: "company",
-    email: "",
-    companyName: "",
+    businessName: "",
     ssmNumber: "",
-    relationship: "",
+    email: "",
   };
 }
 
@@ -239,22 +190,18 @@ interface BusinessDetailsSnake {
   declaration_confirmed?: boolean;
   guarantors?: Array<
     | {
-        guarantor_id: string;
+        reference_id: string;
         guarantor_type: "individual";
         email: string;
-        first_name: string;
-        last_name: string;
+        name: string;
         ic_number: string;
-        relationship: GuarantorIndividualRelationship;
-        relationship_other?: string | null;
       }
     | {
-        guarantor_id: string;
+        reference_id: string;
         guarantor_type: "company";
         email: string;
-        company_name: string;
+        business_name: string;
         ssm_number: string;
-        relationship: GuarantorCompanyRelationship;
       }
   >;
 }
@@ -325,25 +272,18 @@ function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
     guarantors: p.guarantors.map((g) =>
       g.guarantorType === "individual"
         ? {
-            guarantor_id: g.guarantorId,
+            reference_id: g.referenceId,
             guarantor_type: "individual" as const,
             email: g.email.trim().toLowerCase(),
-            first_name: g.firstName.trim(),
-            last_name: g.lastName.trim(),
+            name: g.name.trim(),
             ic_number: malaysianNricDigits(g.icNumber),
-            relationship: g.relationship as GuarantorIndividualRelationship,
-            relationship_other:
-              g.relationship === "others"
-                ? g.relationshipOther.trim().slice(0, MAX_GUARANTOR_RELATIONSHIP_OTHER) || null
-                : null,
           }
         : {
-            guarantor_id: g.guarantorId,
+            reference_id: g.referenceId,
             guarantor_type: "company" as const,
             email: g.email.trim().toLowerCase(),
-            company_name: g.companyName.trim(),
+            business_name: g.businessName.trim(),
             ssm_number: g.ssmNumber.trim(),
-            relationship: g.relationship as GuarantorCompanyRelationship,
           }
     ),
   };
@@ -406,49 +346,35 @@ function parseGuarantorsFromRaw(raw: unknown): GuarantorFormRow[] {
     if (!item || typeof item !== "object") continue;
     const o = item as Record<string, unknown>;
     const gt = o.guarantor_type ?? o.guarantorType;
+    const ref =
+      String(o.reference_id ?? o.referenceId ?? o.guarantor_id ?? o.guarantorId ?? "").trim() || "";
     if (gt === "individual") {
-      const rel = o.relationship;
-      const relationshipOk =
-        typeof rel === "string" &&
-        (GUARANTOR_INDIVIDUAL_RELATIONSHIPS as readonly string[]).includes(rel);
-      const otherRaw = o.relationship_other ?? o.relationshipOther;
-      const relationshipOther =
-        relationshipOk && rel === "others"
-          ? String(otherRaw ?? "").slice(0, MAX_GUARANTOR_RELATIONSHIP_OTHER)
-          : "";
+      const legacyFirst = String(o.first_name ?? o.firstName ?? "").trim();
+      const legacyLast = String(o.last_name ?? o.lastName ?? "").trim();
+      const nameFromLegacy = [legacyFirst, legacyLast].filter(Boolean).join(" ").trim();
+      const name = String(o.name ?? nameFromLegacy ?? "").trim();
+      const govRaw = String(
+        o.ic_number ?? o.icNumber ?? o.government_id_number ?? o.governmentIdNumber ?? ""
+      );
       out.push({
-        guarantorId:
-          String(o.guarantor_id ?? o.guarantorId ?? "").trim() ||
-          stableFallbackGuarantorId(
-            out.length,
-            "individual",
-            normalizeIdentifier(String(o.ic_number ?? o.icNumber ?? ""))
-          ),
+        referenceId:
+          ref ||
+          stableFallbackGuarantorId(out.length, "individual", normalizeIdentifier(govRaw)),
         guarantorType: "individual",
         email: String(o.email ?? "").trim().toLowerCase(),
-        firstName: String(o.first_name ?? o.firstName ?? ""),
-        lastName: String(o.last_name ?? o.lastName ?? ""),
-        icNumber: clampGuarantorIcInput(String(o.ic_number ?? o.icNumber ?? "")),
-        relationship: relationshipOk ? (rel as GuarantorIndividualRelationship) : "",
-        relationshipOther,
+        name,
+        icNumber: clampGuarantorIcInput(govRaw),
       });
     } else if (gt === "company") {
-      const rel = o.relationship;
-      const relationshipOk =
-        typeof rel === "string" && (GUARANTOR_COMPANY_RELATIONSHIPS as readonly string[]).includes(rel);
+      const bizId = String(o.ssm_number ?? o.ssmNumber ?? o.business_id_number ?? o.businessIdNumber ?? "");
       out.push({
-        guarantorId:
-          String(o.guarantor_id ?? o.guarantorId ?? "").trim() ||
-          stableFallbackGuarantorId(
-            out.length,
-            "company",
-            normalizeIdentifier(String(o.ssm_number ?? o.ssmNumber ?? ""))
-          ),
+        referenceId:
+          ref ||
+          stableFallbackGuarantorId(out.length, "company", normalizeIdentifier(bizId)),
         guarantorType: "company",
         email: String(o.email ?? "").trim().toLowerCase(),
-        companyName: String(o.company_name ?? o.companyName ?? ""),
-        ssmNumber: String(o.ssm_number ?? o.ssmNumber ?? ""),
-        relationship: relationshipOk ? (rel as GuarantorCompanyRelationship) : "",
+        businessName: String(o.business_name ?? o.businessName ?? o.company_name ?? o.companyName ?? ""),
+        ssmNumber: bizId,
       });
     }
   }
@@ -703,75 +629,25 @@ function GuarantorCardFields({
 
       {row.guarantorType === "individual" ? (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full min-w-0">
-            <div className="space-y-2 w-full min-w-0">
-              <Label htmlFor={`g-${index}-first`} className={labelInputClassName}>
-                First name
-              </Label>
-            <Input
-              id={`g-${index}-first`}
-              value={row.firstName}
-              onChange={(e) =>
-                replaceGuarantorRow(index, {
-                  ...row,
-                  firstName: e.target.value.slice(0, 100),
-                })
-              }
-              placeholder="First name"
-              className={cn(inputClassName, readOnly && formInputDisabledClassName)}
-              disabled={readOnly}
-            />
-            {hasAttemptedSave && row.guarantorType === "individual" && !row.firstName.trim() ? (
-              <p className="text-xs text-destructive">Required</p>
-            ) : null}
-            </div>
-            <div className="space-y-2 w-full min-w-0">
-              <Label htmlFor={`g-${index}-last`} className={labelInputClassName}>
-                Last name
-              </Label>
-              <Input
-                id={`g-${index}-last`}
-                value={row.lastName}
-                onChange={(e) =>
-                  replaceGuarantorRow(index, {
-                    ...row,
-                    lastName: e.target.value.slice(0, 100),
-                  })
-                }
-                placeholder="Last name"
-                className={cn(inputClassName, readOnly && formInputDisabledClassName)}
-                disabled={readOnly}
-              />
-              {hasAttemptedSave && row.guarantorType === "individual" && !row.lastName.trim() ? (
-                <p className="text-xs text-destructive">Required</p>
-              ) : null}
-            </div>
-          </div>
           <div className="space-y-2 w-full min-w-0">
-            <Label htmlFor={`g-${index}-email`} className={labelInputClassName}>
-              Email
+            <Label htmlFor={`g-${index}-name`} className={labelInputClassName}>
+              Name
             </Label>
             <Input
-              id={`g-${index}-email`}
-              type="email"
-              value={row.email}
+              id={`g-${index}-name`}
+              value={row.name}
               onChange={(e) =>
                 replaceGuarantorRow(index, {
                   ...row,
-                  email: e.target.value.slice(0, 200),
+                  name: e.target.value.slice(0, 200),
                 })
               }
-              placeholder="name@email.com"
+              placeholder="Full name as per ID"
               className={cn(inputClassName, readOnly && formInputDisabledClassName)}
               disabled={readOnly}
             />
-            {hasAttemptedSave && !row.email.trim() ? (
+            {hasAttemptedSave && !row.name.trim() ? (
               <p className="text-xs text-destructive">Required</p>
-            ) : null}
-            {hasAttemptedSave &&
-            row.email.trim().length > 0 &&
-            !GUARANTOR_EMAIL_STRICT.test(row.email.trim()) ? (
-              <p className="text-xs text-destructive">Enter a valid email address</p>
             ) : null}
           </div>
           <div className="space-y-2 w-full min-w-0">
@@ -796,104 +672,10 @@ function GuarantorCardFields({
                 disabled={readOnly}
               />
               <p className="text-xs text-muted-foreground">12 digits</p>
-              {hasAttemptedSave &&
-              row.guarantorType === "individual" &&
-              !isValidMalaysianNric(row.icNumber) ? (
+              {hasAttemptedSave && !isValidMalaysianNric(row.icNumber) ? (
                 <p className="text-xs text-destructive">IC number must be 12 digits</p>
               ) : null}
             </div>
-          </div>
-          <div className="space-y-2 w-full min-w-0">
-            <Label className={labelInputClassName}>Relationship</Label>
-            <Select
-              value={row.relationship || undefined}
-              disabled={readOnly}
-              onValueChange={(v) => {
-                const rel = v as GuarantorIndividualRelationship;
-                replaceGuarantorRow(index, {
-                  ...row,
-                  relationship: rel,
-                  relationshipOther: rel === "others" ? row.relationshipOther : "",
-                });
-              }}
-            >
-              <SelectTrigger
-                className={cn(
-                  formSelectTriggerClassName,
-                  "w-full",
-                  readOnly && formInputDisabledClassName
-                )}
-              >
-                <SelectValue placeholder="Select relationship" />
-              </SelectTrigger>
-              <SelectContent>
-                {GUARANTOR_INDIVIDUAL_RELATIONSHIPS.map((key) => (
-                  <SelectItem key={key} value={key}>
-                    {GUARANTOR_INDIVIDUAL_RELATIONSHIP_LABELS[key]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {hasAttemptedSave &&
-            row.guarantorType === "individual" &&
-            (!row.relationship ||
-              !GUARANTOR_INDIVIDUAL_RELATIONSHIPS.includes(
-                row.relationship as GuarantorIndividualRelationship
-              )) ? (
-              <p className="text-xs text-destructive">Select a relationship</p>
-            ) : null}
-            {row.relationship === "others" ? (
-              <div className="space-y-2 pt-1">
-                <Label htmlFor={`g-${index}-relationship-other`} className={labelInputClassName}>
-                  Specify relationship
-                </Label>
-                <Textarea
-                  id={`g-${index}-relationship-other`}
-                  value={row.relationshipOther}
-                  onChange={(e) =>
-                    replaceGuarantorRow(index, {
-                      ...row,
-                      relationshipOther: e.target.value.slice(0, MAX_GUARANTOR_RELATIONSHIP_OTHER),
-                    })
-                  }
-                  placeholder="Describe how this person is related to the business"
-                  className={cn(textareaClassName, readOnly && formInputDisabledClassName)}
-                  disabled={readOnly}
-                  maxLength={MAX_GUARANTOR_RELATIONSHIP_OTHER}
-                  rows={3}
-                />
-                <p className="text-xs text-muted-foreground">
-                  {row.relationshipOther.length}/{MAX_GUARANTOR_RELATIONSHIP_OTHER} characters
-                </p>
-                {hasAttemptedSave && !row.relationshipOther.trim() ? (
-                  <p className="text-xs text-destructive">Enter how this guarantor is related</p>
-                ) : null}
-              </div>
-            ) : null}
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="space-y-2 w-full min-w-0">
-            <Label htmlFor={`g-${index}-co`} className={labelInputClassName}>
-              Company name
-            </Label>
-            <Input
-              id={`g-${index}-co`}
-              value={row.companyName}
-              onChange={(e) =>
-                replaceGuarantorRow(index, {
-                  ...row,
-                  companyName: e.target.value.slice(0, 200),
-                })
-              }
-              placeholder="e.g. ABC Holdings Sdn Bhd"
-              className={cn(inputClassName, readOnly && formInputDisabledClassName)}
-              disabled={readOnly}
-            />
-            {hasAttemptedSave && row.guarantorType === "company" && !row.companyName.trim() ? (
-              <p className="text-xs text-destructive">Required</p>
-            ) : null}
           </div>
           <div className="space-y-2 w-full min-w-0">
             <Label htmlFor={`g-${index}-email`} className={labelInputClassName}>
@@ -922,12 +704,36 @@ function GuarantorCardFields({
               <p className="text-xs text-destructive">Enter a valid email address</p>
             ) : null}
           </div>
+        </>
+      ) : (
+        <>
           <div className="space-y-2 w-full min-w-0">
-            <Label htmlFor={`g-${index}-ssm`} className={labelInputClassName}>
+            <Label htmlFor={`g-${index}-biz-name`} className={labelInputClassName}>
+              Business name
+            </Label>
+            <Input
+              id={`g-${index}-biz-name`}
+              value={row.businessName}
+              onChange={(e) =>
+                replaceGuarantorRow(index, {
+                  ...row,
+                  businessName: e.target.value.slice(0, 200),
+                })
+              }
+              placeholder="e.g. ABC Holdings Sdn Bhd"
+              className={cn(inputClassName, readOnly && formInputDisabledClassName)}
+              disabled={readOnly}
+            />
+            {hasAttemptedSave && !row.businessName.trim() ? (
+              <p className="text-xs text-destructive">Required</p>
+            ) : null}
+          </div>
+          <div className="space-y-2 w-full min-w-0">
+            <Label htmlFor={`g-${index}-biz-id`} className={labelInputClassName}>
               SSM number
             </Label>
             <Input
-              id={`g-${index}-ssm`}
+              id={`g-${index}-biz-id`}
               value={row.ssmNumber}
               onChange={(e) =>
                 replaceGuarantorRow(index, {
@@ -939,44 +745,35 @@ function GuarantorCardFields({
               className={cn(inputClassName, readOnly && formInputDisabledClassName)}
               disabled={readOnly}
             />
-            {hasAttemptedSave && row.guarantorType === "company" && !row.ssmNumber.trim() ? (
+            {hasAttemptedSave && !row.ssmNumber.trim() ? (
               <p className="text-xs text-destructive">Required</p>
             ) : null}
           </div>
           <div className="space-y-2 w-full min-w-0">
-            <Label className={labelInputClassName}>Relationship</Label>
-            <Select
-              value={row.relationship || undefined}
-              disabled={readOnly}
-              onValueChange={(v) =>
+            <Label htmlFor={`g-${index}-email-co`} className={labelInputClassName}>
+              Email
+            </Label>
+            <Input
+              id={`g-${index}-email-co`}
+              type="email"
+              value={row.email}
+              onChange={(e) =>
                 replaceGuarantorRow(index, {
                   ...row,
-                  relationship: v as GuarantorCompanyRelationship,
+                  email: e.target.value.slice(0, 200),
                 })
               }
-            >
-              <SelectTrigger
-                className={cn(
-                  formSelectTriggerClassName,
-                  "w-full",
-                  readOnly && formInputDisabledClassName
-                )}
-              >
-                <SelectValue placeholder="Select relationship" />
-              </SelectTrigger>
-              <SelectContent>
-                {GUARANTOR_COMPANY_RELATIONSHIPS.map((key) => (
-                  <SelectItem key={key} value={key}>
-                    {GUARANTOR_COMPANY_RELATIONSHIP_LABELS[key]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              placeholder="name@email.com"
+              className={cn(inputClassName, readOnly && formInputDisabledClassName)}
+              disabled={readOnly}
+            />
+            {hasAttemptedSave && !row.email.trim() ? (
+              <p className="text-xs text-destructive">Required</p>
+            ) : null}
             {hasAttemptedSave &&
-            row.guarantorType === "company" &&
-            (!row.relationship ||
-              !GUARANTOR_COMPANY_RELATIONSHIPS.includes(row.relationship as GuarantorCompanyRelationship)) ? (
-              <p className="text-xs text-destructive">Select a relationship</p>
+            row.email.trim().length > 0 &&
+            !GUARANTOR_EMAIL_STRICT.test(row.email.trim()) ? (
+              <p className="text-xs text-destructive">Enter a valid email address</p>
             ) : null}
           </div>
         </>
@@ -1086,32 +883,17 @@ export function BusinessDetailsStep({
       if (guarantors.length < 1) return false;
       for (const g of guarantors) {
         if (!guarantorEmailOk(g.email, mode)) return false;
+        if (!g.referenceId.trim()) return false;
         if (g.guarantorType === "individual") {
           const icOk =
             mode === "presence"
               ? malaysianNricDigits(g.icNumber).length > 0
               : isValidMalaysianNric(g.icNumber);
-          if (
-            !g.firstName.trim() ||
-            !g.lastName.trim() ||
-            !icOk ||
-            !g.relationship ||
-            !GUARANTOR_INDIVIDUAL_RELATIONSHIPS.includes(g.relationship as GuarantorIndividualRelationship)
-          ) {
+          if (!g.name.trim() || !icOk) {
             return false;
           }
-          if (g.relationship === "others") {
-            const other = g.relationshipOther.trim();
-            if (!other) return false;
-            if (mode === "strict" && other.length > MAX_GUARANTOR_RELATIONSHIP_OTHER) return false;
-          }
         } else {
-          if (
-            !g.companyName.trim() ||
-            !g.ssmNumber.trim() ||
-            !g.relationship ||
-            !GUARANTOR_COMPANY_RELATIONSHIPS.includes(g.relationship as GuarantorCompanyRelationship)
-          ) {
+          if (!g.businessName.trim() || !g.ssmNumber.trim()) {
             return false;
           }
         }
@@ -1433,7 +1215,14 @@ export function BusinessDetailsStep({
   };
 
   const setGuarantorTypeAt = (index: number, type: "individual" | "company") => {
-    replaceGuarantorRow(index, type === "individual" ? emptyIndividualGuarantor() : emptyCompanyGuarantor());
+    const current = guarantors[index];
+    const ref = current?.referenceId ?? makeClientId();
+    replaceGuarantorRow(
+      index,
+      type === "individual"
+        ? { ...emptyIndividualGuarantor(), referenceId: ref }
+        : { ...emptyCompanyGuarantor(), referenceId: ref }
+    );
   };
 
   const removeWhySectionSupportingDocumentAt = (index: number) => {

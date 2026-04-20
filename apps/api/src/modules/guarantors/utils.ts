@@ -4,12 +4,10 @@ export interface ParsedGuarantorInput {
   guarantorId: string;
   guarantorType: GuarantorType;
   email: string;
-  firstName?: string;
-  lastName?: string;
-  companyName?: string;
+  name?: string;
   icNumber?: string;
+  businessName?: string;
   ssmNumber?: string;
-  relationship?: string;
   position: number;
   sourceData: Record<string, unknown>;
 }
@@ -37,24 +35,36 @@ function safeToken(value: string): string {
   return compact.length > 0 ? compact : "unknown";
 }
 
-function deterministicGuarantorId(index: number, guarantorType: GuarantorType, token: string): string {
-  return `g-${guarantorType}-${safeToken(token || `idx${index + 1}`)}`;
+function deterministicGuarantorId(
+  index: number,
+  guarantorType: GuarantorType,
+  governmentOrBusinessId: string
+): string {
+  return `g-${guarantorType}-${safeToken(governmentOrBusinessId || `idx${index + 1}`)}`;
 }
 
-export function buildGuarantorCanonicalKey(input: {
-  guarantorType: GuarantorType;
-  icNumber?: string;
-  ssmNumber?: string;
-  email?: string;
-}): string {
-  if (input.guarantorType === "individual") {
-    const ic = normalizeIdentifier(input.icNumber);
-    if (ic) return `individual:${ic}`;
-    return `individual:email:${normalizeEmail(input.email)}`;
-  }
-  const ssm = normalizeIdentifier(input.ssmNumber);
-  if (ssm) return `company:${ssm}`;
-  return `company:email:${normalizeEmail(input.email)}`;
+function legacyIndividualName(raw: Record<string, unknown>): string {
+  const direct = normalizeText(raw.name ?? raw.full_name ?? raw.fullName);
+  if (direct) return direct;
+  const first = normalizeText(raw.first_name ?? raw.firstName);
+  const last = normalizeText(raw.last_name ?? raw.lastName);
+  return [first, last].filter(Boolean).join(" ").trim();
+}
+
+function legacyIcNumber(raw: Record<string, unknown>): string {
+  return normalizeIdentifier(
+    raw.ic_number ?? raw.icNumber ?? raw.government_id_number ?? raw.governmentIdNumber
+  );
+}
+
+function legacySsmNumber(raw: Record<string, unknown>): string {
+  return normalizeText(
+    raw.ssm_number ?? raw.ssmNumber ?? raw.business_id_number ?? raw.businessIdNumber ?? ""
+  );
+}
+
+function referenceIdFromRow(raw: Record<string, unknown>): string {
+  return normalizeText(raw.reference_id ?? raw.referenceId ?? raw.guarantor_id ?? raw.guarantorId);
 }
 
 export function parseGuarantorsFromBusinessDetails(businessDetails: unknown): ParsedGuarantorInput[] {
@@ -70,31 +80,30 @@ export function parseGuarantorsFromBusinessDetails(businessDetails: unknown): Pa
     if (!email) continue;
 
     if (guarantorType === "individual") {
-      const icNumber = normalizeIdentifier(row.ic_number ?? row.icNumber);
-      const explicitId = normalizeText(row.guarantor_id ?? row.guarantorId);
+      const ic = legacyIcNumber(row);
+      const explicitId = referenceIdFromRow(row);
+      const name = legacyIndividualName(row);
       result.push({
-        guarantorId: explicitId || deterministicGuarantorId(index, guarantorType, icNumber),
+        guarantorId: explicitId || deterministicGuarantorId(index, guarantorType, ic),
         guarantorType,
         email,
-        firstName: normalizeText(row.first_name ?? row.firstName) || undefined,
-        lastName: normalizeText(row.last_name ?? row.lastName) || undefined,
-        icNumber: icNumber || undefined,
-        relationship: normalizeText(row.relationship) || undefined,
+        name: name || undefined,
+        icNumber: ic || undefined,
         position: index,
         sourceData: row,
       });
       continue;
     }
 
-    const ssmNumber = normalizeIdentifier(row.ssm_number ?? row.ssmNumber);
-    const explicitId = normalizeText(row.guarantor_id ?? row.guarantorId);
+    const ssm = legacySsmNumber(row);
+    const explicitId = referenceIdFromRow(row);
+    const businessName = normalizeText(row.business_name ?? row.businessName ?? row.company_name ?? row.companyName);
     result.push({
-      guarantorId: explicitId || deterministicGuarantorId(index, guarantorType, ssmNumber),
+      guarantorId: explicitId || deterministicGuarantorId(index, guarantorType, normalizeIdentifier(ssm)),
       guarantorType,
       email,
-      companyName: normalizeText(row.company_name ?? row.companyName) || undefined,
-      ssmNumber: ssmNumber || undefined,
-      relationship: normalizeText(row.relationship) || undefined,
+      businessName: businessName || undefined,
+      ssmNumber: ssm || undefined,
       position: index,
       sourceData: row,
     });
