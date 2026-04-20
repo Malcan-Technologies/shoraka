@@ -1,21 +1,20 @@
 import {
   getAdminFinancialSummaryUserColumnYears,
   getCtosLatestYear,
-  getFinancialInputBaseYears,
   getIssuerFinancialTabYears,
   getLatestThreeCtosYearSlots,
   getLatestThreeCtosYears,
-  issuerUnauditedPlddForStartYear,
+  issuerUnauditedPlddForFyEndYear,
   normalizeFinancialStatementsQuestionnaire,
 } from "@cashsouk/types";
+import { addDays, format, startOfDay } from "date-fns";
 import { financialStatementsV2Schema } from "./schemas";
 
-const closing = "2026-03-31";
-const ref2026 = new Date("2026-06-15");
-const qTwo = { last_closing_date: closing, is_submitted_to_ssm: false as const };
+const refJan2026 = new Date("2026-01-10");
+const qMar2027: { financial_year_end: string } = { financial_year_end: "2027-03-31" };
 
-const block = (startYear: number, q: { last_closing_date: string; is_submitted_to_ssm: boolean } = qTwo) => ({
-  pldd: issuerUnauditedPlddForStartYear(startYear, q, ref2026),
+const block = (fyEndYear: number, q: { financial_year_end: string } = qMar2027) => ({
+  pldd: issuerUnauditedPlddForFyEndYear(fyEndYear, q),
   bsfatot: 0,
   othass: 0,
   bscatot: 0,
@@ -71,27 +70,22 @@ describe("financial-unaudited-ctos-validation", () => {
     });
   });
 
-  describe("getAdminFinancialSummaryUserColumnYears", () => {
-    it("returns empty when nothing submitted in window", () => {
-      expect(getAdminFinancialSummaryUserColumnYears([], ref2026)).toEqual([]);
-      expect(getAdminFinancialSummaryUserColumnYears([2024], ref2026)).toEqual([]);
+  describe("getIssuerFinancialTabYears", () => {
+    it("returns two FY end years when today is before deadline (previous FY end + 6 months)", () => {
+      expect(getIssuerFinancialTabYears(qMar2027, refJan2026)).toEqual([2026, 2027]);
     });
-    it("returns one year when only that tab exists (ref 2026 → window 2025–2026)", () => {
-      expect(getAdminFinancialSummaryUserColumnYears([2025], ref2026)).toEqual([2025]);
-      expect(getAdminFinancialSummaryUserColumnYears([2026], ref2026)).toEqual([2026]);
-    });
-    it("returns both years ascending when both submitted", () => {
-      expect(getAdminFinancialSummaryUserColumnYears([2025, 2026], ref2026)).toEqual([2025, 2026]);
-      expect(getAdminFinancialSummaryUserColumnYears([2026, 2025], ref2026)).toEqual([2025, 2026]);
+    it("returns one FY end year when today is on or after deadline", () => {
+      const refLate = new Date("2026-11-01");
+      expect(getIssuerFinancialTabYears(qMar2027, refLate)).toEqual([2027]);
     });
   });
 
-  describe("getIssuerFinancialTabYears", () => {
-    it("submitted: year2 only from ref", () => {
-      expect(getIssuerFinancialTabYears(true, ref2026)).toEqual([2026]);
-    });
-    it("not submitted: year1 then year2 from ref", () => {
-      expect(getIssuerFinancialTabYears(false, ref2026)).toEqual([2025, 2026]);
+  describe("getAdminFinancialSummaryUserColumnYears", () => {
+    it("matches issuer tab years for same questionnaire and ref", () => {
+      expect(getAdminFinancialSummaryUserColumnYears(null, refJan2026)).toEqual([]);
+      expect(getAdminFinancialSummaryUserColumnYears(qMar2027, refJan2026)).toEqual(
+        getIssuerFinancialTabYears(qMar2027, refJan2026)
+      );
     });
   });
 
@@ -99,89 +93,59 @@ describe("financial-unaudited-ctos-validation", () => {
     it("returns null for unknown keys", () => {
       expect(
         normalizeFinancialStatementsQuestionnaire({
-          latest_financial_year: 2024,
-          submitted_this_financial_year: true,
-          has_data_for_next_financial_year: false,
+          last_closing_date: "2020-01-01",
+          is_submitted_to_ssm: false,
         })
       ).toBeNull();
     });
-    it("parses current questionnaire keys", () => {
+    it("returns null when FYE is not strictly after ref", () => {
       expect(
-        normalizeFinancialStatementsQuestionnaire({
-          last_closing_date: closing,
-          is_submitted_to_ssm: false,
-        })
-      ).toEqual({
-        last_closing_date: closing,
-        is_submitted_to_ssm: false,
-      });
+        normalizeFinancialStatementsQuestionnaire({ financial_year_end: "2026-01-10" }, refJan2026)
+      ).toBeNull();
+    });
+    it("parses financial_year_end when future", () => {
+      expect(normalizeFinancialStatementsQuestionnaire({ financial_year_end: "2027-03-31" }, refJan2026)).toEqual(
+        qMar2027
+      );
     });
   });
 
   describe("financialStatementsV2Schema", () => {
     it("rejects legacy questionnaire keys", () => {
-      const { year1, year2 } = getFinancialInputBaseYears(ref2026);
+      const y2026 = 2026;
+      const y2027 = 2027;
       const parsed = financialStatementsV2Schema.safeParse({
         questionnaire: {
-          latest_financial_year: 2025,
-          submitted_this_financial_year: false,
-          has_data_for_next_financial_year: true,
+          last_closing_date: "2026-03-31",
+          is_submitted_to_ssm: false,
         },
         unaudited_by_year: {
-          [String(year1)]: block(year1),
-          [String(year2)]: block(year2),
+          [String(y2026)]: block(y2026),
+          [String(y2027)]: block(y2027),
         },
       });
       expect(parsed.success).toBe(false);
     });
-    it("accepts questionnaire and two unaudited years with pldd rules", () => {
-      const { year1, year2 } = getFinancialInputBaseYears(ref2026);
-      const parsed = financialStatementsV2Schema.safeParse({
-        questionnaire: {
-          last_closing_date: closing,
-          is_submitted_to_ssm: false,
-        },
-        unaudited_by_year: {
-          [String(year1)]: block(year1),
-          [String(year2)]: block(year2),
-        },
-      });
-      expect(parsed.success).toBe(true);
-      if (parsed.success) {
-        expect(parsed.data.questionnaire).toEqual({
-          last_closing_date: closing,
-          is_submitted_to_ssm: false,
-        });
-        expect(parsed.data.unaudited_by_year[String(year1)].pldd).toBe(closing);
-        expect(parsed.data.unaudited_by_year[String(year2)].pldd).toBe("");
+    it("accepts questionnaire and two unaudited years with FYE rules", () => {
+      const futureFye = format(addDays(startOfDay(new Date()), 120), "yyyy-MM-dd");
+      const q = { financial_year_end: futureFye };
+      const years = getIssuerFinancialTabYears(q, new Date());
+      const unaudited: Record<string, ReturnType<typeof block>> = {};
+      for (const y of years) {
+        unaudited[String(y)] = block(y, q);
       }
-    });
-    it("accepts submitted SSM with one unaudited year (year2)", () => {
-      const { year2 } = getFinancialInputBaseYears(ref2026);
-      const qSub = { last_closing_date: closing, is_submitted_to_ssm: true as const };
       const parsed = financialStatementsV2Schema.safeParse({
-        questionnaire: {
-          last_closing_date: closing,
-          is_submitted_to_ssm: true,
-        },
-        unaudited_by_year: {
-          [String(year2)]: block(year2, qSub),
-        },
+        questionnaire: q,
+        unaudited_by_year: unaudited,
       });
       expect(parsed.success).toBe(true);
     });
-    it("rejects last_closing_date in the future", () => {
-      const futureClosing = "2099-12-31";
-      const { year1, year2 } = getFinancialInputBaseYears();
+    it("rejects financial_year_end not in the future", () => {
+      const past = format(addDays(startOfDay(new Date()), -10), "yyyy-MM-dd");
+      const q = { financial_year_end: past };
       const parsed = financialStatementsV2Schema.safeParse({
-        questionnaire: {
-          last_closing_date: futureClosing,
-          is_submitted_to_ssm: false,
-        },
-        unaudited_by_year: {
-          [String(year1)]: { ...block(year1), pldd: "" },
-          [String(year2)]: { ...block(year2), pldd: "" },
-        },
+        questionnaire: q,
+        unaudited_by_year: {},
       });
       expect(parsed.success).toBe(false);
     });

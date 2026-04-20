@@ -15,8 +15,9 @@ import {
   computeColumnMetrics,
   financialFormToBsPl,
   getIssuerFinancialTabYears,
-  issuerUnauditedPlddForStartYear,
+  issuerUnauditedPlddForFyEndYear,
   type FinancialStatementsInput,
+  type FinancialStatementsQuestionnaire,
 } from "@cashsouk/types";
 import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
 import {
@@ -55,10 +56,13 @@ const USE_MOCK_FINANCIAL_RESUBMIT_COMPARISON = false;
  */
 const MOCK_UNAUDITED_YEAR_COUNT: 1 | 2 = 1;
 
-const MOCK_LAST_CLOSING_DATE = "2023-06-30";
-const MOCK_TAB_REF = new Date("2023-08-01");
-const MOCK_Y_SUBMITTED = getIssuerFinancialTabYears(true, MOCK_TAB_REF)[0];
-const [MOCK_Y1, MOCK_Y2] = getIssuerFinancialTabYears(false, MOCK_TAB_REF);
+const MOCK_Q_TWO_TABS: FinancialStatementsQuestionnaire = { financial_year_end: "2027-03-31" };
+const MOCK_REF_TWO_TABS = new Date("2026-01-10");
+const [MOCK_Y1, MOCK_Y2] = getIssuerFinancialTabYears(MOCK_Q_TWO_TABS, MOCK_REF_TWO_TABS);
+
+const MOCK_Q_ONE_TAB: FinancialStatementsQuestionnaire = { financial_year_end: "2029-03-31" };
+const MOCK_REF_ONE_TAB = new Date("2028-11-15");
+const MOCK_Y_SUBMITTED = getIssuerFinancialTabYears(MOCK_Q_ONE_TAB, MOCK_REF_ONE_TAB)[0];
 
 function formatFinancialDateDisplay(raw: string | null | undefined): string {
   if (raw == null || String(raw).trim() === "") return "\u2014";
@@ -83,16 +87,12 @@ function formatFinancialDateDisplay(raw: string | null | undefined): string {
 }
 
 function mockUnauditedYearBlock(
-  startYear: number,
-  isSubmittedToSsm: boolean,
+  fyEndYear: number,
+  q: FinancialStatementsQuestionnaire,
   overrides: Record<string, unknown> = {}
 ): Record<string, unknown> {
-  const q = {
-    last_closing_date: MOCK_LAST_CLOSING_DATE,
-    is_submitted_to_ssm: isSubmittedToSsm,
-  };
   return {
-    pldd: issuerUnauditedPlddForStartYear(startYear, q, MOCK_TAB_REF),
+    pldd: issuerUnauditedPlddForFyEndYear(fyEndYear, q),
     bsfatot: 180_000,
     othass: 45_000,
     bscatot: 220_000,
@@ -120,24 +120,18 @@ function buildMockFinancialResubmitPayload(yearCount: 1 | 2): MockFinancialResub
   if (yearCount === 1) {
     return {
       before: {
-        questionnaire: {
-          last_closing_date: MOCK_LAST_CLOSING_DATE,
-          is_submitted_to_ssm: true,
-        },
+        questionnaire: MOCK_Q_ONE_TAB,
         unaudited_by_year: {
-          [String(MOCK_Y_SUBMITTED)]: mockUnauditedYearBlock(MOCK_Y_SUBMITTED, true, {
+          [String(MOCK_Y_SUBMITTED)]: mockUnauditedYearBlock(MOCK_Y_SUBMITTED, MOCK_Q_ONE_TAB, {
             turnover: 1_050_000,
             plnpat: 48_000,
           }),
         },
       },
       after: {
-        questionnaire: {
-          last_closing_date: MOCK_LAST_CLOSING_DATE,
-          is_submitted_to_ssm: true,
-        },
+        questionnaire: MOCK_Q_ONE_TAB,
         unaudited_by_year: {
-          [String(MOCK_Y_SUBMITTED)]: mockUnauditedYearBlock(MOCK_Y_SUBMITTED, true, {
+          [String(MOCK_Y_SUBMITTED)]: mockUnauditedYearBlock(MOCK_Y_SUBMITTED, MOCK_Q_ONE_TAB, {
             turnover: 1_180_000,
             plnpat: 48_000,
           }),
@@ -148,23 +142,17 @@ function buildMockFinancialResubmitPayload(yearCount: 1 | 2): MockFinancialResub
   }
   return {
     before: {
-      questionnaire: {
-        last_closing_date: MOCK_LAST_CLOSING_DATE,
-        is_submitted_to_ssm: false,
-      },
+      questionnaire: MOCK_Q_TWO_TABS,
       unaudited_by_year: {
-        [String(MOCK_Y1)]: mockUnauditedYearBlock(MOCK_Y1, false, { turnover: 880_000, plnpat: 41_000 }),
-        [String(MOCK_Y2)]: mockUnauditedYearBlock(MOCK_Y2, false, { turnover: 1_050_000, plnpat: 48_000 }),
+        [String(MOCK_Y1)]: mockUnauditedYearBlock(MOCK_Y1, MOCK_Q_TWO_TABS, { turnover: 880_000, plnpat: 41_000 }),
+        [String(MOCK_Y2)]: mockUnauditedYearBlock(MOCK_Y2, MOCK_Q_TWO_TABS, { turnover: 1_050_000, plnpat: 48_000 }),
       },
     },
     after: {
-      questionnaire: {
-        last_closing_date: MOCK_LAST_CLOSING_DATE,
-        is_submitted_to_ssm: false,
-      },
+      questionnaire: MOCK_Q_TWO_TABS,
       unaudited_by_year: {
-        [String(MOCK_Y1)]: mockUnauditedYearBlock(MOCK_Y1, false, { turnover: 965_000, plnpat: 41_000 }),
-        [String(MOCK_Y2)]: mockUnauditedYearBlock(MOCK_Y2, false, { turnover: 1_050_000, plnpat: 61_000 }),
+        [String(MOCK_Y1)]: mockUnauditedYearBlock(MOCK_Y1, MOCK_Q_TWO_TABS, { turnover: 965_000, plnpat: 41_000 }),
+        [String(MOCK_Y2)]: mockUnauditedYearBlock(MOCK_Y2, MOCK_Q_TWO_TABS, { turnover: 1_050_000, plnpat: 61_000 }),
       },
     },
     changedPaths: new Set([

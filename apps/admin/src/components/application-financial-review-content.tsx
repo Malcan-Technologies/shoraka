@@ -38,6 +38,7 @@ import {
   computeColumnMetrics,
   computeTurnoverGrowth,
   financialFormToBsPl,
+  formatFinancialFyPeriodDisplay,
   getAdminFinancialSummaryUserColumnYears,
   getLatestThreeCtosYearSlots,
   governmentIdFromDirectorKycForEod,
@@ -1443,7 +1444,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
     return m;
   }, [ctosSubjectList]);
 
-  const { unauditedByYear } = React.useMemo(
+  const { unauditedByYear, questionnaire: financialQuestionnaire } = React.useMemo(
     () => extractQuestionnaireAndUnaudited(app.financial_statements),
     [app.financial_statements]
   );
@@ -1489,18 +1490,9 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
     return s;
   }, [financialRows]);
 
-  const rawUnauditedYears = React.useMemo(
-    () =>
-      Object.keys(unauditedByYear)
-        .map((k) => parseInt(k, 10))
-        .filter((n) => Number.isFinite(n))
-        .sort((a, b) => a - b),
-    [unauditedByYear]
-  );
-
   const adminUserYears = React.useMemo(
-    () => getAdminFinancialSummaryUserColumnYears(rawUnauditedYears),
-    [rawUnauditedYears]
+    () => getAdminFinancialSummaryUserColumnYears(financialQuestionnaire, new Date()),
+    [financialQuestionnaire]
   );
 
   const columns = React.useMemo((): ColumnSpec[] => {
@@ -1898,7 +1890,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
     ? new Date(latestCtos.fetched_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
     : null;
 
-  const hadCtosUnauditedOverride = rawUnauditedYears.some((y) => ctosFinancialYearsSet.has(y));
+  const hadCtosUnauditedOverride = adminUserYears.some((y) => ctosFinancialYearsSet.has(y));
 
   const isMutedFinancialCell = (text: string) =>
     text === "—" ||
@@ -1990,7 +1982,20 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                       )}
                     >
                       <span className={spec.year != null ? "text-foreground" : "text-muted-foreground"}>
-                        {spec.year != null ? String(spec.year) : spec.kind === "ctos" ? "No year" : HEADER_PLACEHOLDER}
+                        {spec.kind === "unaudited" && spec.year != null && financialQuestionnaire ? (
+                          <span className="flex flex-col items-end gap-0.5">
+                            <span>{`FY${spec.year}`}</span>
+                            <span className="text-[11px] font-normal leading-tight text-muted-foreground">
+                              {formatFinancialFyPeriodDisplay(financialQuestionnaire, spec.year)}
+                            </span>
+                          </span>
+                        ) : spec.year != null ? (
+                          String(spec.year)
+                        ) : spec.kind === "ctos" ? (
+                          "No year"
+                        ) : (
+                          HEADER_PLACEHOLDER
+                        )}
                       </span>
                     </TableHead>
                   ))}

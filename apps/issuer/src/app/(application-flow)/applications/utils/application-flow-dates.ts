@@ -36,6 +36,17 @@ export function isApplicationFlowDateOnOrBeforeToday(dateStr?: string | null): b
   return startOfDay(chosen).getTime() <= startOfDay(new Date()).getTime();
 }
 
+/** Next FY end must be strictly after today (local calendar day). */
+export function isApplicationFlowDateStrictlyAfterToday(dateStr?: string | null): boolean {
+  const iso = applicationFlowDateToIso(dateStr);
+  if (!iso) return false;
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return false;
+  const chosen = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  if (!isValid(chosen)) return false;
+  return startOfDay(chosen).getTime() > startOfDay(new Date()).getTime();
+}
+
 /** Hydrate `DateInput` from API: ISO → display `d/M/yyyy`. */
 export function isoToApplicationFlowDateDisplay(raw?: string | null): string {
   if (!raw) return "";
