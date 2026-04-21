@@ -4,8 +4,8 @@ import * as React from "react";
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Logo } from "@cashsouk/ui";
-import { APP_VERSION, useOrganization } from "@cashsouk/config";
+import { CashSoukSidebarFooter, Logo } from "@cashsouk/ui";
+import { useOrganization } from "@cashsouk/config";
 import { HomeIcon, UserCircleIcon, ClockIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
 
 import { NavUser } from "@/components/nav-user";
@@ -103,7 +103,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarMenu>
           <div className="group-data-[collapsible=icon]:hidden">
             <Separator className="my-2" />
-            <Skeleton className="mx-3 h-3 w-16" />
+            <Skeleton className="mx-2 h-16 w-full max-w-[calc(100%-0.5rem)]" />
           </div>
         </SidebarFooter>
         <SidebarRail />
@@ -218,9 +218,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavUser />
         <div className="group-data-[collapsible=icon]:hidden">
           <Separator className="my-2" />
-          <div className="flex px-3 justify-start py-2 text-xs text-sidebar-foreground/70">
-            {APP_VERSION}
-          </div>
+          <CashSoukSidebarFooter variant="issuer" />
         </div>
       </SidebarFooter>
       <SidebarRail />

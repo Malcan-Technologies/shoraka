@@ -3,8 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Logo } from "@cashsouk/ui";
-import { APP_VERSION } from "@cashsouk/config";
+import { CashSoukSidebarFooter, Logo } from "@cashsouk/ui";
 import {
   HomeIcon,
   DocumentTextIcon,
@@ -325,9 +324,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavUser />
         <div className="group-data-[collapsible=icon]:hidden">
           <Separator className="my-2" />
-          <div className="flex px-3 justify-start py-2 text-xs text-sidebar-foreground/70">
-            {APP_VERSION}
-          </div>
+          <CashSoukSidebarFooter variant="admin" />
         </div>
       </SidebarFooter>
       <SidebarRail />
