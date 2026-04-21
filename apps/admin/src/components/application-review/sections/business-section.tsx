@@ -6,7 +6,6 @@ import { YesNoRadioDisplay } from "@cashsouk/ui";
 import { formatCurrency } from "@cashsouk/config";
 import {
   ArrowDownTrayIcon,
-  ArrowPathIcon,
   ArrowTopRightOnSquareIcon,
   ChevronDownIcon,
   ChevronRightIcon,
@@ -46,6 +45,10 @@ import {
   businessSupportingDocsToChips,
 } from "../comparison-document-pair";
 import type { ReviewSectionId } from "../section-types";
+import {
+  kycAmlScreeningRiskLevelBadgeClass,
+  kycAmlScreeningStatusBadgeClass,
+} from "@/lib/kyc-aml-screening-badge-classes";
 import { cn } from "@/lib/utils";
 import {
   ComparisonFieldRow,
@@ -76,7 +79,6 @@ export interface BusinessSectionProps {
   onReject: (section: ReviewSectionId) => void;
   onRequestAmendment: (section: ReviewSectionId) => void;
   onTriggerGuarantorAml?: (guarantorId: string) => Promise<void> | void;
-  onRefreshAllGuarantorAml?: () => Promise<void> | void;
   onViewDocument: (s3Key: string) => void;
   onDownloadDocument: (s3Key: string, fileName?: string) => void;
   viewDocumentPending?: boolean;
@@ -194,11 +196,18 @@ function RegTankGuarantorControlRow({
         (() => {
           if (!guarantor) return <RegTankGuarantorLinkButton />;
           const aml = amlByKey.get(buildGuarantorAmlKey(guarantor));
+          const screeningRequestId = aml?.amlScreening?.requestId;
+          const hasScreeningStarted = Boolean(
+            aml?.requestId || screeningRequestId || aml?.regtankPortalUrl
+          );
           const resultUrl =
-            regTankDjScreeningResultUrl(REGTANK_PORTAL_BASE_URL, guarantor.kind, aml?.requestId) ??
-            aml?.regtankPortalUrl;
+            regTankDjScreeningResultUrl(
+              REGTANK_PORTAL_BASE_URL,
+              guarantor.kind,
+              aml?.requestId ?? screeningRequestId
+            ) ?? aml?.regtankPortalUrl;
           const viewDisabledReason = !resultUrl
-            ? !aml?.requestId
+            ? !aml?.requestId && !screeningRequestId
               ? "Start AML screening first, or configure NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL."
               : "Configure NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL to open Dow Jones results in RegTank."
             : undefined;
@@ -209,7 +218,14 @@ function RegTankGuarantorControlRow({
                 variant="outline"
                 size="sm"
                 className="gap-1.5 h-9 shrink-0 px-3 text-sm"
-                disabled={!onTriggerGuarantorAml || !guarantor.email}
+                disabled={!onTriggerGuarantorAml || !guarantor.email || hasScreeningStarted}
+                title={
+                  hasScreeningStarted
+                    ? "AML screening has already been started for this guarantor."
+                    : !guarantor.email
+                      ? "Guarantor email is required to start AML screening."
+                      : undefined
+                }
                 onClick={(e) => {
                   e.stopPropagation();
                   void onTriggerGuarantorAml?.(guarantor.referenceId);
@@ -520,7 +536,8 @@ function parseGuarantorAmlEntries(raw: unknown): GuarantorAmlEntry[] {
         reviewRow.kind === "individual" ? reviewRow.icNumber : undefined,
       businessName: reviewRow.kind === "company" ? reviewRow.businessName : undefined,
       ssmNumber: reviewRow.kind === "company" ? reviewRow.ssmNumber : undefined,
-      requestId: reviewStr(g.onboarding_request_id) || undefined,
+      requestId:
+        reviewStr(g.onboarding_request_id) || reviewStr(g.onboardingRequestId) || undefined,
       onboardingVerifyLink: reviewStr(g.onboarding_verify_link) || undefined,
       regtankPortalUrl: reviewStr(g.regtank_portal_url) || undefined,
       amlStatus: isStatusValid ? amlStatus : "Pending",
@@ -574,25 +591,22 @@ function parseRelationalGuarantors(raw: unknown): GuarantorReviewRow[] {
   return rows;
 }
 
-function guarantorScreeningStatusBadgeClass(status: string | undefined): string {
-  if (!status) return "bg-muted text-muted-foreground";
-  const s = status.toLowerCase();
-  if (s === "approved")
-    return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400";
-  if (s === "rejected") return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
-  if (s.includes("pending"))
-    return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
-  return "bg-muted text-muted-foreground";
-}
-
 function GuarantorAmlScreeningCard({ screening }: { screening: GuarantorAmlScreeningSnapshot }) {
   const hasCounts =
     screening.possibleMatchCount !== undefined || screening.blacklistedMatchCount !== undefined;
   const hasFooter = screening.requestId || screening.screeningUpdatedAt;
   const scoreLabel = screening.riskScore?.trim() ?? "";
   const hasScore = scoreLabel.length > 0;
+  const riskLevelLabel = screening.riskLevel?.trim() ?? "";
+  const hasRiskLevel = riskLevelLabel.length > 0;
 
-  if (!screening.regtankStatus && !hasCounts && !hasFooter && !hasScore) {
+  if (
+    !screening.regtankStatus &&
+    !hasCounts &&
+    !hasFooter &&
+    !hasScore &&
+    !hasRiskLevel
+  ) {
     return null;
   }
 
@@ -607,23 +621,31 @@ function GuarantorAmlScreeningCard({ screening }: { screening: GuarantorAmlScree
       <CardHeader className="pb-2 pt-3">
         <CardTitle className="text-xs font-medium flex items-center gap-2">
           <ShieldExclamationIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          KYC/AML screening (RegTank)
+          KYC/AML screening
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 pb-3 pt-0">
-        {screening.regtankStatus || hasScore ? (
+        {screening.regtankStatus || hasRiskLevel || hasScore ? (
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
             {screening.regtankStatus ? (
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[11px] text-muted-foreground">Status</span>
-                <Badge className={guarantorScreeningStatusBadgeClass(screening.regtankStatus)}>
+                <span className="text-xs text-muted-foreground">Status:</span>
+                <Badge className={kycAmlScreeningStatusBadgeClass(screening.regtankStatus)}>
                   {screening.regtankStatus}
+                </Badge>
+              </div>
+            ) : null}
+            {hasRiskLevel ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground">Risk Level:</span>
+                <Badge className={kycAmlScreeningRiskLevelBadgeClass(screening.riskLevel)}>
+                  {riskLevelLabel}
                 </Badge>
               </div>
             ) : null}
             {hasScore ? (
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[11px] text-muted-foreground">Score</span>
+                <span className="text-xs text-muted-foreground">Risk Score:</span>
                 <Badge variant="outline" className="font-mono tabular-nums">
                   {scoreLabel}
                 </Badge>
@@ -846,6 +868,9 @@ function AdminGuarantorSingleList({
               </div>
             </summary>
             <div className="px-4 pb-4 pt-3 space-y-4">
+              {aml?.amlScreening ? (
+                <GuarantorAmlScreeningCard screening={aml.amlScreening} />
+              ) : null}
               <div className={reviewRowGridClass}>
                 <Label className={reviewLabelClass}>Guarantor type</Label>
                 <ReviewValue value={guarantorKindLabel(g.kind)} />
@@ -869,9 +894,6 @@ function AdminGuarantorSingleList({
                   </>
                 )}
               </div>
-              {aml?.amlScreening ? (
-                <GuarantorAmlScreeningCard screening={aml.amlScreening} />
-              ) : null}
             </div>
           </details>
         );
@@ -1139,7 +1161,6 @@ export function BusinessSection({
   onReject,
   onRequestAmendment,
   onTriggerGuarantorAml,
-  onRefreshAllGuarantorAml,
   onViewDocument,
   onDownloadDocument,
   viewDocumentPending = false,
@@ -1509,19 +1530,6 @@ export function BusinessSection({
 
           {view.guarantors.length > 0 && (
             <ReviewFieldBlock title="Guarantor details">
-              <div className="mb-3 flex justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5 h-9"
-                  disabled={!onRefreshAllGuarantorAml}
-                  onClick={() => void onRefreshAllGuarantorAml?.()}
-                >
-                  <ArrowPathIcon className="h-4 w-4" aria-hidden />
-                  Refresh all AML
-                </Button>
-              </div>
               <AdminGuarantorSingleList
                 guarantors={view.guarantors}
                 amlByKey={guarantorAmlByKey}

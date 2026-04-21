@@ -9,7 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@cashsouk/ui";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
-import { useApplicationDetail, useInvalidateApplicationDetail } from "@/hooks/use-application-detail";
+import { useApplicationDetail } from "@/hooks/use-application-detail";
 import { useAdminS3DocumentViewDownload } from "@/hooks/use-admin-s3-document-view-download";
 import { useUpdateApplicationStatus } from "@/hooks/use-update-application-status";
 import {
@@ -146,7 +146,6 @@ export default function DynamicApplicationDetailPage() {
   const sendContractOffer = useSendContractOffer();
   const sendInvoiceOffer = useSendInvoiceOffer();
   const startGuarantorAml = useStartApplicationGuarantorAml();
-  const invalidateApplicationDetail = useInvalidateApplicationDetail(applicationId);
   const [amendmentModalOpen, setAmendmentModalOpen] = React.useState(false);
 
   const [noteDialog, setNoteDialog] = React.useState<
@@ -1051,9 +1050,6 @@ export default function DynamicApplicationDetailPage() {
                                   err instanceof Error ? err.message : "Failed to start AML screening"
                                 );
                               }
-                            }}
-                            onRefreshAllGuarantorAml={async () => {
-                              await invalidateApplicationDetail();
                             }}
                           />
                         </ApplicationReviewTabContent>

@@ -27,6 +27,10 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
+  kycAmlScreeningRiskLevelBadgeClass,
+  kycAmlScreeningStatusBadgeClass,
+} from "@/lib/kyc-aml-screening-badge-classes";
+import {
   useOrganizationDetail,
   useUpdateSophisticatedStatus,
 } from "@/hooks/use-organization-detail";
@@ -428,29 +432,6 @@ function KycResponseDisplay({
     return null;
   }
 
-  const getRiskLevelColor = (riskLevel: string | undefined) => {
-    if (!riskLevel) return "bg-muted text-muted-foreground";
-    const level = riskLevel.toLowerCase();
-    if (level.includes("low"))
-      return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400";
-    if (level.includes("medium"))
-      return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
-    if (level.includes("high"))
-      return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
-    return "bg-muted text-muted-foreground";
-  };
-
-  const getStatusColor = (status: string | undefined) => {
-    if (!status) return "bg-muted text-muted-foreground";
-    const s = status.toLowerCase();
-    if (s === "approved")
-      return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400";
-    if (s === "rejected") return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
-    if (s.includes("pending"))
-      return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
-    return "bg-muted text-muted-foreground";
-  };
-
   return (
     <Card>
       <CardHeader className="pb-3">
@@ -465,13 +446,13 @@ function KycResponseDisplay({
           {data.status && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Status:</span>
-              <Badge className={getStatusColor(data.status)}>{data.status}</Badge>
+              <Badge className={kycAmlScreeningStatusBadgeClass(data.status)}>{data.status}</Badge>
             </div>
           )}
           {data.riskLevel && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Risk Level:</span>
-              <Badge className={getRiskLevelColor(data.riskLevel)}>{data.riskLevel}</Badge>
+              <Badge className={kycAmlScreeningRiskLevelBadgeClass(data.riskLevel)}>{data.riskLevel}</Badge>
             </div>
           )}
           {data.riskScore && (
