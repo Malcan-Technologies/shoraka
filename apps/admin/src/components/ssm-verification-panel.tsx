@@ -4,7 +4,7 @@
  * SECTION: CTOS / company registry verification (onboarding admin)
  * WHY: Manual CTOS fetch; application vs CTOS shown in separate blocks for admin review
  * INPUT: onboarding application + org CTOS list API (issuer or investor company)
- * OUTPUT: stacked Application + CTOS tables, attestation, approve / reject / RegTank amendment
+ * OUTPUT: stacked Application + CTOS tables (neutral compare UI), attestation, approve / reject / RegTank amendment
  * WHERE USED: OnboardingReviewDialog (PENDING_SSM_REVIEW)
  */
 
@@ -29,12 +29,17 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { fieldTooltipContentClassName, fieldTooltipTriggerClassName } from "@cashsouk/ui";
 import {
   ArrowTopRightOnSquareIcon,
   BuildingOffice2Icon,
   DocumentTextIcon,
   CheckCircleIcon,
   ExclamationTriangleIcon,
+  InboxIcon,
+  InformationCircleIcon,
+  UserGroupIcon,
 } from "@heroicons/react/24/outline";
 import type {
   AdminCtosReportListItem,
@@ -173,8 +178,44 @@ function buildMockOrgCtosReports(application: OnboardingApplicationResponse): Ad
 
 const tableBase = "w-full min-w-[20rem] text-sm";
 
-const ctosPanelClass =
-  "rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-950/30";
+/** CTOS blocks — neutral styling (same family as application tables). No “success” color; admin compares manually. */
+const ctosPanelClass = "rounded-lg border border-border bg-background p-4 shadow-sm";
+
+const ctosPanelHeaderDivider = "border-b border-border pb-3";
+
+/** Inner CTOS tables: match application table chrome so nothing implies auto-match. */
+const ctosTableShell = "rounded-md border border-border overflow-x-auto bg-card";
+
+const ctosTableHeaderRow = "bg-muted/50 hover:bg-muted/50";
+
+const ctosSectionBadgeClass =
+  "shrink-0 font-normal text-muted-foreground border-border bg-muted/30 hover:bg-muted/40";
+
+/** Shared width so View report / Get latest report align without oversized chrome. */
+const ctosHeaderReportButtonClassName = "min-w-[10rem] shrink-0 justify-center sm:min-w-[11rem]";
+
+function CompareEmptyState({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div
+      className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-background/80 px-4 py-10 text-center"
+      role="status"
+    >
+      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
+        <Icon className="h-5 w-5" aria-hidden />
+      </div>
+      <p className="text-sm font-medium text-foreground">{title}</p>
+      <p className="text-[13px] leading-relaxed text-muted-foreground max-w-md">{description}</p>
+    </div>
+  );
+}
 
 interface SSMVerificationPanelProps {
   application: OnboardingApplicationResponse;
@@ -231,10 +272,10 @@ function AppDirectorTable({ rows }: { rows: DirectorKycStatus[] }) {
 function CtosDirectorTable({ rows }: { rows: CtosOrgDirectorParsed[] }) {
   if (rows.length === 0) return null;
   return (
-    <div className="rounded-md border border-emerald-200/80 overflow-x-auto dark:border-emerald-800/80">
+    <div className={ctosTableShell}>
       <Table className={tableBase}>
         <TableHeader>
-          <TableRow className="bg-emerald-100/80 dark:bg-emerald-900/40">
+          <TableRow className={ctosTableHeaderRow}>
             <TableHead className="px-3 py-2">Name</TableHead>
             <TableHead className="px-3 py-2">IC / Reg. no.</TableHead>
           </TableRow>
@@ -287,10 +328,10 @@ function AppShareholderTable({ rows }: { rows: DirectorKycStatus[] }) {
 function CtosShareholderTable({ rows }: { rows: CtosOrgDirectorParsed[] }) {
   if (rows.length === 0) return null;
   return (
-    <div className="rounded-md border border-emerald-200/80 overflow-x-auto dark:border-emerald-800/80">
+    <div className={ctosTableShell}>
       <Table className={tableBase}>
         <TableHeader>
-          <TableRow className="bg-emerald-100/80 dark:bg-emerald-900/40">
+          <TableRow className={ctosTableHeaderRow}>
             <TableHead className="px-3 py-2">Name</TableHead>
             <TableHead className="px-3 py-2">IC / SSM</TableHead>
             <TableHead className="px-3 py-2 w-24">%</TableHead>
@@ -320,27 +361,39 @@ function CtosShareholderTable({ rows }: { rows: CtosOrgDirectorParsed[] }) {
 function DirectorBucketsBlock({
   title,
   buckets,
+  ctosOrgState,
 }: {
   title: string;
   buckets: OnboardingPeopleBuckets;
+  ctosOrgState: OnboardingCtosOrgFetchState;
 }) {
   const matchedApp = buckets.matched.map((m) => m.app);
   const matchedCtos = buckets.matched.map((m) => m.ctos);
   const hasAnyApp = matchedApp.length > 0 || buckets.onlyApplication.length > 0;
   const hasAnyCtos = matchedCtos.length > 0 || buckets.onlyCtos.length > 0;
 
+  const ctosDirectorsEmptyDescription =
+    ctosOrgState === "not_pulled"
+      ? "Pull a CTOS report first. Director lines from the extract will show here after a successful fetch."
+      : ctosOrgState === "no_record"
+        ? "The stored report has no director rows. Try “Get latest report” again or check the extract in RegTank."
+        : "This extract has no director rows to compare.";
+
   return (
     <div className="space-y-4">
       <h4 className="text-sm font-semibold text-foreground">{title}</h4>
       <div className="space-y-3">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Application data</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Application</p>
         {!hasAnyApp ? (
-          <p className="text-sm text-muted-foreground">No directors listed.</p>
+          <CompareEmptyState
+            icon={UserGroupIcon}
+            title="No directors on the application"
+            description="RegTank did not return director rows for this company, or none are in scope yet. You can still verify company details and use amendment if the user must update directors."
+          />
         ) : (
           <div className="space-y-4">
             {buckets.matched.length > 0 ? (
               <div className="space-y-2">
-                <p className="text-sm font-medium text-foreground">Matched (same IC / SSM)</p>
                 <AppDirectorTable rows={matchedApp} />
               </div>
             ) : null}
@@ -354,19 +407,22 @@ function DirectorBucketsBlock({
         )}
       </div>
       <div className={ctosPanelClass}>
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-          <p className="text-sm font-semibold text-foreground">CTOS data (source of truth)</p>
-          <Badge variant="secondary" className="shrink-0">
+        <div className={cn("flex flex-wrap items-center justify-between gap-2 mb-3", ctosPanelHeaderDivider)}>
+          <p className="text-sm font-semibold text-foreground">CTOS data</p>
+          <Badge variant="outline" className={ctosSectionBadgeClass}>
             CTOS
           </Badge>
         </div>
         {!hasAnyCtos ? (
-          <p className="text-sm text-muted-foreground">No director rows in CTOS extract.</p>
+          <CompareEmptyState
+            icon={InboxIcon}
+            title="No director data from CTOS"
+            description={ctosDirectorsEmptyDescription}
+          />
         ) : (
           <div className="space-y-4">
             {buckets.matched.length > 0 ? (
               <div className="space-y-2">
-                <p className="text-sm font-medium text-foreground">Matched (same IC / SSM)</p>
                 <CtosDirectorTable rows={matchedCtos} />
               </div>
             ) : null}
@@ -386,27 +442,44 @@ function DirectorBucketsBlock({
 function ShareholderBucketsBlock({
   title,
   buckets,
+  ctosOrgState,
 }: {
   title: string;
   buckets: OnboardingPeopleBuckets;
+  ctosOrgState: OnboardingCtosOrgFetchState;
 }) {
   const matchedApp = buckets.matched.map((m) => m.app);
   const matchedCtos = buckets.matched.map((m) => m.ctos);
   const hasAnyApp = matchedApp.length > 0 || buckets.onlyApplication.length > 0;
   const hasAnyCtos = matchedCtos.length > 0 || buckets.onlyCtos.length > 0;
 
+  const ctosShEmptyDescription =
+    ctosOrgState === "not_pulled"
+      ? "Pull a CTOS report first. Shareholders at ≥5% from the extract will appear here after fetch."
+      : ctosOrgState === "no_record"
+        ? "The stored report has no qualifying shareholder rows. Try fetching again or review the full report."
+        : "This extract has no shareholder rows (≥5%) to compare.";
+
   return (
     <div className="space-y-4">
-      <h4 className="text-sm font-semibold text-foreground">{title}</h4>
+      <div>
+        <h4 className="text-sm font-semibold text-foreground">{title}</h4>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Application and CTOS data both include only shareholders at 5% ownership or above.
+        </p>
+      </div>
       <div className="space-y-3">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Application data</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Application</p>
         {!hasAnyApp ? (
-          <p className="text-sm text-muted-foreground">No shareholders (≥5%) listed.</p>
+          <CompareEmptyState
+            icon={UserGroupIcon}
+            title="No shareholders (≥5%) on the application"
+            description="No shareholder rows met the ≥5% rule from RegTank data. If you expect names here, ask the user to fix ownership via amendment."
+          />
         ) : (
           <div className="space-y-4">
             {buckets.matched.length > 0 ? (
               <div className="space-y-2">
-                <p className="text-sm font-medium text-foreground">Matched (same IC / SSM)</p>
                 <AppShareholderTable rows={matchedApp} />
               </div>
             ) : null}
@@ -420,19 +493,22 @@ function ShareholderBucketsBlock({
         )}
       </div>
       <div className={ctosPanelClass}>
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-          <p className="text-sm font-semibold text-foreground">CTOS data (source of truth)</p>
-          <Badge variant="secondary" className="shrink-0">
+        <div className={cn("flex flex-wrap items-center justify-between gap-2 mb-3", ctosPanelHeaderDivider)}>
+          <p className="text-sm font-semibold text-foreground">CTOS data</p>
+          <Badge variant="outline" className={ctosSectionBadgeClass}>
             CTOS
           </Badge>
         </div>
         {!hasAnyCtos ? (
-          <p className="text-sm text-muted-foreground">No shareholder rows (≥5%) in CTOS extract.</p>
+          <CompareEmptyState
+            icon={InboxIcon}
+            title="No shareholder data from CTOS"
+            description={ctosShEmptyDescription}
+          />
         ) : (
           <div className="space-y-4">
             {buckets.matched.length > 0 ? (
               <div className="space-y-2">
-                <p className="text-sm font-medium text-foreground">Matched (same IC / SSM)</p>
                 <CtosShareholderTable rows={matchedCtos} />
               </div>
             ) : null}
@@ -468,9 +544,6 @@ export function SSMVerificationPanel({
     if (!USE_MOCK_ONBOARDING_CTOS || !useOrgCtosFlow) return application;
     const { directors, shareholders } = getOnboardingPeopleSplit(application);
     if (directors.length > 0 || shareholders.length > 0) return application;
-    console.log("Mock onboarding CTOS: no app people, adding demo director + shareholder", {
-      organizationId: application.organizationId,
-    });
     return { ...application, directorKycStatus: syntheticDemoDirectorKycForMock() };
   }, [application, useOrgCtosFlow]);
 
@@ -542,6 +615,22 @@ export function SSMVerificationPanel({
 
   const ctosListLoading = !USE_MOCK_ONBOARDING_CTOS && ctosQuery.isLoading;
 
+  const showLastPullCaption =
+    useOrgCtosFlow && !ctosListLoading && (USE_MOCK_ONBOARDING_CTOS || ctosQuery.isSuccess);
+  const lastPullAtFormatted = latestOrgCtos?.fetched_at
+    ? (() => {
+        const d = new Date(latestOrgCtos.fetched_at);
+        if (Number.isNaN(d.getTime())) return null;
+        return d.toLocaleString("en-MY", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      })()
+    : null;
+
   const openOrgReportHtml = React.useCallback(
     async (reportId: string) => {
       const token = await getAccessToken();
@@ -592,7 +681,6 @@ export function SSMVerificationPanel({
       toast.error("No RegTank link on this application.");
       return;
     }
-    console.log("Opening RegTank onboarding URL", url);
     window.open(url, "_blank", "noopener,noreferrer");
   }, [application.regtankPortalUrl]);
 
@@ -618,55 +706,89 @@ export function SSMVerificationPanel({
         <CardHeader className="pb-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <BuildingOffice2Icon className="h-5 w-5" />
-                CTOS verification
+              <CardTitle className="text-lg flex flex-wrap items-center gap-2">
+                <BuildingOffice2Icon className="h-5 w-5 shrink-0" aria-hidden />
+                <span className="flex items-center gap-0.5">
+                  CTOS Verification
+                  {useOrgCtosFlow ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span
+                          className={cn(
+                            fieldTooltipTriggerClassName,
+                            "inline-flex shrink-0 rounded-sm"
+                          )}
+                          aria-label="About CTOS data on this screen"
+                        >
+                          <InformationCircleIcon className="h-4 w-4" aria-hidden />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
+                        CTOS data comes from the latest stored report. It can list people who were not declared on the
+                        application. You approve manually with the checkbox.
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : null}
+                </span>
               </CardTitle>
               <CardDescription>
                 {useOrgCtosFlow
-                  ? "Review application data and CTOS extract below. You confirm manually — the system does not auto-approve from row match."
+                  ? "Compare both sides, then approve after your review."
                   : "Compare the application with your SSM or registry checks."}
               </CardDescription>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {isAlreadyVerified ? (
-                <Badge className="bg-emerald-600 text-white">
-                  <CheckCircleIcon className="h-3.5 w-3.5 mr-1" />
-                  Verified
-                </Badge>
-              ) : null}
-              {useOrgCtosFlow ? (
-                <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="gap-2 shrink-0"
-                    disabled={
-                      disabled ||
-                      USE_MOCK_ONBOARDING_CTOS ||
-                      !latestOrgCtos?.has_report_html ||
-                      ctosListLoading
-                    }
-                    onClick={() => void openLatestOrgReportHtml()}
-                  >
-                    <ArrowTopRightOnSquareIcon className="h-4 w-4" />
-                    View report
-                  </Button>
-                  <Button
-                    type="button"
-                    className="gap-2 shrink-0"
-                    disabled={
-                      disabled ||
-                      USE_MOCK_ONBOARDING_CTOS ||
-                      fetchCtosMutation.isPending ||
-                      ctosListLoading
-                    }
-                    onClick={() => setGetLatestConfirmOpen(true)}
-                  >
-                    <DocumentTextIcon className="h-4 w-4" />
-                    {fetchCtosMutation.isPending ? "Loading…" : "Get latest report"}
-                  </Button>
-                </>
+            <div className="flex flex-col items-stretch gap-2 sm:items-end">
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {isAlreadyVerified ? (
+                  <Badge variant="secondary" className="gap-1 border border-primary/20 bg-primary/5 text-primary">
+                    <CheckCircleIcon className="h-3.5 w-3.5" aria-hidden />
+                    Verified
+                  </Badge>
+                ) : null}
+                {useOrgCtosFlow ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="default"
+                      className={ctosHeaderReportButtonClassName}
+                      disabled={
+                        disabled ||
+                        USE_MOCK_ONBOARDING_CTOS ||
+                        !latestOrgCtos?.has_report_html ||
+                        ctosListLoading
+                      }
+                      onClick={() => void openLatestOrgReportHtml()}
+                    >
+                      <ArrowTopRightOnSquareIcon className="h-4 w-4 shrink-0" aria-hidden />
+                      View report
+                    </Button>
+                    <Button
+                      type="button"
+                      size="default"
+                      className={ctosHeaderReportButtonClassName}
+                      disabled={
+                        disabled ||
+                        USE_MOCK_ONBOARDING_CTOS ||
+                        fetchCtosMutation.isPending ||
+                        ctosListLoading
+                      }
+                      onClick={() => setGetLatestConfirmOpen(true)}
+                    >
+                      <DocumentTextIcon className="h-4 w-4 shrink-0" aria-hidden />
+                      {fetchCtosMutation.isPending ? "Loading…" : "Get latest report"}
+                    </Button>
+                  </>
+                ) : null}
+              </div>
+              {showLastPullCaption ? (
+                lastPullAtFormatted ? (
+                  <p className="text-xs text-muted-foreground text-right tabular-nums">
+                    Last report pulled {lastPullAtFormatted}
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground text-right">No report on file yet.</p>
+                )
               ) : null}
             </div>
           </div>
@@ -688,7 +810,7 @@ export function SSMVerificationPanel({
           ) : null}
 
           <div className="space-y-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Company info — application</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Application</p>
             <div className="rounded-md border overflow-x-auto">
               <Table className={tableBase}>
                 <TableHeader>
@@ -712,41 +834,59 @@ export function SSMVerificationPanel({
           </div>
 
           <div className={ctosPanelClass}>
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-              <p className="text-sm font-semibold text-foreground">CTOS data (source of truth)</p>
-              <Badge variant="secondary" className="shrink-0">
+            <div className={cn("flex flex-wrap items-center justify-between gap-2 mb-3", ctosPanelHeaderDivider)}>
+              <p className="text-sm font-semibold text-foreground">CTOS data</p>
+              <Badge variant="outline" className={ctosSectionBadgeClass}>
                 CTOS
               </Badge>
             </div>
-            <div className="rounded-md border border-emerald-200/80 overflow-x-auto dark:border-emerald-800/80">
-              <Table className={tableBase}>
-                <TableHeader>
-                  <TableRow className="bg-emerald-100/80 dark:bg-emerald-900/40">
-                    <TableHead className="px-3 py-2 w-[40%]">Field</TableHead>
-                    <TableHead className="px-3 py-2">Value</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  <TableRow>
-                    <TableCell className="px-3 py-2 text-muted-foreground">Company name</TableCell>
-                    <TableCell className="px-3 py-2 font-medium">
-                      {ctosCompanyCell(company.ctosName, orgFetchState, useOrgCtosFlow)}
-                    </TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="px-3 py-2 text-muted-foreground">SSM registration no.</TableCell>
-                    <TableCell className="px-3 py-2 font-medium">
-                      {ctosCompanyCell(company.ctosReg, orgFetchState, useOrgCtosFlow)}
-                    </TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
+            {useOrgCtosFlow && orgFetchState === "not_pulled" ? (
+              <CompareEmptyState
+                icon={DocumentTextIcon}
+                title="No CTOS company data yet"
+                description="Click “Get latest report” to pull the latest extract. Name and SSM number from CTOS will show here for side-by-side review."
+              />
+            ) : useOrgCtosFlow && orgFetchState === "no_record" ? (
+              <CompareEmptyState
+                icon={ExclamationTriangleIcon}
+                title="No company block in this report"
+                description="The latest stored report does not include a usable company extract. Try “Get latest report” again, or open the full report if View report is available."
+              />
+            ) : (
+              <div className={ctosTableShell}>
+                <Table className={tableBase}>
+                  <TableHeader>
+                    <TableRow className={ctosTableHeaderRow}>
+                      <TableHead className="px-3 py-2 w-[40%]">Field</TableHead>
+                      <TableHead className="px-3 py-2">Value</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell className="px-3 py-2 text-muted-foreground">Company name</TableCell>
+                      <TableCell className="px-3 py-2 font-medium">
+                        {ctosCompanyCell(company.ctosName, orgFetchState, useOrgCtosFlow)}
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell className="px-3 py-2 text-muted-foreground">SSM registration no.</TableCell>
+                      <TableCell className="px-3 py-2 font-medium">
+                        {ctosCompanyCell(company.ctosReg, orgFetchState, useOrgCtosFlow)}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </div>
 
-          <DirectorBucketsBlock title="Directors" buckets={comparison.directors} />
+          <DirectorBucketsBlock title="Directors" buckets={comparison.directors} ctosOrgState={orgFetchState} />
 
-          <ShareholderBucketsBlock title="Shareholders (≥5%)" buckets={comparison.shareholders} />
+          <ShareholderBucketsBlock
+            title="Shareholders (≥5%)"
+            buckets={comparison.shareholders}
+            ctosOrgState={orgFetchState}
+          />
 
           {!isAlreadyVerified ? (
             <div className="space-y-5">
@@ -788,7 +928,7 @@ export function SSMVerificationPanel({
                   className="w-full sm:flex-1 rounded-full gap-2 shadow-sm min-w-[12rem]"
                 >
                   <CheckCircleIcon className="h-5 w-5 shrink-0" aria-hidden />
-                  {useOrgCtosFlow ? "Approve CTOS verification" : "Approve SSM verification"}
+                  {useOrgCtosFlow ? "Approve CTOS Verification" : "Approve SSM Verification"}
                 </Button>
                 <Button
                   type="button"
@@ -807,14 +947,14 @@ export function SSMVerificationPanel({
       </Card>
 
       {isAlreadyVerified ? (
-        <Card className="border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30">
+        <Card className="border-primary/20 bg-muted/30">
           <CardContent className="pt-6">
             <div className="flex items-start gap-3">
-              <CheckCircleIcon className="h-5 w-5 text-emerald-600 mt-0.5" />
+              <CheckCircleIcon className="h-5 w-5 text-primary mt-0.5 shrink-0" aria-hidden />
               <div>
-                <p className="font-medium text-emerald-900 dark:text-emerald-100">Already verified</p>
+                <p className="font-medium text-foreground">Already verified</p>
                 {application.ssmVerifiedAt && application.ssmVerifiedBy ? (
-                  <p className="text-sm text-emerald-700 dark:text-emerald-300 mt-1">
+                  <p className="text-sm text-muted-foreground mt-1">
                     Verified by {application.ssmVerifiedBy} on{" "}
                     {new Date(application.ssmVerifiedAt).toLocaleDateString("en-MY", {
                       day: "numeric",
