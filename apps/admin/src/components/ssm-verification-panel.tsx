@@ -2,9 +2,9 @@
 
 /**
  * SECTION: CTOS / company registry verification (onboarding admin)
- * WHY: Manual CTOS fetch and Application vs CTOS comparison before registry approval
+ * WHY: Manual CTOS fetch; application vs CTOS shown in separate blocks for admin review
  * INPUT: onboarding application + org CTOS list API (issuer or investor company)
- * OUTPUT: comparison tables, checklist, attestation, approve/reject
+ * OUTPUT: stacked Application + CTOS tables, attestation, approve / reject / RegTank amendment
  * WHERE USED: OnboardingReviewDialog (PENDING_SSM_REVIEW)
  */
 
@@ -39,14 +39,20 @@ import {
 import type {
   AdminCtosReportListItem,
   CorporateDirectorData,
+  DirectorKycStatus,
   OnboardingApplicationResponse,
 } from "@cashsouk/types";
 import {
   buildOnboardingCtosComparison,
   companyJsonReadyForCtosCompare,
+  displayIdFromApp,
+  displayIdFromCtosRow,
   getOnboardingPeopleSplit,
+  shareholderPctFromAppRole,
+  shareholderPctFromCtosRow,
+  type CtosOrgDirectorParsed,
   type OnboardingCtosOrgFetchState,
-  type OnboardingVerificationRow,
+  type OnboardingPeopleBuckets,
 } from "@/lib/onboarding-ctos-compare";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -118,12 +124,13 @@ function buildMockOrgCtosReports(application: OnboardingApplicationResponse): Ad
   }
   for (const p of shareholders) {
     const baseName = p.name.replace(/\s*\([^)]*\)\s*$/, "").trim() || p.name;
+    const pct = shareholderPctFromAppRole(p.role);
     ctosPeople.push({
       nic_brno: fallbackId(p.governmentIdNumber, "MOCKS"),
       ic_lcno: null,
       name: baseName,
       position: "SO",
-      equity_percentage: null,
+      equity_percentage: pct > 0 ? pct : 35,
       equity: null,
       party_type: "I",
     });
@@ -164,11 +171,10 @@ function buildMockOrgCtosReports(application: OnboardingApplicationResponse): Ad
   return [latest, older];
 }
 
-const compareTableClass = "table-fixed w-full min-w-[44rem] text-sm";
-const compareThField = "w-[30%] min-w-[12.5rem] px-4 py-3 align-top font-semibold text-foreground";
-const compareThData = "w-[35%] min-w-[14rem] px-4 py-3 align-top font-semibold text-foreground";
-const compareTdField = "min-w-[12.5rem] px-4 py-3 align-top font-medium text-muted-foreground break-words";
-const compareTdData = "min-w-[14rem] px-4 py-3 align-top break-words";
+const tableBase = "w-full min-w-[20rem] text-sm";
+
+const ctosPanelClass =
+  "rounded-lg border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-950/30";
 
 interface SSMVerificationPanelProps {
   application: OnboardingApplicationResponse;
@@ -177,50 +183,269 @@ interface SSMVerificationPanelProps {
   disabled?: boolean;
 }
 
-function ctosCellDisplayText(row: OnboardingVerificationRow, state: OnboardingCtosOrgFetchState): string {
-  if (row.ctosCell != null && String(row.ctosCell).trim() !== "") return row.ctosCell;
-  if (state === "not_pulled") return "Not fetched";
-  if (state === "no_record") return "No record found";
-  return "—";
-}
-
-function ComparisonCell({
-  row,
-  orgFetchState,
-}: {
-  row: OnboardingVerificationRow;
-  orgFetchState: OnboardingCtosOrgFetchState;
-}) {
-  const text = ctosCellDisplayText(row, orgFetchState);
-  const ready = orgFetchState === "ready";
-  const id = row.ctosIdDisplay?.trim();
-  const showId = Boolean(ready && id);
-  return (
-    <div className="min-h-[1.5rem]">
-      <span className="text-sm">{text}</span>
-      {showId ? (
-        <div className="text-xs text-muted-foreground mt-0.5">IC / Reg. no.: {id}</div>
-      ) : null}
-    </div>
-  );
-}
-
-function AppComparisonValue({ row }: { row: OnboardingVerificationRow }) {
-  const id = row.appIdDisplay?.trim();
-  return (
-    <div className="min-h-[1.5rem]">
-      <span className="text-sm font-medium">{row.appCell}</span>
-      {id ? (
-        <div className="text-xs text-muted-foreground mt-0.5">IC / Reg. no.: {id}</div>
-      ) : null}
-    </div>
-  );
-}
-
 function sortOrgCtosReports(rows: AdminCtosReportListItem[]): AdminCtosReportListItem[] {
   const orgRows = rows.filter((r) => !r.subject_ref);
   return [...orgRows].sort(
     (a, b) => new Date(b.fetched_at).getTime() - new Date(a.fetched_at).getTime()
+  );
+}
+
+function ctosCompanyCell(
+  value: string | null,
+  orgFetchState: OnboardingCtosOrgFetchState,
+  useOrgCtosFlow: boolean
+): string {
+  if (!useOrgCtosFlow) return "—";
+  if (value != null && String(value).trim() !== "") return String(value).trim();
+  if (orgFetchState === "not_pulled") return "Not fetched yet";
+  if (orgFetchState === "no_record") return "No company extract in report";
+  return "—";
+}
+
+function AppDirectorTable({ rows }: { rows: DirectorKycStatus[] }) {
+  if (rows.length === 0) return null;
+  return (
+    <div className="rounded-md border overflow-x-auto">
+      <Table className={tableBase}>
+        <TableHeader>
+          <TableRow className="bg-muted/50 hover:bg-muted/50">
+            <TableHead className="px-3 py-2">Name</TableHead>
+            <TableHead className="px-3 py-2">IC / Reg. no.</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((r) => (
+            <TableRow key={r.eodRequestId}>
+              <TableCell className="px-3 py-2 font-medium">{r.name}</TableCell>
+              <TableCell className="px-3 py-2 text-muted-foreground">
+                {displayIdFromApp(r.governmentIdNumber) ?? "—"}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function CtosDirectorTable({ rows }: { rows: CtosOrgDirectorParsed[] }) {
+  if (rows.length === 0) return null;
+  return (
+    <div className="rounded-md border border-emerald-200/80 overflow-x-auto dark:border-emerald-800/80">
+      <Table className={tableBase}>
+        <TableHeader>
+          <TableRow className="bg-emerald-100/80 dark:bg-emerald-900/40">
+            <TableHead className="px-3 py-2">Name</TableHead>
+            <TableHead className="px-3 py-2">IC / Reg. no.</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((r, i) => (
+            <TableRow key={`${displayIdFromCtosRow(r) ?? "x"}-${i}`}>
+              <TableCell className="px-3 py-2 font-medium">{(r.name ?? "").trim() || "—"}</TableCell>
+              <TableCell className="px-3 py-2 text-muted-foreground">
+                {displayIdFromCtosRow(r) ?? "—"}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function AppShareholderTable({ rows }: { rows: DirectorKycStatus[] }) {
+  if (rows.length === 0) return null;
+  return (
+    <div className="rounded-md border overflow-x-auto">
+      <Table className={tableBase}>
+        <TableHeader>
+          <TableRow className="bg-muted/50 hover:bg-muted/50">
+            <TableHead className="px-3 py-2">Name</TableHead>
+            <TableHead className="px-3 py-2">IC / SSM</TableHead>
+            <TableHead className="px-3 py-2 w-24">%</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((r) => (
+            <TableRow key={r.eodRequestId}>
+              <TableCell className="px-3 py-2 font-medium">{r.name}</TableCell>
+              <TableCell className="px-3 py-2 text-muted-foreground">
+                {displayIdFromApp(r.governmentIdNumber) ?? "—"}
+              </TableCell>
+              <TableCell className="px-3 py-2 text-muted-foreground">
+                {shareholderPctFromAppRole(r.role) > 0 ? `${shareholderPctFromAppRole(r.role)}%` : "—"}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function CtosShareholderTable({ rows }: { rows: CtosOrgDirectorParsed[] }) {
+  if (rows.length === 0) return null;
+  return (
+    <div className="rounded-md border border-emerald-200/80 overflow-x-auto dark:border-emerald-800/80">
+      <Table className={tableBase}>
+        <TableHeader>
+          <TableRow className="bg-emerald-100/80 dark:bg-emerald-900/40">
+            <TableHead className="px-3 py-2">Name</TableHead>
+            <TableHead className="px-3 py-2">IC / SSM</TableHead>
+            <TableHead className="px-3 py-2 w-24">%</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rows.map((r, i) => {
+            const pct = shareholderPctFromCtosRow(r);
+            return (
+              <TableRow key={`${displayIdFromCtosRow(r) ?? "x"}-sh-${i}`}>
+                <TableCell className="px-3 py-2 font-medium">{(r.name ?? "").trim() || "—"}</TableCell>
+                <TableCell className="px-3 py-2 text-muted-foreground">
+                  {displayIdFromCtosRow(r) ?? "—"}
+                </TableCell>
+                <TableCell className="px-3 py-2 text-muted-foreground">
+                  {pct > 0 ? `${Math.round(pct * 100) / 100}%` : "—"}
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function DirectorBucketsBlock({
+  title,
+  buckets,
+}: {
+  title: string;
+  buckets: OnboardingPeopleBuckets;
+}) {
+  const matchedApp = buckets.matched.map((m) => m.app);
+  const matchedCtos = buckets.matched.map((m) => m.ctos);
+  const hasAnyApp = matchedApp.length > 0 || buckets.onlyApplication.length > 0;
+  const hasAnyCtos = matchedCtos.length > 0 || buckets.onlyCtos.length > 0;
+
+  return (
+    <div className="space-y-4">
+      <h4 className="text-sm font-semibold text-foreground">{title}</h4>
+      <div className="space-y-3">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Application data</p>
+        {!hasAnyApp ? (
+          <p className="text-sm text-muted-foreground">No directors listed.</p>
+        ) : (
+          <div className="space-y-4">
+            {buckets.matched.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">Matched (same IC / SSM)</p>
+                <AppDirectorTable rows={matchedApp} />
+              </div>
+            ) : null}
+            {buckets.onlyApplication.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">Only in application</p>
+                <AppDirectorTable rows={buckets.onlyApplication} />
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+      <div className={ctosPanelClass}>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <p className="text-sm font-semibold text-foreground">CTOS data (source of truth)</p>
+          <Badge variant="secondary" className="shrink-0">
+            CTOS
+          </Badge>
+        </div>
+        {!hasAnyCtos ? (
+          <p className="text-sm text-muted-foreground">No director rows in CTOS extract.</p>
+        ) : (
+          <div className="space-y-4">
+            {buckets.matched.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">Matched (same IC / SSM)</p>
+                <CtosDirectorTable rows={matchedCtos} />
+              </div>
+            ) : null}
+            {buckets.onlyCtos.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">Only in CTOS</p>
+                <CtosDirectorTable rows={buckets.onlyCtos} />
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ShareholderBucketsBlock({
+  title,
+  buckets,
+}: {
+  title: string;
+  buckets: OnboardingPeopleBuckets;
+}) {
+  const matchedApp = buckets.matched.map((m) => m.app);
+  const matchedCtos = buckets.matched.map((m) => m.ctos);
+  const hasAnyApp = matchedApp.length > 0 || buckets.onlyApplication.length > 0;
+  const hasAnyCtos = matchedCtos.length > 0 || buckets.onlyCtos.length > 0;
+
+  return (
+    <div className="space-y-4">
+      <h4 className="text-sm font-semibold text-foreground">{title}</h4>
+      <div className="space-y-3">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Application data</p>
+        {!hasAnyApp ? (
+          <p className="text-sm text-muted-foreground">No shareholders (≥5%) listed.</p>
+        ) : (
+          <div className="space-y-4">
+            {buckets.matched.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">Matched (same IC / SSM)</p>
+                <AppShareholderTable rows={matchedApp} />
+              </div>
+            ) : null}
+            {buckets.onlyApplication.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">Only in application</p>
+                <AppShareholderTable rows={buckets.onlyApplication} />
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+      <div className={ctosPanelClass}>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <p className="text-sm font-semibold text-foreground">CTOS data (source of truth)</p>
+          <Badge variant="secondary" className="shrink-0">
+            CTOS
+          </Badge>
+        </div>
+        {!hasAnyCtos ? (
+          <p className="text-sm text-muted-foreground">No shareholder rows (≥5%) in CTOS extract.</p>
+        ) : (
+          <div className="space-y-4">
+            {buckets.matched.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">Matched (same IC / SSM)</p>
+                <CtosShareholderTable rows={matchedCtos} />
+              </div>
+            ) : null}
+            {buckets.onlyCtos.length > 0 ? (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-foreground">Only in CTOS</p>
+                <CtosShareholderTable rows={buckets.onlyCtos} />
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -313,12 +538,7 @@ export function SSMVerificationPanel({
     [applicationForCompare, companyJson, compareState]
   );
 
-  const compareReady = useOrgCtosFlow && orgFetchState === "ready";
-
-  const autoChecksPass =
-    !useOrgCtosFlow || (compareReady && comparison.checklist.every((c) => c.ok));
-
-  const canApprove = confirmed && autoChecksPass && !fetchCtosMutation.isPending;
+  const canApprove = confirmed && !fetchCtosMutation.isPending;
 
   const ctosListLoading = !USE_MOCK_ONBOARDING_CTOS && ctosQuery.isLoading;
 
@@ -345,7 +565,6 @@ export function SSMVerificationPanel({
     [getAccessToken, orgId, application.portal]
   );
 
-  /** Same pattern as financial tab: always open HTML for the latest org report in DB at click time. */
   const openLatestOrgReportHtml = React.useCallback(async () => {
     const raw =
       USE_MOCK_ONBOARDING_CTOS && useOrgCtosFlow
@@ -367,6 +586,16 @@ export function SSMVerificationPanel({
     });
   };
 
+  const onTriggerAmendment = React.useCallback(() => {
+    const url = application.regtankPortalUrl?.trim();
+    if (!url) {
+      toast.error("No RegTank link on this application.");
+      return;
+    }
+    console.log("Opening RegTank onboarding URL", url);
+    window.open(url, "_blank", "noopener,noreferrer");
+  }, [application.regtankPortalUrl]);
+
   if (!hasCompanyInfo) {
     return (
       <Card className="border-destructive/50 bg-destructive/5">
@@ -381,11 +610,7 @@ export function SSMVerificationPanel({
   }
 
   const isAlreadyVerified = application.ssmVerified;
-
-  const companyRows: { label: string; row: OnboardingVerificationRow }[] = [
-    { label: "Company name", row: comparison.companyName },
-    { label: "SSM registration no.", row: comparison.registration },
-  ];
+  const { company } = comparison;
 
   return (
     <div className="space-y-6">
@@ -395,11 +620,11 @@ export function SSMVerificationPanel({
             <div>
               <CardTitle className="text-lg flex items-center gap-2">
                 <BuildingOffice2Icon className="h-5 w-5" />
-                Company info
+                CTOS verification
               </CardTitle>
               <CardDescription>
                 {useOrgCtosFlow
-                  ? "Compare the application with CTOS. Use Get latest report if nothing is listed yet."
+                  ? "Review application data and CTOS extract below. You confirm manually — the system does not auto-approve from row match."
                   : "Compare the application with your SSM or registry checks."}
               </CardDescription>
             </div>
@@ -416,7 +641,7 @@ export function SSMVerificationPanel({
                     type="button"
                     variant="outline"
                     className="gap-2 shrink-0"
-                                       disabled={
+                    disabled={
                       disabled ||
                       USE_MOCK_ONBOARDING_CTOS ||
                       !latestOrgCtos?.has_report_html ||
@@ -462,142 +687,66 @@ export function SSMVerificationPanel({
             </div>
           ) : null}
 
-          <div className="rounded-md border overflow-x-auto">
-            <Table className={compareTableClass}>
-              <TableHeader>
-                <TableRow className="bg-muted/50 hover:bg-muted/50">
-                  <TableHead className={compareThField}>Field</TableHead>
-                  <TableHead className={compareThData}>Application</TableHead>
-                  <TableHead className={compareThData}>CTOS</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {companyRows.map(({ label, row }) => (
-                  <TableRow key={label}>
-                    <TableCell className={compareTdField}>{label}</TableCell>
-                    <TableCell className={compareTdData}>
-                      <AppComparisonValue row={row} />
-                    </TableCell>
-                    <TableCell className={compareTdData}>
-                      <ComparisonCell row={row} orgFetchState={orgFetchState} />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-
-          <div>
-            <h4 className="text-sm font-semibold mb-2">Directors</h4>
+          <div className="space-y-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Company info — application</p>
             <div className="rounded-md border overflow-x-auto">
-              <Table className={compareTableClass}>
+              <Table className={tableBase}>
                 <TableHeader>
                   <TableRow className="bg-muted/50 hover:bg-muted/50">
-                    <TableHead className={compareThField}>Name</TableHead>
-                    <TableHead className={compareThData}>Application</TableHead>
-                    <TableHead className={compareThData}>CTOS</TableHead>
+                    <TableHead className="px-3 py-2 w-[40%]">Field</TableHead>
+                    <TableHead className="px-3 py-2">Value</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {comparison.directors.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={3} className={`${compareTdData} text-muted-foreground`}>
-                        No directors listed.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    comparison.directors.map((row, i) => (
-                      <TableRow key={`d-${i}-${row.appCell}`}>
-                        <TableCell className={compareTdField}>Director</TableCell>
-                        <TableCell className={compareTdData}>
-                          <AppComparisonValue row={row} />
-                        </TableCell>
-                        <TableCell className={compareTdData}>
-                          <ComparisonCell row={row} orgFetchState={orgFetchState} />
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
+                  <TableRow>
+                    <TableCell className="px-3 py-2 text-muted-foreground">Company name</TableCell>
+                    <TableCell className="px-3 py-2 font-medium">{company.applicationName}</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="px-3 py-2 text-muted-foreground">SSM registration no.</TableCell>
+                    <TableCell className="px-3 py-2 font-medium">{company.applicationReg}</TableCell>
+                  </TableRow>
                 </TableBody>
               </Table>
             </div>
           </div>
 
-          <div>
-            <h4 className="text-sm font-semibold mb-2">Shareholders</h4>
-            <div className="rounded-md border overflow-x-auto">
-              <Table className={compareTableClass}>
+          <div className={ctosPanelClass}>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <p className="text-sm font-semibold text-foreground">CTOS data (source of truth)</p>
+              <Badge variant="secondary" className="shrink-0">
+                CTOS
+              </Badge>
+            </div>
+            <div className="rounded-md border border-emerald-200/80 overflow-x-auto dark:border-emerald-800/80">
+              <Table className={tableBase}>
                 <TableHeader>
-                  <TableRow className="bg-muted/50 hover:bg-muted/50">
-                    <TableHead className={compareThField}>Name</TableHead>
-                    <TableHead className={compareThData}>Application</TableHead>
-                    <TableHead className={compareThData}>CTOS</TableHead>
+                  <TableRow className="bg-emerald-100/80 dark:bg-emerald-900/40">
+                    <TableHead className="px-3 py-2 w-[40%]">Field</TableHead>
+                    <TableHead className="px-3 py-2">Value</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {comparison.shareholders.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={3} className={`${compareTdData} text-muted-foreground`}>
-                        No shareholders listed.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    comparison.shareholders.map((row, i) => (
-                      <TableRow key={`s-${i}-${row.appCell}`}>
-                        <TableCell className={compareTdField}>Shareholder</TableCell>
-                        <TableCell className={compareTdData}>
-                          <AppComparisonValue row={row} />
-                        </TableCell>
-                        <TableCell className={compareTdData}>
-                          <ComparisonCell row={row} orgFetchState={orgFetchState} />
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
+                  <TableRow>
+                    <TableCell className="px-3 py-2 text-muted-foreground">Company name</TableCell>
+                    <TableCell className="px-3 py-2 font-medium">
+                      {ctosCompanyCell(company.ctosName, orgFetchState, useOrgCtosFlow)}
+                    </TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="px-3 py-2 text-muted-foreground">SSM registration no.</TableCell>
+                    <TableCell className="px-3 py-2 font-medium">
+                      {ctosCompanyCell(company.ctosReg, orgFetchState, useOrgCtosFlow)}
+                    </TableCell>
+                  </TableRow>
                 </TableBody>
               </Table>
             </div>
           </div>
 
-          <div className="rounded-lg border bg-muted/30 px-4 py-3 space-y-2">
-            <p className="text-sm font-medium">Checks</p>
-            <ul className="space-y-1.5">
-              {comparison.checklist.map((item) => (
-                <li key={item.id} className="flex items-center gap-2 text-sm">
-                  {useOrgCtosFlow ? (
-                    compareReady ? (
-                      item.ok ? (
-                        <CheckCircleIcon className="h-4 w-4 text-emerald-600 shrink-0" />
-                      ) : (
-                        <ExclamationTriangleIcon className="h-4 w-4 text-amber-600 shrink-0" />
-                      )
-                    ) : (
-                      <ExclamationTriangleIcon className="h-4 w-4 text-amber-600 shrink-0" />
-                    )
-                  ) : (
-                    <span className="h-4 w-4 rounded-full border border-muted-foreground/40 shrink-0" aria-hidden />
-                  )}
-                  <span
-                    className={
-                      item.ok && useOrgCtosFlow && compareReady ? "text-foreground" : "text-muted-foreground"
-                    }
-                  >
-                    {item.label}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            {useOrgCtosFlow && orgFetchState === "not_pulled" ? (
-              <p className="text-xs text-muted-foreground pt-1">
-                No CTOS data yet — checks stay failed until you fetch a report with company data.
-              </p>
-            ) : null}
-            {useOrgCtosFlow && orgFetchState === "no_record" ? (
-              <p className="text-xs text-muted-foreground pt-1">
-                Report saved but no company extract — try Get latest report again or check the full HTML.
-              </p>
-            ) : null}
-          </div>
+          <DirectorBucketsBlock title="Directors" buckets={comparison.directors} />
+
+          <ShareholderBucketsBlock title="Shareholders (≥5%)" buckets={comparison.shareholders} />
 
           {!isAlreadyVerified ? (
             <div className="space-y-5">
@@ -618,17 +767,28 @@ export function SSMVerificationPanel({
                 </Label>
               </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="lg"
+                  className="w-full sm:w-auto shrink-0 rounded-full gap-2"
+                  disabled={disabled}
+                  onClick={onTriggerAmendment}
+                >
+                  <ArrowTopRightOnSquareIcon className="h-5 w-5 shrink-0" aria-hidden />
+                  Trigger amendment
+                </Button>
                 <Button
                   type="button"
                   variant="default"
                   size="lg"
                   onClick={onApprove}
                   disabled={!canApprove || disabled}
-                  className="w-full sm:flex-1 rounded-full gap-2 shadow-sm"
+                  className="w-full sm:flex-1 rounded-full gap-2 shadow-sm min-w-[12rem]"
                 >
                   <CheckCircleIcon className="h-5 w-5 shrink-0" aria-hidden />
-                  {useOrgCtosFlow ? "Approve CTOS Verification" : "Approve SSM Verification"}
+                  {useOrgCtosFlow ? "Approve CTOS verification" : "Approve SSM verification"}
                 </Button>
                 <Button
                   type="button"
