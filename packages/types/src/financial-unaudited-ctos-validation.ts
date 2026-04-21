@@ -1,96 +1,161 @@
 /**
- * Issuer financial questionnaire helpers, CTOS financial year lists, and fixed tab years (system date).
+ * Issuer financial questionnaire helpers (FYE-based tab years), CTOS financial year lists.
  */
+
+import { addDays, addMonths, format, startOfDay, subYears } from "date-fns";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** Stored under `financial_statements.questionnaire` (v2). */
 export type FinancialStatementsQuestionnaire = {
-  last_closing_date: string;
-  is_submitted_to_ssm: boolean;
+  financial_year_end: string;
 };
 
-function calendarYearFromLastClosingDate(iso: string): number | null {
+function parseIsoDateOnlyLocal(iso: string): Date | null {
   const t = iso.trim();
   if (!ISO_DATE.test(t)) return null;
   const y = Number(t.slice(0, 4));
-  if (!Number.isFinite(y) || y < 1900 || y > 2100) return null;
-  const m = Number(t.slice(5, 7));
+  const m = Number(t.slice(5, 7)) - 1;
   const d = Number(t.slice(8, 10));
-  if (m < 1 || m > 12 || d < 1 || d > 31) return null;
-  const dt = new Date(y, m - 1, d);
-  if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
-  return y;
+  if (!Number.isFinite(y) || m < 0 || m > 11 || d < 1 || d > 31) return null;
+  const dt = new Date(y, m, d);
+  if (dt.getFullYear() !== y || dt.getMonth() !== m || dt.getDate() !== d) return null;
+  return dt;
 }
 
 /**
- * Parse stored questionnaire JSON (current keys only).
- * `last_closing_date` is reference only; tab years use {@link getFinancialInputBaseYears}.
+ * True when the ISO calendar day is strictly after `ref`'s calendar day (local).
+ */
+export function isFinancialYearEndStrictlyAfterRef(iso: string, ref: Date = new Date()): boolean {
+  const chosen = parseIsoDateOnlyLocal(iso);
+  if (!chosen) return false;
+  return startOfDay(chosen).getTime() > startOfDay(ref).getTime();
+}
+
+/**
+ * Parse stored questionnaire JSON. `financial_year_end` must be a valid ISO date strictly after `ref`.
  */
 export function normalizeFinancialStatementsQuestionnaire(
-  raw: unknown
+  raw: unknown,
+  ref: Date = new Date()
 ): FinancialStatementsQuestionnaire | null {
   if (raw == null || typeof raw !== "object" || Array.isArray(raw)) return null;
   const o = raw as Record<string, unknown>;
-  const last_closing_date = o.last_closing_date;
-  const is_submitted_to_ssm = o.is_submitted_to_ssm;
-  if (typeof last_closing_date !== "string" || typeof is_submitted_to_ssm !== "boolean") return null;
-  if (!ISO_DATE.test(last_closing_date.trim())) return null;
-  if (calendarYearFromLastClosingDate(last_closing_date) == null) return null;
-  return { last_closing_date: last_closing_date.trim(), is_submitted_to_ssm };
+  const financial_year_end = o.financial_year_end;
+  if (typeof financial_year_end !== "string") return null;
+  if (!ISO_DATE.test(financial_year_end.trim())) return null;
+  if (parseIsoDateOnlyLocal(financial_year_end) == null) return null;
+  if (!isFinancialYearEndStrictlyAfterRef(financial_year_end, ref)) return null;
+  return { financial_year_end: financial_year_end.trim() };
 }
 
-/** year2 = calendar year of `ref` (local); year1 = year2 - 1 (start years for tabs / admin columns). */
-export function getFinancialInputBaseYears(ref: Date = new Date()): { year1: number; year2: number } {
-  const year2 = ref.getFullYear();
-  return { year1: year2 - 1, year2 };
+/** FY period end for a tab keyed by FY end calendar year (same month/day as selected FYE). */
+export function fyEndDateForYear(questionnaire: FinancialStatementsQuestionnaire, fyEndYear: number): Date | null {
+  const selected = parseIsoDateOnlyLocal(questionnaire.financial_year_end);
+  if (!selected) return null;
+  return new Date(fyEndYear, selected.getMonth(), selected.getDate());
 }
 
-/**
- * Issuer tab years (start year per tab). Uses system date only, not `last_closing_date`.
- * Submitted to SSM: one tab (year2). Not submitted: year1 then year2.
- */
-export function getIssuerFinancialTabYears(isSubmittedToSsm: boolean, ref: Date = new Date()): number[] {
-  const { year1, year2 } = getFinancialInputBaseYears(ref);
-  return isSubmittedToSsm ? [year2] : [year1, year2];
+/** Period start ISO for FY ending in `fyEndYear` (12 months ending on FY end). */
+export function getFinancialYearPeriodStartIso(
+  questionnaire: FinancialStatementsQuestionnaire,
+  fyEndYear: number
+): string | null {
+  const end = fyEndDateForYear(questionnaire, fyEndYear);
+  if (!end) return null;
+  const start = addDays(subYears(end, 1), 1);
+  return format(start, "yyyy-MM-dd");
 }
 
-/**
- * Stored per-year `pldd` (FY end) for issuer blocks: not submitted → previous tab (year1) copies
- * `last_closing_date`; ongoing tab (year2) is empty. Submitted (year2 only) → empty.
- */
-export function issuerUnauditedPlddForStartYear(
-  startYear: number,
-  questionnaire: Pick<FinancialStatementsQuestionnaire, "is_submitted_to_ssm" | "last_closing_date">,
-  ref: Date = new Date()
+/** Period end ISO for FY ending in `fyEndYear`. */
+export function getFinancialYearPeriodEndIso(
+  questionnaire: FinancialStatementsQuestionnaire,
+  fyEndYear: number
+): string | null {
+  const end = fyEndDateForYear(questionnaire, fyEndYear);
+  if (!end) return null;
+  return format(end, "yyyy-MM-dd");
+}
+
+/** Display line e.g. "1 Apr 2025 – 31 Mar 2026". */
+export function formatFinancialFyPeriodDisplay(
+  questionnaire: FinancialStatementsQuestionnaire,
+  fyEndYear: number
 ): string {
-  const { year1, year2 } = getFinancialInputBaseYears(ref);
-  const closing = questionnaire.last_closing_date.trim();
-  if (calendarYearFromLastClosingDate(closing) == null) return "";
-  if (startYear === year2) return "";
-  if (!questionnaire.is_submitted_to_ssm && startYear === year1) return closing;
-  return "";
-}
-
-/** Issuer window for a given date: [year1, year2] (convenience for callers that need both). */
-export function getAdminUserInputColumnYears(ref: Date = new Date()): [number, number] {
-  const { year1, year2 } = getFinancialInputBaseYears(ref);
-  return [year1, year2];
+  const startIso = getFinancialYearPeriodStartIso(questionnaire, fyEndYear);
+  const endIso = getFinancialYearPeriodEndIso(questionnaire, fyEndYear);
+  if (!startIso || !endIso) return "";
+  const s = parseIsoDateOnlyLocal(startIso);
+  const e = parseIsoDateOnlyLocal(endIso);
+  if (!s || !e) return "";
+  return `${format(s, "d MMM yyyy")} – ${format(e, "d MMM yyyy")}`;
 }
 
 /**
- * Admin Financial Summary: which User Input column years to render (0–2).
- * Keeps only submitted years that fall in {@link getFinancialInputBaseYears} for `ref`, sorted ascending (smallest left).
+ * Per-year `pldd`: FY end date for that column (ISO).
  */
-export function getAdminFinancialSummaryUserColumnYears(
-  submittedYearKeys: readonly number[],
+export function issuerUnauditedPlddForFyEndYear(
+  fyEndYear: number,
+  questionnaire: FinancialStatementsQuestionnaire
+): string {
+  return getFinancialYearPeriodEndIso(questionnaire, fyEndYear) ?? "";
+}
+
+/**
+ * Tab years = FY end calendar years (1 or 2). Deadline = previous FY end + 6 calendar months (SSM audited window).
+ */
+export function getIssuerFinancialTabYears(
+  questionnaire: FinancialStatementsQuestionnaire,
   ref: Date = new Date()
 ): number[] {
-  const { year1, year2 } = getFinancialInputBaseYears(ref);
-  const allowed = new Set<number>([year1, year2]);
-  const filtered = [...new Set(submittedYearKeys.filter((y) => allowed.has(y)))];
-  filtered.sort((a, b) => a - b);
-  return filtered.slice(0, 2);
+  const currentFYEnd = parseIsoDateOnlyLocal(questionnaire.financial_year_end);
+  if (!currentFYEnd) return [];
+  const previousFYEnd = subYears(currentFYEnd, 1);
+  const deadline = addMonths(previousFYEnd, 6);
+  const today = startOfDay(ref);
+  const deadlineDay = startOfDay(deadline);
+  const currentYear = currentFYEnd.getFullYear();
+  const previousYear = previousFYEnd.getFullYear();
+  if (today.getTime() < deadlineDay.getTime()) {
+    const a = Math.min(previousYear, currentYear);
+    const b = Math.max(previousYear, currentYear);
+    return [a, b];
+  }
+  return [currentYear];
+}
+
+/**
+ * Admin Financial Summary: same FY columns as issuer (from questionnaire + `ref`).
+ */
+export function getAdminFinancialSummaryUserColumnYears(
+  questionnaire: FinancialStatementsQuestionnaire | null,
+  ref: Date = new Date()
+): number[] {
+  if (!questionnaire) return [];
+  return getIssuerFinancialTabYears(questionnaire, ref);
+}
+
+/** Debug values for issuer / API logs. */
+export function getFinancialYearEndComputationDetails(
+  questionnaire: FinancialStatementsQuestionnaire,
+  ref: Date = new Date()
+): {
+  fye: string;
+  previousFYEndIso: string;
+  deadlineIso: string;
+  todayIso: string;
+  years: number[];
+} {
+  const currentFYEnd = parseIsoDateOnlyLocal(questionnaire.financial_year_end);
+  const previousFYEnd = currentFYEnd ? subYears(currentFYEnd, 1) : null;
+  const deadline = previousFYEnd ? addMonths(previousFYEnd, 6) : null;
+  return {
+    fye: questionnaire.financial_year_end,
+    previousFYEndIso: previousFYEnd ? format(previousFYEnd, "yyyy-MM-dd") : "",
+    deadlineIso: deadline ? format(deadline, "yyyy-MM-dd") : "",
+    todayIso: format(startOfDay(ref), "yyyy-MM-dd"),
+    years: getIssuerFinancialTabYears(questionnaire, ref),
+  };
 }
 
 /** CTOS financial row shape used by helpers (stored as financial_year on each row). */

@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 /**
  * SECTION: Question-style field in resubmit comparison
  * WHY: Two-column grid with optional change highlight when values differ.
@@ -52,12 +54,13 @@ export function ComparisonYesNoRadioRow({
   afterValue,
   changed,
 }: {
-  label: string;
+  label: ReactNode;
   beforeValue: boolean | null;
   afterValue: boolean | null;
   changed: boolean;
 }) {
   const valuesDiffer = beforeValue !== afterValue;
+  const labelForAria = typeof label === "string" ? label : "Yes or no field";
 
   const Cell = ({ value, side }: { value: boolean | null; side: "before" | "after" }) => {
     const shell = comparisonCellSurfaceShellClass;
@@ -85,7 +88,9 @@ export function ComparisonYesNoRadioRow({
       className="py-2 space-y-3"
       role="row"
       aria-label={
-        valuesDiffer || changed ? `${label}, values differ between revisions` : label
+        valuesDiffer || changed
+          ? `${labelForAria}, values differ between revisions`
+          : labelForAria
       }
     >
       <p className={reviewLabelClass}>{label}</p>

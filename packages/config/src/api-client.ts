@@ -79,6 +79,7 @@ import type {
   AdminSeedTypesResponse,
   WithdrawReason,
   AdminCtosReportListItem,
+  SoukscoreRiskRating,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
 
@@ -592,6 +593,16 @@ export class ApiClient {
     );
   }
 
+  async patchContractCustomerLargePrivate(
+    applicationId: string,
+    body: { is_large_private_company: boolean }
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.patch<any>(
+      `/v1/admin/applications/${applicationId}/contract/customer-large-private`,
+      body
+    );
+  }
+
   async sendInvoiceOffer(
     applicationId: string,
     invoiceId: string,
@@ -600,6 +611,7 @@ export class ApiClient {
       offeredRatioPercent?: number | null;
       offeredProfitRatePercent?: number | null;
       expiresAt?: string | null;
+      risk_rating: SoukscoreRiskRating;
     }
   ): Promise<ApiResponse<any> | ApiError> {
     return this.post<any>(
@@ -609,6 +621,7 @@ export class ApiClient {
         offeredRatioPercent: payload.offeredRatioPercent ?? null,
         offeredProfitRatePercent: payload.offeredProfitRatePercent ?? null,
         expiresAt: payload.expiresAt ?? null,
+        risk_rating: payload.risk_rating,
       }
     );
   }

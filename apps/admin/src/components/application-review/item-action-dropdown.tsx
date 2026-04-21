@@ -17,6 +17,10 @@ import {
   DocumentTextIcon,
   XCircleIcon,
 } from "@heroicons/react/24/outline";
+import { cn } from "@/lib/utils";
+
+const itemActionTriggerBaseClass =
+  "inline-flex h-9 items-center justify-center gap-1 rounded-lg";
 
 interface ItemActionDropdownProps {
   itemId: string;
@@ -38,6 +42,8 @@ interface ItemActionDropdownProps {
   onViewSignedOffer?: () => void | Promise<void>;
   /** Shown when the menu would be empty: Action stays visible but disabled. */
   noActionsTooltip?: string;
+  /** Merged onto the trigger button (e.g. equal width with sibling View/Download on document rows). */
+  triggerClassName?: string;
 }
 
 export function ItemActionDropdown({
@@ -56,6 +62,7 @@ export function ItemActionDropdown({
   viewSignedOfferOnly = false,
   onViewSignedOffer,
   noActionsTooltip,
+  triggerClassName,
 }: ItemActionDropdownProps) {
   const normalizedStatus = status.toUpperCase();
   const canApprove = showApprove && normalizedStatus !== "APPROVED";
@@ -70,11 +77,11 @@ export function ItemActionDropdown({
           <Button
             variant="outline"
             size="sm"
-            className="rounded-lg h-9 gap-1"
+            className={cn(itemActionTriggerBaseClass, triggerClassName)}
             disabled={isPending}
           >
             Action
-            <ChevronDownIcon className="h-4 w-4" />
+            <ChevronDownIcon className="h-4 w-4 shrink-0" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="rounded-xl">
@@ -91,11 +98,11 @@ export function ItemActionDropdown({
     <Button
       variant="outline"
       size="sm"
-      className="rounded-lg h-9 gap-1"
+      className={cn(itemActionTriggerBaseClass, triggerClassName)}
       disabled={isActionLocked || isPending}
     >
       Action
-      <ChevronDownIcon className="h-4 w-4" />
+      <ChevronDownIcon className="h-4 w-4 shrink-0" />
     </Button>
   );
 
@@ -132,12 +139,12 @@ export function ItemActionDropdown({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="rounded-lg h-9 gap-1 opacity-60"
+                className={cn(itemActionTriggerBaseClass, triggerClassName, "opacity-60")}
                 disabled
                 aria-disabled
               >
                 Action
-                <ChevronDownIcon className="h-4 w-4" />
+                <ChevronDownIcon className="h-4 w-4 shrink-0" />
               </Button>
             </span>
           </TooltipTrigger>

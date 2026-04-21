@@ -47,9 +47,9 @@ import {
   ContractStatus,
   InvoiceStatus,
   WithdrawReason,
-  getFinancialInputBaseYears,
+  getFinancialYearEndComputationDetails,
   getIssuerFinancialTabYears,
-  issuerUnauditedPlddForStartYear,
+  issuerUnauditedPlddForFyEndYear,
   getStepKeyFromStepId,
 } from "@cashsouk/types";
 import { computeApplicationStatus } from "./lifecycle";
@@ -143,29 +143,6 @@ function financialToNum(v: unknown): number {
   return Number.isNaN(n) ? 0 : n;
 }
 
-function parseBsddDateFinancial(s: string): Date | null {
-  if (!s?.trim()) return null;
-  const t = s.trim();
-  let year: number;
-  let month: number;
-  let day: number;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
-    year = parseInt(t.slice(0, 4), 10);
-    month = parseInt(t.slice(5, 7), 10) - 1;
-    day = parseInt(t.slice(8, 10), 10);
-  } else {
-    const parts = t.split("/");
-    if (parts.length !== 3) return null;
-    day = parseInt(parts[0], 10);
-    month = parseInt(parts[1], 10) - 1;
-    year = parseInt(parts[2], 10);
-  }
-  if (Number.isNaN(day) || Number.isNaN(month) || Number.isNaN(year) || month < 0 || month > 11) return null;
-  const d = new Date(year, month, day);
-  if (d.getFullYear() !== year || d.getMonth() !== month || d.getDate() !== day) return null;
-  return d;
-}
-
 /** Business rules for v2 per-year financial blocks (no bsdd). */
 function validateFinancialYearBlockOrThrow(raw: {
   pldd?: string;
@@ -202,15 +179,6 @@ function validateFinancialYearBlockOrThrow(raw: {
     }
   }
 
-  const plddRaw = String(raw.pldd ?? "").trim();
-  const plddDate = plddRaw === "" ? null : parseBsddDateFinancial(plddRaw);
-  if (plddDate) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (plddDate > today) {
-      throw new AppError(400, "VALIDATION_ERROR", "Last closing date cannot be in the future.");
-    }
-  }
 }
 
 function normalizeFinancialYearBlock(
@@ -777,15 +745,21 @@ export class ApplicationService {
         throw new AppError(400, "VALIDATION_ERROR", message);
       }
       const { questionnaire, unaudited_by_year } = v2.data;
-      const expectedYears = getIssuerFinancialTabYears(questionnaire.is_submitted_to_ssm);
+      const serverNow = new Date();
+      const dbg = getFinancialYearEndComputationDetails(questionnaire, serverNow);
+      console.log("FYE selected:", dbg.fye);
+      console.log("Previous FY End:", dbg.previousFYEndIso);
+      console.log("Deadline:", dbg.deadlineIso);
+      console.log("Today:", dbg.todayIso);
+      console.log("Years to show:", dbg.years);
+      const expectedYears = getIssuerFinancialTabYears(questionnaire, serverNow);
       const actualKeys = Object.keys(unaudited_by_year).sort();
       const expectedStr = expectedYears.map((y) => String(y)).sort();
       if (actualKeys.length !== expectedStr.length || actualKeys.some((k, i) => k !== expectedStr[i])) {
-        const { year1, year2 } = getFinancialInputBaseYears();
         throw new AppError(
           400,
           "VALIDATION_ERROR",
-          `Unaudited years must match current rules: expected ${expectedStr.join(", ") || "(none)"} (year1=${year1}, year2=${year2}, submitted=${questionnaire.is_submitted_to_ssm})`
+          `Unaudited years must match FYE rules: expected ${expectedStr.join(", ") || "(none)"}`
         );
       }
 
@@ -797,12 +771,12 @@ export class ApplicationService {
           const message = blockResult.error.errors.map((e) => e.message).join("; ");
           throw new AppError(400, "VALIDATION_ERROR", `${key}: ${message}`);
         }
-        const expectedPldd = issuerUnauditedPlddForStartYear(y, questionnaire);
+        const expectedPldd = issuerUnauditedPlddForFyEndYear(y, questionnaire);
         if (blockResult.data.pldd !== expectedPldd) {
           throw new AppError(
             400,
             "VALIDATION_ERROR",
-            `${key}: pldd must match rules (previous completed year = last_closing_date when not submitted; ongoing year empty)`
+            `${key}: pldd must equal FY end date for that column`
           );
         }
         const block = { ...blockResult.data, pldd: expectedPldd };

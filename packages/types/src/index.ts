@@ -269,6 +269,7 @@ export interface CustomerDetails {
   ssm_number: string;
   country: string;
   is_related_party: boolean;
+  is_large_private_company?: boolean;
   document?: {
     s3_key: string;
     file_name: string;
@@ -329,6 +330,8 @@ export interface InvoiceOfferDetails {
   requested_ratio_percent: number | null;
   offered_ratio_percent: number | null;
   offered_profit_rate_percent: number | null;
+  /** Manual SoukScore placeholder (v1: A | B | C). Present on offers sent after this feature. */
+  risk_rating?: import("./invoice-offer-risk-rating").SoukscoreRiskRating | null;
   expires_at: string | null;
   sent_at: string | null;
   responded_at: string | null;
@@ -337,6 +340,7 @@ export interface InvoiceOfferDetails {
   version: number;
 }
 
+export * from "./invoice-offer-risk-rating";
 export * from "./activity-config";
 export * from "./admin";
 export * from "./application-steps";

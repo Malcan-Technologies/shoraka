@@ -42,9 +42,9 @@ export const applicationTableExpandableRowClass =
 export const applicationTableExpandableContentClass =
   "mx-4 mb-2 mt-1 px-4 py-3";
 
-/** Three-column grid. Tighter gaps for expandable table rows. */
+/** Three-column grid. Aligned with review tab card padding rhythm. */
 export const applicationTableExpandableGridClass =
-  "grid gap-4 md:grid-cols-3 md:gap-6 max-w-6xl mx-auto [&>div:not(:last-child)]:md:border-r [&>div:not(:last-child)]:md:border-border [&>div:not(:last-child)]:md:pr-6 [&>div]:min-w-0";
+  "grid gap-4 md:grid-cols-3 md:gap-6 max-w-6xl mx-auto [&>div]:min-w-0 [&>div:not(:last-child)]:md:border-r [&>div:not(:last-child)]:md:border-border [&>div:not(:last-child)]:md:pr-6";
 
 /** Section title. Matches application flow sectionTitleClassName. */
 export const applicationTableExpandableSectionTitleClass =
@@ -58,8 +58,8 @@ export const applicationTableExpandableLabelClass =
 export const applicationTableExpandableValueClass =
   "text-[15px] leading-6 text-foreground tabular-nums";
 
-/** Vertical spacing between field blocks. Compact for table. */
+/** Vertical spacing between field blocks. */
 export const applicationTableExpandableFieldGapClass = "space-y-2";
 
-/** Single field block. Matches application flow label-value gap. */
+/** Single field block: label → value gap (review-field-block uses space-y-3 sections). */
 export const applicationTableExpandableFieldBlockClass = "space-y-0.5";

@@ -40,38 +40,38 @@ import { parseMoney, formatMoney } from "@cashsouk/ui";
 import { FinancialStatementsSkeleton } from "@/app/(application-flow)/applications/components/financial-statements-skeleton";
 import {
   FINANCIAL_FIELD_LABELS,
+  formatFinancialFyPeriodDisplay,
+  getFinancialYearEndComputationDetails,
   getIssuerFinancialTabYears,
-  issuerUnauditedPlddForStartYear,
+  issuerUnauditedPlddForFyEndYear,
   normalizeFinancialStatementsQuestionnaire,
   type FinancialStatementsQuestionnaire,
 } from "@cashsouk/types";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InformationCircleIcon } from "@heroicons/react/24/outline";
-import { format, subMonths, parseISO, isValid as isValidDate } from "date-fns";
+import { addDays, format, parseISO, startOfDay, isValid as isValidDate } from "date-fns";
 import { toast } from "sonner";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import {
   applicationFlowDateToIso,
   isoToApplicationFlowDateDisplay,
-  isApplicationFlowDateOnOrBeforeToday,
+  isApplicationFlowDateStrictlyAfterToday,
   isApplicationFlowDateValid,
 } from "@/app/(application-flow)/applications/utils/application-flow-dates";
 
-/** Dev auto-fill: optional SSM flag for questionnaire (not sent as this key). */
-export const FINANCIAL_DEV_SUBMITTED_SSM_KEY = "__financial_dev_submitted_ssm";
+/** Dev auto-fill: ISO next FY end (not sent as this key). */
+export const FINANCIAL_DEV_YEAR_END_KEY = "__financial_year_end";
 
 /**
- * Mock data for dev Auto Fill (money fields). Questionnaire date/SSM set by effect from keys below.
+ * Mock data for dev Auto Fill (money fields). FYE set by effect from key below.
  */
 export function generateMockData(): Record<string, unknown> {
-  const today = new Date();
-  const isoClosing = format(subMonths(today, 1), "yyyy-MM-dd");
+  const futureFye = format(addDays(startOfDay(new Date()), 400), "yyyy-MM-dd");
   const plnpat = 120000.45;
   const plyear = 100000.25;
   return {
-    __financial_last_closing_date: isoClosing,
-    [FINANCIAL_DEV_SUBMITTED_SSM_KEY]: false,
+    [FINANCIAL_DEV_YEAR_END_KEY]: futureFye,
     bsfatot: formatMoney(500000.12),
     othass: formatMoney(100000.88),
     bscatot: formatMoney(200000.5),
@@ -234,107 +234,6 @@ const financialDetailsCenteredMessageTextClassName =
    CUSTOM RADIO (same pattern as business-details-step)
    ================================================================ */
 
-const radioSelectedLabel = formLabelClassName;
-const radioUnselectedLabel = formLabelClassName.replace(
-  "text-foreground",
-  "text-muted-foreground"
-);
-
-function FinancialCustomRadio({
-  name,
-  value,
-  checked,
-  onChange,
-  label,
-  disabled,
-}: {
-  name: string;
-  value: string;
-  checked: boolean;
-  onChange: () => void;
-  label: string;
-  disabled?: boolean;
-}) {
-  return (
-    <label className={cn("flex items-center gap-2", disabled ? "cursor-not-allowed" : "cursor-pointer")}>
-      <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
-        <input
-          type="radio"
-          name={name}
-          value={value}
-          checked={checked}
-          onChange={onChange}
-          disabled={disabled}
-          className="sr-only"
-          aria-hidden
-        />
-        <span
-          className={cn(
-            "pointer-events-none relative block h-5 w-5 shrink-0 rounded-full",
-            checked
-              ? disabled
-                ? "bg-muted border-2 border-muted-foreground/50"
-                : "bg-primary"
-              : "border-2 border-muted-foreground/50 bg-muted/30"
-          )}
-          aria-hidden
-        >
-          {checked && (
-            <span
-              className={cn(
-                "absolute inset-1 rounded-full",
-                disabled ? "bg-muted-foreground/60" : "bg-white"
-              )}
-              aria-hidden
-            />
-          )}
-          {!checked && (
-            <span className="absolute inset-1.5 rounded-full bg-muted-foreground/40" aria-hidden />
-          )}
-        </span>
-      </span>
-      <span className={checked ? radioSelectedLabel : radioUnselectedLabel}>{label}</span>
-    </label>
-  );
-}
-
-type YesNoChoice = "yes" | "no" | "";
-
-function FinancialYesNoRadioGroup({
-  name,
-  value,
-  onValueChange,
-  disabled,
-  "aria-label": ariaLabel,
-}: {
-  name: string;
-  value: YesNoChoice;
-  onValueChange: (v: "yes" | "no") => void;
-  disabled?: boolean;
-  "aria-label": string;
-}) {
-  return (
-    <div className="flex flex-wrap gap-6 items-center" role="radiogroup" aria-label={ariaLabel}>
-      <FinancialCustomRadio
-        name={name}
-        value="yes"
-        checked={value === "yes"}
-        onChange={() => !disabled && onValueChange("yes")}
-        label="Yes"
-        disabled={disabled}
-      />
-      <FinancialCustomRadio
-        name={name}
-        value="no"
-        checked={value === "no"}
-        onChange={() => !disabled && onValueChange("no")}
-        label="No"
-        disabled={disabled}
-      />
-    </div>
-  );
-}
-
 /* ================================================================
    MONEY FIELD ROW
    ================================================================ */
@@ -441,13 +340,14 @@ function buildV2ApiPayload(
   questionnaire: FinancialStatementsQuestionnaire;
   unaudited_by_year: Record<string, Record<string, unknown>>;
 } {
-  const expected = getIssuerFinancialTabYears(q.is_submitted_to_ssm);
+  const ref = new Date();
+  const expected = getIssuerFinancialTabYears(q, ref);
   const unaudited_by_year: Record<string, Record<string, unknown>> = {};
   for (const y of expected) {
     const k = String(y);
     const form = forms[k] ?? emptyQuestionnaireBlock();
     const row = toApiPayload(form);
-    row.pldd = issuerUnauditedPlddForStartYear(y, q);
+    row.pldd = issuerUnauditedPlddForFyEndYear(y, q);
     unaudited_by_year[k] = row;
   }
   return { questionnaire: q, unaudited_by_year };
@@ -494,16 +394,14 @@ function yearFormIsValid(form: FinancialStatementsPayload): boolean {
   return true;
 }
 
-/** Save gate: money fields filled; pldd must match closing rules for this start year. */
+/** Save gate: money fields filled; pldd must match FY end for this column. */
 function yearFormFilledForSaveButton(
-  startYear: number,
+  fyEndYear: number,
   q: FinancialStatementsQuestionnaire,
   form: FinancialStatementsPayload
 ): boolean {
-  const expected = issuerUnauditedPlddForStartYear(startYear, q);
-  if (expected === "") {
-    if (String(form.pldd ?? "").trim() !== "") return false;
-  } else if (form.pldd !== expected) {
+  const expected = issuerUnauditedPlddForFyEndYear(fyEndYear, q);
+  if (form.pldd !== expected) {
     return false;
   }
   const hasValue = (v: unknown) => String(v ?? "").trim() !== "";
@@ -521,8 +419,7 @@ export function FinancialStatementsStep({
   const { data: application, isLoading: isLoadingApp } = useApplication(applicationId);
   const devTools = useDevTools();
 
-  const [lastClosingDate, setLastClosingDate] = React.useState("");
-  const [qSubmitted, setQSubmitted] = React.useState<boolean | null>(null);
+  const [fyeDateInput, setFyeDateInput] = React.useState("");
   const [formsByYear, setFormsByYear] = React.useState<Record<string, FinancialStatementsPayload>>({});
   const [isInitialized, setIsInitialized] = React.useState(false);
   const [hasSubmitted, setHasSubmitted] = React.useState(false);
@@ -546,21 +443,20 @@ export function FinancialStatementsStep({
       }
       setFormsByYear(map);
       if (qNorm) {
-        setLastClosingDate(isoToApplicationFlowDateDisplay(qNorm.last_closing_date));
-        setQSubmitted(qNorm.is_submitted_to_ssm);
+        setFyeDateInput(isoToApplicationFlowDateDisplay(qNorm.financial_year_end));
         const built = buildV2ApiPayload(qNorm, map);
         initialPayloadRef.current = JSON.stringify(built);
         console.log("Financial step loaded v2; years in payload:", Object.keys(saved.unaudited_by_year));
       } else {
         initialPayloadRef.current = JSON.stringify({
-          questionnaire: { last_closing_date: "", is_submitted_to_ssm: false },
+          questionnaire: { financial_year_end: "" },
           unaudited_by_year: map,
         });
         console.log("Financial step v2 payload missing valid questionnaire; forms only");
       }
     } else {
       initialPayloadRef.current = JSON.stringify({
-        questionnaire: { last_closing_date: "", is_submitted_to_ssm: false },
+        questionnaire: { financial_year_end: "" },
         unaudited_by_year: {},
       });
       console.log("Financial step empty — start questionnaire");
@@ -569,20 +465,22 @@ export function FinancialStatementsStep({
   }, [application, isInitialized]);
 
   const questionnaireDto = React.useMemo((): FinancialStatementsQuestionnaire | null => {
-    const iso = applicationFlowDateToIso(lastClosingDate);
+    const iso = applicationFlowDateToIso(fyeDateInput);
     if (!iso) return null;
-    if (!isApplicationFlowDateOnOrBeforeToday(lastClosingDate)) return null;
-    if (qSubmitted === null) return null;
-    return {
-      last_closing_date: iso,
-      is_submitted_to_ssm: qSubmitted,
-    };
-  }, [lastClosingDate, qSubmitted]);
+    if (!isApplicationFlowDateStrictlyAfterToday(fyeDateInput)) return null;
+    return { financial_year_end: iso };
+  }, [fyeDateInput]);
 
   const yearsToShow = React.useMemo(() => {
     if (!questionnaireDto) return [] as number[];
-    const years = getIssuerFinancialTabYears(questionnaireDto.is_submitted_to_ssm);
-    console.log("Years to show on issuer form:", years);
+    const ref = new Date();
+    const years = getIssuerFinancialTabYears(questionnaireDto, ref);
+    const dbg = getFinancialYearEndComputationDetails(questionnaireDto, ref);
+    console.log("FYE selected:", dbg.fye);
+    console.log("Previous FY End:", dbg.previousFYEndIso);
+    console.log("Deadline:", dbg.deadlineIso);
+    console.log("Today:", dbg.todayIso);
+    console.log("Years to show:", dbg.years);
     return years;
   }, [questionnaireDto]);
 
@@ -593,7 +491,7 @@ export function FinancialStatementsStep({
       const next = { ...prev };
       for (const y of yearsToShow) {
         const k = String(y);
-        const p = issuerUnauditedPlddForStartYear(y, questionnaireDto);
+        const p = issuerUnauditedPlddForFyEndYear(y, questionnaireDto);
         if (!next[k]) next[k] = { ...emptyQuestionnaireBlock(), pldd: p };
         else next[k] = { ...next[k], pldd: p };
       }
@@ -611,14 +509,11 @@ export function FinancialStatementsStep({
         : devTools?.autoFillDataMap?.["financial_statements"];
     if (!raw) return;
     const mock = raw as Partial<FinancialStatementsPayload> & Record<string, unknown>;
+    const devKey = FINANCIAL_DEV_YEAR_END_KEY as keyof typeof mock;
     const isoFromMock =
-      typeof mock.__financial_last_closing_date === "string" &&
-      /^\d{4}-\d{2}-\d{2}$/.test(String(mock.__financial_last_closing_date).trim())
-        ? mock.__financial_last_closing_date
-        : format(subMonths(new Date(), 1), "yyyy-MM-dd");
-    const submittedKey = FINANCIAL_DEV_SUBMITTED_SSM_KEY as keyof typeof mock;
-    const submitted =
-      typeof mock[submittedKey] === "boolean" ? (mock[submittedKey] as boolean) : false;
+      typeof mock[devKey] === "string" && /^\d{4}-\d{2}-\d{2}$/.test(String(mock[devKey]).trim())
+        ? String(mock[devKey]).trim()
+        : format(addDays(startOfDay(new Date()), 400), "yyyy-MM-dd");
 
     const merged: FinancialStatementsPayload = { ...DEFAULT_PAYLOAD };
     for (const k of Object.keys(DEFAULT_PAYLOAD) as (keyof FinancialStatementsPayload)[]) {
@@ -626,18 +521,14 @@ export function FinancialStatementsStep({
         (merged as unknown as Record<string, unknown>)[k] = String(mock[k]);
       }
     }
-    setLastClosingDate(isoFromMock);
-    setQSubmitted(submitted);
+    setFyeDateInput(isoToApplicationFlowDateDisplay(isoFromMock));
 
-    const q: FinancialStatementsQuestionnaire = {
-      last_closing_date: isoFromMock,
-      is_submitted_to_ssm: submitted,
-    };
-    const years = getIssuerFinancialTabYears(q.is_submitted_to_ssm);
+    const q: FinancialStatementsQuestionnaire = { financial_year_end: isoFromMock };
+    const years = getIssuerFinancialTabYears(q, new Date());
     const map: Record<string, FinancialStatementsPayload> = {};
     for (const y of years) {
       const k = String(y);
-      map[k] = { ...merged, pldd: issuerUnauditedPlddForStartYear(y, q) };
+      map[k] = { ...merged, pldd: issuerUnauditedPlddForFyEndYear(y, q) };
     }
     setFormsByYear(map);
 
@@ -645,7 +536,7 @@ export function FinancialStatementsStep({
       if (devTools.autoFillData?.stepKey === "financial_statements") devTools.clearAutoFill();
       else devTools.clearAutoFillForStep("financial_statements");
     }
-    console.log("Last Closing Date (reference):", isoFromMock, "Submitted to SSM:", submitted);
+    console.log("Dev FYE auto-fill ISO:", isoFromMock);
   }, [devTools]);
 
   const buildV2ApiPayloadInner = React.useCallback(() => {
@@ -673,18 +564,14 @@ export function FinancialStatementsStep({
       const initHasRealQ = initQNorm != null;
 
       if (!initHasRealQ) {
-        const touched = lastClosingDate.trim() !== "" || qSubmitted !== null;
+        const touched = fyeDateInput.trim() !== "";
         console.log("Financial step pending (questionnaire draft):", touched);
         return touched;
       }
 
-      const closingIso = applicationFlowDateToIso(lastClosingDate);
-      const closingOk =
-        closingIso != null && isApplicationFlowDateOnOrBeforeToday(lastClosingDate);
-      const same =
-        closingOk &&
-        closingIso === initQNorm.last_closing_date &&
-        qSubmitted === initQNorm.is_submitted_to_ssm;
+      const fyeIso = applicationFlowDateToIso(fyeDateInput);
+      const fyeOk = fyeIso != null && isApplicationFlowDateStrictlyAfterToday(fyeDateInput);
+      const same = fyeOk && fyeIso === initQNorm.financial_year_end;
       const pending = !same;
       console.log("Financial step pending (questionnaire vs loaded):", pending);
       return pending;
@@ -698,7 +585,7 @@ export function FinancialStatementsStep({
     } catch {
       return true;
     }
-  }, [isInitialized, questionnaireDto, buildV2ApiPayloadInner, lastClosingDate, qSubmitted]);
+  }, [isInitialized, questionnaireDto, buildV2ApiPayloadInner, fyeDateInput]);
 
   /** Full validation: used by saveFunction and inline errors after submit (future date, turnover sign, etc.). */
   const allYearFormsValid = React.useMemo(() => {
@@ -718,15 +605,13 @@ export function FinancialStatementsStep({
   }, [yearsToShow, formsByYear, questionnaireDto]);
 
   const questionsAnswered =
-    applicationFlowDateToIso(lastClosingDate) != null &&
-    isApplicationFlowDateOnOrBeforeToday(lastClosingDate) &&
-    qSubmitted !== null;
+    applicationFlowDateToIso(fyeDateInput) != null && isApplicationFlowDateStrictlyAfterToday(fyeDateInput);
 
   /** Save enabled when questionnaire + all year rows are “filled”; submit applies strict validation. */
   const isValidForButton = readOnly || (questionsAnswered && allYearFormsFilled);
 
   React.useEffect(() => {
-    if (yearsToShow.length <= 1) return;
+    if (yearsToShow.length === 0) return;
     setActiveYearTab((prev) => {
       const ids = yearsToShow.map(String);
       if (prev && ids.includes(prev)) return prev;
@@ -736,14 +621,13 @@ export function FinancialStatementsStep({
 
   React.useEffect(() => {
     setHasSubmitted(false);
-  }, [lastClosingDate, qSubmitted, formsByYear]);
+  }, [fyeDateInput, formsByYear]);
 
   const saveFunction = React.useCallback(async () => {
     setHasSubmitted(true);
     if (!questionnaireDto) {
       console.log("Financial save blocked: questionnaire incomplete", {
-        lastClosingDate,
-        qSubmitted,
+        fyeDateInput,
       });
       toast.error("Please fix the highlighted fields");
       throw new Error("VALIDATION_REQUIRED");
@@ -789,7 +673,7 @@ export function FinancialStatementsStep({
         const base = prev[yearKey] ?? emptyQuestionnaireBlock();
         const nextRow: FinancialStatementsPayload = { ...base, [field]: value };
         if (questionnaireDto) {
-          nextRow.pldd = issuerUnauditedPlddForStartYear(y, questionnaireDto);
+          nextRow.pldd = issuerUnauditedPlddForFyEndYear(y, questionnaireDto);
         }
         return { ...prev, [yearKey]: nextRow };
       });
@@ -799,24 +683,20 @@ export function FinancialStatementsStep({
 
   const getLabel = (key: keyof FinancialStatementsPayload) => FINANCIAL_FIELD_LABELS[key] ?? key;
 
-  const LAST_CLOSE_TOOLTIP =
-    "Select the last day your company completed a financial year.\nExample: If your accounts run from 1 April 2025 to 31 March 2026, select 31 March 2026.";
-  const SSM_TOOLTIP =
-    "Select 'Yes' if you have already submitted your accounts to SSM.\nSelect 'No' if they are still being prepared or not submitted yet.";
+  const FYE_TOOLTIP =
+    "Select the next date your company’s financial year will end (must be in the future).";
 
   const showOverviewErrors = hasSubmitted && !readOnly;
-  const closingFieldError =
-    lastClosingDate.trim() === ""
+  const fyeFieldError =
+    fyeDateInput.trim() === ""
       ? showOverviewErrors
         ? "Required"
         : undefined
-      : !isApplicationFlowDateValid(lastClosingDate)
+      : !isApplicationFlowDateValid(fyeDateInput)
         ? "Enter a valid date"
-        : !isApplicationFlowDateOnOrBeforeToday(lastClosingDate)
-          ? "Closing date cannot be in the future"
+        : !isApplicationFlowDateStrictlyAfterToday(fyeDateInput)
+          ? "Please select a future financial year end date."
           : undefined;
-  const qSubmittedFieldError =
-    showOverviewErrors && qSubmitted === null ? "Please select Yes or No" : undefined;
 
   const renderYearBlock = (year: number) => {
     const yearKey = String(year);
@@ -825,9 +705,14 @@ export function FinancialStatementsStep({
     const yearErrors: YearBlockFieldErrors = showYearFieldErrors
       ? getYearBlockFieldErrors(form)
       : { money: {} };
+    const periodLine =
+      questionnaireDto != null ? formatFinancialFyPeriodDisplay(questionnaireDto, year) : "";
 
     return (
       <div key={yearKey} className={cn("border border-border rounded-xl p-4 md:p-6", yearBlockSectionStackClassName)}>
+        {periodLine ? (
+          <p className="text-sm text-muted-foreground pb-4 border-b border-border mb-4">{periodLine}</p>
+        ) : null}
         <section className={cn(sectionWrapperClassName, yearBlockInnerSectionClassName)}>
           <h4 className={subsectionHeadingClassName}>Assets</h4>
           <div className={stepFormRowGridClassName}>
@@ -951,8 +836,8 @@ export function FinancialStatementsStep({
 
           <div className={overviewFormRowGridClassName}>
             <div className={fieldLabelWithTooltipRowClassName}>
-              <Label htmlFor="last-closing-date" className={labelClassName}>
-                When did you last close your accounts?
+              <Label htmlFor="fye-financial-year-end" className={labelClassName}>
+                What is the Financial Year End of your company?
               </Label>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -961,50 +846,22 @@ export function FinancialStatementsStep({
                   </span>
                 </TooltipTrigger>
                 <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
-                  {LAST_CLOSE_TOOLTIP}
+                  {FYE_TOOLTIP}
                 </TooltipContent>
               </Tooltip>
             </div>
             <div className="flex min-w-0 flex-col gap-1">
               <DateInput
-                id="last-closing-date"
-                value={lastClosingDate}
-                onChange={(v) => setLastClosingDate(v)}
+                id="fye-financial-year-end"
+                value={fyeDateInput}
+                onChange={(v) => setFyeDateInput(v)}
                 disabled={readOnly}
                 placeholder="Enter date"
-                className={withFieldError(inputClassName, Boolean(closingFieldError))}
-                isInvalid={Boolean(closingFieldError)}
+                className={withFieldError(inputClassName, Boolean(fyeFieldError))}
+                isInvalid={Boolean(fyeFieldError)}
               />
-              {closingFieldError ? (
-                <p className="text-xs text-destructive">{closingFieldError}</p>
-              ) : null}
-            </div>
-
-            <div className={fieldLabelWithTooltipRowClassName}>
-              <Label className={labelClassName}>Have you submitted your accounts to SSM?</Label>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className={fieldTooltipTriggerClassName}>
-                    <InformationCircleIcon className="h-4 w-4" />
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
-                  {SSM_TOOLTIP}
-                </TooltipContent>
-              </Tooltip>
-            </div>
-            <div className="flex min-w-0 w-full flex-col gap-1">
-              <div className="flex h-11 w-full min-w-0 items-center">
-                <FinancialYesNoRadioGroup
-                  name="financial-statements-q-ssm"
-                  aria-label="Have you submitted your accounts to SSM?"
-                  value={qSubmitted === null ? "" : qSubmitted ? "yes" : "no"}
-                  onValueChange={(v) => setQSubmitted(v === "yes")}
-                  disabled={readOnly}
-                />
-              </div>
-              {qSubmittedFieldError ? (
-                <p className="text-xs text-destructive">{qSubmittedFieldError}</p>
+              {fyeFieldError ? (
+                <p className="text-xs text-destructive">{fyeFieldError}</p>
               ) : null}
             </div>
           </div>
@@ -1012,30 +869,20 @@ export function FinancialStatementsStep({
 
         <section className={`${sectionWrapperClassName} w-full space-y-3`}>
           <div className="px-3">
-            <h3 className={applicationFlowSectionTitleClassName}>
-              Financial Details{" "}
-              <span className="font-normal text-muted-foreground">(Unaudited)</span>
-            </h3>
+            <h3 className={applicationFlowSectionTitleClassName}>Financial Details</h3>
             <div className={applicationFlowSectionDividerClassName} />
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Enter your full financial period for each year. Example: Jan–Dec or Apr–Mar depending on your company.
-            </p>
           </div>
 
           <div className="space-y-4 px-3">
           {!questionnaireDto ? (
             <div className={financialDetailsCenteredMessageBoxClassName}>
               <p className={financialDetailsCenteredMessageTextClassName}>
-                Complete the two answers above, then enter amounts here
+                Select your financial year end above, then enter amounts here
               </p>
             </div>
           ) : null}
 
-          {questionnaireDto && yearsToShow.length === 1 ? (
-            <div>{renderYearBlock(yearsToShow[0])}</div>
-          ) : null}
-
-          {questionnaireDto && yearsToShow.length > 1 ? (
+          {questionnaireDto && yearsToShow.length >= 1 ? (
             <div className="w-full">
               <Tabs
                 key={yearsToShow.join("-")}
@@ -1046,7 +893,7 @@ export function FinancialStatementsStep({
                 <TabsList className="mb-4 h-auto w-full flex-wrap justify-start gap-1 bg-muted p-1 sm:w-auto">
                   {yearsToShow.map((y) => (
                     <TabsTrigger key={y} value={String(y)} className="min-w-[4.5rem]">
-                      {y}
+                      {`FY${y}`}
                     </TabsTrigger>
                   ))}
                 </TabsList>

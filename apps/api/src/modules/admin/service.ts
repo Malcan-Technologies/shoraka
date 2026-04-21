@@ -56,6 +56,7 @@ import {
   parseItemScopeKey,
   REVIEW_SECTION_ORDER,
   getStepKeyFromStepId,
+  type SoukscoreRiskRating,
 } from "@cashsouk/types";
 import { AMLFetcherService } from "../regtank/aml-fetcher";
 import type { PortalType } from "../regtank/types";
@@ -4985,6 +4986,72 @@ export class AdminService {
     return `invoice_details:${idx}:${sanitized}`;
   }
 
+  async patchContractCustomerLargePrivateCompany(
+    applicationId: string,
+    isLargePrivateCompany: boolean,
+    reviewerUserId: string,
+    logContext?: AdminLogContext
+  ) {
+    const { repository, application } = await this.prepareForReviewAction(applicationId);
+    await this.ensureUnderReview(
+      repository,
+      applicationId,
+      application.status as ApplicationStatus,
+      application
+    );
+    this.ensureContractOfferActionAllowed(application);
+
+    if (!application.contract_id) {
+      throw new AppError(400, "INVALID_STATE", "Application has no contract");
+    }
+
+    const contractId = application.contract_id;
+    const contract = await prisma.contract.findUnique({
+      where: { id: contractId },
+      select: { customer_details: true, status: true },
+    });
+    if (!contract) {
+      throw new AppError(404, "NOT_FOUND", "Contract not found");
+    }
+
+    const nonEditableStatuses = ["OFFER_SENT", "APPROVED", "REJECTED", "WITHDRAWN"] as const;
+    if (nonEditableStatuses.includes(contract.status as (typeof nonEditableStatuses)[number])) {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        "Cannot update customer type after the contract offer was sent or finalized"
+      );
+    }
+
+    const existing = contract.customer_details;
+    if (!existing || typeof existing !== "object" || Array.isArray(existing)) {
+      throw new AppError(400, "INVALID_STATE", "Customer details are missing; cannot save confirmation");
+    }
+
+    const merged = {
+      ...(existing as Record<string, unknown>),
+      is_large_private_company: isLargePrivateCompany,
+    };
+
+    await prisma.contract.update({
+      where: { id: contractId },
+      data: { customer_details: merged as Prisma.InputJsonValue },
+    });
+
+    await logApplicationActivity({
+      userId: reviewerUserId,
+      applicationId,
+      portal: ActivityPortal.ADMIN,
+      eventType: "CONTRACT_CUSTOMER_LARGE_PRIVATE_UPDATED",
+      metadata: { is_large_private_company: isLargePrivateCompany },
+      ipAddress: logContext?.ipAddress ?? undefined,
+      userAgent: logContext?.userAgent ?? undefined,
+      deviceInfo: logContext?.deviceInfo ?? undefined,
+    });
+
+    return repository.getApplicationById(applicationId);
+  }
+
   async sendContractOffer(
     applicationId: string,
     offeredFacility: number,
@@ -5022,9 +5089,15 @@ export class AdminService {
       }
 
       const lockedContracts = await tx.$queryRaw<
-        { status: string; contract_details: Prisma.JsonValue | null; offer_details: Prisma.JsonValue | null; updated_at: Date }[]
+        {
+          status: string;
+          contract_details: Prisma.JsonValue | null;
+          customer_details: Prisma.JsonValue | null;
+          offer_details: Prisma.JsonValue | null;
+          updated_at: Date;
+        }[]
       >`
-        SELECT status, contract_details, offer_details, updated_at
+        SELECT status, contract_details, customer_details, offer_details, updated_at
         FROM contracts
         WHERE id = ${contractId}
         FOR UPDATE
@@ -5038,6 +5111,17 @@ export class AdminService {
           400,
           "OFFER_FINALIZED",
           "Contract offer was finalized by issuer and cannot be modified"
+        );
+      }
+
+      const customerDetailsLocked =
+        (lockedContract.customer_details as Record<string, unknown> | null) ?? null;
+      const largePrivate = customerDetailsLocked?.is_large_private_company;
+      if (typeof largePrivate !== "boolean") {
+        throw new AppError(
+          400,
+          "INVALID_INPUT",
+          "Please confirm if customer is a large private company"
         );
       }
 
@@ -5173,6 +5257,7 @@ export class AdminService {
     offeredRatioPercent: number | null,
     offeredProfitRatePercent: number | null,
     expiresAt: string | null,
+    riskRating: SoukscoreRiskRating,
     reviewerUserId: string,
     logContext?: AdminLogContext
   ) {
@@ -5284,12 +5369,14 @@ export class AdminService {
           ? previousOffer.version
           : 0;
       const now = new Date().toISOString();
+      console.log("Saving risk rating:", riskRating);
       const offerDetails = {
         requested_amount: requestedAmount,
         offered_amount: offeredAmount,
         requested_ratio_percent: requestedRatioPercent,
         offered_ratio_percent: offeredRatioPercent,
         offered_profit_rate_percent: offeredProfitRatePercent,
+        risk_rating: riskRating,
         expires_at: expiresAt,
         sent_at: now,
         responded_at: null,

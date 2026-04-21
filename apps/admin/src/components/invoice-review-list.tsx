@@ -10,10 +10,12 @@ import {
   maturityMeetsMinimumMonthsFrom,
   parseInvoiceMaturityDate,
 } from "@cashsouk/config";
+import { isSoukscoreRiskRating, type SoukscoreRiskRating } from "@cashsouk/types";
 import { ItemActionDropdown } from "@/components/application-review/item-action-dropdown";
 import { ReviewStepStatusBadge } from "@/components/application-review/review-step-status-badge";
 import { REVIEW_EMPTY_LABEL } from "@/components/application-review/review-section-styles";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Slider } from "@cashsouk/ui";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -33,13 +35,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  applicationTableHeaderNumericClass,
-  applicationTableHeaderCenterClass,
   applicationTableHeaderBgClass,
   applicationTableRowClass,
   applicationTableRowGreyedClass,
-  applicationTableCellNumericClass,
-  applicationTableCellCenterClass,
   applicationTableWrapperClass,
   applicationTableExpandableRowClass,
   applicationTableExpandableContentClass,
@@ -53,6 +51,18 @@ import {
 import { isSignedOfferLetterAvailable } from "@/components/application-review/offer-signing-availability";
 
 const PROFIT_RATE_OPTIONS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18] as const;
+
+/** Read-only label/value stack in invoice expand rows. */
+const invoiceExpandReadonlyFieldBlockClass = "space-y-1";
+
+/** Same width for ratio input, profit, and risk so controls line up. */
+const OFFER_CONTROL_WIDTH_CLASS = "h-9 w-full min-w-[5.5rem] max-w-[7rem] rounded-xl border-border bg-background text-[15px]";
+
+const invoiceSummaryCellCenterClass = "text-[15px] px-3 py-2 align-middle text-center";
+const invoiceSummaryCellNumericClass = "text-[15px] px-3 py-2 align-middle text-right tabular-nums";
+const invoiceSummaryHeadCenterClass = "text-sm font-semibold text-foreground px-3 py-2 text-center";
+const invoiceSummaryHeadNumericClass =
+  "text-sm font-semibold text-foreground px-3 py-2 text-right tabular-nums";
 
 interface InvoiceReviewListProps {
   invoices: {
@@ -86,6 +96,7 @@ interface InvoiceReviewListProps {
     offeredAmount: number;
     offeredRatioPercent: number;
     offeredProfitRatePercent: number;
+    risk_rating: SoukscoreRiskRating;
   }) => Promise<void>;
   isSendInvoiceOfferPending?: boolean;
   /** Opens signed offer document using the same document view-url flow. */
@@ -198,6 +209,7 @@ export function InvoiceList({
     offeredRatioPercent: number;
     offeredProfitRatePercent: number;
     invoiceValue: number | null;
+    risk_rating: SoukscoreRiskRating;
   } | null>(null);
 
   React.useEffect(() => {
@@ -258,6 +270,65 @@ export function InvoiceList({
     }
   }, [initialOfferedFromInvoices]);
 
+  const initialRiskFromInvoices = React.useMemo(() => {
+    const result: Record<string, SoukscoreRiskRating> = {};
+    invoices.forEach((inv) => {
+      const raw = (inv.offer_details as Record<string, unknown> | null)?.risk_rating;
+      if (isSoukscoreRiskRating(raw)) result[inv.id] = raw;
+    });
+    return result;
+  }, [invoices]);
+
+  const [riskRatingByInvoiceId, setRiskRatingByInvoiceId] = React.useState<
+    Record<string, SoukscoreRiskRating | null>
+  >({});
+
+  /** Draft strings while typing financing ratio (%); committed on blur with min/max clamp. */
+  const [financingRatioDraftByInvoiceId, setFinancingRatioDraftByInvoiceId] = React.useState<
+    Record<string, string>
+  >({});
+
+  /** When true, financing ratio slider is shown under the input for that invoice. */
+  const [financingRatioSliderOpenByInvoiceId, setFinancingRatioSliderOpenByInvoiceId] = React.useState<
+    Record<string, boolean>
+  >({});
+
+  const financingRatioPanelRefs = React.useRef<Record<string, HTMLDivElement | null>>({});
+
+  React.useEffect(() => {
+    const openIds = Object.entries(financingRatioSliderOpenByInvoiceId)
+      .filter(([, open]) => open)
+      .map(([id]) => id);
+    if (openIds.length === 0) return;
+    const onDocMouseDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      for (const id of openIds) {
+        const panel = financingRatioPanelRefs.current[id];
+        if (panel && !panel.contains(target)) {
+          setFinancingRatioSliderOpenByInvoiceId((prev) => ({ ...prev, [id]: false }));
+        }
+      }
+    };
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, [financingRatioSliderOpenByInvoiceId]);
+
+  React.useEffect(() => {
+    if (Object.keys(initialRiskFromInvoices).length > 0) {
+      setRiskRatingByInvoiceId((prev) => {
+        const next = { ...prev };
+        let changed = false;
+        for (const [invoiceId, rating] of Object.entries(initialRiskFromInvoices)) {
+          if (next[invoiceId] !== rating) {
+            next[invoiceId] = rating;
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }
+  }, [initialRiskFromInvoices]);
+
   const toggleExpanded = React.useCallback((invoiceId: string) => {
     setExpandedById((prev) => ({ ...prev, [invoiceId]: !prev[invoiceId] }));
   }, []);
@@ -287,11 +358,16 @@ export function InvoiceList({
 
   const handleConfirmInvoiceOffer = React.useCallback(async () => {
     if (!onSendInvoiceOffer || !invoiceOfferConfirm) return;
+    if (!invoiceOfferConfirm.risk_rating) {
+      alert("Please select a risk rating before sending the offer.");
+      return;
+    }
     await onSendInvoiceOffer({
       invoiceId: invoiceOfferConfirm.invoiceId,
       offeredAmount: invoiceOfferConfirm.offeredAmount,
       offeredRatioPercent: invoiceOfferConfirm.offeredRatioPercent,
       offeredProfitRatePercent: invoiceOfferConfirm.offeredProfitRatePercent,
+      risk_rating: invoiceOfferConfirm.risk_rating,
     });
     setInvoiceOfferConfirm(null);
   }, [onSendInvoiceOffer, invoiceOfferConfirm]);
@@ -301,13 +377,13 @@ export function InvoiceList({
       <Table className="text-[15px]">
         <TableHeader className={applicationTableHeaderBgClass}>
           <TableRow className="hover:bg-transparent border-b border-border">
-            <TableHead className="w-10 px-4 py-3" />
-            <TableHead className={applicationTableHeaderCenterClass}>Invoice Number</TableHead>
-            <TableHead className={applicationTableHeaderNumericClass}>Invoice Value</TableHead>
-            <TableHead className={applicationTableHeaderNumericClass}>Financing Ratio</TableHead>
-            <TableHead className={applicationTableHeaderNumericClass}>Financing Amount</TableHead>
-            <TableHead className={applicationTableHeaderCenterClass}>Status</TableHead>
-            <TableHead className={`${applicationTableHeaderCenterClass} w-[120px]`}>Action</TableHead>
+            <TableHead className="w-10 px-2 py-2 text-center align-middle" />
+            <TableHead className={invoiceSummaryHeadCenterClass}>Invoice Number</TableHead>
+            <TableHead className={invoiceSummaryHeadNumericClass}>Invoice Value</TableHead>
+            <TableHead className={invoiceSummaryHeadNumericClass}>Financing Ratio</TableHead>
+            <TableHead className={invoiceSummaryHeadNumericClass}>Financing Amount</TableHead>
+            <TableHead className={invoiceSummaryHeadCenterClass}>Status</TableHead>
+            <TableHead className={`${invoiceSummaryHeadCenterClass} w-[120px]`}>Action</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -360,13 +436,23 @@ export function InvoiceList({
               <React.Fragment key={inv.id}>
                 <TableRow
                   className={
-                    isRowGreyedOut ? applicationTableRowGreyedClass : applicationTableRowClass
+                    isRowGreyedOut
+                      ? `${applicationTableRowGreyedClass} cursor-pointer`
+                      : `${applicationTableRowClass} cursor-pointer`
                   }
+                  onClick={(e) => {
+                    const t = e.target as HTMLElement;
+                    if (t.closest("[data-prevent-invoice-row-toggle]")) return;
+                    toggleExpanded(inv.id);
+                  }}
                 >
-                  <TableCell className={applicationTableCellCenterClass}>
+                  <TableCell className={invoiceSummaryCellCenterClass}>
                     <button
                       type="button"
-                      onClick={() => toggleExpanded(inv.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleExpanded(inv.id);
+                      }}
                       className="inline-flex h-7 w-7 items-center justify-center rounded-lg hover:bg-muted"
                       aria-label={
                         isExpanded ? "Collapse invoice details" : "Expand invoice details"
@@ -377,25 +463,26 @@ export function InvoiceList({
                       />
                     </button>
                   </TableCell>
-                  <TableCell className={applicationTableCellCenterClass}>
+                  <TableCell className={invoiceSummaryCellCenterClass}>
                     {invoiceNo}
                   </TableCell>
-                  <TableCell className={applicationTableCellNumericClass}>
+                  <TableCell className={invoiceSummaryCellNumericClass}>
                     {invoiceValue !== null ? formatCurrency(invoiceValue) : REVIEW_EMPTY_LABEL}
                   </TableCell>
-                  <TableCell className={applicationTableCellNumericClass}>
+                  <TableCell className={invoiceSummaryCellNumericClass}>
                     {financingRatio !== null ? `${financingRatio}%` : REVIEW_EMPTY_LABEL}
                   </TableCell>
-                  <TableCell className={applicationTableCellNumericClass}>
+                  <TableCell className={invoiceSummaryCellNumericClass}>
                     {issuerFinancingAmount !== null
                       ? formatCurrency(issuerFinancingAmount)
                       : REVIEW_EMPTY_LABEL}
                   </TableCell>
-                  <TableCell className={applicationTableCellCenterClass}>
+                  <TableCell className={invoiceSummaryCellCenterClass}>
                     <ReviewStepStatusBadge status={status} size="sm" />
                   </TableCell>
                   <TableCell
-                    className={`${applicationTableCellCenterClass} ${isRowGreyedOut ? "text-foreground" : ""}`}
+                    data-prevent-invoice-row-toggle
+                    className={`${invoiceSummaryCellCenterClass} ${isRowGreyedOut ? "text-foreground" : ""}`}
                   >
                     {showFullActionMenu ? (
                       <ItemActionDropdown
@@ -497,69 +584,72 @@ export function InvoiceList({
                               <p className={applicationTableExpandableSectionTitleClass}>
                                 Invoice Details
                               </p>
-                              <div className={applicationTableExpandableFieldGapClass}>
-                                <div className={applicationTableExpandableFieldBlockClass}>
-                                  <p className={applicationTableExpandableLabelClass}>
-                                    Maturity Date
-                                  </p>
-                                  <p className={applicationTableExpandableValueClass}>
-                                    {formatDateValue(maturityDate)}
-                                  </p>
-                                </div>
-                                {estimates && (
-                                  <div className={applicationTableExpandableFieldBlockClass}>
+                              <div className="space-y-3">
+                                  <div className={invoiceExpandReadonlyFieldBlockClass}>
                                     <p className={applicationTableExpandableLabelClass}>
-                                      Offer Expiry
+                                      Maturity Date
                                     </p>
                                     <p className={applicationTableExpandableValueClass}>
-                                      {format(estimates.offerExpiryDate, "dd MMM yyyy")}
+                                      {formatDateValue(maturityDate)}
                                     </p>
                                   </div>
-                                )}
-                                <div className={applicationTableExpandableFieldBlockClass}>
-                                  <p className={applicationTableExpandableLabelClass}>
-                                    Estimated Disbursement Date
-                                  </p>
-                                  <p className={applicationTableExpandableValueClass}>
-                                    {estimates
-                                      ? format(estimates.estDisbursementDate, "dd MMM yyyy")
-                                      : REVIEW_EMPTY_LABEL}
-                                  </p>
-                                </div>
-                                <div className={applicationTableExpandableFieldBlockClass}>
-                                  <p className={applicationTableExpandableLabelClass}>
-                                    Estimated Period (Days)
-                                  </p>
-                                  <p className={applicationTableExpandableValueClass}>
-                                    {estimates != null && estimates.estPeriodDays != null
-                                      ? estimates.estPeriodDays
-                                      : REVIEW_EMPTY_LABEL}
-                                  </p>
-                                </div>
-                                <div
-                                  className={`${applicationTableExpandableFieldBlockClass} border-t border-border pt-2 mt-2`}
-                                >
-                                  <p className={applicationTableExpandableLabelClass}>Document</p>
-                                  <div className="flex items-center gap-2">
-                                    <p className={`${applicationTableExpandableValueClass} truncate`}>
-                                      {documentName}
+                                  {estimates && (
+                                    <div className={invoiceExpandReadonlyFieldBlockClass}>
+                                      <p className={applicationTableExpandableLabelClass}>
+                                        Offer Expiry
+                                      </p>
+                                      <p className={applicationTableExpandableValueClass}>
+                                        {format(estimates.offerExpiryDate, "dd MMM yyyy")}
+                                      </p>
+                                    </div>
+                                  )}
+                                  <div className={invoiceExpandReadonlyFieldBlockClass}>
+                                    <p className={applicationTableExpandableLabelClass}>
+                                      Estimated Disbursement Date
                                     </p>
-                                    {invoiceDocument?.s3_key ? (
-                                      <span className="pointer-events-auto shrink-0">
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          className="h-8 rounded-xl gap-1 px-2 text-[15px]"
-                                          onClick={() => onViewDocument(invoiceDocument.s3_key!)}
-                                          disabled={isViewDocumentPending}
-                                        >
-                                          <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
-                                          View
-                                        </Button>
-                                      </span>
-                                    ) : null}
+                                    <p className={applicationTableExpandableValueClass}>
+                                      {estimates
+                                        ? format(estimates.estDisbursementDate, "dd MMM yyyy")
+                                        : REVIEW_EMPTY_LABEL}
+                                    </p>
                                   </div>
-                                </div>
+                                  <div className={invoiceExpandReadonlyFieldBlockClass}>
+                                    <p className={applicationTableExpandableLabelClass}>
+                                      Estimated Period (Days)
+                                    </p>
+                                    <p className={applicationTableExpandableValueClass}>
+                                      {estimates != null && estimates.estPeriodDays != null
+                                        ? estimates.estPeriodDays
+                                        : REVIEW_EMPTY_LABEL}
+                                    </p>
+                                  </div>
+                                  <div
+                                    className={`${invoiceExpandReadonlyFieldBlockClass} mt-3 border-t border-border/60 pt-3`}
+                                  >
+                                    <p className={applicationTableExpandableLabelClass}>Document</p>
+                                    <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                                      <p
+                                        className={`${applicationTableExpandableValueClass} line-clamp-3 min-w-0 w-full max-w-full break-words [overflow-wrap:anywhere]`}
+                                        title={documentName}
+                                      >
+                                        {documentName}
+                                      </p>
+                                      {invoiceDocument?.s3_key ? (
+                                        <span className="pointer-events-auto shrink-0 sm:pt-0.5">
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8 rounded-xl gap-1 px-2 text-[15px]"
+                                            onClick={() => onViewDocument(invoiceDocument.s3_key!)}
+                                            disabled={isViewDocumentPending}
+                                          >
+                                            <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5" />
+                                            View
+                                          </Button>
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                  </div>
                               </div>
                             </div>
 
@@ -571,125 +661,268 @@ export function InvoiceList({
                               }
                             >
                               <p className={applicationTableExpandableSectionTitleClass}>
-                                Requested by Issuer
+                                Issuer Request
                               </p>
-                              <div className={applicationTableExpandableFieldGapClass}>
-                                <div className={applicationTableExpandableFieldBlockClass}>
-                                  <p className={applicationTableExpandableLabelClass}>
-                                    Financing Ratio
-                                  </p>
-                                  <p className={applicationTableExpandableValueClass}>
-                                    {financingRatio !== null
-                                      ? `${financingRatio}%`
-                                      : REVIEW_EMPTY_LABEL}
-                                  </p>
-                                </div>
-                                <div className={applicationTableExpandableFieldBlockClass}>
-                                  <p className={applicationTableExpandableLabelClass}>
-                                    Financing Amount
-                                  </p>
-                                  <p className={applicationTableExpandableValueClass}>
-                                    {issuerFinancingAmount !== null
-                                      ? formatCurrency(issuerFinancingAmount)
-                                      : REVIEW_EMPTY_LABEL}
-                                  </p>
-                                </div>
+                              <div className="space-y-3">
+                                  <div className={invoiceExpandReadonlyFieldBlockClass}>
+                                    <p className={applicationTableExpandableLabelClass}>
+                                      Financing Amount
+                                    </p>
+                                    <p className={applicationTableExpandableValueClass}>
+                                      {issuerFinancingAmount !== null
+                                        ? formatCurrency(issuerFinancingAmount)
+                                        : REVIEW_EMPTY_LABEL}
+                                    </p>
+                                  </div>
+                                  <div className={invoiceExpandReadonlyFieldBlockClass}>
+                                    <p className={applicationTableExpandableLabelClass}>
+                                      Financing Ratio
+                                    </p>
+                                    <p className={applicationTableExpandableValueClass}>
+                                      {financingRatio !== null
+                                        ? `${financingRatio}%`
+                                        : REVIEW_EMPTY_LABEL}
+                                    </p>
+                                  </div>
                               </div>
                             </div>
 
                             <div
                               className={
                                 isRowGreyedOut
-                                  ? `${applicationTableExpandableFieldGapClass} text-muted-foreground pointer-events-none select-none`
-                                  : applicationTableExpandableFieldGapClass
+                                  ? `${applicationTableExpandableFieldGapClass} text-muted-foreground pointer-events-none select-none md:min-w-[15rem]`
+                                  : `${applicationTableExpandableFieldGapClass} md:min-w-[15rem]`
                               }
                             >
                               <p className={applicationTableExpandableSectionTitleClass}>
                                 Offered by CashSouk
                               </p>
-                              <div className={`${applicationTableExpandableFieldGapClass} flex flex-col`}>
-                                <div className={applicationTableExpandableFieldBlockClass}>
-                                  <p className={applicationTableExpandableLabelClass}>
-                                    Financing Ratio
-                                  </p>
-                                  <span
-                                    className={`${applicationTableExpandableValueClass} font-medium ${!isOfferSent && issuerFinancingAmount != null && offeredAmount != null && offeredAmount > issuerFinancingAmount ? "text-destructive" : ""}`}
-                                  >
-                                    {offeredRatio}%
-                                  </span>
-                                  {!isOfferSent && issuerFinancingAmount != null && offeredAmount != null && offeredAmount > issuerFinancingAmount && (
-                                    <p className="text-xs text-destructive mt-1">Exceeds requested amount</p>
-                                  )}
-                                  {!isOfferSent && (
-                                    <div className="mt-2 w-full">
-                                      <Slider
-                                        min={invoiceRatioLimits.min}
-                                        max={invoiceRatioLimits.max}
-                                        step={1}
-                                        value={[offered.ratio]}
-                                        onValueChange={(v) => setOffered(inv.id, { ratio: v[0] })}
-                                        disabled={isRowGreyedOut || isAdminRejected}
-                                        className="w-full"
-                                      />
+                              <div className="flex flex-col gap-3">
+                                <div className="space-y-3">
+                                  <div className={applicationTableExpandableFieldBlockClass}>
+                                    <div className="flex items-baseline justify-between gap-2">
+                                      <p className={applicationTableExpandableLabelClass}>
+                                        Financing Ratio
+                                      </p>
+                                      {!isOfferSent ? (
+                                        <span className="shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
+                                          {invoiceRatioLimits.min}–{invoiceRatioLimits.max}%
+                                        </span>
+                                      ) : null}
                                     </div>
-                                  )}
-                                </div>
-                                <div className={applicationTableExpandableFieldBlockClass}>
-                                  <p className={applicationTableExpandableLabelClass}>
-                                    Financing Amount
-                                  </p>
-                                  <p
-                                    className={`${applicationTableExpandableValueClass} ${
-                                      issuerFinancingAmount != null && offeredAmount != null && offeredAmount > issuerFinancingAmount
-                                        ? "text-destructive font-semibold"
-                                        : ""
-                                    }`}
-                                  >
-                                    {offeredAmount !== null
-                                      ? formatCurrency(offeredAmount)
-                                      : REVIEW_EMPTY_LABEL}
-                                  </p>
-                                </div>
-                                <div className={applicationTableExpandableFieldBlockClass}>
-                                  <p className={applicationTableExpandableLabelClass}>
-                                    Profit Rate
-                                  </p>
-                                  {isOfferSent ? (
-                                    <p className={applicationTableExpandableValueClass}>
-                                      {offeredProfitRate != null
-                                        ? `${offeredProfitRate}%`
-                                        : REVIEW_EMPTY_LABEL}
+                                    {isOfferSent ? (
+                                      <span
+                                        className={`${applicationTableExpandableValueClass} font-medium ${issuerFinancingAmount != null && offeredAmount != null && offeredAmount > issuerFinancingAmount ? "text-destructive" : ""}`}
+                                      >
+                                        {offeredRatio}%
+                                      </span>
+                                    ) : (
+                                      <>
+                                        <div
+                                          ref={(el) => {
+                                            financingRatioPanelRefs.current[inv.id] = el;
+                                          }}
+                                          className="mt-1 w-full max-w-md"
+                                          onClick={() => {
+                                            if (!isRowGreyedOut && !isAdminRejected) {
+                                              setFinancingRatioSliderOpenByInvoiceId((prev) => ({
+                                                ...prev,
+                                                [inv.id]: true,
+                                              }));
+                                            }
+                                          }}
+                                        >
+                                          <div className="flex w-full max-w-[7rem] items-center gap-1.5">
+                                            <Input
+                                              type="text"
+                                              inputMode="numeric"
+                                              autoComplete="off"
+                                              aria-label={`Financing ratio percent, allowed ${invoiceRatioLimits.min}% to ${invoiceRatioLimits.max}%`}
+                                              className={`${OFFER_CONTROL_WIDTH_CLASS} px-3 text-right tabular-nums shadow-sm`}
+                                              disabled={isRowGreyedOut || isAdminRejected}
+                                              value={
+                                                financingRatioDraftByInvoiceId[inv.id] !== undefined
+                                                  ? financingRatioDraftByInvoiceId[inv.id]
+                                                  : String(offered.ratio)
+                                              }
+                                              onChange={(e) => {
+                                                const next = e.target.value;
+                                                if (next === "" || /^\d{0,3}$/.test(next)) {
+                                                  setFinancingRatioDraftByInvoiceId((prev) => ({
+                                                    ...prev,
+                                                    [inv.id]: next,
+                                                  }));
+                                                }
+                                              }}
+                                              onFocus={() => {
+                                                if (!isRowGreyedOut && !isAdminRejected) {
+                                                  setFinancingRatioSliderOpenByInvoiceId((prev) => ({
+                                                    ...prev,
+                                                    [inv.id]: true,
+                                                  }));
+                                                }
+                                              }}
+                                              onBlur={() => {
+                                                const draft = financingRatioDraftByInvoiceId[inv.id];
+                                                setFinancingRatioDraftByInvoiceId((prev) => {
+                                                  const { [inv.id]: _removed, ...rest } = prev;
+                                                  return rest;
+                                                });
+                                                const fallback = offered.ratio;
+                                                const parsed =
+                                                  draft === undefined || draft === ""
+                                                    ? fallback
+                                                    : parseInt(draft, 10);
+                                                const clamped = Number.isFinite(parsed)
+                                                  ? Math.min(
+                                                      invoiceRatioLimits.max,
+                                                      Math.max(invoiceRatioLimits.min, Math.round(parsed))
+                                                    )
+                                                  : fallback;
+                                                setOffered(inv.id, { ratio: clamped });
+                                              }}
+                                              onKeyDown={(e) => {
+                                                if (e.key === "Enter") {
+                                                  (e.target as HTMLInputElement).blur();
+                                                }
+                                              }}
+                                            />
+                                            <span className="shrink-0 text-[15px] text-muted-foreground">%</span>
+                                          </div>
+                                          {financingRatioSliderOpenByInvoiceId[inv.id] ? (
+                                            <div
+                                              className="mt-2 w-full"
+                                              onPointerDown={(e) => e.preventDefault()}
+                                            >
+                                              <Slider
+                                                min={invoiceRatioLimits.min}
+                                                max={invoiceRatioLimits.max}
+                                                step={1}
+                                                value={[offered.ratio]}
+                                                onValueChange={(v) => {
+                                                  setOffered(inv.id, { ratio: v[0] });
+                                                  setFinancingRatioDraftByInvoiceId((prev) => {
+                                                    const { [inv.id]: _removed, ...rest } = prev;
+                                                    return rest;
+                                                  });
+                                                }}
+                                                disabled={isRowGreyedOut || isAdminRejected}
+                                                className="w-full"
+                                              />
+                                            </div>
+                                          ) : null}
+                                        </div>
+                                      </>
+                                    )}
+                                  </div>
+                                  <div className={applicationTableExpandableFieldBlockClass}>
+                                    <p className={applicationTableExpandableLabelClass}>
+                                      Profit Rate
                                     </p>
-                                  ) : (
-                                    <Select
+                                    {isOfferSent ? (
+                                      <p className={applicationTableExpandableValueClass}>
+                                        {offeredProfitRate != null
+                                          ? `${offeredProfitRate}%`
+                                          : REVIEW_EMPTY_LABEL}
+                                      </p>
+                                    ) : (
+                                      <Select
                                         value={String(offered.profitRate)}
                                         onValueChange={(v) =>
                                           setOffered(inv.id, { profitRate: parseInt(v, 10) })
                                         }
                                         disabled={isRowGreyedOut || isAdminRejected}
                                       >
-                                        <SelectTrigger className="h-9 w-full max-w-[88px] rounded-xl border-border bg-background text-[15px]">
-                                        <SelectValue />
-                                      </SelectTrigger>
-                                      <SelectContent className="max-h-[200px]">
-                                        {PROFIT_RATE_OPTIONS.map((p) => (
-                                          <SelectItem key={p} value={String(p)}>
-                                            {p}%
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  )}
+                                        <SelectTrigger className={OFFER_CONTROL_WIDTH_CLASS}>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent className="max-h-[200px]">
+                                          {PROFIT_RATE_OPTIONS.map((p) => (
+                                            <SelectItem key={p} value={String(p)}>
+                                              {p}%
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    )}
+                                  </div>
+                                  {/* SECTION: Risk Rating (Manual SoukScore). WHY: placeholder until automation. INPUT: A|B|C. OUTPUT: offer_details.risk_rating. WHERE USED: Send Offer. */}
+                                  <div className={applicationTableExpandableFieldBlockClass}>
+                                    <p className={applicationTableExpandableLabelClass}>Risk Rating</p>
+                                    {isOfferSent ? (
+                                      <p className={applicationTableExpandableValueClass}>
+                                        {(() => {
+                                          const raw = (inv.offer_details as Record<string, unknown> | null)
+                                            ?.risk_rating;
+                                          if (isSoukscoreRiskRating(raw)) return raw;
+                                          const fromState = riskRatingByInvoiceId[inv.id];
+                                          return fromState ?? REVIEW_EMPTY_LABEL;
+                                        })()}
+                                      </p>
+                                    ) : (
+                                      <Select
+                                        value={riskRatingByInvoiceId[inv.id] ?? undefined}
+                                        onValueChange={(value) => {
+                                          console.log("Risk Rating selected:", value);
+                                          if (isSoukscoreRiskRating(value)) {
+                                            setRiskRatingByInvoiceId((prev) => ({
+                                              ...prev,
+                                              [inv.id]: value,
+                                            }));
+                                          }
+                                        }}
+                                        disabled={isRowGreyedOut || isAdminRejected}
+                                      >
+                                        <SelectTrigger aria-label="Risk rating" className={OFFER_CONTROL_WIDTH_CLASS}>
+                                          <SelectValue placeholder="Grade" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="A">A</SelectItem>
+                                          <SelectItem value="B">B</SelectItem>
+                                          <SelectItem value="C">C</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    )}
+                                  </div>
                                 </div>
-                                <div className={applicationTableExpandableFieldBlockClass}>
-                                  <p className={applicationTableExpandableLabelClass}>
-                                    Estimated Profit
-                                  </p>
-                                  <p className={applicationTableExpandableValueClass}>
-                                    {estimates?.estProfit != null
-                                      ? formatCurrency(estimates.estProfit)
-                                      : REVIEW_EMPTY_LABEL}
-                                  </p>
+                                <div className="space-y-3 border-t border-border/60 pt-3">
+                                  <div className={applicationTableExpandableFieldBlockClass}>
+                                    <p className={applicationTableExpandableLabelClass}>
+                                      Financing Amount
+                                    </p>
+                                    <p
+                                      className={`${applicationTableExpandableValueClass} ${
+                                        issuerFinancingAmount != null && offeredAmount != null && offeredAmount > issuerFinancingAmount
+                                          ? "text-destructive font-semibold"
+                                          : ""
+                                      }`}
+                                    >
+                                      {offeredAmount !== null
+                                        ? formatCurrency(offeredAmount)
+                                        : REVIEW_EMPTY_LABEL}
+                                    </p>
+                                    {!isOfferSent &&
+                                      issuerFinancingAmount != null &&
+                                      offeredAmount != null &&
+                                      offeredAmount > issuerFinancingAmount && (
+                                        <p
+                                          role="alert"
+                                          className="mt-2 rounded-md border border-destructive/35 bg-destructive/5 px-2.5 py-2 text-xs leading-snug text-destructive"
+                                        >
+                                          Exceeds what the issuer requested. Lower the ratio or other offer terms.
+                                        </p>
+                                      )}
+                                  </div>
+                                  <div className={applicationTableExpandableFieldBlockClass}>
+                                    <p className={applicationTableExpandableLabelClass}>
+                                      Estimated Profit
+                                    </p>
+                                    <p className={applicationTableExpandableValueClass}>
+                                      {estimates?.estProfit != null
+                                        ? formatCurrency(estimates.estProfit)
+                                        : REVIEW_EMPTY_LABEL}
+                                    </p>
+                                  </div>
                                 </div>
                                 {!isOfferSent && onSendInvoiceOffer &&
                                   (isAdminRejected ? (
@@ -735,9 +968,15 @@ export function InvoiceList({
                                       disabled={
                                         isRowGreyedOut ||
                                         !!isSendInvoiceOfferPending ||
-                                        offeredAmount === null
+                                        offeredAmount === null ||
+                                        !riskRatingByInvoiceId[inv.id]
                                       }
-                                      onClick={() =>
+                                      onClick={() => {
+                                        const rr = riskRatingByInvoiceId[inv.id];
+                                        if (!rr) {
+                                          alert("Please select a risk rating before sending the offer.");
+                                          return;
+                                        }
                                         setInvoiceOfferConfirm({
                                           invoiceId: inv.id,
                                           invoiceNo,
@@ -745,8 +984,9 @@ export function InvoiceList({
                                           offeredRatioPercent: offered.ratio,
                                           offeredProfitRatePercent: offered.profitRate,
                                           invoiceValue,
-                                        })
-                                      }
+                                          risk_rating: rr,
+                                        });
+                                      }}
                                     >
                                       {isSendInvoiceOfferPending ? "Sending..." : "Send Offer"}
                                     </Button>
@@ -823,6 +1063,12 @@ export function InvoiceList({
                   <span className="text-sm font-medium text-muted-foreground">Profit Rate</span>
                   <span className="text-[15px] font-medium tabular-nums">
                     {invoiceOfferConfirm.offeredProfitRatePercent}%
+                  </span>
+                </div>
+                <div className="flex justify-between items-baseline">
+                  <span className="text-sm font-medium text-muted-foreground">Risk Rating</span>
+                  <span className="text-[15px] font-medium tabular-nums">
+                    {invoiceOfferConfirm.risk_rating}
                   </span>
                 </div>
               </div>
