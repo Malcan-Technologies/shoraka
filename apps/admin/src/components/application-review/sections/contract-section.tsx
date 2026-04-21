@@ -361,6 +361,9 @@ export function ContractSection({
 
   const hasData = cd || cust;
   const offeredFacility = parseMoney(offeredFacilityInput);
+  const offeredFacilityInputTrimmed = offeredFacilityInput.trim();
+  const offeredFacilityNotPositive =
+    offeredFacilityInputTrimmed.length > 0 && offeredFacility <= 0;
   const offeredExceedsContractValue = contractValue > 0 && offeredFacility > contractValue;
   const isContractApproved = sectionStatus === "APPROVED";
   const isContractFinalizedByIssuer = isContractApproved;
@@ -490,6 +493,11 @@ export function ContractSection({
                   {offerTimelineLine ? (
                     <p className="text-xs text-muted-foreground tabular-nums">{offerTimelineLine}</p>
                   ) : null}
+                  {offeredFacilityNotPositive && (
+                    <p className="text-sm text-destructive">
+                      Offered facility must be greater than 0.
+                    </p>
+                  )}
                   {offeredExceedsContractValue && (
                     <p className="text-sm text-destructive">
                       Offered facility cannot exceed contract value.
