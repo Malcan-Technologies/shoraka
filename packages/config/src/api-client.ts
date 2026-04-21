@@ -593,6 +593,16 @@ export class ApiClient {
     );
   }
 
+  async patchContractCustomerLargePrivate(
+    applicationId: string,
+    body: { is_large_private_company: boolean }
+  ): Promise<ApiResponse<any> | ApiError> {
+    return this.patch<any>(
+      `/v1/admin/applications/${applicationId}/contract/customer-large-private`,
+      body
+    );
+  }
+
   async sendInvoiceOffer(
     applicationId: string,
     invoiceId: string,

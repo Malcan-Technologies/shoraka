@@ -38,6 +38,7 @@ import {
   reviewItemRejectSchema,
   reviewItemRequestAmendmentSchema,
   sendContractOfferSchema,
+  patchContractCustomerLargePrivateSchema,
   sendInvoiceOfferSchema,
   addPendingAmendmentSchema,
   updatePendingAmendmentSchema,
@@ -2757,6 +2758,33 @@ router.post(
         id,
         validated.itemType,
         validated.itemId,
+        req.user.user_id,
+        { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
+      );
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.patch(
+  "/applications/:id/contract/customer-large-private",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
+      const { id } = req.params;
+      const validated = patchContractCustomerLargePrivateSchema.parse(req.body);
+      const logCtx = extractRequestMetadata(req);
+      const result = await adminService.patchContractCustomerLargePrivateCompany(
+        id,
+        validated.is_large_private_company,
         req.user.user_id,
         { ipAddress: logCtx.ipAddress, userAgent: logCtx.userAgent, deviceInfo: logCtx.deviceInfo }
       );

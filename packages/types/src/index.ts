@@ -269,6 +269,7 @@ export interface CustomerDetails {
   ssm_number: string;
   country: string;
   is_related_party: boolean;
+  is_large_private_company?: boolean;
   document?: {
     s3_key: string;
     file_name: string;

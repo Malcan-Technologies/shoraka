@@ -347,6 +347,10 @@ export const sendContractOfferSchema = z.object({
   expiresAt: z.string().datetime().optional().nullable(),
 });
 
+export const patchContractCustomerLargePrivateSchema = z.object({
+  is_large_private_company: z.boolean(),
+});
+
 export const sendInvoiceOfferSchema = z.object({
   offeredAmount: z.coerce.number().positive("Offered amount must be greater than 0"),
   offeredRatioPercent: z.coerce.number().min(0).max(100).optional().nullable(),

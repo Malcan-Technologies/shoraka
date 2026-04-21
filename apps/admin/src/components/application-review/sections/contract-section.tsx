@@ -4,6 +4,13 @@ import * as React from "react";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -14,6 +21,9 @@ import {
 import { MoneyInput } from "@cashsouk/ui";
 import { formatMoney, parseMoney } from "@cashsouk/ui";
 import { DocumentTextIcon, ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { usePatchContractCustomerLargePrivate } from "@/hooks/use-application-review-actions";
 import { format } from "date-fns";
 import { formatCurrency, resolveRequestedFacility, resolveOfferedFacility } from "@cashsouk/config";
 import { ReviewSectionCard } from "../review-section-card";
@@ -43,7 +53,12 @@ interface FileDoc {
   file_size?: number;
 }
 
+/** Same width for Offered Facility (money) and large-private select in Contract review. */
+const contractReviewControlWidthClass = "w-full min-w-0 max-w-[280px]";
+
 export interface ContractSectionProps {
+  /** Used to PATCH `customer_details.is_large_private_company` (empty when comparison-only UI). */
+  applicationId?: string;
   contractDetails: unknown;
   offerDetails?: unknown;
   /** Contract row status (e.g. OFFER_SENT, WITHDRAWN); used to lock Send Offer after send or issuer withdrawal. */
@@ -86,6 +101,7 @@ export interface ContractSectionProps {
 }
 
 export function ContractSection({
+  applicationId = "",
   contractDetails,
   offerDetails,
   contractStatus: contractRowStatus,
@@ -112,6 +128,17 @@ export function ContractSection({
   sectionComparison,
   hideSectionComments = false,
 }: ContractSectionProps) {
+  const patchLargePrivate = usePatchContractCustomerLargePrivate();
+  const liveCustomerDetails = customerDetails as Record<string, unknown> | null | undefined;
+  const [largePrivateCompany, setLargePrivateCompany] = React.useState<boolean | null>(() =>
+    unknownToTriBool(liveCustomerDetails?.is_large_private_company)
+  );
+  const [largePrivateHighlight, setLargePrivateHighlight] = React.useState(false);
+
+  React.useEffect(() => {
+    setLargePrivateCompany(unknownToTriBool(liveCustomerDetails?.is_large_private_company));
+  }, [liveCustomerDetails?.is_large_private_company]);
+
   if (sectionComparison) {
     const { before, after, isPathChanged } = sectionComparison;
     const bCd = before.contractDetails as Record<string, unknown> | null | undefined;
@@ -216,6 +243,19 @@ export function ContractSection({
                 after={formatReviewValue(aCust?.entity_type)}
                 changed={isPathChanged("contract")}
               />
+              <ComparisonYesNoRadioRow
+                label={
+                  <>
+                    Is Customer a Large Private Company?{" "}
+                    <span className="text-destructive" aria-hidden="true">
+                      *
+                    </span>
+                  </>
+                }
+                beforeValue={unknownToTriBool(bCust?.is_large_private_company)}
+                afterValue={unknownToTriBool(aCust?.is_large_private_company)}
+                changed={isPathChanged("contract")}
+              />
               <ComparisonFieldRow
                 label="Customer SSM Number"
                 before={formatReviewValue(bCust?.ssm_number)}
@@ -268,7 +308,7 @@ export function ContractSection({
 
   const cd = contractDetails as Record<string, unknown> | null | undefined;
   const offer = offerDetails as Record<string, unknown> | null | undefined;
-  const cust = customerDetails as Record<string, unknown> | null | undefined;
+  const cust = liveCustomerDetails;
 
   const contractDoc = cd?.document as FileDoc | undefined;
   const customerDoc = cust?.document as FileDoc | undefined;
@@ -334,11 +374,48 @@ export function ContractSection({
     offeredFacility > 0 &&
     !offeredExceedsContractValue;
 
+  const assertLargePrivateThenOpenOffer = React.useCallback(() => {
+    console.log("Customer Large Private:", largePrivateCompany);
+    if (largePrivateCompany === null) {
+      console.log("Blocked: Customer type not confirmed");
+      toast.error("Please confirm if customer is a large private company");
+      setLargePrivateHighlight(true);
+      return;
+    }
+    setContractOfferConfirmOpen(true);
+  }, [largePrivateCompany]);
+
   const handleConfirmContractOffer = React.useCallback(async () => {
+    console.log("Customer Large Private:", largePrivateCompany);
+    if (largePrivateCompany === null) {
+      console.log("Blocked: Customer type not confirmed");
+      toast.error("Please confirm if customer is a large private company");
+      setLargePrivateHighlight(true);
+      return;
+    }
     if (!onSendOffer || !canSendContractOffer) return;
     await onSendOffer({ offeredFacility });
     setContractOfferConfirmOpen(false);
-  }, [onSendOffer, offeredFacility, canSendContractOffer]);
+  }, [onSendOffer, offeredFacility, canSendContractOffer, largePrivateCompany]);
+
+  const persistLargePrivate = React.useCallback(
+    async (value: boolean) => {
+      if (!applicationId) {
+        toast.error("Missing application id; cannot save customer type.");
+        return;
+      }
+      console.log("Customer Large Private:", value);
+      setLargePrivateCompany(value);
+      setLargePrivateHighlight(false);
+      try {
+        await patchLargePrivate.mutateAsync({ applicationId, isLargePrivateCompany: value });
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Failed to save customer type");
+        setLargePrivateCompany(unknownToTriBool(liveCustomerDetails?.is_large_private_company));
+      }
+    },
+    [applicationId, patchLargePrivate, liveCustomerDetails?.is_large_private_company]
+  );
 
   return (
     <ReviewSectionCard
@@ -373,8 +450,8 @@ export function ContractSection({
                   {requestedFacility > 0 ? formatCurrency(requestedFacility) : REVIEW_EMPTY_LABEL}
                 </div>
                 <Label className={reviewLabelClass}>Offered Facility</Label>
-                <div className="flex flex-col gap-1">
-                  <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
+                <div className="flex flex-col gap-2">
+                  <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:gap-3">
                     <MoneyInput
                       value={offeredFacilityInput}
                       onValueChange={setOfferedFacilityInput}
@@ -386,36 +463,33 @@ export function ContractSection({
                         isContractApproved ||
                         isContractOfferSendLocked
                       }
-                      inputClassName="h-9 w-[220px]"
+                      className={contractReviewControlWidthClass}
+                      inputClassName="h-9"
                       prefix="RM"
-                      maxIntDigits={12}
+                      maxIntDigits={15}
                       allowEmpty={true}
                     />
-                    {onSendOffer && (
-                      <div className="flex flex-col gap-1">
-                        <Button
-                          type="button"
-                          variant="default"
-                          size="sm"
-                          className="shrink-0"
-                          disabled={
-                            !isReviewable ||
-                            !!isActionLocked ||
-                            !!isSendOfferPending ||
-                            !canSendContractOffer
-                          }
-                          onClick={() => setContractOfferConfirmOpen(true)}
-                        >
-                          {isSendOfferPending ? "Sending..." : "Send Offer"}
-                        </Button>
-                        {offerTimelineLine ? (
-                          <p className="text-xs text-muted-foreground tabular-nums">
-                            {offerTimelineLine}
-                          </p>
-                        ) : null}
-                      </div>
-                    )}
+                    {onSendOffer ? (
+                      <Button
+                        type="button"
+                        variant="default"
+                        size="sm"
+                        className="h-9 w-full shrink-0 rounded-lg sm:w-auto"
+                        disabled={
+                          !isReviewable ||
+                          !!isActionLocked ||
+                          !!isSendOfferPending ||
+                          !canSendContractOffer
+                        }
+                        onClick={assertLargePrivateThenOpenOffer}
+                      >
+                        {isSendOfferPending ? "Sending..." : "Send Offer"}
+                      </Button>
+                    ) : null}
                   </div>
+                  {offerTimelineLine ? (
+                    <p className="text-xs text-muted-foreground tabular-nums">{offerTimelineLine}</p>
+                  ) : null}
                   {offeredExceedsContractValue && (
                     <p className="text-sm text-destructive">
                       Offered facility cannot exceed contract value.
@@ -482,6 +556,58 @@ export function ContractSection({
                 <div className={reviewValueClass}>{formatReviewValue(cust.name)}</div>
                 <Label className={reviewLabelClass}>Customer Entity Type</Label>
                 <div className={reviewValueClass}>{formatReviewValue(cust.entity_type)}</div>
+                <Label htmlFor="customer-large-private-company" className={reviewLabelClass}>
+                  Is Customer a Large Private Company?{" "}
+                  <span className="text-destructive" aria-hidden="true">
+                    *
+                  </span>
+                </Label>
+                <div className={cn("flex flex-col gap-1.5", contractReviewControlWidthClass)}>
+                  <Select
+                    value={
+                      largePrivateCompany === null
+                        ? undefined
+                        : largePrivateCompany
+                          ? "yes"
+                          : "no"
+                    }
+                    onValueChange={(v) => {
+                      if (v === "yes") void persistLargePrivate(true);
+                      if (v === "no") void persistLargePrivate(false);
+                    }}
+                    disabled={
+                      !isReviewable ||
+                      !!isActionLocked ||
+                      isContractApproved ||
+                      isContractOfferSendLocked ||
+                      patchLargePrivate.isPending
+                    }
+                  >
+                    <SelectTrigger
+                      id="customer-large-private-company"
+                      className={cn(
+                        "h-9 rounded-lg text-left text-sm font-normal",
+                        contractReviewControlWidthClass,
+                        largePrivateHighlight &&
+                          "ring-2 ring-destructive ring-offset-2 ring-offset-background"
+                      )}
+                      aria-invalid={largePrivateHighlight}
+                    >
+                      <SelectValue placeholder="Choose Yes or No" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      <SelectItem value="yes" className="rounded-lg">
+                        Yes
+                      </SelectItem>
+                      <SelectItem value="no" className="rounded-lg">
+                        No
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs leading-relaxed text-muted-foreground">
+                    Required before you can send the contract offer.
+                  </p>
+                </div>
                 <Label className={reviewLabelClass}>Customer SSM Number</Label>
                 <div className={reviewValueClass}>{formatReviewValue(cust.ssm_number)}</div>
                 <Label className={reviewLabelClass}>Customer Country</Label>

@@ -29,6 +29,8 @@ export const customerDetailsSchema = z.object({
   ssm_number: z.string(),
   country: z.string(),
   is_related_party: z.boolean(),
+  /** Admin confirmation before contract offer send; optional for legacy rows. */
+  is_large_private_company: z.boolean().optional(),
   document: documentSchema.nullable().optional(),
 });
 

@@ -323,6 +323,39 @@ export function useSendContractOffer() {
   });
 }
 
+export function usePatchContractCustomerLargePrivate() {
+  const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useMutation({
+    mutationFn: async ({
+      applicationId,
+      isLargePrivateCompany,
+    }: {
+      applicationId: string;
+      isLargePrivateCompany: boolean;
+    }) => {
+      const response = await apiClient.patchContractCustomerLargePrivate(applicationId, {
+        is_large_private_company: isLargePrivateCompany,
+      });
+      if (!response.success) {
+        throw new Error(
+          (response as ApiError).error?.message ?? "Failed to save customer type confirmation"
+        );
+      }
+      return response.data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
+      queryClient.invalidateQueries({
+        queryKey: applicationLogsKeys.list(variables.applicationId),
+      });
+    },
+  });
+}
+
 export function useSendInvoiceOffer() {
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();

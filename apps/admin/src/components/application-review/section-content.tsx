@@ -379,6 +379,7 @@ export function SectionContent({
       }
       return (
         <ContractSection
+          applicationId={typeof app.id === "string" ? app.id : ""}
           contractDetails={app.contract?.contract_details}
           offerDetails={(app.contract as { offer_details?: unknown } | null | undefined)?.offer_details}
           contractStatus={app.contract?.status}
