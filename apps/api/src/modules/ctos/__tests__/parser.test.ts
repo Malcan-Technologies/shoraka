@@ -15,7 +15,7 @@ describe("parseYearFromPldd", () => {
 });
 
 describe("parseCtosReportXml", () => {
-  it("extracts financial_year from pldd calendar year minus one and account codenames", async () => {
+  it("extracts financial_year from pldd calendar year and account codenames", async () => {
     const xml = `<?xml version="1.0"?>
 <report version="5.11.0" xmlns="http://ws.cmctos.com.my/ctosnet/response">
   <enq_report>
@@ -54,7 +54,7 @@ describe("parseCtosReportXml", () => {
 
     const parsed = await parseCtosReportXml(xml);
     expect(parsed.financials_json.length).toBe(1);
-    expect(parsed.financials_json[0].financial_year).toBe(2017);
+    expect(parsed.financials_json[0].financial_year).toBe(2018);
     expect(parsed.financials_json[0].account.turnover).toBe(200);
     expect(parsed.financials_json[0].account.plyear).toBe(50000);
   });
