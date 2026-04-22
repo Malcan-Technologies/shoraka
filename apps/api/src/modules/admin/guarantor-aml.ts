@@ -234,7 +234,7 @@ export function mapScreeningStatusToAml(status: string | undefined): GuarantorAm
   return "Pending";
 }
 
-/** RegTank Dow Jones KYC/KYB status values (e.g. "No Match", "Approved") → DB enum */
+/** RegTank KYC/KYB screening status values (Acuris or Dow Jones; e.g. "No Match", "Approved") → DB enum */
 export function mapRegTankDjkycStatusToPrismaAmlStatus(status: string | undefined): GuarantorAmlStatus {
   if (!status) return "Pending";
   const compact = status.toUpperCase().replace(/\s+/g, "_");

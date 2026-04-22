@@ -56,6 +56,7 @@ import {
   parseItemScopeKey,
   REVIEW_SECTION_ORDER,
   getStepKeyFromStepId,
+  isRegtankIso3166Code,
   type SoukscoreRiskRating,
 } from "@cashsouk/types";
 import { AMLFetcherService } from "../regtank/aml-fetcher";
@@ -89,6 +90,14 @@ type ResubmitComparisonAmendmentRemark = {
 
 function isPlainObjectRecord(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+function guarantorNationalityIso2FromSourceData(sourceData: unknown): string | undefined {
+  if (!isPlainObjectRecord(sourceData)) return undefined;
+  const raw = sourceData.nationality ?? sourceData.nationality_code;
+  if (typeof raw !== "string") return undefined;
+  const t = raw.trim().toUpperCase();
+  return t.length === 2 ? t : undefined;
 }
 
 export class AdminService {
@@ -4127,9 +4136,10 @@ export class AdminService {
   }
 
   /**
-   * Start Dow Jones KYC/KYB AML screening for an application guarantor (RegTank `/v3/djkyc/input` or `/v3/djkyb/input`).
+   * Start Acuris KYC (individual) or KYB (company) AML screening for an application guarantor
+   * (RegTank `POST /v3/kyc/input` or `POST /v3/kyb/input`). Webhooks: `/kyc` and `/kyb`.
    */
-  async startApplicationGuarantorDowJonesScreening(
+  async startApplicationGuarantorAcurisScreening(
     applicationId: string,
     clientGuarantorId: string,
     adminUserId: string
@@ -4165,12 +4175,21 @@ export class AdminService {
       if (!email) {
         throw new AppError(400, "VALIDATION_ERROR", "Guarantor requires an email");
       }
-      screeningResponse = await this.regTankApiClient.createDowJonesKycInput({
+      const nationality = guarantorNationalityIso2FromSourceData(row.source_data);
+      if (!nationality || !isRegtankIso3166Code(nationality)) {
+        throw new AppError(
+          400,
+          "VALIDATION_ERROR",
+          "Individual guarantor requires a valid nationality (ISO 3166) on file for AML screening"
+        );
+      }
+      screeningResponse = await this.regTankApiClient.createKycScreeningInput({
         name,
         governmentIdNumber,
         email,
         referenceId,
         enableReScreening: false,
+        nationality,
       });
     } else {
       const businessName = (row.business_name ?? "").trim();
@@ -4185,7 +4204,7 @@ export class AdminService {
       if (!email) {
         throw new AppError(400, "VALIDATION_ERROR", "Guarantor requires an email");
       }
-      screeningResponse = await this.regTankApiClient.createDowJonesKybInput({
+      screeningResponse = await this.regTankApiClient.createKybScreeningInput({
         businessName,
         businessIdNumber,
         referenceId,
@@ -4201,8 +4220,8 @@ export class AdminService {
 
     const regtankPortalUrl =
       row.guarantor_type === "company"
-        ? `${config.adminPortalUrl}/app/dj-kyb/screen-djkyb/result/${encodeURIComponent(requestId)}`
-        : `${config.adminPortalUrl}/app/dj-kyc/result/${encodeURIComponent(requestId)}`;
+        ? `${config.adminPortalUrl}/app/screen-kyb/result/${encodeURIComponent(requestId)}`
+        : `${config.adminPortalUrl}/app/screen-kyc/result/${encodeURIComponent(requestId)}`;
 
     const prevMeta = isPlainObjectRecord(row.metadata) ? row.metadata : {};
     await prisma.applicationGuarantor.update({

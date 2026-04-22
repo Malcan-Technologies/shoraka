@@ -1,7 +1,7 @@
 /**
  * Tailwind class names for admin KYC/AML screening badges (organization + application guarantor).
  *
- * Status uses one function for every caller: organization onboarding statuses and Dow Jones / RegTank
+ * Status uses one function for every caller: organization onboarding statuses and RegTank
  * guarantor strings share the same palette. Extra branches (e.g. "Score generated", "No match") only
  * apply when that label is present; they do not change colors for typical org statuses.
  */

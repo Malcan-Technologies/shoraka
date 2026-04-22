@@ -2013,7 +2013,7 @@ router.get(
 
 /**
  * POST /v1/admin/applications/:applicationId/guarantors/:clientGuarantorId/start-aml
- * Starts RegTank Dow Jones KYC (individual) or KYB (company) screening — see /v3/djkyc/input and /v3/djkyb/input.
+ * Starts RegTank Acuris KYC (individual) or KYB (company) screening — POST /v3/kyc/input and /v3/kyb/input.
  */
 router.post(
   "/applications/:applicationId/guarantors/:clientGuarantorId/start-aml",
@@ -2024,7 +2024,7 @@ router.post(
         throw new AppError(401, "UNAUTHORIZED", "Authentication required");
       }
       const { applicationId, clientGuarantorId } = req.params;
-      const result = await adminService.startApplicationGuarantorDowJonesScreening(
+      const result = await adminService.startApplicationGuarantorAcurisScreening(
         applicationId,
         decodeURIComponent(clientGuarantorId),
         req.user.user_id

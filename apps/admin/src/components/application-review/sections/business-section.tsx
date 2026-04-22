@@ -96,11 +96,11 @@ const REGTANK_PORTAL_BASE_URL =
   typeof process !== "undefined" ? (process.env.NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL ?? "").trim() : "";
 
 /**
- * Opens the Dow Jones screening result in the RegTank portal.
- * Individual: /app/dj-kyc/result/{requestId}
- * Company: /app/dj-kyb/screen-djkyb/result/{requestId}
+ * Opens Acuris KYC/KYB screening results in the RegTank client portal.
+ * Individual: /app/screen-kyc/result/{requestId}
+ * Company: /app/screen-kyb/result/{requestId}
  */
-function regTankDjScreeningResultUrl(
+function regTankAcurisScreeningResultUrl(
   portalBaseUrl: string,
   guarantorKind: "individual" | "company",
   requestId: string | undefined
@@ -109,9 +109,9 @@ function regTankDjScreeningResultUrl(
   if (!base || !requestId) return undefined;
   const enc = encodeURIComponent(requestId);
   if (guarantorKind === "company") {
-    return `${base}/app/dj-kyb/screen-djkyb/result/${enc}`;
+    return `${base}/app/screen-kyb/result/${enc}`;
   }
-  return `${base}/app/dj-kyc/result/${enc}`;
+  return `${base}/app/screen-kyc/result/${enc}`;
 }
 
 function RegTankGuarantorLinkButton({
@@ -202,7 +202,7 @@ function RegTankGuarantorControlRow({
             aml?.requestId || screeningRequestId || aml?.regtankPortalUrl
           );
           const resultUrl =
-            regTankDjScreeningResultUrl(
+            regTankAcurisScreeningResultUrl(
               REGTANK_PORTAL_BASE_URL,
               guarantor.kind,
               aml?.requestId ?? screeningRequestId
@@ -210,7 +210,7 @@ function RegTankGuarantorControlRow({
           const viewDisabledReason = !resultUrl
             ? !aml?.requestId && !screeningRequestId
               ? "Start AML screening first, or configure NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL."
-              : "Configure NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL to open Dow Jones results in RegTank."
+              : "Configure NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL to open Acuris screening in RegTank."
             : undefined;
           return (
             <div className="flex flex-wrap items-center gap-2 justify-end">

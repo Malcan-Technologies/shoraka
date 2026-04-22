@@ -5,9 +5,9 @@ import {
   RegTankCorporateOnboardingRequest,
   RegTankOnboardingResponse,
   RegTankOnboardingDetails,
-  RegTankDowJonesKycInputRequest,
-  RegTankDowJonesKybInputRequest,
-  RegTankDowJonesScreeningResponse,
+  RegTankKycScreeningInputRequest,
+  RegTankKybScreeningInputRequest,
+  RegTankScreeningInputResponse,
 } from "./types";
 import { logger } from "../../lib/logger";
 import { AppError } from "../../lib/http/error-handler";
@@ -411,34 +411,34 @@ export class RegTankAPIClient {
   }
 
   /**
-   * Create Dow Jones KYC screening record (AML) — no full onboarding flow.
-   * @see https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/3.-know-your-customer-kyc/3.9-dow-jones-kyc-endpoint-json-request
+   * Create Acuris KYC screening (AML) — POST /v3/kyc/input
+   * @see https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/3.-know-your-customer-kyc
    */
-  async createDowJonesKycInput(
-    body: RegTankDowJonesKycInputRequest
-  ): Promise<RegTankDowJonesScreeningResponse> {
+  async createKycScreeningInput(
+    body: RegTankKycScreeningInputRequest
+  ): Promise<RegTankScreeningInputResponse> {
     logger.info(
       { referenceId: body.referenceId, email: body.email },
-      "Creating RegTank Dow Jones KYC (djkyc) screening"
+      "Creating RegTank Acuris KYC screening (/v3/kyc/input)"
     );
-    return this.makeRequest<RegTankDowJonesScreeningResponse>("/v3/djkyc/input", {
+    return this.makeRequest<RegTankScreeningInputResponse>("/v3/kyc/input", {
       method: "POST",
       body: JSON.stringify(body),
     });
   }
 
   /**
-   * Create Dow Jones KYB screening record (AML) — no full onboarding flow.
-   * @see https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/4.-know-your-business-kyb/4.12-dow-jones-kyb-endpoint-json-request
+   * Create Acuris KYB screening (AML) — POST /v3/kyb/input
+   * @see https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/4.-know-your-business-kyb
    */
-  async createDowJonesKybInput(
-    body: RegTankDowJonesKybInputRequest
-  ): Promise<RegTankDowJonesScreeningResponse> {
+  async createKybScreeningInput(
+    body: RegTankKybScreeningInputRequest
+  ): Promise<RegTankScreeningInputResponse> {
     logger.info(
       { referenceId: body.referenceId, email: body.email },
-      "Creating RegTank Dow Jones KYB (djkyb) screening"
+      "Creating RegTank Acuris KYB screening (/v3/kyb/input)"
     );
-    return this.makeRequest<RegTankDowJonesScreeningResponse>("/v3/djkyb/input", {
+    return this.makeRequest<RegTankScreeningInputResponse>("/v3/kyb/input", {
       method: "POST",
       body: JSON.stringify(body),
     });
