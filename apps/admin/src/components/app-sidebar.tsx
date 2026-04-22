@@ -51,16 +51,7 @@ type ApplicationNavGroup = {
   baseKey: string;
   productTitle: string;
   queuePath: string;
-  appItems: { id: string; title: string; href: string }[];
 };
-
-function sidebarAppLabel(a: ApplicationListItem): string {
-  const org = a.issuerOrganizationName?.trim();
-  if (org) {
-    return `${org} · ${a.id.slice(-6)}`;
-  }
-  return a.id;
-}
 
 function buildApplicationSidebarGroups(
   products: Product[],
@@ -86,17 +77,10 @@ function buildApplicationSidebarGroups(
     const isLive = (display.status ?? "ACTIVE") === "ACTIVE";
     if (!isLive && appsFor.length === 0) continue;
 
-    const appItems = appsFor.map((a) => ({
-      id: a.id,
-      title: sidebarAppLabel(a),
-      href: `/applications/${baseKey}/${a.id}`,
-    }));
-
     groups.push({
       baseKey,
       productTitle: `${productName(display)}${isLive ? "" : " [Inactive]"}`,
       queuePath: `/applications/${baseKey}`,
-      appItems,
     });
   }
 
@@ -111,11 +95,6 @@ function buildApplicationSidebarGroups(
       baseKey,
       productTitle: `${appsFor[0]?.financingTypeLabel ?? "Product"} [Inactive]`,
       queuePath: `/applications/${baseKey}`,
-      appItems: appsFor.map((a) => ({
-        id: a.id,
-        title: sidebarAppLabel(a),
-        href: `/applications/${baseKey}/${a.id}`,
-      })),
     });
   }
 
@@ -288,23 +267,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                                     <span className="truncate">{g.productTitle}</span>
                                   </Link>
                                 </SidebarMenuSubButton>
-                                {g.appItems.length > 0 ? (
-                                  <ul className="mx-3.5 flex min-w-0 translate-x-px flex-col gap-0.5 border-l border-sidebar-border px-2.5 py-0.5">
-                                    {g.appItems.map((app) => (
-                                      <li key={app.id}>
-                                        <SidebarMenuSubButton
-                                          asChild
-                                          size="sm"
-                                          isActive={pathname === app.href}
-                                        >
-                                          <Link href={app.href}>
-                                            <span className="truncate">{app.title}</span>
-                                          </Link>
-                                        </SidebarMenuSubButton>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                ) : null}
                               </SidebarMenuSubItem>
                             ))}
                           </SidebarMenuSub>
