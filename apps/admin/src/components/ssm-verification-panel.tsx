@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -191,7 +192,7 @@ const ctosTableHeaderRow = "bg-muted/50 hover:bg-muted/50";
 const ctosSectionBadgeClass =
   "shrink-0 font-normal text-muted-foreground border-border bg-muted/30 hover:bg-muted/40";
 
-/** Shared width so View report / Get latest report align without oversized chrome. */
+/** Shared width so View report / Fetch report align without oversized chrome. */
 const ctosHeaderReportButtonClassName = "min-w-[10rem] shrink-0 justify-center sm:min-w-[11rem]";
 
 function CompareEmptyState({
@@ -376,7 +377,7 @@ function DirectorBucketsBlock({
     ctosOrgState === "not_pulled"
       ? "Pull a CTOS report first. Director lines from the extract will show here after a successful fetch."
       : ctosOrgState === "no_record"
-        ? "The stored report has no director rows. Try “Get latest report” again or check the extract in RegTank."
+        ? `The stored report has no director rows. Try “${CTOS_UI.fetchReport}” again or check the extract in RegTank.`
         : "This extract has no director rows to compare.";
 
   return (
@@ -776,7 +777,7 @@ export function SSMVerificationPanel({
                       onClick={() => setGetLatestConfirmOpen(true)}
                     >
                       <DocumentTextIcon className="h-4 w-4 shrink-0" aria-hidden />
-                      {fetchCtosMutation.isPending ? "Loading…" : "Get latest report"}
+                      {fetchCtosMutation.isPending ? CTOS_UI.fetching : CTOS_UI.fetchReport}
                     </Button>
                   </>
                 ) : null}
@@ -844,13 +845,13 @@ export function SSMVerificationPanel({
               <CompareEmptyState
                 icon={DocumentTextIcon}
                 title="No CTOS company data yet"
-                description="Click “Get latest report” to pull the latest extract. Name and SSM number from CTOS will show here for side-by-side review."
+                description={`Click “${CTOS_UI.fetchReport}” to pull the latest extract. Name and SSM number from CTOS will show here for side-by-side review.`}
               />
             ) : useOrgCtosFlow && orgFetchState === "no_record" ? (
               <CompareEmptyState
                 icon={ExclamationTriangleIcon}
                 title="No company block in this report"
-                description="The latest stored report does not include a usable company extract. Try “Get latest report” again, or open the full report if View report is available."
+                description={`The latest stored report does not include a usable company extract. Try “${CTOS_UI.fetchReport}” again, or open the full report if ${CTOS_UI.viewReport} is available.`}
               />
             ) : (
               <div className={ctosTableShell}>
@@ -975,15 +976,12 @@ export function SSMVerificationPanel({
         <AlertDialog open={getLatestConfirmOpen} onOpenChange={setGetLatestConfirmOpen}>
           <AlertDialogContent className="rounded-xl">
             <AlertDialogHeader>
-              <AlertDialogTitle>Request a new report from CTOS?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This starts a new CTOS pull for this organization. Comparison on this page uses organization data from
-                the latest stored report.
-              </AlertDialogDescription>
+              <AlertDialogTitle>{CTOS_CONFIRM.title}</AlertDialogTitle>
+              <AlertDialogDescription>{CTOS_CONFIRM.organizationDescription}</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel className="rounded-lg" disabled={fetchCtosMutation.isPending}>
-                Cancel
+                {CTOS_CONFIRM.cancel}
               </AlertDialogCancel>
               <AlertDialogAction
                 className={cn(buttonVariants({ variant: "secondary" }), "rounded-lg")}
@@ -992,7 +990,7 @@ export function SSMVerificationPanel({
                   onConfirmGetLatestReport();
                 }}
               >
-                Get latest report
+                {CTOS_CONFIRM.primaryAction}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
