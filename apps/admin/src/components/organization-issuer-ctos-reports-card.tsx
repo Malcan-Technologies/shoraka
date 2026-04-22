@@ -29,7 +29,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import { CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
+import { CTOS_CONFIRM, CTOS_FETCH_BUTTON_CLASSNAME, CTOS_UI } from "@/lib/ctos-ui-labels";
 import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
@@ -202,8 +202,8 @@ export function OrganizationIssuerCtosReportsCard({
               <Button
                 type="button"
                 size="sm"
-                variant="outline"
-                className="shrink-0 gap-1.5 h-8"
+                variant="secondary"
+                className={cn(CTOS_FETCH_BUTTON_CLASSNAME, "shrink-0")}
                 disabled={fetchCtosMutation.isPending || ctosQuery.isLoading}
                 onClick={(e) => {
                   e.preventDefault();

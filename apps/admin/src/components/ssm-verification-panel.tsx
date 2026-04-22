@@ -25,7 +25,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
+import {
+  CTOS_ACTION_BUTTON_COMPACT_CLASSNAME,
+  CTOS_CONFIRM,
+  CTOS_FETCH_BUTTON_CLASSNAME,
+  CTOS_UI,
+} from "@/lib/ctos-ui-labels";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -751,8 +756,11 @@ export function SSMVerificationPanel({
                     <Button
                       type="button"
                       variant="outline"
-                      size="default"
-                      className={ctosHeaderReportButtonClassName}
+                      size="sm"
+                      className={cn(
+                        CTOS_ACTION_BUTTON_COMPACT_CLASSNAME,
+                        ctosHeaderReportButtonClassName
+                      )}
                       disabled={
                         disabled ||
                         USE_MOCK_ONBOARDING_CTOS ||
@@ -762,12 +770,13 @@ export function SSMVerificationPanel({
                       onClick={() => void openLatestOrgReportHtml()}
                     >
                       <ArrowTopRightOnSquareIcon className="h-4 w-4 shrink-0" aria-hidden />
-                      View report
+                      {CTOS_UI.viewReport}
                     </Button>
                     <Button
                       type="button"
-                      size="default"
-                      className={ctosHeaderReportButtonClassName}
+                      variant="secondary"
+                      size="sm"
+                      className={cn(CTOS_FETCH_BUTTON_CLASSNAME, ctosHeaderReportButtonClassName)}
                       disabled={
                         disabled ||
                         USE_MOCK_ONBOARDING_CTOS ||

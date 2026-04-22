@@ -63,7 +63,7 @@ import {
 } from "../comparison-document-pair";
 import type { ReviewSectionId } from "../section-types";
 import { cn } from "@/lib/utils";
-import { CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
+import { CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
 import {
   ComparisonFieldRow,
   ComparisonYesNoRadioRow,
@@ -973,7 +973,7 @@ function GuarantorCtosToolbar({
         type="button"
         variant="outline"
         size="sm"
-        className="gap-1.5 h-9 shrink-0 px-3 text-sm"
+        className={cn(CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, "shrink-0")}
         disabled={viewDisabled}
         title={viewButtonTitle}
         onClick={(e) => {
@@ -986,9 +986,9 @@ function GuarantorCtosToolbar({
       </Button>
       <Button
         type="button"
-        variant="outline"
+        variant="secondary"
         size="sm"
-        className="gap-1.5 h-9 shrink-0 px-3 text-sm"
+        className={cn(CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, "shrink-0")}
         disabled={getDisabled}
         title={getButtonTitle}
         onClick={(e) => {

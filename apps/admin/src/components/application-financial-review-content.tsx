@@ -55,7 +55,7 @@ import {
   useCreateAdminApplicationCtosReport,
   useCreateAdminApplicationCtosSubjectReport,
 } from "@/hooks/use-admin-application-ctos-reports";
-import { CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
+import { CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -1953,7 +1953,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                 <Button
                   variant="outline"
                   size="sm"
-                  className="rounded-lg h-8 px-3 text-xs"
+                  className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}
                   disabled={!latestCtos?.has_report_html || ctosLoading}
                   onClick={() => void openFullReport()}
                 >
@@ -1962,7 +1962,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                 <Button
                   variant="secondary"
                   size="sm"
-                  className="rounded-lg h-8 px-3 text-xs"
+                  className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}
                   disabled={createCtos.isPending || ctosLoading}
                   onClick={() => setOrgCtosConfirmOpen(true)}
                 >
@@ -2176,7 +2176,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                             <Button
                               variant="outline"
                               size="sm"
-                              className="rounded-lg h-8 text-xs"
+                              className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}
                               disabled={
                                 !ctosSubjectRefForRequest(row) ||
                                 !canViewSubject ||
@@ -2190,9 +2190,9 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                           </TableCell>
                           <TableCell className={applicationTableCellClass}>
                             <Button
-                              variant="outline"
+                              variant="secondary"
                               size="sm"
-                              className="rounded-lg h-8 text-xs"
+                              className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}
                               disabled={
                                 !ctosSubjectRefForRequest(row) ||
                                 !row.subjectKind ||
@@ -2301,7 +2301,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="rounded-lg h-8 text-xs"
+                                className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}
                                 disabled={
                                   !actionRow ||
                                   !ctosSubjectRefForRequest(actionRow) ||
@@ -2316,9 +2316,9 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                             </TableCell>
                             <TableCell className={applicationTableCellClass}>
                               <Button
-                                variant="outline"
+                                variant="secondary"
                                 size="sm"
-                                className="rounded-lg h-8 text-xs"
+                                className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}
                                 disabled={
                                   !actionRow ||
                                   !ctosSubjectRefForRequest(actionRow) ||

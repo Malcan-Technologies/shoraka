@@ -3,7 +3,7 @@
  * WHY: One wording for fetch / view / confirm across Financial, Business, onboarding, and org pages.
  * INPUT: N/A (constants only)
  * OUTPUT: Strings for buttons, dialogs, and short tooltips
- * WHERE USED: application-financial-review-content, business-section, organization-issuer-ctos-reports-card, ssm-verification-panel
+ * WHERE USED: application-financial-review-content, business-section, organization-issuer-ctos-reports-card, ssm-verification-panel (labels + compact button classes)
  */
 
 export const CTOS_UI = {
@@ -23,3 +23,9 @@ export const CTOS_CONFIRM = {
   subjectLead:
     "This runs a new CTOS enquiry for the person or entity below and saves it to this application.",
 } as const;
+
+/** Compact CTOS toolbar buttons (Financial org block baseline). */
+export const CTOS_ACTION_BUTTON_COMPACT_CLASSNAME = "rounded-lg h-8 px-3 text-xs" as const;
+
+/** Fetch buttons that include an icon (gap between icon and label). */
+export const CTOS_FETCH_BUTTON_CLASSNAME = `${CTOS_ACTION_BUTTON_COMPACT_CLASSNAME} gap-1.5` as const;
