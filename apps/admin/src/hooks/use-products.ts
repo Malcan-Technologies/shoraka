@@ -3,7 +3,13 @@ import { createApiClient, useAuthToken } from "@cashsouk/config";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-export function useProducts(params: { page: number; pageSize: number; search?: string; active?: boolean }) {
+export function useProducts(params: {
+  page: number;
+  pageSize: number;
+  search?: string;
+  active?: boolean;
+  includeDeleted?: boolean;
+}) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
 

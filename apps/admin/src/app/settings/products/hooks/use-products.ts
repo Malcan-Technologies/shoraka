@@ -6,7 +6,13 @@ import type { GetProductsResponse } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
-export type UseProductsParams = { page: number; pageSize: number; search?: string; active?: boolean };
+export type UseProductsParams = {
+  page: number;
+  pageSize: number;
+  search?: string;
+  active?: boolean;
+  includeDeleted?: boolean;
+};
 
 /** If API returned an error, redirect on auth errors and throw. Otherwise return response.data. */
 function unwrapResponse<T>(response: { success: true; data: T } | { success: false; error: { code: string; message: string } }): T {

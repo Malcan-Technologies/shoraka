@@ -4048,10 +4048,13 @@ export class AdminService {
       id: string;
       issuerOrganizationName: string | null;
       financingTypeLabel: string;
+      financingStructureLabel: string;
       requestedAmount: number;
       status: string;
       submittedAt: Date | null;
       updatedAt: Date;
+      productId: string | null;
+      baseProductId: string | null;
     }[];
     pagination: {
       page: number;

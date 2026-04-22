@@ -45,6 +45,11 @@ export const getProductsListQuerySchema = z.object({
     if (v === "true" || v === true) return true;
     return false;
   }, z.boolean().optional()),
+  includeDeleted: z.preprocess((v) => {
+    if (v === undefined) return undefined;
+    if (v === "true" || v === true) return true;
+    return false;
+  }, z.boolean().optional()),
 });
 
 export type GetProductsListQuery = z.infer<typeof getProductsListQuerySchema>;

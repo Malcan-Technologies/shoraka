@@ -207,7 +207,9 @@ export interface UpdateApplicationStepInput {
 
 export interface Product {
   id: string;
+  base_id?: string | null;
   version: number;
+  status?: string;
   workflow: any[];
   offer_expiry_days?: number | null;
   created_at: string;
