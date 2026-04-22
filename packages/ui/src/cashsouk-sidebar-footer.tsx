@@ -23,7 +23,7 @@ export function CashSoukSidebarFooter({ variant }: { variant: SidebarFooterVaria
 
       {showContact ? (
         <>
-          <div className="mt-1">(Company No. 201612345678)</div>
+          <div className="mt-1">(SSM No. 201612345678)</div>
 
           <div className="mt-2">+60 3-1234 5678</div>
 
