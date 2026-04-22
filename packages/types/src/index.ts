@@ -185,6 +185,8 @@ export interface Application {
   invoice_details?: any;
   company_details?: any;
   business_details?: any;
+  /** Present when loaded via GET /applications/:id (relational guarantors for hydration). */
+  application_guarantors?: unknown[];
   supporting_documents?: any;
   declarations?: any;
   review_and_submit?: any;

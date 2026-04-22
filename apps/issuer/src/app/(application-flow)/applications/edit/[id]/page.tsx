@@ -970,7 +970,12 @@ function EditApplicationPageBody() {
 
     if (currentStepKey === "business_details") {
       return (
-        <BusinessDetailsStep applicationId={applicationId} onDataChange={handleDataChange} readOnly={stepReadOnly} />
+        <BusinessDetailsStep
+          applicationId={applicationId}
+          stepConfig={(currentStepConfig?.config as Record<string, unknown>) ?? undefined}
+          onDataChange={handleDataChange}
+          readOnly={stepReadOnly}
+        />
       );
     }
 

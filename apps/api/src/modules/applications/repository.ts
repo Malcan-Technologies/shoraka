@@ -32,6 +32,7 @@ export class ApplicationRepository {
         contract: true,
         invoices: { orderBy: { created_at: "asc" } },
         application_review_remarks: true,
+        application_guarantors: { orderBy: { position: "asc" } },
       },
     });
   }

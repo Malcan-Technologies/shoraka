@@ -36,7 +36,6 @@ export type { ApplicationStepKey };
 export const STEPS_WITHOUT_CONFIG = new Set<ApplicationStepKey>([
   "financing_structure",
   "company_details",
-  "business_details",
   "financial_statements",
 ]);
 
