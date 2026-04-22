@@ -3,6 +3,7 @@ import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type { ApiError, SoukscoreRiskRating } from "@cashsouk/types";
 import { applicationLogsKeys } from "./use-application-logs";
 import { applicationsKeys } from "@/applications/query-keys";
+import { invalidateAdminApplicationNavQueries } from "@/lib/admin-application-nav-cache";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -34,7 +35,7 @@ export function useApproveReviewSection() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
+      invalidateAdminApplicationNavQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
       queryClient.invalidateQueries({
         queryKey: pendingAmendmentKeys.list(variables.applicationId),
@@ -68,7 +69,7 @@ export function useRejectReviewSection() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
+      invalidateAdminApplicationNavQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
       queryClient.invalidateQueries({
         queryKey: pendingAmendmentKeys.list(variables.applicationId),
@@ -102,7 +103,7 @@ export function useAddSectionComment() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
+      invalidateAdminApplicationNavQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
     },
   });
@@ -131,7 +132,7 @@ export function useStartApplicationGuarantorAml() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
+      invalidateAdminApplicationNavQueries(queryClient);
       queryClient.invalidateQueries({
         queryKey: applicationsKeys.detail(variables.applicationId),
       });
@@ -159,7 +160,7 @@ export function useResetSectionReviewToPending() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
+      invalidateAdminApplicationNavQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
       queryClient.invalidateQueries({
         queryKey: pendingAmendmentKeys.list(variables.applicationId),
@@ -200,7 +201,7 @@ export function useApproveReviewItem() {
       return response.data;
     },
     onSuccess: async (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
+      invalidateAdminApplicationNavQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
       queryClient.invalidateQueries({
         queryKey: pendingAmendmentKeys.list(variables.applicationId),
@@ -239,7 +240,7 @@ export function useRejectReviewItem() {
       return response.data;
     },
     onSuccess: async (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
+      invalidateAdminApplicationNavQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
       queryClient.invalidateQueries({
         queryKey: pendingAmendmentKeys.list(variables.applicationId),
@@ -280,7 +281,7 @@ export function useResetItemReviewToPending() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
+      invalidateAdminApplicationNavQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
       queryClient.invalidateQueries({
         queryKey: pendingAmendmentKeys.list(variables.applicationId),
@@ -314,7 +315,7 @@ export function useSendContractOffer() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
+      invalidateAdminApplicationNavQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
       queryClient.invalidateQueries({
         queryKey: applicationLogsKeys.list(variables.applicationId),
@@ -347,7 +348,7 @@ export function usePatchContractCustomerLargePrivate() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
+      invalidateAdminApplicationNavQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
       queryClient.invalidateQueries({
         queryKey: applicationLogsKeys.list(variables.applicationId),
@@ -392,7 +393,7 @@ export function useSendInvoiceOffer() {
       return response.data;
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
+      invalidateAdminApplicationNavQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
       queryClient.invalidateQueries({
         queryKey: applicationLogsKeys.list(variables.applicationId),
@@ -437,7 +438,7 @@ export function useAddPendingAmendment() {
       return response.data;
     },
     onSuccess: async (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
+      invalidateAdminApplicationNavQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
       queryClient.invalidateQueries({
         queryKey: applicationLogsKeys.list(variables.applicationId),
@@ -499,7 +500,7 @@ export function useRemovePendingAmendment() {
       queryClient.invalidateQueries({
         queryKey: pendingAmendmentKeys.list(variables.applicationId),
       });
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
+      invalidateAdminApplicationNavQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
     },
   });
@@ -524,7 +525,7 @@ export function useSubmitAmendmentRequest() {
       queryClient.invalidateQueries({
         queryKey: pendingAmendmentKeys.list(variables.applicationId),
       });
-      queryClient.invalidateQueries({ queryKey: ["admin", "applications"] });
+      invalidateAdminApplicationNavQueries(queryClient);
       queryClient.invalidateQueries({ queryKey: ["admin", "applications", variables.applicationId] });
       queryClient.invalidateQueries({
         queryKey: applicationLogsKeys.list(variables.applicationId),

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type { ApplicationListItem } from "@cashsouk/types";
+import { applicationsKeys } from "@/applications/query-keys";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 const PAGE_SIZE = 100;
@@ -11,7 +12,7 @@ export function useAdminApplicationsForSidebar() {
   const apiClient = createApiClient(API_URL, getAccessToken);
 
   return useQuery({
-    queryKey: ["admin", "applications", "sidebar-all"] as const,
+    queryKey: applicationsKeys.sidebarAll,
     queryFn: async (): Promise<ApplicationListItem[]> => {
       const all: ApplicationListItem[] = [];
       let page = 1;
@@ -29,6 +30,7 @@ export function useAdminApplicationsForSidebar() {
       }
       return all;
     },
-    staleTime: 60_000,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 }
