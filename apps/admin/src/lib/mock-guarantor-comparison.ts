@@ -50,6 +50,7 @@ const mockBusinessDetailsBefore: ReviewApplicationView["business_details"] = {
       reference_id: "mock-ref-1",
       name: "Maria Garcia",
       ic_number: "850505105555",
+      nationality: "MY",
       email: "maria@example.com",
     },
   ],
@@ -88,6 +89,7 @@ const mockBusinessDetailsAfterPartial: ReviewApplicationView["business_details"]
       reference_id: "mock-ref-1",
       name: "Maria Norhaliza",
       ic_number: "850505105555",
+      nationality: "MY",
       email: "maria@example.com",
     },
     {

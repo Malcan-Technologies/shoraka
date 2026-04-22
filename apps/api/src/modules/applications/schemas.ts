@@ -2,6 +2,7 @@
  * Guide: docs/guides/application-flow/financial-statements-step.md — Financial statements step schema and field mappings
  */
 
+import { isRegtankIso3166Code } from "@cashsouk/types";
 import { z } from "zod";
 
 /**
@@ -86,6 +87,14 @@ const guarantorIndividualSchema = z.object({
     .max(30)
     .refine((s) => s.replace(/\D/g, "").length === 12, {
       message: "IC number must be 12 digits",
+    }),
+  /** RegTank appendix A: ISO 3166 alpha-2 (e.g. MY). */
+  nationality: z
+    .string()
+    .min(1, "Nationality is required")
+    .transform((s) => s.trim().toUpperCase())
+    .refine((c) => c.length === 2 && isRegtankIso3166Code(c), {
+      message: "Nationality must be a valid RegTank ISO 3166 country code",
     }),
   guarantor_agreement: guarantorAgreementSchema.optional(),
 });

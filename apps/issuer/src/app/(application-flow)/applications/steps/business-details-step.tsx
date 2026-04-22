@@ -30,6 +30,7 @@ import { parseMoney, formatMoney } from "@cashsouk/ui";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import { BusinessDetailsSkeleton } from "@/app/(application-flow)/applications/components/business-details-skeleton";
 import { FileDisplayBadge } from "@/app/(application-flow)/applications/components/file-display-badge";
+import { GuarantorNationalityAutocomplete } from "@/app/(application-flow)/applications/components/guarantor-nationality-autocomplete";
 import { generateBusinessDetailsData } from "@/app/(application-flow)/applications/utils/dev-data-generator";
 import {
   clampGuarantorIcInput,
@@ -57,6 +58,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { CloudUpload, X, CheckCircle2 } from "lucide-react";
 import { useAuthToken } from "@cashsouk/config";
+import { isRegtankIso3166Code } from "@cashsouk/types";
 import { toast } from "sonner";
 
 /**
@@ -129,6 +131,8 @@ interface GuarantorIndividualRow {
   guarantorType: "individual";
   name: string;
   icNumber: string;
+  /** RegTank appendix A ISO 3166 alpha-2 (e.g. MY). */
+  nationality: string;
   email: string;
   guarantorAgreement?: GuarantorAgreementFile;
 }
@@ -157,6 +161,7 @@ function emptyIndividualGuarantor(): GuarantorIndividualRow {
     guarantorType: "individual",
     name: "",
     icNumber: "",
+    nationality: "",
     email: "",
   };
 }
@@ -211,6 +216,7 @@ interface BusinessDetailsSnake {
         email: string;
         name: string;
         ic_number: string;
+        nationality: string;
         guarantor_agreement?: {
           file_name: string;
           file_size: number;
@@ -302,6 +308,13 @@ function parseGuarantorAgreementFromUnknown(raw: unknown): GuarantorAgreementFil
   };
 }
 
+function normalizeGuarantorNationalityCode(raw: unknown): string {
+  const c = String(raw ?? "")
+    .trim()
+    .toUpperCase();
+  return c.length === 2 && isRegtankIso3166Code(c) ? c : "";
+}
+
 function legacyIndividualNameFromRecord(o: Record<string, unknown>): string {
   const direct = String(o.name ?? o.full_name ?? o.fullName ?? "").trim();
   if (direct) return direct;
@@ -342,11 +355,15 @@ function applicationGuarantorRowToFormRow(row: Record<string, unknown>): Guarant
 
   const icRaw = String(row.ic_number ?? src.ic_number ?? src.icNumber ?? "");
   const name = String(row.name ?? src.name ?? legacyIndividualNameFromRecord(src)).trim();
+  const nationality = normalizeGuarantorNationalityCode(
+    row.nationality ?? src.nationality ?? src.nationality_code ?? row.nationality_code
+  );
   return {
     referenceId: ref || stableFallbackGuarantorId(pos, "individual", normalizeIdentifier(icRaw)),
     guarantorType: "individual",
     name,
     icNumber: clampGuarantorIcInput(icRaw),
+    nationality,
     email,
     ...(agreement ? { guarantorAgreement: agreement } : {}),
   };
@@ -409,6 +426,7 @@ function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
           email: g.email.trim().toLowerCase(),
           name: g.name.trim(),
           ic_number: malaysianNricDigits(g.icNumber),
+          nationality: g.nationality.trim().toUpperCase(),
           ...(agreementSnake ? { guarantor_agreement: agreementSnake } : {}),
         };
       }
@@ -498,6 +516,7 @@ function parseGuarantorsFromRaw(raw: unknown): GuarantorFormRow[] {
         o.ic_number ?? o.icNumber ?? o.government_id_number ?? o.governmentIdNumber ?? ""
       );
       const agreement = parseGuarantorAgreementFromUnknown(o.guarantor_agreement ?? o.guarantorAgreement);
+      const nationality = normalizeGuarantorNationalityCode(o.nationality ?? o.nationality_code);
       out.push({
         referenceId:
           ref ||
@@ -506,6 +525,7 @@ function parseGuarantorsFromRaw(raw: unknown): GuarantorFormRow[] {
         email: String(o.email ?? "").trim().toLowerCase(),
         name,
         icNumber: clampGuarantorIcInput(govRaw),
+        nationality,
         ...(agreement ? { guarantorAgreement: agreement } : {}),
       });
     } else if (gt === "company") {
@@ -739,12 +759,14 @@ function YesNoRadioGroup({
   );
 }
 
+type GuarantorRowUpdater = GuarantorFormRow | ((prev: GuarantorFormRow) => GuarantorFormRow);
+
 interface GuarantorCardFieldsProps {
   row: GuarantorFormRow;
   index: number;
   readOnly: boolean;
   hasAttemptedSave: boolean;
-  replaceGuarantorRow: (index: number, next: GuarantorFormRow) => void;
+  replaceGuarantorRow: (index: number, next: GuarantorRowUpdater) => void;
   setGuarantorTypeAt: (index: number, type: "individual" | "company") => void;
   agreementTemplateS3Key?: string;
   agreementRequired: boolean;
@@ -770,6 +792,12 @@ function GuarantorCardFields({
   const agreement = row.guarantorAgreement;
   const hasAgreementFile = Boolean(agreement?.s3_key?.trim() || agreement?.client_id);
   const agreementInputId = `g-${index}-guarantor-agreement`;
+  const handleNationalityChange = React.useCallback(
+    (v: string) => {
+      replaceGuarantorRow(index, (prev) => ({ ...prev, nationality: v }));
+    },
+    [index, replaceGuarantorRow]
+  );
   return (
     <div className="space-y-5">
       <div className="space-y-2 w-full min-w-0">
@@ -845,6 +873,14 @@ function GuarantorCardFields({
               ) : null}
             </div>
           </div>
+          <GuarantorNationalityAutocomplete
+            id={`g-${index}-nationality`}
+            nationality={row.nationality}
+            readOnly={readOnly}
+            hasAttemptedSave={hasAttemptedSave}
+            onNationalityChange={handleNationalityChange}
+            labelClassName={labelInputClassName}
+          />
           <div className="space-y-2 w-full min-w-0">
             <Label htmlFor={`g-${index}-email`} className={labelInputClassName}>
               Email
@@ -1185,7 +1221,11 @@ export function BusinessDetailsStep({
             mode === "presence"
               ? malaysianNricDigits(g.icNumber).length > 0
               : isValidMalaysianNric(g.icNumber);
-          if (!g.name.trim() || !icOk) {
+          const natOk =
+            mode === "presence"
+              ? g.nationality.trim().length === 2
+              : isRegtankIso3166Code(g.nationality.trim());
+          if (!g.name.trim() || !icOk || !natOk) {
             return false;
           }
         } else {
@@ -1741,6 +1781,18 @@ export function BusinessDetailsStep({
     e.currentTarget.value = "";
   };
 
+  const replaceGuarantorRow = React.useCallback(
+    (index: number, next: GuarantorRowUpdater) => {
+      setGuarantors((prev) =>
+        prev.map((row, i) => {
+          if (i !== index) return row;
+          return typeof next === "function" ? next(row) : next;
+        })
+      );
+    },
+    []
+  );
+
   if (isLoadingApp || !isInitialized || devTools?.showSkeletonDebug) {
     return <BusinessDetailsSkeleton />;
   }
@@ -1748,10 +1800,6 @@ export function BusinessDetailsStep({
   const sameInvoiceP2pBlocked =
     whyRaisingFunds.raisingOnOtherP2P === "yes" && whyRaisingFunds.sameInvoiceUsed === "yes";
   const fieldsLocked = readOnly || sameInvoiceP2pBlocked;
-
-  const replaceGuarantorRow = (index: number, next: GuarantorFormRow) => {
-    setGuarantors((prev) => prev.map((row, i) => (i === index ? next : row)));
-  };
 
   const setGuarantorTypeAt = (index: number, type: "individual" | "company") => {
     const current = guarantors[index];

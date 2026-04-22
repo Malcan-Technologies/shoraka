@@ -50,6 +50,7 @@ import {
   kycAmlScreeningStatusBadgeClass,
 } from "@/lib/kyc-aml-screening-badge-classes";
 import { cn } from "@/lib/utils";
+import { regtankNationalityDisplayLabel } from "@cashsouk/types";
 import {
   ComparisonFieldRow,
   ComparisonYesNoRadioRow,
@@ -254,6 +255,8 @@ type GuarantorReviewRow =
       referenceId: string;
       name: string;
       icNumber: string;
+      /** RegTank ISO 3166 alpha-2; empty if legacy row. */
+      nationalityCode: string;
       email: string;
     } & { guarantorAgreement?: GuarantorAgreementFile })
   | ({
@@ -378,6 +381,25 @@ function parseGuarantorAgreementField(raw: unknown): GuarantorAgreementFile | un
   return { s3Key, fileName, ...(fileSize != null ? { fileSize } : {}) };
 }
 
+function guarantorNationalityCodeFromRelational(
+  entry: RelationalGuarantorEntry,
+  g: Record<string, unknown>
+): string {
+  const two = (v: unknown) => {
+    const s = reviewStr(v).toUpperCase();
+    return s.length === 2 ? s : "";
+  };
+  const fromG = two(g.nationality ?? g.nationality_code);
+  if (fromG) return fromG;
+  const entryRec = entry as Record<string, unknown>;
+  const src = entryRec.source_data ?? entryRec.sourceData;
+  if (isPlainObjectRecord(src)) {
+    const fromSrc = two(src.nationality ?? src.nationality_code);
+    if (fromSrc) return fromSrc;
+  }
+  return "";
+}
+
 function guarantorAgreementFromRelationalEntry(
   entry: RelationalGuarantorEntry,
   g: Record<string, unknown>
@@ -420,11 +442,14 @@ function parseGuarantors(raw: unknown): GuarantorReviewRow[] {
       const nameFromLegacy = [legacyFirst, legacyLast].filter(Boolean).join(" ").trim();
       const name = reviewStr(o.name) || nameFromLegacy;
       const gov = reviewStr(o.ic_number ?? o.icNumber ?? o.government_id_number);
+      const nationalityRaw = reviewStr(o.nationality ?? o.nationality_code).toUpperCase();
+      const nationalityCode = nationalityRaw.length === 2 ? nationalityRaw : "";
       rows.push({
         kind: "individual",
         referenceId: ref,
         name,
         icNumber: gov,
+        nationalityCode,
         email: normalizeEmail(o.email),
         ...(agreement ? { guarantorAgreement: agreement } : {}),
       });
@@ -523,6 +548,7 @@ function parseGuarantorAmlEntries(raw: unknown): GuarantorAmlEntry[] {
     const linkId = reviewStr(row.id) || reviewStr(g.id);
     const referenceId =
       reviewStr(row.client_guarantor_id ?? g.client_guarantor_id) || linkId;
+    const entryForNationality = item as RelationalGuarantorEntry;
     const reviewRow: GuarantorReviewRow =
       guarantorType === "individual"
         ? {
@@ -532,6 +558,7 @@ function parseGuarantorAmlEntries(raw: unknown): GuarantorAmlEntry[] {
               reviewStr(g.name) ||
               [reviewStr(g.first_name), reviewStr(g.last_name)].filter(Boolean).join(" ").trim(),
             icNumber: reviewStr(g.ic_number ?? g.government_id_number),
+            nationalityCode: guarantorNationalityCodeFromRelational(entryForNationality, g),
             email: normalizeEmail(g.email),
           }
         : {
@@ -609,11 +636,13 @@ function parseRelationalGuarantors(raw: unknown): GuarantorReviewRow[] {
       const legacyLast = reviewStr(g.last_name);
       const name =
         reviewStr(g.name) || [legacyFirst, legacyLast].filter(Boolean).join(" ").trim();
+      const nationalityCode = guarantorNationalityCodeFromRelational(entry, g);
       rows.push({
         kind: "individual",
         referenceId: ref,
         name,
         icNumber: reviewStr(g.ic_number ?? g.government_id_number),
+        nationalityCode,
         email: normalizeEmail(g.email),
         ...(agreement ? { guarantorAgreement: agreement } : {}),
       });
@@ -926,6 +955,14 @@ function AdminGuarantorSingleList({
                     <ReviewValue value={g.name || REVIEW_EMPTY_LABEL} />
                     <Label className={reviewLabelClass}>IC number</Label>
                     <ReviewValue value={g.icNumber || REVIEW_EMPTY_LABEL} />
+                    <Label className={reviewLabelClass}>Nationality</Label>
+                    <ReviewValue
+                      value={
+                        g.nationalityCode
+                          ? regtankNationalityDisplayLabel(g.nationalityCode)
+                          : REVIEW_EMPTY_LABEL
+                      }
+                    />
                     <Label className={reviewLabelClass}>Email</Label>
                     <ReviewValue value={g.email || REVIEW_EMPTY_LABEL} />
                   </>
@@ -1092,6 +1129,20 @@ function AdminGuarantorComparisonList({
                     label="IC number"
                     before={gB?.kind === "individual" ? gB.icNumber : "—"}
                     after={gA?.kind === "individual" ? gA.icNumber : "—"}
+                    changed={changed}
+                  />
+                  <ComparisonFieldRow
+                    label="Nationality"
+                    before={
+                      gB?.kind === "individual" && gB.nationalityCode
+                        ? regtankNationalityDisplayLabel(gB.nationalityCode)
+                        : "—"
+                    }
+                    after={
+                      gA?.kind === "individual" && gA.nationalityCode
+                        ? regtankNationalityDisplayLabel(gA.nationalityCode)
+                        : "—"
+                    }
                     changed={changed}
                   />
                   <ComparisonFieldRow

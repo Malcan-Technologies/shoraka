@@ -98,6 +98,7 @@ describe("summarizeResubmitSnapshotDiff", () => {
       ic_number: "900101101234",
       updated_at: new Date("2024-01-01"),
       source_data: {
+        nationality: "MY",
         guarantor_agreement: { s3_key: "old/key.pdf", file_name: "old.pdf", file_size: 100 },
       },
     };
@@ -106,6 +107,7 @@ describe("summarizeResubmitSnapshotDiff", () => {
       id: "ag-new",
       updated_at: new Date("2026-01-01"),
       source_data: {
+        nationality: "MY",
         guarantor_agreement: { s3_key: "new/key.pdf", file_name: "new.pdf", file_size: 200 },
       },
     };
@@ -140,7 +142,10 @@ describe("summarizeResubmitSnapshotDiff", () => {
       name: "Jane",
       ic_number: "900101101234",
       updated_at: new Date("2024-01-01"),
-      source_data: { guarantor_agreement: { s3_key: "k.pdf", file_name: "a.pdf", file_size: 1 } },
+      source_data: {
+        nationality: "MY",
+        guarantor_agreement: { s3_key: "k.pdf", file_name: "a.pdf", file_size: 1 },
+      },
     };
     const rowB = { ...row, id: "ag-2", updated_at: new Date("2026-06-06") };
     const prev = {
