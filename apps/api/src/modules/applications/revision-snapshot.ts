@@ -52,6 +52,8 @@ export function buildApplicationRevisionSnapshot(
       business_name: link.business_name ?? null,
       ssm_number: link.ssm_number ?? null,
       position: link.position ?? null,
+      /** Preserves `guarantor_agreement` etc. for admin review / comparison UIs. */
+      source_data: link.source_data ?? link.sourceData ?? null,
       aml_status: link.aml_status ?? null,
       aml_message_status: link.aml_message_status ?? null,
       last_triggered_at: link.last_triggered_at ?? null,

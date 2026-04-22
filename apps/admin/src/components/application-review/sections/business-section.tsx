@@ -246,21 +246,23 @@ function RegTankGuarantorControlRow({
   );
 }
 
+type GuarantorAgreementFile = { s3Key: string; fileName: string; fileSize?: number };
+
 type GuarantorReviewRow =
-  | {
+  | ({
       kind: "individual";
       referenceId: string;
       name: string;
       icNumber: string;
       email: string;
-    }
-  | {
+    } & { guarantorAgreement?: GuarantorAgreementFile })
+  | ({
       kind: "company";
       referenceId: string;
       businessName: string;
       ssmNumber: string;
       email: string;
-    };
+    } & { guarantorAgreement?: GuarantorAgreementFile });
 
 type GuarantorAmlStatus = "Unresolved" | "Approved" | "Rejected" | "Pending";
 type GuarantorAmlMessageStatus = "DONE" | "PENDING" | "ERROR";
@@ -307,6 +309,7 @@ interface RelationalGuarantorEntry {
   ssm_number?: string | null;
   guarantor?: Record<string, unknown> | null;
   aml_screening?: unknown;
+  source_data?: unknown;
 }
 
 /** Normalized view model for Business Details review. Supports snake_case and camelCase from API/DB. */
@@ -362,6 +365,35 @@ function deterministicGuarantorId(
   return `g-${kind}-${safeToken(icOrSsm || `idx${index + 1}`)}`;
 }
 
+function parseGuarantorAgreementField(raw: unknown): GuarantorAgreementFile | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const o = raw as Record<string, unknown>;
+  const s3Key = reviewStr(o.s3_key ?? o.s3Key);
+  if (!s3Key) return undefined;
+  const fileName =
+    reviewStr(o.file_name ?? o.fileName) || "Guarantor agreement.pdf";
+  const sz = o.file_size ?? o.fileSize;
+  const fileSize =
+    typeof sz === "number" && Number.isFinite(sz) && sz > 0 ? sz : undefined;
+  return { s3Key, fileName, ...(fileSize != null ? { fileSize } : {}) };
+}
+
+function guarantorAgreementFromRelationalEntry(
+  entry: RelationalGuarantorEntry,
+  g: Record<string, unknown>
+): GuarantorAgreementFile | undefined {
+  const direct = parseGuarantorAgreementField(
+    g.guarantor_agreement ?? g.guarantorAgreement
+  );
+  if (direct) return direct;
+  const entryRec = entry as Record<string, unknown>;
+  const src = entryRec.source_data ?? entryRec.sourceData;
+  if (!isPlainObjectRecord(src)) return undefined;
+  return parseGuarantorAgreementField(
+    src.guarantor_agreement ?? src.guarantorAgreement
+  );
+}
+
 function parseGuarantors(raw: unknown): GuarantorReviewRow[] {
   if (!raw || !Array.isArray(raw)) return [];
   const rows: GuarantorReviewRow[] = [];
@@ -370,6 +402,9 @@ function parseGuarantors(raw: unknown): GuarantorReviewRow[] {
     if (!item || typeof item !== "object") continue;
     const o = item as Record<string, unknown>;
     const gt = o.guarantor_type ?? o.guarantorType;
+    const agreement = parseGuarantorAgreementField(
+      o.guarantor_agreement ?? o.guarantorAgreement
+    );
     const ref =
       reviewStr(o.reference_id ?? o.referenceId ?? o.guarantor_id ?? o.guarantorId) ||
       deterministicGuarantorId(
@@ -391,6 +426,7 @@ function parseGuarantors(raw: unknown): GuarantorReviewRow[] {
         name,
         icNumber: gov,
         email: normalizeEmail(o.email),
+        ...(agreement ? { guarantorAgreement: agreement } : {}),
       });
     } else if (gt === "company") {
       rows.push({
@@ -399,6 +435,7 @@ function parseGuarantors(raw: unknown): GuarantorReviewRow[] {
         businessName: reviewStr(o.business_name ?? o.businessName ?? o.company_name ?? o.companyName),
         ssmNumber: reviewStr(o.ssm_number ?? o.ssmNumber ?? o.business_id_number),
         email: normalizeEmail(o.email),
+        ...(agreement ? { guarantorAgreement: agreement } : {}),
       });
     }
   }
@@ -566,6 +603,7 @@ function parseRelationalGuarantors(raw: unknown): GuarantorReviewRow[] {
     if (!linkId) continue;
     const ref = reviewStr(entry.client_guarantor_id) || linkId;
     const guarantorType = g.guarantor_type === "company" ? "company" : "individual";
+    const agreement = guarantorAgreementFromRelationalEntry(entry, g);
     if (guarantorType === "individual") {
       const legacyFirst = reviewStr(g.first_name);
       const legacyLast = reviewStr(g.last_name);
@@ -577,6 +615,7 @@ function parseRelationalGuarantors(raw: unknown): GuarantorReviewRow[] {
         name,
         icNumber: reviewStr(g.ic_number ?? g.government_id_number),
         email: normalizeEmail(g.email),
+        ...(agreement ? { guarantorAgreement: agreement } : {}),
       });
       continue;
     }
@@ -586,6 +625,7 @@ function parseRelationalGuarantors(raw: unknown): GuarantorReviewRow[] {
       businessName: reviewStr(g.business_name ?? g.company_name),
       ssmNumber: reviewStr(g.ssm_number ?? g.business_id_number),
       email: normalizeEmail(g.email),
+      ...(agreement ? { guarantorAgreement: agreement } : {}),
     });
   }
   return rows;
@@ -799,10 +839,16 @@ function AdminGuarantorSingleList({
   guarantors,
   amlByKey,
   onTriggerGuarantorAml,
+  onViewDocument,
+  onDownloadDocument,
+  viewDocumentPending = false,
 }: {
   guarantors: GuarantorReviewRow[];
   amlByKey: Map<string, GuarantorAmlEntry>;
   onTriggerGuarantorAml?: (guarantorId: string) => Promise<void> | void;
+  onViewDocument: (s3Key: string) => void;
+  onDownloadDocument: (s3Key: string, fileName?: string) => void;
+  viewDocumentPending?: boolean;
 }) {
   const [panelOpen, setPanelOpen] = React.useState<Record<number, boolean>>({});
   const count = guarantors.length;
@@ -893,6 +939,40 @@ function AdminGuarantorSingleList({
                     <ReviewValue value={g.email || REVIEW_EMPTY_LABEL} />
                   </>
                 )}
+                <Label className={reviewLabelClass}>Guarantor agreement</Label>
+                <div className="min-h-0 h-9 flex items-center justify-start">
+                  {g.guarantorAgreement?.s3Key ? (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-lg h-9 gap-1"
+                        onClick={() => onViewDocument(g.guarantorAgreement!.s3Key)}
+                        disabled={viewDocumentPending}
+                      >
+                        <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                        View
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-lg h-9 gap-1"
+                        onClick={() =>
+                          onDownloadDocument(
+                            g.guarantorAgreement!.s3Key,
+                            g.guarantorAgreement!.fileName
+                          )
+                        }
+                        disabled={viewDocumentPending}
+                      >
+                        <ArrowDownTrayIcon className="h-4 w-4" />
+                        Download
+                      </Button>
+                    </div>
+                  ) : (
+                    REVIEW_EMPTY_LABEL
+                  )}
+                </div>
               </div>
             </div>
           </details>
@@ -907,11 +987,17 @@ function AdminGuarantorComparisonList({
   a,
   amlByKey,
   isPathChanged,
+  onViewDocument,
+  onDownloadDocument,
+  viewDocumentPending = false,
 }: {
   b: BusinessDetailsView;
   a: BusinessDetailsView;
   amlByKey: Map<string, GuarantorAmlEntry>;
   isPathChanged: (path: string) => boolean;
+  onViewDocument: (s3Key: string) => void;
+  onDownloadDocument: (s3Key: string, fileName?: string) => void;
+  viewDocumentPending?: boolean;
 }) {
   const count = Math.max(b.guarantors.length, a.guarantors.length);
   const [panelOpen, setPanelOpen] = React.useState<Record<number, boolean>>({});
@@ -1050,6 +1136,23 @@ function AdminGuarantorComparisonList({
                   />
                 </div>
               ) : null}
+              <ComparisonDocumentTitleRow
+                title="Guarantor agreement"
+                beforeFiles={businessSupportingDocsToChips(
+                  gB?.guarantorAgreement ? [gB.guarantorAgreement] : []
+                )}
+                afterFiles={businessSupportingDocsToChips(
+                  gA?.guarantorAgreement ? [gA.guarantorAgreement] : []
+                )}
+                markChanged={
+                  changed ||
+                  (gB?.guarantorAgreement?.s3Key ?? "") !==
+                    (gA?.guarantorAgreement?.s3Key ?? "")
+                }
+                onViewDocument={onViewDocument}
+                onDownloadDocument={onDownloadDocument}
+                viewDocumentPending={viewDocumentPending}
+              />
             </div>
           </details>
         );
@@ -1332,6 +1435,9 @@ export function BusinessSection({
               a={a}
               amlByKey={guarantorAmlByKey}
               isPathChanged={isPathChanged}
+              onViewDocument={onViewDocument}
+              onDownloadDocument={onDownloadDocument}
+              viewDocumentPending={viewDocumentPending}
             />
           </ReviewFieldBlock>
         )}
@@ -1534,6 +1640,9 @@ export function BusinessSection({
                 guarantors={view.guarantors}
                 amlByKey={guarantorAmlByKey}
                 onTriggerGuarantorAml={onTriggerGuarantorAml}
+                onViewDocument={onViewDocument}
+                onDownloadDocument={onDownloadDocument}
+                viewDocumentPending={viewDocumentPending}
               />
             </ReviewFieldBlock>
           )}
