@@ -203,7 +203,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
         "[KYB Webhook] ✓ Successfully processed and linked to onboarding record"
       );
 
-      // Handle KYB approval for corporate onboarding - update organization status to PENDING_SSM_REVIEW
+      // Handle KYB approval for corporate onboarding — next org status depends on CTOS (SSM) already done
       const statusUpper = status?.toUpperCase();
       const organizationId = onboarding.investor_organization_id || onboarding.issuer_organization_id;
       const portalType = onboarding.portal_type as PortalType;
@@ -220,18 +220,20 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
               riskLevel,
               riskScore,
             },
-            "[KYB Webhook] Processing KYB approval for corporate onboarding - updating organization status to PENDING_SSM_REVIEW"
+            "[KYB Webhook] Processing KYB approval for corporate onboarding — setting org status after AML"
           );
 
           if (portalType === "investor") {
             const org = await this.organizationRepository.findInvestorOrganizationById(organizationId);
             if (org) {
               const previousStatus = org.onboarding_status;
-              // Set aml_approved = true and update status to PENDING_SSM_REVIEW
+              const nextOrgStatusAfterKybAml = org.ssm_approved
+                ? OnboardingStatus.PENDING_FINAL_APPROVAL
+                : OnboardingStatus.PENDING_SSM_REVIEW;
               await prisma.investorOrganization.update({
                 where: { id: organizationId },
                 data: {
-                  onboarding_status: OnboardingStatus.PENDING_SSM_REVIEW,
+                  onboarding_status: nextOrgStatusAfterKybAml,
                   aml_approved: true,
                 },
               });
@@ -252,7 +254,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
                   kybRequestId: requestId,
                   onboardingRequestId: onboarding.request_id,
                   previousStatus,
-                  newStatus: OnboardingStatus.PENDING_SSM_REVIEW,
+                  newStatus: nextOrgStatusAfterKybAml,
                   trigger: "KYB_APPROVED",
                   riskLevel,
                   riskScore,
@@ -282,7 +284,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
                     kybRequestId: requestId,
                     onboardingRequestId: onboarding.request_id,
                     previousStatus,
-                    newStatus: OnboardingStatus.PENDING_SSM_REVIEW,
+                    newStatus: nextOrgStatusAfterKybAml,
                     trigger: "KYB_APPROVED",
                     riskLevel,
                     riskScore,
@@ -306,20 +308,22 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
                   onboardingRequestId: onboarding.request_id,
                   organizationId,
                   previousStatus,
-                  newStatus: OnboardingStatus.PENDING_SSM_REVIEW,
+                  newStatus: nextOrgStatusAfterKybAml,
                 },
-                "[KYB Webhook] ✓ Updated investor organization status to PENDING_SSM_REVIEW after KYB approval"
+                "[KYB Webhook] ✓ Updated investor organization status after KYB AML approval"
               );
             }
           } else {
             const org = await this.organizationRepository.findIssuerOrganizationById(organizationId);
             if (org) {
               const previousStatus = org.onboarding_status;
-              // Set aml_approved = true and update status to PENDING_SSM_REVIEW
+              const nextOrgStatusAfterKybAml = org.ssm_checked
+                ? OnboardingStatus.PENDING_FINAL_APPROVAL
+                : OnboardingStatus.PENDING_SSM_REVIEW;
               await prisma.issuerOrganization.update({
                 where: { id: organizationId },
                 data: {
-                  onboarding_status: OnboardingStatus.PENDING_SSM_REVIEW,
+                  onboarding_status: nextOrgStatusAfterKybAml,
                   aml_approved: true,
                 },
               });
@@ -340,7 +344,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
                   kybRequestId: requestId,
                   onboardingRequestId: onboarding.request_id,
                   previousStatus,
-                  newStatus: OnboardingStatus.PENDING_SSM_REVIEW,
+                  newStatus: nextOrgStatusAfterKybAml,
                   trigger: "KYB_APPROVED",
                   riskLevel,
                   riskScore,
@@ -369,7 +373,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
                     kybRequestId: requestId,
                     onboardingRequestId: onboarding.request_id,
                     previousStatus,
-                    newStatus: OnboardingStatus.PENDING_SSM_REVIEW,
+                    newStatus: nextOrgStatusAfterKybAml,
                     trigger: "KYB_APPROVED",
                     riskLevel,
                     riskScore,
@@ -392,9 +396,9 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
                   onboardingRequestId: onboarding.request_id,
                   organizationId,
                   previousStatus,
-                  newStatus: OnboardingStatus.PENDING_SSM_REVIEW,
+                  newStatus: nextOrgStatusAfterKybAml,
                 },
-                "[KYB Webhook] ✓ Updated issuer organization status to PENDING_SSM_REVIEW after KYB approval"
+                "[KYB Webhook] ✓ Updated issuer organization status after KYB AML approval"
               );
             }
           }

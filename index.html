@@ -1,255 +1,317 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Supporting Documents</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CTOS Verification</title>
+
 <style>
+/* ===============================
+   SECTION: BASE
+   WHY: clean modern admin style
+================================ */
 body {
   margin: 0;
   font-family: Arial, sans-serif;
   background: #f5f6f8;
+  color: #333;
 }
 
-.modal {
-  width: 900px;
-  margin: 40px auto;
+/* ===============================
+   SECTION: LAYOUT
+================================ */
+.container {
+  display: flex;
+  padding: 20px;
+  gap: 20px;
+}
+
+/* ===============================
+   SECTION: SIDEBAR
+================================ */
+.sidebar {
+  width: 260px;
   background: white;
   border-radius: 10px;
-  border: 1px solid #e5e7eb;
-}
-
-.header {
-  padding: 16px 20px;
-  border-bottom: 1px solid #e5e7eb;
-  display: flex;
-  justify-content: space-between;
-}
-
-.title {
-  font-size: 18px;
-  font-weight: bold;
-}
-
-.content {
   padding: 20px;
 }
 
 .step {
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 20px;
 }
 
-.step-header {
-  padding: 12px 16px;
-  border-bottom: 1px solid #e5e7eb;
+.step-circle {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #ddd;
+  margin-right: 10px;
+}
+
+.step.active .step-circle {
+  background: #b91c1c;
+}
+
+.step.done .step-circle {
+  background: #16a34a;
+}
+
+.step-text {
+  font-size: 14px;
+}
+
+/* ===============================
+   SECTION: MAIN
+================================ */
+.main {
+  flex: 1;
+}
+
+.card {
+  background: white;
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+/* ===============================
+   SECTION: HEADER
+================================ */
+.header {
   display: flex;
   justify-content: space-between;
-  font-weight: bold;
-}
-
-.category {
-  padding: 16px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.category:last-child {
-  border-bottom: none;
-}
-
-.category-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.doc {
-  display: flex;
-  gap: 10px;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 20px;
 }
 
-.doc input {
-  flex: 2;
-  padding: 8px;
-  border: 1px solid #ddd;
+.btn {
+  padding: 8px 14px;
   border-radius: 6px;
-}
-
-.upload-btn {
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  background: #fff;
-  border-radius: 6px;
+  border: none;
   cursor: pointer;
 }
 
-.inline {
-  display: flex;
-  gap: 6px;
-  align-items: center;
+.btn-red {
+  background: #b91c1c;
+  color: white;
 }
 
-.small {
-  width: 50px;
-  padding: 6px;
+.btn-outline {
+  border: 1px solid #ccc;
+  background: white;
+}
+
+/* ===============================
+   SECTION: TABLE
+================================ */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.table th, .table td {
+  border: 1px solid #eee;
+  padding: 10px;
+  text-align: left;
+  font-size: 14px;
+}
+
+.table th {
+  background: #f9fafb;
+}
+
+/* ===============================
+   SECTION: CTOS HIGHLIGHT
+================================ */
+.ctos-box {
+  background: #ecfdf5;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 10px;
+  margin-top: 10px;
+}
+
+/* ===============================
+   SECTION: ACTIONS
+================================ */
+.actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
 }
 
 .toggle {
   display: flex;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  overflow: hidden;
-}
-
-.toggle div {
-  padding: 6px 10px;
-  cursor: pointer;
-}
-
-.toggle .active {
-  background: #8A0304;
-  color: white;
-}
-
-.chip {
-  padding: 5px 10px;
-  border: 1px solid #ddd;
-  border-radius: 20px;
-  cursor: pointer;
-}
-
-.chip.active {
-  background: #8A0304;
-  color: white;
-  border-color: #8A0304;
-}
-
-.delete {
-  cursor: pointer;
-  color: #999;
-}
-
-.footer {
-  padding: 16px;
-  display: flex;
-  justify-content: flex-end;
+  align-items: center;
   gap: 10px;
-  border-top: 1px solid #eee;
 }
 
-button.primary {
-  background: #8A0304;
+/* ===============================
+   SECTION: FOOTER BUTTONS
+================================ */
+.button-row {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-approve {
+  background: #d97706;
   color: white;
-  border: none;
-  padding: 10px 16px;
-  border-radius: 6px;
 }
 
-button.secondary {
+.btn-reject {
+  border: 1px solid red;
+  color: red;
   background: white;
-  border: 1px solid #ddd;
-  padding: 10px 16px;
-  border-radius: 6px;
 }
+
 </style>
 </head>
 
 <body>
 
-<div class="modal">
-  <div class="header">
-    <div class="title">Create product</div>
-    ✕
-  </div>
+<div class="container">
 
-  <div class="content">
+  <!-- ===============================
+       SECTION: SIDEBAR
+  ================================ -->
+  <div class="sidebar">
+    <h3>Approval Progress</h3>
 
-    <div class="step">
-      <div class="step-header">
-        Supporting Documents
-        <button class="secondary">Add category</button>
-      </div>
-
-      <div class="category">
-        <div class="category-header">
-          <b>Financial Docs</b>
-          <button class="secondary">Add document</button>
-        </div>
-
-        <div class="doc">
-          <input value="Latest Management Account" />
-
-          <button class="upload-btn">Template</button>
-
-          <div class="inline">
-            <div class="toggle">
-              <div>Single</div>
-              <div class="active">Multi</div>
-            </div>
-
-            <input class="small" value="5" />
-
-            <div class="chip active">PDF</div>
-            <div class="chip">Excel</div>
-          </div>
-
-          <div class="delete">🗑</div>
-        </div>
-
-        <div class="doc">
-          <input value="Details of Existing Borrowings" />
-
-          <button class="upload-btn">Template</button>
-
-          <div class="inline">
-            <div class="toggle">
-              <div class="active">Single</div>
-              <div>Multi</div>
-            </div>
-
-            <div class="chip active">PDF</div>
-            <div class="chip">Excel</div>
-          </div>
-
-          <div class="delete">🗑</div>
-        </div>
-
-      </div>
-
-      <div class="category">
-        <div class="category-header">
-          <b>Legal Docs</b>
-          <button class="secondary">Add document</button>
-        </div>
-
-        <div class="doc">
-          <input value="Deed of Assignment" />
-
-          <button class="upload-btn">Template</button>
-
-          <div class="inline">
-            <div class="toggle">
-              <div class="active">Single</div>
-              <div>Multi</div>
-            </div>
-
-            <div class="chip active">PDF</div>
-            <div class="chip">Excel</div>
-          </div>
-
-          <div class="delete">🗑</div>
-        </div>
-
-      </div>
-
+    <div class="step done">
+      <div class="step-circle"></div>
+      <div class="step-text">Review Application</div>
     </div>
 
+    <div class="step active">
+      <div class="step-circle"></div>
+      <div class="step-text">CTOS Verification</div>
+    </div>
+
+    <div class="step">
+      <div class="step-circle"></div>
+      <div class="step-text">Onboarding Approval</div>
+    </div>
+
+    <div class="step">
+      <div class="step-circle"></div>
+      <div class="step-text">AML Approval</div>
+    </div>
+
+    <div class="step">
+      <div class="step-circle"></div>
+      <div class="step-text">Final Approval</div>
+    </div>
   </div>
 
-  <div class="footer">
-    <button class="secondary">Cancel</button>
-    <button class="primary">Create</button>
+  <!-- ===============================
+       SECTION: MAIN CONTENT
+  ================================ -->
+  <div class="main">
+
+    <!-- HEADER -->
+    <div class="header">
+      <div>
+        <h2>CTOS Verification</h2>
+        <p>Compare application with CTOS data. Verify manually.</p>
+      </div>
+      <div>
+        <button class="btn btn-outline">View report</button>
+        <button class="btn btn-red">Get latest report</button>
+      </div>
+    </div>
+
+    <!-- ===============================
+         COMPANY INFO
+    ================================ -->
+    <div class="card">
+      <h3>Company Info</h3>
+
+      <p><strong>Application Data</strong></p>
+      <table class="table">
+        <tr><th>Field</th><th>Value</th></tr>
+        <tr><td>Company Name</td><td>TradeFlow Solutions Sdn Bhd</td></tr>
+        <tr><td>SSM No</td><td>202201098765</td></tr>
+      </table>
+
+      <div class="ctos-box">
+        <p><strong>CTOS Data</strong></p>
+        <table class="table">
+          <tr><th>Field</th><th>Value</th></tr>
+          <tr><td>Company Name</td><td>TradeFlow Solutions SDN. BHD.</td></tr>
+          <tr><td>SSM No</td><td>202201098765</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===============================
+         DIRECTORS
+    ================================ -->
+    <div class="card">
+      <h3>Directors</h3>
+
+      <p><strong>Application Data</strong></p>
+      <table class="table">
+        <tr><th>Name</th><th>IC</th></tr>
+        <tr><td>Raj Patel</td><td>900101-10-1234</td></tr>
+      </table>
+
+      <div class="ctos-box">
+        <p><strong>CTOS Data</strong></p>
+        <table class="table">
+          <tr><th>Name</th><th>IC</th></tr>
+          <tr><td>RAJ PATEL</td><td>900101101234</td></tr>
+          <tr><td>JOHN LIM</td><td>880202102222</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===============================
+         SHAREHOLDERS
+    ================================ -->
+    <div class="card">
+      <h3>Shareholders (≥5%)</h3>
+
+      <p><strong>Application Data</strong></p>
+      <table class="table">
+        <tr><th>Name</th><th>IC/SSM</th><th>%</th></tr>
+        <tr><td>Raj Patel</td><td>XXXXX</td><td>60%</td></tr>
+      </table>
+
+      <div class="ctos-box">
+        <p><strong>CTOS Data</strong></p>
+        <table class="table">
+          <tr><th>Name</th><th>IC/SSM</th><th>%</th></tr>
+          <tr><td>RAJ PATEL</td><td>XXXXX</td><td>60%</td></tr>
+          <tr><td>ALI BIN ABU</td><td>XXXXX</td><td>40%</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- ===============================
+         ACTIONS
+    ================================ -->
+    <div class="card">
+      <div class="actions">
+
+        <div class="toggle">
+          <input type="checkbox" />
+          <label>I have verified this company against CTOS records</label>
+        </div>
+
+        <div class="button-row">
+          <button class="btn btn-outline">Trigger Amendment</button>
+          <button class="btn btn-approve">Approve CTOS</button>
+          <button class="btn btn-reject">Reject</button>
+        </div>
+
+      </div>
+    </div>
+
   </div>
 </div>
 

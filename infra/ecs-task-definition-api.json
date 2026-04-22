@@ -183,6 +183,42 @@
         {
           "name": "API_PUBLIC_URL",
           "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:API_PUBLIC_URL::"
+        },
+                {
+          "name": "CTOS_CLIENT_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:CTOS_CLIENT_ID::"
+        },
+        {
+          "name": "CTOS_USERNAME",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:CTOS_USERNAME::"
+        },
+        {
+          "name": "CTOS_PASSWORD",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:CTOS_PASSWORD::"
+        },
+        {
+          "name": "CTOS_TOKEN_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:CTOS_TOKEN_URL::"
+        },
+        {
+          "name": "CTOS_SOAP_URL",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:CTOS_SOAP_URL::"
+        },
+        {
+          "name": "CTOS_PRIVATE_KEY",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:CTOS_PRIVATE_KEY::"
+        },
+        {
+          "name": "CTOS_COMPANY_CODE",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:CTOS_COMPANY_CODE::"
+        },
+        {
+          "name": "CTOS_ACCOUNT_NO",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:CTOS_ACCOUNT_NO::"
+        },
+        {
+          "name": "CTOS_USER_ID",
+          "valueFrom": "arn:aws:secretsmanager:ap-southeast-5:652821469470:secret:BACKEND_ENV-xymJJS:CTOS_USER_ID::"
         }
       ]
     }

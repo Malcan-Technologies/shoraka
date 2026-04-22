@@ -241,6 +241,7 @@ export function SectionContent({
     case "business_details":
       return (
         <BusinessSection
+          applicationId={app.id ?? ""}
           businessDetails={app.business_details}
           applicationGuarantors={app.application_guarantors}
           section={section}
