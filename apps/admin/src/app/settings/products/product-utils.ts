@@ -50,6 +50,20 @@ export function productName(p: Product): string {
   return name ?? "—";
 }
 
+/** Admin applications routes: `productKey` may be a base id or any version id. */
+export function resolveDisplayProductForNav(products: Product[], productKey: string): Product | undefined {
+  const matching = products.filter(
+    (p) =>
+      p.id === productKey ||
+      p.base_id === productKey ||
+      (p.base_id ?? p.id) === productKey
+  );
+  if (matching.length === 0) return undefined;
+  const sorted = [...matching].sort((a, b) => a.version - b.version);
+  const activeLast = [...sorted].reverse().find((p) => (p.status ?? "ACTIVE") === "ACTIVE");
+  return activeLast ?? sorted[sorted.length - 1];
+}
+
 /** Set name in the first step's config (and config.type if present). */
 export function workflowWithName(workflow: unknown[], name: string): unknown[] {
   const next = JSON.parse(JSON.stringify(workflow)) as unknown[];

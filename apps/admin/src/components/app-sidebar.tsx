@@ -43,7 +43,66 @@ import {
 import { ChevronRight } from "lucide-react";
 import { usePendingApprovalCount } from "@/hooks/use-pending-approval-count";
 import { useProducts } from "@/hooks/use-products";
+import { useAdminApplicationsForSidebar } from "@/hooks/use-admin-applications-for-sidebar";
 import { productName } from "@/app/settings/products/product-utils";
+import type { ApplicationListItem, Product } from "@cashsouk/types";
+
+type ApplicationNavGroup = {
+  baseKey: string;
+  productTitle: string;
+  queuePath: string;
+  isInactive: boolean;
+};
+
+function buildApplicationSidebarGroups(
+  products: Product[],
+  applications: ApplicationListItem[]
+): ApplicationNavGroup[] {
+  const byBase = new Map<string, Product[]>();
+  for (const p of products) {
+    const key = (p.base_id ?? p.id) as string;
+    const list = byBase.get(key) ?? [];
+    list.push(p);
+    byBase.set(key, list);
+  }
+
+  const groups: ApplicationNavGroup[] = [];
+
+  for (const [, versions] of byBase) {
+    const sorted = [...versions].sort((a, b) => a.version - b.version);
+    const display =
+      [...sorted].reverse().find((p) => (p.status ?? "ACTIVE") === "ACTIVE") ?? sorted[sorted.length - 1];
+    if (!display) continue;
+    const baseKey = (display.base_id ?? display.id) as string;
+    const appsFor = applications.filter((a) => (a.baseProductId ?? "") === baseKey);
+    const isLive = (display.status ?? "ACTIVE") === "ACTIVE";
+    if (!isLive && appsFor.length === 0) continue;
+
+    groups.push({
+      baseKey,
+      productTitle: productName(display),
+      queuePath: `/applications/${baseKey}`,
+      isInactive: !isLive,
+    });
+  }
+
+  const basesBuilt = new Set(groups.map((g) => g.baseKey));
+  for (const baseKey of new Set(
+    applications.map((a) => a.baseProductId).filter((x): x is string => Boolean(x))
+  )) {
+    if (basesBuilt.has(baseKey)) continue;
+    const appsFor = applications.filter((a) => a.baseProductId === baseKey);
+    if (appsFor.length === 0) continue;
+    groups.push({
+      baseKey,
+      productTitle: appsFor[0]?.financingTypeLabel ?? "Product",
+      queuePath: `/applications/${baseKey}`,
+      isInactive: true,
+    });
+  }
+
+  return groups.sort((a, b) => a.productTitle.localeCompare(b.productTitle));
+}
 
 const navActionsConfig = [
   {
@@ -56,9 +115,8 @@ const navActionsConfig = [
     title: "Applications",
     url: "#",
     icon: DocumentCheckIcon,
-    items: [], // Will be populated dynamically
   },
-];
+] as const;
 
 const navPlatform = [
   {
@@ -115,7 +173,8 @@ const navAudit = [
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const { data: pendingCountData } = usePendingApprovalCount();
-  const { data: productsData } = useProducts({ page: 1, pageSize: 100, active: true });
+  const { data: productsData } = useProducts({ page: 1, pageSize: 100, includeDeleted: true });
+  const { data: applicationsForSidebar = [] } = useAdminApplicationsForSidebar();
 
   // Build badges dynamically
   const badges: Record<string, number> = {
@@ -125,16 +184,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const dynamicNavActions = React.useMemo(() => {
     return navActionsConfig.map((item) => {
       if (item.title === "Applications") {
-        const productItems = productsData?.products.map((p) => ({
-          title: productName(p),
-          url: `/applications/${p.id}`,
-        })) || [];
-
-        return { ...item, items: productItems };
+        return {
+          ...item,
+          applicationNavGroups: buildApplicationSidebarGroups(
+            productsData?.products ?? [],
+            applicationsForSidebar
+          ),
+        };
       }
       return item;
     });
-  }, [productsData]);
+  }, [productsData, applicationsForSidebar]);
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -175,9 +235,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <SidebarMenu>
               {dynamicNavActions.map((item) => {
                 const Icon = item.icon;
-                const badgeCount = item.badgeKey ? badges[item.badgeKey] : 0;
+                const badgeCount =
+                  "badgeKey" in item && item.badgeKey ? badges[item.badgeKey] : 0;
 
-                if (item.items) {
+                if (item.title === "Applications" && "applicationNavGroups" in item) {
+                  const groups = item.applicationNavGroups ?? [];
                   return (
                     <Collapsible
                       key={item.title}
@@ -195,11 +257,30 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                         </CollapsibleTrigger>
                         <CollapsibleContent>
                           <SidebarMenuSub>
-                            {item.items.map((subItem) => (
-                              <SidebarMenuSubItem key={subItem.title}>
-                                <SidebarMenuSubButton asChild isActive={pathname === subItem.url}>
-                                  <Link href={subItem.url}>
-                                    <span>{subItem.title}</span>
+                            {groups.map((g) => (
+                              <SidebarMenuSubItem key={g.baseKey}>
+                                <SidebarMenuSubButton
+                                  asChild
+                                  isActive={
+                                    pathname === g.queuePath || pathname.startsWith(`${g.queuePath}/`)
+                                  }
+                                  className="font-medium h-auto min-h-7 flex-col items-stretch gap-0.5 py-1.5 whitespace-normal"
+                                >
+                                  <Link
+                                    href={g.queuePath}
+                                    title={
+                                      g.isInactive
+                                        ? `${g.productTitle} (Inactive)`
+                                        : g.productTitle
+                                    }
+                                    className="flex min-w-0 flex-col gap-0.5"
+                                  >
+                                    <span className="truncate text-sm leading-tight">{g.productTitle}</span>
+                                    {g.isInactive ? (
+                                      <span className="text-xs font-normal leading-none text-muted-foreground">
+                                        Inactive
+                                      </span>
+                                    ) : null}
                                   </Link>
                                 </SidebarMenuSubButton>
                               </SidebarMenuSubItem>
