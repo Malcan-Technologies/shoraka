@@ -1558,10 +1558,6 @@ export function BusinessSection({
                       ? pendingGuarantorCtos.icNumber || "—"
                       : pendingGuarantorCtos.ssmNumber || "—"}
                   </p>
-                  <p className="m-0">
-                    <span className="font-medium text-foreground">Subject ref:</span>{" "}
-                    {ctosSubjectReportLookupKeyFromGuarantor(pendingGuarantorCtos) ?? "—"}
-                  </p>
                 </>
               ) : null}
             </div>

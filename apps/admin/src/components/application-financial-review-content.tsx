@@ -2452,10 +2452,6 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                       <span className="font-medium text-foreground">Name:</span> {subjectCtosConfirm.row.name}
                     </p>
                     <p className="m-0">
-                      <span className="font-medium text-foreground">Subject ref:</span>{" "}
-                      {ctosSubjectRefForRequest(subjectCtosConfirm.row) ?? "—"}
-                    </p>
-                    <p className="m-0">
                       <span className="font-medium text-foreground">Kind:</span>{" "}
                       {subjectCtosConfirm.row.subjectKind ?? "—"}
                     </p>
