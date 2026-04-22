@@ -51,6 +51,7 @@ type ApplicationNavGroup = {
   baseKey: string;
   productTitle: string;
   queuePath: string;
+  isInactive: boolean;
 };
 
 function buildApplicationSidebarGroups(
@@ -79,8 +80,9 @@ function buildApplicationSidebarGroups(
 
     groups.push({
       baseKey,
-      productTitle: `${productName(display)}${isLive ? "" : " [Inactive]"}`,
+      productTitle: productName(display),
       queuePath: `/applications/${baseKey}`,
+      isInactive: !isLive,
     });
   }
 
@@ -93,8 +95,9 @@ function buildApplicationSidebarGroups(
     if (appsFor.length === 0) continue;
     groups.push({
       baseKey,
-      productTitle: `${appsFor[0]?.financingTypeLabel ?? "Product"} [Inactive]`,
+      productTitle: appsFor[0]?.financingTypeLabel ?? "Product",
       queuePath: `/applications/${baseKey}`,
+      isInactive: true,
     });
   }
 
@@ -261,10 +264,23 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                                   isActive={
                                     pathname === g.queuePath || pathname.startsWith(`${g.queuePath}/`)
                                   }
-                                  className="font-medium"
+                                  className="font-medium h-auto min-h-7 flex-col items-stretch gap-0.5 py-1.5 whitespace-normal"
                                 >
-                                  <Link href={g.queuePath}>
-                                    <span className="truncate">{g.productTitle}</span>
+                                  <Link
+                                    href={g.queuePath}
+                                    title={
+                                      g.isInactive
+                                        ? `${g.productTitle} (Inactive)`
+                                        : g.productTitle
+                                    }
+                                    className="flex min-w-0 flex-col gap-0.5"
+                                  >
+                                    <span className="truncate text-sm leading-tight">{g.productTitle}</span>
+                                    {g.isInactive ? (
+                                      <span className="text-xs font-normal leading-none text-muted-foreground">
+                                        Inactive
+                                      </span>
+                                    ) : null}
                                   </Link>
                                 </SidebarMenuSubButton>
                               </SidebarMenuSubItem>
