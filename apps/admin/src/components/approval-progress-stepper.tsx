@@ -74,8 +74,24 @@ export function ApprovalProgressStepper({ steps, className }: ApprovalProgressSt
   );
 }
 
+/** CTOS step is complete only when DB says SSM is done and org has left the CTOS gate. */
+function companyCtosStepCompleted(onboardingStatus: string, ssmApproved: boolean): boolean {
+  if (!ssmApproved) {
+    return false;
+  }
+  if (["PENDING", "IN_PROGRESS", "PENDING_SSM_REVIEW"].includes(onboardingStatus)) {
+    return false;
+  }
+  return true;
+}
+
 // Helper function to generate steps for Personal onboarding
-export function getPersonalOnboardingSteps(status: string): ApprovalStep[] {
+export function getPersonalOnboardingSteps(onboardingStatus: string): ApprovalStep[] {
+  const status =
+    onboardingStatus === "PENDING" || onboardingStatus === "IN_PROGRESS"
+      ? "PENDING_ONBOARDING"
+      : onboardingStatus;
+
   const steps: ApprovalStep[] = [
     {
       id: "review",
@@ -107,6 +123,9 @@ export function getPersonalOnboardingSteps(status: string): ApprovalStep[] {
     case "PENDING_ONBOARDING":
       steps[1].status = "current";
       break;
+    case "PENDING_SSM_REVIEW":
+      steps[1].status = "current";
+      break;
     case "PENDING_APPROVAL":
       steps[1].status = "current";
       break;
@@ -134,7 +153,14 @@ export function getPersonalOnboardingSteps(status: string): ApprovalStep[] {
 }
 
 // Helper function to generate steps for Company onboarding
-export function getCompanyOnboardingSteps(status: string): ApprovalStep[] {
+export function getCompanyOnboardingSteps(onboardingStatus: string, ssmApproved: boolean): ApprovalStep[] {
+  const status =
+    onboardingStatus === "PENDING" || onboardingStatus === "IN_PROGRESS"
+      ? "PENDING_ONBOARDING"
+      : onboardingStatus;
+
+  const ctosDone = companyCtosStepCompleted(status, ssmApproved);
+
   const steps: ApprovalStep[] = [
     {
       id: "review",
@@ -176,25 +202,26 @@ export function getCompanyOnboardingSteps(status: string): ApprovalStep[] {
       break;
     case "PENDING_SSM_REVIEW":
       steps[0].status = "completed";
-      steps[1].status = "current";
+      steps[1].status = ctosDone ? "completed" : "current";
+      steps[2].status = ctosDone ? "current" : "pending";
       break;
     case "PENDING_APPROVAL":
       steps[0].status = "completed";
-      steps[1].status = "completed";
-      steps[2].status = "current";
+      steps[1].status = ctosDone ? "completed" : "current";
+      steps[2].status = ctosDone ? "current" : "pending";
       break;
     case "PENDING_AML":
       steps[0].status = "completed";
-      steps[1].status = "completed";
-      steps[2].status = "completed";
-      steps[3].status = "current";
+      steps[1].status = ctosDone ? "completed" : "current";
+      steps[2].status = ctosDone ? "completed" : "pending";
+      steps[3].status = ctosDone ? "current" : "pending";
       break;
     case "PENDING_FINAL_APPROVAL":
       steps[0].status = "completed";
-      steps[1].status = "completed";
-      steps[2].status = "completed";
-      steps[3].status = "completed";
-      steps[4].status = "current";
+      steps[1].status = ctosDone ? "completed" : "current";
+      steps[2].status = ctosDone ? "completed" : "pending";
+      steps[3].status = ctosDone ? "completed" : "pending";
+      steps[4].status = ctosDone ? "current" : "pending";
       break;
     case "COMPLETED":
       steps[0].status = "completed";

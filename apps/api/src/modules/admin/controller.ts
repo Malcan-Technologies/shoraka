@@ -1772,6 +1772,38 @@ router.post(
 );
 
 /**
+ * POST /admin/onboarding-applications/:id/approve-onboarding
+ * Records admin onboarding approval; sets onboarding_approved and moves org to PENDING_AML.
+ */
+router.post(
+  "/onboarding-applications/:id/approve-onboarding",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+
+      if (!id) {
+        throw new AppError(400, "VALIDATION_ERROR", "Onboarding ID is required");
+      }
+
+      if (!req.user) {
+        throw new AppError(401, "UNAUTHORIZED", "User not authenticated");
+      }
+
+      const result = await adminService.approveOnboardingSubmission(req, id, req.user.user_id);
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+/**
  * POST /admin/onboarding-applications/:id/refresh-corporate-status
  * Refresh corporate onboarding status by fetching latest director KYC statuses from RegTank
  */

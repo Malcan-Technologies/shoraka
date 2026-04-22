@@ -783,6 +783,19 @@ export class ApiClient {
     }>(`/v1/admin/onboarding-applications/${onboardingId}/approve-ssm`, {});
   }
 
+  async approveOnboardingSubmission(onboardingId: string): Promise<
+    | ApiResponse<{
+      success: boolean;
+      message: string;
+    }>
+    | ApiError
+  > {
+    return this.post<{
+      success: boolean;
+      message: string;
+    }>(`/v1/admin/onboarding-applications/${onboardingId}/approve-onboarding`, {});
+  }
+
   // Refresh corporate onboarding status by fetching latest director KYC statuses
   async refreshCorporateStatus(onboardingId: string): Promise<
     | ApiResponse<{

@@ -4,9 +4,7 @@ import { logger } from "../../../lib/logger";
 import { RegTankRepository } from "../repository";
 import { AmlIdentityRepository } from "../aml-identity-repository";
 import { OrganizationRepository } from "../../organization/repository";
-import { AuthRepository } from "../../auth/repository";
 import { getRegTankAPIClient } from "../api-client";
-import { OnboardingStatus, UserRole } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import type { PortalType } from "../types";
@@ -22,7 +20,6 @@ import { syncApplicationGuarantorsFromRegTankAmlWebhook } from "../../admin/guar
 export class KYBWebhookHandler extends BaseWebhookHandler {
   private repository: RegTankRepository;
   private organizationRepository: OrganizationRepository;
-  private authRepository: AuthRepository;
   private amlIdentityRepository: AmlIdentityRepository;
   private apiClient: ReturnType<typeof getRegTankAPIClient>;
   private provider: "ACURIS" | "DOWJONES";
@@ -31,7 +28,6 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
     super();
     this.repository = new RegTankRepository();
     this.organizationRepository = new OrganizationRepository();
-    this.authRepository = new AuthRepository();
     this.amlIdentityRepository = new AmlIdentityRepository();
     this.apiClient = getRegTankAPIClient();
     this.provider = provider;
@@ -210,210 +206,17 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
       const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
 
       if (statusUpper === "APPROVED" && organizationId && isCorporateOnboarding) {
-        try {
-          logger.info(
-            {
-              kybRequestId: requestId,
-              onboardingRequestId: onboarding.request_id,
-              organizationId,
-              portalType,
-              riskLevel,
-              riskScore,
-            },
-            "[KYB Webhook] Processing KYB approval for corporate onboarding — setting org status after AML"
-          );
-
-          if (portalType === "investor") {
-            const org = await this.organizationRepository.findInvestorOrganizationById(organizationId);
-            if (org) {
-              const previousStatus = org.onboarding_status;
-              const nextOrgStatusAfterKybAml = org.ssm_approved
-                ? OnboardingStatus.PENDING_FINAL_APPROVAL
-                : OnboardingStatus.PENDING_SSM_REVIEW;
-              await prisma.investorOrganization.update({
-                where: { id: organizationId },
-                data: {
-                  onboarding_status: nextOrgStatusAfterKybAml,
-                  aml_approved: true,
-                },
-              });
-
-            // Create onboarding log
-            try {
-              const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
-              await this.authRepository.createOnboardingLog({
-                userId: onboarding.user_id,
-                role: UserRole.INVESTOR,
-                eventType: isCorporateOnboarding ? "AML_APPROVED" : "KYB_APPROVED",
-                portal: portalType,
-                organizationName: org.name || undefined,
-                investorOrganizationId: organizationId,
-                issuerOrganizationId: undefined,
-                metadata: {
-                  organizationId,
-                  kybRequestId: requestId,
-                  onboardingRequestId: onboarding.request_id,
-                  previousStatus,
-                  newStatus: nextOrgStatusAfterKybAml,
-                  trigger: "KYB_APPROVED",
-                  riskLevel,
-                  riskScore,
-                  isCorporateOnboarding,
-                },
-              });
-            } catch (logError) {
-              logger.error(
-                {
-                  error: logError instanceof Error ? logError.message : String(logError),
-                  organizationId,
-                  kybRequestId: requestId,
-                },
-                "[KYB Webhook] Failed to create KYB_APPROVED log (non-blocking)"
-              );
-            }
-              // Create onboarding log
-              try {
-                const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
-                await this.authRepository.createOnboardingLog({
-                  userId: onboarding.user_id,
-                  role: UserRole.INVESTOR,
-                  eventType: isCorporateOnboarding ? "AML_APPROVED" : "KYB_APPROVED",
-                  portal: portalType,
-                  metadata: {
-                    organizationId,
-                    kybRequestId: requestId,
-                    onboardingRequestId: onboarding.request_id,
-                    previousStatus,
-                    newStatus: nextOrgStatusAfterKybAml,
-                    trigger: "KYB_APPROVED",
-                    riskLevel,
-                    riskScore,
-                    isCorporateOnboarding,
-                  },
-                });
-              } catch (logError) {
-                logger.error(
-                  {
-                    error: logError instanceof Error ? logError.message : String(logError),
-                    organizationId,
-                    kybRequestId: requestId,
-                  },
-                  "[KYB Webhook] Failed to create KYB_APPROVED log (non-blocking)"
-                );
-              }
-
-              logger.info(
-                {
-                  kybRequestId: requestId,
-                  onboardingRequestId: onboarding.request_id,
-                  organizationId,
-                  previousStatus,
-                  newStatus: nextOrgStatusAfterKybAml,
-                },
-                "[KYB Webhook] ✓ Updated investor organization status after KYB AML approval"
-              );
-            }
-          } else {
-            const org = await this.organizationRepository.findIssuerOrganizationById(organizationId);
-            if (org) {
-              const previousStatus = org.onboarding_status;
-              const nextOrgStatusAfterKybAml = org.ssm_checked
-                ? OnboardingStatus.PENDING_FINAL_APPROVAL
-                : OnboardingStatus.PENDING_SSM_REVIEW;
-              await prisma.issuerOrganization.update({
-                where: { id: organizationId },
-                data: {
-                  onboarding_status: nextOrgStatusAfterKybAml,
-                  aml_approved: true,
-                },
-              });
-
-            // Create onboarding log
-            try {
-              const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
-              await this.authRepository.createOnboardingLog({
-                userId: onboarding.user_id,
-                role: UserRole.ISSUER,
-                eventType: isCorporateOnboarding ? "AML_APPROVED" : "KYB_APPROVED",
-                portal: portalType,
-                organizationName: org.name || undefined,
-                investorOrganizationId: undefined,
-                issuerOrganizationId: organizationId,
-                metadata: {
-                  organizationId,
-                  kybRequestId: requestId,
-                  onboardingRequestId: onboarding.request_id,
-                  previousStatus,
-                  newStatus: nextOrgStatusAfterKybAml,
-                  trigger: "KYB_APPROVED",
-                  riskLevel,
-                  riskScore,
-                },
-              });
-            } catch (logError) {
-              logger.error(
-                {
-                  error: logError instanceof Error ? logError.message : String(logError),
-                  organizationId,
-                  kybRequestId: requestId,
-                },
-                "[KYB Webhook] Failed to create KYB_APPROVED log (non-blocking)"
-              );
-            }
-              // Create onboarding log
-              try {
-                const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
-                await this.authRepository.createOnboardingLog({
-                  userId: onboarding.user_id,
-                  role: UserRole.ISSUER,
-                  eventType: isCorporateOnboarding ? "AML_APPROVED" : "KYB_APPROVED",
-                  portal: portalType,
-                  metadata: {
-                    organizationId,
-                    kybRequestId: requestId,
-                    onboardingRequestId: onboarding.request_id,
-                    previousStatus,
-                    newStatus: nextOrgStatusAfterKybAml,
-                    trigger: "KYB_APPROVED",
-                    riskLevel,
-                    riskScore,
-                  },
-                });
-              } catch (logError) {
-                logger.error(
-                  {
-                    error: logError instanceof Error ? logError.message : String(logError),
-                    organizationId,
-                    kybRequestId: requestId,
-                  },
-                  "[KYB Webhook] Failed to create KYB_APPROVED log (non-blocking)"
-                );
-              }
-
-              logger.info(
-                {
-                  kybRequestId: requestId,
-                  onboardingRequestId: onboarding.request_id,
-                  organizationId,
-                  previousStatus,
-                  newStatus: nextOrgStatusAfterKybAml,
-                },
-                "[KYB Webhook] ✓ Updated issuer organization status after KYB AML approval"
-              );
-            }
-          }
-        } catch (error) {
-          logger.error(
-            {
-              error: error instanceof Error ? error.message : String(error),
-              organizationId,
-              portalType,
-              kybRequestId: requestId,
-            },
-            "[KYB Webhook] Failed to update organization status after KYB approval (non-blocking)"
-          );
-          // Don't throw - allow webhook to complete even if organization update fails
-        }
+        logger.info(
+          {
+            kybRequestId: requestId,
+            onboardingRequestId: onboarding.request_id,
+            organizationId,
+            portalType,
+            riskLevel,
+            riskScore,
+          },
+          "[KYB Webhook] KYB APPROVED (corporate); org onboarding_status and aml_approved unchanged (admin-driven AML)"
+        );
       } else if (statusUpper === "APPROVED" && organizationId) {
         // For non-corporate onboarding, KYB approval may have different handling
         logger.debug(

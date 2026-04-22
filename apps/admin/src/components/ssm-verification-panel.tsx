@@ -703,7 +703,7 @@ export function SSMVerificationPanel({
     );
   }
 
-  const isAlreadyVerified = application.ssmVerified;
+  const isAlreadyVerified = application.ssmApproved;
   const { company } = comparison;
 
   return (
