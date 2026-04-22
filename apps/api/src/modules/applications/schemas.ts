@@ -2,6 +2,7 @@
  * Guide: docs/guides/application-flow/financial-statements-step.md — Financial statements step schema and field mappings
  */
 
+import { isRegtankIso3166Code } from "@cashsouk/types";
 import { z } from "zod";
 
 /**
@@ -66,6 +67,15 @@ const whyRaisingFundsSchema = z.object({
     .default([]),
 });
 
+const guarantorAgreementSchema = z
+  .object({
+    file_name: z.string().min(1),
+    file_size: z.number().int().nonnegative(),
+    s3_key: z.string().min(1),
+    uploaded_at: z.string().optional(),
+  })
+  .strict();
+
 const guarantorIndividualSchema = z.object({
   guarantor_type: z.literal("individual"),
   reference_id: z.string().min(1),
@@ -78,6 +88,15 @@ const guarantorIndividualSchema = z.object({
     .refine((s) => s.replace(/\D/g, "").length === 12, {
       message: "IC number must be 12 digits",
     }),
+  /** RegTank appendix A: ISO 3166 alpha-2 (e.g. MY). */
+  nationality: z
+    .string()
+    .min(1, "Nationality is required")
+    .transform((s) => s.trim().toUpperCase())
+    .refine((c) => c.length === 2 && isRegtankIso3166Code(c), {
+      message: "Nationality must be a valid RegTank ISO 3166 country code",
+    }),
+  guarantor_agreement: guarantorAgreementSchema.optional(),
 });
 
 const guarantorCompanySchema = z.object({
@@ -86,6 +105,7 @@ const guarantorCompanySchema = z.object({
   email: z.string().email(),
   business_name: z.string().min(1).max(200),
   ssm_number: z.string().min(1).max(50),
+  guarantor_agreement: guarantorAgreementSchema.optional(),
 });
 
 const guarantorEntrySchema = z.discriminatedUnion("guarantor_type", [

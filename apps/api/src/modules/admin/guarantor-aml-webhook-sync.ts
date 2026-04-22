@@ -44,7 +44,7 @@ export interface RegTankGuarantorAmlWebhookFields {
 }
 
 /**
- * When RegTank sends KYC/DJKYC or KYB/DJKYB webhooks with referenceId = application guarantor
+ * When RegTank sends KYC or KYB webhooks with referenceId = application guarantor
  * `client_guarantor_id`, persist screening snapshot on `metadata.aml_screening` and update AML columns.
  */
 export async function syncApplicationGuarantorsFromRegTankAmlWebhook(

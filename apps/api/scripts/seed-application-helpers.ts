@@ -143,6 +143,7 @@ export function buildBusinessDetails(): Record<string, unknown> {
         email: "ahmad.hassan@example.com",
         name: "Ahmad Hassan",
         ic_number: "850315101234",
+        nationality: "MY",
       },
       {
         reference_id: "g-company-abc1234567a",

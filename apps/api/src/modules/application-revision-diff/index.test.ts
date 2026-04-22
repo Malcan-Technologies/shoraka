@@ -87,6 +87,82 @@ describe("summarizeResubmitSnapshotDiff", () => {
     expect(contractFc?.next_value).toContain("2");
   });
 
+  it("detects guarantor agreement changes under business_details.guarantors (not in business_details JSON)", () => {
+    const gPrev = {
+      id: "ag-old",
+      client_guarantor_id: "g-1",
+      position: 0,
+      guarantor_type: "individual",
+      email: "a@example.com",
+      name: "Jane",
+      ic_number: "900101101234",
+      updated_at: new Date("2024-01-01"),
+      source_data: {
+        nationality: "MY",
+        guarantor_agreement: { s3_key: "old/key.pdf", file_name: "old.pdf", file_size: 100 },
+      },
+    };
+    const gNext = {
+      ...gPrev,
+      id: "ag-new",
+      updated_at: new Date("2026-01-01"),
+      source_data: {
+        nationality: "MY",
+        guarantor_agreement: { s3_key: "new/key.pdf", file_name: "new.pdf", file_size: 200 },
+      },
+    };
+    const prev = {
+      application: { ...baseApp, business_details: { declaration_confirmed: true }, guarantors: [gPrev] },
+      contract: null,
+      invoices: [],
+    };
+    const next = {
+      application: { ...baseApp, business_details: { declaration_confirmed: true }, guarantors: [gNext] },
+      contract: null,
+      invoices: [],
+    };
+    const s = summarizeResubmitSnapshotDiff(prev, next);
+    const guarantorRollup = s.field_changes.filter((f) => f.path === "business_details.guarantors");
+    expect(guarantorRollup).toHaveLength(1);
+    expect(guarantorRollup[0]?.field_label).toBe("Guarantor details");
+    expect(s.activitySummary).toContain("• Business details: Guarantor details");
+    expect(s.activitySummary).not.toContain("S3");
+    expect(s.changedSectionKeys).toContain("business_details");
+    expect(s.activitySummary).toContain("Business details");
+    expect(s.activitySummary).not.toContain("none detected");
+  });
+
+  it("ignores guarantor row id / updated_at-only drift after strip", () => {
+    const row = {
+      id: "ag-1",
+      client_guarantor_id: "g-1",
+      position: 0,
+      guarantor_type: "individual",
+      email: "a@example.com",
+      name: "Jane",
+      ic_number: "900101101234",
+      updated_at: new Date("2024-01-01"),
+      source_data: {
+        nationality: "MY",
+        guarantor_agreement: { s3_key: "k.pdf", file_name: "a.pdf", file_size: 1 },
+      },
+    };
+    const rowB = { ...row, id: "ag-2", updated_at: new Date("2026-06-06") };
+    const prev = {
+      application: { ...baseApp, guarantors: [row] },
+      contract: null,
+      invoices: [],
+    };
+    const next = {
+      application: { ...baseApp, guarantors: [rowB] },
+      contract: null,
+      invoices: [],
+    };
+    const s = summarizeResubmitSnapshotDiff(prev, next);
+    expect(s.field_changes.filter((f) => f.path.includes("guarantors"))).toHaveLength(0);
+    expect(s.activitySummary).toContain("none detected");
+  });
+
   it("drops invoice rows when only non-UI fields (e.g. status) differ", () => {
     const invId = "inv-1";
     const prev = {

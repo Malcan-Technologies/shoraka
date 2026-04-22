@@ -6,7 +6,6 @@ import { YesNoRadioDisplay } from "@cashsouk/ui";
 import { formatCurrency } from "@cashsouk/config";
 import {
   ArrowDownTrayIcon,
-  ArrowPathIcon,
   ArrowTopRightOnSquareIcon,
   ChevronDownIcon,
   ChevronRightIcon,
@@ -62,8 +61,13 @@ import {
   businessSupportingDocsToChips,
 } from "../comparison-document-pair";
 import type { ReviewSectionId } from "../section-types";
+import {
+  kycAmlScreeningRiskLevelBadgeClass,
+  kycAmlScreeningStatusBadgeClass,
+} from "@/lib/kyc-aml-screening-badge-classes";
 import { cn } from "@/lib/utils";
 import { CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
+import { regtankNationalityDisplayLabel } from "@cashsouk/types";
 import {
   ComparisonFieldRow,
   ComparisonYesNoRadioRow,
@@ -95,7 +99,6 @@ export interface BusinessSectionProps {
   onReject: (section: ReviewSectionId) => void;
   onRequestAmendment: (section: ReviewSectionId) => void;
   onTriggerGuarantorAml?: (guarantorId: string) => Promise<void> | void;
-  onRefreshAllGuarantorAml?: () => Promise<void> | void;
   onViewDocument: (s3Key: string) => void;
   onDownloadDocument: (s3Key: string, fileName?: string) => void;
   viewDocumentPending?: boolean;
@@ -117,11 +120,11 @@ const REGTANK_PORTAL_BASE_URL =
   typeof process !== "undefined" ? (process.env.NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL ?? "").trim() : "";
 
 /**
- * Opens the Dow Jones screening result in the RegTank portal.
- * Individual: /app/dj-kyc/result/{requestId}
- * Company: /app/dj-kyb/screen-djkyb/result/{requestId}
+ * Opens Acuris KYC/KYB screening results in the RegTank client portal.
+ * Individual: /app/screen-kyc/result/{requestId}
+ * Company: /app/screen-kyb/result/{requestId}
  */
-function regTankDjScreeningResultUrl(
+function regTankAcurisScreeningResultUrl(
   portalBaseUrl: string,
   guarantorKind: "individual" | "company",
   requestId: string | undefined
@@ -130,9 +133,9 @@ function regTankDjScreeningResultUrl(
   if (!base || !requestId) return undefined;
   const enc = encodeURIComponent(requestId);
   if (guarantorKind === "company") {
-    return `${base}/app/dj-kyb/screen-djkyb/result/${enc}`;
+    return `${base}/app/screen-kyb/result/${enc}`;
   }
-  return `${base}/app/dj-kyc/result/${enc}`;
+  return `${base}/app/screen-kyc/result/${enc}`;
 }
 
 function RegTankGuarantorLinkButton({
@@ -217,13 +220,20 @@ function RegTankGuarantorControlRow({
       ) : guarantor ? (
         (() => {
           const aml = amlByKey.get(buildGuarantorAmlKey(guarantor));
+          const screeningRequestId = aml?.amlScreening?.requestId;
+          const hasScreeningStarted = Boolean(
+            aml?.requestId || screeningRequestId || aml?.regtankPortalUrl
+          );
           const resultUrl =
-            regTankDjScreeningResultUrl(REGTANK_PORTAL_BASE_URL, guarantor.kind, aml?.requestId) ??
-            aml?.regtankPortalUrl;
+            regTankAcurisScreeningResultUrl(
+              REGTANK_PORTAL_BASE_URL,
+              guarantor.kind,
+              aml?.requestId ?? screeningRequestId
+            ) ?? aml?.regtankPortalUrl;
           const viewDisabledReason = !resultUrl
-            ? !aml?.requestId
+            ? !aml?.requestId && !screeningRequestId
               ? "Start AML screening first, or configure NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL."
-              : "Configure NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL to open Dow Jones results in RegTank."
+              : "Configure NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL to open Acuris screening in RegTank."
             : undefined;
           return (
             <>
@@ -232,7 +242,14 @@ function RegTankGuarantorControlRow({
                 variant="outline"
                 size="sm"
                 className="gap-1.5 h-9 shrink-0 px-3 text-sm"
-                disabled={!onTriggerGuarantorAml || !guarantor.email}
+                disabled={!onTriggerGuarantorAml || !guarantor.email || hasScreeningStarted}
+                title={
+                  hasScreeningStarted
+                    ? "AML screening has already been started for this guarantor."
+                    : !guarantor.email
+                      ? "Guarantor email is required to start AML screening."
+                      : undefined
+                }
                 onClick={(e) => {
                   e.stopPropagation();
                   void onTriggerGuarantorAml?.(guarantor.referenceId);
@@ -255,21 +272,25 @@ function RegTankGuarantorControlRow({
   );
 }
 
+type GuarantorAgreementFile = { s3Key: string; fileName: string; fileSize?: number };
+
 type GuarantorReviewRow =
-  | {
+  | ({
       kind: "individual";
       referenceId: string;
       name: string;
       icNumber: string;
+      /** RegTank ISO 3166 alpha-2; empty if legacy row. */
+      nationalityCode: string;
       email: string;
-    }
-  | {
+    } & { guarantorAgreement?: GuarantorAgreementFile })
+  | ({
       kind: "company";
       referenceId: string;
       businessName: string;
       ssmNumber: string;
       email: string;
-    };
+    } & { guarantorAgreement?: GuarantorAgreementFile });
 
 /**
  * SECTION: CTOS subject key + lookup for guarantors
@@ -366,6 +387,7 @@ interface RelationalGuarantorEntry {
   ssm_number?: string | null;
   guarantor?: Record<string, unknown> | null;
   aml_screening?: unknown;
+  source_data?: unknown;
 }
 
 /** Normalized view model for Business Details review. Supports snake_case and camelCase from API/DB. */
@@ -421,6 +443,54 @@ function deterministicGuarantorId(
   return `g-${kind}-${safeToken(icOrSsm || `idx${index + 1}`)}`;
 }
 
+function parseGuarantorAgreementField(raw: unknown): GuarantorAgreementFile | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const o = raw as Record<string, unknown>;
+  const s3Key = reviewStr(o.s3_key ?? o.s3Key);
+  if (!s3Key) return undefined;
+  const fileName =
+    reviewStr(o.file_name ?? o.fileName) || "Guarantor agreement.pdf";
+  const sz = o.file_size ?? o.fileSize;
+  const fileSize =
+    typeof sz === "number" && Number.isFinite(sz) && sz > 0 ? sz : undefined;
+  return { s3Key, fileName, ...(fileSize != null ? { fileSize } : {}) };
+}
+
+function guarantorNationalityCodeFromRelational(
+  entry: RelationalGuarantorEntry,
+  g: Record<string, unknown>
+): string {
+  const two = (v: unknown) => {
+    const s = reviewStr(v).toUpperCase();
+    return s.length === 2 ? s : "";
+  };
+  const fromG = two(g.nationality ?? g.nationality_code);
+  if (fromG) return fromG;
+  const entryRec = entry as Record<string, unknown>;
+  const src = entryRec.source_data ?? entryRec.sourceData;
+  if (isPlainObjectRecord(src)) {
+    const fromSrc = two(src.nationality ?? src.nationality_code);
+    if (fromSrc) return fromSrc;
+  }
+  return "";
+}
+
+function guarantorAgreementFromRelationalEntry(
+  entry: RelationalGuarantorEntry,
+  g: Record<string, unknown>
+): GuarantorAgreementFile | undefined {
+  const direct = parseGuarantorAgreementField(
+    g.guarantor_agreement ?? g.guarantorAgreement
+  );
+  if (direct) return direct;
+  const entryRec = entry as Record<string, unknown>;
+  const src = entryRec.source_data ?? entryRec.sourceData;
+  if (!isPlainObjectRecord(src)) return undefined;
+  return parseGuarantorAgreementField(
+    src.guarantor_agreement ?? src.guarantorAgreement
+  );
+}
+
 function parseGuarantors(raw: unknown): GuarantorReviewRow[] {
   if (!raw || !Array.isArray(raw)) return [];
   const rows: GuarantorReviewRow[] = [];
@@ -429,6 +499,9 @@ function parseGuarantors(raw: unknown): GuarantorReviewRow[] {
     if (!item || typeof item !== "object") continue;
     const o = item as Record<string, unknown>;
     const gt = o.guarantor_type ?? o.guarantorType;
+    const agreement = parseGuarantorAgreementField(
+      o.guarantor_agreement ?? o.guarantorAgreement
+    );
     const ref =
       reviewStr(o.reference_id ?? o.referenceId ?? o.guarantor_id ?? o.guarantorId) ||
       deterministicGuarantorId(
@@ -444,12 +517,16 @@ function parseGuarantors(raw: unknown): GuarantorReviewRow[] {
       const nameFromLegacy = [legacyFirst, legacyLast].filter(Boolean).join(" ").trim();
       const name = reviewStr(o.name) || nameFromLegacy;
       const gov = reviewStr(o.ic_number ?? o.icNumber ?? o.government_id_number);
+      const nationalityRaw = reviewStr(o.nationality ?? o.nationality_code).toUpperCase();
+      const nationalityCode = nationalityRaw.length === 2 ? nationalityRaw : "";
       rows.push({
         kind: "individual",
         referenceId: ref,
         name,
         icNumber: gov,
+        nationalityCode,
         email: normalizeEmail(o.email),
+        ...(agreement ? { guarantorAgreement: agreement } : {}),
       });
     } else if (gt === "company") {
       rows.push({
@@ -458,6 +535,7 @@ function parseGuarantors(raw: unknown): GuarantorReviewRow[] {
         businessName: reviewStr(o.business_name ?? o.businessName ?? o.company_name ?? o.companyName),
         ssmNumber: reviewStr(o.ssm_number ?? o.ssmNumber ?? o.business_id_number),
         email: normalizeEmail(o.email),
+        ...(agreement ? { guarantorAgreement: agreement } : {}),
       });
     }
   }
@@ -545,6 +623,7 @@ function parseGuarantorAmlEntries(raw: unknown): GuarantorAmlEntry[] {
     const linkId = reviewStr(row.id) || reviewStr(g.id);
     const referenceId =
       reviewStr(row.client_guarantor_id ?? g.client_guarantor_id) || linkId;
+    const entryForNationality = item as RelationalGuarantorEntry;
     const reviewRow: GuarantorReviewRow =
       guarantorType === "individual"
         ? {
@@ -554,6 +633,7 @@ function parseGuarantorAmlEntries(raw: unknown): GuarantorAmlEntry[] {
               reviewStr(g.name) ||
               [reviewStr(g.first_name), reviewStr(g.last_name)].filter(Boolean).join(" ").trim(),
             icNumber: reviewStr(g.ic_number ?? g.government_id_number),
+            nationalityCode: guarantorNationalityCodeFromRelational(entryForNationality, g),
             email: normalizeEmail(g.email),
           }
         : {
@@ -595,7 +675,8 @@ function parseGuarantorAmlEntries(raw: unknown): GuarantorAmlEntry[] {
         reviewRow.kind === "individual" ? reviewRow.icNumber : undefined,
       businessName: reviewRow.kind === "company" ? reviewRow.businessName : undefined,
       ssmNumber: reviewRow.kind === "company" ? reviewRow.ssmNumber : undefined,
-      requestId: reviewStr(g.onboarding_request_id) || undefined,
+      requestId:
+        reviewStr(g.onboarding_request_id) || reviewStr(g.onboardingRequestId) || undefined,
       onboardingVerifyLink: reviewStr(g.onboarding_verify_link) || undefined,
       regtankPortalUrl: reviewStr(g.regtank_portal_url) || undefined,
       amlStatus: isStatusValid ? amlStatus : "Pending",
@@ -624,17 +705,21 @@ function parseRelationalGuarantors(raw: unknown): GuarantorReviewRow[] {
     if (!linkId) continue;
     const ref = reviewStr(entry.client_guarantor_id) || linkId;
     const guarantorType = g.guarantor_type === "company" ? "company" : "individual";
+    const agreement = guarantorAgreementFromRelationalEntry(entry, g);
     if (guarantorType === "individual") {
       const legacyFirst = reviewStr(g.first_name);
       const legacyLast = reviewStr(g.last_name);
       const name =
         reviewStr(g.name) || [legacyFirst, legacyLast].filter(Boolean).join(" ").trim();
+      const nationalityCode = guarantorNationalityCodeFromRelational(entry, g);
       rows.push({
         kind: "individual",
         referenceId: ref,
         name,
         icNumber: reviewStr(g.ic_number ?? g.government_id_number),
+        nationalityCode,
         email: normalizeEmail(g.email),
+        ...(agreement ? { guarantorAgreement: agreement } : {}),
       });
       continue;
     }
@@ -644,20 +729,10 @@ function parseRelationalGuarantors(raw: unknown): GuarantorReviewRow[] {
       businessName: reviewStr(g.business_name ?? g.company_name),
       ssmNumber: reviewStr(g.ssm_number ?? g.business_id_number),
       email: normalizeEmail(g.email),
+      ...(agreement ? { guarantorAgreement: agreement } : {}),
     });
   }
   return rows;
-}
-
-function guarantorScreeningStatusBadgeClass(status: string | undefined): string {
-  if (!status) return "bg-muted text-muted-foreground";
-  const s = status.toLowerCase();
-  if (s === "approved")
-    return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400";
-  if (s === "rejected") return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
-  if (s.includes("pending"))
-    return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
-  return "bg-muted text-muted-foreground";
 }
 
 function GuarantorAmlScreeningCard({ screening }: { screening: GuarantorAmlScreeningSnapshot }) {
@@ -666,8 +741,16 @@ function GuarantorAmlScreeningCard({ screening }: { screening: GuarantorAmlScree
   const hasFooter = screening.requestId || screening.screeningUpdatedAt;
   const scoreLabel = screening.riskScore?.trim() ?? "";
   const hasScore = scoreLabel.length > 0;
+  const riskLevelLabel = screening.riskLevel?.trim() ?? "";
+  const hasRiskLevel = riskLevelLabel.length > 0;
 
-  if (!screening.regtankStatus && !hasCounts && !hasFooter && !hasScore) {
+  if (
+    !screening.regtankStatus &&
+    !hasCounts &&
+    !hasFooter &&
+    !hasScore &&
+    !hasRiskLevel
+  ) {
     return null;
   }
 
@@ -682,23 +765,31 @@ function GuarantorAmlScreeningCard({ screening }: { screening: GuarantorAmlScree
       <CardHeader className="pb-2 pt-3">
         <CardTitle className="text-xs font-medium flex items-center gap-2">
           <ShieldExclamationIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          KYC/AML screening (RegTank)
+          KYC/AML screening
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 pb-3 pt-0">
-        {screening.regtankStatus || hasScore ? (
+        {screening.regtankStatus || hasRiskLevel || hasScore ? (
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
             {screening.regtankStatus ? (
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[11px] text-muted-foreground">Status</span>
-                <Badge className={guarantorScreeningStatusBadgeClass(screening.regtankStatus)}>
+                <span className="text-xs text-muted-foreground">Status:</span>
+                <Badge className={kycAmlScreeningStatusBadgeClass(screening.regtankStatus)}>
                   {screening.regtankStatus}
+                </Badge>
+              </div>
+            ) : null}
+            {hasRiskLevel ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground">Risk Level:</span>
+                <Badge className={kycAmlScreeningRiskLevelBadgeClass(screening.riskLevel)}>
+                  {riskLevelLabel}
                 </Badge>
               </div>
             ) : null}
             {hasScore ? (
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[11px] text-muted-foreground">Score</span>
+                <span className="text-xs text-muted-foreground">Risk Score:</span>
                 <Badge variant="outline" className="font-mono tabular-nums">
                   {scoreLabel}
                 </Badge>
@@ -1014,6 +1105,9 @@ function AdminGuarantorSingleList({
   createSubjectPending,
   onOpenSubjectHtml,
   onRequestGuarantorCtos,
+  onViewDocument,
+  onDownloadDocument,
+  viewDocumentPending = false,
 }: {
   guarantors: GuarantorReviewRow[];
   amlByKey: Map<string, GuarantorAmlEntry>;
@@ -1024,6 +1118,9 @@ function AdminGuarantorSingleList({
   createSubjectPending: boolean;
   onOpenSubjectHtml: (reportId: string) => void | Promise<void>;
   onRequestGuarantorCtos: (g: GuarantorReviewRow) => void;
+  onViewDocument: (s3Key: string) => void;
+  onDownloadDocument: (s3Key: string, fileName?: string) => void;
+  viewDocumentPending?: boolean;
 }) {
   const [panelOpen, setPanelOpen] = React.useState<Record<number, boolean>>({});
   const count = guarantors.length;
@@ -1101,6 +1198,9 @@ function AdminGuarantorSingleList({
               </div>
             </summary>
             <div className="px-4 pb-4 pt-3 space-y-4">
+              {aml?.amlScreening ? (
+                <GuarantorAmlScreeningCard screening={aml.amlScreening} />
+              ) : null}
               <div className={reviewRowGridClass}>
                 <Label className={reviewLabelClass}>Guarantor type</Label>
                 <ReviewValue value={guarantorKindLabel(g.kind)} />
@@ -1110,6 +1210,14 @@ function AdminGuarantorSingleList({
                     <ReviewValue value={g.name || REVIEW_EMPTY_LABEL} />
                     <Label className={reviewLabelClass}>IC number</Label>
                     <ReviewValue value={g.icNumber || REVIEW_EMPTY_LABEL} />
+                    <Label className={reviewLabelClass}>Nationality</Label>
+                    <ReviewValue
+                      value={
+                        g.nationalityCode
+                          ? regtankNationalityDisplayLabel(g.nationalityCode)
+                          : REVIEW_EMPTY_LABEL
+                      }
+                    />
                     <Label className={reviewLabelClass}>Email</Label>
                     <ReviewValue value={g.email || REVIEW_EMPTY_LABEL} />
                   </>
@@ -1123,10 +1231,41 @@ function AdminGuarantorSingleList({
                     <ReviewValue value={g.email || REVIEW_EMPTY_LABEL} />
                   </>
                 )}
+                <Label className={reviewLabelClass}>Guarantor agreement</Label>
+                <div className="min-h-0 h-9 flex items-center justify-start">
+                  {g.guarantorAgreement?.s3Key ? (
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-lg h-9 gap-1"
+                        onClick={() => onViewDocument(g.guarantorAgreement!.s3Key)}
+                        disabled={viewDocumentPending}
+                      >
+                        <ArrowTopRightOnSquareIcon className="h-4 w-4" />
+                        View
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="rounded-lg h-9 gap-1"
+                        onClick={() =>
+                          onDownloadDocument(
+                            g.guarantorAgreement!.s3Key,
+                            g.guarantorAgreement!.fileName
+                          )
+                        }
+                        disabled={viewDocumentPending}
+                      >
+                        <ArrowDownTrayIcon className="h-4 w-4" />
+                        Download
+                      </Button>
+                    </div>
+                  ) : (
+                    REVIEW_EMPTY_LABEL
+                  )}
+                </div>
               </div>
-              {aml?.amlScreening ? (
-                <GuarantorAmlScreeningCard screening={aml.amlScreening} />
-              ) : null}
             </div>
           </details>
         );
@@ -1146,6 +1285,9 @@ function AdminGuarantorComparisonList({
   createSubjectPending,
   onOpenSubjectHtml,
   onRequestGuarantorCtos,
+  onViewDocument,
+  onDownloadDocument,
+  viewDocumentPending = false,
 }: {
   b: BusinessDetailsView;
   a: BusinessDetailsView;
@@ -1157,6 +1299,9 @@ function AdminGuarantorComparisonList({
   createSubjectPending: boolean;
   onOpenSubjectHtml: (reportId: string) => void | Promise<void>;
   onRequestGuarantorCtos: (g: GuarantorReviewRow) => void;
+  onViewDocument: (s3Key: string) => void;
+  onDownloadDocument: (s3Key: string, fileName?: string) => void;
+  viewDocumentPending?: boolean;
 }) {
   const count = Math.max(b.guarantors.length, a.guarantors.length);
   const [panelOpen, setPanelOpen] = React.useState<Record<number, boolean>>({});
@@ -1288,6 +1433,20 @@ function AdminGuarantorComparisonList({
                     changed={changed}
                   />
                   <ComparisonFieldRow
+                    label="Nationality"
+                    before={
+                      gB?.kind === "individual" && gB.nationalityCode
+                        ? regtankNationalityDisplayLabel(gB.nationalityCode)
+                        : "—"
+                    }
+                    after={
+                      gA?.kind === "individual" && gA.nationalityCode
+                        ? regtankNationalityDisplayLabel(gA.nationalityCode)
+                        : "—"
+                    }
+                    changed={changed}
+                  />
+                  <ComparisonFieldRow
                     label="Email"
                     before={
                       gB?.kind === "individual"
@@ -1329,6 +1488,23 @@ function AdminGuarantorComparisonList({
                   />
                 </div>
               ) : null}
+              <ComparisonDocumentTitleRow
+                title="Guarantor agreement"
+                beforeFiles={businessSupportingDocsToChips(
+                  gB?.guarantorAgreement ? [gB.guarantorAgreement] : []
+                )}
+                afterFiles={businessSupportingDocsToChips(
+                  gA?.guarantorAgreement ? [gA.guarantorAgreement] : []
+                )}
+                markChanged={
+                  changed ||
+                  (gB?.guarantorAgreement?.s3Key ?? "") !==
+                    (gA?.guarantorAgreement?.s3Key ?? "")
+                }
+                onViewDocument={onViewDocument}
+                onDownloadDocument={onDownloadDocument}
+                viewDocumentPending={viewDocumentPending}
+              />
             </div>
           </details>
         );
@@ -1441,7 +1617,6 @@ export function BusinessSection({
   onReject,
   onRequestAmendment,
   onTriggerGuarantorAml,
-  onRefreshAllGuarantorAml,
   onViewDocument,
   onDownloadDocument,
   viewDocumentPending = false,
@@ -1752,6 +1927,9 @@ export function BusinessSection({
               createSubjectPending={createSubjectCtos.isPending}
               onOpenSubjectHtml={openSubjectHtmlReport}
               onRequestGuarantorCtos={setPendingGuarantorCtos}
+              onViewDocument={onViewDocument}
+              onDownloadDocument={onDownloadDocument}
+              viewDocumentPending={viewDocumentPending}
             />
           </ReviewFieldBlock>
         )}
@@ -1953,19 +2131,6 @@ export function BusinessSection({
 
           {view.guarantors.length > 0 && (
             <ReviewFieldBlock title="Guarantor details">
-              <div className="mb-3 flex justify-end">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5 h-9"
-                  disabled={!onRefreshAllGuarantorAml}
-                  onClick={() => void onRefreshAllGuarantorAml?.()}
-                >
-                  <ArrowPathIcon className="h-4 w-4" aria-hidden />
-                  Refresh all AML
-                </Button>
-              </div>
               <AdminGuarantorSingleList
                 guarantors={view.guarantors}
                 amlByKey={guarantorAmlByKey}
@@ -1976,6 +2141,9 @@ export function BusinessSection({
                 createSubjectPending={createSubjectCtos.isPending}
                 onOpenSubjectHtml={openSubjectHtmlReport}
                 onRequestGuarantorCtos={setPendingGuarantorCtos}
+                onViewDocument={onViewDocument}
+                onDownloadDocument={onDownloadDocument}
+                viewDocumentPending={viewDocumentPending}
               />
             </ReviewFieldBlock>
           )}

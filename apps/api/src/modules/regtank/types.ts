@@ -104,23 +104,21 @@ export interface RegTankCorporateOnboardingRequest {
   referenceId: string;
 }
 
-/**
- * Dow Jones KYC screening — POST /v3/djkyc/input
- * @see https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/3.-know-your-customer-kyc/3.9-dow-jones-kyc-endpoint-json-request
- */
-export interface RegTankDowJonesKycInputRequest {
+export interface RegTankKycScreeningInputRequest {
   name: string;
   governmentIdNumber: string;
   email: string;
   referenceId: string;
   enableReScreening: boolean;
+  /** ISO 3166 alpha-2 (RegTank appendix A), e.g. MY — required for risk assessment per RegTank KYC input. */
+  nationality: string;
 }
 
 /**
- * Dow Jones KYB screening — POST /v3/djkyb/input
- * @see https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/4.-know-your-business-kyb/4.12-dow-jones-kyb-endpoint-json-request
+ * Acuris KYB screening — POST /v3/kyb/input
+ * @see https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/4.-know-your-business-kyb
  */
-export interface RegTankDowJonesKybInputRequest {
+export interface RegTankKybScreeningInputRequest {
   businessName: string;
   businessIdNumber: string;
   referenceId: string;
@@ -128,10 +126,17 @@ export interface RegTankDowJonesKybInputRequest {
   enableReScreening: boolean;
 }
 
-/** Response for DJ KYC/KYB input endpoints */
-export interface RegTankDowJonesScreeningResponse {
+/** Response for POST /v3/kyc/input and POST /v3/kyb/input (and Dow Jones equivalents). */
+export interface RegTankScreeningInputResponse {
   requestId: string;
 }
+
+/** @deprecated Use RegTankKycScreeningInputRequest */
+export type RegTankDowJonesKycInputRequest = RegTankKycScreeningInputRequest;
+/** @deprecated Use RegTankKybScreeningInputRequest */
+export type RegTankDowJonesKybInputRequest = RegTankKybScreeningInputRequest;
+/** @deprecated Use RegTankScreeningInputResponse */
+export type RegTankDowJonesScreeningResponse = RegTankScreeningInputResponse;
 
 /**
  * RegTank Individual Onboarding Webhook (6.2.6)

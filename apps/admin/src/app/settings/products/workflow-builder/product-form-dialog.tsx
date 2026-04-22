@@ -55,6 +55,7 @@ import {
   FIRST_STEP_KEY,
   LAST_STEP_KEY,
   SUPPORTING_DOCS_STEP_KEY,
+  BUSINESS_DETAILS_STEP_KEY,
   normalizeWorkflow,
 } from "./product-form-helpers";
 import { INPUT_CLASS, SELECT_TRIGGER_CLASS, FIELD_GAP } from "./product-form-input-styles";
@@ -290,6 +291,16 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       await uploadFileToS3(uploadUrl, file);
       onS3KeyUploaded(s3Key);
       keys.push(s3Key);
+      if (categoryKey === "guarantor_agreement") {
+        const bdIdx = nextSteps.findIndex((s) => getStepKeyFromStepId(getStepId(s)) === BUSINESS_DETAILS_STEP_KEY);
+        if (bdIdx >= 0) {
+          const step = nextSteps[bdIdx] as Record<string, unknown>;
+          const config = { ...((step.config ?? {}) as Record<string, unknown>) };
+          config.guarantor_agreement_template = { s3_key: s3Key, file_name: file.name, file_size: file.size };
+          step.config = config;
+        }
+        continue;
+      }
       const supportIdx = nextSteps.findIndex((s) => getStepKeyFromStepId(getStepId(s)) === SUPPORTING_DOCS_STEP_KEY);
       if (supportIdx >= 0) {
         const step = nextSteps[supportIdx] as Record<string, unknown>;
@@ -437,7 +448,12 @@ const hasChanges = !isEdit
       initialById.set(getStepId(s), s);
     }
     const hasPendingImage = Boolean(pendingImageFile ?? pendingImageFileRef.current);
-    const hasPendingTemplates = Object.keys(pendingSupportingDocTemplates).length > 0;
+    const pendingSupportingOnly = Object.keys(pendingSupportingDocTemplates).filter(
+      (k) => !k.startsWith("guarantor_agreement_")
+    );
+    const pendingGuarantorAgreementOnly = Object.keys(pendingSupportingDocTemplates).filter((k) =>
+      k.startsWith("guarantor_agreement_")
+    );
     const edited = new Set<string>();
     for (let i = 0; i < steps.length; i++) {
       const step = steps[i];
@@ -447,7 +463,11 @@ const hasChanges = !isEdit
         edited.add(stepId);
         continue;
       }
-      if (stepKey === SUPPORTING_DOCS_STEP_KEY && hasPendingTemplates) {
+      if (stepKey === SUPPORTING_DOCS_STEP_KEY && pendingSupportingOnly.length > 0) {
+        edited.add(stepId);
+        continue;
+      }
+      if (stepKey === BUSINESS_DETAILS_STEP_KEY && pendingGuarantorAgreementOnly.length > 0) {
         edited.add(stepId);
         continue;
       }
@@ -620,7 +640,8 @@ const hasChanges = !isEdit
                                               onPendingImageChange: handlePendingImageChange,
                                               pendingImageFile,
                                             }
-                                          : stepKey === SUPPORTING_DOCS_STEP_KEY
+                                          : stepKey === SUPPORTING_DOCS_STEP_KEY ||
+                                              stepKey === BUSINESS_DETAILS_STEP_KEY
                                             ? { onPendingTemplateChange: handlePendingSupportingDocTemplate }
                                             : undefined
                                       }

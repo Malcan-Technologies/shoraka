@@ -12,6 +12,7 @@ import { parseMoney } from "@cashsouk/ui";
 export const FIRST_STEP_KEY = "financing_type";
 export const LAST_STEP_KEY = "declarations";
 export const SUPPORTING_DOCS_STEP_KEY = "supporting_documents";
+export const BUSINESS_DETAILS_STEP_KEY = "business_details";
 export const DECLARATIONS_STEP_KEY = "declarations";
 export const INVOICE_DETAILS_STEP_KEY = "invoice_details";
 

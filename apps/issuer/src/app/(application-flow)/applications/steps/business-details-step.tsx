@@ -29,6 +29,8 @@ import { MoneyInput } from "@cashsouk/ui";
 import { parseMoney, formatMoney } from "@cashsouk/ui";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
 import { BusinessDetailsSkeleton } from "@/app/(application-flow)/applications/components/business-details-skeleton";
+import { FileDisplayBadge } from "@/app/(application-flow)/applications/components/file-display-badge";
+import { GuarantorNationalityAutocomplete } from "@/app/(application-flow)/applications/components/guarantor-nationality-autocomplete";
 import { generateBusinessDetailsData } from "@/app/(application-flow)/applications/utils/dev-data-generator";
 import {
   clampGuarantorIcInput,
@@ -46,12 +48,17 @@ import {
 import { formSelectTriggerClassName } from "@/app/(application-flow)/applications/components/form-control";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
+  ArrowDownTrayIcon,
   ChevronRightIcon,
+  CloudArrowUpIcon,
+  DocumentIcon,
   EyeIcon,
   TrashIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { CloudUpload, X, CheckCircle2 } from "lucide-react";
 import { useAuthToken } from "@cashsouk/config";
+import { isRegtankIso3166Code } from "@cashsouk/types";
 import { toast } from "sonner";
 
 /**
@@ -110,12 +117,24 @@ interface WhyRaisingFunds {
 
 type WhySupportingDocument = WhyRaisingFunds["supportingDocuments"][number];
 
+/** Signed agreement file per guarantor (optional unless product supplies a template). */
+interface GuarantorAgreementFile {
+  file_name: string;
+  file_size: number;
+  s3_key?: string;
+  uploaded_at?: string;
+  client_id?: string;
+}
+
 interface GuarantorIndividualRow {
   referenceId: string;
   guarantorType: "individual";
   name: string;
   icNumber: string;
+  /** RegTank appendix A ISO 3166 alpha-2 (e.g. MY). */
+  nationality: string;
   email: string;
+  guarantorAgreement?: GuarantorAgreementFile;
 }
 
 interface GuarantorCompanyRow {
@@ -124,6 +143,7 @@ interface GuarantorCompanyRow {
   businessName: string;
   ssmNumber: string;
   email: string;
+  guarantorAgreement?: GuarantorAgreementFile;
 }
 
 type GuarantorFormRow = GuarantorIndividualRow | GuarantorCompanyRow;
@@ -141,6 +161,7 @@ function emptyIndividualGuarantor(): GuarantorIndividualRow {
     guarantorType: "individual",
     name: "",
     icNumber: "",
+    nationality: "",
     email: "",
   };
 }
@@ -195,6 +216,13 @@ interface BusinessDetailsSnake {
         email: string;
         name: string;
         ic_number: string;
+        nationality: string;
+        guarantor_agreement?: {
+          file_name: string;
+          file_size: number;
+          s3_key: string;
+          uploaded_at?: string;
+        };
       }
     | {
         reference_id: string;
@@ -202,6 +230,12 @@ interface BusinessDetailsSnake {
         email: string;
         business_name: string;
         ssm_number: string;
+        guarantor_agreement?: {
+          file_name: string;
+          file_size: number;
+          s3_key: string;
+          uploaded_at?: string;
+        };
       }
   >;
 }
@@ -244,6 +278,108 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
+function parseGuarantorAgreementFromUnknown(raw: unknown): GuarantorAgreementFile | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const o = raw as Record<string, unknown>;
+  const file_name = String(o.file_name ?? o.fileName ?? "").trim();
+  if (!file_name) return undefined;
+  const s3 =
+    typeof o.s3_key === "string"
+      ? o.s3_key
+      : typeof o.s3Key === "string"
+        ? o.s3Key
+        : undefined;
+  return {
+    file_name,
+    file_size: Number(o.file_size ?? o.fileSize ?? 0),
+    ...(s3?.trim() ? { s3_key: s3.trim() } : {}),
+    uploaded_at:
+      typeof o.uploaded_at === "string"
+        ? o.uploaded_at
+        : typeof o.uploadedAt === "string"
+          ? o.uploadedAt
+          : undefined,
+    client_id:
+      typeof o.client_id === "string"
+        ? o.client_id
+        : typeof o.clientId === "string"
+          ? o.clientId
+          : undefined,
+  };
+}
+
+function normalizeGuarantorNationalityCode(raw: unknown): string {
+  const c = String(raw ?? "")
+    .trim()
+    .toUpperCase();
+  return c.length === 2 && isRegtankIso3166Code(c) ? c : "";
+}
+
+function legacyIndividualNameFromRecord(o: Record<string, unknown>): string {
+  const direct = String(o.name ?? o.full_name ?? o.fullName ?? "").trim();
+  if (direct) return direct;
+  const first = String(o.first_name ?? o.firstName ?? "").trim();
+  const last = String(o.last_name ?? o.lastName ?? "").trim();
+  return [first, last].filter(Boolean).join(" ").trim();
+}
+
+/** Map DB `application_guarantors` row (+ optional JSON source_data) into issuer form row. */
+function applicationGuarantorRowToFormRow(row: Record<string, unknown>): GuarantorFormRow | null {
+  const src =
+    row.source_data && typeof row.source_data === "object" && !Array.isArray(row.source_data)
+      ? (row.source_data as Record<string, unknown>)
+      : {};
+  const ref = String(row.client_guarantor_id ?? src.client_guarantor_id ?? "").trim();
+  const email = String(row.email ?? src.email ?? "").trim().toLowerCase();
+  if (!email) return null;
+  const gt = row.guarantor_type === "company" || src.guarantor_type === "company" ? "company" : "individual";
+  const pos = typeof row.position === "number" ? row.position : 0;
+  const agreement =
+    parseGuarantorAgreementFromUnknown(src.guarantor_agreement ?? src.guarantorAgreement) ??
+    parseGuarantorAgreementFromUnknown(row.guarantor_agreement);
+
+  if (gt === "company") {
+    const ssm = String(row.ssm_number ?? src.ssm_number ?? src.ssmNumber ?? "").trim();
+    const businessName = String(
+      row.business_name ?? src.business_name ?? src.businessName ?? src.company_name ?? src.companyName ?? ""
+    ).trim();
+    return {
+      referenceId: ref || stableFallbackGuarantorId(pos, "company", normalizeIdentifier(ssm)),
+      guarantorType: "company",
+      businessName,
+      ssmNumber: ssm,
+      email,
+      ...(agreement ? { guarantorAgreement: agreement } : {}),
+    };
+  }
+
+  const icRaw = String(row.ic_number ?? src.ic_number ?? src.icNumber ?? "");
+  const name = String(row.name ?? src.name ?? legacyIndividualNameFromRecord(src)).trim();
+  const nationality = normalizeGuarantorNationalityCode(
+    row.nationality ?? src.nationality ?? src.nationality_code ?? row.nationality_code
+  );
+  return {
+    referenceId: ref || stableFallbackGuarantorId(pos, "individual", normalizeIdentifier(icRaw)),
+    guarantorType: "individual",
+    name,
+    icNumber: clampGuarantorIcInput(icRaw),
+    nationality,
+    email,
+    ...(agreement ? { guarantorAgreement: agreement } : {}),
+  };
+}
+
+function guarantorsFromRelationalRows(rows: unknown): GuarantorFormRow[] {
+  if (!Array.isArray(rows) || rows.length === 0) return [];
+  const out: GuarantorFormRow[] = [];
+  for (const raw of rows) {
+    if (!raw || typeof raw !== "object") continue;
+    const mapped = applicationGuarantorRowToFormRow(raw as Record<string, unknown>);
+    if (mapped) out.push(mapped);
+  }
+  return out;
+}
+
 function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
   const basePayload: BusinessDetailsSnake = {
     about_your_business: {
@@ -269,23 +405,40 @@ function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
         })),
     },
     declaration_confirmed: p.declarationConfirmed,
-    guarantors: p.guarantors.map((g) =>
-      g.guarantorType === "individual"
-        ? {
-            reference_id: g.referenceId,
-            guarantor_type: "individual" as const,
-            email: g.email.trim().toLowerCase(),
-            name: g.name.trim(),
-            ic_number: malaysianNricDigits(g.icNumber),
-          }
-        : {
-            reference_id: g.referenceId,
-            guarantor_type: "company" as const,
-            email: g.email.trim().toLowerCase(),
-            business_name: g.businessName.trim(),
-            ssm_number: g.ssmNumber.trim(),
-          }
-    ),
+    guarantors: p.guarantors.map((g) => {
+      const agreementSnake =
+        g.guarantorAgreement &&
+        typeof g.guarantorAgreement.s3_key === "string" &&
+        g.guarantorAgreement.s3_key.trim() !== ""
+          ? {
+              file_name: g.guarantorAgreement.file_name,
+              file_size: g.guarantorAgreement.file_size ?? 0,
+              s3_key: g.guarantorAgreement.s3_key.trim(),
+              ...(g.guarantorAgreement.uploaded_at
+                ? { uploaded_at: g.guarantorAgreement.uploaded_at }
+                : {}),
+            }
+          : undefined;
+      if (g.guarantorType === "individual") {
+        return {
+          reference_id: g.referenceId,
+          guarantor_type: "individual" as const,
+          email: g.email.trim().toLowerCase(),
+          name: g.name.trim(),
+          ic_number: malaysianNricDigits(g.icNumber),
+          nationality: g.nationality.trim().toUpperCase(),
+          ...(agreementSnake ? { guarantor_agreement: agreementSnake } : {}),
+        };
+      }
+      return {
+        reference_id: g.referenceId,
+        guarantor_type: "company" as const,
+        email: g.email.trim().toLowerCase(),
+        business_name: g.businessName.trim(),
+        ssm_number: g.ssmNumber.trim(),
+        ...(agreementSnake ? { guarantor_agreement: agreementSnake } : {}),
+      };
+    }),
   };
 
   /* Always include P2P-dependent fields. When "no", set to null to preserve structure. */
@@ -302,10 +455,16 @@ function toSnakePayload(p: BusinessDetailsPayload): BusinessDetailsSnake {
   return basePayload;
 }
 
-function fromSnakeSaved(saved: BusinessDetailsSnake | Record<string, unknown> | null | undefined): BusinessDetailsPayload {
+function fromSnakeSaved(
+  saved: BusinessDetailsSnake | Record<string, unknown> | null | undefined,
+  relationalGuarantors?: unknown
+): BusinessDetailsPayload {
   const raw = saved as any;
   const a = raw?.about_your_business ?? raw?.aboutYourBusiness;
   const w = raw?.why_raising_funds ?? raw?.whyRaisingFunds;
+  const relational = guarantorsFromRelationalRows(relationalGuarantors ?? []);
+  const jsonGuarantors = parseGuarantorsFromRaw(raw?.guarantors);
+  const mergedGuarantors = relational.length > 0 ? relational : jsonGuarantors;
   return {
     aboutYourBusiness: {
       whatDoesCompanyDo: a?.what_does_company_do ?? a?.whatDoesCompanyDo ?? "",
@@ -333,7 +492,7 @@ function fromSnakeSaved(saved: BusinessDetailsSnake | Record<string, unknown> | 
         : [],
     },
     declarationConfirmed: raw?.declaration_confirmed ?? raw?.declarationConfirmed ?? false,
-    guarantors: parseGuarantorsFromRaw(raw?.guarantors),
+    guarantors: mergedGuarantors,
   };
 }
 
@@ -356,6 +515,8 @@ function parseGuarantorsFromRaw(raw: unknown): GuarantorFormRow[] {
       const govRaw = String(
         o.ic_number ?? o.icNumber ?? o.government_id_number ?? o.governmentIdNumber ?? ""
       );
+      const agreement = parseGuarantorAgreementFromUnknown(o.guarantor_agreement ?? o.guarantorAgreement);
+      const nationality = normalizeGuarantorNationalityCode(o.nationality ?? o.nationality_code);
       out.push({
         referenceId:
           ref ||
@@ -364,9 +525,12 @@ function parseGuarantorsFromRaw(raw: unknown): GuarantorFormRow[] {
         email: String(o.email ?? "").trim().toLowerCase(),
         name,
         icNumber: clampGuarantorIcInput(govRaw),
+        nationality,
+        ...(agreement ? { guarantorAgreement: agreement } : {}),
       });
     } else if (gt === "company") {
       const bizId = String(o.ssm_number ?? o.ssmNumber ?? o.business_id_number ?? o.businessIdNumber ?? "");
+      const agreement = parseGuarantorAgreementFromUnknown(o.guarantor_agreement ?? o.guarantorAgreement);
       out.push({
         referenceId:
           ref ||
@@ -375,6 +539,7 @@ function parseGuarantorsFromRaw(raw: unknown): GuarantorFormRow[] {
         email: String(o.email ?? "").trim().toLowerCase(),
         businessName: String(o.business_name ?? o.businessName ?? o.company_name ?? o.companyName ?? ""),
         ssmNumber: bizId,
+        ...(agreement ? { guarantorAgreement: agreement } : {}),
       });
     }
   }
@@ -408,9 +573,19 @@ const defaultWhy: WhyRaisingFunds = {
 
 interface BusinessDetailsStepProps {
   applicationId: string;
+  /** Business & guarantor step config from the active product workflow (e.g. guarantor agreement template). */
+  stepConfig?: Record<string, unknown>;
   onDataChange?: (data: any) => void;
   readOnly?: boolean;
 }
+
+/** Match supporting-documents-step.tsx action links (guarantor agreement row). */
+const supportingDocActionLink =
+  "inline-flex items-center justify-start gap-1.5 text-sm font-medium leading-tight whitespace-nowrap rounded-md px-0.5 py-1 -mx-0.5 w-full min-w-0";
+const supportingDocTemplateOn =
+  "text-muted-foreground hover:text-foreground cursor-pointer";
+const supportingDocUploadOn = "text-primary hover:opacity-80 cursor-pointer";
+const supportingDocActionOff = "text-muted-foreground cursor-not-allowed select-none";
 
 
 /** Helpers
@@ -584,13 +759,20 @@ function YesNoRadioGroup({
   );
 }
 
+type GuarantorRowUpdater = GuarantorFormRow | ((prev: GuarantorFormRow) => GuarantorFormRow);
+
 interface GuarantorCardFieldsProps {
   row: GuarantorFormRow;
   index: number;
   readOnly: boolean;
   hasAttemptedSave: boolean;
-  replaceGuarantorRow: (index: number, next: GuarantorFormRow) => void;
+  replaceGuarantorRow: (index: number, next: GuarantorRowUpdater) => void;
   setGuarantorTypeAt: (index: number, type: "individual" | "company") => void;
+  agreementTemplateS3Key?: string;
+  agreementRequired: boolean;
+  onDownloadAgreementTemplate: () => void | Promise<void>;
+  onSelectGuarantorAgreementFile: (file: File) => void;
+  onClearGuarantorAgreement: () => void;
 }
 
 function GuarantorCardFields({
@@ -600,8 +782,22 @@ function GuarantorCardFields({
   hasAttemptedSave,
   replaceGuarantorRow,
   setGuarantorTypeAt,
+  agreementTemplateS3Key,
+  agreementRequired,
+  onDownloadAgreementTemplate,
+  onSelectGuarantorAgreementFile,
+  onClearGuarantorAgreement,
 }: GuarantorCardFieldsProps) {
   const inputClassName = formInputClassName;
+  const agreement = row.guarantorAgreement;
+  const hasAgreementFile = Boolean(agreement?.s3_key?.trim() || agreement?.client_id);
+  const agreementInputId = `g-${index}-guarantor-agreement`;
+  const handleNationalityChange = React.useCallback(
+    (v: string) => {
+      replaceGuarantorRow(index, (prev) => ({ ...prev, nationality: v }));
+    },
+    [index, replaceGuarantorRow]
+  );
   return (
     <div className="space-y-5">
       <div className="space-y-2 w-full min-w-0">
@@ -677,6 +873,14 @@ function GuarantorCardFields({
               ) : null}
             </div>
           </div>
+          <GuarantorNationalityAutocomplete
+            id={`g-${index}-nationality`}
+            nationality={row.nationality}
+            readOnly={readOnly}
+            hasAttemptedSave={hasAttemptedSave}
+            onNationalityChange={handleNationalityChange}
+            labelClassName={labelInputClassName}
+          />
           <div className="space-y-2 w-full min-w-0">
             <Label htmlFor={`g-${index}-email`} className={labelInputClassName}>
               Email
@@ -778,12 +982,127 @@ function GuarantorCardFields({
           </div>
         </>
       )}
+
+      <div className="mt-4 border-t border-border pt-5">
+        <div className="rounded-xl border border-border bg-background px-4 py-3.5 sm:px-5 sm:py-4">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,17rem)_1fr] lg:gap-x-4 lg:items-start">
+          <div className="min-w-0 space-y-1.5">
+            <div>
+              <h3 className={cn(applicationFlowSectionTitleClassName, "leading-snug")}>
+                Guarantor Agreement
+                {agreementRequired ? (
+                  <>
+                    <span className="text-primary font-semibold" aria-hidden="true">
+                      *
+                    </span>
+                    <span className="sr-only">Required</span>
+                  </>
+                ) : null}
+              </h3>
+              <p className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                <DocumentIcon className="h-3 w-3 shrink-0 opacity-80" aria-hidden />
+                <span>One file only</span>
+              </p>
+            </div>
+          </div>
+
+          <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:gap-3 lg:items-start">
+            <div className="min-w-0 flex-1 flex flex-col gap-2 max-w-[min(100%,26rem)] lg:max-w-[min(100%,28rem)]">
+              {hasAgreementFile ? (
+                <FileDisplayBadge
+                  fileName={agreement?.file_name ?? "document.pdf"}
+                  truncate
+                  inlineChip
+                  size="sm"
+                  locked={readOnly}
+                  className={cn(
+                    "min-h-9 w-full",
+                    readOnly ? "border-border" : "bg-background border-border"
+                  )}
+                  trailing={
+                    <button
+                      type="button"
+                      disabled={readOnly}
+                      onClick={onClearGuarantorAgreement}
+                      className={cn(
+                        "shrink-0 p-0.5",
+                        readOnly
+                          ? "text-muted-foreground opacity-50 cursor-not-allowed"
+                          : "text-muted-foreground hover:text-foreground cursor-pointer"
+                      )}
+                      aria-label={`Remove ${agreement?.file_name ?? "file"}`}
+                    >
+                      <XMarkIcon className="h-3 w-3" />
+                    </button>
+                  }
+                />
+              ) : readOnly ? (
+                <span className="text-sm text-muted-foreground">—</span>
+              ) : (
+                <span className="text-sm text-muted-foreground">No file uploaded</span>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-1 w-full min-w-0 border-t border-border pt-3 lg:self-start lg:border-t-0 lg:pt-0 lg:min-w-[12rem] lg:w-[12rem] lg:shrink-0 lg:border-l lg:border-border lg:pl-3">
+              {agreementTemplateS3Key ? (
+                <button
+                  type="button"
+                  disabled={readOnly}
+                  className={cn(
+                    supportingDocActionLink,
+                    readOnly ? supportingDocActionOff : supportingDocTemplateOn
+                  )}
+                  onClick={() => {
+                    if (!readOnly) void onDownloadAgreementTemplate();
+                  }}
+                >
+                  <ArrowDownTrayIcon className="h-3.5 w-3.5 shrink-0" />
+                  Download template
+                </button>
+              ) : null}
+
+              {!hasAgreementFile ? (
+                !readOnly ? (
+                  <label
+                    htmlFor={agreementInputId}
+                    className={cn(supportingDocActionLink, supportingDocUploadOn)}
+                  >
+                    <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
+                    Upload file
+                    <Input
+                      id={agreementInputId}
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        e.currentTarget.value = "";
+                        if (file) onSelectGuarantorAgreementFile(file);
+                      }}
+                    />
+                  </label>
+                ) : (
+                  <span className={cn(supportingDocActionLink, supportingDocActionOff)}>
+                    <CloudArrowUpIcon className="h-3.5 w-3.5 shrink-0" />
+                    Upload file
+                  </span>
+                )
+              ) : null}
+            </div>
+          </div>
+        </div>
+        {hasAttemptedSave && agreementRequired && !hasAgreementFile ? (
+          <p className="text-xs text-destructive mt-2">Upload the guarantor agreement</p>
+        ) : null}
+        </div>
+      </div>
     </div>
   );
 }
 
 export function BusinessDetailsStep({
   applicationId,
+  stepConfig,
   onDataChange,
   readOnly = false,
 }: BusinessDetailsStepProps) {
@@ -801,6 +1120,10 @@ export function BusinessDetailsStep({
   const [initialWhySupportingDocuments, setInitialWhySupportingDocuments] = React.useState<
     WhySupportingDocument[]
   >([]);
+  const [pendingGuarantorAgreements, setPendingGuarantorAgreements] = React.useState<
+    Array<{ index: number; file: File; client_id: string }>
+  >([]);
+  const initialGuarantorRowsForAgreementCleanup = React.useRef<GuarantorFormRow[]>([]);
   /** Collapsible guarantor cards; index 0 defaults open until user toggles. */
   const [guarantorPanelOpen, setGuarantorPanelOpen] = React.useState<Record<number, boolean>>({});
   /** After Save and Continue: show format errors (matches contract-details SSM pattern). */
@@ -839,6 +1162,14 @@ export function BusinessDetailsStep({
    * presence: required inputs have a value — only used to enable Save and Continue (not format rules).
    * strict: full validation when the user clicks Save (email shape, 12-digit IC, same-invoice block, etc.).
    */
+  const productGuarantorAgreementTemplate = React.useMemo(() => {
+    const t = stepConfig?.guarantor_agreement_template as { s3_key?: string } | undefined;
+    const key = t?.s3_key?.trim();
+    return key ? t : undefined;
+  }, [stepConfig]);
+
+  const requiresGuarantorAgreementUpload = Boolean(productGuarantorAgreementTemplate?.s3_key?.trim());
+
   const evaluateBusinessDetails = React.useCallback(
     (mode: "presence" | "strict") => {
       const { whatDoesCompanyDo, mainCustomers, singleCustomerOver50Revenue } = aboutYourBusiness;
@@ -881,7 +1212,8 @@ export function BusinessDetailsStep({
       }
 
       if (guarantors.length < 1) return false;
-      for (const g of guarantors) {
+      for (let gi = 0; gi < guarantors.length; gi++) {
+        const g = guarantors[gi];
         if (!guarantorEmailOk(g.email, mode)) return false;
         if (!g.referenceId.trim()) return false;
         if (g.guarantorType === "individual") {
@@ -889,7 +1221,11 @@ export function BusinessDetailsStep({
             mode === "presence"
               ? malaysianNricDigits(g.icNumber).length > 0
               : isValidMalaysianNric(g.icNumber);
-          if (!g.name.trim() || !icOk) {
+          const natOk =
+            mode === "presence"
+              ? g.nationality.trim().length === 2
+              : isRegtankIso3166Code(g.nationality.trim());
+          if (!g.name.trim() || !icOk || !natOk) {
             return false;
           }
         } else {
@@ -897,11 +1233,25 @@ export function BusinessDetailsStep({
             return false;
           }
         }
+        if (requiresGuarantorAgreementUpload) {
+          const hasAgreement =
+            Boolean(g.guarantorAgreement?.s3_key?.trim()) ||
+            pendingGuarantorAgreements.some((p) => p.index === gi);
+          if (!hasAgreement) return false;
+        }
       }
 
       return true;
     },
-    [aboutYourBusiness, whyRaisingFunds, declarationConfirmed, guarantors, guarantorEmailOk]
+    [
+      aboutYourBusiness,
+      whyRaisingFunds,
+      declarationConfirmed,
+      guarantors,
+      guarantorEmailOk,
+      requiresGuarantorAgreementUpload,
+      pendingGuarantorAgreements,
+    ]
   );
 
   const areBusinessDetailsFieldsFilled = React.useMemo(
@@ -914,11 +1264,81 @@ export function BusinessDetailsStep({
     [evaluateBusinessDetails]
   );
 
+  const downloadGuarantorAgreementTemplate = React.useCallback(async () => {
+    const key = productGuarantorAgreementTemplate?.s3_key?.trim();
+    if (!key) return;
+    const token = await getAccessToken();
+    if (!token) {
+      toast.error("Authentication required");
+      return;
+    }
+    const resp = await fetch(`${API_URL}/v1/s3/download-url`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ s3Key: key }),
+    });
+    const j = await resp.json().catch(() => null);
+    if (j?.success && j.data?.downloadUrl) {
+      window.open(j.data.downloadUrl as string, "_blank");
+    } else {
+      toast.error("Could not download template");
+    }
+  }, [getAccessToken, productGuarantorAgreementTemplate]);
+
+  const handleGuarantorAgreementFileAt = React.useCallback((index: number, file: File) => {
+    if (file.type !== "application/pdf") {
+      toast.error("Please select a PDF file");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File is too large (max 5MB)");
+      return;
+    }
+    const client_id = makeClientId();
+    setPendingGuarantorAgreements((prev) => [
+      ...prev.filter((p) => p.index !== index),
+      { index, file, client_id },
+    ]);
+    setGuarantors((prev) =>
+      prev.map((row, i) => {
+        if (i !== index) return row;
+        return {
+          ...row,
+          guarantorAgreement: {
+            file_name: file.name,
+            file_size: file.size,
+            client_id,
+            uploaded_at: new Date().toISOString(),
+          },
+        };
+      })
+    );
+  }, []);
+
+  const clearGuarantorAgreementAt = React.useCallback((index: number) => {
+    setPendingGuarantorAgreements((prev) => prev.filter((p) => p.index !== index));
+    setGuarantors((prev) =>
+      prev.map((row, i) => {
+        if (i !== index) return row;
+        if (row.guarantorType === "individual") {
+          const { guarantorAgreement: _a, ...rest } = row;
+          return rest as GuarantorIndividualRow;
+        }
+        const { guarantorAgreement: _b, ...rest } = row;
+        return rest as GuarantorCompanyRow;
+      })
+    );
+  }, []);
+
   React.useEffect(() => {
     if (application === undefined || isInitialized) return;
 
     const saved = application?.business_details;
-    const initial = fromSnakeSaved(saved);
+    const relational = (application as { application_guarantors?: unknown[] }).application_guarantors;
+    const initial = fromSnakeSaved(saved, relational);
     setAboutYourBusiness(initial.aboutYourBusiness);
     setWhyRaisingFunds({
       ...initial.whyRaisingFunds,
@@ -927,7 +1347,9 @@ export function BusinessDetailsStep({
     setDeclarationConfirmed(initial.declarationConfirmed);
     setGuarantors(initial.guarantors);
     setPendingSupportingDocuments([]);
+    setPendingGuarantorAgreements([]);
     setInitialWhySupportingDocuments(initial.whyRaisingFunds.supportingDocuments);
+    initialGuarantorRowsForAgreementCleanup.current = initial.guarantors.map((g) => ({ ...g }));
     initialPayloadRef.current = JSON.stringify(toSnakePayload(initial));
     setIsInitialized(true);
   }, [application, isInitialized]);
@@ -957,7 +1379,9 @@ export function BusinessDetailsStep({
     setDeclarationConfirmed(initial.declarationConfirmed);
     setGuarantors(initial.guarantors);
     setPendingSupportingDocuments([]);
+    setPendingGuarantorAgreements([]);
     setInitialWhySupportingDocuments(initial.whyRaisingFunds.supportingDocuments);
+    initialGuarantorRowsForAgreementCleanup.current = initial.guarantors.map((g) => ({ ...g }));
     initialPayloadRef.current = JSON.stringify(toSnakePayload(initial));
     if (devTools) {
       if (devTools.autoFillData?.stepKey === "business_details") devTools.clearAutoFill();
@@ -979,8 +1403,26 @@ export function BusinessDetailsStep({
 
   const hasPendingChanges = React.useMemo(() => {
     if (!isInitialized) return false;
-    return JSON.stringify(snakePayload) !== initialPayloadRef.current || pendingSupportingDocuments.length > 0;
-  }, [snakePayload, isInitialized, pendingSupportingDocuments.length]);
+    return (
+      JSON.stringify(snakePayload) !== initialPayloadRef.current ||
+      pendingSupportingDocuments.length > 0 ||
+      pendingGuarantorAgreements.length > 0
+    );
+  }, [snakePayload, isInitialized, pendingSupportingDocuments.length, pendingGuarantorAgreements.length]);
+  const hasRemovedGuarantorAgreements = React.useMemo(() => {
+    const initialKeys = new Set(
+      initialGuarantorRowsForAgreementCleanup.current
+        .map((g) => g.guarantorAgreement?.s3_key?.trim())
+        .filter((key): key is string => Boolean(key))
+    );
+    const currentKeys = new Set(
+      guarantors.map((g) => g.guarantorAgreement?.s3_key?.trim()).filter((key): key is string => Boolean(key))
+    );
+    for (const key of initialKeys) {
+      if (!currentKeys.has(key)) return true;
+    }
+    return false;
+  }, [guarantors]);
   const hasRemovedSupportingDocuments = React.useMemo(() => {
     const initialKeys = new Set(
       initialWhySupportingDocuments
@@ -998,7 +1440,110 @@ export function BusinessDetailsStep({
     return false;
   }, [initialWhySupportingDocuments, whyRaisingFunds.supportingDocuments]);
 
-  async function uploadWhySectionSupportingDocuments() {
+  async function uploadGuarantorAgreementFilesAndDeletes(
+    token: string,
+    guarantorsIn: GuarantorFormRow[],
+    pendingSnap: Array<{ index: number; file: File; client_id: string }>
+  ): Promise<GuarantorFormRow[]> {
+    const uploadedByClientId = new Map<
+      string,
+      { s3_key: string; file_name: string; file_size: number; uploaded_at: string }
+    >();
+
+    for (const pending of pendingSnap) {
+      const presignRes = await fetch(`${API_URL}/v1/applications/${applicationId}/upload-document-url`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          fileName: pending.file.name,
+          contentType: pending.file.type || "application/pdf",
+          fileSize: pending.file.size,
+        }),
+      });
+
+      if (!presignRes.ok) {
+        throw new Error(`Failed to prepare upload for ${pending.file.name}`);
+      }
+
+      const presignJson = await presignRes.json();
+      const uploadUrl = String(presignJson?.data?.uploadUrl ?? "");
+      const s3Key = String(presignJson?.data?.s3Key ?? "");
+      if (!uploadUrl || !s3Key) {
+        throw new Error(`Invalid upload response for ${pending.file.name}`);
+      }
+
+      const putRes = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": pending.file.type || "application/pdf",
+        },
+        body: pending.file,
+      });
+
+      if (!putRes.ok) {
+        throw new Error(`Failed to upload ${pending.file.name}`);
+      }
+
+      uploadedByClientId.set(pending.client_id, {
+        s3_key: s3Key,
+        file_name: pending.file.name,
+        file_size: pending.file.size,
+        uploaded_at: new Date().toISOString(),
+      });
+    }
+
+    let next = guarantorsIn.map((row) => ({ ...row }));
+    for (const pending of pendingSnap) {
+      const uploaded = uploadedByClientId.get(pending.client_id);
+      if (!uploaded) continue;
+      next = next.map((row, idx) => {
+        if (idx !== pending.index) return row;
+        return {
+          ...row,
+          guarantorAgreement: {
+            file_name: uploaded.file_name,
+            file_size: uploaded.file_size,
+            s3_key: uploaded.s3_key,
+            uploaded_at: uploaded.uploaded_at,
+          },
+        };
+      });
+    }
+
+    const initialKeys = new Set(
+      initialGuarantorRowsForAgreementCleanup.current
+        .map((g) => g.guarantorAgreement?.s3_key?.trim())
+        .filter((key): key is string => Boolean(key))
+    );
+    const nextKeys = new Set(
+      next.map((g) => g.guarantorAgreement?.s3_key?.trim()).filter((key): key is string => Boolean(key))
+    );
+    for (const s3Key of Array.from(initialKeys).filter((key) => !nextKeys.has(key))) {
+      const deleteRes = await fetch(`${API_URL}/v1/applications/${applicationId}/document`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ s3Key }),
+      });
+      const deleteJson = await deleteRes.json().catch(() => null);
+      if (!deleteRes.ok || !deleteJson?.success) {
+        throw new Error(
+          typeof deleteJson?.error?.message === "string"
+            ? deleteJson.error.message
+            : "Failed to delete removed guarantor agreement from storage."
+        );
+      }
+    }
+
+    return next;
+  }
+
+  async function uploadWhySectionSupportingDocuments(guarantorsIn: GuarantorFormRow[]) {
     const token = await getAccessToken();
     if (!token) {
       throw new Error("Authentication required to upload supporting documents.");
@@ -1108,9 +1653,10 @@ export function BusinessDetailsStep({
       aboutYourBusiness,
       whyRaisingFunds: nextWhyRaisingFunds,
       declarationConfirmed,
-      guarantors,
+      guarantors: guarantorsIn,
     });
     initialPayloadRef.current = JSON.stringify(nextPayload);
+    initialGuarantorRowsForAgreementCleanup.current = guarantorsIn.map((g) => ({ ...g }));
     return nextPayload;
   }
 
@@ -1131,8 +1677,39 @@ export function BusinessDetailsStep({
           toast.error("Please fix the highlighted fields");
           throw new Error("VALIDATION_BUSINESS_DETAILS_FAILED");
         }
-        if (pendingSupportingDocuments.length > 0 || hasRemovedSupportingDocuments) {
-          return uploadWhySectionSupportingDocuments();
+        const token = await getAccessToken();
+        if (!token) {
+          toast.error("Authentication required");
+          throw new Error("AUTH_REQUIRED");
+        }
+        const hadGuarantorWork =
+          pendingGuarantorAgreements.length > 0 || hasRemovedGuarantorAgreements;
+        const hadSupportingWork =
+          pendingSupportingDocuments.length > 0 || hasRemovedSupportingDocuments;
+        const pendingGuarantorSnap = [...pendingGuarantorAgreements];
+        let nextGuarantors = guarantors;
+        if (hadGuarantorWork) {
+          nextGuarantors = await uploadGuarantorAgreementFilesAndDeletes(
+            token,
+            guarantors,
+            pendingGuarantorSnap
+          );
+          setGuarantors(nextGuarantors);
+          setPendingGuarantorAgreements([]);
+          initialGuarantorRowsForAgreementCleanup.current = nextGuarantors.map((g) => ({ ...g }));
+        }
+        if (hadSupportingWork) {
+          return uploadWhySectionSupportingDocuments(nextGuarantors);
+        }
+        if (hadGuarantorWork) {
+          const nextPayload = toSnakePayload({
+            aboutYourBusiness,
+            whyRaisingFunds,
+            declarationConfirmed,
+            guarantors: nextGuarantors,
+          });
+          initialPayloadRef.current = JSON.stringify(nextPayload);
+          return nextPayload;
         }
         return undefined;
       },
@@ -1146,6 +1723,8 @@ export function BusinessDetailsStep({
     validateBusinessDetails,
     pendingSupportingDocuments.length,
     hasRemovedSupportingDocuments,
+    pendingGuarantorAgreements.length,
+    hasRemovedGuarantorAgreements,
   ]);
 
   const addWhySectionSupportingPdfFiles = React.useCallback((files: File[]) => {
@@ -1202,6 +1781,18 @@ export function BusinessDetailsStep({
     e.currentTarget.value = "";
   };
 
+  const replaceGuarantorRow = React.useCallback(
+    (index: number, next: GuarantorRowUpdater) => {
+      setGuarantors((prev) =>
+        prev.map((row, i) => {
+          if (i !== index) return row;
+          return typeof next === "function" ? next(row) : next;
+        })
+      );
+    },
+    []
+  );
+
   if (isLoadingApp || !isInitialized || devTools?.showSkeletonDebug) {
     return <BusinessDetailsSkeleton />;
   }
@@ -1210,18 +1801,23 @@ export function BusinessDetailsStep({
     whyRaisingFunds.raisingOnOtherP2P === "yes" && whyRaisingFunds.sameInvoiceUsed === "yes";
   const fieldsLocked = readOnly || sameInvoiceP2pBlocked;
 
-  const replaceGuarantorRow = (index: number, next: GuarantorFormRow) => {
-    setGuarantors((prev) => prev.map((row, i) => (i === index ? next : row)));
-  };
-
   const setGuarantorTypeAt = (index: number, type: "individual" | "company") => {
     const current = guarantors[index];
     const ref = current?.referenceId ?? makeClientId();
+    const keepAgreement = current?.guarantorAgreement;
     replaceGuarantorRow(
       index,
       type === "individual"
-        ? { ...emptyIndividualGuarantor(), referenceId: ref }
-        : { ...emptyCompanyGuarantor(), referenceId: ref }
+        ? {
+            ...emptyIndividualGuarantor(),
+            referenceId: ref,
+            ...(keepAgreement ? { guarantorAgreement: keepAgreement } : {}),
+          }
+        : {
+            ...emptyCompanyGuarantor(),
+            referenceId: ref,
+            ...(keepAgreement ? { guarantorAgreement: keepAgreement } : {}),
+          }
     );
   };
 
@@ -1684,6 +2280,11 @@ export function BusinessDetailsStep({
                 hasAttemptedSave={hasAttemptedSave}
                 replaceGuarantorRow={replaceGuarantorRow}
                 setGuarantorTypeAt={setGuarantorTypeAt}
+                agreementTemplateS3Key={productGuarantorAgreementTemplate?.s3_key}
+                agreementRequired={requiresGuarantorAgreementUpload}
+                onDownloadAgreementTemplate={downloadGuarantorAgreementTemplate}
+                onSelectGuarantorAgreementFile={(file) => handleGuarantorAgreementFileAt(index, file)}
+                onClearGuarantorAgreement={() => clearGuarantorAgreementAt(index)}
               />
             );
 
@@ -1693,7 +2294,7 @@ export function BusinessDetailsStep({
 
             return (
               <details
-                key={index}
+                key={row.referenceId || index}
                 className="group rounded-xl border border-border bg-background"
                 open={panelOpen}
                 onToggle={(e) => {

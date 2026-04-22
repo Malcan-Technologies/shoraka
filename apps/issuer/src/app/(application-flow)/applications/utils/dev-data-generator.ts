@@ -198,6 +198,7 @@ export function generateBusinessDetailsData(): Record<string, unknown> {
         email: "john.doe@example.com",
         name: "John Doe",
         ic_number: "901212101234",
+        nationality: "MY",
       },
       {
         reference_id: "g-company-abc1234567x",

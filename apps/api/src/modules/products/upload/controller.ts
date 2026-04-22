@@ -33,12 +33,20 @@ function getExistingTemplateKeyFromWorkflow(
   categoryKey: string,
   templateIndex: number
 ): string | undefined {
+  if (categoryKey === "guarantor_agreement" && templateIndex === 0) {
+    const businessDetails = workflow.find((s) => getStepId(s).startsWith("business_details"));
+    if (!businessDetails) return undefined;
+    const config = getConfig(businessDetails);
+    const tmpl = config.guarantor_agreement_template as { s3_key?: string } | undefined;
+    const key = tmpl?.s3_key?.trim();
+    return key && key.startsWith(PRODUCT_S3_KEY_PREFIX) ? key : undefined;
+  }
   const supporting = workflow.find((s) => getStepId(s).startsWith("supporting_documents"));
   if (!supporting) return undefined;
   const config = getConfig(supporting);
   const list = (config[categoryKey] as Array<{ template?: { s3_key?: string } }>) ?? [];
-  const key = list[templateIndex]?.template?.s3_key?.trim();
-  return key && key.startsWith(PRODUCT_S3_KEY_PREFIX) ? key : undefined;
+  const listKey = list[templateIndex]?.template?.s3_key?.trim();
+  return listKey && listKey.startsWith(PRODUCT_S3_KEY_PREFIX) ? listKey : undefined;
 }
 
 export function createProductUploadsRouter(productRepository: ProductRepository): Router {
