@@ -143,6 +143,12 @@ export function getCompanyOnboardingSteps(status: string): ApprovalStep[] {
       status: "completed",
     },
     {
+      id: "ssm",
+      label: "CTOS Verification",
+      description: "Verify company against CTOS records",
+      status: "pending",
+    },
+    {
       id: "onboarding",
       label: "Onboarding Approval",
       description: "Approve identity verification in RegTank",
@@ -155,12 +161,6 @@ export function getCompanyOnboardingSteps(status: string): ApprovalStep[] {
       status: "pending",
     },
     {
-      id: "ssm",
-      label: "CTOS verification",
-      description: "Verify company against CTOS records",
-      status: "pending",
-    },
-    {
       id: "final",
       label: "Final Approval",
       description: "Complete onboarding and activate account",
@@ -170,27 +170,34 @@ export function getCompanyOnboardingSteps(status: string): ApprovalStep[] {
 
   switch (status) {
     case "PENDING_ONBOARDING":
-      steps[1].status = "current";
-      break;
-    case "PENDING_APPROVAL":
-      steps[1].status = "current";
-      break;
-    case "PENDING_AML":
-      steps[1].status = "completed";
+      steps[0].status = "completed";
+      steps[1].status = "pending";
       steps[2].status = "current";
       break;
     case "PENDING_SSM_REVIEW":
+      steps[0].status = "completed";
+      steps[1].status = "current";
+      break;
+    case "PENDING_APPROVAL":
+      steps[0].status = "completed";
+      steps[1].status = "completed";
+      steps[2].status = "current";
+      break;
+    case "PENDING_AML":
+      steps[0].status = "completed";
       steps[1].status = "completed";
       steps[2].status = "completed";
       steps[3].status = "current";
       break;
     case "PENDING_FINAL_APPROVAL":
+      steps[0].status = "completed";
       steps[1].status = "completed";
       steps[2].status = "completed";
       steps[3].status = "completed";
       steps[4].status = "current";
       break;
     case "COMPLETED":
+      steps[0].status = "completed";
       steps[1].status = "completed";
       steps[2].status = "completed";
       steps[3].status = "completed";

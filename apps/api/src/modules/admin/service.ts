@@ -2235,12 +2235,20 @@ export class AdminService {
     const org = isInvestor ? record.investor_organization : record.issuer_organization;
     const orgOnboardingStatus = org?.onboarding_status || "PENDING";
 
-    // Derive admin-friendly status
+    const isInvestorOrg = record.portal_type === "investor";
+    const investorOrg = record.investor_organization;
+    const issuerOrg = record.issuer_organization;
+
+    const ssmApproved = isInvestorOrg
+      ? (investorOrg?.ssm_approved ?? false)
+      : (issuerOrg?.ssm_checked ?? false);
+
     const status = this.deriveApprovalStatus(
       record.status,
       record.organization_type,
       record.portal_type,
-      orgOnboardingStatus
+      orgOnboardingStatus,
+      ssmApproved
     );
 
     // Build user name
@@ -2305,11 +2313,6 @@ export class AdminService {
       ? `${regtankConfig.adminPortalUrl}/app/screen-kyb/result/${kybId}`
       : null;
 
-    // Get approval flags based on portal type
-    const isInvestorOrg = record.portal_type === "investor";
-    const investorOrg = record.investor_organization;
-    const issuerOrg = record.issuer_organization;
-
     // For investors, use investor_organization fields; for issuers, use issuer_organization fields
     const onboardingApproved = isInvestorOrg
       ? (investorOrg?.onboarding_approved ?? false)
@@ -2320,10 +2323,6 @@ export class AdminService {
     const tncAccepted = isInvestorOrg
       ? (investorOrg?.tnc_accepted ?? false)
       : (issuerOrg?.tnc_accepted ?? false);
-    // SSM approval: for investors use ssm_approved, for issuers use ssm_checked
-    const ssmApproved = isInvestorOrg
-      ? (investorOrg?.ssm_approved ?? false)
-      : (issuerOrg?.ssm_checked ?? false);
 
     const isCompleted = orgOnboardingStatus === "COMPLETED";
 
@@ -2612,10 +2611,10 @@ export class AdminService {
    *
    * Status mapping:
    * - PENDING_ONBOARDING: User is in the process of completing RegTank onboarding
-   * - PENDING_APPROVAL: Completed RegTank onboarding, awaiting admin approval of identity
+   * - PENDING_SSM_REVIEW: Company: RegTank submitted for review, CTOS not yet approved (admin step 2)
+   * - PENDING_APPROVAL: RegTank awaiting admin onboarding approval (company: after CTOS)
    * - PENDING_AML: Identity approved, awaiting AML screening approval
-   * - PENDING_SSM_REVIEW: AML approved (company only), awaiting SSM verification
-   * - PENDING_FINAL_APPROVAL: All checks done, awaiting final approval to activate account
+   * - PENDING_FINAL_APPROVAL: AML done (and CTOS done for company), awaiting final approval
    * - COMPLETED: Fully onboarded
    * - REJECTED: Rejected at any stage
    * - EXPIRED: RegTank link expired
@@ -2623,9 +2622,10 @@ export class AdminService {
    */
   private deriveApprovalStatus(
     regtankStatus: string,
-    _orgType: OrganizationType,
+    orgType: OrganizationType,
     _portalType: string,
-    orgOnboardingStatus: string
+    orgOnboardingStatus: string,
+    ssmApproved: boolean
   ): OnboardingApprovalStatus {
     // Check for final states first (these are specific to the regtank_onboarding record)
     if (regtankStatus === "REJECTED") {
@@ -2652,7 +2652,7 @@ export class AdminService {
       return "PENDING_FINAL_APPROVAL";
     }
 
-    if (orgOnboardingStatus === "PENDING_SSM_REVIEW") {
+    if (orgOnboardingStatus === "PENDING_SSM_REVIEW" && !ssmApproved) {
       return "PENDING_SSM_REVIEW";
     }
 
@@ -2681,6 +2681,9 @@ export class AdminService {
     const pendingApprovalStatuses = ["WAIT_FOR_APPROVAL", "LIVENESS_PASSED", "PENDING_APPROVAL"];
 
     if (pendingApprovalStatuses.includes(regtankStatus)) {
+      if (orgType === "COMPANY" && !ssmApproved) {
+        return "PENDING_SSM_REVIEW";
+      }
       return "PENDING_APPROVAL";
     }
 
@@ -3201,6 +3204,15 @@ export class AdminService {
       throw new AppError(400, "ALREADY_APPROVED", "AML screening is already approved");
     }
 
+    const ssmDoneForCompany =
+      onboarding.organization_type === "COMPANY" &&
+      (isInvestor
+        ? Boolean(onboarding.investor_organization?.ssm_approved)
+        : Boolean(onboarding.issuer_organization?.ssm_checked));
+    const nextOnboardingStatusAfterAml = ssmDoneForCompany
+      ? OnboardingStatus.PENDING_FINAL_APPROVAL
+      : OnboardingStatus.PENDING_SSM_REVIEW;
+
     // Update the organization's aml_approved flag
     const now = new Date();
     if (isInvestor && onboarding.investor_organization) {
@@ -3208,7 +3220,7 @@ export class AdminService {
         where: { id: org.id },
         data: {
           aml_approved: true,
-          onboarding_status: OnboardingStatus.PENDING_SSM_REVIEW,
+          onboarding_status: nextOnboardingStatusAfterAml,
         },
       });
     } else if (!isInvestor && onboarding.issuer_organization) {
@@ -3216,7 +3228,7 @@ export class AdminService {
         where: { id: org.id },
         data: {
           aml_approved: true,
-          onboarding_status: OnboardingStatus.PENDING_SSM_REVIEW,
+          onboarding_status: nextOnboardingStatusAfterAml,
         },
       });
     }
@@ -3264,7 +3276,7 @@ export class AdminService {
           onboardingRequestId: onboarding.request_id,
           isCorporateOnboarding,
           previousStatus: org.onboarding_status,
-          newStatus: OnboardingStatus.PENDING_SSM_REVIEW,
+          newStatus: nextOnboardingStatusAfterAml,
           approvedBy: adminUserId,
           approvedAt: now.toISOString(),
         },
@@ -3287,14 +3299,18 @@ export class AdminService {
     return {
       success: true,
       message: isCorporateOnboarding
-        ? "AML screening approved. RegTank onboarding status updated to APPROVED. Organization moved to SSM review."
-        : "AML screening approved. Organization moved to SSM review.",
+        ? nextOnboardingStatusAfterAml === OnboardingStatus.PENDING_FINAL_APPROVAL
+          ? "AML screening approved. RegTank onboarding status updated to APPROVED. Organization moved to final approval."
+          : "AML screening approved. RegTank onboarding status updated to APPROVED. Organization moved to CTOS review."
+        : nextOnboardingStatusAfterAml === OnboardingStatus.PENDING_FINAL_APPROVAL
+          ? "AML screening approved. Organization moved to final approval."
+          : "AML screening approved. Organization moved to SSM review.",
     };
   }
 
   /**
    * Approve SSM verification for a company organization
-   * Sets ssm_approved = true for the organization
+   * Sets ssm_approved / ssm_checked; onboarding_status is unchanged (next gate is onboarding approval).
    */
   async approveSsmVerification(
     req: Request,
@@ -3338,15 +3354,12 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Organization not found");
     }
 
-    // Update the organization's ssm_approved flag and transition to PENDING_FINAL_APPROVAL
-    // For company accounts, SSM approval is required before final approval step
     const now = new Date();
     if (isInvestor && onboarding.investor_organization) {
       await prisma.investorOrganization.update({
         where: { id: org.id },
         data: {
           ssm_approved: true,
-          onboarding_status: OnboardingStatus.PENDING_FINAL_APPROVAL,
         },
       });
     } else if (!isInvestor && onboarding.issuer_organization) {
@@ -3354,7 +3367,6 @@ export class AdminService {
         where: { id: org.id },
         data: {
           ssm_checked: true,
-          onboarding_status: OnboardingStatus.PENDING_FINAL_APPROVAL,
         },
       });
     }
@@ -4045,10 +4057,13 @@ export class AdminService {
       id: string;
       issuerOrganizationName: string | null;
       financingTypeLabel: string;
+      financingStructureLabel: string;
       requestedAmount: number;
       status: string;
       submittedAt: Date | null;
       updatedAt: Date;
+      productId: string | null;
+      baseProductId: string | null;
     }[];
     pagination: {
       page: number;

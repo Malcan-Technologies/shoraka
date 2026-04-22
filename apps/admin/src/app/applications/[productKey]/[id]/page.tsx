@@ -42,7 +42,7 @@ import {
   type ReviewSectionId,
 } from "@/components/application-review";
 import { useProducts } from "@/hooks/use-products";
-import { productName } from "@/app/settings/products/product-utils";
+import { productName, resolveDisplayProductForNav } from "@/app/settings/products/product-utils";
 import {
   getReviewTabLabel,
   getTabUnlockTooltip,
@@ -97,9 +97,11 @@ export default function DynamicApplicationDetailPage() {
   const { data: app, isLoading, error } = useApplicationDetail(applicationId);
   const updateStatus = useUpdateApplicationStatus();
 
-  // Fetch products to get the current product name
-  const { data: productsData } = useProducts({ page: 1, pageSize: 100 });
-  const currentProduct = productsData?.products.find((p) => p.id === productKey);
+  // Fetch products to get the current product name (include deleted/inactive for nav key match)
+  const { data: productsData } = useProducts({ page: 1, pageSize: 100, includeDeleted: true });
+  const currentProduct = productsData?.products
+    ? resolveDisplayProductForNav(productsData.products, productKey)
+    : undefined;
   const currentProductName = currentProduct ? productName(currentProduct) : "Applications";
 
   const invoiceRatioLimits = React.useMemo(() => {

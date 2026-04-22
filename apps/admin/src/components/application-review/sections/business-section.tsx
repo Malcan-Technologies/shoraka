@@ -14,13 +14,29 @@ import {
   ShieldExclamationIcon,
 } from "@heroicons/react/24/outline";
 import { format } from "date-fns";
+import { toast } from "sonner";
+import { useAuthToken } from "@cashsouk/config";
+import {
+  useAdminApplicationCtosSubjectReports,
+  useCreateAdminApplicationCtosSubjectReport,
+} from "@/hooks/use-admin-application-ctos-reports";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReviewSectionCard } from "../review-section-card";
 import { ReviewFieldBlock } from "../review-field-block";
 import { ReviewValue } from "../review-value";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
-import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,6 +66,7 @@ import {
   kycAmlScreeningStatusBadgeClass,
 } from "@/lib/kyc-aml-screening-badge-classes";
 import { cn } from "@/lib/utils";
+import { CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
 import { regtankNationalityDisplayLabel } from "@cashsouk/types";
 import {
   ComparisonFieldRow,
@@ -65,6 +82,8 @@ export type BusinessSectionComparisonProps = {
 };
 
 export interface BusinessSectionProps {
+  /** Used to list/create CTOS subject reports for guarantors (same app as admin detail / resubmit “after”). */
+  applicationId?: string;
   businessDetails: unknown;
   applicationGuarantors?: unknown;
   section: ReviewSectionId;
@@ -90,6 +109,11 @@ export interface BusinessSectionProps {
 
 const DECLARATION_TEXT =
   "I confirm that all information provided is true, accurate, and not misleading, and I understand that false or incomplete information may result in removal from the platform and regulatory action.";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+/** Em dash placeholder (matches financial CTOS tables). */
+const CTOS_HEADER_PLACEHOLDER = "\u2014";
 
 /** RegTank client portal origin (no trailing slash), e.g. https://your-company.regtank.com */
 const REGTANK_PORTAL_BASE_URL =
@@ -174,8 +198,8 @@ function RegTankGuarantorControlRow({
     <div
       className={
         mode === "comparison"
-          ? "flex flex-col items-stretch gap-1.5 sm:flex-row sm:flex-wrap sm:justify-end"
-          : "contents"
+          ? "flex flex-col items-stretch gap-1.5 sm:flex-row sm:flex-wrap sm:justify-start"
+          : "flex flex-wrap items-center gap-2 sm:gap-2.5"
       }
     >
       {mode === "comparison" ? (
@@ -193,9 +217,8 @@ function RegTankGuarantorControlRow({
             disabledReason="No guarantor in the later revision for this row."
           />
         </>
-      ) : (
+      ) : guarantor ? (
         (() => {
-          if (!guarantor) return <RegTankGuarantorLinkButton />;
           const aml = amlByKey.get(buildGuarantorAmlKey(guarantor));
           const screeningRequestId = aml?.amlScreening?.requestId;
           const hasScreeningStarted = Boolean(
@@ -213,7 +236,7 @@ function RegTankGuarantorControlRow({
               : "Configure NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL to open Acuris screening in RegTank."
             : undefined;
           return (
-            <div className="flex flex-wrap items-center gap-2 justify-end">
+            <>
               <Button
                 type="button"
                 variant="outline"
@@ -239,9 +262,11 @@ function RegTankGuarantorControlRow({
                 disabled={!resultUrl}
                 disabledReason={viewDisabledReason}
               />
-            </div>
+            </>
           );
         })()
+      ) : (
+        <RegTankGuarantorLinkButton />
       )}
     </div>
   );
@@ -266,6 +291,56 @@ type GuarantorReviewRow =
       ssmNumber: string;
       email: string;
     } & { guarantorAgreement?: GuarantorAgreementFile });
+
+/**
+ * SECTION: CTOS subject key + lookup for guarantors
+ * WHY: Same normalization as director/shareholder CTOS list (`subject_ref` keys in API).
+ * INPUT: IC/SSM string from guarantor row
+ * OUTPUT: Lowercased compact key or null
+ * WHERE USED: Map lookup and POST `subjectRef` for guarantor CTOS
+ */
+function normalizeCtosSubjectKey(raw: string | null | undefined): string | null {
+  const s = String(raw ?? "")
+    .trim()
+    .replace(/\s+/g, "");
+  if (!s) return null;
+  return s.toLowerCase();
+}
+
+function ctosSubjectReportLookupKeyFromGuarantor(g: GuarantorReviewRow): string | null {
+  const raw = g.kind === "individual" ? g.icNumber : g.ssmNumber;
+  return normalizeCtosSubjectKey(raw);
+}
+
+function lookupSubjectReportSnapForGuarantor(
+  m: Map<string, { id: string; has_report_html: boolean; fetched_at: string }>,
+  g: GuarantorReviewRow
+): { id: string; has_report_html: boolean; fetched_at: string } | undefined {
+  const k = ctosSubjectReportLookupKeyFromGuarantor(g);
+  if (!k) return undefined;
+  return m.get(k);
+}
+
+function formatCtosFetchedAtShort(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  try {
+    return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  } catch {
+    return null;
+  }
+}
+
+function guarantorCtosLastFetchLabel(g: GuarantorReviewRow, snap?: { fetched_at: string }): React.ReactNode {
+  const refKey = ctosSubjectReportLookupKeyFromGuarantor(g);
+  if (!refKey) {
+    return <span className="text-muted-foreground">{CTOS_HEADER_PLACEHOLDER}</span>;
+  }
+  const formatted = snap?.fetched_at ? formatCtosFetchedAtShort(snap.fetched_at) : null;
+  if (formatted) {
+    return <span className="tabular-nums text-muted-foreground text-xs">{formatted}</span>;
+  }
+  return <span className="text-muted-foreground">{CTOS_HEADER_PLACEHOLDER}</span>;
+}
 
 type GuarantorAmlStatus = "Unresolved" | "Approved" | "Rejected" | "Pending";
 type GuarantorAmlMessageStatus = "DONE" | "PENDING" | "ERROR";
@@ -864,10 +939,172 @@ function sideGuarantorTypeLabel(g: GuarantorReviewRow | undefined): string {
   return g ? guarantorKindLabel(g.kind) : "—";
 }
 
+/**
+ * SECTION: Guarantor CTOS toolbar (Get / View subject report)
+ * WHY: Guarantors are not on issuer org JSON; POST uses `enquiryOverride` like director comparison CTOS.
+ * INPUT: application id, guarantor row, subject report map from API
+ * OUTPUT: Buttons + last fetch hint
+ * WHERE USED: Guarantor card header (single + resubmit comparison)
+ */
+function GuarantorCtosToolbar({
+  applicationId,
+  guarantor,
+  subjectReportByRef,
+  ctosSubjectLoading,
+  createSubjectPending,
+  onOpenSubjectHtml,
+  onRequestGetReport,
+  comparisonSide,
+  missingGuarantorReason,
+  align = "end",
+  showLastFetch = true,
+  compactLabels = false,
+}: {
+  applicationId?: string;
+  guarantor?: GuarantorReviewRow;
+  subjectReportByRef: Map<string, { id: string; has_report_html: boolean; fetched_at: string }>;
+  ctosSubjectLoading: boolean;
+  createSubjectPending: boolean;
+  onOpenSubjectHtml: (reportId: string) => void | Promise<void>;
+  onRequestGetReport: (g: GuarantorReviewRow) => void;
+  comparisonSide?: "before" | "after";
+  missingGuarantorReason?: string;
+  /** `end`: right-align block (single guarantor CTOS column). `start`: left-align (Before/After columns). */
+  align?: "start" | "end";
+  showLastFetch?: boolean;
+  /** Shorter button text for one-row comparison headers; full phrase kept in `title`. */
+  compactLabels?: boolean;
+}) {
+  const snap = guarantor ? lookupSubjectReportSnapForGuarantor(subjectReportByRef, guarantor) : undefined;
+  const subjectRef = guarantor ? ctosSubjectReportLookupKeyFromGuarantor(guarantor) : null;
+  const canView = Boolean(snap?.has_report_html);
+  const noRow = !guarantor;
+  const viewDisabled =
+    noRow ||
+    !applicationId ||
+    !subjectRef ||
+    !canView ||
+    ctosSubjectLoading ||
+    !snap?.id;
+  const getDisabled =
+    noRow || !applicationId || !subjectRef || createSubjectPending || ctosSubjectLoading;
+  const viewTitle = viewDisabled
+    ? noRow
+      ? missingGuarantorReason ?? "No guarantor on this side."
+      : !canView
+        ? `No stored CTOS report for this subject yet. Use ${CTOS_UI.fetchReport} first.`
+        : !applicationId
+          ? "Application id is missing."
+          : undefined
+    : undefined;
+  const getTitle = getDisabled
+    ? noRow
+      ? missingGuarantorReason ?? "No guarantor on this side."
+      : !subjectRef
+        ? "IC number or SSM number is required to fetch CTOS."
+        : undefined
+    : undefined;
+  const viewLabelLong =
+    comparisonSide === "before"
+      ? `${CTOS_UI.viewReport} (before)`
+      : comparisonSide === "after"
+        ? `${CTOS_UI.viewReport} (after)`
+        : CTOS_UI.viewReport;
+  const getLabelBase =
+    comparisonSide === "before"
+      ? `${CTOS_UI.fetchReport} (before)`
+      : comparisonSide === "after"
+        ? `${CTOS_UI.fetchReport} (after)`
+        : CTOS_UI.fetchReport;
+  const viewLabel = compactLabels ? CTOS_UI.viewShort : viewLabelLong;
+  const getLabel = createSubjectPending
+    ? CTOS_UI.fetching
+    : compactLabels
+      ? CTOS_UI.fetchShort
+      : getLabelBase;
+
+  const lastFetchForTitle = guarantor
+    ? snap?.fetched_at
+      ? `Last CTOS fetch: ${formatCtosFetchedAtShort(snap.fetched_at) ?? snap.fetched_at}`
+      : "Last CTOS fetch: none yet"
+    : (missingGuarantorReason ?? "No guarantor");
+
+  const viewButtonTitle = viewDisabled
+    ? viewTitle
+    : compactLabels
+      ? `${viewLabelLong}. ${lastFetchForTitle}`
+      : viewTitle;
+  const getButtonTitle = getDisabled
+    ? getTitle
+    : compactLabels
+      ? `${getLabelBase}. ${lastFetchForTitle}`
+      : getTitle;
+
+  const justify = align === "start" ? "justify-start" : "justify-end";
+  const textAlign = align === "start" ? "text-start" : "text-end";
+
+  return (
+    <div className={cn("flex min-w-0 flex-nowrap items-center gap-x-2 gap-y-0", justify)}>
+      {showLastFetch ? (
+        <span
+          className={cn(
+            "max-w-[11rem] shrink truncate text-xs text-muted-foreground",
+            textAlign
+          )}
+          title="Last CTOS fetch"
+        >
+          {guarantor ? (
+            guarantorCtosLastFetchLabel(guarantor, snap)
+          ) : (
+            <span>{CTOS_HEADER_PLACEHOLDER}</span>
+          )}
+        </span>
+      ) : null}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className={cn(CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, "shrink-0")}
+        disabled={viewDisabled}
+        title={viewButtonTitle}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (!snap?.id) return;
+          void onOpenSubjectHtml(snap.id);
+        }}
+      >
+        {viewLabel}
+      </Button>
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        className={cn(CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, "shrink-0")}
+        disabled={getDisabled}
+        title={getButtonTitle}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (!guarantor) return;
+            console.log("Guarantor CTOS fetch:", subjectRef, guarantor.referenceId);
+          onRequestGetReport(guarantor);
+        }}
+      >
+        {getLabel}
+      </Button>
+    </div>
+  );
+}
+
 function AdminGuarantorSingleList({
   guarantors,
   amlByKey,
   onTriggerGuarantorAml,
+  applicationId,
+  subjectReportByRef,
+  ctosSubjectLoading,
+  createSubjectPending,
+  onOpenSubjectHtml,
+  onRequestGuarantorCtos,
   onViewDocument,
   onDownloadDocument,
   viewDocumentPending = false,
@@ -875,6 +1112,12 @@ function AdminGuarantorSingleList({
   guarantors: GuarantorReviewRow[];
   amlByKey: Map<string, GuarantorAmlEntry>;
   onTriggerGuarantorAml?: (guarantorId: string) => Promise<void> | void;
+  applicationId?: string;
+  subjectReportByRef: Map<string, { id: string; has_report_html: boolean; fetched_at: string }>;
+  ctosSubjectLoading: boolean;
+  createSubjectPending: boolean;
+  onOpenSubjectHtml: (reportId: string) => void | Promise<void>;
+  onRequestGuarantorCtos: (g: GuarantorReviewRow) => void;
   onViewDocument: (s3Key: string) => void;
   onDownloadDocument: (s3Key: string, fileName?: string) => void;
   viewDocumentPending?: boolean;
@@ -913,32 +1156,44 @@ function AdminGuarantorSingleList({
             }}
           >
             <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-border px-4 py-3">
-                <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
-                  <span className="shrink-0 text-sm font-semibold text-foreground leading-6">
-                    Guarantor {idx + 1}
-                  </span>
-                  <ChevronRightIcon
-                    className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-90"
-                    aria-hidden
-                  />
-                  {subtitle ? (
-                    <span className="min-w-0 truncate text-sm text-muted-foreground leading-6">
-                      {subtitle}
+              <div className="border-b border-border px-4 py-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left">
+                    <span className="shrink-0 text-sm font-semibold text-foreground leading-6">
+                      Guarantor {idx + 1}
                     </span>
-                  ) : null}
-                </div>
-                <div
-                  className="flex flex-wrap items-center gap-2"
-                  onClick={(e) => e.stopPropagation()}
-                  onPointerDown={(e) => e.stopPropagation()}
-                >
-                  <RegTankGuarantorControlRow
-                    mode="single"
-                    guarantor={g}
-                    amlByKey={amlByKey}
-                    onTriggerGuarantorAml={onTriggerGuarantorAml}
-                  />
+                    <ChevronRightIcon
+                      className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-90"
+                      aria-hidden
+                    />
+                    {subtitle ? (
+                      <span className="min-w-0 truncate text-sm text-muted-foreground leading-6">
+                        {subtitle}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div
+                    className="flex min-w-0 shrink-0 items-center gap-3 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    <RegTankGuarantorControlRow
+                      mode="single"
+                      guarantor={g}
+                      amlByKey={amlByKey}
+                      onTriggerGuarantorAml={onTriggerGuarantorAml}
+                    />
+                    <span className="h-4 w-px shrink-0 bg-border" aria-hidden />
+                    <GuarantorCtosToolbar
+                      applicationId={applicationId}
+                      guarantor={g}
+                      subjectReportByRef={subjectReportByRef}
+                      ctosSubjectLoading={ctosSubjectLoading}
+                      createSubjectPending={createSubjectPending}
+                      onOpenSubjectHtml={onOpenSubjectHtml}
+                      onRequestGetReport={onRequestGuarantorCtos}
+                    />
+                  </div>
                 </div>
               </div>
             </summary>
@@ -1024,6 +1279,12 @@ function AdminGuarantorComparisonList({
   a,
   amlByKey,
   isPathChanged,
+  applicationId,
+  subjectReportByRef,
+  ctosSubjectLoading,
+  createSubjectPending,
+  onOpenSubjectHtml,
+  onRequestGuarantorCtos,
   onViewDocument,
   onDownloadDocument,
   viewDocumentPending = false,
@@ -1032,6 +1293,12 @@ function AdminGuarantorComparisonList({
   a: BusinessDetailsView;
   amlByKey: Map<string, GuarantorAmlEntry>;
   isPathChanged: (path: string) => boolean;
+  applicationId?: string;
+  subjectReportByRef: Map<string, { id: string; has_report_html: boolean; fetched_at: string }>;
+  ctosSubjectLoading: boolean;
+  createSubjectPending: boolean;
+  onOpenSubjectHtml: (reportId: string) => void | Promise<void>;
+  onRequestGuarantorCtos: (g: GuarantorReviewRow) => void;
   onViewDocument: (s3Key: string) => void;
   onDownloadDocument: (s3Key: string, fileName?: string) => void;
   viewDocumentPending?: boolean;
@@ -1079,34 +1346,68 @@ function AdminGuarantorComparisonList({
             }}
           >
             <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-2 border-b border-border px-4 py-3">
-                <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
-                  <span className="shrink-0 text-sm font-semibold text-foreground leading-6">
-                    Guarantor {idx + 1}
-                  </span>
-                  <ChevronRightIcon
-                    className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-90"
-                    aria-hidden
-                  />
-                  {subtitle ? (
-                    <span className="min-w-0 truncate text-sm text-muted-foreground leading-6">
-                      {subtitle}
+              <div className="border-b border-border px-4 py-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left">
+                    <span className="shrink-0 text-sm font-semibold text-foreground leading-6">
+                      Guarantor {idx + 1}
                     </span>
-                  ) : null}
-                </div>
-                <div
-                  className="flex flex-wrap items-center gap-2"
-                  onClick={(e) => e.stopPropagation()}
-                  onPointerDown={(e) => e.stopPropagation()}
-                >
-                  <RegTankGuarantorControlRow
-                    mode="comparison"
-                    amlByKey={amlByKey}
-                    comparisonSides={{
-                      beforeAvailable: hasBeforeGuarantor,
-                      afterAvailable: hasAfterGuarantor,
-                    }}
-                  />
+                    <ChevronRightIcon
+                      className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-open:rotate-90"
+                      aria-hidden
+                    />
+                    {subtitle ? (
+                      <span className="min-w-0 truncate text-sm text-muted-foreground leading-6">
+                        {subtitle}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div
+                    className="flex min-w-0 shrink-0 items-center gap-2 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-3"
+                    onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    <RegTankGuarantorControlRow
+                      mode="comparison"
+                      amlByKey={amlByKey}
+                      comparisonSides={{
+                        beforeAvailable: hasBeforeGuarantor,
+                        afterAvailable: hasAfterGuarantor,
+                      }}
+                    />
+                    <span className="hidden h-4 w-px shrink-0 bg-border sm:block" aria-hidden />
+                    <span className="shrink-0 text-xs text-muted-foreground">Before</span>
+                    <GuarantorCtosToolbar
+                      applicationId={applicationId}
+                      guarantor={gB}
+                      subjectReportByRef={subjectReportByRef}
+                      ctosSubjectLoading={ctosSubjectLoading}
+                      createSubjectPending={createSubjectPending}
+                      onOpenSubjectHtml={onOpenSubjectHtml}
+                      onRequestGetReport={onRequestGuarantorCtos}
+                      comparisonSide="before"
+                      missingGuarantorReason="No guarantor in the earlier revision for this row."
+                      align="start"
+                      showLastFetch={false}
+                      compactLabels
+                    />
+                    <span className="h-4 w-px shrink-0 bg-border" aria-hidden />
+                    <span className="shrink-0 text-xs text-muted-foreground">After</span>
+                    <GuarantorCtosToolbar
+                      applicationId={applicationId}
+                      guarantor={gA}
+                      subjectReportByRef={subjectReportByRef}
+                      ctosSubjectLoading={ctosSubjectLoading}
+                      createSubjectPending={createSubjectPending}
+                      onOpenSubjectHtml={onOpenSubjectHtml}
+                      onRequestGetReport={onRequestGuarantorCtos}
+                      comparisonSide="after"
+                      missingGuarantorReason="No guarantor in the later revision for this row."
+                      align="start"
+                      showLastFetch={false}
+                      compactLabels
+                    />
+                  </div>
                 </div>
               </div>
             </summary>
@@ -1302,6 +1603,7 @@ function ComparisonDeclarationRow({
 const yesNoScaleWrapper = "inline-block scale-[0.88] origin-left";
 
 export function BusinessSection({
+  applicationId = "",
   businessDetails,
   applicationGuarantors,
   section,
@@ -1323,6 +1625,138 @@ export function BusinessSection({
   sectionComparison,
   hideSectionComments = false,
 }: BusinessSectionProps) {
+  const ctosAppId = applicationId.trim() || undefined;
+  const { getAccessToken } = useAuthToken();
+  const { data: ctosSubjectList, isLoading: ctosSubjectLoading } =
+    useAdminApplicationCtosSubjectReports(ctosAppId);
+  const createSubjectCtos = useCreateAdminApplicationCtosSubjectReport(ctosAppId);
+
+  const subjectReportByRef = React.useMemo(() => {
+    const m = new Map<string, { id: string; has_report_html: boolean; fetched_at: string }>();
+    for (const r of ctosSubjectList ?? []) {
+      const ref = r.subject_ref;
+      if (!ref) continue;
+      const k = ref.trim().replace(/\s+/g, "").toLowerCase();
+      m.set(k, { id: r.id, has_report_html: Boolean(r.has_report_html), fetched_at: r.fetched_at });
+    }
+    return m;
+  }, [ctosSubjectList]);
+
+  const openSubjectHtmlReport = React.useCallback(
+    async (reportId: string) => {
+      if (!ctosAppId) return;
+      const token = await getAccessToken();
+      if (!token) {
+        toast.error("Not signed in");
+        return;
+      }
+      const url = `${API_URL}/v1/admin/applications/${ctosAppId}/ctos-reports/${reportId}/html`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        toast.error("Could not load report");
+        return;
+      }
+      const html = await res.text();
+      const w = window.open("", "_blank");
+      if (w) {
+        w.document.write(html);
+        w.document.close();
+      }
+    },
+    [ctosAppId, getAccessToken]
+  );
+
+  const onCreateGuarantorSubjectCtos = React.useCallback(
+    (g: GuarantorReviewRow) => {
+      if (!ctosAppId) return;
+      const subjectRef = ctosSubjectReportLookupKeyFromGuarantor(g);
+      if (!subjectRef) return;
+      const subjectKind = g.kind === "individual" ? "INDIVIDUAL" : "CORPORATE";
+      const displayName = (g.kind === "individual" ? g.name : g.businessName).trim();
+      const idNumberRaw = g.kind === "individual" ? g.icNumber : g.ssmNumber;
+      const idNumber = String(idNumberRaw).trim();
+      const t = toast.loading("Fetching CTOS report…");
+      createSubjectCtos.mutate(
+        {
+          subjectRef,
+          subjectKind,
+          enquiryOverride: {
+            displayName: displayName || subjectRef,
+            idNumber: idNumber.replace(/\s+/g, "") || subjectRef,
+          },
+        },
+        {
+          onSuccess: () => {
+            toast.dismiss(t);
+            toast.success("CTOS report saved.");
+          },
+          onError: (e: Error) => {
+            toast.dismiss(t);
+            toast.error(e.message || "CTOS request failed");
+          },
+        }
+      );
+    },
+    [ctosAppId, createSubjectCtos]
+  );
+
+  const [pendingGuarantorCtos, setPendingGuarantorCtos] = React.useState<GuarantorReviewRow | null>(null);
+
+  const guarantorCtosConfirmDialog = (
+    <AlertDialog
+      open={pendingGuarantorCtos != null}
+      onOpenChange={(open) => {
+        if (!open) setPendingGuarantorCtos(null);
+      }}
+    >
+      <AlertDialogContent className="rounded-xl">
+        <AlertDialogHeader>
+          <AlertDialogTitle>{CTOS_CONFIRM.title}</AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-2 text-sm text-muted-foreground">
+              {pendingGuarantorCtos ? (
+                <>
+                  <p className="m-0">{CTOS_CONFIRM.subjectLead}</p>
+                  <p className="m-0">
+                    <span className="font-medium text-foreground">Type:</span>{" "}
+                    {pendingGuarantorCtos.kind === "individual" ? "Individual" : "Company"}
+                  </p>
+                  <p className="m-0">
+                    <span className="font-medium text-foreground">Name:</span>{" "}
+                    {pendingGuarantorCtos.kind === "individual"
+                      ? pendingGuarantorCtos.name
+                      : pendingGuarantorCtos.businessName}
+                  </p>
+                  <p className="m-0">
+                    <span className="font-medium text-foreground">ID:</span>{" "}
+                    {pendingGuarantorCtos.kind === "individual"
+                      ? pendingGuarantorCtos.icNumber || "—"
+                      : pendingGuarantorCtos.ssmNumber || "—"}
+                  </p>
+                </>
+              ) : null}
+            </div>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel className="rounded-lg" disabled={createSubjectCtos.isPending}>
+            {CTOS_CONFIRM.cancel}
+          </AlertDialogCancel>
+          <AlertDialogAction
+            className={cn(buttonVariants({ variant: "secondary" }), "rounded-lg")}
+            disabled={createSubjectCtos.isPending}
+            onClick={() => {
+              if (pendingGuarantorCtos) onCreateGuarantorSubjectCtos(pendingGuarantorCtos);
+              setPendingGuarantorCtos(null);
+            }}
+          >
+            {createSubjectCtos.isPending ? CTOS_UI.fetching : CTOS_CONFIRM.primaryAction}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
   const guarantorAmlEntries = React.useMemo(
     () => parseGuarantorAmlEntries(applicationGuarantors),
     [applicationGuarantors]
@@ -1365,13 +1799,14 @@ export function BusinessSection({
     const showP2PAfter = a.whyRaisingFunds.raisingOnOtherP2P === true;
 
     return (
-      <ReviewSectionCard
-        title="Business & Guarantor Details"
-        icon={DocumentTextIcon}
-        section={section}
-        isReviewable={false}
-      >
-        <ReviewFieldBlock title="About Your Business">
+      <>
+        <ReviewSectionCard
+          title="Business & Guarantor Details"
+          icon={DocumentTextIcon}
+          section={section}
+          isReviewable={false}
+        >
+          <ReviewFieldBlock title="About Your Business">
           <div className="space-y-2">
             <ComparisonFieldRow
               label="What Does Your Company Do?"
@@ -1486,6 +1921,12 @@ export function BusinessSection({
               a={a}
               amlByKey={guarantorAmlByKey}
               isPathChanged={isPathChanged}
+              applicationId={ctosAppId}
+              subjectReportByRef={subjectReportByRef}
+              ctosSubjectLoading={ctosSubjectLoading}
+              createSubjectPending={createSubjectCtos.isPending}
+              onOpenSubjectHtml={openSubjectHtmlReport}
+              onRequestGuarantorCtos={setPendingGuarantorCtos}
               onViewDocument={onViewDocument}
               onDownloadDocument={onDownloadDocument}
               viewDocumentPending={viewDocumentPending}
@@ -1504,7 +1945,9 @@ export function BusinessSection({
         {!hideSectionComments ? (
           <SectionComments comments={comments} onSubmitComment={onAddComment} />
         ) : null}
-      </ReviewSectionCard>
+        </ReviewSectionCard>
+        {guarantorCtosConfirmDialog}
+      </>
     );
   }
 
@@ -1515,20 +1958,21 @@ export function BusinessSection({
   const canViewSingle = supportingFiles.length === 1;
 
   return (
-    <ReviewSectionCard
-      title="Business & Guarantor Details"
-      icon={DocumentTextIcon}
-      section={section}
-      isReviewable={isReviewable}
-      approvePending={approvePending}
-      isActionLocked={isActionLocked}
-      actionLockTooltip={actionLockTooltip}
-      sectionStatus={sectionStatus}
-      onResetToPending={onResetSectionToPending}
-      onApprove={onApprove}
-      onReject={onReject}
-      onRequestAmendment={onRequestAmendment}
-    >
+    <>
+      <ReviewSectionCard
+        title="Business & Guarantor Details"
+        icon={DocumentTextIcon}
+        section={section}
+        isReviewable={isReviewable}
+        approvePending={approvePending}
+        isActionLocked={isActionLocked}
+        actionLockTooltip={actionLockTooltip}
+        sectionStatus={sectionStatus}
+        onResetToPending={onResetSectionToPending}
+        onApprove={onApprove}
+        onReject={onReject}
+        onRequestAmendment={onRequestAmendment}
+      >
       {view ? (
         <>
           <ReviewFieldBlock title="About Your Business">
@@ -1691,6 +2135,12 @@ export function BusinessSection({
                 guarantors={view.guarantors}
                 amlByKey={guarantorAmlByKey}
                 onTriggerGuarantorAml={onTriggerGuarantorAml}
+                applicationId={ctosAppId}
+                subjectReportByRef={subjectReportByRef}
+                ctosSubjectLoading={ctosSubjectLoading}
+                createSubjectPending={createSubjectCtos.isPending}
+                onOpenSubjectHtml={openSubjectHtmlReport}
+                onRequestGuarantorCtos={setPendingGuarantorCtos}
                 onViewDocument={onViewDocument}
                 onDownloadDocument={onDownloadDocument}
                 viewDocumentPending={viewDocumentPending}
@@ -1736,6 +2186,8 @@ export function BusinessSection({
       {!hideSectionComments ? (
         <SectionComments comments={comments} onSubmitComment={onAddComment} />
       ) : null}
-    </ReviewSectionCard>
+      </ReviewSectionCard>
+      {guarantorCtosConfirmDialog}
+    </>
   );
 }

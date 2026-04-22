@@ -74,6 +74,11 @@ export {
 } from "./components/chart";
 export type { ChartConfig } from "./components/chart";
 export { cn } from "./lib/utils";
+export {
+  fieldTooltipContentClassName,
+  fieldTooltipTriggerClassName,
+  fieldTooltipTriggerInputClassName,
+} from "./field-tooltip-styles";
 export { NotFound } from "./components/not-found";
 export { InfoTooltip } from "./info-tooltip";
 export { CopyableField } from "./copyable-field";
@@ -106,6 +111,7 @@ export {
 } from "./components/select";
 export { Header } from "./components/header";
 export { HeaderProvider, useHeader } from "./components/header-provider";
+export { CashSoukSidebarFooter, type SidebarFooterVariant } from "./cashsouk-sidebar-footer";
 export {
   Sidebar,
   SidebarContent,

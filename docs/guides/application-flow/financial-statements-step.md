@@ -21,7 +21,7 @@ Issuers select **one** date: the **next financial year end** (`financial_year_en
 
 **Admin Financial Summary** — Three fixed CTOS columns (latest three CTOS `financial_year` values, ascending, padded with empty slots on the **left** so the newest CTOS year sits next to user columns). **User Input** columns use the **same** year list as the issuer: `getAdminFinancialSummaryUserColumnYears(questionnaire, ref)` (0–2 columns). User cells use `unaudited_by_year[String(year)]` or missing copy when a field is empty.
 
-**CTOS `financial_year`** — Parsed as calendar year from CTOS `pldd` minus one (see `apps/api/src/modules/ctos/parser.ts`).
+**CTOS `financial_year`** — Parsed as the calendar year from CTOS `pldd` (see `apps/api/src/modules/ctos/parser.ts`).
 
 ---
 

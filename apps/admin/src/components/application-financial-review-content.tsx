@@ -55,6 +55,7 @@ import {
   useCreateAdminApplicationCtosReport,
   useCreateAdminApplicationCtosSubjectReport,
 } from "@/hooks/use-admin-application-ctos-reports";
+import { CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -259,9 +260,8 @@ export interface DirectorShareholderRow {
   subjectKind: "INDIVIDUAL" | "CORPORATE" | null;
 }
 
-/** TEMP: set to false to use real issuer organization data. Remove when CTOS cross-check table is done. */
-/** Temporary: mock issuer + CTOS director rows on the Financial tab. Set back to `false` when done. */
-const USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS = true;
+/** Set to `true` only for local CTOS cross-check UI development (mock issuer + org director rows). */
+const USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS = false;
 
 /**
  * Mock issuer rows: order matches cross-check walk. Covers MATCH, each MISMATCH shape, NOT FOUND (no IC / missing in
@@ -1413,6 +1413,10 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
   const createSubjectCtos = useCreateAdminApplicationCtosSubjectReport(applicationId);
   const [directorCtosChecksExpanded, setDirectorCtosChecksExpanded] = React.useState<Record<string, boolean>>({});
   const [orgCtosConfirmOpen, setOrgCtosConfirmOpen] = React.useState(false);
+  const [subjectCtosConfirm, setSubjectCtosConfirm] = React.useState<{
+    row: DirectorShareholderRow;
+    enquiryOverride?: { displayName: string; idNumber: string };
+  } | null>(null);
 
   const directorShareholders = React.useMemo(() => {
     if (USE_MOCK_DIRECTOR_SHAREHOLDER_ROWS) {
@@ -1677,31 +1681,44 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
     }
   };
 
-  const onGetSubjectCtos = (
-    row: DirectorShareholderRow,
-    options?: { enquiryOverride: { displayName: string; idNumber: string } }
-  ) => {
-    const subjectRef = ctosSubjectRefForRequest(row);
-    if (!subjectRef || !row.subjectKind) return;
-    const t = toast.loading("Fetching CTOS report…");
-    createSubjectCtos.mutate(
-      {
-        subjectRef,
-        subjectKind: row.subjectKind,
-        ...(options?.enquiryOverride ? { enquiryOverride: options.enquiryOverride } : {}),
-      },
-      {
-        onSuccess: () => {
-          toast.dismiss(t);
-          toast.success("CTOS report saved.");
+  const commitGetSubjectCtos = React.useCallback(
+    (row: DirectorShareholderRow, options?: { enquiryOverride: { displayName: string; idNumber: string } }) => {
+      const subjectRef = ctosSubjectRefForRequest(row);
+      if (!subjectRef || !row.subjectKind) return;
+      const t = toast.loading("Fetching CTOS report…");
+      createSubjectCtos.mutate(
+        {
+          subjectRef,
+          subjectKind: row.subjectKind,
+          ...(options?.enquiryOverride ? { enquiryOverride: options.enquiryOverride } : {}),
         },
-        onError: (e: Error) => {
-          toast.dismiss(t);
-          toast.error(e.message || "CTOS request failed");
-        },
-      }
-    );
-  };
+        {
+          onSuccess: () => {
+            toast.dismiss(t);
+            toast.success("CTOS report saved.");
+          },
+          onError: (e: Error) => {
+            toast.dismiss(t);
+            toast.error(e.message || "CTOS request failed");
+          },
+        }
+      );
+    },
+    [createSubjectCtos]
+  );
+
+  const requestGetSubjectCtos = React.useCallback(
+    (row: DirectorShareholderRow, options?: { enquiryOverride: { displayName: string; idNumber: string } }) => {
+      const subjectRef = ctosSubjectRefForRequest(row);
+      if (!subjectRef || !row.subjectKind) return;
+      setSubjectCtosConfirm(
+        options?.enquiryOverride
+          ? { row, enquiryOverride: options.enquiryOverride }
+          : { row }
+      );
+    },
+    []
+  );
 
   /** Short hint under label for computed rows (admin scan speed). */
   const rowLabels: { id: string; label: string; formulaHint?: string }[] = [
@@ -1906,13 +1923,13 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between lg:gap-8">
             <div className="min-w-0 flex-1 space-y-2">
               <p className="m-0 max-w-3xl text-xs leading-relaxed text-muted-foreground">
-                <span className="font-medium text-foreground">Fetch latest CTOS report</span> asks CTOS for a{" "}
+                <span className="font-medium text-foreground">{CTOS_UI.fetchReport}</span> asks CTOS for a{" "}
                 <span className="font-medium text-foreground">new</span> organization report.{" "}
                 <span className="font-medium text-foreground">Financial Summary</span> and{" "}
-                <span className="font-medium text-foreground">Director and Shareholders</span> show the organization data CTOS
-                returns. <span className="font-medium text-foreground">View latest report</span> opens the full report from the{" "}
+                <span className="font-medium text-foreground">Director and Shareholders</span> use the organization data CTOS
+                returns. <span className="font-medium text-foreground">{CTOS_UI.viewReport}</span> opens the saved report from the{" "}
                 <span className="font-medium text-foreground">last successful fetch</span> in a new browser tab (read-only). It
-                does not request another pull from CTOS.
+                does not run another enquiry.
               </p>
               {ctosFetchState === "not_pulled" || hadCtosUnauditedOverride ? (
                 <div className="space-y-1 rounded-lg border border-border/70 bg-muted/25 px-3 py-2 text-xs text-muted-foreground">
@@ -1936,20 +1953,20 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                 <Button
                   variant="outline"
                   size="sm"
-                  className="rounded-lg h-8 px-3 text-xs"
+                  className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}
                   disabled={!latestCtos?.has_report_html || ctosLoading}
                   onClick={() => void openFullReport()}
                 >
-                  View latest report
+                  {CTOS_UI.viewReport}
                 </Button>
                 <Button
                   variant="secondary"
                   size="sm"
-                  className="rounded-lg h-8 px-3 text-xs"
+                  className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}
                   disabled={createCtos.isPending || ctosLoading}
                   onClick={() => setOrgCtosConfirmOpen(true)}
                 >
-                  {createCtos.isPending ? "Fetching…" : "Fetch latest CTOS report"}
+                  {createCtos.isPending ? CTOS_UI.fetching : CTOS_UI.fetchReport}
                 </Button>
               </div>
             </div>
@@ -2117,7 +2134,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                       <TableHead className={applicationTableHeaderClass}>Ownership</TableHead>
                       <TableHead className={applicationTableHeaderClass}>KYC / KYB</TableHead>
                       <TableHead className={applicationTableHeaderClass}>Last subject fetch</TableHead>
-                      <TableHead className={applicationTableHeaderClass}>View report</TableHead>
+                      <TableHead className={applicationTableHeaderClass}>{CTOS_UI.viewReport}</TableHead>
                       <TableHead className={`${applicationTableHeaderClass} w-[140px]`}>Action</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -2159,7 +2176,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                             <Button
                               variant="outline"
                               size="sm"
-                              className="rounded-lg h-8 text-xs"
+                              className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}
                               disabled={
                                 !ctosSubjectRefForRequest(row) ||
                                 !canViewSubject ||
@@ -2168,23 +2185,23 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                               }
                               onClick={() => void openSubjectHtmlReport(subjectSnap!.id)}
                             >
-                              View report
+                              {CTOS_UI.viewReport}
                             </Button>
                           </TableCell>
                           <TableCell className={applicationTableCellClass}>
                             <Button
-                              variant="outline"
+                              variant="secondary"
                               size="sm"
-                              className="rounded-lg h-8 text-xs"
+                              className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}
                               disabled={
                                 !ctosSubjectRefForRequest(row) ||
                                 !row.subjectKind ||
                                 createSubjectCtos.isPending ||
                                 ctosSubjectLoading
                               }
-                              onClick={() => onGetSubjectCtos(row)}
+                              onClick={() => requestGetSubjectCtos(row)}
                             >
-                              {createSubjectCtos.isPending ? "Fetching…" : "Get report"}
+                              {createSubjectCtos.isPending ? CTOS_UI.fetching : CTOS_UI.fetchReport}
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -2209,7 +2226,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                       <TableHead className={applicationTableHeaderClass}>CTOS Name</TableHead>
                       <TableHead className={applicationTableHeaderClass}>Status</TableHead>
                       <TableHead className={applicationTableHeaderClass}>Last subject fetch</TableHead>
-                      <TableHead className={applicationTableHeaderClass}>View report</TableHead>
+                      <TableHead className={applicationTableHeaderClass}>{CTOS_UI.viewReport}</TableHead>
                       <TableHead className={`${applicationTableHeaderClass} w-[140px]`}>Action</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -2284,7 +2301,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                               <Button
                                 variant="outline"
                                 size="sm"
-                                className="rounded-lg h-8 text-xs"
+                                className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}
                                 disabled={
                                   !actionRow ||
                                   !ctosSubjectRefForRequest(actionRow) ||
@@ -2294,14 +2311,14 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                                 }
                                 onClick={() => void openSubjectHtmlReport(subjectSnap!.id)}
                               >
-                                View report
+                                {CTOS_UI.viewReport}
                               </Button>
                             </TableCell>
                             <TableCell className={applicationTableCellClass}>
                               <Button
-                                variant="outline"
+                                variant="secondary"
                                 size="sm"
-                                className="rounded-lg h-8 text-xs"
+                                className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}
                                 disabled={
                                   !actionRow ||
                                   !ctosSubjectRefForRequest(actionRow) ||
@@ -2311,7 +2328,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                                 }
                                 onClick={() => {
                                   if (!actionRow?.icOrSsm) return;
-                                  onGetSubjectCtos(actionRow, {
+                                  requestGetSubjectCtos(actionRow, {
                                     enquiryOverride: {
                                       displayName: actionRow.name,
                                       idNumber: actionRow.icOrSsm,
@@ -2319,7 +2336,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                                   });
                                 }}
                               >
-                                {createSubjectCtos.isPending ? "Fetching…" : "Get report"}
+                                {createSubjectCtos.isPending ? CTOS_UI.fetching : CTOS_UI.fetchReport}
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -2397,15 +2414,12 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
       <AlertDialog open={orgCtosConfirmOpen} onOpenChange={setOrgCtosConfirmOpen}>
         <AlertDialogContent className="rounded-xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>Request a new report from CTOS?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This starts a new CTOS pull for this organization. Financial Summary and Director and Shareholders on this page
-              use organization data from CTOS.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{CTOS_CONFIRM.title}</AlertDialogTitle>
+            <AlertDialogDescription>{CTOS_CONFIRM.organizationDescription}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-lg" disabled={createCtos.isPending}>
-              Cancel
+              {CTOS_CONFIRM.cancel}
             </AlertDialogCancel>
             <AlertDialogAction
               className={cn(buttonVariants({ variant: "secondary" }), "rounded-lg")}
@@ -2414,7 +2428,63 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                 onGetCtos();
               }}
             >
-              Fetch latest CTOS report
+              {createCtos.isPending ? CTOS_UI.fetching : CTOS_CONFIRM.primaryAction}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={subjectCtosConfirm != null}
+        onOpenChange={(open) => {
+          if (!open) setSubjectCtosConfirm(null);
+        }}
+      >
+        <AlertDialogContent className="rounded-xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{CTOS_CONFIRM.title}</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                {subjectCtosConfirm ? (
+                  <>
+                    <p className="m-0">{CTOS_CONFIRM.subjectLead}</p>
+                    <p className="m-0">
+                      <span className="font-medium text-foreground">Name:</span> {subjectCtosConfirm.row.name}
+                    </p>
+                    <p className="m-0">
+                      <span className="font-medium text-foreground">Kind:</span>{" "}
+                      {subjectCtosConfirm.row.subjectKind ?? "—"}
+                    </p>
+                    {subjectCtosConfirm.enquiryOverride ? (
+                      <p className="m-0">
+                        <span className="font-medium text-foreground">Enquiry ID:</span>{" "}
+                        {subjectCtosConfirm.enquiryOverride.idNumber}
+                      </p>
+                    ) : null}
+                  </>
+                ) : null}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-lg" disabled={createSubjectCtos.isPending}>
+              {CTOS_CONFIRM.cancel}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className={cn(buttonVariants({ variant: "secondary" }), "rounded-lg")}
+              disabled={createSubjectCtos.isPending}
+              onClick={() => {
+                if (!subjectCtosConfirm) return;
+                commitGetSubjectCtos(
+                  subjectCtosConfirm.row,
+                  subjectCtosConfirm.enquiryOverride
+                    ? { enquiryOverride: subjectCtosConfirm.enquiryOverride }
+                    : undefined
+                );
+                setSubjectCtosConfirm(null);
+              }}
+            >
+              {createSubjectCtos.isPending ? CTOS_UI.fetching : CTOS_CONFIRM.primaryAction}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

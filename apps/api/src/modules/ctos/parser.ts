@@ -411,7 +411,7 @@ export async function parseCtosReportXml(xmlStr: string): Promise<CtosReportPars
           const bsdd = xmlText(safeGet(acc, ["bsdd", 0]));
           const plddCalYear = parseYearFromPldd(pldd);
           const financialYear =
-            plddCalYear != null && Number.isFinite(plddCalYear) ? plddCalYear - 1 : null;
+            plddCalYear != null && Number.isFinite(plddCalYear) ? plddCalYear : null;
           return {
             financial_year: financialYear,
             dates: { pldd, bsdd },

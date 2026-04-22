@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, getReviewRefreshPolicy, useAuthToken } from "@cashsouk/config";
 import type { GetAdminApplicationsParams } from "@cashsouk/types";
 import { applicationsKeys } from "@/applications/query-keys";
+import { invalidateAdminApplicationNavQueries } from "@/lib/admin-application-nav-cache";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -28,6 +29,6 @@ export function useInvalidateApplications() {
   const queryClient = useQueryClient();
 
   return () => {
-    queryClient.invalidateQueries({ queryKey: applicationsKeys.all });
+    invalidateAdminApplicationNavQueries(queryClient);
   };
 }

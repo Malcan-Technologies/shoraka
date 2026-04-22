@@ -1020,6 +1020,8 @@ export interface ApplicationListItem {
   status: string;
   submittedAt: string | null;
   updatedAt: string;
+  productId: string | null;
+  baseProductId: string | null;
 }
 
 export interface GetAdminApplicationsParams extends PaginationParams {

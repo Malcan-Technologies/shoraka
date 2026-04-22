@@ -32,6 +32,7 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
         pageSize: validated.pageSize,
         search: validated.search,
         activeOnly: validated.active === true,
+        includeDeleted: validated.includeDeleted === true,
       });
 
       const pageSize = validated.pageSize;
@@ -42,7 +43,9 @@ router.get("/", async (req: Request, res: Response, next: NextFunction) => {
         data: {
           products: products.map((p) => ({
             id: p.id,
+            base_id: (p as { base_id?: string | null }).base_id ?? null,
             version: p.version,
+            status: (p as { status?: string }).status ?? "ACTIVE",
             workflow: p.workflow as unknown[],
             category_display_order: (p as any).category_display_order ?? null,
             product_display_order: (p as any).product_display_order ?? null,

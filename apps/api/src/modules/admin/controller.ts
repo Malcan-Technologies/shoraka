@@ -2075,7 +2075,7 @@ router.get(
       const orgPortal = portal as "issuer" | "investor";
       const row = await getCtosReportByAdminOrg(orgPortal, id, reportId);
       if (!row?.report_html) {
-        throw new AppError(404, "NOT_FOUND", "CTOS HTML report not available");
+        throw new AppError(404, "NOT_FOUND", "CTOS report not available");
       }
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       res.send(row.report_html);
@@ -2097,7 +2097,7 @@ router.get(
       const orgPortal = portal as "issuer" | "investor";
       const row = await getCtosReportByAdminOrg(orgPortal, id, reportId);
       if (!row?.report_html) {
-        throw new AppError(404, "NOT_FOUND", "CTOS HTML report not available");
+        throw new AppError(404, "NOT_FOUND", "CTOS report not available");
       }
       let pdf: Buffer;
       try {
@@ -2235,7 +2235,7 @@ router.get(
       }
       const row = await getCtosReportById(app.issuer_organization_id, reportId);
       if (!row?.report_html) {
-        throw new AppError(404, "NOT_FOUND", "CTOS HTML report not available");
+        throw new AppError(404, "NOT_FOUND", "CTOS report not available");
       }
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       res.send(row.report_html);
@@ -2260,7 +2260,7 @@ router.get(
       }
       const row = await getCtosReportById(app.issuer_organization_id, reportId);
       if (!row?.report_html) {
-        throw new AppError(404, "NOT_FOUND", "CTOS HTML report not available");
+        throw new AppError(404, "NOT_FOUND", "CTOS report not available");
       }
       let pdf: Buffer;
       try {

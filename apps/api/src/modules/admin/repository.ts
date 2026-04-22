@@ -2126,10 +2126,13 @@ export class AdminRepository {
       id: string;
       issuerOrganizationName: string | null;
       financingTypeLabel: string;
+      financingStructureLabel: string;
       requestedAmount: number;
       status: string;
       submittedAt: Date | null;
       updatedAt: Date;
+      productId: string | null;
+      baseProductId: string | null;
     }[];
     total: number;
   }> {
@@ -2178,7 +2181,7 @@ export class AdminRepository {
       ];
     }
 
-    const [applications, total] = await Promise.all([
+    const [applicationRows, total] = await Promise.all([
       prisma.application.findMany({
         where,
         skip,
@@ -2206,7 +2209,7 @@ export class AdminRepository {
     ]);
 
     // Transform and calculate requested amount
-    const transformedApplications = applications.map((app) => {
+    const transformedApplications = applicationRows.map((app) => {
       let requestedAmount = 0;
 
       // Calculate from invoices if available
@@ -2240,6 +2243,11 @@ export class AdminRepository {
         financingStructureLabel = app.contract_id ? "Contract financing" : "Invoice financing";
       }
 
+      const linkedProductId =
+        typeof financingType?.product_id === "string" && financingType.product_id.trim().length > 0
+          ? financingType.product_id.trim()
+          : null;
+
       return {
         id: app.id,
         issuerOrganizationName: app.issuer_organization.name,
@@ -2249,10 +2257,30 @@ export class AdminRepository {
         status: app.status,
         submittedAt: app.submitted_at,
         updatedAt: app.updated_at,
+        productId: linkedProductId,
       };
     });
 
-    return { applications: transformedApplications, total };
+    const productIdList = [
+      ...new Set(transformedApplications.map((a) => a.productId).filter((x): x is string => Boolean(x))),
+    ];
+    const productRows =
+      productIdList.length > 0
+        ? await prisma.product.findMany({
+            where: { id: { in: productIdList } },
+            select: { id: true, base_id: true },
+          })
+        : [];
+    const productIdToBase = new Map(
+      productRows.map((row) => [row.id, (row.base_id ?? row.id) as string])
+    );
+
+    const applications = transformedApplications.map((row) => ({
+      ...row,
+      baseProductId: row.productId ? productIdToBase.get(row.productId) ?? row.productId : null,
+    }));
+
+    return { applications, total };
   }
 
   /**

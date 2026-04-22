@@ -2,7 +2,7 @@
 
 ## Context
 
-Parsed CTOS company financial rows previously exposed **`reporting_year`**. The app now expects **`financial_year`**, defined at parse time as **calendar year from `pldd` minus one** (same rule in `apps/api/src/modules/ctos/parser.ts` and `apps/api/src/ctos-test/ctos.new.ts`).
+Parsed CTOS company financial rows previously exposed **`reporting_year`**. The app now expects **`financial_year`**, defined at parse time as the **calendar year from `pldd`** (same rule in `apps/api/src/modules/ctos/parser.ts` and `apps/api/src/ctos-test/ctos.new.ts`).
 
 There is **no** runtime dual-read of `reporting_year` in application code.
 

@@ -8,9 +8,9 @@ import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { ApplicationsTable } from "@/components/applications-table";
 import { ApplicationsTableToolbar } from "@/components/applications-table-toolbar";
 import { useApplications } from "@/hooks/use-applications";
-import { applicationsKeys } from "@/applications/query-keys";
+import { invalidateAdminApplicationNavQueries } from "@/lib/admin-application-nav-cache";
 import { useProducts } from "@/hooks/use-products";
-import { productName } from "@/app/settings/products/product-utils";
+import { productName, resolveDisplayProductForNav } from "@/app/settings/products/product-utils";
 import { useRouter, useParams } from "next/navigation";
 import {
   BanknotesIcon,
@@ -34,9 +34,11 @@ export default function DynamicApplicationsPage() {
   const params = useParams();
   const productKey = params.productKey as string;
 
-  // Fetch products to get the current product name
-  const { data: productsData } = useProducts({ page: 1, pageSize: 100, active: true });
-  const currentProduct = productsData?.products.find(p => p.id === productKey);
+  // Fetch products to get the current product name (include deleted/inactive for nav key match)
+  const { data: productsData } = useProducts({ page: 1, pageSize: 100, includeDeleted: true });
+  const currentProduct = productsData?.products
+    ? resolveDisplayProductForNav(productsData.products, productKey)
+    : undefined;
   const currentProductName = currentProduct ? productName(currentProduct) : "Applications";
 
   // Filters
@@ -73,7 +75,7 @@ export default function DynamicApplicationsPage() {
   } = useApplications(apiParams);
 
   const handleReload = () => {
-    queryClient.invalidateQueries({ queryKey: applicationsKeys.all });
+    invalidateAdminApplicationNavQueries(queryClient);
   };
 
   const handleClearFilters = () => {

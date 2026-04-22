@@ -4,7 +4,7 @@
  * SECTION: Organization CTOS report history (admin sidebar)
  * WHY: Match KYC card typography, padding (p-6 pt-0), and date format (PPpp)
  * INPUT: portal + organization id
- * OUTPUT: Collapsible card with view (HTML, eye icon) / download (PDF)
+ * OUTPUT: Collapsible card with view (eye icon) / download (PDF)
  * WHERE USED: OrganizationDetailPage (issuer or investor)
  */
 
@@ -29,6 +29,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { CTOS_CONFIRM, CTOS_FETCH_BUTTON_CLASSNAME, CTOS_UI } from "@/lib/ctos-ui-labels";
 import {
   ArrowDownTrayIcon,
   ArrowPathIcon,
@@ -201,8 +202,8 @@ export function OrganizationIssuerCtosReportsCard({
               <Button
                 type="button"
                 size="sm"
-                variant="outline"
-                className="shrink-0 gap-1.5 h-8"
+                variant="secondary"
+                className={cn(CTOS_FETCH_BUTTON_CLASSNAME, "shrink-0")}
                 disabled={fetchCtosMutation.isPending || ctosQuery.isLoading}
                 onClick={(e) => {
                   e.preventDefault();
@@ -212,7 +213,7 @@ export function OrganizationIssuerCtosReportsCard({
                 <ArrowPathIcon
                   className={cn("h-3.5 w-3.5", fetchCtosMutation.isPending && "animate-spin")}
                 />
-                {fetchCtosMutation.isPending ? "Fetching…" : "Get latest"}
+                {fetchCtosMutation.isPending ? CTOS_UI.fetching : CTOS_UI.fetchReport}
               </Button>
             </div>
           </CardHeader>
@@ -233,7 +234,7 @@ export function OrganizationIssuerCtosReportsCard({
                   </p>
                 ) : orgCtosReports.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-8">
-                    No reports yet. Use Get latest to pull from CTOS.
+                    No reports yet. Use {CTOS_UI.fetchReport} to pull from CTOS.
                   </p>
                 ) : (
                   <ul className="space-y-4 text-sm">
@@ -259,7 +260,7 @@ export function OrganizationIssuerCtosReportsCard({
                             size="icon"
                             className="h-8 w-8 text-muted-foreground hover:text-foreground"
                             disabled={!r.has_report_html}
-                            title="View CTOS report in new tab"
+                            title="Open report in a new tab"
                             onClick={() => void openOrgReportHtml(r.id)}
                           >
                             <EyeIcon className="h-4 w-4" aria-hidden />
@@ -291,22 +292,19 @@ export function OrganizationIssuerCtosReportsCard({
       <AlertDialog open={getLatestConfirmOpen} onOpenChange={setGetLatestConfirmOpen}>
         <AlertDialogContent className="rounded-xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>Request a new report from CTOS?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This starts a new CTOS pull for this organization. Stored reports appear in the history after a
-              successful fetch.
-            </AlertDialogDescription>
+            <AlertDialogTitle>{CTOS_CONFIRM.title}</AlertDialogTitle>
+            <AlertDialogDescription>{CTOS_CONFIRM.organizationDescription}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-lg" disabled={fetchCtosMutation.isPending}>
-              Cancel
+              {CTOS_CONFIRM.cancel}
             </AlertDialogCancel>
             <AlertDialogAction
               className={cn(buttonVariants({ variant: "secondary" }), "rounded-lg")}
               disabled={fetchCtosMutation.isPending}
               onClick={() => onConfirmGetLatest()}
             >
-              Get latest report
+              {CTOS_CONFIRM.primaryAction}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

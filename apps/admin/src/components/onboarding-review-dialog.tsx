@@ -123,13 +123,13 @@ export function OnboardingReviewDialog({
   const handleSSMApprove = () => {
     ssmApprovalMutation.mutate(application.id, {
       onSuccess: (data) => {
-        toast.success("CTOS verification approved", {
+        toast.success("CTOS Verification approved", {
           description: data.message,
         });
         onOpenChange(false);
       },
       onError: (error) => {
-        toast.error("Failed to approve CTOS verification", {
+        toast.error("Failed to approve CTOS Verification", {
           description: error.message,
         });
       },
@@ -137,7 +137,7 @@ export function OnboardingReviewDialog({
   };
 
   const handleSSMReject = () => {
-    toast.error("CTOS verification rejected", {
+    toast.error("CTOS Verification rejected", {
       description: `Company ${application.organizationName} has been rejected.`,
     });
     onOpenChange(false);

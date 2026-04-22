@@ -7,6 +7,8 @@ export interface ListProductsParams {
   pageSize: number;
   search?: string;
   activeOnly?: boolean;
+  /** When true with activeOnly false, include rows with status DELETED (admin sidebar grouping). */
+  includeDeleted?: boolean;
 }
 
 export interface UpdateProductData {
@@ -424,6 +426,7 @@ export class ProductRepository {
     const { page, pageSize, search } = params;
     const skip = (page - 1) * pageSize;
     const searchTrim = search?.trim();
+    const includeDeleted = params.includeDeleted === true;
 
     if (!searchTrim) {
       /** activeOnly: show only ACTIVE versions (one per base_id). Supports pagination. */
@@ -443,7 +446,7 @@ export class ProductRepository {
         return { products, total };
       }
 
-      const whereAdmin = { status: { not: "DELETED" } } as any;
+      const whereAdmin = includeDeleted ? ({} as any) : ({ status: { not: "DELETED" } } as any);
       const [products, total] = await Promise.all([
         prisma.product.findMany({
           where: whereAdmin,
@@ -482,6 +485,7 @@ export class ProductRepository {
       const total = countResult[0]?.count ?? 0;
       return { products, total };
     }
+    const deletedClause = includeDeleted ? Prisma.sql`` : Prisma.sql`AND status != 'DELETED'`;
     const [products, countResult] = await Promise.all([
       prisma.$queryRaw<Product[]>`
         SELECT * FROM products
@@ -489,7 +493,7 @@ export class ProductRepository {
           (workflow::jsonb->0->'config'->>'name') ILIKE ${pattern}
           OR (workflow::jsonb->0->'config'->'type'->>'name') ILIKE ${pattern}
         )
-          AND status != 'DELETED'
+        ${deletedClause}
         ORDER BY updated_at DESC
         LIMIT ${pageSize} OFFSET ${skip}
       `,
@@ -499,7 +503,7 @@ export class ProductRepository {
           (workflow::jsonb->0->'config'->>'name') ILIKE ${pattern}
           OR (workflow::jsonb->0->'config'->'type'->>'name') ILIKE ${pattern}
         )
-          AND status != 'DELETED'
+        ${deletedClause}
       `,
     ]);
     const total = countResult[0]?.count ?? 0;
