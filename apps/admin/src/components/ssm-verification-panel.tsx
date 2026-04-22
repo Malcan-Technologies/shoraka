@@ -917,18 +917,30 @@ export function SSMVerificationPanel({
                 </Label>
               </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="lg"
-                  className="w-full sm:w-auto shrink-0 rounded-full gap-2"
-                  disabled={disabled}
-                  onClick={onTriggerAmendment}
-                >
-                  <ArrowTopRightOnSquareIcon className="h-5 w-5 shrink-0" aria-hidden />
-                  Trigger amendment
-                </Button>
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:items-start">
+                <div className="flex w-full flex-col gap-1.5 sm:w-auto sm:shrink-0">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="lg"
+                        className="w-full rounded-full gap-2 sm:w-auto shrink-0"
+                        disabled={disabled}
+                        onClick={onTriggerAmendment}
+                      >
+                        <ArrowTopRightOnSquareIcon className="h-5 w-5 shrink-0" aria-hidden />
+                        Request Amendment (Open RegTank)
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
+                      Opens RegTank where you can request the applicant to amend their onboarding details.
+                    </TooltipContent>
+                  </Tooltip>
+                  <p className="text-xs text-muted-foreground sm:max-w-xs">
+                    Continue in RegTank to request the applicant to update their details.
+                  </p>
+                </div>
                 <Button
                   type="button"
                   variant="default"
