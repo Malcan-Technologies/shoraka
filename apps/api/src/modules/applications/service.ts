@@ -1107,8 +1107,20 @@ export class ApplicationService {
 
     if ((application as any).status === "AMENDMENT_REQUESTED") {
       const { allowedSections } = await getAmendmentAllowedSections(params.applicationId);
-      if (!allowedSections.has("supporting_documents")) {
-        throw new AppError(403, "AMENDMENT_LOCKED", "This section is locked during amendment review");
+      const isSupportingDocsWorkflowUpload =
+        params.supportingDocCategoryKey !== undefined &&
+        params.supportingDocIndex !== undefined;
+      if (isSupportingDocsWorkflowUpload) {
+        if (!allowedSections.has("supporting_documents")) {
+          throw new AppError(403, "AMENDMENT_LOCKED", "This section is locked during amendment review");
+        }
+      } else {
+        /** Generic uploads use this path without category keys. */
+        const canGenericUpload =
+          allowedSections.has("business_details") || allowedSections.has("supporting_documents");
+        if (!canGenericUpload) {
+          throw new AppError(403, "AMENDMENT_LOCKED", "This section is locked during amendment review");
+        }
       }
     }
 

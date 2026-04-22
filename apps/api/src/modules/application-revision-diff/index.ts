@@ -39,6 +39,15 @@ const SECTION_LABELS: Record<(typeof APPLICATION_JSON_KEYS)[number], string> = {
 
 const VOLATILE_SNAPSHOT_KEYS = new Set(["created_at", "updated_at"]);
 
+/** Guarantor rows are recreated on each business_details save; omit id/timestamps from resubmit diff noise. */
+const GUARANTOR_VOLATILE_SNAPSHOT_KEYS = new Set([
+  "id",
+  "created_at",
+  "updated_at",
+  "last_triggered_at",
+  "last_synced_at",
+]);
+
 function isPlainObject(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === "object" && !Array.isArray(v);
 }
@@ -78,6 +87,21 @@ function stripVolatileTimestamps(value: unknown): unknown {
     out[k] = stripVolatileTimestamps(value[k]);
   }
   return out;
+}
+
+function stripGuarantorSnapshotRowForCompare(row: unknown): unknown {
+  if (!isPlainObject(row)) return row;
+  const out: Record<string, unknown> = {};
+  for (const k of Object.keys(row)) {
+    if (GUARANTOR_VOLATILE_SNAPSHOT_KEYS.has(k)) continue;
+    out[k] = stripVolatileTimestamps(row[k]);
+  }
+  return out;
+}
+
+function stripApplicationGuarantorsArrayForCompare(raw: unknown): unknown {
+  if (!Array.isArray(raw)) return raw;
+  return raw.map(stripGuarantorSnapshotRowForCompare);
 }
 
 type FieldChangeLeaf = { path: string; prev: unknown; next: unknown };
@@ -212,6 +236,35 @@ export type ResubmitChangeSummary = {
   activitySummary: string;
 };
 
+const GUARANTOR_SNAPSHOT_DIFF_PREFIX = "business_details.guarantors";
+
+function isGuarantorSnapshotDiffPath(path: string): boolean {
+  return (
+    path === GUARANTOR_SNAPSHOT_DIFF_PREFIX ||
+    path.startsWith(`${GUARANTOR_SNAPSHOT_DIFF_PREFIX}[`) ||
+    path.startsWith(`${GUARANTOR_SNAPSHOT_DIFF_PREFIX}.`)
+  );
+}
+
+/**
+ * Roll up granular guarantor snapshot leaves (file name, s3 key, etc.) into one activity / metadata line:
+ * "Business details: Guarantor details". Comparison UI still uses full snapshots via "View comparison".
+ */
+function collapseGuarantorFieldChangesForDisplay(changes: ResubmitFieldChange[]): ResubmitFieldChange[] {
+  const guarantorRows = changes.filter((c) => isGuarantorSnapshotDiffPath(c.path));
+  const rest = changes.filter((c) => !isGuarantorSnapshotDiffPath(c.path));
+  if (guarantorRows.length === 0) return changes;
+  const rollup: ResubmitFieldChange = {
+    path: GUARANTOR_SNAPSHOT_DIFF_PREFIX,
+    section_key: "business_details",
+    section_label: "Business details",
+    field_label: "Guarantor details",
+    previous_value: "Earlier revision",
+    next_value: "This revision",
+  };
+  return [...rest, rollup];
+}
+
 export function summarizeResubmitSnapshotDiff(
   previousSnapshot: unknown,
   nextSnapshot: unknown
@@ -226,6 +279,20 @@ export function summarizeResubmitSnapshotDiff(
     for (const key of APPLICATION_JSON_KEYS) {
       collectFieldChangeLeaves(prevApp[key], nextApp[key], key, fieldLeaves, MAX_FIELD_PATHS);
     }
+    /**
+     * Guarantors are persisted in `application_guarantors` and mirrored as `application.guarantors` in
+     * revision snapshots — not inside the `business_details` JSON column. Agreement-only amendments
+     * must still surface here and under `business_details.*` paths for admin tab + row highlights.
+     */
+    const prevG = stripApplicationGuarantorsArrayForCompare(prevApp.guarantors);
+    const nextG = stripApplicationGuarantorsArrayForCompare(nextApp.guarantors);
+    collectFieldChangeLeaves(
+      prevG,
+      nextG,
+      "business_details.guarantors",
+      fieldLeaves,
+      MAX_FIELD_PATHS
+    );
   }
 
   const prevContractRaw = isPlainObject(previousSnapshot)
@@ -300,6 +367,8 @@ export function summarizeResubmitSnapshotDiff(
     isMeaningfulResubmitSnapshotFieldPath(fc.path)
   );
 
+  const field_changes_display = collapseGuarantorFieldChangesForDisplay(field_changes_meaningful);
+
   const sectionOrder = new Map<string, number>();
   let ord = 0;
   for (const k of APPLICATION_JSON_KEYS) {
@@ -309,13 +378,13 @@ export function summarizeResubmitSnapshotDiff(
   sectionOrder.set("contract", 100);
   sectionOrder.set("invoices", 101);
 
-  const changedSectionKeys = [...new Set(field_changes_meaningful.map((f) => f.section_key))].sort(
+  const changedSectionKeys = [...new Set(field_changes_display.map((f) => f.section_key))].sort(
     (a, b) => (sectionOrder.get(a) ?? 99) - (sectionOrder.get(b) ?? 99)
   );
   const changedSectionLabels = changedSectionKeys.map(sectionLabelForKey);
 
-  const contractChanged = field_changes_meaningful.some((f) => f.section_key === "contract");
-  const invoicesChanged = field_changes_meaningful.some((f) => f.section_key === "invoices");
+  const contractChanged = field_changes_display.some((f) => f.section_key === "contract");
+  const invoicesChanged = field_changes_display.some((f) => f.section_key === "invoices");
 
   const uniqueLabels = [...new Set(changedSectionLabels)];
 
@@ -324,12 +393,12 @@ export function summarizeResubmitSnapshotDiff(
     activitySummary = "Changes: (none detected, compare snapshots if needed)";
   } else {
     const sectionLine = `Changes: ${uniqueLabels.join(", ")}`;
-    const detailLines = field_changes_meaningful
+    const detailLines = field_changes_display
       .slice(0, MAX_ACTIVITY_FIELD_LINES)
       .map((fc) => `• ${fc.section_label}: ${fc.field_label}`);
     const more =
-      field_changes_meaningful.length > MAX_ACTIVITY_FIELD_LINES
-        ? `\n• …and ${field_changes_meaningful.length - MAX_ACTIVITY_FIELD_LINES} more fields`
+      field_changes_display.length > MAX_ACTIVITY_FIELD_LINES
+        ? `\n• …and ${field_changes_display.length - MAX_ACTIVITY_FIELD_LINES} more fields`
         : "";
     const body = `${sectionLine}\n${detailLines.join("\n")}${more}`;
     activitySummary =
@@ -343,7 +412,7 @@ export function summarizeResubmitSnapshotDiff(
     changedSectionLabels: uniqueLabels,
     contractChanged,
     invoicesChanged,
-    field_changes: field_changes_meaningful,
+    field_changes: field_changes_display,
     activitySummary,
   };
 }
