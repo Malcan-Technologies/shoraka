@@ -1,7 +1,7 @@
-CTOS pldd calendar year: 2024 financial_year: 2023
-CTOS pldd calendar year: 2023 financial_year: 2022
-CTOS pldd calendar year: 2022 financial_year: 2021
-CTOS pldd calendar year: 2021 financial_year: 2020
+CTOS pldd calendar year: 2024 financial_year: 2024
+CTOS pldd calendar year: 2023 financial_year: 2023
+CTOS pldd calendar year: 2022 financial_year: 2022
+CTOS pldd calendar year: 2021 financial_year: 2021
 
 ---------- CTOS harness: case ----------
 company | 9 HEARTS SDN BHD | regOrNic: 202002117123
@@ -673,7 +673,7 @@ company | 9 HEARTS SDN BHD | regOrNic: 202002117123
   },
   "financials_json": [
     {
-      "financial_year": 2023,
+      "financial_year": 2024,
       "dates": {
         "pldd": "30-06-2024",
         "bsdd": "2024-06-30"
@@ -703,7 +703,7 @@ company | 9 HEARTS SDN BHD | regOrNic: 202002117123
       }
     },
     {
-      "financial_year": 2022,
+      "financial_year": 2023,
       "dates": {
         "pldd": "30-06-2023",
         "bsdd": "2024-06-30"
@@ -733,7 +733,7 @@ company | 9 HEARTS SDN BHD | regOrNic: 202002117123
       }
     },
     {
-      "financial_year": 2021,
+      "financial_year": 2022,
       "dates": {
         "pldd": "30-06-2022",
         "bsdd": "2024-06-30"
@@ -763,7 +763,7 @@ company | 9 HEARTS SDN BHD | regOrNic: 202002117123
       }
     },
     {
-      "financial_year": 2020,
+      "financial_year": 2021,
       "dates": {
         "pldd": "30-06-2021",
         "bsdd": "2024-06-30"
@@ -796,10 +796,10 @@ company | 9 HEARTS SDN BHD | regOrNic: 202002117123
 }
 ---------- end case ----------
 
-CTOS pldd calendar year: 2024 financial_year: 2023
-CTOS pldd calendar year: 2023 financial_year: 2022
-CTOS pldd calendar year: 2022 financial_year: 2021
-CTOS pldd calendar year: 2021 financial_year: 2020
+CTOS pldd calendar year: 2024 financial_year: 2024
+CTOS pldd calendar year: 2023 financial_year: 2023
+CTOS pldd calendar year: 2022 financial_year: 2022
+CTOS pldd calendar year: 2021 financial_year: 2021
 
 ---------- CTOS harness: case ----------
 company | COTC SDN BHD | regOrNic: 202002117124
@@ -1473,7 +1473,7 @@ company | COTC SDN BHD | regOrNic: 202002117124
   },
   "financials_json": [
     {
-      "financial_year": 2023,
+      "financial_year": 2024,
       "dates": {
         "pldd": "30-06-2024",
         "bsdd": "2024-06-30"
@@ -1503,7 +1503,7 @@ company | COTC SDN BHD | regOrNic: 202002117124
       }
     },
     {
-      "financial_year": 2022,
+      "financial_year": 2023,
       "dates": {
         "pldd": "30-06-2023",
         "bsdd": "2024-06-30"
@@ -1533,7 +1533,7 @@ company | COTC SDN BHD | regOrNic: 202002117124
       }
     },
     {
-      "financial_year": 2021,
+      "financial_year": 2022,
       "dates": {
         "pldd": "30-06-2022",
         "bsdd": "2024-06-30"
@@ -1563,7 +1563,7 @@ company | COTC SDN BHD | regOrNic: 202002117124
       }
     },
     {
-      "financial_year": 2020,
+      "financial_year": 2021,
       "dates": {
         "pldd": "30-06-2021",
         "bsdd": "2024-06-30"
@@ -1596,10 +1596,10 @@ company | COTC SDN BHD | regOrNic: 202002117124
 }
 ---------- end case ----------
 
-CTOS pldd calendar year: 2024 financial_year: 2023
-CTOS pldd calendar year: 2023 financial_year: 2022
-CTOS pldd calendar year: 2022 financial_year: 2021
-CTOS pldd calendar year: 2021 financial_year: 2020
+CTOS pldd calendar year: 2024 financial_year: 2024
+CTOS pldd calendar year: 2023 financial_year: 2023
+CTOS pldd calendar year: 2022 financial_year: 2022
+CTOS pldd calendar year: 2021 financial_year: 2021
 
 ---------- CTOS harness: case ----------
 company | KINGSLAND SDN BHD | regOrNic: 202002117125
@@ -2341,7 +2341,7 @@ company | KINGSLAND SDN BHD | regOrNic: 202002117125
   },
   "financials_json": [
     {
-      "financial_year": 2023,
+      "financial_year": 2024,
       "dates": {
         "pldd": "30-06-2024",
         "bsdd": "2024-06-30"
@@ -2371,7 +2371,7 @@ company | KINGSLAND SDN BHD | regOrNic: 202002117125
       }
     },
     {
-      "financial_year": 2022,
+      "financial_year": 2023,
       "dates": {
         "pldd": "30-06-2023",
         "bsdd": "2024-06-30"
@@ -2401,7 +2401,7 @@ company | KINGSLAND SDN BHD | regOrNic: 202002117125
       }
     },
     {
-      "financial_year": 2021,
+      "financial_year": 2022,
       "dates": {
         "pldd": "30-06-2022",
         "bsdd": "2024-06-30"
@@ -2431,7 +2431,7 @@ company | KINGSLAND SDN BHD | regOrNic: 202002117125
       }
     },
     {
-      "financial_year": 2020,
+      "financial_year": 2021,
       "dates": {
         "pldd": "30-06-2021",
         "bsdd": "2024-06-30"
@@ -2464,8 +2464,8 @@ company | KINGSLAND SDN BHD | regOrNic: 202002117125
 }
 ---------- end case ----------
 
-CTOS pldd calendar year: 2024 financial_year: 2023
-CTOS pldd calendar year: 2023 financial_year: 2022
+CTOS pldd calendar year: 2024 financial_year: 2024
+CTOS pldd calendar year: 2023 financial_year: 2023
 
 ---------- CTOS harness: case ----------
 company | STRAWBERRY PINK SDN BHD | regOrNic: 199701999962
@@ -3861,7 +3861,7 @@ company | STRAWBERRY PINK SDN BHD | regOrNic: 199701999962
   },
   "financials_json": [
     {
-      "financial_year": 2023,
+      "financial_year": 2024,
       "dates": {
         "pldd": "30-06-2024",
         "bsdd": "2023-06-30"
@@ -3891,7 +3891,7 @@ company | STRAWBERRY PINK SDN BHD | regOrNic: 199701999962
       }
     },
     {
-      "financial_year": 2022,
+      "financial_year": 2023,
       "dates": {
         "pldd": "30-06-2023",
         "bsdd": "2022-06-30"
@@ -3924,8 +3924,8 @@ company | STRAWBERRY PINK SDN BHD | regOrNic: 199701999962
 }
 ---------- end case ----------
 
-CTOS pldd calendar year: 2024 financial_year: 2023
-CTOS pldd calendar year: 2023 financial_year: 2022
+CTOS pldd calendar year: 2024 financial_year: 2024
+CTOS pldd calendar year: 2023 financial_year: 2023
 
 ---------- CTOS harness: case ----------
 company | PITAYA PIN K SDN BHD | regOrNic: 199701090962
@@ -4874,7 +4874,7 @@ company | PITAYA PIN K SDN BHD | regOrNic: 199701090962
   },
   "financials_json": [
     {
-      "financial_year": 2023,
+      "financial_year": 2024,
       "dates": {
         "pldd": "30-06-2024",
         "bsdd": "2024-06-30"
@@ -4904,7 +4904,7 @@ company | PITAYA PIN K SDN BHD | regOrNic: 199701090962
       }
     },
     {
-      "financial_year": 2022,
+      "financial_year": 2023,
       "dates": {
         "pldd": "30-06-2023",
         "bsdd": "2022-06-30"
@@ -4937,10 +4937,10 @@ company | PITAYA PIN K SDN BHD | regOrNic: 199701090962
 }
 ---------- end case ----------
 
-CTOS pldd calendar year: 2024 financial_year: 2023
-CTOS pldd calendar year: 2023 financial_year: 2022
-CTOS pldd calendar year: 2022 financial_year: 2021
-CTOS pldd calendar year: 2021 financial_year: 2020
+CTOS pldd calendar year: 2024 financial_year: 2024
+CTOS pldd calendar year: 2023 financial_year: 2023
+CTOS pldd calendar year: 2022 financial_year: 2022
+CTOS pldd calendar year: 2021 financial_year: 2021
 
 ---------- CTOS harness: case ----------
 company | GOLD SDN BHD | regOrNic: 202002117127
@@ -5605,7 +5605,7 @@ company | GOLD SDN BHD | regOrNic: 202002117127
   },
   "financials_json": [
     {
-      "financial_year": 2023,
+      "financial_year": 2024,
       "dates": {
         "pldd": "30-06-2024",
         "bsdd": "2024-06-30"
@@ -5635,7 +5635,7 @@ company | GOLD SDN BHD | regOrNic: 202002117127
       }
     },
     {
-      "financial_year": 2022,
+      "financial_year": 2023,
       "dates": {
         "pldd": "30-06-2023",
         "bsdd": "2024-06-30"
@@ -5665,7 +5665,7 @@ company | GOLD SDN BHD | regOrNic: 202002117127
       }
     },
     {
-      "financial_year": 2021,
+      "financial_year": 2022,
       "dates": {
         "pldd": "30-06-2022",
         "bsdd": "2024-06-30"
@@ -5695,7 +5695,7 @@ company | GOLD SDN BHD | regOrNic: 202002117127
       }
     },
     {
-      "financial_year": 2020,
+      "financial_year": 2021,
       "dates": {
         "pldd": "30-06-2021",
         "bsdd": "2024-06-30"
@@ -5728,10 +5728,10 @@ company | GOLD SDN BHD | regOrNic: 202002117127
 }
 ---------- end case ----------
 
-CTOS pldd calendar year: 2024 financial_year: 2023
-CTOS pldd calendar year: 2023 financial_year: 2022
-CTOS pldd calendar year: 2022 financial_year: 2021
-CTOS pldd calendar year: 2021 financial_year: 2020
+CTOS pldd calendar year: 2024 financial_year: 2024
+CTOS pldd calendar year: 2023 financial_year: 2023
+CTOS pldd calendar year: 2022 financial_year: 2022
+CTOS pldd calendar year: 2021 financial_year: 2021
 
 ---------- CTOS harness: case ----------
 company | SILVER SDN BHD | regOrNic: 202002117126
@@ -6507,7 +6507,7 @@ company | SILVER SDN BHD | regOrNic: 202002117126
   },
   "financials_json": [
     {
-      "financial_year": 2023,
+      "financial_year": 2024,
       "dates": {
         "pldd": "30-06-2024",
         "bsdd": "2024-06-30"
@@ -6537,7 +6537,7 @@ company | SILVER SDN BHD | regOrNic: 202002117126
       }
     },
     {
-      "financial_year": 2022,
+      "financial_year": 2023,
       "dates": {
         "pldd": "30-06-2023",
         "bsdd": "2024-06-30"
@@ -6567,7 +6567,7 @@ company | SILVER SDN BHD | regOrNic: 202002117126
       }
     },
     {
-      "financial_year": 2021,
+      "financial_year": 2022,
       "dates": {
         "pldd": "30-06-2022",
         "bsdd": "2024-06-30"
@@ -6597,7 +6597,7 @@ company | SILVER SDN BHD | regOrNic: 202002117126
       }
     },
     {
-      "financial_year": 2020,
+      "financial_year": 2021,
       "dates": {
         "pldd": "30-06-2021",
         "bsdd": "2024-06-30"

@@ -11,7 +11,7 @@ import jwt from "jsonwebtoken";
 import { v4 as uuidv4 } from "uuid";
 import { parseStringPromise } from "xml2js";
 
-/**21 numeric CTOS <account> tags (plus pldd/bsdd in dates; financial_year = pldd calendar year minus 1). */
+/**21 numeric CTOS <account> tags (plus pldd/bsdd in dates; financial_year = pldd calendar year). */
 const ACCOUNT_NUMERIC_CODENAMES = [
   "bsfatot",
   "othass",
@@ -492,7 +492,7 @@ async function parseCtosReportXmlLocal(xmlStr: string) {
           const bsdd = xmlText(safeGet(acc, ["bsdd", 0]));
           const plddCalYear = parseYearFromPldd(pldd);
           const financialYear =
-            plddCalYear != null && Number.isFinite(plddCalYear) ? plddCalYear - 1 : null;
+            plddCalYear != null && Number.isFinite(plddCalYear) ? plddCalYear : null;
           if (financialYear != null) {
             console.log("CTOS pldd calendar year:", plddCalYear, "financial_year:", financialYear);
           }
