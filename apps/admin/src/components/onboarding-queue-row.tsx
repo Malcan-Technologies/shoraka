@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,8 +15,6 @@ import {
   BuildingOffice2Icon,
 } from "@heroicons/react/24/outline";
 import { OnboardingReviewDialog } from "./onboarding-review-dialog";
-import { useRefreshOnboardingApplication } from "@/hooks/use-onboarding-applications";
-import { toast } from "sonner";
 import type { OnboardingApplicationResponse, OnboardingApprovalStatus } from "@cashsouk/types";
 
 interface OnboardingQueueRowProps {
@@ -147,94 +146,82 @@ function formatDate(dateString: string | null | undefined) {
 
 export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
   const [dialogOpen, setDialogOpen] = React.useState(false);
-  const [currentApplication, setCurrentApplication] =
-    React.useState<OnboardingApplicationResponse>(application);
-  const refreshMutation = useRefreshOnboardingApplication();
+  const queryClient = useQueryClient();
 
-  // Update current application when prop changes (e.g., after list refresh)
   React.useEffect(() => {
-    setCurrentApplication(application);
-  }, [application]);
+    if (!dialogOpen) return;
+    void queryClient.invalidateQueries({ queryKey: ["admin", "onboarding-applications"] });
+  }, [dialogOpen, queryClient]);
 
-  const handleRefresh = () => {
-    refreshMutation.mutate(application.id, {
-      onSuccess: (updatedApplication) => {
-        setCurrentApplication(updatedApplication);
-        toast.success("Application refreshed", {
-          description: `Status: ${updatedApplication.status.replace(/_/g, " ").toLowerCase()}`,
-        });
-      },
-      onError: (error) => {
-        toast.error("Failed to refresh application", {
-          description: error.message,
-        });
-      },
-    });
+  const handleDialogOpenChange = (next: boolean) => {
+    setDialogOpen(next);
+    if (!next) {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "onboarding-applications"] });
+    }
   };
 
-  const displayStatus = queueRowDisplayStatus(currentApplication);
+  const displayStatus = queueRowDisplayStatus(application);
 
-  // Admin action required for approval, AML, SSM review, or final approval (not pending onboarding - that's user action)
   const needsAction =
-    currentApplication.onboardingStatus === "PENDING_APPROVAL" ||
-    currentApplication.onboardingStatus === "PENDING_AML" ||
-    currentApplication.onboardingStatus === "PENDING_SSM_REVIEW" ||
-    currentApplication.onboardingStatus === "PENDING_FINAL_APPROVAL";
+    application.onboardingStatus === "PENDING_APPROVAL" ||
+    application.onboardingStatus === "PENDING_AML" ||
+    application.onboardingStatus === "PENDING_SSM_REVIEW" ||
+    application.onboardingStatus === "PENDING_FINAL_APPROVAL";
 
   return (
     <>
       <TableRow className={needsAction ? "bg-muted/30" : undefined}>
         <TableCell className="min-w-[180px] max-w-[280px]">
           <div className="space-y-0.5 min-w-0">
-            {currentApplication.type === "COMPANY" ? (
+            {application.type === "COMPANY" ? (
               <>
                 <div
                   className="font-medium text-sm truncate"
-                  title={currentApplication.organizationName || "Unnamed Organization"}
+                  title={application.organizationName || "Unnamed Organization"}
                 >
-                  {currentApplication.organizationName || "Unnamed Organization"}
+                  {application.organizationName || "Unnamed Organization"}
                 </div>
                 <div
                   className="text-sm text-muted-foreground truncate"
-                  title={currentApplication.userEmail}
+                  title={application.userEmail}
                 >
-                  {currentApplication.userEmail}
+                  {application.userEmail}
                 </div>
-                {currentApplication.registrationNumber && (
+                {application.registrationNumber && (
                   <div
                     className="text-xs text-muted-foreground truncate"
-                    title={`SSM: ${currentApplication.registrationNumber}`}
+                    title={`SSM: ${application.registrationNumber}`}
                   >
-                    SSM: {currentApplication.registrationNumber}
+                    SSM: {application.registrationNumber}
                   </div>
                 )}
               </>
             ) : (
               <>
-                <div className="font-medium text-sm truncate" title={currentApplication.userName}>
-                  {currentApplication.userName}
+                <div className="font-medium text-sm truncate" title={application.userName}>
+                  {application.userName}
                 </div>
                 <div
                   className="text-sm text-muted-foreground truncate"
-                  title={currentApplication.userEmail}
+                  title={application.userEmail}
                 >
-                  {currentApplication.userEmail}
+                  {application.userEmail}
                 </div>
               </>
             )}
           </div>
         </TableCell>
-        <TableCell>{getTypeBadge(currentApplication.type)}</TableCell>
-        <TableCell>{getPortalBadge(currentApplication.portal)}</TableCell>
+        <TableCell>{getTypeBadge(application.type)}</TableCell>
+        <TableCell>{getPortalBadge(application.portal)}</TableCell>
         <TableCell>
           <span className="text-sm text-muted-foreground">
-            {formatDate(currentApplication.submittedAt)}
+            {formatDate(application.submittedAt)}
           </span>
         </TableCell>
         <TableCell>
-          {currentApplication.completedAt ? (
+          {application.completedAt ? (
             <span className="text-sm text-muted-foreground">
-              {formatDate(currentApplication.completedAt)}
+              {formatDate(application.completedAt)}
             </span>
           ) : (
             <span className="text-sm text-muted-foreground/50">—</span>
@@ -242,7 +229,7 @@ export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
         </TableCell>
         <TableCell>{getStatusBadge(displayStatus)}</TableCell>
         <TableCell>
-          {currentApplication.status !== "CANCELLED" && (
+          {application.status !== "CANCELLED" && (
             <Button
               variant={needsAction ? "default" : "outline"}
               size="sm"
@@ -257,11 +244,9 @@ export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
       </TableRow>
 
       <OnboardingReviewDialog
-        application={currentApplication}
+        onboardingId={application.id}
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        onRefresh={handleRefresh}
-        isRefreshing={refreshMutation.isPending}
+        onOpenChange={handleDialogOpenChange}
       />
     </>
   );

@@ -1,8 +1,20 @@
-import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import {
+  useQuery,
+  useQueryClient,
+  useMutation,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import type { GetOnboardingApplicationsParams } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+function invalidateOnboardingCaches(queryClient: QueryClient, onboardingId: string) {
+  void queryClient.invalidateQueries({ queryKey: ["admin", "onboarding-applications"] });
+  void queryClient.invalidateQueries({
+    queryKey: ["admin", "onboarding-application", onboardingId],
+  });
+}
 
 export function useOnboardingApplications(params: GetOnboardingApplicationsParams) {
   const { getAccessToken } = useAuthToken();
@@ -31,7 +43,10 @@ export function useInvalidateOnboardingApplications() {
   };
 }
 
-export function useOnboardingApplication(onboardingId: string) {
+export function useOnboardingApplication(
+  onboardingId: string,
+  options?: { enabled?: boolean }
+) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
 
@@ -44,7 +59,7 @@ export function useOnboardingApplication(onboardingId: string) {
       }
       return response.data.application;
     },
-    enabled: !!onboardingId,
+    enabled: Boolean(onboardingId) && (options?.enabled ?? true),
     staleTime: 0,
     refetchOnMount: true,
     refetchOnWindowFocus: true,
@@ -64,8 +79,8 @@ export function useRefreshOnboardingApplication() {
       }
       return response.data.application;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "onboarding-applications"] });
+    onSuccess: (_data, onboardingId) => {
+      invalidateOnboardingCaches(queryClient, onboardingId);
     },
   });
 }
@@ -83,8 +98,8 @@ export function useRestartOnboarding() {
       }
       return response.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "onboarding-applications"] });
+    onSuccess: (_data, onboardingId) => {
+      invalidateOnboardingCaches(queryClient, onboardingId);
     },
   });
 }
@@ -102,8 +117,8 @@ export function useCompleteFinalApproval() {
       }
       return response.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "onboarding-applications"] });
+    onSuccess: (_data, onboardingId) => {
+      invalidateOnboardingCaches(queryClient, onboardingId);
     },
   });
 }
@@ -121,8 +136,8 @@ export function useApproveAmlScreening() {
       }
       return response.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "onboarding-applications"] });
+    onSuccess: (_data, onboardingId) => {
+      invalidateOnboardingCaches(queryClient, onboardingId);
     },
   });
 }
@@ -140,8 +155,8 @@ export function useApproveSsmVerification() {
       }
       return response.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "onboarding-applications"] });
+    onSuccess: (_data, onboardingId) => {
+      invalidateOnboardingCaches(queryClient, onboardingId);
     },
   });
 }
@@ -159,9 +174,8 @@ export function useRefreshCorporateStatus() {
       }
       return response.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "onboarding-applications"] });
-      queryClient.invalidateQueries({ queryKey: ["admin", "onboarding-application"] });
+    onSuccess: (_data, onboardingId) => {
+      invalidateOnboardingCaches(queryClient, onboardingId);
     },
   });
 }
@@ -179,9 +193,8 @@ export function useRefreshCorporateAmlStatus() {
       }
       return response.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin", "onboarding-applications"] });
-      queryClient.invalidateQueries({ queryKey: ["admin", "onboarding-application"] });
+    onSuccess: (_data, onboardingId) => {
+      invalidateOnboardingCaches(queryClient, onboardingId);
     },
   });
 }
