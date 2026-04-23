@@ -15,6 +15,7 @@ import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { OrganizationRepository } from "../organization/repository";
 import { AuthRepository } from "../auth/repository";
 import { getRegTankConfig } from "../../config/regtank";
+import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-onboarding-status";
 
 export class RegTankService {
   private repository: RegTankRepository;
@@ -1708,18 +1709,30 @@ export class RegTankService {
                 org.onboarding_status === OnboardingStatus.PENDING_AML &&
                 org.onboarding_approved
               ) {
+                await advanceOnboardingStatusFromFlags({
+                  organizationId,
+                  portalType: "investor",
+                  reason: "REGTANK_INDIVIDUAL_APPROVED",
+                });
                 logger.info(
                   { organizationId, requestId, onboardingStatus: org.onboarding_status },
-                  "Investor personal org already at PENDING_AML with onboarding_approved; idempotent no-op"
+                  "Investor personal org at PENDING_AML with onboarding_approved; ran advance for healing"
                 );
               } else if (org.onboarding_status === OnboardingStatus.PENDING_APPROVAL) {
-                const nextOrgStatus = OnboardingStatus.PENDING_AML;
                 await prisma.investorOrganization.update({
                   where: { id: organizationId },
                   data: {
                     onboarding_approved: true,
-                    onboarding_status: nextOrgStatus,
                   },
+                });
+                await advanceOnboardingStatusFromFlags({
+                  organizationId,
+                  portalType: "investor",
+                  reason: "REGTANK_INDIVIDUAL_APPROVED",
+                });
+                const after = await prisma.investorOrganization.findUnique({
+                  where: { id: organizationId },
+                  select: { onboarding_status: true },
                 });
 
                 try {
@@ -1735,7 +1748,7 @@ export class RegTankService {
                       organizationId,
                       requestId,
                       previousStatus,
-                      newStatus: nextOrgStatus,
+                      newStatus: after?.onboarding_status,
                       trigger: "REGTANK_INDIVIDUAL_APPROVED",
                     },
                   });
@@ -1751,8 +1764,8 @@ export class RegTankService {
                 }
 
                 logger.info(
-                  { organizationId, portalType, nextOrgStatus },
-                  "Updated investor personal organization to PENDING_AML after RegTank APPROVED (webhook-driven onboarding)"
+                  { organizationId, portalType, newStatus: after?.onboarding_status },
+                  "Set onboarding_approved and applied advance after RegTank APPROVED (personal investor)"
                 );
               } else {
                 const fallbackOrgStatus = OnboardingStatus.PENDING_APPROVAL;

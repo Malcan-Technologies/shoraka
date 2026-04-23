@@ -29,6 +29,7 @@ import { Request } from "express";
 import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { getPortalFromRole } from "../../lib/role-detector";
 import { AuthRepository } from "../auth/repository";
+import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-onboarding-status";
 import { sendEmail } from "../../lib/email/ses-client";
 import { organizationInvitationTemplate } from "../../lib/email/templates";
 import { randomBytes } from "crypto";
@@ -599,6 +600,12 @@ export class OrganizationService {
         data: { tnc_accepted: true },
       });
     }
+
+    await advanceOnboardingStatusFromFlags({
+      organizationId,
+      portalType: portalType as "investor" | "issuer",
+      reason: "USER_ACCEPT_TNC",
+    });
 
     // Log the T&C acceptance event
     const { ipAddress, userAgent, deviceInfo, deviceType } = extractRequestMetadata(req);

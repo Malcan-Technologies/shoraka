@@ -19,6 +19,7 @@ export function useOnboardingApplications(params: GetOnboardingApplicationsParam
     },
     staleTime: 0,
     refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -46,6 +47,7 @@ export function useOnboardingApplication(onboardingId: string) {
     enabled: !!onboardingId,
     staleTime: 0,
     refetchOnMount: true,
+    refetchOnWindowFocus: true,
   });
 }
 
