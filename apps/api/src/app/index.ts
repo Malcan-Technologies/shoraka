@@ -16,6 +16,36 @@ import { hydrateVerifier } from "../lib/auth/cognito-jwt-verifier";
 import { regTankWebhookRouter } from "../modules/regtank/webhook-controller";
 import { signingCloudWebhookRouter } from "../modules/signingcloud/webhook-controller";
 
+function parseAllowedOrigins(): string[] {
+  if (!process.env.ALLOWED_ORIGINS) {
+    return ["http://localhost:3000"];
+  }
+  return process.env.ALLOWED_ORIGINS.split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+}
+
+/** In development, allow local + team tunnel UI origins (e.g. localhost:3003 calling tunneled API). */
+function isDevBrowserOriginAllowed(origin: string): boolean {
+  if (process.env.NODE_ENV === "production") return false;
+  try {
+    const u = new URL(origin);
+    if (u.protocol === "http:" && (u.hostname === "localhost" || u.hostname === "127.0.0.1")) {
+      return true;
+    }
+    if (
+      u.protocol === "https:" &&
+      u.hostname.endsWith(".truestack.my") &&
+      u.hostname.startsWith("dev-tunnel-")
+    ) {
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 export async function createApp(): Promise<Application> {
   const app = express();
 
@@ -28,14 +58,14 @@ export async function createApp(): Promise<Application> {
     })
   );
 
-  const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(",") || ["http://localhost:3000"];
+  const allowedOrigins = parseAllowedOrigins();
 
   app.use(
     cors({
       origin: (origin, callback) => {
         if (!origin) return callback(null, true);
 
-        if (allowedOrigins.includes(origin)) {
+        if (allowedOrigins.includes(origin) || isDevBrowserOriginAllowed(origin)) {
           return callback(null, true);
         }
 
