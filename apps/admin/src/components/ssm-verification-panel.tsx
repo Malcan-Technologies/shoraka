@@ -75,13 +75,33 @@ import {
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 /**
- * CTOS verification mock: fake list + company_json (matched, only-application, only-CTOS demo rows).
- * Set to false before relying on real CTOS API.
+ * CTOS verification mock for local UI work.
+ * - "off": real list API + fetch mutation.
+ * - "demo": fake report with people rows (matched, app-only, CTOS-only).
+ * - "empty": no KYC people and no reports → empty states everywhere (company CTOS = not pulled).
  */
-const USE_MOCK_ONBOARDING_CTOS = true;
+type MockOnboardingCtosMode = "off" | "demo" | "empty";
+
+/** Change to `"empty"` to preview all empty compare blocks; `"off"` for real API. */
+const MOCK_ONBOARDING_CTOS_MODE = "demo" as MockOnboardingCtosMode;
+
+const useMockOnboardingCtos = MOCK_ONBOARDING_CTOS_MODE !== "off";
+const mockOnboardingCtosEmpty = MOCK_ONBOARDING_CTOS_MODE === "empty";
 
 /** Eod ids: mirrored to CTOS in mock except these (demo “only on application”). */
 const MOCK_APP_ONLY_EOD_IDS = new Set(["mock-app-only-dir", "mock-app-only-sh"]);
+
+/** Mock preview: zero directors/shareholders so compare tables use empty states. */
+function emptyDirectorKycForMockPreview(): CorporateDirectorData {
+  const t = new Date(0).toISOString();
+  return {
+    corpIndvDirectorCount: 0,
+    corpIndvShareholderCount: 0,
+    corpBizShareholderCount: 0,
+    directors: [],
+    lastSyncedAt: t,
+  };
+}
 
 /** When the real application has no people rows, inject KYC rows so mock tables show matched + app-only + CTOS-only. */
 function syntheticDemoDirectorKycForMock(): CorporateDirectorData {
@@ -565,11 +585,14 @@ export function SSMVerificationPanel({
   const orgId = application.organizationId;
 
   const applicationForCompare = React.useMemo(() => {
-    if (!USE_MOCK_ONBOARDING_CTOS || !useOrgCtosFlow) return application;
+    if (!useMockOnboardingCtos || !useOrgCtosFlow) return application;
+    if (mockOnboardingCtosEmpty) {
+      return { ...application, directorKycStatus: emptyDirectorKycForMockPreview() };
+    }
     const { directors, shareholders } = getOnboardingPeopleSplit(application);
     if (directors.length > 0 || shareholders.length > 0) return application;
     return { ...application, directorKycStatus: syntheticDemoDirectorKycForMock() };
-  }, [application, useOrgCtosFlow]);
+  }, [application, useOrgCtosFlow, mockOnboardingCtosEmpty]);
 
   const ctosQuery = useQuery({
     queryKey: ["admin", "organization-ctos-reports", application.portal, orgId],
@@ -580,7 +603,7 @@ export function SSMVerificationPanel({
       }
       return res.data;
     },
-    enabled: useOrgCtosFlow && Boolean(orgId) && !USE_MOCK_ONBOARDING_CTOS,
+    enabled: useOrgCtosFlow && Boolean(orgId) && !useMockOnboardingCtos,
   });
 
   const fetchCtosMutation = useMutation({
@@ -605,19 +628,19 @@ export function SSMVerificationPanel({
   const hasCompanyInfo = application.type === "COMPANY" && application.organizationName;
 
   const orgCtosReports = React.useMemo(() => {
-    const raw =
-      USE_MOCK_ONBOARDING_CTOS && useOrgCtosFlow
-        ? buildMockOrgCtosReports(applicationForCompare)
-        : (ctosQuery.data ?? []);
-    return sortOrgCtosReports(raw);
-  }, [applicationForCompare, ctosQuery.data, useOrgCtosFlow]);
+    if (useMockOnboardingCtos && useOrgCtosFlow) {
+      if (mockOnboardingCtosEmpty) return [];
+      return sortOrgCtosReports(buildMockOrgCtosReports(applicationForCompare));
+    }
+    return sortOrgCtosReports(ctosQuery.data ?? []);
+  }, [applicationForCompare, ctosQuery.data, useOrgCtosFlow, mockOnboardingCtosEmpty]);
 
   const latestOrgCtos = orgCtosReports[0] ?? null;
   const companyJson = latestOrgCtos?.company_json ?? null;
 
   const orgFetchState: OnboardingCtosOrgFetchState = React.useMemo(() => {
     if (!useOrgCtosFlow) return "not_pulled";
-    if (USE_MOCK_ONBOARDING_CTOS) {
+    if (useMockOnboardingCtos) {
       if (orgCtosReports.length === 0) return "not_pulled";
       if (!companyJsonReadyForCtosCompare(companyJson)) return "no_record";
       return "ready";
@@ -626,7 +649,7 @@ export function SSMVerificationPanel({
     if (orgCtosReports.length === 0) return "not_pulled";
     if (!companyJsonReadyForCtosCompare(companyJson)) return "no_record";
     return "ready";
-  }, [useOrgCtosFlow, ctosQuery.isSuccess, orgCtosReports.length, companyJson]);
+  }, [useOrgCtosFlow, useMockOnboardingCtos, ctosQuery.isSuccess, orgCtosReports.length, companyJson]);
 
   const compareState = useOrgCtosFlow ? orgFetchState : "not_pulled";
 
@@ -637,10 +660,10 @@ export function SSMVerificationPanel({
 
   const canApprove = confirmed && !fetchCtosMutation.isPending;
 
-  const ctosListLoading = !USE_MOCK_ONBOARDING_CTOS && ctosQuery.isLoading;
+  const ctosListLoading = !useMockOnboardingCtos && ctosQuery.isLoading;
 
   const showLastPullCaption =
-    useOrgCtosFlow && !ctosListLoading && (USE_MOCK_ONBOARDING_CTOS || ctosQuery.isSuccess);
+    useOrgCtosFlow && !ctosListLoading && (useMockOnboardingCtos || ctosQuery.isSuccess);
   const lastPullAtFormatted = latestOrgCtos?.fetched_at
     ? (() => {
         const d = new Date(latestOrgCtos.fetched_at);
@@ -680,18 +703,20 @@ export function SSMVerificationPanel({
 
   const openLatestOrgReportHtml = React.useCallback(async () => {
     const raw =
-      USE_MOCK_ONBOARDING_CTOS && useOrgCtosFlow
-        ? buildMockOrgCtosReports(applicationForCompare)
+      useMockOnboardingCtos && useOrgCtosFlow
+        ? mockOnboardingCtosEmpty
+          ? []
+          : buildMockOrgCtosReports(applicationForCompare)
         : (ctosQuery.data ?? []);
     const latest = sortOrgCtosReports(raw)[0];
     if (!latest?.id || !latest.has_report_html) return;
     await openOrgReportHtml(latest.id);
-  }, [applicationForCompare, ctosQuery.data, useOrgCtosFlow, openOrgReportHtml]);
+  }, [applicationForCompare, ctosQuery.data, useOrgCtosFlow, mockOnboardingCtosEmpty, openOrgReportHtml]);
 
   const onConfirmGetLatestReport = () => {
-    if (USE_MOCK_ONBOARDING_CTOS) {
+    if (useMockOnboardingCtos) {
       toast.message("Mock mode", {
-        description: "Set USE_MOCK_ONBOARDING_CTOS to false in ssm-verification-panel.tsx to call the real API.",
+        description: `Set MOCK_ONBOARDING_CTOS_MODE to "off" in ssm-verification-panel.tsx to call the real API.`,
       });
       return;
     }
@@ -783,7 +808,7 @@ export function SSMVerificationPanel({
                       )}
                       disabled={
                         disabled ||
-                        USE_MOCK_ONBOARDING_CTOS ||
+                        useMockOnboardingCtos ||
                         !latestOrgCtos?.has_report_html ||
                         ctosListLoading
                       }
@@ -799,7 +824,7 @@ export function SSMVerificationPanel({
                       className={cn(CTOS_FETCH_BUTTON_CLASSNAME, ctosHeaderReportButtonClassName)}
                       disabled={
                         disabled ||
-                        USE_MOCK_ONBOARDING_CTOS ||
+                        useMockOnboardingCtos ||
                         fetchCtosMutation.isPending ||
                         ctosListLoading
                       }
@@ -824,17 +849,26 @@ export function SSMVerificationPanel({
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          {useOrgCtosFlow && USE_MOCK_ONBOARDING_CTOS ? (
+          {useOrgCtosFlow && useMockOnboardingCtos ? (
             <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100">
-              Mock CTOS preview: list and company extract are fake (includes matched, only-application, and
-              only-CTOS rows). Set{" "}
-              <span className="font-mono text-xs">USE_MOCK_ONBOARDING_CTOS</span> to{" "}
-              <span className="font-mono text-xs">false</span> in{" "}
-              <span className="font-mono text-xs">ssm-verification-panel.tsx</span> for real data.
+              {mockOnboardingCtosEmpty ? (
+                <>
+                  Mock CTOS mode <span className="font-mono text-xs">empty</span>: no onboarding people and no stored
+                  report — you should see empty states in every compare block. Use{" "}
+                  <span className="font-mono text-xs">demo</span> for populated sample rows.
+                </>
+              ) : (
+                <>
+                  Mock CTOS mode <span className="font-mono text-xs">demo</span>: fake list and extract (matched,
+                  onboarding-only, CTOS-only rows). Use <span className="font-mono text-xs">empty</span> for an all-empty
+                  preview. Set <span className="font-mono text-xs">off</span> in{" "}
+                  <span className="font-mono text-xs">ssm-verification-panel.tsx</span> for real data.
+                </>
+              )}
             </div>
           ) : null}
 
-          {useOrgCtosFlow && !USE_MOCK_ONBOARDING_CTOS && ctosQuery.isError ? (
+          {useOrgCtosFlow && !useMockOnboardingCtos && ctosQuery.isError ? (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
               {(ctosQuery.error as Error)?.message ?? "Could not load CTOS."}
             </div>
