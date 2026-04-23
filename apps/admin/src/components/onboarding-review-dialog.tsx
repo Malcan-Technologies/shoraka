@@ -38,7 +38,6 @@ import {
   useRestartOnboarding,
   useCompleteFinalApproval,
   useApproveSsmVerification,
-  useApproveOnboardingSubmission,
   useRefreshCorporateStatus,
   useRefreshCorporateAmlStatus,
 } from "@/hooks/use-onboarding-applications";
@@ -80,7 +79,6 @@ export function OnboardingReviewDialog({
   const restartMutation = useRestartOnboarding();
   const finalApprovalMutation = useCompleteFinalApproval();
   const ssmApprovalMutation = useApproveSsmVerification();
-  const approveOnboardingMutation = useApproveOnboardingSubmission();
   const refreshCorporateMutation = useRefreshCorporateStatus();
   const refreshCorporateAmlMutation = useRefreshCorporateAmlStatus();
 
@@ -156,18 +154,6 @@ export function OnboardingReviewDialog({
     onOpenChange(false);
   };
 
-  const handleApproveOnboarding = () => {
-    approveOnboardingMutation.mutate(application.id, {
-      onSuccess: (data) => {
-        toast.success("Onboarding approved", { description: data.message });
-        onRefresh?.();
-      },
-      onError: (error) => {
-        toast.error("Failed to approve onboarding", { description: error.message });
-      },
-    });
-  };
-
   const handleRequestRedo = () => {
     restartMutation.mutate(application.id, {
       onSuccess: (data) => {
@@ -238,7 +224,6 @@ export function OnboardingReviewDialog({
   const isCombinedRefreshing =
     refreshCorporateMutation.isPending ||
     refreshCorporateAmlMutation.isPending ||
-    approveOnboardingMutation.isPending ||
     (isRefreshing ?? false);
 
   const formatDate = (dateString: string | null | undefined) => {
@@ -302,8 +287,9 @@ export function OnboardingReviewDialog({
                 Onboarding Approval Required
               </CardTitle>
               <CardDescription>
-                The user has completed their onboarding submission in RegTank. You must review and
-                approve the onboarding before the account can proceed.
+                The user has completed their onboarding submission in RegTank. Review it in RegTank
+                and use Refresh here when you need the latest status from the server (webhooks update
+                the queue in the background).
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -335,7 +321,9 @@ export function OnboardingReviewDialog({
                         </li>
                       </ol>
                       <p className="text-sm text-muted-foreground mt-3 leading-relaxed instruction-conclusion">
-                        <strong>Next step:</strong> Once approved, proceed to AML Approval.
+                        <strong>Next step:</strong> After RegTank sends COD approved, the application
+                        moves to AML review when the webhook is processed. Refresh this view to see
+                        updates.
                       </p>
                     </div>
                   </>
@@ -359,7 +347,9 @@ export function OnboardingReviewDialog({
                         </li>
                       </ol>
                       <p className="text-sm text-muted-foreground mt-3 leading-relaxed instruction-conclusion">
-                        <strong>Next step:</strong> Once approved, proceed to AML Approval.
+                        <strong>Next step:</strong> After RegTank approves the individual onboarding,
+                        the application moves to AML review when the webhook is processed. Refresh
+                        this view to see updates.
                       </p>
                     </div>
                   </>
@@ -374,28 +364,6 @@ export function OnboardingReviewDialog({
                 Open Onboarding Review
               </Button>
 
-              <Button
-                onClick={handleApproveOnboarding}
-                className="w-full gap-2"
-                disabled={approveOnboardingMutation.isPending || application.onboardingApproved}
-              >
-                {approveOnboardingMutation.isPending ? (
-                  <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                ) : (
-                  <CheckCircleIcon className="h-4 w-4" />
-                )}
-                Record onboarding approval
-              </Button>
-              {application.onboardingApproved ? (
-                <p className="text-xs text-center text-muted-foreground">
-                  Onboarding approval is already recorded. You can refresh if the view is stale.
-                </p>
-              ) : (
-                <p className="text-xs text-center text-muted-foreground">
-                  After you finish in RegTank, click here to move the application to AML review.
-                </p>
-              )}
-              
               {/* Director KYC Status Section (for corporate onboarding) */}
               {isCompany && application.directorKycStatus && (
                 <>

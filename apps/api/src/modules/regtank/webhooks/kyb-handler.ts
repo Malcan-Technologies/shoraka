@@ -9,6 +9,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import type { PortalType } from "../types";
 import { syncApplicationGuarantorsFromRegTankAmlWebhook } from "../../admin/guarantor-aml-webhook-sync";
+import { maybeAdvanceOrgAfterAmlScreeningCleared } from "./org-aml-milestone";
 
 /**
  * KYB (Know Your Business) Webhook Handler
@@ -206,17 +207,34 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
       const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
 
       if (statusUpper === "APPROVED" && organizationId && isCorporateOnboarding) {
-        logger.info(
-          {
-            kybRequestId: requestId,
-            onboardingRequestId: onboarding.request_id,
+        if (!isMainCompanyCod) {
+          logger.debug(
+            {
+              kybRequestId: requestId,
+              onboardingRequestId: onboarding.request_id,
+              organizationId,
+            },
+            "[KYB Webhook] KYB APPROVED for non-main COD — skipping org AML milestone"
+          );
+        } else {
+          const orgForName =
+            portalType === "investor"
+              ? await this.organizationRepository.findInvestorOrganizationById(organizationId)
+              : await this.organizationRepository.findIssuerOrganizationById(organizationId);
+          await maybeAdvanceOrgAfterAmlScreeningCleared({
             organizationId,
             portalType,
-            riskLevel,
-            riskScore,
-          },
-          "[KYB Webhook] KYB APPROVED (corporate); org onboarding_status and aml_approved unchanged (admin-driven AML)"
-        );
+            userId: onboarding.user_id,
+            organizationName: orgForName?.name ?? null,
+            trigger: "REGTANK_KYB_MAIN_COMPANY_APPROVED",
+            extraMetadata: {
+              kybRequestId: requestId,
+              onboardingRequestId: onboarding.request_id,
+              riskLevel,
+              riskScore,
+            },
+          });
+        }
       } else if (statusUpper === "APPROVED" && organizationId) {
         // For non-corporate onboarding, KYB approval may have different handling
         logger.debug(

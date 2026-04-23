@@ -1364,11 +1364,92 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           // Don't throw - allow webhook to complete even if corporate shareholder refresh fails
         }
 
-        // COD APPROVED (RegTank): do not advance org onboarding_status or admin flags; admin APIs drive those steps.
-        logger.info(
-          { requestId, organizationId, portalType, kybId: finalKybId },
-          "[COD Webhook] COD APPROVED processed; org onboarding step unchanged (admin-driven flow)"
-        );
+        // Corporate COD APPROVED: advance org PENDING_APPROVAL → PENDING_AML + onboarding_approved (webhook-driven).
+        if (onboarding.onboarding_type !== "CORPORATE") {
+          logger.debug(
+            { requestId, organizationId },
+            "[COD Webhook] COD APPROVED org advance skipped — not corporate onboarding record"
+          );
+        } else if (organizationId) {
+          const invOrg =
+            portalType === "investor"
+              ? await prisma.investorOrganization.findUnique({
+                  where: { id: organizationId },
+                  select: { onboarding_status: true, onboarding_approved: true, name: true },
+                })
+              : await prisma.issuerOrganization.findUnique({
+                  where: { id: organizationId },
+                  select: { onboarding_status: true, onboarding_approved: true, name: true },
+                });
+
+          if (!invOrg) {
+            logger.warn({ organizationId, requestId }, "[COD Webhook] Organization not found for COD APPROVED org advance");
+          } else if (invOrg.onboarding_status === OnboardingStatus.PENDING_AML && invOrg.onboarding_approved) {
+            logger.info(
+              { requestId, organizationId, portalType },
+              "[COD Webhook] Idempotent no-op — org already PENDING_AML with onboarding_approved"
+            );
+          } else if (invOrg.onboarding_status !== OnboardingStatus.PENDING_APPROVAL) {
+            logger.info(
+              {
+                requestId,
+                organizationId,
+                portalType,
+                onboardingStatus: invOrg.onboarding_status,
+              },
+              "[COD Webhook] Skipping org onboarding advance — onboarding_status is not PENDING_APPROVAL"
+            );
+          } else {
+            if (portalType === "investor") {
+              await prisma.investorOrganization.update({
+                where: { id: organizationId },
+                data: {
+                  onboarding_approved: true,
+                  onboarding_status: OnboardingStatus.PENDING_AML,
+                },
+              });
+            } else {
+              await prisma.issuerOrganization.update({
+                where: { id: organizationId },
+                data: {
+                  onboarding_approved: true,
+                  onboarding_status: OnboardingStatus.PENDING_AML,
+                },
+              });
+            }
+            try {
+              await this.authRepository.createOnboardingLog({
+                userId: onboarding.user_id,
+                role: portalType === "investor" ? UserRole.INVESTOR : UserRole.ISSUER,
+                eventType: "ONBOARDING_STATUS_UPDATED",
+                portal: portalType,
+                organizationName: invOrg.name ?? undefined,
+                investorOrganizationId: portalType === "investor" ? organizationId : undefined,
+                issuerOrganizationId: portalType === "issuer" ? organizationId : undefined,
+                metadata: {
+                  organizationId,
+                  requestId,
+                  previousStatus: OnboardingStatus.PENDING_APPROVAL,
+                  newStatus: OnboardingStatus.PENDING_AML,
+                  trigger: "REGTANK_COD_APPROVED",
+                },
+              });
+            } catch (logErr) {
+              logger.error(
+                {
+                  error: logErr instanceof Error ? logErr.message : String(logErr),
+                  organizationId,
+                  requestId,
+                },
+                "[COD Webhook] Failed to create onboarding log after COD APPROVED org advance (non-blocking)"
+              );
+            }
+            logger.info(
+              { requestId, organizationId, portalType, kybId: finalKybId },
+              "[COD Webhook] ✓ Advanced org to PENDING_AML after COD APPROVED (webhook-driven)"
+            );
+          }
+        }
       } catch (error) {
         logger.error(
           {
