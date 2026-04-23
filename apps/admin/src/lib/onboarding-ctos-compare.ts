@@ -411,7 +411,12 @@ export function buildOnboardingCtosComparison(
 
   const used = new Set<number>();
   const dirPart = partitionPeople(appDirList, ctosAll, qualifiesCtosDirector, used);
-  const shPart = partitionPeople(appShFiltered, ctosAll, qualifiesCtosShareholder, used);
+  const shPart = partitionPeople(
+    appShFiltered,
+    ctosAll,
+    (r) => qualifiesCtosShareholder(r) && shareholderPctFromCtosRow(r) >= 5,
+    used
+  );
 
   const allMatched = new Set([...dirPart.matchedCtosIndices, ...shPart.matchedCtosIndices]);
 

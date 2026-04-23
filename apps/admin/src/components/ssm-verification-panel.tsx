@@ -69,17 +69,20 @@ import {
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 /**
- * Set to true to preview CTOS comparison UI with fake list + company_json (mirrors this application).
- * Set back to false before shipping.
+ * CTOS verification mock: fake list + company_json (matched, only-application, only-CTOS demo rows).
+ * Set to false before relying on real CTOS API.
  */
-const USE_MOCK_ONBOARDING_CTOS = false;
+const USE_MOCK_ONBOARDING_CTOS = true;
 
-/** When the real application has no people rows, inject one director + one shareholder so mock tables show data. */
+/** Eod ids: mirrored to CTOS in mock except these (demo “only on application”). */
+const MOCK_APP_ONLY_EOD_IDS = new Set(["mock-app-only-dir", "mock-app-only-sh"]);
+
+/** When the real application has no people rows, inject KYC rows so mock tables show matched + app-only + CTOS-only. */
 function syntheticDemoDirectorKycForMock(): CorporateDirectorData {
   const t = new Date(0).toISOString();
   return {
-    corpIndvDirectorCount: 1,
-    corpIndvShareholderCount: 1,
+    corpIndvDirectorCount: 2,
+    corpIndvShareholderCount: 2,
     corpBizShareholderCount: 0,
     directors: [
       {
@@ -92,12 +95,30 @@ function syntheticDemoDirectorKycForMock(): CorporateDirectorData {
         lastUpdated: t,
       },
       {
+        eodRequestId: "mock-app-only-dir",
+        name: "Siti Aminah (app only)",
+        email: "",
+        role: "Director",
+        kycStatus: "APPROVED",
+        governmentIdNumber: "881122334455",
+        lastUpdated: t,
+      },
+      {
         eodRequestId: "mock-onboarding-sh",
         name: "Lim Mei Ling",
         email: "",
         role: "Shareholder (35%)",
         kycStatus: "APPROVED",
         governmentIdNumber: "900505105022",
+        lastUpdated: t,
+      },
+      {
+        eodRequestId: "mock-app-only-sh",
+        name: "Bakar Omar (app only)",
+        email: "",
+        role: "Shareholder (42%)",
+        kycStatus: "APPROVED",
+        governmentIdNumber: "662233445566",
         lastUpdated: t,
       },
     ],
@@ -123,6 +144,7 @@ function buildMockOrgCtosReports(application: OnboardingApplicationResponse): Ad
     return `${prefix}${String(++seq).padStart(6, "0")}`;
   };
   for (const p of directors) {
+    if (MOCK_APP_ONLY_EOD_IDS.has(p.eodRequestId)) continue;
     ctosPeople.push({
       nic_brno: fallbackId(p.governmentIdNumber, "MOCKD"),
       ic_lcno: null,
@@ -134,6 +156,7 @@ function buildMockOrgCtosReports(application: OnboardingApplicationResponse): Ad
     });
   }
   for (const p of shareholders) {
+    if (MOCK_APP_ONLY_EOD_IDS.has(p.eodRequestId)) continue;
     const baseName = p.name.replace(/\s*\([^)]*\)\s*$/, "").trim() || p.name;
     const pct = shareholderPctFromAppRole(p.role);
     ctosPeople.push({
@@ -146,6 +169,27 @@ function buildMockOrgCtosReports(application: OnboardingApplicationResponse): Ad
       party_type: "I",
     });
   }
+
+  ctosPeople.push(
+    {
+      nic_brno: "550055005505",
+      ic_lcno: null,
+      name: "CTOS-only Director Demo",
+      position: "DO",
+      equity_percentage: null,
+      equity: null,
+      party_type: "I",
+    },
+    {
+      nic_brno: "440044004404",
+      ic_lcno: null,
+      name: "CTOS-only Shareholder Demo",
+      position: "SO",
+      equity_percentage: 18,
+      equity: null,
+      party_type: "I",
+    }
+  );
 
   const company_json = {
     name: orgName,
@@ -221,6 +265,17 @@ function CompareEmptyState({
       <p className="text-[13px] leading-relaxed text-muted-foreground max-w-md">{description}</p>
     </div>
   );
+}
+
+/** Matched pairs first (same row order on both sides), then application-only, then CTOS-only. */
+function orderedCompareRows(buckets: OnboardingPeopleBuckets): {
+  applicationRows: DirectorKycStatus[];
+  ctosRows: CtosOrgDirectorParsed[];
+} {
+  return {
+    applicationRows: [...buckets.matched.map((m) => m.app), ...buckets.onlyApplication],
+    ctosRows: [...buckets.matched.map((m) => m.ctos), ...buckets.onlyCtos],
+  };
 }
 
 interface SSMVerificationPanelProps {
@@ -373,10 +428,9 @@ function DirectorBucketsBlock({
   buckets: OnboardingPeopleBuckets;
   ctosOrgState: OnboardingCtosOrgFetchState;
 }) {
-  const matchedApp = buckets.matched.map((m) => m.app);
-  const matchedCtos = buckets.matched.map((m) => m.ctos);
-  const hasAnyApp = matchedApp.length > 0 || buckets.onlyApplication.length > 0;
-  const hasAnyCtos = matchedCtos.length > 0 || buckets.onlyCtos.length > 0;
+  const { applicationRows, ctosRows } = orderedCompareRows(buckets);
+  const hasAnyApp = applicationRows.length > 0;
+  const hasAnyCtos = ctosRows.length > 0;
 
   const ctosDirectorsEmptyDescription =
     ctosOrgState === "not_pulled"
@@ -388,58 +442,40 @@ function DirectorBucketsBlock({
   return (
     <div className="space-y-4">
       <h4 className="text-sm font-semibold text-foreground">{title}</h4>
-      <div className="space-y-3">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Application</p>
-        {!hasAnyApp ? (
-          <CompareEmptyState
-            icon={UserGroupIcon}
-            title="No directors on the application"
-            description="RegTank did not return director rows for this company, or none are in scope yet. You can still verify company details and use amendment if the user must update directors."
-          />
-        ) : (
-          <div className="space-y-4">
-            {buckets.matched.length > 0 ? (
-              <div className="space-y-2">
-                <AppDirectorTable rows={matchedApp} />
-              </div>
-            ) : null}
-            {buckets.onlyApplication.length > 0 ? (
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-foreground">Only in application</p>
-                <AppDirectorTable rows={buckets.onlyApplication} />
-              </div>
-            ) : null}
-          </div>
-        )}
-      </div>
-      <div className={ctosPanelClass}>
-        <div className={cn("flex flex-wrap items-center justify-between gap-2 mb-3", ctosPanelHeaderDivider)}>
-          <p className="text-sm font-semibold text-foreground">CTOS data</p>
-          <Badge variant="outline" className={ctosSectionBadgeClass}>
-            CTOS
-          </Badge>
+      <p className="text-xs text-muted-foreground">
+        One table lists everyone the issuer declared; the other lists everyone from CTOS. Matched people use the same
+        row order at the top, then application-only, then CTOS-only.
+      </p>
+      <div className="flex flex-col gap-6">
+        <div className="space-y-2 min-w-0">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Application</p>
+          {!hasAnyApp ? (
+            <CompareEmptyState
+              icon={UserGroupIcon}
+              title="No directors on the application"
+              description="RegTank did not return director rows for this company, or none are in scope yet. You can still verify company details and use amendment if the user must update directors."
+            />
+          ) : (
+            <AppDirectorTable rows={applicationRows} />
+          )}
         </div>
-        {!hasAnyCtos ? (
-          <CompareEmptyState
-            icon={InboxIcon}
-            title="No director data from CTOS"
-            description={ctosDirectorsEmptyDescription}
-          />
-        ) : (
-          <div className="space-y-4">
-            {buckets.matched.length > 0 ? (
-              <div className="space-y-2">
-                <CtosDirectorTable rows={matchedCtos} />
-              </div>
-            ) : null}
-            {buckets.onlyCtos.length > 0 ? (
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-foreground">Only in CTOS</p>
-                <CtosDirectorTable rows={buckets.onlyCtos} />
-              </div>
-            ) : null}
+        <div className={cn(ctosPanelClass, "min-w-0")}>
+          <div className={cn("flex flex-wrap items-center justify-between gap-2 mb-3", ctosPanelHeaderDivider)}>
+            <p className="text-sm font-semibold text-foreground">CTOS data</p>
+            <Badge variant="outline" className={ctosSectionBadgeClass}>
+              CTOS
+            </Badge>
           </div>
-        )}
+          {!hasAnyCtos ? (
+            <CompareEmptyState
+              icon={InboxIcon}
+              title="No director data from CTOS"
+              description={ctosDirectorsEmptyDescription}
+            />
+          ) : (
+            <CtosDirectorTable rows={ctosRows} />
+          )}
+        </div>
       </div>
     </div>
   );
@@ -454,10 +490,9 @@ function ShareholderBucketsBlock({
   buckets: OnboardingPeopleBuckets;
   ctosOrgState: OnboardingCtosOrgFetchState;
 }) {
-  const matchedApp = buckets.matched.map((m) => m.app);
-  const matchedCtos = buckets.matched.map((m) => m.ctos);
-  const hasAnyApp = matchedApp.length > 0 || buckets.onlyApplication.length > 0;
-  const hasAnyCtos = matchedCtos.length > 0 || buckets.onlyCtos.length > 0;
+  const { applicationRows, ctosRows } = orderedCompareRows(buckets);
+  const hasAnyApp = applicationRows.length > 0;
+  const hasAnyCtos = ctosRows.length > 0;
 
   const ctosShEmptyDescription =
     ctosOrgState === "not_pulled"
@@ -471,61 +506,41 @@ function ShareholderBucketsBlock({
       <div>
         <h4 className="text-sm font-semibold text-foreground">{title}</h4>
         <p className="mt-1 text-xs text-muted-foreground">
-          Application and CTOS data both include only shareholders at 5% ownership or above.
+          Shareholders below 5% are not listed. Everyone else the issuer declared appears in the application table;
+          everyone from CTOS (≥5%) appears in the CTOS table. Matched people share the same row order at the top,
+          then application-only, then CTOS-only.
         </p>
       </div>
-      <div className="space-y-3">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Application</p>
-        {!hasAnyApp ? (
-          <CompareEmptyState
-            icon={UserGroupIcon}
-            title="No shareholders (≥5%) on the application"
-            description="No shareholder rows met the ≥5% rule from RegTank data. If you expect names here, ask the user to fix ownership via amendment."
-          />
-        ) : (
-          <div className="space-y-4">
-            {buckets.matched.length > 0 ? (
-              <div className="space-y-2">
-                <AppShareholderTable rows={matchedApp} />
-              </div>
-            ) : null}
-            {buckets.onlyApplication.length > 0 ? (
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-foreground">Only in application</p>
-                <AppShareholderTable rows={buckets.onlyApplication} />
-              </div>
-            ) : null}
-          </div>
-        )}
-      </div>
-      <div className={ctosPanelClass}>
-        <div className={cn("flex flex-wrap items-center justify-between gap-2 mb-3", ctosPanelHeaderDivider)}>
-          <p className="text-sm font-semibold text-foreground">CTOS data</p>
-          <Badge variant="outline" className={ctosSectionBadgeClass}>
-            CTOS
-          </Badge>
+      <div className="flex flex-col gap-6">
+        <div className="space-y-2 min-w-0">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Application</p>
+          {!hasAnyApp ? (
+            <CompareEmptyState
+              icon={UserGroupIcon}
+              title="No shareholders (≥5%) on the application"
+              description="No shareholder rows met the ≥5% rule from RegTank data. If you expect names here, ask the user to fix ownership via amendment."
+            />
+          ) : (
+            <AppShareholderTable rows={applicationRows} />
+          )}
         </div>
-        {!hasAnyCtos ? (
-          <CompareEmptyState
-            icon={InboxIcon}
-            title="No shareholder data from CTOS"
-            description={ctosShEmptyDescription}
-          />
-        ) : (
-          <div className="space-y-4">
-            {buckets.matched.length > 0 ? (
-              <div className="space-y-2">
-                <CtosShareholderTable rows={matchedCtos} />
-              </div>
-            ) : null}
-            {buckets.onlyCtos.length > 0 ? (
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-foreground">Only in CTOS</p>
-                <CtosShareholderTable rows={buckets.onlyCtos} />
-              </div>
-            ) : null}
+        <div className={cn(ctosPanelClass, "min-w-0")}>
+          <div className={cn("flex flex-wrap items-center justify-between gap-2 mb-3", ctosPanelHeaderDivider)}>
+            <p className="text-sm font-semibold text-foreground">CTOS data</p>
+            <Badge variant="outline" className={ctosSectionBadgeClass}>
+              CTOS
+            </Badge>
           </div>
-        )}
+          {!hasAnyCtos ? (
+            <CompareEmptyState
+              icon={InboxIcon}
+              title="No shareholder data from CTOS"
+              description={ctosShEmptyDescription}
+            />
+          ) : (
+            <CtosShareholderTable rows={ctosRows} />
+          )}
+        </div>
       </div>
     </div>
   );
@@ -672,7 +687,9 @@ export function SSMVerificationPanel({
 
   const onConfirmGetLatestReport = () => {
     if (USE_MOCK_ONBOARDING_CTOS) {
-      toast.message("Mock mode", { description: "Set USE_MOCK_ONBOARDING_CTOS to false to call the real API." });
+      toast.message("Mock mode", {
+        description: "Set USE_MOCK_ONBOARDING_CTOS to false in ssm-verification-panel.tsx to call the real API.",
+      });
       return;
     }
     const t = toast.loading("Fetching CTOS report…");
@@ -806,7 +823,8 @@ export function SSMVerificationPanel({
         <CardContent className="space-y-6">
           {useOrgCtosFlow && USE_MOCK_ONBOARDING_CTOS ? (
             <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100">
-              Mock CTOS preview: list and company extract are fake (aligned to this application). Set{" "}
+              Mock CTOS preview: list and company extract are fake (includes matched, only-application, and
+              only-CTOS rows). Set{" "}
               <span className="font-mono text-xs">USE_MOCK_ONBOARDING_CTOS</span> to{" "}
               <span className="font-mono text-xs">false</span> in{" "}
               <span className="font-mono text-xs">ssm-verification-panel.tsx</span> for real data.
