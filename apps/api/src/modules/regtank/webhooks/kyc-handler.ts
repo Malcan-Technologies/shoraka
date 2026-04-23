@@ -9,6 +9,7 @@ import { UserRole } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import type { PortalType } from "../types";
 import { syncApplicationGuarantorsFromRegTankAmlWebhook } from "../../admin/guarantor-aml-webhook-sync";
+import { maybeAdvanceOrgAfterAmlScreeningCleared } from "./org-aml-milestone";
 
 /**
  * KYC (Know Your Customer) Webhook Handler
@@ -437,8 +438,22 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
                 onboardingRequestId: onboarding.request_id,
                 organizationId: onboarding.investor_organization_id,
               },
-              "[KYC Webhook] Stored kyc_response; org onboarding step unchanged (admin-driven)"
+              "[KYC Webhook] Stored kyc_response; org onboarding step unchanged unless personal AML milestone applies"
             );
+
+            if (onboarding.onboarding_type === "PERSONAL" && onboarding.investor_organization_id) {
+              await maybeAdvanceOrgAfterAmlScreeningCleared({
+                organizationId: onboarding.investor_organization_id,
+                portalType: "investor",
+                userId: onboarding.user_id,
+                organizationName: org.name,
+                trigger: "REGTANK_KYC_PERSONAL_AML_CLEARED",
+                extraMetadata: {
+                  kycRequestId: requestId,
+                  onboardingRequestId: onboarding.request_id,
+                },
+              });
+            }
           }
         } else if (portalType === "issuer" && onboarding.issuer_organization_id) {
           const org = await this.organizationRepository.findIssuerOrganizationById(
@@ -488,8 +503,22 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
                 onboardingRequestId: onboarding.request_id,
                 organizationId: onboarding.issuer_organization_id,
               },
-              "[KYC Webhook] Stored kyc_response; org onboarding step unchanged (admin-driven)"
+              "[KYC Webhook] Stored kyc_response; org onboarding step unchanged unless personal AML milestone applies"
             );
+
+            if (onboarding.onboarding_type === "PERSONAL" && onboarding.issuer_organization_id) {
+              await maybeAdvanceOrgAfterAmlScreeningCleared({
+                organizationId: onboarding.issuer_organization_id,
+                portalType: "issuer",
+                userId: onboarding.user_id,
+                organizationName: org.name,
+                trigger: "REGTANK_KYC_PERSONAL_AML_CLEARED",
+                extraMetadata: {
+                  kycRequestId: requestId,
+                  onboardingRequestId: onboarding.request_id,
+                },
+              });
+            }
           }
         }
       } catch (error) {

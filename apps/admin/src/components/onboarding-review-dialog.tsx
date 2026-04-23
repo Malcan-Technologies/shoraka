@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -35,17 +36,18 @@ import {
 } from "./approval-progress-stepper";
 import { SSMVerificationPanel } from "./ssm-verification-panel";
 import {
+  useOnboardingApplication,
   useRestartOnboarding,
   useCompleteFinalApproval,
   useApproveSsmVerification,
-  useApproveOnboardingSubmission,
   useRefreshCorporateStatus,
   useRefreshCorporateAmlStatus,
 } from "@/hooks/use-onboarding-applications";
+import { Skeleton } from "@/components/ui/skeleton";
 import { DirectorKycList } from "./director-kyc-list";
 import { DirectorAmlList } from "./director-aml-list";
 import { CorporateShareholdersList } from "./corporate-shareholders-list";
-import type { OnboardingApprovalStatus, OnboardingApplicationResponse } from "@cashsouk/types";
+import type { OnboardingApprovalStatus } from "@cashsouk/types";
 import {
   UserIcon,
   EnvelopeIcon,
@@ -61,30 +63,36 @@ import {
 import { toast } from "sonner";
 
 interface OnboardingReviewDialogProps {
-  application: OnboardingApplicationResponse;
+  onboardingId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onRefresh?: () => void;
-  isRefreshing?: boolean;
 }
 
 export function OnboardingReviewDialog({
-  application,
+  onboardingId,
   open,
   onOpenChange,
-  onRefresh,
-  isRefreshing,
 }: OnboardingReviewDialogProps) {
+  const queryClient = useQueryClient();
+  const {
+    data: application,
+    isPending,
+    isError,
+    error,
+    refetch,
+    isFetching,
+  } = useOnboardingApplication(onboardingId, { enabled: open });
+
   const [showRedoConfirm, setShowRedoConfirm] = React.useState(false);
   const [showFinalApprovalConfirm, setShowFinalApprovalConfirm] = React.useState(false);
   const restartMutation = useRestartOnboarding();
   const finalApprovalMutation = useCompleteFinalApproval();
   const ssmApprovalMutation = useApproveSsmVerification();
-  const approveOnboardingMutation = useApproveOnboardingSubmission();
   const refreshCorporateMutation = useRefreshCorporateStatus();
   const refreshCorporateAmlMutation = useRefreshCorporateAmlStatus();
 
   const adminPhase = React.useMemo((): OnboardingApprovalStatus => {
+    if (!application) return "PENDING_ONBOARDING";
     if (application.status === "EXPIRED" || application.status === "CANCELLED") {
       return application.status;
     }
@@ -93,35 +101,32 @@ export function OnboardingReviewDialog({
       return "PENDING_ONBOARDING";
     }
     return raw as OnboardingApprovalStatus;
-  }, [application.onboardingStatus, application.status]);
+  }, [application]);
 
-  const isCompany = application.type === "COMPANY";
-  const steps = isCompany
-    ? getCompanyOnboardingSteps(application.onboardingStatus, application.ssmApproved)
-    : getPersonalOnboardingSteps(application.onboardingStatus);
+  const isCompany = application?.type === "COMPANY";
+  const steps = React.useMemo(() => {
+    if (!application) return [];
+    return isCompany
+      ? getCompanyOnboardingSteps(application.onboardingStatus, application.ssmApproved)
+      : getPersonalOnboardingSteps(application.onboardingStatus);
+  }, [application, isCompany]);
 
-  // Check if all required approval flags are met
-  const hasOnboardingApproval = application.onboardingApproved;
-  const hasAmlApproval = application.amlApproved;
-  const hasTncAccepted = application.tncAccepted;
-  const hasSsmApproval = application.ssmApproved;
+  const hasOnboardingApproval = application?.onboardingApproved ?? false;
+  const hasAmlApproval = application?.amlApproved ?? false;
+  const hasTncAccepted = application?.tncAccepted ?? false;
+  const hasSsmApproval = application?.ssmApproved ?? false;
 
-  // For personal investor: onboarding_approved, aml_approved, tnc_accepted
-  // For company (investor/issuer): onboarding_approved, aml_approved, tnc_accepted, ssm_approved
   const allRequirementsMet = isCompany
     ? hasOnboardingApproval && hasAmlApproval && hasTncAccepted && hasSsmApproval
     : hasOnboardingApproval && hasAmlApproval && hasTncAccepted;
 
-  // Use the dynamic portal URL from the API response
   const handleOpenRegTank = () => {
-    if (application.regtankPortalUrl) {
-      window.open(application.regtankPortalUrl, "_blank", "noopener,noreferrer");
-    }
+    if (!application?.regtankPortalUrl) return;
+    window.open(application.regtankPortalUrl, "_blank", "noopener,noreferrer");
   };
 
-  // Open KYC/AML review page in RegTank portal
-  // For corporate onboarding, use KYB URL; for individual, use KYC URL
   const handleOpenKycReview = () => {
+    if (!application) return;
     const url = isCompany && application.kybPortalUrl
       ? application.kybPortalUrl
       : application.kycPortalUrl;
@@ -134,7 +139,7 @@ export function OnboardingReviewDialog({
   };
 
   const handleSSMApprove = () => {
-    ssmApprovalMutation.mutate(application.id, {
+    ssmApprovalMutation.mutate(onboardingId, {
       onSuccess: (data) => {
         toast.success("CTOS Verification approved", {
           description: data.message,
@@ -151,25 +156,13 @@ export function OnboardingReviewDialog({
 
   const handleSSMReject = () => {
     toast.error("CTOS Verification rejected", {
-      description: `Company ${application.organizationName} has been rejected.`,
+      description: `Company ${application?.organizationName ?? "Unknown"} has been rejected.`,
     });
     onOpenChange(false);
   };
 
-  const handleApproveOnboarding = () => {
-    approveOnboardingMutation.mutate(application.id, {
-      onSuccess: (data) => {
-        toast.success("Onboarding approved", { description: data.message });
-        onRefresh?.();
-      },
-      onError: (error) => {
-        toast.error("Failed to approve onboarding", { description: error.message });
-      },
-    });
-  };
-
   const handleRequestRedo = () => {
-    restartMutation.mutate(application.id, {
+    restartMutation.mutate(onboardingId, {
       onSuccess: (data) => {
         toast.success("Onboarding restarted", {
           description: data.message,
@@ -187,7 +180,7 @@ export function OnboardingReviewDialog({
   };
 
   const handleFinalApproval = () => {
-    finalApprovalMutation.mutate(application.id, {
+    finalApprovalMutation.mutate(onboardingId, {
       onSuccess: (data) => {
         toast.success("Onboarding completed", {
           description: data.message,
@@ -204,42 +197,38 @@ export function OnboardingReviewDialog({
     });
   };
 
-  // Combined refresh handler that refreshes both KYC status and onboarding status
   const handleCombinedRefresh = async () => {
+    if (!application) return;
     if (isCompany) {
-      // Refresh KYC status if in PENDING_APPROVAL
       if (application.onboardingStatus === "PENDING_APPROVAL" && application.directorKycStatus) {
         try {
-          await refreshCorporateMutation.mutateAsync(application.id);
+          await refreshCorporateMutation.mutateAsync(onboardingId);
           toast.success("Director KYC statuses refreshed");
-        } catch (error) {
+        } catch (err) {
           toast.error("Failed to refresh director KYC statuses", {
-            description: error instanceof Error ? error.message : String(error),
+            description: err instanceof Error ? err.message : String(err),
           });
         }
       }
-      // Refresh AML status if in PENDING_AML
       if (application.onboardingStatus === "PENDING_AML" && application.directorAmlStatus) {
         try {
-          await refreshCorporateAmlMutation.mutateAsync(application.id);
+          await refreshCorporateAmlMutation.mutateAsync(onboardingId);
           toast.success("Director AML statuses refreshed");
-        } catch (error) {
+        } catch (err) {
           toast.error("Failed to refresh director AML statuses", {
-            description: error instanceof Error ? error.message : String(error),
+            description: err instanceof Error ? err.message : String(err),
           });
         }
       }
     }
-    if (onRefresh) {
-      onRefresh();
-    }
+    void queryClient.invalidateQueries({ queryKey: ["admin", "onboarding-applications"] });
+    void refetch();
   };
 
   const isCombinedRefreshing =
     refreshCorporateMutation.isPending ||
     refreshCorporateAmlMutation.isPending ||
-    approveOnboardingMutation.isPending ||
-    (isRefreshing ?? false);
+    isFetching;
 
   const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return "-";
@@ -253,6 +242,7 @@ export function OnboardingReviewDialog({
   };
 
   const renderCurrentStepContent = () => {
+    if (!application) return null;
     switch (adminPhase) {
       case "PENDING_ONBOARDING":
         return (
@@ -302,8 +292,9 @@ export function OnboardingReviewDialog({
                 Onboarding Approval Required
               </CardTitle>
               <CardDescription>
-                The user has completed their onboarding submission in RegTank. You must review and
-                approve the onboarding before the account can proceed.
+                The user has completed their onboarding submission in RegTank. Review it in RegTank
+                and use Refresh here when you need the latest status from the server (webhooks update
+                the queue in the background).
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -335,7 +326,9 @@ export function OnboardingReviewDialog({
                         </li>
                       </ol>
                       <p className="text-sm text-muted-foreground mt-3 leading-relaxed instruction-conclusion">
-                        <strong>Next step:</strong> Once approved, proceed to AML Approval.
+                        <strong>Next step:</strong> After RegTank sends COD approved, the application
+                        moves to AML review when the webhook is processed. Refresh this view to see
+                        updates.
                       </p>
                     </div>
                   </>
@@ -359,7 +352,9 @@ export function OnboardingReviewDialog({
                         </li>
                       </ol>
                       <p className="text-sm text-muted-foreground mt-3 leading-relaxed instruction-conclusion">
-                        <strong>Next step:</strong> Once approved, proceed to AML Approval.
+                        <strong>Next step:</strong> After RegTank approves the individual onboarding,
+                        the application moves to AML review when the webhook is processed. Refresh
+                        this view to see updates.
                       </p>
                     </div>
                   </>
@@ -374,28 +369,6 @@ export function OnboardingReviewDialog({
                 Open Onboarding Review
               </Button>
 
-              <Button
-                onClick={handleApproveOnboarding}
-                className="w-full gap-2"
-                disabled={approveOnboardingMutation.isPending || application.onboardingApproved}
-              >
-                {approveOnboardingMutation.isPending ? (
-                  <ArrowPathIcon className="h-4 w-4 animate-spin" />
-                ) : (
-                  <CheckCircleIcon className="h-4 w-4" />
-                )}
-                Record onboarding approval
-              </Button>
-              {application.onboardingApproved ? (
-                <p className="text-xs text-center text-muted-foreground">
-                  Onboarding approval is already recorded. You can refresh if the view is stale.
-                </p>
-              ) : (
-                <p className="text-xs text-center text-muted-foreground">
-                  After you finish in RegTank, click here to move the application to AML review.
-                </p>
-              )}
-              
               {/* Director KYC Status Section (for corporate onboarding) */}
               {isCompany && application.directorKycStatus && (
                 <>
@@ -830,170 +803,201 @@ export function OnboardingReviewDialog({
 
   return (
     <TooltipProvider>
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" hideCloseButton>
-        <DialogHeader>
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-xl flex items-center gap-3">
-              Review Onboarding Application
-              <Badge variant="outline" className="font-normal">
-                {application.type === "PERSONAL" ? "Personal" : "Company"}
-              </Badge>
-              <Badge variant="secondary" className="font-normal capitalize">
-                {application.portal}
-              </Badge>
-            </DialogTitle>
-            <div className="flex gap-2">
-              {(isCompany && application.directorKycStatus) || onRefresh ? (
-              <Button
-                variant="outline"
-                size="sm"
-                  onClick={handleCombinedRefresh}
-                  disabled={isCombinedRefreshing}
-                className="gap-1.5"
-              >
-                  <ArrowPathIcon
-                    className={`h-4 w-4 ${isCombinedRefreshing ? "animate-spin" : ""}`}
-                  />
-                Refresh
-              </Button>
-              ) : null}
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" hideCloseButton>
+          {!application && isPending && (
+            <div className="space-y-4 py-6" aria-busy="true">
+              <Skeleton className="h-9 w-2/3" />
+              <Skeleton className="h-4 w-full" />
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-4">
+                <div className="space-y-3">
+                  <Skeleton className="h-32 w-full" />
+                  <Skeleton className="h-40 w-full" />
+                </div>
+                <div className="lg:col-span-2 space-y-3">
+                  <Skeleton className="h-48 w-full" />
+                  <Skeleton className="h-24 w-full" />
+                </div>
+              </div>
             </div>
-          </div>
-          <DialogDescription>
-            Review the application details and complete the required approval steps.
-          </DialogDescription>
-        </DialogHeader>
+          )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-4">
-          {/* Left Column - Progress Stepper */}
-          <div className="lg:col-span-1">
-            <Card>
-              <CardHeader className="pb-4">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Approval Progress
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ApprovalProgressStepper steps={steps} />
-              </CardContent>
-            </Card>
+          {!application && isError && (
+            <div className="py-10 text-center space-y-4">
+              <p className="text-sm text-destructive">{error?.message ?? "Failed to load"}</p>
+              <Button type="button" variant="outline" onClick={() => void refetch()}>
+                Retry
+              </Button>
+            </div>
+          )}
 
-            {/* User Info Card */}
-            <Card className="mt-4">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  Applicant Details
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center gap-3">
-                  <UserIcon className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">{application.userName}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <EnvelopeIcon className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground break-all">
-                    {application.userEmail}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <CalendarDaysIcon className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">
-                    {formatDate(application.submittedAt)}
-                  </span>
-                </div>
-                <Separator className="my-2" />
-                {application.regtankRequestId && (
-                  <div className="text-xs text-muted-foreground">
-                    <span className="font-medium">RegTank ID:</span>{" "}
-                    <span className="font-mono">{application.regtankRequestId}</span>
+          {application && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center justify-between">
+                  <DialogTitle className="text-xl flex items-center gap-3">
+                    Review Onboarding Application
+                    <Badge variant="outline" className="font-normal">
+                      {application.type === "PERSONAL" ? "Personal" : "Company"}
+                    </Badge>
+                    <Badge variant="secondary" className="font-normal capitalize">
+                      {application.portal}
+                    </Badge>
+                  </DialogTitle>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCombinedRefresh}
+                      disabled={isCombinedRefreshing}
+                      className="gap-1.5"
+                    >
+                      <ArrowPathIcon
+                        className={`h-4 w-4 ${isCombinedRefreshing ? "animate-spin" : ""}`}
+                      />
+                      Refresh
+                    </Button>
                   </div>
-                )}
-                <div className="text-xs text-muted-foreground">
-                  <span className="font-medium">User ID:</span>{" "}
-                  <span className="font-mono">{application.userId}</span>
                 </div>
-                {application.organizationName && (
-                  <div className="text-xs text-muted-foreground">
-                    <span className="font-medium">Organization:</span>{" "}
-                    <span>{application.organizationName}</span>
-                  </div>
-                )}
-                {application.registrationNumber && (
-                  <div className="text-xs text-muted-foreground">
-                    <span className="font-medium">SSM No:</span>{" "}
-                    <span className="font-mono">{application.registrationNumber}</span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+                <DialogDescription>
+                  Review the application details and complete the required approval steps.
+                </DialogDescription>
+              </DialogHeader>
 
-          {/* Right Column - Current Step Content */}
-          <div className="lg:col-span-2">{renderCurrentStepContent()}</div>
-        </div>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-4">
+                <div className="lg:col-span-1">
+                  <Card>
+                    <CardHeader className="pb-4">
+                      <CardTitle className="text-sm font-medium text-muted-foreground">
+                        Approval Progress
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ApprovalProgressStepper steps={steps} />
+                    </CardContent>
+                  </Card>
 
-        {/* Footer */}
-        <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Close
-          </Button>
-        </div>
-      </DialogContent>
+                  <Card className="mt-4">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="text-sm font-medium text-muted-foreground">
+                        Applicant Details
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <UserIcon className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm font-medium">{application.userName}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <EnvelopeIcon className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground break-all">
+                          {application.userEmail}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <CalendarDaysIcon className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">
+                          {formatDate(application.submittedAt)}
+                        </span>
+                      </div>
+                      <Separator className="my-2" />
+                      {application.regtankRequestId && (
+                        <div className="text-xs text-muted-foreground">
+                          <span className="font-medium">RegTank ID:</span>{" "}
+                          <span className="font-mono">{application.regtankRequestId}</span>
+                        </div>
+                      )}
+                      <div className="text-xs text-muted-foreground">
+                        <span className="font-medium">User ID:</span>{" "}
+                        <span className="font-mono">{application.userId}</span>
+                      </div>
+                      {application.organizationName && (
+                        <div className="text-xs text-muted-foreground">
+                          <span className="font-medium">Organization:</span>{" "}
+                          <span>{application.organizationName}</span>
+                        </div>
+                      )}
+                      {application.registrationNumber && (
+                        <div className="text-xs text-muted-foreground">
+                          <span className="font-medium">SSM No:</span>{" "}
+                          <span className="font-mono">{application.registrationNumber}</span>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
 
-      {/* Redo Confirmation Dialog */}
-      <AlertDialog open={showRedoConfirm} onOpenChange={setShowRedoConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Restart Onboarding?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will call the RegTank restart API to create a new onboarding request. The current
-              onboarding will be cancelled and {application.userName} will receive a new
-              verification link. Personal information from the previous submission will be
-              inherited.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={restartMutation.isPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleRequestRedo}
-              disabled={restartMutation.isPending}
-              className="gap-2"
-            >
-              {restartMutation.isPending && <ArrowPathIcon className="h-4 w-4 animate-spin" />}
-              Confirm Redo
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+                <div className="lg:col-span-2">{renderCurrentStepContent()}</div>
+              </div>
 
-      {/* Final Approval Confirmation Dialog */}
-      <AlertDialog open={showFinalApprovalConfirm} onOpenChange={setShowFinalApprovalConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Complete Onboarding?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will mark {application.userName}&apos;s onboarding as complete. They will gain
-              full access to the {application.portal} portal. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={finalApprovalMutation.isPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleFinalApproval}
-              disabled={finalApprovalMutation.isPending}
-              className="gap-2 bg-emerald-600 hover:bg-emerald-700"
-            >
-              {finalApprovalMutation.isPending && (
-                <ArrowPathIcon className="h-4 w-4 animate-spin" />
-              )}
-              Complete Onboarding
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </Dialog>
+              <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
+                <Button variant="outline" onClick={() => onOpenChange(false)}>
+                  Close
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+
+        {application && (
+          <>
+            <AlertDialog open={showRedoConfirm} onOpenChange={setShowRedoConfirm}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Restart Onboarding?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will call the RegTank restart API to create a new onboarding request. The
+                    current onboarding will be cancelled and {application.userName} will receive a
+                    new verification link. Personal information from the previous submission will be
+                    inherited.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={restartMutation.isPending}>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleRequestRedo}
+                    disabled={restartMutation.isPending}
+                    className="gap-2"
+                  >
+                    {restartMutation.isPending && (
+                      <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                    )}
+                    Confirm Redo
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+
+            <AlertDialog open={showFinalApprovalConfirm} onOpenChange={setShowFinalApprovalConfirm}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Complete Onboarding?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will mark {application.userName}&apos;s onboarding as complete. They will
+                    gain full access to the {application.portal} portal. This action cannot be
+                    undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={finalApprovalMutation.isPending}>
+                    Cancel
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleFinalApproval}
+                    disabled={finalApprovalMutation.isPending}
+                    className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+                  >
+                    {finalApprovalMutation.isPending && (
+                      <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                    )}
+                    Complete Onboarding
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </>
+        )}
+      </Dialog>
     </TooltipProvider>
   );
 }

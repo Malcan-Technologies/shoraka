@@ -15,6 +15,7 @@ import { extractRequestMetadata } from "../../lib/http/request-utils";
 import { OrganizationRepository } from "../organization/repository";
 import { AuthRepository } from "../auth/repository";
 import { getRegTankConfig } from "../../config/regtank";
+import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-onboarding-status";
 
 export class RegTankService {
   private repository: RegTankRepository;
@@ -1655,56 +1656,158 @@ export class RegTankService {
           requestId
         );
 
-        // User milestone after RegTank onboarding approval (admin gates follow):
+        // User milestone after RegTank onboarding approval:
         // - COMPANY: first admin step is CTOS → PENDING_SSM_REVIEW
-        // - PERSONAL: first admin step is onboarding review → PENDING_APPROVAL
+        // - PERSONAL: PENDING_APPROVAL → PENDING_AML + onboarding_approved when RegTank APPROVED (webhook); else land on PENDING_APPROVAL
         if (portalType === "investor") {
           const org =
             await this.organizationRepository.findInvestorOrganizationById(organizationId);
           if (org) {
             const previousStatus = org.onboarding_status;
-            const nextOrgStatus =
-              org.type === OrganizationType.COMPANY
-                ? OnboardingStatus.PENDING_SSM_REVIEW
-                : OnboardingStatus.PENDING_APPROVAL;
-            await this.organizationRepository.updateInvestorOrganizationOnboarding(
-              organizationId,
-              nextOrgStatus
-            );
 
-            // Create onboarding log - ONBOARDING_APPROVED when RegTank approves
-            try {
-              await this.authRepository.createOnboardingLog({
-                userId: onboarding.user_id,
-                role: UserRole.INVESTOR,
-                eventType: "ONBOARDING_APPROVED",
-                portal: portalType,
-                organizationName: org.name || undefined,
-                investorOrganizationId: organizationId,
-                issuerOrganizationId: undefined,
-                metadata: {
-                  organizationId,
-                  requestId,
-                  previousStatus,
-                  newStatus: nextOrgStatus,
-                  trigger: "REGTANK_APPROVED",
-                },
-              });
-            } catch (logError) {
-              logger.error(
-                {
-                  error: logError instanceof Error ? logError.message : String(logError),
-                  organizationId,
-                  requestId,
-                },
-                "Failed to create onboarding log (non-blocking)"
+            if (org.type === OrganizationType.COMPANY) {
+              const nextOrgStatus = OnboardingStatus.PENDING_SSM_REVIEW;
+              await this.organizationRepository.updateInvestorOrganizationOnboarding(
+                organizationId,
+                nextOrgStatus
               );
-            }
 
-            logger.info(
-              { organizationId, portalType, orgType: org.type, nextOrgStatus },
-              "Updated investor organization to first admin gate after RegTank onboarding approval"
-            );
+              try {
+                await this.authRepository.createOnboardingLog({
+                  userId: onboarding.user_id,
+                  role: UserRole.INVESTOR,
+                  eventType: "ONBOARDING_APPROVED",
+                  portal: portalType,
+                  organizationName: org.name || undefined,
+                  investorOrganizationId: organizationId,
+                  issuerOrganizationId: undefined,
+                  metadata: {
+                    organizationId,
+                    requestId,
+                    previousStatus,
+                    newStatus: nextOrgStatus,
+                    trigger: "REGTANK_APPROVED",
+                  },
+                });
+              } catch (logError) {
+                logger.error(
+                  {
+                    error: logError instanceof Error ? logError.message : String(logError),
+                    organizationId,
+                    requestId,
+                  },
+                  "Failed to create onboarding log (non-blocking)"
+                );
+              }
+
+              logger.info(
+                { organizationId, portalType, orgType: org.type, nextOrgStatus },
+                "Updated investor organization to first admin gate after RegTank onboarding approval"
+              );
+            } else {
+              if (
+                org.onboarding_status === OnboardingStatus.PENDING_AML &&
+                org.onboarding_approved
+              ) {
+                await advanceOnboardingStatusFromFlags({
+                  organizationId,
+                  portalType: "investor",
+                  reason: "REGTANK_INDIVIDUAL_APPROVED",
+                });
+                logger.info(
+                  { organizationId, requestId, onboardingStatus: org.onboarding_status },
+                  "Investor personal org at PENDING_AML with onboarding_approved; ran advance for healing"
+                );
+              } else if (org.onboarding_status === OnboardingStatus.PENDING_APPROVAL) {
+                await prisma.investorOrganization.update({
+                  where: { id: organizationId },
+                  data: {
+                    onboarding_approved: true,
+                  },
+                });
+                await advanceOnboardingStatusFromFlags({
+                  organizationId,
+                  portalType: "investor",
+                  reason: "REGTANK_INDIVIDUAL_APPROVED",
+                });
+                const after = await prisma.investorOrganization.findUnique({
+                  where: { id: organizationId },
+                  select: { onboarding_status: true },
+                });
+
+                try {
+                  await this.authRepository.createOnboardingLog({
+                    userId: onboarding.user_id,
+                    role: UserRole.INVESTOR,
+                    eventType: "ONBOARDING_APPROVED",
+                    portal: portalType,
+                    organizationName: org.name || undefined,
+                    investorOrganizationId: organizationId,
+                    issuerOrganizationId: undefined,
+                    metadata: {
+                      organizationId,
+                      requestId,
+                      previousStatus,
+                      newStatus: after?.onboarding_status,
+                      trigger: "REGTANK_INDIVIDUAL_APPROVED",
+                    },
+                  });
+                } catch (logError) {
+                  logger.error(
+                    {
+                      error: logError instanceof Error ? logError.message : String(logError),
+                      organizationId,
+                      requestId,
+                    },
+                    "Failed to create onboarding log (non-blocking)"
+                  );
+                }
+
+                logger.info(
+                  { organizationId, portalType, newStatus: after?.onboarding_status },
+                  "Set onboarding_approved and applied advance after RegTank APPROVED (personal investor)"
+                );
+              } else {
+                const fallbackOrgStatus = OnboardingStatus.PENDING_APPROVAL;
+                await this.organizationRepository.updateInvestorOrganizationOnboarding(
+                  organizationId,
+                  fallbackOrgStatus
+                );
+
+                try {
+                  await this.authRepository.createOnboardingLog({
+                    userId: onboarding.user_id,
+                    role: UserRole.INVESTOR,
+                    eventType: "ONBOARDING_APPROVED",
+                    portal: portalType,
+                    organizationName: org.name || undefined,
+                    investorOrganizationId: organizationId,
+                    issuerOrganizationId: undefined,
+                    metadata: {
+                      organizationId,
+                      requestId,
+                      previousStatus,
+                      newStatus: fallbackOrgStatus,
+                      trigger: "REGTANK_APPROVED",
+                    },
+                  });
+                } catch (logError) {
+                  logger.error(
+                    {
+                      error: logError instanceof Error ? logError.message : String(logError),
+                      organizationId,
+                      requestId,
+                    },
+                    "Failed to create onboarding log (non-blocking)"
+                  );
+                }
+
+                logger.info(
+                  { organizationId, portalType, orgType: org.type, nextOrgStatus: fallbackOrgStatus },
+                  "Updated investor organization to first admin gate after RegTank onboarding approval"
+                );
+              }
+            }
           } else {
             logger.warn(
               { organizationId, requestId },

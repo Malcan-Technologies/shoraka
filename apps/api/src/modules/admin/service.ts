@@ -22,6 +22,7 @@ import { sendEmail } from "../../lib/email/ses-client";
 import { adminInvitationTemplate } from "../../lib/email/templates";
 import { randomBytes } from "crypto";
 import { logger } from "../../lib/logger";
+import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-onboarding-status";
 import type {
   GetUsersQuery,
   GetAccessLogsQuery,
@@ -2198,7 +2199,20 @@ export class AdminService {
     if (!application) {
       return null;
     }
-    return this.mapToOnboardingApplicationResponse(application);
+    const isInvestor = application.portal_type === "investor";
+    const orgId = isInvestor ? application.investor_organization_id : application.issuer_organization_id;
+    if (orgId) {
+      await advanceOnboardingStatusFromFlags({
+        organizationId: orgId,
+        portalType: isInvestor ? "investor" : "issuer",
+        reason: "ADMIN_ONBOARDING_APPLICATION_FETCH",
+      });
+    }
+    const refreshed = await this.regTankRepository.getOnboardingApplicationById(id);
+    if (!refreshed) {
+      return null;
+    }
+    return this.mapToOnboardingApplicationResponse(refreshed);
   }
 
   /**
@@ -3171,8 +3185,6 @@ export class AdminService {
       );
     }
 
-    const nextOnboardingStatusAfterAml = OnboardingStatus.PENDING_FINAL_APPROVAL;
-
     // Update the organization's aml_approved flag
     const now = new Date();
     if (isInvestor && onboarding.investor_organization) {
@@ -3180,7 +3192,6 @@ export class AdminService {
         where: { id: org.id },
         data: {
           aml_approved: true,
-          onboarding_status: nextOnboardingStatusAfterAml,
         },
       });
     } else if (!isInvestor && onboarding.issuer_organization) {
@@ -3188,10 +3199,25 @@ export class AdminService {
         where: { id: org.id },
         data: {
           aml_approved: true,
-          onboarding_status: nextOnboardingStatusAfterAml,
         },
       });
     }
+
+    await advanceOnboardingStatusFromFlags({
+      organizationId: org.id,
+      portalType: isInvestor ? "investor" : "issuer",
+      reason: "ADMIN_APPROVE_AML_SCREENING",
+    });
+
+    const orgAfterAml = isInvestor
+      ? await prisma.investorOrganization.findUnique({
+          where: { id: org.id },
+          select: { onboarding_status: true },
+        })
+      : await prisma.issuerOrganization.findUnique({
+          where: { id: org.id },
+          select: { onboarding_status: true },
+        });
 
     // For corporate onboarding, update regtank_onboarding.status to APPROVED
     const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
@@ -3236,7 +3262,7 @@ export class AdminService {
           onboardingRequestId: onboarding.request_id,
           isCorporateOnboarding,
           previousStatus: org.onboarding_status,
-          newStatus: nextOnboardingStatusAfterAml,
+          newStatus: orgAfterAml?.onboarding_status,
           approvedBy: adminUserId,
           approvedAt: now.toISOString(),
         },
@@ -3363,6 +3389,12 @@ export class AdminService {
       },
     });
 
+    await advanceOnboardingStatusFromFlags({
+      organizationId: org.id,
+      portalType: isInvestor ? "investor" : "issuer",
+      reason: "ADMIN_APPROVE_SSM_VERIFICATION",
+    });
+
     // SSM_APPROVED log already created above, no need for additional ONBOARDING_STATUS_UPDATED log
 
     logger.info(
@@ -3383,7 +3415,7 @@ export class AdminService {
   }
 
   /**
-   * Records admin onboarding approval after RegTank review; advances org to PENDING_AML.
+   * Records admin onboarding approval after RegTank review; sets onboarding_approved and applies flag-driven status advance.
    */
   async approveOnboardingSubmission(
     req: Request,
@@ -3439,7 +3471,6 @@ export class AdminService {
         where: { id: org.id },
         data: {
           onboarding_approved: true,
-          onboarding_status: OnboardingStatus.PENDING_AML,
         },
       });
     } else if (!isInvestor && onboarding.issuer_organization) {
@@ -3447,10 +3478,15 @@ export class AdminService {
         where: { id: org.id },
         data: {
           onboarding_approved: true,
-          onboarding_status: OnboardingStatus.PENDING_AML,
         },
       });
     }
+
+    await advanceOnboardingStatusFromFlags({
+      organizationId: org.id,
+      portalType: isInvestor ? "investor" : "issuer",
+      reason: "ADMIN_APPROVE_ONBOARDING_SUBMISSION",
+    });
 
     await prisma.onboardingLog.create({
       data: {
@@ -3488,7 +3524,7 @@ export class AdminService {
 
     return {
       success: true,
-      message: "Onboarding approved. Organization is now in PENDING_AML.",
+      message: "Onboarding approved. Organization onboarding status was updated from current flags.",
     };
   }
 
