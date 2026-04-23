@@ -83,7 +83,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 type MockOnboardingCtosMode = "off" | "demo" | "empty";
 
 /** Change to `"empty"` to preview all empty compare blocks; `"off"` for real API. */
-const MOCK_ONBOARDING_CTOS_MODE = "demo" as MockOnboardingCtosMode;
+const MOCK_ONBOARDING_CTOS_MODE = "off" as MockOnboardingCtosMode;
 
 const useMockOnboardingCtos = MOCK_ONBOARDING_CTOS_MODE !== "off";
 const mockOnboardingCtosEmpty = MOCK_ONBOARDING_CTOS_MODE === "empty";
