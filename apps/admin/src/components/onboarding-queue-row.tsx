@@ -123,6 +123,17 @@ function getPortalBadge(portal: "investor" | "issuer") {
   );
 }
 
+function queueRowDisplayStatus(app: OnboardingApplicationResponse): OnboardingApprovalStatus {
+  if (app.status === "EXPIRED" || app.status === "CANCELLED") {
+    return app.status;
+  }
+  const raw = app.onboardingStatus;
+  if (raw === "PENDING" || raw === "IN_PROGRESS") {
+    return "PENDING_ONBOARDING";
+  }
+  return raw as OnboardingApprovalStatus;
+}
+
 function formatDate(dateString: string | null | undefined) {
   if (!dateString) return "-";
   return new Intl.DateTimeFormat("en-MY", {
@@ -161,12 +172,14 @@ export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
     });
   };
 
+  const displayStatus = queueRowDisplayStatus(currentApplication);
+
   // Admin action required for approval, AML, SSM review, or final approval (not pending onboarding - that's user action)
   const needsAction =
-    currentApplication.status === "PENDING_APPROVAL" ||
-    currentApplication.status === "PENDING_AML" ||
-    currentApplication.status === "PENDING_SSM_REVIEW" ||
-    currentApplication.status === "PENDING_FINAL_APPROVAL";
+    currentApplication.onboardingStatus === "PENDING_APPROVAL" ||
+    currentApplication.onboardingStatus === "PENDING_AML" ||
+    currentApplication.onboardingStatus === "PENDING_SSM_REVIEW" ||
+    currentApplication.onboardingStatus === "PENDING_FINAL_APPROVAL";
 
   return (
     <>
@@ -227,7 +240,7 @@ export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
             <span className="text-sm text-muted-foreground/50">—</span>
           )}
         </TableCell>
-        <TableCell>{getStatusBadge(currentApplication.status)}</TableCell>
+        <TableCell>{getStatusBadge(displayStatus)}</TableCell>
         <TableCell>
           {currentApplication.status !== "CANCELLED" && (
             <Button

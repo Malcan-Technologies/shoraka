@@ -38,13 +38,14 @@ import {
   useRestartOnboarding,
   useCompleteFinalApproval,
   useApproveSsmVerification,
+  useApproveOnboardingSubmission,
   useRefreshCorporateStatus,
   useRefreshCorporateAmlStatus,
 } from "@/hooks/use-onboarding-applications";
 import { DirectorKycList } from "./director-kyc-list";
 import { DirectorAmlList } from "./director-aml-list";
 import { CorporateShareholdersList } from "./corporate-shareholders-list";
-import type { OnboardingApplicationResponse } from "@cashsouk/types";
+import type { OnboardingApprovalStatus, OnboardingApplicationResponse } from "@cashsouk/types";
 import {
   UserIcon,
   EnvelopeIcon,
@@ -79,13 +80,25 @@ export function OnboardingReviewDialog({
   const restartMutation = useRestartOnboarding();
   const finalApprovalMutation = useCompleteFinalApproval();
   const ssmApprovalMutation = useApproveSsmVerification();
+  const approveOnboardingMutation = useApproveOnboardingSubmission();
   const refreshCorporateMutation = useRefreshCorporateStatus();
   const refreshCorporateAmlMutation = useRefreshCorporateAmlStatus();
 
+  const adminPhase = React.useMemo((): OnboardingApprovalStatus => {
+    if (application.status === "EXPIRED" || application.status === "CANCELLED") {
+      return application.status;
+    }
+    const raw = application.onboardingStatus;
+    if (raw === "PENDING" || raw === "IN_PROGRESS") {
+      return "PENDING_ONBOARDING";
+    }
+    return raw as OnboardingApprovalStatus;
+  }, [application.onboardingStatus, application.status]);
+
   const isCompany = application.type === "COMPANY";
   const steps = isCompany
-    ? getCompanyOnboardingSteps(application.status)
-    : getPersonalOnboardingSteps(application.status);
+    ? getCompanyOnboardingSteps(application.onboardingStatus, application.ssmApproved)
+    : getPersonalOnboardingSteps(application.onboardingStatus);
 
   // Check if all required approval flags are met
   const hasOnboardingApproval = application.onboardingApproved;
@@ -143,6 +156,18 @@ export function OnboardingReviewDialog({
     onOpenChange(false);
   };
 
+  const handleApproveOnboarding = () => {
+    approveOnboardingMutation.mutate(application.id, {
+      onSuccess: (data) => {
+        toast.success("Onboarding approved", { description: data.message });
+        onRefresh?.();
+      },
+      onError: (error) => {
+        toast.error("Failed to approve onboarding", { description: error.message });
+      },
+    });
+  };
+
   const handleRequestRedo = () => {
     restartMutation.mutate(application.id, {
       onSuccess: (data) => {
@@ -183,7 +208,7 @@ export function OnboardingReviewDialog({
   const handleCombinedRefresh = async () => {
     if (isCompany) {
       // Refresh KYC status if in PENDING_APPROVAL
-      if (application.status === "PENDING_APPROVAL" && application.directorKycStatus) {
+      if (application.onboardingStatus === "PENDING_APPROVAL" && application.directorKycStatus) {
         try {
           await refreshCorporateMutation.mutateAsync(application.id);
           toast.success("Director KYC statuses refreshed");
@@ -194,7 +219,7 @@ export function OnboardingReviewDialog({
         }
       }
       // Refresh AML status if in PENDING_AML
-      if (application.status === "PENDING_AML" && application.directorAmlStatus) {
+      if (application.onboardingStatus === "PENDING_AML" && application.directorAmlStatus) {
         try {
           await refreshCorporateAmlMutation.mutateAsync(application.id);
           toast.success("Director AML statuses refreshed");
@@ -210,9 +235,10 @@ export function OnboardingReviewDialog({
     }
   };
 
-  const isCombinedRefreshing = 
-    refreshCorporateMutation.isPending || 
-    refreshCorporateAmlMutation.isPending || 
+  const isCombinedRefreshing =
+    refreshCorporateMutation.isPending ||
+    refreshCorporateAmlMutation.isPending ||
+    approveOnboardingMutation.isPending ||
     (isRefreshing ?? false);
 
   const formatDate = (dateString: string | null | undefined) => {
@@ -227,7 +253,7 @@ export function OnboardingReviewDialog({
   };
 
   const renderCurrentStepContent = () => {
-    switch (application.status) {
+    switch (adminPhase) {
       case "PENDING_ONBOARDING":
         return (
           <Card className="border-accent/30 bg-accent/5">
@@ -347,6 +373,28 @@ export function OnboardingReviewDialog({
                 <ArrowTopRightOnSquareIcon className="h-4 w-4" />
                 Open Onboarding Review
               </Button>
+
+              <Button
+                onClick={handleApproveOnboarding}
+                className="w-full gap-2"
+                disabled={approveOnboardingMutation.isPending || application.onboardingApproved}
+              >
+                {approveOnboardingMutation.isPending ? (
+                  <ArrowPathIcon className="h-4 w-4 animate-spin" />
+                ) : (
+                  <CheckCircleIcon className="h-4 w-4" />
+                )}
+                Record onboarding approval
+              </Button>
+              {application.onboardingApproved ? (
+                <p className="text-xs text-center text-muted-foreground">
+                  Onboarding approval is already recorded. You can refresh if the view is stale.
+                </p>
+              ) : (
+                <p className="text-xs text-center text-muted-foreground">
+                  After you finish in RegTank, click here to move the application to AML review.
+                </p>
+              )}
               
               {/* Director KYC Status Section (for corporate onboarding) */}
               {isCompany && application.directorKycStatus && (
@@ -383,7 +431,7 @@ export function OnboardingReviewDialog({
                     <CorporateShareholdersList
                       corporateShareholders={application.corporateEntities.corporateShareholders}
                       businessShareholdersAml={application.directorAmlStatus?.businessShareholders}
-                      status={application.status}
+                      onboardingStatus={application.onboardingStatus}
                     />
                   </div>
                 </>
@@ -522,7 +570,7 @@ export function OnboardingReviewDialog({
                     <CorporateShareholdersList
                       corporateShareholders={application.corporateEntities.corporateShareholders}
                       businessShareholdersAml={application.directorAmlStatus?.businessShareholders}
-                      status={application.status}
+                      onboardingStatus={application.onboardingStatus}
                     />
                   </div>
                 </>

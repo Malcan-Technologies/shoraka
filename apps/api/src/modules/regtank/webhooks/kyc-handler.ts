@@ -5,7 +5,7 @@ import { RegTankRepository } from "../repository";
 import { AmlIdentityRepository } from "../aml-identity-repository";
 import { Prisma } from "@prisma/client";
 import { OrganizationRepository } from "../../organization/repository";
-import { OnboardingStatus, UserRole } from "@prisma/client";
+import { UserRole } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import type { PortalType } from "../types";
 import { syncApplicationGuarantorsFromRegTankAmlWebhook } from "../../admin/guarantor-aml-webhook-sync";
@@ -371,7 +371,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
             riskLevel,
             riskScore,
           },
-          "[KYC Webhook] Processing KYC approval - updating regtank_onboarding status and organization aml_approved flag"
+          "[KYC Webhook] Processing KYC approval - updating regtank_onboarding status and storing KYC payload (org step admin-driven)"
         );
 
         // Update regtank_onboarding.status to APPROVED
@@ -394,31 +394,19 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
             onboarding.investor_organization_id
           );
           if (org) {
-            const previousStatus = org.onboarding_status;
-            // For corporate onboarding, KYC approval should set status to PENDING_AML (not PENDING_FINAL_APPROVAL)
-            // For personal onboarding, KYC approval sets status to PENDING_FINAL_APPROVAL
-            const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
-            const newStatus = isCorporateOnboarding
-              ? OnboardingStatus.PENDING_AML
-              : OnboardingStatus.PENDING_FINAL_APPROVAL;
-
-            // Update aml_approved flag, status, and store KYC response
             await prisma.investorOrganization.update({
               where: { id: onboarding.investor_organization_id },
               data: {
-                aml_approved: true,
-                onboarding_status: newStatus,
                 kyc_response: payload as Prisma.InputJsonValue,
               },
             });
 
-            // Create onboarding log - AML_APPROVED when KYC webhook approves AML
             try {
               await prisma.onboardingLog.create({
                 data: {
                   user_id: onboarding.user_id,
                   role: UserRole.INVESTOR,
-                  event_type: "AML_APPROVED",
+                  event_type: "ONBOARDING_STATUS_UPDATED",
                   portal: portalType as PortalType,
                   organization_name: org.name || undefined,
                   investor_organization_id: onboarding.investor_organization_id || undefined,
@@ -427,10 +415,8 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
                     organizationId: onboarding.investor_organization_id,
                     kycRequestId: requestId,
                     onboardingRequestId: onboarding.request_id,
-                    previousStatus,
-                    newStatus: newStatus,
+                    note: "KYC_APPROVED webhook stored kyc_response; onboarding_status and aml_approved unchanged",
                     trigger: "KYC_APPROVED",
-                    isCorporateOnboarding,
                   },
                 },
               });
@@ -450,13 +436,8 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
                 kycRequestId: requestId,
                 onboardingRequestId: onboarding.request_id,
                 organizationId: onboarding.investor_organization_id,
-                organizationType: org.type,
-                previousStatus: org.onboarding_status,
-                newStatus: newStatus,
-                amlApproved: true,
-                isCorporateOnboarding,
               },
-              `[KYC Webhook] ✓ Updated investor organization: aml_approved=true, status=${newStatus}, kyc_response stored`
+              "[KYC Webhook] Stored kyc_response; org onboarding step unchanged (admin-driven)"
             );
           }
         } else if (portalType === "issuer" && onboarding.issuer_organization_id) {
@@ -464,31 +445,19 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
             onboarding.issuer_organization_id
           );
           if (org) {
-            const previousStatus = org.onboarding_status;
-            // For corporate onboarding, KYC approval should set status to PENDING_AML (not PENDING_FINAL_APPROVAL)
-            // For personal onboarding, KYC approval sets status to PENDING_FINAL_APPROVAL
-            const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
-            const newStatus = isCorporateOnboarding
-              ? OnboardingStatus.PENDING_AML
-              : OnboardingStatus.PENDING_FINAL_APPROVAL;
-
-            // Update aml_approved flag, status, and store KYC response
             await prisma.issuerOrganization.update({
               where: { id: onboarding.issuer_organization_id },
               data: {
-                aml_approved: true,
-                onboarding_status: newStatus,
                 kyc_response: payload as Prisma.InputJsonValue,
               },
             });
 
-            // Create onboarding log - AML_APPROVED when KYC webhook approves AML
             try {
               await prisma.onboardingLog.create({
                 data: {
                   user_id: onboarding.user_id,
                   role: UserRole.ISSUER,
-                  event_type: "AML_APPROVED",
+                  event_type: "ONBOARDING_STATUS_UPDATED",
                   portal: portalType as PortalType,
                   organization_name: org.name || undefined,
                   investor_organization_id: undefined,
@@ -497,10 +466,8 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
                     organizationId: onboarding.issuer_organization_id,
                     kycRequestId: requestId,
                     onboardingRequestId: onboarding.request_id,
-                    previousStatus,
-                    newStatus: newStatus,
+                    note: "KYC_APPROVED webhook stored kyc_response; onboarding_status and aml_approved unchanged",
                     trigger: "KYC_APPROVED",
-                    isCorporateOnboarding,
                   },
                 },
               });
@@ -520,13 +487,8 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
                 kycRequestId: requestId,
                 onboardingRequestId: onboarding.request_id,
                 organizationId: onboarding.issuer_organization_id,
-                organizationType: org.type,
-                previousStatus: org.onboarding_status,
-                newStatus: newStatus,
-                amlApproved: true,
-                isCorporateOnboarding,
               },
-              `[KYC Webhook] ✓ Updated issuer organization: aml_approved=true, status=${newStatus}, kyc_response stored`
+              "[KYC Webhook] Stored kyc_response; org onboarding step unchanged (admin-driven)"
             );
           }
         }

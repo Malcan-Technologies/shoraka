@@ -9,7 +9,7 @@ import { OrganizationRepository } from "../../organization/repository";
 import { AuthRepository } from "../../auth/repository";
 import { AmlIdentityRepository } from "../aml-identity-repository";
 import { getRegTankAPIClient } from "../api-client";
-import { OnboardingStatus, UserRole } from "@prisma/client";
+import { OnboardingStatus, OrganizationType, UserRole } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import type { PortalType } from "../types";
@@ -627,6 +627,11 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           );
         }
 
+        const waitForApprovalOrgStatus =
+          onboarding.organization_type === OrganizationType.COMPANY
+            ? OnboardingStatus.PENDING_SSM_REVIEW
+            : OnboardingStatus.PENDING_APPROVAL;
+
         if (portalType === "investor") {
           const org = await this.organizationRepository.findInvestorOrganizationById(organizationId);
           if (org) {
@@ -634,8 +639,8 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             await prisma.investorOrganization.update({
               where: { id: organizationId },
               data: {
-                onboarding_status: OnboardingStatus.PENDING_APPROVAL,
-                onboarding_approved: true,
+                onboarding_status: waitForApprovalOrgStatus,
+                onboarding_approved: false,
                 director_kyc_status: directorKycStatus as Prisma.InputJsonValue,
                 bank_account_details: bankingDetails as Prisma.InputJsonValue,
                 wealth_declaration: transactionInfo as Prisma.InputJsonValue,
@@ -661,7 +666,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                   organizationId,
                   requestId,
                   previousStatus,
-                  newStatus: OnboardingStatus.PENDING_APPROVAL,
+                  newStatus: waitForApprovalOrgStatus,
                   directorCount: directors.length,
                 },
               });
@@ -677,8 +682,8 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             }
 
             logger.info(
-              { organizationId, portalType, requestId, directorCount: directors.length },
-              "Updated investor organization: stored director KYC status, set onboarding_approved=true, status=PENDING_APPROVAL"
+              { organizationId, portalType, requestId, directorCount: directors.length, waitForApprovalOrgStatus },
+              "Updated investor organization: stored director KYC status; user milestone onboarding_status (admin gates unchanged)"
             );
           }
         } else {
@@ -688,8 +693,8 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             await prisma.issuerOrganization.update({
               where: { id: organizationId },
               data: {
-                onboarding_status: OnboardingStatus.PENDING_APPROVAL,
-                onboarding_approved: true,
+                onboarding_status: waitForApprovalOrgStatus,
+                onboarding_approved: false,
                 director_kyc_status: directorKycStatus as Prisma.InputJsonValue,
                 bank_account_details: bankingDetails as Prisma.InputJsonValue,
                 wealth_declaration: transactionInfo as Prisma.InputJsonValue,
@@ -715,7 +720,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                   organizationId,
                   requestId,
                   previousStatus,
-                  newStatus: OnboardingStatus.PENDING_APPROVAL,
+                  newStatus: waitForApprovalOrgStatus,
                   directorCount: directors.length,
                 },
               });
@@ -731,8 +736,8 @@ export class CODWebhookHandler extends BaseWebhookHandler {
             }
 
             logger.info(
-              { organizationId, portalType, requestId, directorCount: directors.length },
-              "Updated issuer organization: stored director KYC status, set onboarding_approved=true, status=PENDING_APPROVAL"
+              { organizationId, portalType, requestId, directorCount: directors.length, waitForApprovalOrgStatus },
+              "Updated issuer organization: stored director KYC status; user milestone onboarding_status (admin gates unchanged)"
             );
           }
         }
@@ -1359,249 +1364,11 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           // Don't throw - allow webhook to complete even if corporate shareholder refresh fails
         }
 
-        // When COD is APPROVED and KYB exists, update to PENDING_AML
-        // Set onboarding_approved = true if not already set
-        let statusChangedToPendingAml = false;
-        if (portalType === "investor") {
-          const org = await this.organizationRepository.findInvestorOrganizationById(organizationId);
-          if (org) {
-            const previousStatus = org.onboarding_status;
-            const newStatus = finalKybId ? OnboardingStatus.PENDING_AML : OnboardingStatus.PENDING_APPROVAL;
-            statusChangedToPendingAml = previousStatus === OnboardingStatus.PENDING_APPROVAL && newStatus === OnboardingStatus.PENDING_AML;
-
-            await prisma.investorOrganization.update({
-              where: { id: organizationId },
-              data: {
-                onboarding_status: newStatus,
-                onboarding_approved: true,
-              },
-            });
-
-            // Create onboarding log
-            try {
-              await this.authRepository.createOnboardingLog({
-                userId: onboarding.user_id,
-                role: UserRole.INVESTOR,
-                eventType: statusChangedToPendingAml ? "ONBOARDING_APPROVED" : "ONBOARDING_STATUS_UPDATED",
-                portal: portalType,
-                organizationName: org.name || undefined,
-                investorOrganizationId: organizationId,
-                issuerOrganizationId: undefined,
-                metadata: {
-                  organizationId,
-                  requestId,
-                  previousStatus,
-                  newStatus,
-                  kybId: finalKybId,
-                  codDetails: codDetails,
-                },
-              });
-            } catch (logError) {
-              logger.error(
-                {
-                  error: logError instanceof Error ? logError.message : String(logError),
-                  organizationId,
-                  requestId,
-                },
-                "Failed to create COD_APPROVED log (non-blocking)"
-              );
-            }
-
-            logger.info(
-              { organizationId, portalType, requestId, kybId: finalKybId, newStatus },
-              "Updated investor organization after COD approval"
-            );
-          }
-        } else {
-          const org = await this.organizationRepository.findIssuerOrganizationById(organizationId);
-          if (org) {
-            const previousStatus = org.onboarding_status;
-            const newStatus = finalKybId ? OnboardingStatus.PENDING_AML : OnboardingStatus.PENDING_APPROVAL;
-            statusChangedToPendingAml = previousStatus === OnboardingStatus.PENDING_APPROVAL && newStatus === OnboardingStatus.PENDING_AML;
-
-            await prisma.issuerOrganization.update({
-              where: { id: organizationId },
-              data: {
-                onboarding_status: newStatus,
-                onboarding_approved: true,
-              },
-            });
-
-            // Create onboarding log
-            try {
-              await this.authRepository.createOnboardingLog({
-                userId: onboarding.user_id,
-                role: UserRole.ISSUER,
-                eventType: statusChangedToPendingAml ? "ONBOARDING_APPROVED" : "ONBOARDING_STATUS_UPDATED",
-                portal: portalType,
-                organizationName: org.name || undefined,
-                investorOrganizationId: undefined,
-                issuerOrganizationId: organizationId,
-                metadata: {
-                  organizationId,
-                  requestId,
-                  previousStatus,
-                  newStatus,
-                  kybId: finalKybId,
-                  codDetails: codDetails,
-                },
-              });
-            } catch (logError) {
-              logger.error(
-                {
-                  error: logError instanceof Error ? logError.message : String(logError),
-                  organizationId,
-                  requestId,
-                },
-                "Failed to create COD_APPROVED log (non-blocking)"
-              );
-            }
-
-            logger.info(
-              { organizationId, portalType, requestId, kybId: finalKybId, newStatus },
-              "Updated issuer organization after COD approval"
-            );
-          }
-        }
-
-        // When status transitions to PENDING_AML, fetch business shareholder KYB data
-        if (statusChangedToPendingAml) {
-          setTimeout(async () => {
-            try {
-              logger.info(
-                { requestId, organizationId, portalType },
-                "[COD Webhook] Fetching business shareholder KYB data for PENDING_AML transition"
-              );
-
-              // Get organization with corporate_entities
-              const org = portalType === "investor"
-                ? await prisma.investorOrganization.findUnique({
-                  where: { id: organizationId },
-                  select: { corporate_entities: true, director_aml_status: true },
-                })
-                : await prisma.issuerOrganization.findUnique({
-                  where: { id: organizationId },
-                  select: { corporate_entities: true, director_aml_status: true },
-                });
-
-              if (!org || !org.corporate_entities) {
-                logger.warn({ requestId, organizationId }, "[COD Webhook] No corporate_entities found");
-                return;
-              }
-
-              const corporateEntities = org.corporate_entities as any;
-              const corporateShareholders = corporateEntities.corporateShareholders || [];
-
-              if (corporateShareholders.length === 0) {
-                logger.info({ requestId, organizationId }, "[COD Webhook] No corporate shareholders to process");
-                return;
-              }
-
-              // Fetch KYB data for each business shareholder
-              const businessShareholdersAml: Array<{
-                codRequestId: string;
-                kybId: string | null;
-                businessName: string;
-                sharePercentage: number | null;
-                amlStatus: "Pending";
-                amlMessageStatus: "PENDING";
-                amlRiskScore: number | null;
-                amlRiskLevel: string | null;
-                lastUpdated: string;
-              }> = [];
-
-              for (const shareholder of corporateShareholders) {
-                const codRequestId = shareholder.corporateOnboardingRequest?.requestId || shareholder.requestId;
-                if (!codRequestId) continue;
-
-                try {
-                  // Fetch COD details for this business shareholder
-                  const codDetails = await this.apiClient.getCorporateOnboardingDetails(codRequestId);
-
-                  // Extract kybRequestDto
-                  const kybRequestDto = codDetails.kybRequestDto;
-                  const kybId = kybRequestDto?.kybId || null;
-
-                  // Extract business info from formContent
-                  const formContent = codDetails.formContent?.displayAreas?.find(
-                    (area: any) => area.displayArea === "Basic Information Setting"
-                  )?.content || [];
-
-                  const businessName = formContent.find((f: any) => f.fieldName === "Business Name")?.fieldValue || shareholder.name || "Unknown";
-                  const sharePercentage = formContent.find((f: any) => f.fieldName === "% of Shares")?.fieldValue || null;
-
-                  businessShareholdersAml.push({
-                    codRequestId,
-                    kybId,
-                    businessName,
-                    sharePercentage: sharePercentage ? parseFloat(sharePercentage) : null,
-                    amlStatus: "Pending",
-                    amlMessageStatus: "PENDING",
-                    amlRiskScore: null,
-                    amlRiskLevel: null,
-                    lastUpdated: new Date().toISOString(),
-                  });
-
-                  logger.debug(
-                    { codRequestId, kybId, businessName },
-                    "[COD Webhook] Fetched KYB data for business shareholder"
-                  );
-                } catch (error) {
-                  logger.warn(
-                    {
-                      error: error instanceof Error ? error.message : String(error),
-                      codRequestId,
-                    },
-                    "[COD Webhook] Failed to fetch COD details for business shareholder (non-blocking)"
-                  );
-                }
-              }
-
-              // Store in director_aml_status.businessShareholders
-              if (businessShareholdersAml.length > 0) {
-                // Preserve existing directors array when updating businessShareholders
-                const directorAmlStatus = (org.director_aml_status as any) || {
-                  directors: [],
-                  businessShareholders: [],
-                  lastSyncedAt: new Date().toISOString()
-                };
-                // Ensure directors array exists (preserve existing data)
-                if (!directorAmlStatus.directors || !Array.isArray(directorAmlStatus.directors)) {
-                  directorAmlStatus.directors = [];
-                }
-                // Update businessShareholders
-                directorAmlStatus.businessShareholders = businessShareholdersAml;
-                directorAmlStatus.lastSyncedAt = new Date().toISOString();
-
-                if (portalType === "investor") {
-                  await prisma.investorOrganization.update({
-                    where: { id: organizationId },
-                    data: { director_aml_status: directorAmlStatus as Prisma.InputJsonValue },
-                  });
-                } else {
-                  await prisma.issuerOrganization.update({
-                    where: { id: organizationId },
-                    data: { director_aml_status: directorAmlStatus as Prisma.InputJsonValue },
-                  });
-                }
-
-                logger.info(
-                  { requestId, organizationId, count: businessShareholdersAml.length },
-                  "[COD Webhook] ✓ Stored business shareholder KYB data"
-                );
-              }
-            } catch (error) {
-              logger.error(
-                {
-                  error: error instanceof Error ? error.message : String(error),
-                  requestId,
-                  organizationId,
-                },
-                "[COD Webhook] Failed to fetch business shareholder KYB data (non-blocking)"
-              );
-            }
-          }, 3000); // Wait 3 seconds for RegTank to process
-        }
+        // COD APPROVED (RegTank): do not advance org onboarding_status or admin flags; admin APIs drive those steps.
+        logger.info(
+          { requestId, organizationId, portalType, kybId: finalKybId },
+          "[COD Webhook] COD APPROVED processed; org onboarding step unchanged (admin-driven flow)"
+        );
       } catch (error) {
         logger.error(
           {

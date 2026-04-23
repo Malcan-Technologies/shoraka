@@ -23,13 +23,13 @@ interface CorporateShareholdersListProps {
     amlRiskLevel: string | null;
     lastUpdated: string;
   }>;
-  status?: "PENDING_APPROVAL" | "PENDING_AML" | string; // Current onboarding status
+  onboardingStatus?: "PENDING_APPROVAL" | "PENDING_AML" | string;
 }
 
 export function CorporateShareholdersList({
   corporateShareholders,
   businessShareholdersAml,
-  status,
+  onboardingStatus,
 }: CorporateShareholdersListProps) {
   if (!corporateShareholders || corporateShareholders.length === 0) {
     return null;
@@ -146,7 +146,7 @@ export function CorporateShareholdersList({
     const finalSharePercentage = matchingAmlStatus?.sharePercentage || sharePercentage;
     
     const role = finalSharePercentage ? `Shareholder (${finalSharePercentage}%)` : "Shareholder";
-    const isPendingAml = status === "PENDING_AML";
+    const isPendingAml = onboardingStatus === "PENDING_AML";
     const statusBadge = isPendingAml && matchingAmlStatus
       ? getKybAmlStatusBadge(matchingAmlStatus)
       : getStatusBadge(codStatus);

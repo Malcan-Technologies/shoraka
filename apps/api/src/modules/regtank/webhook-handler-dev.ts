@@ -339,11 +339,15 @@ export class RegTankDevWebhookHandler {
           });
 
           if (orgExists) {
+            const nextStatus =
+              orgExists.type === "COMPANY"
+                ? OnboardingStatus.PENDING_SSM_REVIEW
+                : OnboardingStatus.PENDING_APPROVAL;
             await prismaDev.investorOrganization.update({
               where: { id: organizationId },
               data: {
-                onboarding_status: OnboardingStatus.PENDING_APPROVAL,
-                onboarding_approved: true,
+                onboarding_status: nextStatus,
+                onboarding_approved: false,
               },
             });
             logger.info(
@@ -365,8 +369,8 @@ export class RegTankDevWebhookHandler {
             await prismaDev.issuerOrganization.update({
               where: { id: organizationId },
               data: {
-                onboarding_status: OnboardingStatus.PENDING_APPROVAL,
-                onboarding_approved: true,
+                onboarding_status: OnboardingStatus.PENDING_SSM_REVIEW,
+                onboarding_approved: false,
               },
             });
             logger.info(
