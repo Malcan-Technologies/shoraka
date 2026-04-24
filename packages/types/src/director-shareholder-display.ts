@@ -344,6 +344,25 @@ function ownershipFromCePerson(p: Record<string, unknown>): string | null {
   return shareField?.fieldValue ? `${shareField.fieldValue}% ownership` : null;
 }
 
+/** Parsed % of shares for corporate_entities individual (director or shareholder CE record). */
+function percentOfSharesFromOnboardingCePerson(p: Record<string, unknown>): number {
+  const rawTop = p.percentOfShares ?? p.sharePercentage ?? p.share_percentage;
+  if (typeof rawTop === "number" && Number.isFinite(rawTop)) return rawTop;
+  if (typeof rawTop === "string" && rawTop.trim() !== "") {
+    const n = Number.parseFloat(rawTop.trim().replace(/[%\s,]/g, ""));
+    if (Number.isFinite(n)) return n;
+  }
+  const info = p.personalInfo as Record<string, unknown> | undefined;
+  const formContent = (info?.formContent ?? p.formContent) as Record<string, unknown> | undefined;
+  const content = Array.isArray(formContent?.content)
+    ? (formContent.content as Array<{ fieldName?: string; fieldValue?: string }>)
+    : [];
+  const shareField = content.find((f) => f.fieldName === "% of Shares");
+  if (shareField?.fieldValue == null || String(shareField.fieldValue).trim() === "") return 0;
+  const n = Number.parseFloat(String(shareField.fieldValue).trim().replace(/[%\s,]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+}
+
 function ownershipFromCorpShareholder(corp: Record<string, unknown>): string | null {
   const formContent = corp.formContent as Record<string, unknown> | undefined;
   const displayAreas = Array.isArray(formContent?.displayAreas) ? formContent.displayAreas : [];
@@ -648,6 +667,10 @@ function buildOnboardingDisplayRows(
   }
 
   for (const p of shareholders) {
+    const pr = p as Record<string, unknown>;
+    const share = percentOfSharesFromOnboardingCePerson(pr);
+    if (share < 5) continue;
+
     const icRaw = issuerIcOrSsmForCePersonRow(p, directorKycStatus);
     const icKey = normalizeDirectorShareholderIdKey(icRaw);
     const eod = String(p.eodRequestId ?? "").trim() || null;
