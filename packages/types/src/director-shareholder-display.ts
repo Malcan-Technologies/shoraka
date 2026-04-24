@@ -51,6 +51,25 @@ export function normalizeDirectorShareholderIdKey(raw: string | null | undefined
   return s.length ? s : null;
 }
 
+/**
+ * Normalized party keys for which issuer triggered RegTank director individual onboarding.
+ * Persisted on issuer org `director_kyc_status.ctosPartyOnboardingSentKeys` (string[]).
+ */
+export function getCtosPartyOnboardingSentKeysFromDirectorKyc(
+  directorKycStatus: unknown
+): ReadonlySet<string> | null {
+  const o = directorKycStatus as Record<string, unknown> | null | undefined;
+  if (!o || typeof o !== "object") return null;
+  const arr = o.ctosPartyOnboardingSentKeys;
+  if (!Array.isArray(arr) || arr.length === 0) return null;
+  const out = new Set<string>();
+  for (const x of arr) {
+    const k = normalizeDirectorShareholderIdKey(String(x));
+    if (k) out.add(k);
+  }
+  return out.size ? out : null;
+}
+
 interface CtosOrgDirectorRow {
   ic_lcno: string | null;
   nic_brno: string | null;
@@ -575,7 +594,8 @@ function buildCtosBackedDisplayRows(
   companyJson: unknown,
   directorKycStatus: Record<string, unknown> | null | undefined,
   sentRowIds: ReadonlySet<string> | null | undefined,
-  supplementEmailByPartyKey: ReadonlyMap<string, string>
+  supplementEmailByPartyKey: ReadonlyMap<string, string>,
+  ctosPartyOnboardingSentKeys: ReadonlySet<string> | null | undefined
 ): DirectorShareholderDisplayRow[] {
   const kycById = buildKycByNormalizedId(directorKycStatus);
   const ctosList = extractCtosOrgDirectorsFromCompanyJson(companyJson);
@@ -660,7 +680,9 @@ function buildCtosBackedDisplayRows(
     const fromSupplement = idKeyNorm ? supplementEmailByPartyKey.get(idKeyNorm) : undefined;
     const kycEmail = matched?.email?.trim() ?? "";
     const email = (fromSupplement && fromSupplement.trim()) || kycEmail;
-    const sent = Boolean(sentRowIds?.has(stableId));
+    const sent =
+      Boolean(sentRowIds?.has(stableId)) ||
+      Boolean(idKeyNorm && ctosPartyOnboardingSentKeys?.has(idKeyNorm));
     const status = sent ? "Sent" : statusBase;
     const canBase = !sent && (!email.trim() || statusBase === "Missing");
     const role = mergeRoleLabels(b.roles);
@@ -780,7 +802,14 @@ export function getDirectorShareholderDisplayRows(
   const supplementEmailByPartyKey = buildSupplementEmailByPartyKey(input.ctosPartySupplements ?? null);
 
   if (hasUsableCtosDirectorList(ctosJson)) {
-    return buildCtosBackedDisplayRows(ctosJson, directorKycStatus, sent, supplementEmailByPartyKey);
+    const ctosPartyOnboardingSentKeys = getCtosPartyOnboardingSentKeysFromDirectorKyc(directorKycStatus);
+    return buildCtosBackedDisplayRows(
+      ctosJson,
+      directorKycStatus,
+      sent,
+      supplementEmailByPartyKey,
+      ctosPartyOnboardingSentKeys
+    );
   }
 
   const directors = Array.isArray(corporateEntities?.directors)

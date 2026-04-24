@@ -7,6 +7,7 @@ import {
   BuildingOffice2Icon,
   CheckCircleIcon,
   ArrowPathIcon,
+  PaperAirplaneIcon,
 } from "@heroicons/react/24/outline";
 import {
   getDirectorShareholderDisplayRows,
@@ -182,6 +183,16 @@ export function DirectorShareholdersUnifiedSection({
         toast.error(res.error.message);
         return;
       }
+      const sendRes = await apiClient.post<{ requestId: string }>(
+        `/v1/organizations/issuer/${organizationId}/send-director-onboarding`,
+        { partyKey: rawKey }
+      );
+      if (!sendRes.success) {
+        toast.error(sendRes.error.message);
+        await queryClient.invalidateQueries({ queryKey: ["corporate-entities", organizationId] });
+        await queryClient.invalidateQueries({ queryKey: ["organization-detail", organizationId] });
+        return;
+      }
       await queryClient.invalidateQueries({ queryKey: ["corporate-entities", organizationId] });
       await queryClient.invalidateQueries({ queryKey: ["organization-detail", organizationId] });
       setDraftEmails((prev) => {
@@ -189,7 +200,7 @@ export function DirectorShareholdersUnifiedSection({
         delete next[confirmRow.id];
         return next;
       });
-      toast.success("Email saved");
+      toast.success("Email saved and onboarding link sent");
       setConfirmRow(null);
     } finally {
       setSavePending(false);
@@ -200,16 +211,21 @@ export function DirectorShareholdersUnifiedSection({
     const ic = row.idNumber?.trim();
     const em = displayEmail(row);
     const persistedEmail = row.email;
+    const isSent = row.status === "Sent";
     const completedUx = isRowCompleteForUi(row, persistedEmail, em, sentRowIds);
     const showEmailControls =
       !completedUx &&
       !sentRowIds.has(row.id) &&
-      row.status !== "Sent" &&
+      !isSent &&
       (!persistedEmail.trim() || row.status === "Missing");
     const needsAction = rowNeedsProfileAction(row, em);
     const rowHighlight =
-      highlightActionRequiredRows && !completedUx && needsAction;
+      highlightActionRequiredRows && !completedUx && !isSent && needsAction;
+    const rowSentVisual =
+      isSent &&
+      "border-sky-300/80 bg-sky-50/70 ring-1 ring-sky-200/80 dark:border-sky-800 dark:bg-sky-950/25 dark:ring-sky-900/50";
     const rowCompleteVisual =
+      !isSent &&
       completedUx &&
       "border-emerald-300/80 bg-emerald-50/70 ring-1 ring-emerald-200/80 dark:border-emerald-800 dark:bg-emerald-950/25 dark:ring-emerald-900/50";
 
@@ -220,6 +236,7 @@ export function DirectorShareholdersUnifiedSection({
           "flex flex-col gap-3 p-4 rounded-lg border bg-muted/30 sm:flex-row sm:items-start sm:justify-between",
           rowHighlight &&
             "border-amber-300/90 bg-amber-50/80 ring-1 ring-amber-200/90 dark:border-amber-800 dark:bg-amber-950/30 dark:ring-amber-900/60",
+          rowSentVisual,
           rowCompleteVisual
         )}
       >
@@ -240,7 +257,12 @@ export function DirectorShareholdersUnifiedSection({
           ) : null}
           <p className="text-xs text-muted-foreground mt-1">Status: {row.status}</p>
         </div>
-        {completedUx ? (
+        {isSent ? (
+          <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
+            <PaperAirplaneIcon className="h-5 w-5 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden />
+            <span className="text-sm font-medium text-sky-900 dark:text-sky-200">Sent</span>
+          </div>
+        ) : completedUx ? (
           <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
             <CheckCircleIcon className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
             <span className="text-sm font-medium text-emerald-800 dark:text-emerald-300">Completed</span>
@@ -274,10 +296,15 @@ export function DirectorShareholdersUnifiedSection({
 
   const renderCorpRow = (row: DirectorShareholderDisplayRow) => {
     const persistedEmail = row.email;
+    const isSent = row.status === "Sent";
     const completedUx = isRowCompleteForUi(row, persistedEmail, persistedEmail, sentRowIds);
     const needsAction = rowNeedsProfileAction(row, row.email);
-    const rowHighlight = highlightActionRequiredRows && !completedUx && needsAction;
+    const rowHighlight = highlightActionRequiredRows && !completedUx && !isSent && needsAction;
+    const rowSentVisual =
+      isSent &&
+      "border-sky-300/80 bg-sky-50/70 ring-1 ring-sky-200/80 dark:border-sky-800 dark:bg-sky-950/25 dark:ring-sky-900/50";
     const rowCompleteVisual =
+      !isSent &&
       completedUx &&
       "border-emerald-300/80 bg-emerald-50/70 ring-1 ring-emerald-200/80 dark:border-emerald-800 dark:bg-emerald-950/25 dark:ring-emerald-900/50";
     return (
@@ -287,6 +314,7 @@ export function DirectorShareholdersUnifiedSection({
           "flex flex-col gap-3 p-4 rounded-lg border bg-muted/30 sm:flex-row sm:items-center sm:justify-between",
           rowHighlight &&
             "border-amber-300/90 bg-amber-50/80 ring-1 ring-amber-200/90 dark:border-amber-800 dark:bg-amber-950/30 dark:ring-amber-900/60",
+          rowSentVisual,
           rowCompleteVisual
         )}
       >
@@ -300,7 +328,12 @@ export function DirectorShareholdersUnifiedSection({
           </p>
           <p className="text-xs text-muted-foreground mt-1">Status: {row.status}</p>
         </div>
-        {completedUx ? (
+        {isSent ? (
+          <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">
+            <PaperAirplaneIcon className="h-5 w-5 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden />
+            <span className="text-sm font-medium text-sky-900 dark:text-sky-200">Sent</span>
+          </div>
+        ) : completedUx ? (
           <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">
             <CheckCircleIcon className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
             <span className="text-sm font-medium text-emerald-800 dark:text-emerald-300">Completed</span>
@@ -368,7 +401,7 @@ export function DirectorShareholdersUnifiedSection({
             <DialogTitle>Send onboarding link</DialogTitle>
             <DialogDescription>
               {confirmRow
-                ? `Save email for ${confirmRow.name} and mark onboarding as sent. RegTank is not called in this preview.`
+                ? `Save email and send a RegTank onboarding link to ${confirmRow.name}.`
                 : null}
             </DialogDescription>
           </DialogHeader>

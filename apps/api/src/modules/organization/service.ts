@@ -9,6 +9,7 @@ import {
   ChangeMemberRoleInput,
   UpdateCorporateInfoInput,
   PatchCtosPartyEmailInput,
+  SendDirectorOnboardingInput,
 } from "./schemas";
 import {
   OrganizationType,
@@ -17,6 +18,7 @@ import {
   InvestorOrganization,
   IssuerOrganization,
   UserRole,
+  Prisma,
 } from "@prisma/client";
 import { AppError } from "../../lib/http/error-handler";
 import { logger } from "../../lib/logger";
@@ -34,13 +36,26 @@ import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-on
 import { sendEmail } from "../../lib/email/ses-client";
 import { organizationInvitationTemplate } from "../../lib/email/templates";
 import { randomBytes } from "crypto";
-import { normalizeDirectorShareholderIdKey } from "@cashsouk/types";
+import {
+  getDirectorShareholderDisplayRows,
+  normalizeDirectorShareholderIdKey,
+} from "@cashsouk/types";
+import { RegTankAPIClient } from "../regtank/api-client";
+import type { RegTankIndividualOnboardingRequest } from "../regtank/types";
 import { listLatestCtosSubjectReportsForAdminOrg } from "../ctos/ctos-report-service";
 
 const cognitoClient = new CognitoIdentityProviderClient({
   region: process.env.AWS_REGION || "ap-southeast-5",
 });
 const COGNITO_USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || "";
+
+function splitForenameSurname(full: string): { forename: string; surname: string } {
+  const t = full.trim() || "User";
+  const parts = t.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return { forename: "User", surname: "." };
+  if (parts.length === 1) return { forename: parts[0], surname: "." };
+  return { forename: parts[0], surname: parts.slice(1).join(" ") };
+}
 
 export class OrganizationService {
   private repository: OrganizationRepository;
@@ -1468,6 +1483,139 @@ export class OrganizationService {
     return { success: true };
   }
 
+  /**
+   * Trigger RegTank individual onboarding (2.1) for a CTOS director/shareholder party (issuer).
+   * Reuses RegTankAPIClient.createIndividualOnboarding; persists sent party keys on director_kyc_status JSON.
+   */
+  async sendDirectorCtosPartyOnboarding(
+    userId: string,
+    organizationId: string,
+    input: SendDirectorOnboardingInput
+  ): Promise<{ requestId: string }> {
+    const organization = await this.getOrganization(userId, organizationId, "issuer");
+    const userMember = organization.members.find(
+      (m: { user_id: string; role: string }) => m.user_id === userId
+    );
+    const canManage =
+      organization.owner_user_id === userId ||
+      userMember?.role === OrganizationMemberRole.ORGANIZATION_ADMIN;
+    if (!canManage) {
+      throw new AppError(403, "FORBIDDEN", "You do not have permission to send director onboarding");
+    }
+
+    const pk = normalizeDirectorShareholderIdKey(input.partyKey);
+    if (!pk) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invalid party key");
+    }
+
+    const orgRow = await prisma.issuerOrganization.findUnique({
+      where: { id: organizationId },
+      select: { director_kyc_status: true },
+    });
+    const curKyc = (orgRow?.director_kyc_status as Record<string, unknown>) || {};
+    const sentArr = Array.isArray(curKyc.ctosPartyOnboardingSentKeys)
+      ? [...(curKyc.ctosPartyOnboardingSentKeys as unknown[])].map((x) => String(x))
+      : [];
+    if (sentArr.some((k) => normalizeDirectorShareholderIdKey(k) === pk)) {
+      throw new AppError(400, "ALREADY_SENT", "Onboarding link was already sent for this party");
+    }
+
+    const supplement = await prisma.ctosPartySupplement.findUnique({
+      where: {
+        organization_id_party_key: { organization_id: organizationId, party_key: pk },
+      },
+    });
+    const supplementEmail = supplement?.email?.trim();
+    if (!supplementEmail) {
+      throw new AppError(
+        400,
+        "EMAIL_REQUIRED",
+        "Save a party email for this person before sending onboarding"
+      );
+    }
+
+    const entities = await this.getCorporateEntities(userId, organizationId, "issuer");
+    const rows = getDirectorShareholderDisplayRows({
+      corporateEntities: entities,
+      directorKycStatus: (entities.directorKycStatus as Record<string, unknown> | null) ?? null,
+      organizationCtosCompanyJson: entities.latestOrganizationCtosCompanyJson ?? null,
+      ctosPartySupplements: entities.ctosPartySupplements ?? null,
+      sentRowIds: null,
+    });
+    const target = rows.find(
+      (r) =>
+        r.type === "INDIVIDUAL" &&
+        (r.id === `ctos-${pk}` ||
+          normalizeDirectorShareholderIdKey(r.idNumber) === pk ||
+          normalizeDirectorShareholderIdKey(r.enquiryId) === pk)
+    );
+    if (!target) {
+      throw new AppError(404, "NOT_FOUND", "No CTOS individual party matches this key");
+    }
+
+    const idGov = String(target.idNumber || target.enquiryId || "").trim();
+    if (!idGov) {
+      throw new AppError(400, "VALIDATION_ERROR", "Party has no government ID for onboarding");
+    }
+
+    const { forename, surname } = splitForenameSurname(target.name);
+    const formId = parseInt(
+      process.env.REGTANK_ISSUER_PERSONAL_FORM_ID ||
+        process.env.REGTANK_INVESTOR_PERSONAL_FORM_ID ||
+        "1036131",
+      10
+    );
+    const onboardingRequest: RegTankIndividualOnboardingRequest = {
+      email: supplementEmail,
+      surname,
+      forename,
+      referenceId: `issuer-dir:${organizationId}:${pk}`,
+      countryOfResidence: "MY",
+      nationality: "MY",
+      placeOfBirth: "MY",
+      idIssuingCountry: "MY",
+      gender: "UNSPECIFIED",
+      governmentIdNumber: idGov,
+      idType: "IDENTITY",
+      language: "EN",
+      bypassIdUpload: false,
+      skipFormPage: false,
+      formId,
+    };
+
+    const regTankApi = new RegTankAPIClient();
+    let requestId: string;
+    try {
+      const regTankResponse = await regTankApi.createIndividualOnboarding(onboardingRequest);
+      requestId = regTankResponse.requestId;
+    } catch (e) {
+      logger.error(
+        { organizationId, partyKey: pk, error: e instanceof Error ? e.message : String(e) },
+        "RegTank director onboarding failed"
+      );
+      if (e instanceof AppError) throw e;
+      throw new AppError(
+        502,
+        "REGTANK_ONBOARDING_FAILED",
+        e instanceof Error ? e.message : "RegTank onboarding request failed"
+      );
+    }
+
+    const nextSent = [...sentArr, pk];
+    await prisma.issuerOrganization.update({
+      where: { id: organizationId },
+      data: {
+        director_kyc_status: {
+          ...curKyc,
+          ctosPartyOnboardingSentKeys: nextSent,
+        } as Prisma.InputJsonValue,
+      },
+    });
+
+    logger.info({ organizationId, partyKey: pk, userId, requestId }, "Director CTOS party RegTank onboarding sent");
+    return { requestId };
+  }
+
   async getCorporateEntities(
     userId: string,
     organizationId: string,
@@ -1476,22 +1624,8 @@ export class OrganizationService {
     directors: Array<Record<string, unknown>>;
     shareholders: Array<Record<string, unknown>>;
     corporateShareholders: Array<Record<string, unknown>>;
-    directorKycStatus?: {
-      directors: Array<{
-        name: string;
-        email: string;
-        role: string;
-        kycStatus: string;
-        kycId?: string;
-        lastUpdated: string;
-        eodRequestId?: string;
-        shareholderEodRequestId?: string;
-      }>;
-      lastSyncedAt: string;
-      corpIndvDirectorCount: number;
-      corpIndvShareholderCount: number;
-      corpBizShareholderCount: number;
-    } | null;
+    /** Includes optional `ctosPartyOnboardingSentKeys` for CTOS director invite state. */
+    directorKycStatus?: Record<string, unknown> | null;
     latestOrganizationCtosCompanyJson?: unknown | null;
     latestOrganizationCtosFinancialsJson?: unknown | null;
     latestOrganizationCtosReportId?: string | null;
@@ -1523,25 +1657,17 @@ export class OrganizationService {
 
     const entities = (organization?.corporate_entities as any) || {};
     const raw = organization?.director_kyc_status as Record<string, unknown> | null | undefined;
-    const directorKyc =
-      raw && typeof raw === "object" && Array.isArray(raw.directors)
-        ? (raw as {
-            directors: Array<{
-              name: string;
-              email: string;
-              role: string;
-              kycStatus: string;
-              kycId?: string;
-              lastUpdated: string;
-              eodRequestId?: string;
-              shareholderEodRequestId?: string;
-            }>;
-            lastSyncedAt: string;
-            corpIndvDirectorCount: number;
-            corpIndvShareholderCount: number;
-            corpBizShareholderCount: number;
-          })
-        : null;
+    let directorKyc: Record<string, unknown> | null = null;
+    if (raw && typeof raw === "object") {
+      if (Array.isArray(raw.directors)) {
+        directorKyc = raw as Record<string, unknown>;
+      } else {
+        directorKyc = {
+          ...raw,
+          directors: Array.isArray(raw.directors) ? raw.directors : [],
+        };
+      }
+    }
 
     const base = {
       directors: entities.directors || [],

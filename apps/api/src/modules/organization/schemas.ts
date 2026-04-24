@@ -26,6 +26,12 @@ export const patchCtosPartyEmailSchema = z.object({
   email: z.string().email(),
 });
 
+export const sendDirectorOnboardingSchema = z.object({
+  partyKey: z.string().min(1),
+});
+
+export type SendDirectorOnboardingInput = z.infer<typeof sendDirectorOnboardingSchema>;
+
 export const memberIdParamSchema = z.object({
   id: z.string().cuid(),
   userId: z.string().regex(/^[A-Z]{5}$/, "Invalid user ID format"),

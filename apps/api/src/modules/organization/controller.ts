@@ -13,6 +13,7 @@ import {
   transferOwnershipSchema,
   updateCorporateInfoSchema,
   patchCtosPartyEmailSchema,
+  sendDirectorOnboardingSchema,
   PortalType,
 } from "./schemas";
 import { requireAuth } from "../../lib/auth/middleware";
@@ -884,6 +885,25 @@ async function patchCtosPartyEmail(req: Request, res: Response, next: NextFuncti
 }
 
 /**
+ * POST /v1/organizations/issuer/:id/send-director-onboarding
+ */
+async function sendDirectorOnboarding(req: Request, res: Response, next: NextFunction) {
+  try {
+    const userId = getUserId(req);
+    const { id } = organizationIdParamSchema.parse(req.params);
+    const body = sendDirectorOnboardingSchema.parse(req.body);
+    const data = await organizationService.sendDirectorCtosPartyOnboarding(userId, id, body);
+    res.json({
+      success: true,
+      data,
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * Refresh AML status for an organization
  * POST /v1/organizations/investor/:id/refresh-aml
  * POST /v1/organizations/issuer/:id/refresh-aml
@@ -1040,6 +1060,7 @@ export function createOrganizationRouter(): Router {
     updateCorporateInfo(req, res, next, "issuer")
   );
   router.patch("/issuer/:id/ctos-party-email", requireAuth, patchCtosPartyEmail);
+  router.post("/issuer/:id/send-director-onboarding", requireAuth, sendDirectorOnboarding);
   router.post("/issuer/:id/refresh-aml", requireAuth, (req, res, next) =>
     refreshOrganizationAML(req, res, next, "issuer")
   );
