@@ -356,4 +356,5 @@ export * from "./review-scope";
 export * from "./resubmit-path-utils";
 export * from "./resubmit-meaningful-field-path";
 export * from "./director-kyc-gov-id";
+export * from "./director-shareholder-display";
 export * from "./regtank-iso3166-countries";

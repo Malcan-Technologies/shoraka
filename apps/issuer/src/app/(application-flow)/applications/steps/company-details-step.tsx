@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CheckCircleIcon, PencilIcon } from "@heroicons/react/24/outline";
+import { PencilIcon } from "@heroicons/react/24/outline";
 import {
   Dialog,
   DialogContent,
@@ -53,6 +53,7 @@ import {
 } from "@/app/(application-flow)/applications/components/form-control";
 import { CompanyDetailsSkeleton } from "@/app/(application-flow)/applications/components/company-details-skeleton";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
+import { DirectorShareholdersUnifiedSection } from "@/components/director-shareholders-unified-section";
 
 interface CompanyDetailsStepProps {
   applicationId: string;
@@ -122,10 +123,6 @@ function formatAddress(addr: Record<string, unknown> | null): string {
     addr.country as string,
   ].filter(Boolean);
   return parts.length ? parts.join(", ") : ADDRESS_PLACEHOLDER;
-}
-
-function normalizeName(name: string): string {
-  return name.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 const BANK_ACCOUNT_REGEX = /^\d*$/;
@@ -496,78 +493,6 @@ export function CompanyDetailsStep({
   }, [organizationId, onDataChange, saveFunction, isValid, formState, hasPendingChanges]);
 
   /* ================================================================
-     DIRECTORS & SHAREHOLDERS LIST
-     ================================================================ */
-
-  const directorsDisplay = entitiesData?.directorsDisplay ?? [];
-  const shareholdersDisplay = entitiesData?.shareholdersDisplay ?? [];
-  const corporateShareholders = entitiesData?.corporateShareholders ?? [];
-
-  const combinedList = React.useMemo(() => {
-    const seen = new Set<string>();
-    const result: Array<Record<string, unknown>> = [];
-
-    directorsDisplay.forEach((d) => {
-      const normalized = normalizeName(d.name);
-      if (!seen.has(normalized)) {
-        seen.add(normalized);
-        const isAlsoShareholder = d.ownershipLabel !== "—";
-        result.push({
-          type: "director",
-          name: d.name,
-          roleLabel: isAlsoShareholder ? "Director, Shareholder" : "Director",
-          ownership: d.ownershipLabel,
-          statusType: "kyc",
-          statusVerified: d.kycVerified,
-          key: `dir-${normalized}`,
-        });
-      }
-    });
-
-    shareholdersDisplay.forEach((s) => {
-      const normalized = normalizeName(s.name);
-      if (!seen.has(normalized)) {
-        seen.add(normalized);
-        result.push({
-          type: "shareholder",
-          name: s.name,
-          roleLabel: "Shareholder",
-          ownership: s.ownershipLabel,
-          statusType: "kyc",
-          statusVerified: s.kycVerified,
-          key: `sh-${normalized}`,
-        });
-      }
-    });
-
-    corporateShareholders.forEach((corp: Record<string, unknown>) => {
-      const displayAreas = (corp.formContent as Record<string, unknown>)?.displayAreas as Array<Record<string, unknown>> | undefined;
-      const firstArea = displayAreas?.[0] as Record<string, unknown> | undefined;
-      const content = firstArea?.content as Array<Record<string, unknown>> | undefined;
-      const shareField = content?.find(
-        (f) => f.fieldName === "% of Shares"
-      );
-      const sharePercentage = shareField?.fieldValue ? Number(shareField.fieldValue) : null;
-      const ownershipLabel = sharePercentage != null ? `${sharePercentage}% ownership` : "—";
-      const kybApproved = corp.approveStatus === "APPROVED";
-
-      result.push({
-        type: "corporate_shareholder",
-        name: corp.businessName || corp.companyName || "—",
-        roleLabel: "Corporate Shareholder",
-        ownership: ownershipLabel,
-        statusType: "kyb",
-        statusVerified: kybApproved,
-        key: `corp-${corp.requestId}`,
-      });
-    });
-
-    return result;
-  }, [directorsDisplay, shareholdersDisplay, corporateShareholders]);
-
-  const hasDirectorsOrShareholders = combinedList.length > 0;
-
-  /* ================================================================
      RENDER
      ================================================================ */
 
@@ -716,42 +641,21 @@ export function CompanyDetailsStep({
         {/* Directors & Shareholders Section */}
         <div className="space-y-3">
           <div>
-            <h3 className={applicationFlowSectionTitleClassName}>Director & Shareholders</h3>
+            <h3 className={applicationFlowSectionTitleClassName}>Director and shareholders</h3>
             <div className={applicationFlowSectionDividerClassName} />
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center">
-            {!hasDirectorsOrShareholders ? (
-              <p className="text-[17px] leading-7 text-muted-foreground col-span-2">
-                No directors or shareholders found
-              </p>
-            ) : (
-              combinedList.map((item) => (
-                <React.Fragment key={item.key as string}>
-                  <div className={labelClassName}>{item.roleLabel as string}</div>
-                  <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
-                    <div className="text-[17px] leading-7 font-medium whitespace-nowrap">
-                      {item.name as string}
-                    </div>
-                    <div className="h-4 w-px bg-border" />
-                    <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">
-                      {item.ownership as string}
-                    </div>
-                    <div className="h-4 w-px bg-border" />
-                    {item.statusVerified ? (
-                      <div className="flex items-center gap-1.5 whitespace-nowrap">
-                        <CheckCircleIcon className="h-4 w-4 text-green-600" />
-                        <span className="text-[17px] leading-7 text-green-600">
-                          {item.statusType === "kyb" ? "KYB" : "KYC"}
-                        </span>
-                      </div>
-                    ) : (
-                      <div />
-                    )}
-                  </div>
-                </React.Fragment>
-              ))
-            )}
+          <div className="mt-4 px-3">
+            <DirectorShareholdersUnifiedSection
+              corporateEntities={{
+                directors: entitiesData?.directors ?? [],
+                shareholders: entitiesData?.shareholders ?? [],
+                corporateShareholders: entitiesData?.corporateShareholders ?? [],
+              }}
+              directorKycStatus={entitiesData?.directorKycStatus ?? null}
+              organizationCtosCompanyJson={null}
+              variant="readonly"
+              showCardChrome={false}
+            />
           </div>
         </div>
 

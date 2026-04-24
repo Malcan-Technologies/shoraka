@@ -32,7 +32,7 @@ import { useAccountDocuments } from "../../hooks/use-account-documents";
 import { useOrganizationMembers } from "../../hooks/use-organization-members";
 import { useOrganizationInvitations } from "../../hooks/use-organization-invitations";
 import { CorporateInfoCard } from "../../components/corporate-info-card";
-import { DirectorsShareholdersCard } from "../../components/directors-shareholders-card";
+import { DirectorShareholdersUnifiedSection } from "../../components/director-shareholders-unified-section";
 import { InviteMemberDialog } from "../../components/invite-member-dialog";
 import { ConfirmDialog } from "../../components/confirm-dialog";
 import { TransferOwnershipDialog } from "../../components/transfer-ownership-dialog";
@@ -540,6 +540,7 @@ export default function ProfilePage() {
           shareholders?: Array<Record<string, unknown>>;
           corporateShareholders?: Array<Record<string, unknown>>;
         };
+        directorKycStatus?: unknown;
       }>(`/v1/organizations/issuer/${activeOrganization.id}`);
       if (!result.success) {
         throw new Error(result.error.message);
@@ -1304,8 +1305,13 @@ export default function ProfilePage() {
               </div>
 
               {/* 4. Directors/Shareholders Section - Only for COMPANY accounts */}
-              {!isPersonal && activeOrganization?.id && orgData?.corporateEntities && (
-                <DirectorsShareholdersCard corporateEntities={orgData.corporateEntities} />
+              {!isPersonal && activeOrganization?.id && orgData && (
+                <DirectorShareholdersUnifiedSection
+                  corporateEntities={orgData.corporateEntities ?? {}}
+                  directorKycStatus={orgData.directorKycStatus ?? null}
+                  organizationCtosCompanyJson={null}
+                  variant="issuer-profile"
+                />
               )}
 
               {/* 5. Members Section */}
