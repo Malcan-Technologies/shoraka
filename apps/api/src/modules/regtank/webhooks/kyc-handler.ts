@@ -849,8 +849,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
 
     const updatedRec = updated as Record<string, unknown>;
     const approved = String(updatedRec.regtankStatus ?? "").trim().toUpperCase() === "APPROVED";
-    const notLinked = updatedRec.kybLinked !== true;
-    if (approved && notLinked && this.provider === "ACURIS") {
+    if (approved && this.provider === "ACURIS") {
       try {
         await linkCtosPartyToKyb({
           organizationId: supplement.organization_id,

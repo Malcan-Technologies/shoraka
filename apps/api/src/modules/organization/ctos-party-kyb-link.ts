@@ -75,18 +75,21 @@ function mergeKeyForCtosRow(r: CtosDirectorJson): string | null {
   return null;
 }
 
-/** RegTank 4.9 vs 4.10: SO → shareholder; DO/AD/DS/AS → director (DS treated as director). */
-function kybEndpointForCtosPosition(position: string | undefined): "director" | "shareholder" | null {
-  const c = String(position ?? "").trim().toUpperCase();
-  if (c === "SO") return "shareholder";
-  if (c === "DO" || c === "AD" || c === "DS" || c === "AS") return "director";
-  return null;
+/** DO/AD → director only; SO → shareholder only; DS/AS → both. */
+function ctosDirectorShareholderFlags(position: string | undefined): {
+  isDirector: boolean;
+  isShareholder: boolean;
+} {
+  const pos = String(position ?? "").trim().toUpperCase();
+  const isDirector = ["DO", "AD", "DS", "AS"].includes(pos);
+  const isShareholder = ["SO", "DS", "AS"].includes(pos);
+  return { isDirector, isShareholder };
 }
 
 function findCtosPartyRow(
   companyJson: unknown,
   partyKeyNorm: string | null
-): { endpoint: "director" | "shareholder"; percent?: number } | null {
+): { isDirector: boolean; isShareholder: boolean; percent?: number } | null {
   if (!partyKeyNorm) return null;
   const cj = companyJson as { directors?: unknown } | null | undefined;
   const raw = Array.isArray(cj?.directors) ? cj!.directors : [];
@@ -95,8 +98,8 @@ function findCtosPartyRow(
     if (ctosPartyKind(r) === "CORPORATE") continue;
     const mk = mergeKeyForCtosRow(r);
     if (mk !== partyKeyNorm) continue;
-    const ep = kybEndpointForCtosPosition(String(r.position ?? ""));
-    if (!ep) {
+    const { isDirector, isShareholder } = ctosDirectorShareholderFlags(String(r.position ?? ""));
+    if (!isDirector && !isShareholder) {
       logger.warn(
         { partyKeyNorm, position: r.position },
         "CTOS KYB link skipped: unsupported CTOS position code for KYB add"
@@ -110,9 +113,45 @@ function findCtosPartyRow(
         : typeof pctRaw === "string" && pctRaw.trim() !== "" && !Number.isNaN(Number(pctRaw))
           ? Number(pctRaw)
           : undefined;
-    return { endpoint: ep, percent: pct };
+    return { isDirector, isShareholder, percent: pct };
   }
   return null;
+}
+
+function directorKybLinked(ob: Record<string, unknown>): boolean {
+  if (ob.kybDirectorLinked === true) return true;
+  if (ob.kybLinked === true) return true;
+  return false;
+}
+
+function shareholderKybLinked(ob: Record<string, unknown>): boolean {
+  if (ob.kybShareholderLinked === true) return true;
+  if (ob.kybLinked === true) return true;
+  return false;
+}
+
+function stripLegacyKybFlags(ob: Record<string, unknown>): Record<string, unknown> {
+  const next = { ...ob };
+  delete next.kybLinked;
+  delete next.kybLinkedAt;
+  return next;
+}
+
+async function persistOnboardingJson(
+  organizationId: string,
+  partyKey: string,
+  json: Record<string, unknown>
+): Promise<void> {
+  const data = stripLegacyKybFlags(json);
+  await prisma.ctosPartySupplement.update({
+    where: {
+      organization_id_party_key: {
+        organization_id: organizationId,
+        party_key: partyKey,
+      },
+    },
+    data: { onboarding_json: data as Prisma.InputJsonValue },
+  });
 }
 
 export type LinkCtosPartyToKybInput = {
@@ -123,11 +162,11 @@ export type LinkCtosPartyToKybInput = {
 
 /**
  * After CTOS party KYC webhook sets regtankStatus APPROVED, attach KYC to org KYB (RegTank 4.9 / 4.10).
- * Idempotent via onboarding_json.kybLinked. Never throws (webhook must complete).
+ * DS/AS call both APIs when needed. Idempotent via kybDirectorLinked / kybShareholderLinked (legacy kybLinked counts as both).
+ * Never throws (webhook must complete).
  */
 export async function linkCtosPartyToKyb(input: LinkCtosPartyToKybInput): Promise<void> {
   const { organizationId, partyKey, onboardingJson } = input;
-  if (onboardingJson.kybLinked === true) return;
   if (String(onboardingJson.regtankStatus ?? "").trim().toUpperCase() !== "APPROVED") return;
 
   const kyc = onboardingJson.kyc;
@@ -169,64 +208,75 @@ export async function linkCtosPartyToKyb(input: LinkCtosPartyToKybInput): Promis
     return;
   }
 
+  const ob = onboardingJson as Record<string, unknown>;
+  const directorDone = directorKybLinked(ob);
+  const shareholderDone = shareholderKybLinked(ob);
+  if ((!match.isDirector || directorDone) && (!match.isShareholder || shareholderDone)) {
+    return;
+  }
+
+  let working = stripLegacyKybFlags({ ...onboardingJson });
+
   const api = getRegTankAPIClient();
   const remark = "CTOS party auto-link";
 
-  try {
-    if (match.endpoint === "director") {
+  if (match.isDirector && !directorKybLinked(working as Record<string, unknown>)) {
+    try {
       await api.addKybDirector({
         requestId: mainKybId,
         kycId,
         designation: "DIRECTOR",
         remark,
       });
-    } else {
+    } catch (e) {
+      logger.error(
+        {
+          error: e instanceof Error ? e.message : String(e),
+          organizationId,
+          partyKey,
+          mainKybId,
+          kycId,
+          step: "addKybDirector",
+        },
+        "CTOS KYB add director failed (non-blocking)"
+      );
+      return;
+    }
+    working = { ...working, kybDirectorLinked: true };
+    await persistOnboardingJson(organizationId, partyKey, working);
+    logger.info(
+      { organizationId, partyKey, mainKybId, kycId, step: "addKybDirector" },
+      "CTOS party director role linked to organization KYB"
+    );
+  }
+
+  if (match.isShareholder && !shareholderKybLinked(working as Record<string, unknown>)) {
+    try {
       await api.addKybIndividualShareholder({
         requestId: mainKybId,
         kycId,
         percentOfShare: match.percent,
         remark,
       });
+    } catch (e) {
+      logger.error(
+        {
+          error: e instanceof Error ? e.message : String(e),
+          organizationId,
+          partyKey,
+          mainKybId,
+          kycId,
+          step: "addKybIndividualShareholder",
+        },
+        "CTOS KYB add individual shareholder failed (non-blocking)"
+      );
+      return;
     }
-  } catch (e) {
-    logger.error(
-      {
-        error: e instanceof Error ? e.message : String(e),
-        organizationId,
-        partyKey,
-        mainKybId,
-        kycId,
-        endpoint: match.endpoint,
-      },
-      "CTOS KYB link RegTank API failed (non-blocking; will retry on next KYC webhook if applicable)"
+    working = { ...working, kybShareholderLinked: true };
+    await persistOnboardingJson(organizationId, partyKey, working);
+    logger.info(
+      { organizationId, partyKey, mainKybId, kycId, step: "addKybIndividualShareholder" },
+      "CTOS party shareholder role linked to organization KYB"
     );
-    return;
   }
-
-  const nextJson = {
-    ...onboardingJson,
-    kybLinked: true,
-    kybLinkedAt: new Date().toISOString(),
-  };
-
-  await prisma.ctosPartySupplement.update({
-    where: {
-      organization_id_party_key: {
-        organization_id: organizationId,
-        party_key: partyKey,
-      },
-    },
-    data: { onboarding_json: nextJson as Prisma.InputJsonValue },
-  });
-
-  logger.info(
-    {
-      organizationId,
-      partyKey,
-      mainKybId,
-      kycId,
-      endpoint: match.endpoint,
-    },
-    "CTOS party linked to organization KYB via RegTank"
-  );
 }
