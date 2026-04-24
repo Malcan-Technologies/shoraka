@@ -1584,12 +1584,7 @@ export class OrganizationService {
     }
 
     const { forename, surname } = splitForenameSurname(target.name);
-    const formId = parseInt(
-      process.env.REGTANK_ISSUER_PERSONAL_FORM_ID ||
-        process.env.REGTANK_INVESTOR_PERSONAL_FORM_ID ||
-        "1036131",
-      10
-    );
+    const formId = parseInt(process.env.REGTANK_ISSUER_PERSONAL_FORM_ID || "1015495", 10);
     const referenceId = buildSafeReferenceId(organizationId, pk);
     const onboardingRequest: RegTankIndividualOnboardingRequest = {
       email: supplementEmail,
