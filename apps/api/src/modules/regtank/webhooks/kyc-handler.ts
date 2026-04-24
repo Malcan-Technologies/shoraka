@@ -10,6 +10,7 @@ import { prisma } from "../../../lib/prisma";
 import type { PortalType } from "../types";
 import { syncApplicationGuarantorsFromRegTankAmlWebhook } from "../../admin/guarantor-aml-webhook-sync";
 import { maybeAdvanceOrgAfterAmlScreeningCleared } from "./org-aml-milestone";
+import { linkCtosPartyToKyb } from "../../organization/ctos-party-kyb-link";
 
 /**
  * KYC (Know Your Customer) Webhook Handler
@@ -845,6 +846,28 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
       },
       "CTOS party KYC webhook handled"
     );
+
+    const updatedRec = updated as Record<string, unknown>;
+    const approved = String(updatedRec.regtankStatus ?? "").trim().toUpperCase() === "APPROVED";
+    const notLinked = updatedRec.kybLinked !== true;
+    if (approved && notLinked && this.provider === "ACURIS") {
+      try {
+        await linkCtosPartyToKyb({
+          organizationId: supplement.organization_id,
+          partyKey: supplement.party_key,
+          onboardingJson: updatedRec,
+        });
+      } catch (e) {
+        logger.error(
+          {
+            error: e instanceof Error ? e.message : String(e),
+            organizationId: supplement.organization_id,
+            partyKey: supplement.party_key,
+          },
+          "CTOS KYB auto-link failed (non-blocking)"
+        );
+      }
+    }
 
     return true;
   }

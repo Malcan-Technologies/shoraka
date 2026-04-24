@@ -423,6 +423,51 @@ export class RegTankAPIClient {
   }
 
   /**
+   * Acuris KYB — attach director KYC to company KYB (4.9).
+   * @see https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/4.-know-your-business-kyb/4.9-acuris-kyb-endpoint-json-add-director
+   */
+  async addKybDirector(body: {
+    requestId: string;
+    kycId: string;
+    designation?: string;
+    remark?: string;
+  }): Promise<{ requestId: string }> {
+    return this.makeRequest<{ requestId: string }>("/v3/kyb/add-director", {
+      method: "POST",
+      body: JSON.stringify({
+        requestId: body.requestId,
+        kycId: body.kycId,
+        designation: body.designation ?? "DIRECTOR",
+        remark: body.remark ?? "",
+      }),
+    });
+  }
+
+  /**
+   * Acuris KYB — attach individual shareholder KYC to company KYB (4.10).
+   * @see https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/4.-know-your-business-kyb/4.10-acuris-kyb-endpoint-json-add-individual-shareholder
+   */
+  async addKybIndividualShareholder(body: {
+    requestId: string;
+    kycId: string;
+    percentOfShare?: number;
+    remark?: string;
+  }): Promise<{ requestId: string }> {
+    const payload: Record<string, unknown> = {
+      requestId: body.requestId,
+      kycId: body.kycId,
+      remark: body.remark ?? "",
+    };
+    if (body.percentOfShare != null && !Number.isNaN(Number(body.percentOfShare))) {
+      payload.percentOfShare = Number(body.percentOfShare);
+    }
+    return this.makeRequest<{ requestId: string }>("/v3/kyb/add-individual-shareholder", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  }
+
+  /**
    * Create Acuris KYC screening (AML) — POST /v3/kyc/input
    * @see https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/3.-know-your-customer-kyc
    */

@@ -1777,3 +1777,5 @@ export class OrganizationService {
     return { success: true };
   }
 }
+
+export { linkCtosPartyToKyb } from "./ctos-party-kyb-link";
