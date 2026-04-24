@@ -1631,6 +1631,7 @@ export class OrganizationService {
       email: supplementEmail,
       sent: true,
       requestId,
+      referenceId,
       ...(verifyLink ? { verifyLink } : {}),
       sentAt: new Date().toISOString(),
     };
