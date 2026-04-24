@@ -42,7 +42,6 @@ import {
   getAdminFinancialSummaryUserColumnYears,
   getLatestThreeCtosYearSlots,
   getDirectorShareholderDisplayRows,
-  hasUsableCtosDirectorList,
   type DirectorShareholderDisplayRow,
   normalizeFinancialStatementsQuestionnaire,
   type ColumnComputedMetrics,
@@ -396,13 +395,9 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
 
   const latestCtos = ctosList?.[0];
 
-  const orgPartyCtosJson = app.issuer_organization?.latest_organization_ctos_company_json ?? null;
-  const appPartyCtosJson = latestCtos?.company_json ?? null;
-  const resolvedPartyCtosCompanyJson = hasUsableCtosDirectorList(orgPartyCtosJson)
-    ? orgPartyCtosJson
-    : hasUsableCtosDirectorList(appPartyCtosJson)
-      ? appPartyCtosJson
-      : null;
+  /** Director/shareholder rows: organization-level CTOS only (`getDirectorShareholderDisplayRows` falls back to onboarding when unusable). */
+  const latestOrganizationCtosCompanyJson =
+    app.issuer_organization?.latest_organization_ctos_company_json ?? null;
 
   const ctosPartySupplementsForRows = React.useMemo(() => {
     const raw = app.issuer_organization?.ctos_party_supplements;
@@ -418,15 +413,11 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
       getDirectorShareholderDisplayRows({
         corporateEntities: app.issuer_organization?.corporate_entities,
         directorKycStatus: app.issuer_organization?.director_kyc_status,
-        organizationCtosCompanyJson: resolvedPartyCtosCompanyJson,
+        organizationCtosCompanyJson: latestOrganizationCtosCompanyJson,
         ctosPartySupplements: ctosPartySupplementsForRows,
         sentRowIds: null,
       }),
-    [
-      app.issuer_organization,
-      resolvedPartyCtosCompanyJson,
-      ctosPartySupplementsForRows,
-    ]
+    [app.issuer_organization, latestOrganizationCtosCompanyJson, ctosPartySupplementsForRows]
   );
 
   const financialRows: CtosFinRow[] = React.useMemo(() => {
