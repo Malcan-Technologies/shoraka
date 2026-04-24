@@ -5,6 +5,8 @@ import {
   UserGroupIcon,
   UserIcon,
   BuildingOffice2Icon,
+  CheckCircleIcon,
+  ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 import {
   getDirectorShareholderDisplayRows,
@@ -67,6 +69,25 @@ function rowNeedsProfileAction(
   emailDisplay: string
 ): boolean {
   return row.status === "Missing" || !emailDisplay.trim();
+}
+
+function isRowComplete(row: DirectorShareholderDisplayRow, persistedEmail: string): boolean {
+  return Boolean(persistedEmail?.trim()) && row.status !== "Missing";
+}
+
+/** Persisted save complete, or local preview after confirm (no API) when row shows sent + email. */
+function isRowCompleteForUi(
+  row: DirectorShareholderDisplayRow,
+  persistedEmail: string,
+  displayEmailStr: string,
+  sentIds: ReadonlySet<string>
+): boolean {
+  if (isRowComplete(row, persistedEmail)) return true;
+  return (
+    sentIds.has(row.id) &&
+    Boolean(displayEmailStr.trim()) &&
+    row.status !== "Missing"
+  );
 }
 
 export function DirectorShareholdersUnifiedSection({
@@ -178,11 +199,19 @@ export function DirectorShareholdersUnifiedSection({
   const renderPersonRow = (row: DirectorShareholderDisplayRow) => {
     const ic = row.idNumber?.trim();
     const em = displayEmail(row);
+    const persistedEmail = row.email;
+    const completedUx = isRowCompleteForUi(row, persistedEmail, em, sentRowIds);
     const showEmailControls =
-      !sentRowIds.has(row.id) && row.status !== "Sent" && (!em.trim() || row.status === "Missing");
+      !completedUx &&
+      !sentRowIds.has(row.id) &&
+      row.status !== "Sent" &&
+      (!persistedEmail.trim() || row.status === "Missing");
     const needsAction = rowNeedsProfileAction(row, em);
     const rowHighlight =
-      highlightActionRequiredRows && needsAction;
+      highlightActionRequiredRows && !completedUx && needsAction;
+    const rowCompleteVisual =
+      completedUx &&
+      "border-emerald-300/80 bg-emerald-50/70 ring-1 ring-emerald-200/80 dark:border-emerald-800 dark:bg-emerald-950/25 dark:ring-emerald-900/50";
 
     return (
       <div
@@ -190,7 +219,8 @@ export function DirectorShareholdersUnifiedSection({
         className={cn(
           "flex flex-col gap-3 p-4 rounded-lg border bg-muted/30 sm:flex-row sm:items-start sm:justify-between",
           rowHighlight &&
-            "border-amber-300/90 bg-amber-50/80 ring-1 ring-amber-200/90 dark:border-amber-800 dark:bg-amber-950/30 dark:ring-amber-900/60"
+            "border-amber-300/90 bg-amber-50/80 ring-1 ring-amber-200/90 dark:border-amber-800 dark:bg-amber-950/30 dark:ring-amber-900/60",
+          rowCompleteVisual
         )}
       >
         <div className="flex-1 min-w-0">
@@ -210,7 +240,12 @@ export function DirectorShareholdersUnifiedSection({
           ) : null}
           <p className="text-xs text-muted-foreground mt-1">Status: {row.status}</p>
         </div>
-        {showEmailControls ? (
+        {completedUx ? (
+          <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
+            <CheckCircleIcon className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+            <span className="text-sm font-medium text-emerald-800 dark:text-emerald-300">Completed</span>
+          </div>
+        ) : showEmailControls ? (
           <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:items-end">
             <Input
               type="email"
@@ -218,6 +253,7 @@ export function DirectorShareholdersUnifiedSection({
               className="h-11 max-w-full rounded-xl border-2 border-input bg-background sm:max-w-xs"
               placeholder="Email"
               value={em}
+              disabled={savePending}
               onChange={(e) => setDraftEmails((prev) => ({ ...prev, [row.id]: e.target.value }))}
             />
             <Button
@@ -225,6 +261,7 @@ export function DirectorShareholdersUnifiedSection({
               size="sm"
               variant="secondary"
               className="w-full gap-2 rounded-xl sm:w-auto"
+              disabled={savePending || !em.trim()}
               onClick={() => setConfirmRow(row)}
             >
               Confirm and send onboarding link
@@ -236,28 +273,40 @@ export function DirectorShareholdersUnifiedSection({
   };
 
   const renderCorpRow = (row: DirectorShareholderDisplayRow) => {
+    const persistedEmail = row.email;
+    const completedUx = isRowCompleteForUi(row, persistedEmail, persistedEmail, sentRowIds);
     const needsAction = rowNeedsProfileAction(row, row.email);
-    const rowHighlight = highlightActionRequiredRows && needsAction;
+    const rowHighlight = highlightActionRequiredRows && !completedUx && needsAction;
+    const rowCompleteVisual =
+      completedUx &&
+      "border-emerald-300/80 bg-emerald-50/70 ring-1 ring-emerald-200/80 dark:border-emerald-800 dark:bg-emerald-950/25 dark:ring-emerald-900/50";
     return (
-    <div
-      key={row.id}
-      className={cn(
-        "flex items-center justify-between p-4 rounded-lg border bg-muted/30",
-        rowHighlight &&
-          "border-amber-300/90 bg-amber-50/80 ring-1 ring-amber-200/90 dark:border-amber-800 dark:bg-amber-950/30 dark:ring-amber-900/60"
-      )}
-    >
-      <div className="flex-1 min-w-0">
-        <p className="font-medium text-sm">{row.name}</p>
-        {row.registrationNumber?.trim() ? (
-          <p className="text-xs text-muted-foreground mt-1">SSM {row.registrationNumber}</p>
+      <div
+        key={row.id}
+        className={cn(
+          "flex flex-col gap-3 p-4 rounded-lg border bg-muted/30 sm:flex-row sm:items-center sm:justify-between",
+          rowHighlight &&
+            "border-amber-300/90 bg-amber-50/80 ring-1 ring-amber-200/90 dark:border-amber-800 dark:bg-amber-950/30 dark:ring-amber-900/60",
+          rowCompleteVisual
+        )}
+      >
+        <div className="flex-1 min-w-0">
+          <p className="font-medium text-sm">{row.name}</p>
+          {row.registrationNumber?.trim() ? (
+            <p className="text-xs text-muted-foreground mt-1">SSM {row.registrationNumber}</p>
+          ) : null}
+          <p className="text-xs text-muted-foreground mt-1">
+            {row.ownershipDisplay?.trim() ? row.ownershipDisplay : "Shareholder"}
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">Status: {row.status}</p>
+        </div>
+        {completedUx ? (
+          <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">
+            <CheckCircleIcon className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+            <span className="text-sm font-medium text-emerald-800 dark:text-emerald-300">Completed</span>
+          </div>
         ) : null}
-        <p className="text-xs text-muted-foreground mt-1">
-          {row.ownershipDisplay?.trim() ? row.ownershipDisplay : "Shareholder"}
-        </p>
-        <p className="text-xs text-muted-foreground mt-1">Status: {row.status}</p>
       </div>
-    </div>
     );
   };
 
@@ -324,11 +373,29 @@ export function DirectorShareholdersUnifiedSection({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
-            <Button type="button" variant="outline" className="rounded-lg" onClick={() => setConfirmRow(null)}>
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-lg"
+              disabled={savePending}
+              onClick={() => setConfirmRow(null)}
+            >
               Cancel
             </Button>
-            <Button type="button" className="rounded-lg" onClick={() => void commitSend()} disabled={savePending}>
-              {savePending ? "Saving…" : "Confirm"}
+            <Button
+              type="button"
+              className="inline-flex items-center gap-2 rounded-lg"
+              onClick={() => void commitSend()}
+              disabled={savePending || !confirmRow || !displayEmail(confirmRow).trim()}
+            >
+              {savePending ? (
+                <>
+                  <ArrowPathIcon className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+                  Saving…
+                </>
+              ) : (
+                "Confirm"
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
