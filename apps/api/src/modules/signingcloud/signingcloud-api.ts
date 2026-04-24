@@ -14,11 +14,11 @@ import { logger } from "../../lib/logger";
 
 const PDF_PAGE_HEIGHT_PT = 841.89;
 
-/** Signature rectangle — matches offer-letter-pdf “Please sign below:” band (contract + invoice). */
+/** Signature rectangle — aligned with offer-letter-pdf authorisation block (contract + invoice). */
 const SIGNATURE_FIELD = {
   fieldtype: "sign",
-  top: 300,
-  left: 50,
+  top: 549,
+  left: 140,
   height: 30,
   width: 100,
   pageindex: 1,

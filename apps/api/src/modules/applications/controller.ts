@@ -448,18 +448,9 @@ export function createApplicationRouter(): Router {
         const { id } = applicationIdParamSchema.parse(req.params);
         const invoiceId = z.string().cuid().parse(req.params.invoiceId);
         const userId = getUserId(req);
-        const application = await applicationService.getApplication(id, userId);
-        const appWithContract = application as {
-          contract_id?: string | null | undefined;
-          contract?: { status?: string | null | undefined } | null | undefined;
-        };
-        const hasLinkedContract = Boolean(appWithContract.contract_id);
-        const isLinkedContractAccepted =
-          hasLinkedContract && String(appWithContract.contract?.status ?? "").toUpperCase() === "APPROVED";
-        const requiresInvoiceSigning = !isLinkedContractAccepted;
         // Dev/local-only escape hatch so QA can accept without external webhook/signing flow.
         const skipSigning = isDevSigningBypassRequested(req);
-        if (readSigningCloudConfigFromEnv() && requiresInvoiceSigning && !skipSigning) {
+        if (readSigningCloudConfigFromEnv() && !skipSigning) {
           throw new AppError(
             400,
             "USE_SIGNING_FLOW",
