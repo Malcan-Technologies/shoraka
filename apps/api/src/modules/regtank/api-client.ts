@@ -165,13 +165,25 @@ export class RegTankAPIClient {
       "Creating RegTank individual onboarding request"
     );
 
-    return this.makeRequest<RegTankOnboardingResponse>(
-      "/v3/onboarding/indv/request",
-      {
-        method: "POST",
-        body: JSON.stringify(request),
-      }
-    );
+    const endpoint = "/v3/onboarding/indv/request";
+    const method = "POST";
+    const url = `${this.config.apiBaseUrl}${endpoint}`;
+    const payloadForLog = {
+      ...request,
+      email: "[redacted]",
+      governmentIdNumber: "[redacted]",
+    };
+    console.log("RegTank API:", method, url);
+    console.log("RegTank individual onboarding payload:", JSON.stringify(payloadForLog, null, 2));
+
+    const regTankReply = await this.makeRequest<RegTankOnboardingResponse>(endpoint, {
+      method,
+      body: JSON.stringify(request),
+    });
+
+    console.log("RegTank individual onboarding reply:", JSON.stringify(regTankReply, null, 2));
+
+    return regTankReply;
   }
 
   /**
