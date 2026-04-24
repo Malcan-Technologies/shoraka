@@ -391,6 +391,14 @@ function ownershipFromKycRoleString(roleStr: string): string | null {
   return m ? `${m[1]}% ownership` : null;
 }
 
+/** Parses `(12%)` or `(12.5%)` from synced KYC role text; null if absent. */
+function parseShareFromRoleString(role: string): number | null {
+  const m = role.match(/\(\s*([\d.]+)\s*%\s*\)/);
+  if (!m) return null;
+  const n = Number(m[1]);
+  return Number.isFinite(n) ? n : null;
+}
+
 function personNameFromCe(p: Record<string, unknown>): string {
   const info = p.personalInfo as Record<string, unknown> | undefined;
   const full = String(info?.fullName ?? "").trim();
@@ -491,18 +499,6 @@ function buildKycByNormalizedId(directorKycStatus: Record<string, unknown> | nul
   return m;
 }
 
-function mergeRoleLabels(roles: Set<string>): string {
-  const order = ["Director", "Shareholder", "Corporate Shareholder"];
-  const parts: string[] = [];
-  for (const o of order) {
-    if (roles.has(o)) parts.push(o);
-  }
-  for (const r of roles) {
-    if (!parts.includes(r)) parts.push(r);
-  }
-  return parts.join(", ");
-}
-
 function resolveIndividualStatus(
   icKey: string | null,
   eod: string | null,
@@ -592,6 +588,9 @@ function buildOnboardingDisplayRows(
     eod: string | null;
     ceStatus: string | null;
     ownershipDisplay: string | null;
+    isDirector: boolean;
+    isShareholder: boolean;
+    sharePctMax: number;
   };
 
   const indBuckets = new Map<string, IndBucket>();
@@ -624,6 +623,11 @@ function buildOnboardingDisplayRows(
     if (patch.ceStatus && !cur.ceStatus) cur.ceStatus = patch.ceStatus;
     const po = patch.ownershipDisplay != null ? String(patch.ownershipDisplay).trim() : "";
     if (po && !cur.ownershipDisplay) cur.ownershipDisplay = patch.ownershipDisplay ?? null;
+    if (patch.sharePctMax != null && Number.isFinite(patch.sharePctMax)) {
+      cur.sharePctMax = Math.max(cur.sharePctMax, patch.sharePctMax);
+    }
+    if (patch.isDirector === true) cur.isDirector = true;
+    if (patch.isShareholder === true) cur.isShareholder = true;
   };
 
   const addInd = (icKey: string | null, eod: string | null, init: IndBucket) => {
@@ -638,6 +642,9 @@ function buildOnboardingDisplayRows(
         eod: init.eod,
         ceStatus: init.ceStatus,
         ownershipDisplay: init.ownershipDisplay,
+        sharePctMax: init.sharePctMax,
+        isDirector: init.isDirector,
+        isShareholder: init.isShareholder,
       });
       return existing;
     }
@@ -648,12 +655,14 @@ function buildOnboardingDisplayRows(
   };
 
   for (const p of directors) {
+    const pr = p as Record<string, unknown>;
     const icRaw = issuerIcOrSsmForCePersonRow(p, directorKycStatus);
     const icKey = normalizeDirectorShareholderIdKey(icRaw);
     const eod = String(p.eodRequestId ?? "").trim() || null;
     const ceSt = (p.status ?? p.approveStatus) != null ? String(p.status ?? p.approveStatus) : null;
     const em = emailFromCePerson(p);
     const own = ownershipFromCePerson(p);
+    const dirShare = percentOfSharesFromOnboardingCePerson(pr);
     addInd(icKey, eod, {
       name: personNameFromCe(p),
       roles: new Set(["Director"]),
@@ -663,6 +672,9 @@ function buildOnboardingDisplayRows(
       eod,
       ceStatus: ceSt,
       ownershipDisplay: own,
+      isDirector: true,
+      isShareholder: false,
+      sharePctMax: dirShare,
     });
   }
 
@@ -688,6 +700,8 @@ function buildOnboardingDisplayRows(
         eod,
         ceStatus: ceSt,
         ownershipDisplay: own,
+        sharePctMax: share,
+        isShareholder: true,
       });
     } else {
       addInd(icKey, eod, {
@@ -699,6 +713,9 @@ function buildOnboardingDisplayRows(
         eod,
         ceStatus: ceSt,
         ownershipDisplay: own,
+        isDirector: false,
+        isShareholder: true,
+        sharePctMax: share,
       });
     }
   }
@@ -716,10 +733,16 @@ function buildOnboardingDisplayRows(
     const sent = Boolean(sentRowIds?.has(id));
     const status = sent ? "Sent" : statusBase;
     const canBase = !sent && (!email.trim() || statusBase === "Missing");
+    const role =
+      getDisplayRoleLabel({
+        isDirector: b.isDirector,
+        isShareholder: b.isShareholder,
+        sharePercentage: b.sharePctMax,
+      }) || "Director";
     rows.push({
       id,
       name: b.name,
-      role: mergeRoleLabels(b.roles),
+      role,
       type: "INDIVIDUAL",
       idNumber: b.icRaw,
       registrationNumber: null,
@@ -730,6 +753,9 @@ function buildOnboardingDisplayRows(
       canSendOnboarding: canBase,
       enquiryId: b.icRaw ? b.icRaw.trim() : b.eod,
       subjectKind: "INDIVIDUAL",
+      isDirector: b.isDirector,
+      isShareholder: b.isShareholder,
+      sharePercentage: b.sharePctMax,
     });
   }
 
@@ -743,7 +769,6 @@ function buildOnboardingDisplayRows(
     const status = sent ? "Sent" : statusBase;
     const fromSupCorp = regKey ? supplementEmailByPartyKey.get(regKey) : undefined;
     const email = (fromSupCorp && fromSupCorp.trim()) || "";
-    const canBase = !sent && (!email.trim() || statusBase === "Missing");
     const corpOwn = ownershipFromCorpShareholder(corp);
     rows.push({
       id,
@@ -755,8 +780,8 @@ function buildOnboardingDisplayRows(
       ownershipDisplay: corpOwn,
       email,
       status,
-      canEnterEmail: canBase,
-      canSendOnboarding: canBase,
+      canEnterEmail: false,
+      canSendOnboarding: false,
       enquiryId: regRaw ? regRaw.trim() : null,
       subjectKind: "CORPORATE",
     });
@@ -923,10 +948,9 @@ function buildKycOnlyFallbackRows(
     const roleStr = d.role ? String(d.role) : "";
     const isDir = roleStr.toLowerCase().includes("director");
     const isSh = roleStr.toLowerCase().includes("shareholder");
-    const roles = new Set<string>();
-    if (isDir) roles.add("Director");
-    if (isSh) roles.add("Shareholder");
-    if (roles.size === 0) roles.add("Director");
+    const sharePct = parseShareFromRoleString(roleStr) ?? 0;
+    if (!isDir && isSh && sharePct < 5) continue;
+
     const gid = d.governmentIdNumber != null ? String(d.governmentIdNumber).trim() : "";
     const gKey = normalizeDirectorShareholderIdKey(gid);
     const eod = String(d.eodRequestId ?? "").trim();
@@ -940,10 +964,17 @@ function buildKycOnlyFallbackRows(
     const status = sent ? "Sent" : statusBase;
     const canBase = !sent && (!em || statusBase === "Missing");
     const ownK = ownershipFromKycRoleString(roleStr);
+    const effectiveIsDirector = isDir || (!isDir && !isSh);
+    const role =
+      getDisplayRoleLabel({
+        isDirector: effectiveIsDirector,
+        isShareholder: isSh,
+        sharePercentage: sharePct,
+      }) || "Director";
     rows.push({
       id,
       name: String(d.name || "Unknown"),
-      role: mergeRoleLabels(roles),
+      role,
       type: "INDIVIDUAL",
       idNumber: gid || null,
       registrationNumber: null,
@@ -954,6 +985,9 @@ function buildKycOnlyFallbackRows(
       canSendOnboarding: canBase,
       enquiryId: gid || eod || null,
       subjectKind: "INDIVIDUAL",
+      isDirector: effectiveIsDirector,
+      isShareholder: isSh,
+      sharePercentage: sharePct,
     });
   }
   const kycSh = Array.isArray(directorKycStatus?.individualShareholders)
@@ -966,6 +1000,12 @@ function buildKycOnlyFallbackRows(
     const id = `kyc-sh-${gKey ?? eod ?? `s${idx++}`}`;
     const dup = rows.find((r) => gKey && normalizeDirectorShareholderIdKey(r.idNumber) === gKey);
     if (dup) continue;
+    const roleStrS = s.role ? String(s.role) : "";
+    const isDirS = roleStrS.toLowerCase().includes("director");
+    const isShS = roleStrS.toLowerCase().includes("shareholder");
+    const sharePctS = parseShareFromRoleString(roleStrS) ?? 0;
+    if (!isDirS && isShS && sharePctS < 5) continue;
+
     const stRaw = s.kycStatus != null ? String(s.kycStatus) : null;
     const statusBase = stRaw && stRaw.trim() !== "" ? stRaw : "Not requested";
     const fromSupS = gKey ? supplementEmailByPartyKey.get(gKey) : undefined;
@@ -974,12 +1014,18 @@ function buildKycOnlyFallbackRows(
     const sent = Boolean(sentRowIds?.has(id));
     const status = sent ? "Sent" : statusBase;
     const canBase = !sent && (!em || statusBase === "Missing");
-    const roleStrS = s.role ? String(s.role) : "";
     const ownS = ownershipFromKycRoleString(roleStrS);
+    const effectiveDirS = isDirS || (!isDirS && !isShS);
+    const role =
+      getDisplayRoleLabel({
+        isDirector: effectiveDirS,
+        isShareholder: isShS,
+        sharePercentage: sharePctS,
+      }) || "Shareholder";
     rows.push({
       id,
       name: String(s.name || "Unknown"),
-      role: "Shareholder",
+      role,
       type: "INDIVIDUAL",
       idNumber: gid || null,
       registrationNumber: null,
@@ -990,6 +1036,9 @@ function buildKycOnlyFallbackRows(
       canSendOnboarding: canBase,
       enquiryId: gid || eod || null,
       subjectKind: "INDIVIDUAL",
+      isDirector: effectiveDirS,
+      isShareholder: isShS,
+      sharePercentage: sharePctS,
     });
   }
   return rows;
