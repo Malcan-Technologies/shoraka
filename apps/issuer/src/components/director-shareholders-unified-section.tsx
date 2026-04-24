@@ -10,6 +10,7 @@ import {
 } from "@heroicons/react/24/outline";
 import {
   getDirectorShareholderDisplayRows,
+  getDisplayRoleLabel,
   isCtosIndividualKycEligibleRow,
   mapRegtankStatusToDisplay,
   normalizeDirectorShareholderIdKey,
@@ -51,12 +52,29 @@ function roleLower(r: DirectorShareholderDisplayRow): string {
   return r.role.toLowerCase();
 }
 
+function personRoleDisplayLabel(row: DirectorShareholderDisplayRow): string {
+  if (row.type === "COMPANY") return row.role;
+  if (typeof row.isDirector === "boolean" || typeof row.isShareholder === "boolean") {
+    const fromFlags = getDisplayRoleLabel({
+      isDirector: row.isDirector ?? false,
+      isShareholder: row.isShareholder ?? false,
+      sharePercentage: row.sharePercentage,
+    });
+    if (fromFlags.trim()) return fromFlags;
+  }
+  return row.role;
+}
+
 function isDirectorLikeRow(r: DirectorShareholderDisplayRow): boolean {
-  return r.type === "INDIVIDUAL" && roleLower(r).includes("director");
+  if (r.type !== "INDIVIDUAL") return false;
+  if (typeof r.isDirector === "boolean") return r.isDirector;
+  return roleLower(r).includes("director");
 }
 
 function isIndividualShareholderOnlyRow(r: DirectorShareholderDisplayRow): boolean {
-  return r.type === "INDIVIDUAL" && !roleLower(r).includes("director");
+  if (r.type !== "INDIVIDUAL") return false;
+  if (typeof r.isDirector === "boolean") return !r.isDirector && Boolean(r.isShareholder);
+  return !roleLower(r).includes("director");
 }
 
 function onboardingLinkSentForRow(row: DirectorShareholderDisplayRow): boolean {
@@ -276,7 +294,7 @@ export function DirectorShareholdersUnifiedSection({
             ) : null}
           </p>
           <p className="text-xs text-muted-foreground mt-1">{em.trim() ? em : "—"}</p>
-          <p className="text-xs text-muted-foreground mt-1">{row.role}</p>
+          <p className="text-xs text-muted-foreground mt-1">{personRoleDisplayLabel(row)}</p>
           {row.ownershipDisplay?.trim() ? (
             <p className="text-xs text-muted-foreground mt-1">{row.ownershipDisplay}</p>
           ) : null}
