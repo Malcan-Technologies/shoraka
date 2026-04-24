@@ -16,7 +16,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "CashSouk Admin Dashboard",
-  description: "Manage loans, users, and platform operations",
+  description: "Manage financing, users, and platform operations",
   icons: {
     icon: "/shoraka_favicon.svg",
   },

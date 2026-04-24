@@ -14,8 +14,8 @@ Welcome to CashSouk Investor Portal. These Terms and Conditions govern your use 
 ## 2. Definitions
 
 - **"Platform"** refers to the CashSouk Investor Portal and all related services.
-- **"Investor"** refers to any individual or entity using the Platform to invest in loans.
-- **"Loan"** refers to any financing opportunity listed on the Platform.
+- **"Investor"** refers to any individual or entity using the Platform to invest in financing opportunities.
+- **"Financing"** refers to any financing opportunity listed on the Platform.
 - **"Issuer"** refers to any individual or business seeking financing through the Platform.
 
 ## 3. Eligibility Requirements
@@ -48,10 +48,10 @@ All investments carry risk. You may lose some or all of your invested capital.
 Past performance is not indicative of future results. CashSouk does not guarantee any returns on investments.
 
 **5.3. Illiquidity**
-Investments in loans through the Platform may be illiquid. You may not be able to sell or transfer your investment before the loan matures.
+Investments in financing opportunities through the Platform may be illiquid. You may not be able to sell or transfer your investment before the financing reaches maturity.
 
 **5.4. Default Risk**
-Issuers may default on their loan obligations. CashSouk does not guarantee repayment.
+Issuers may default on their financing obligations. CashSouk does not guarantee repayment.
 
 ## 6. Platform Fees
 

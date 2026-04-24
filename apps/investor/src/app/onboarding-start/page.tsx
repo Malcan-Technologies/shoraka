@@ -259,7 +259,7 @@ function OnboardingStartPageContent() {
                 <CardTitle className="text-2xl font-bold">Welcome {displayName}</CardTitle>
                 <CardDescription className="text-[15px] leading-7">
                   Let&apos;s set up your <strong>Investor</strong> account to start exploring
-                  verified loan opportunities
+                  verified financing opportunities
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 pt-2">

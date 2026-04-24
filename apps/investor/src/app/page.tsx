@@ -275,7 +275,7 @@ function InvestorDashboardContent() {
               <div>
                 <h2 className="text-2xl font-bold mb-2">Welcome back, {displayName}!</h2>
                 <p className="text-[17px] leading-7 text-muted-foreground">
-                  Browse and invest in verified loan opportunities from your dashboard.
+                  Browse and invest in verified financing opportunities from your dashboard.
                 </p>
               </div>
               <Button asChild className="gap-2">

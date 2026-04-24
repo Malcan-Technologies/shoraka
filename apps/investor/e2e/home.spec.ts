@@ -6,7 +6,7 @@ test.describe("Investor Portal Home", () => {
 
     await expect(page.getByRole("heading", { name: /Welcome to CashSouk Investor Portal/i })).toBeVisible();
     
-    await expect(page.getByText(/Browse and invest in verified loan opportunities/i)).toBeVisible();
+    await expect(page.getByText(/Browse and invest in verified financing opportunities/i)).toBeVisible();
   });
 });
 

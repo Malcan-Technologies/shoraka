@@ -136,7 +136,7 @@ export function OnboardingStatusCard({
             Welcome back, {displayName}!
           </h2>
           <p className="text-muted-foreground mt-1">
-            Browse and invest in verified loan opportunities from your dashboard
+            Browse and invest in verified financing opportunities from your dashboard
           </p>
         </div>
         {actionButton}

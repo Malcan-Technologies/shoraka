@@ -6,7 +6,7 @@ test.describe("Admin Dashboard Home", () => {
 
     await expect(page.getByRole("heading", { name: /CashSouk Admin Dashboard/i })).toBeVisible();
 
-    await expect(page.getByText(/Manage loans, users, and platform operations/i)).toBeVisible();
+    await expect(page.getByText(/Manage financing, users, and platform operations/i)).toBeVisible();
   });
 });
 
