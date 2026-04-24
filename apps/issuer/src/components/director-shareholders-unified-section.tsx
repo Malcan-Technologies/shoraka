@@ -35,6 +35,10 @@ export interface DirectorShareholdersUnifiedSectionProps {
   organizationCtosCompanyJson?: unknown | null;
   ctosPartySupplements?: { partyKey: string; email: string }[] | null;
   className?: string;
+  /** Highlight rows with Missing status or empty email (issuer profile). */
+  highlightActionRequiredRows?: boolean;
+  /** After navigation from company details; focuses first visible empty email field. */
+  autoFocusFirstEmptyEmail?: boolean;
 }
 
 function roleLower(r: DirectorShareholderDisplayRow): string {
@@ -58,6 +62,13 @@ function partyKeyRawForRow(row: DirectorShareholderDisplayRow): string {
   );
 }
 
+function rowNeedsProfileAction(
+  row: DirectorShareholderDisplayRow,
+  emailDisplay: string
+): boolean {
+  return row.status === "Missing" || !emailDisplay.trim();
+}
+
 export function DirectorShareholdersUnifiedSection({
   organizationId,
   corporateEntities,
@@ -65,6 +76,8 @@ export function DirectorShareholdersUnifiedSection({
   organizationCtosCompanyJson,
   ctosPartySupplements,
   className,
+  highlightActionRequiredRows = true,
+  autoFocusFirstEmptyEmail = false,
 }: DirectorShareholdersUnifiedSectionProps) {
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
@@ -95,6 +108,20 @@ export function DirectorShareholdersUnifiedSection({
       sentRowIds,
     ]
   );
+
+  React.useEffect(() => {
+    if (!autoFocusFirstEmptyEmail) return;
+    const t = window.setTimeout(() => {
+      const nodes = document.querySelectorAll<HTMLInputElement>("[data-profile-director-email]");
+      for (const input of nodes) {
+        if (!input.value.trim()) {
+          input.focus();
+          return;
+        }
+      }
+    }, 450);
+    return () => window.clearTimeout(t);
+  }, [autoFocusFirstEmptyEmail, rows]);
 
   const directorLikeRows = React.useMemo(() => rows.filter(isDirectorLikeRow), [rows]);
   const shareholderOnlyRows = React.useMemo(() => rows.filter(isIndividualShareholderOnlyRow), [rows]);
@@ -153,11 +180,18 @@ export function DirectorShareholdersUnifiedSection({
     const em = displayEmail(row);
     const showEmailControls =
       !sentRowIds.has(row.id) && row.status !== "Sent" && (!em.trim() || row.status === "Missing");
+    const needsAction = rowNeedsProfileAction(row, em);
+    const rowHighlight =
+      highlightActionRequiredRows && needsAction;
 
     return (
       <div
         key={row.id}
-        className="flex flex-col gap-3 p-4 rounded-lg border bg-muted/30 sm:flex-row sm:items-start sm:justify-between"
+        className={cn(
+          "flex flex-col gap-3 p-4 rounded-lg border bg-muted/30 sm:flex-row sm:items-start sm:justify-between",
+          rowHighlight &&
+            "border-amber-300/90 bg-amber-50/80 ring-1 ring-amber-200/90 dark:border-amber-800 dark:bg-amber-950/30 dark:ring-amber-900/60"
+        )}
       >
         <div className="flex-1 min-w-0">
           <p className="font-medium text-sm">
@@ -180,7 +214,8 @@ export function DirectorShareholdersUnifiedSection({
           <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:items-end">
             <Input
               type="email"
-              className="h-11 max-w-full rounded-xl border bg-background sm:max-w-xs"
+              data-profile-director-email
+              className="h-11 max-w-full rounded-xl border-2 border-input bg-background sm:max-w-xs"
               placeholder="Email"
               value={em}
               onChange={(e) => setDraftEmails((prev) => ({ ...prev, [row.id]: e.target.value }))}
@@ -200,8 +235,18 @@ export function DirectorShareholdersUnifiedSection({
     );
   };
 
-  const renderCorpRow = (row: DirectorShareholderDisplayRow) => (
-    <div key={row.id} className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
+  const renderCorpRow = (row: DirectorShareholderDisplayRow) => {
+    const needsAction = rowNeedsProfileAction(row, row.email);
+    const rowHighlight = highlightActionRequiredRows && needsAction;
+    return (
+    <div
+      key={row.id}
+      className={cn(
+        "flex items-center justify-between p-4 rounded-lg border bg-muted/30",
+        rowHighlight &&
+          "border-amber-300/90 bg-amber-50/80 ring-1 ring-amber-200/90 dark:border-amber-800 dark:bg-amber-950/30 dark:ring-amber-900/60"
+      )}
+    >
       <div className="flex-1 min-w-0">
         <p className="font-medium text-sm">{row.name}</p>
         {row.registrationNumber?.trim() ? (
@@ -213,7 +258,8 @@ export function DirectorShareholdersUnifiedSection({
         <p className="text-xs text-muted-foreground mt-1">Status: {row.status}</p>
       </div>
     </div>
-  );
+    );
+  };
 
   const emptyAll =
     directorLikeRows.length === 0 && shareholderOnlyRows.length === 0 && corporateRows.length === 0;

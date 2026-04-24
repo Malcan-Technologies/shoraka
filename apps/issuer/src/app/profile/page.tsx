@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Skeleton } from "../../components/ui/skeleton";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -552,6 +552,20 @@ export default function ProfilePage() {
     enabled: !!activeOrganization?.id,
     staleTime: 1000 * 60 * 5,
   });
+
+  const searchParams = useSearchParams();
+  const focusDirectors = searchParams.get("focus") === "directors";
+  const directorsSectionRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!focusDirectors) return;
+    const el = directorsSectionRef.current;
+    if (!el) return;
+    const t = window.setTimeout(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 200);
+    return () => window.clearTimeout(t);
+  }, [focusDirectors, orgData, activeOrganization?.id]);
 
   // Initialize form values when orgData loads
   React.useEffect(() => {
@@ -1308,13 +1322,17 @@ export default function ProfilePage() {
 
               {/* 4. Directors/Shareholders Section - Only for COMPANY accounts */}
               {!isPersonal && activeOrganization?.id && orgData && (
-                <DirectorShareholdersUnifiedSection
-                  organizationId={activeOrganization.id}
-                  corporateEntities={orgData.corporateEntities ?? {}}
-                  directorKycStatus={orgData.directorKycStatus ?? null}
-                  organizationCtosCompanyJson={orgData.latestOrganizationCtosCompanyJson ?? null}
-                  ctosPartySupplements={orgData.ctosPartySupplements ?? null}
-                />
+                <div ref={directorsSectionRef} className="scroll-mt-24">
+                  <DirectorShareholdersUnifiedSection
+                    organizationId={activeOrganization.id}
+                    corporateEntities={orgData.corporateEntities ?? {}}
+                    directorKycStatus={orgData.directorKycStatus ?? null}
+                    organizationCtosCompanyJson={orgData.latestOrganizationCtosCompanyJson ?? null}
+                    ctosPartySupplements={orgData.ctosPartySupplements ?? null}
+                    highlightActionRequiredRows
+                    autoFocusFirstEmptyEmail={focusDirectors}
+                  />
+                </div>
               )}
 
               {/* 5. Members Section */}

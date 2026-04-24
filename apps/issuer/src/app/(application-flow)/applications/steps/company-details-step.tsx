@@ -12,8 +12,12 @@
  */
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { useOrganization, createApiClient, useAuthToken } from "@cashsouk/config";
-import { getDirectorShareholderDisplayRows } from "@cashsouk/types";
+import {
+  getDirectorShareholderDisplayRows,
+  type DirectorShareholderDisplayRow,
+} from "@cashsouk/types";
 import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
 import { useApplication } from "@/hooks/use-applications";
@@ -149,6 +153,11 @@ function isValidAddress(addr: Record<string, unknown> | null): boolean {
   return !!(line1 && city && postalCode && state && country);
 }
 
+function directorRowNeedsCompleteOnProfile(row: DirectorShareholderDisplayRow): boolean {
+  const emptyEmail = !row.email.trim();
+  return row.status === "Missing" || emptyEmail;
+}
+
 const inputClassName = cn(formInputClassName, formInputDisabledClassName);
 const inputClassNameEditable = formInputClassName;
 const labelClassName = formLabelClassName;
@@ -202,6 +211,7 @@ export function CompanyDetailsStep({
   } = useCorporateInfo(organizationId);
   const { data: entitiesData, isLoading: isLoadingEntities } = useCorporateEntities(organizationId);
   const isLoadingData = isLoadingInfo || isLoadingEntities;
+  const router = useRouter();
 
   const directorShareholderRows = React.useMemo(
     () =>
@@ -671,22 +681,38 @@ export function CompanyDetailsStep({
                 const statusVerified = row.status === "APPROVED" || row.status === "Approved";
                 const statusKind = row.type === "COMPANY" ? "KYB" : "KYC";
                 const own = row.ownershipDisplay?.trim() || "—";
+                const showCompleteOnProfile = directorRowNeedsCompleteOnProfile(row);
                 return (
                   <React.Fragment key={row.id}>
                     <div className={labelClassName}>{row.role}</div>
-                    <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
-                      <div className="text-[17px] leading-7 font-medium whitespace-nowrap">{row.name}</div>
-                      <div className="h-4 w-px bg-border" />
-                      <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">{own}</div>
-                      <div className="h-4 w-px bg-border" />
-                      {statusVerified ? (
-                        <div className="flex items-center gap-1.5 whitespace-nowrap">
-                          <CheckCircleIcon className="h-4 w-4 text-green-600" />
-                          <span className="text-[17px] leading-7 text-green-600">{statusKind}</span>
+                    <div className="flex flex-col gap-2">
+                      <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
+                        <div className="text-[17px] leading-7 font-medium whitespace-nowrap">{row.name}</div>
+                        <div className="h-4 w-px bg-border" />
+                        <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">{own}</div>
+                        <div className="h-4 w-px bg-border" />
+                        {statusVerified ? (
+                          <div className="flex items-center gap-1.5 whitespace-nowrap">
+                            <CheckCircleIcon className="h-4 w-4 text-green-600" />
+                            <span className="text-[17px] leading-7 text-green-600">{statusKind}</span>
+                          </div>
+                        ) : (
+                          <div />
+                        )}
+                      </div>
+                      {showCompleteOnProfile ? (
+                        <div className="flex justify-end sm:justify-start">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="rounded-xl"
+                            onClick={() => router.push("/profile?focus=directors")}
+                          >
+                            Complete on Profile
+                          </Button>
                         </div>
-                      ) : (
-                        <div />
-                      )}
+                      ) : null}
                     </div>
                   </React.Fragment>
                 );
