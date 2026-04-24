@@ -10,6 +10,7 @@ import {
 } from "@heroicons/react/24/outline";
 import {
   getDirectorShareholderDisplayRows,
+  isCtosIndividualKycEligibleRow,
   mapRegtankStatusToDisplay,
   normalizeDirectorShareholderIdKey,
   regtankDisplayStatusBadgeClass,
@@ -176,6 +177,11 @@ export function DirectorShareholdersUnifiedSection({
 
   const commitSend = async () => {
     if (!confirmRow) return;
+    if (!isCtosIndividualKycEligibleRow(confirmRow)) {
+      toast.error("Individual onboarding is not required for this party.");
+      setConfirmRow(null);
+      return;
+    }
     const email = displayEmail(confirmRow).trim();
     const rawKey = partyKeyRawForRow(confirmRow);
     const partyKeyNorm = normalizeDirectorShareholderIdKey(rawKey);
@@ -230,14 +236,16 @@ export function DirectorShareholdersUnifiedSection({
     const linkSent = onboardingLinkSentForRow(row);
     const regtankUi = showRegtankStandardStatusUi(row) ? regtankStatusUiFromRow(row) : null;
     const completedUx = isRowCompleteForUi(row, persistedEmail, em, sentRowIds);
+    const kycEligible = isCtosIndividualKycEligibleRow(row);
     const showEmailControls =
+      kycEligible &&
       !completedUx &&
       !sentRowIds.has(row.id) &&
       !linkSent &&
       (!persistedEmail.trim() || row.status === "Missing");
-    const needsAction = rowNeedsProfileAction(row, em);
+    const needsAction = kycEligible && rowNeedsProfileAction(row, em);
     const rowHighlight =
-      highlightActionRequiredRows && !completedUx && !linkSent && needsAction;
+      highlightActionRequiredRows && kycEligible && !completedUx && !linkSent && needsAction;
     const rowSentVisual =
       linkSent &&
       "border-sky-300/80 bg-sky-50/70 ring-1 ring-sky-200/80 dark:border-sky-800 dark:bg-sky-950/25 dark:ring-sky-900/50";
@@ -318,8 +326,6 @@ export function DirectorShareholdersUnifiedSection({
     const linkSent = onboardingLinkSentForRow(row);
     const regtankUi = showRegtankStandardStatusUi(row) ? regtankStatusUiFromRow(row) : null;
     const completedUx = isRowCompleteForUi(row, persistedEmail, persistedEmail, sentRowIds);
-    const needsAction = rowNeedsProfileAction(row, row.email);
-    const rowHighlight = highlightActionRequiredRows && !completedUx && !linkSent && needsAction;
     const rowSentVisual =
       linkSent &&
       "border-sky-300/80 bg-sky-50/70 ring-1 ring-sky-200/80 dark:border-sky-800 dark:bg-sky-950/25 dark:ring-sky-900/50";
@@ -332,8 +338,6 @@ export function DirectorShareholdersUnifiedSection({
         key={row.id}
         className={cn(
           "flex flex-col gap-3 p-4 rounded-lg border bg-muted/30 sm:flex-row sm:items-center sm:justify-between",
-          rowHighlight &&
-            "border-amber-300/90 bg-amber-50/80 ring-1 ring-amber-200/90 dark:border-amber-800 dark:bg-amber-950/30 dark:ring-amber-900/60",
           rowSentVisual,
           rowCompleteVisual
         )}

@@ -34,6 +34,11 @@ export interface DirectorShareholderDisplayRow {
   ctosOnboardingLinkSent?: boolean;
   /** Raw internal RegTank status (reg_tank_onboarding semantics) when CTOS supplement exists. */
   ctosRegtankStatus?: string | null;
+  /**
+   * CTOS-backed rows only: false when the party must not receive individual RegTank onboarding
+   * (e.g. corporate shareholder or individual &lt;5% shareholder-only). Omitted for onboarding/KYC-only rows.
+   */
+  ctosIndividualKycEligible?: boolean;
 }
 
 export interface CtosPartySupplementInput {
@@ -89,7 +94,7 @@ function buildSupplementDerivedMaps(supplements: ReadonlyArray<CtosPartySuppleme
   return { emailByPartyKey, sentPartyKeys, regtankStatusByPartyKey };
 }
 
-interface CtosOrgDirectorRow {
+export interface CtosCompanyJsonDirectorEntry {
   ic_lcno: string | null;
   nic_brno: string | null;
   name: string | null;
@@ -98,6 +103,8 @@ interface CtosOrgDirectorRow {
   equity: number | null;
   party_type: string | null;
 }
+
+type CtosOrgDirectorRow = CtosCompanyJsonDirectorEntry;
 
 const CTOS_POSITION_LABEL_BY_CODE: Record<string, string> = {
   DO: "Director",
@@ -114,8 +121,14 @@ function extractCtosOrgDirectorsFromCompanyJson(companyJson: unknown): CtosOrgDi
   for (const d of raw) {
     const x = d as Record<string, unknown>;
     const ptRaw = x.party_type != null ? String(x.party_type).trim() : "";
+    const icLc =
+      x.ic_lcno != null && String(x.ic_lcno).trim() !== ""
+        ? String(x.ic_lcno)
+        : x.ic_no != null && String(x.ic_no).trim() !== ""
+          ? String(x.ic_no)
+          : null;
     out.push({
-      ic_lcno: x.ic_lcno != null ? String(x.ic_lcno) : null,
+      ic_lcno: icLc,
       nic_brno: x.nic_brno != null ? String(x.nic_brno) : null,
       name: x.name != null ? String(x.name) : null,
       position: x.position != null ? String(x.position) : null,
@@ -162,6 +175,133 @@ function ctosPositionCanonicalCode(position: string | null | undefined): string 
   const p = String(position ?? "").trim().toUpperCase();
   if (p in CTOS_POSITION_LABEL_BY_CODE) return p;
   return null;
+}
+
+const CTOS_DIRECTOR_POSITION_CODES = new Set(["DO", "AD", "DS", "AS"]);
+const CTOS_SHAREHOLDER_POSITION_CODES = new Set(["SO", "DS", "AS"]);
+
+function equitySharePercentageFromCtosRow(r: CtosOrgDirectorRow): number {
+  if (r.equity_percentage != null && Number.isFinite(Number(r.equity_percentage))) {
+    return Number(r.equity_percentage);
+  }
+  if (r.equity != null && Number.isFinite(Number(r.equity))) {
+    return Number(r.equity);
+  }
+  return 0;
+}
+
+function ctosDirectorShareholderFlagsFromCanonicalCode(code: string | null): {
+  isDirector: boolean;
+  isShareholder: boolean;
+} {
+  if (!code) return { isDirector: false, isShareholder: false };
+  return {
+    isDirector: CTOS_DIRECTOR_POSITION_CODES.has(code),
+    isShareholder: CTOS_SHAREHOLDER_POSITION_CODES.has(code),
+  };
+}
+
+/**
+ * CTOS company_json director row: include in unified profile lists.
+ * Corporate parties are always listed; individuals use director OR ≥5% shareholder rule.
+ */
+export function shouldIncludeCtosCompanyJsonDirectorEntry(
+  subjectKind: "INDIVIDUAL" | "CORPORATE" | null,
+  r: CtosCompanyJsonDirectorEntry
+): boolean {
+  if (subjectKind === "CORPORATE") return true;
+  const code = ctosPositionCanonicalCode(r.position);
+  if (!code) return true;
+  const { isDirector, isShareholder } = ctosDirectorShareholderFlagsFromCanonicalCode(code);
+  const share = equitySharePercentageFromCtosRow(r);
+  return isDirector || (isShareholder && share >= 5);
+}
+
+export interface CtosUnifiedDirectorShareholderParty {
+  name: string;
+  ic: string;
+  isDirector: boolean;
+  isShareholder: boolean;
+  sharePercentage: number;
+  isIndividual: boolean;
+}
+
+/**
+ * Rebuilds one row per CTOS party key from company_json.directors (filtered; no stored merge).
+ */
+export function buildUnifiedCtosDirectorShareholdersFromCompanyJson(
+  companyJson: unknown
+): CtosUnifiedDirectorShareholderParty[] {
+  const ctosList = extractCtosOrgDirectorsFromCompanyJson(companyJson);
+  type Bucket = {
+    name: string;
+    isDirector: boolean;
+    isShareholder: boolean;
+    sharePct: number;
+    isIndividual: boolean;
+    icDisplay: string;
+  };
+  const merged = new Map<string, Bucket>();
+  const keyOrder: string[] = [];
+  let anonSeq = 0;
+
+  for (const cr of ctosList) {
+    const kind = directorSubjectKindFromCtosOrgRow(cr);
+    if (!shouldIncludeCtosCompanyJsonDirectorEntry(kind, cr)) continue;
+    const isIndividual = kind !== "CORPORATE";
+    const lookupKey = ctosPartyNormalizedMergeKey(cr, kind);
+    const mapKey = lookupKey ?? `__anon_${anonSeq++}`;
+    const code = ctosPositionCanonicalCode(cr.position);
+    const { isDirector, isShareholder } = ctosDirectorShareholderFlagsFromCanonicalCode(code);
+    const sharePct = equitySharePercentageFromCtosRow(cr);
+    const icDisplay = isIndividual ? individualCtosIdDisplayRaw(cr) : corporateCtosRegDisplayRaw(cr);
+
+    const existing = merged.get(mapKey);
+    if (!existing) {
+      merged.set(mapKey, {
+        name: (cr.name ?? "").trim() || "Unknown",
+        isDirector,
+        isShareholder,
+        sharePct,
+        isIndividual,
+        icDisplay: icDisplay.trim(),
+      });
+      keyOrder.push(mapKey);
+    } else {
+      existing.isDirector = existing.isDirector || isDirector;
+      existing.isShareholder = existing.isShareholder || isShareholder;
+      existing.sharePct = Math.max(existing.sharePct, sharePct);
+      const nm = (cr.name ?? "").trim();
+      if (nm && (existing.name === "Unknown" || !existing.name.trim())) {
+        existing.name = nm;
+      }
+      const idd = icDisplay.trim();
+      if (idd && !existing.icDisplay.trim()) {
+        existing.icDisplay = idd;
+      }
+    }
+  }
+
+  const out: CtosUnifiedDirectorShareholderParty[] = [];
+  for (const mapKey of keyOrder) {
+    const b = merged.get(mapKey)!;
+    out.push({
+      name: b.name,
+      ic: b.icDisplay,
+      isDirector: b.isDirector,
+      isShareholder: b.isShareholder,
+      sharePercentage: b.sharePct,
+      isIndividual: b.isIndividual,
+    });
+  }
+  return out;
+}
+
+/** True when the issuer may collect email and send individual RegTank onboarding for this row. */
+export function isCtosIndividualKycEligibleRow(row: DirectorShareholderDisplayRow): boolean {
+  if (row.type !== "INDIVIDUAL") return false;
+  if (row.ctosIndividualKycEligible === false) return false;
+  return true;
 }
 
 function roleLabelFromCtosOrgDirector(r: CtosOrgDirectorRow): string {
@@ -617,6 +757,9 @@ function buildCtosBackedDisplayRows(
     subjectKind: "INDIVIDUAL" | "CORPORATE" | null;
     lookupKey: string | null;
     ownershipDisplay: string | null;
+    ctosIsDirector: boolean;
+    ctosIsShareholder: boolean;
+    ctosSharePct: number;
   };
 
   const merged = new Map<string, CtosMergedBucket>();
@@ -625,6 +768,8 @@ function buildCtosBackedDisplayRows(
 
   for (const cr of ctosList) {
     const kind = directorSubjectKindFromCtosOrgRow(cr);
+    if (!shouldIncludeCtosCompanyJsonDirectorEntry(kind, cr)) continue;
+
     const lookupKey = ctosPartyNormalizedMergeKey(cr, kind);
     const mapKey = lookupKey ?? `__anon_${anonSeq++}`;
 
@@ -633,6 +778,9 @@ function buildCtosBackedDisplayRows(
     const regDisp = corporateCtosRegDisplayRaw(cr);
     const parts = rolePartsFromCtosOrgDirector(cr);
     const own = ownershipFromCtosDirectorRow(cr);
+    const posCode = ctosPositionCanonicalCode(cr.position);
+    const { isDirector: rowIsDir, isShareholder: rowIsSh } = ctosDirectorShareholderFlagsFromCanonicalCode(posCode);
+    const rowSharePct = equitySharePercentageFromCtosRow(cr);
 
     const existing = merged.get(mapKey);
     if (!existing) {
@@ -646,10 +794,16 @@ function buildCtosBackedDisplayRows(
         subjectKind: kind,
         lookupKey,
         ownershipDisplay: own,
+        ctosIsDirector: rowIsDir,
+        ctosIsShareholder: rowIsSh,
+        ctosSharePct: rowSharePct,
       });
       keyOrder.push(mapKey);
     } else {
       for (const p of parts) existing.roles.add(p);
+      existing.ctosIsDirector = existing.ctosIsDirector || rowIsDir;
+      existing.ctosIsShareholder = existing.ctosIsShareholder || rowIsSh;
+      existing.ctosSharePct = Math.max(existing.ctosSharePct, rowSharePct);
       const nm = (cr.name ?? "").trim();
       if (nm && (existing.name === "Unknown" || !existing.name.trim())) {
         existing.name = nm;
@@ -694,6 +848,9 @@ function buildCtosBackedDisplayRows(
     const status = linkSent ? mapRegtankStatusToDisplay(rsRaw ?? null) : statusBase;
     const canBase = !linkSent && (!email.trim() || statusBase === "Missing");
     const role = mergeRoleLabels(b.roles);
+    const ctosIndividualKycEligible =
+      b.type === "INDIVIDUAL" &&
+      (b.ctosIsDirector || (b.ctosIsShareholder && b.ctosSharePct >= 5));
 
     rows.push({
       id: stableId,
@@ -705,12 +862,13 @@ function buildCtosBackedDisplayRows(
       ownershipDisplay: b.ownershipDisplay,
       email,
       status,
-      canEnterEmail: canBase,
-      canSendOnboarding: canBase,
+      canEnterEmail: canBase && ctosIndividualKycEligible,
+      canSendOnboarding: canBase && ctosIndividualKycEligible,
       enquiryId: b.enquiryId,
       subjectKind: b.subjectKind,
       ctosOnboardingLinkSent: linkSent,
       ctosRegtankStatus: rsRaw ?? null,
+      ctosIndividualKycEligible,
     });
   }
   return rows;

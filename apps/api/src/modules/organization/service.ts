@@ -39,6 +39,7 @@ import { organizationInvitationTemplate } from "../../lib/email/templates";
 import { randomBytes } from "crypto";
 import {
   getDirectorShareholderDisplayRows,
+  isCtosIndividualKycEligibleRow,
   normalizeDirectorShareholderIdKey,
 } from "@cashsouk/types";
 import { RegTankAPIClient } from "../regtank/api-client";
@@ -1484,6 +1485,28 @@ export class OrganizationService {
     if (!partyKey) {
       throw new AppError(400, "VALIDATION_ERROR", "Invalid party key");
     }
+    const entitiesForParty = await this.getCorporateEntities(userId, organizationId, "issuer");
+    const displayRowsForParty = getDirectorShareholderDisplayRows({
+      corporateEntities: entitiesForParty,
+      directorKycStatus: (entitiesForParty.directorKycStatus as Record<string, unknown> | null) ?? null,
+      organizationCtosCompanyJson: entitiesForParty.latestOrganizationCtosCompanyJson ?? null,
+      ctosPartySupplements: entitiesForParty.ctosPartySupplements ?? null,
+      sentRowIds: null,
+    });
+    const partyDisplayRow = displayRowsForParty.find(
+      (r) =>
+        r.type === "INDIVIDUAL" &&
+        (r.id === `ctos-${partyKey}` ||
+          normalizeDirectorShareholderIdKey(r.idNumber) === partyKey ||
+          normalizeDirectorShareholderIdKey(r.enquiryId) === partyKey)
+    );
+    if (!partyDisplayRow || !isCtosIndividualKycEligibleRow(partyDisplayRow)) {
+      throw new AppError(
+        400,
+        "NOT_ELIGIBLE",
+        "Party email can only be saved for individuals eligible for onboarding under CTOS rules"
+      );
+    }
     const email = input.email.trim();
     const existing = await prisma.ctosPartySupplement.findUnique({
       where: {
@@ -1576,6 +1599,13 @@ export class OrganizationService {
     );
     if (!target) {
       throw new AppError(404, "NOT_FOUND", "No CTOS individual party matches this key");
+    }
+    if (!isCtosIndividualKycEligibleRow(target)) {
+      throw new AppError(
+        400,
+        "NOT_ELIGIBLE",
+        "This party is not eligible for individual onboarding under CTOS rules"
+      );
     }
 
     const idGov = String(target.idNumber || target.enquiryId || "").trim();

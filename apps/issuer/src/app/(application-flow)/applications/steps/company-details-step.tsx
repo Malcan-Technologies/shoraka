@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 import { useOrganization, createApiClient, useAuthToken } from "@cashsouk/config";
 import {
   getDirectorShareholderDisplayRows,
+  isCtosIndividualKycEligibleRow,
   type DirectorShareholderDisplayRow,
 } from "@cashsouk/types";
 import { useCorporateInfo } from "@/hooks/use-corporate-info";
@@ -154,6 +155,7 @@ function isValidAddress(addr: Record<string, unknown> | null): boolean {
 }
 
 function directorRowNeedsCompleteOnProfile(row: DirectorShareholderDisplayRow): boolean {
+  if (!isCtosIndividualKycEligibleRow(row)) return false;
   const emptyEmail = !row.email.trim();
   return row.status === "Missing" || emptyEmail;
 }
