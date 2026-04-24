@@ -2,13 +2,13 @@ import { BaseWebhookHandler } from "./base-webhook-handler";
 import { RegTankService } from "../service";
 import { RegTankIndividualOnboardingWebhook, PortalType } from "../types";
 import { logger } from "../../../lib/logger";
-import { AppError } from "../../../lib/http/error-handler";
 import { RegTankRepository } from "../repository";
 import { OrganizationRepository } from "../../organization/repository";
 import { AuthRepository } from "../../auth/repository";
 import { OnboardingStatus, Prisma, UserRole } from "@prisma/client";
 import { NotificationService } from "../../notification/service";
 import { NotificationTypeIds } from "../../notification/registry";
+import { prisma } from "../../../lib/prisma";
 
 /**
  * Individual Onboarding Webhook Handler
@@ -41,12 +41,12 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
     // Find onboarding record
     const onboarding = await this.repository.findByRequestId(requestId);
     if (!onboarding) {
-      logger.warn({ requestId }, "Webhook received for unknown requestId");
-      throw new AppError(
-        404,
-        "ONBOARDING_NOT_FOUND",
-        `Onboarding not found for requestId: ${requestId}`
-      );
+      const handledCtos = await this.tryUpdateCtosPartyOnboardingFromWebhook(requestId, status);
+      if (handledCtos) {
+        return;
+      }
+      logger.warn({ requestId }, "Webhook requestId not found in any flow");
+      return;
     }
 
     // Append to history
@@ -435,6 +435,68 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
         );
       }
     }
+  }
+
+  /**
+   * Issuer CTOS party RegTank individual onboarding: row lives on ctos_party_supplements.onboarding_json only.
+   * Normal org onboarding still uses reg_tank_onboarding (handled above).
+   */
+  private async tryUpdateCtosPartyOnboardingFromWebhook(
+    requestId: string,
+    status: string
+  ): Promise<boolean> {
+    const supplement = await prisma.ctosPartySupplement.findFirst({
+      where: {
+        onboarding_json: {
+          path: ["requestId"],
+          equals: requestId,
+        },
+      },
+    });
+
+    if (!supplement) {
+      return false;
+    }
+
+    const statusUpper = status.toUpperCase();
+    const mappedStatus =
+      statusUpper === "APPROVED"
+        ? "approved"
+        : statusUpper === "REJECTED"
+          ? "rejected"
+          : "pending";
+
+    const prev =
+      supplement.onboarding_json &&
+      typeof supplement.onboarding_json === "object" &&
+      !Array.isArray(supplement.onboarding_json)
+        ? { ...(supplement.onboarding_json as Record<string, unknown>) }
+        : {};
+
+    const updated = {
+      ...prev,
+      status: mappedStatus,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await prisma.ctosPartySupplement.update({
+      where: { id: supplement.id },
+      data: {
+        onboarding_json: updated as Prisma.InputJsonValue,
+      },
+    });
+
+    logger.info(
+      {
+        requestId,
+        status: mappedStatus,
+        partyKey: supplement.party_key,
+        organizationId: supplement.organization_id,
+      },
+      "CTOS onboarding webhook handled"
+    );
+
+    return true;
   }
 }
 
