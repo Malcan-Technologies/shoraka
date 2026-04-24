@@ -96,7 +96,7 @@ export type ReviewApplicationView = {
       fetched_at: string;
       has_report_html: boolean;
     }> | null;
-    ctos_party_supplements?: { party_key: string; email: string }[] | null;
+    ctos_party_supplements?: { party_key: string; onboarding_json?: unknown }[] | null;
   } | null;
 };
 

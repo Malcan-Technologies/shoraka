@@ -367,7 +367,7 @@ interface ApplicationFinancialReviewContentProps {
         fetched_at: string;
         has_report_html: boolean;
       }> | null;
-      ctos_party_supplements?: { party_key: string; email: string }[] | null;
+      ctos_party_supplements?: { party_key: string; onboarding_json?: unknown }[] | null;
     } | null;
     financial_statements?: unknown;
   };
@@ -426,7 +426,7 @@ export function ApplicationFinancialReviewContent({
     if (!raw?.length) return undefined;
     return raw.map((s) => ({
       partyKey: s.party_key,
-      email: s.email,
+      onboardingJson: s.onboarding_json ?? null,
     }));
   }, [app.issuer_organization?.ctos_party_supplements]);
 

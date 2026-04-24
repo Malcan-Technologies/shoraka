@@ -4399,7 +4399,7 @@ export class AdminService {
         })),
         ctos_party_supplements: extras.ctosPartySupplements.map((s) => ({
           party_key: s.partyKey,
-          email: s.email,
+          onboarding_json: s.onboardingJson,
         })),
       } as typeof issuerOrg;
     }

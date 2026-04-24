@@ -542,7 +542,7 @@ export default function ProfilePage() {
         };
         directorKycStatus?: unknown;
         latestOrganizationCtosCompanyJson?: unknown | null;
-        ctosPartySupplements?: { partyKey: string; email: string }[] | null;
+        ctosPartySupplements?: { partyKey: string; onboardingJson?: unknown }[] | null;
       }>(`/v1/organizations/issuer/${activeOrganization.id}`);
       if (!result.success) {
         throw new Error(result.error.message);

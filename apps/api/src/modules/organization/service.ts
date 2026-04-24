@@ -57,6 +57,13 @@ function splitForenameSurname(full: string): { forename: string; surname: string
   return { forename: parts[0], surname: parts.slice(1).join(" ") };
 }
 
+function parseCtosPartyOnboardingJson(v: unknown): Record<string, unknown> {
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    return v as Record<string, unknown>;
+  }
+  return {};
+}
+
 export class OrganizationService {
   private repository: OrganizationRepository;
   private authRepository: AuthRepository;
@@ -1404,7 +1411,7 @@ export class OrganizationService {
       fetched_at: string;
       has_report_html: boolean;
     }>;
-    ctosPartySupplements: { partyKey: string; email: string }[];
+    ctosPartySupplements: { partyKey: string; onboardingJson: unknown }[];
   }> {
     const [report, supplements, subjectRows] = await Promise.all([
       prisma.ctosReport.findFirst({
@@ -1420,7 +1427,7 @@ export class OrganizationService {
       }),
       prisma.ctosPartySupplement.findMany({
         where: { organization_id: organizationId },
-        select: { party_key: true, email: true },
+        select: { party_key: true, onboarding_json: true },
         orderBy: { party_key: "asc" },
       }),
       listLatestCtosSubjectReportsForAdminOrg("issuer", organizationId),
@@ -1439,7 +1446,7 @@ export class OrganizationService {
       })),
       ctosPartySupplements: supplements.map((s) => ({
         partyKey: s.party_key,
-        email: s.email,
+        onboardingJson: s.onboarding_json,
       })),
     };
   }
@@ -1465,6 +1472,16 @@ export class OrganizationService {
       throw new AppError(400, "VALIDATION_ERROR", "Invalid party key");
     }
     const email = input.email.trim();
+    const existing = await prisma.ctosPartySupplement.findUnique({
+      where: {
+        organization_id_party_key: {
+          organization_id: organizationId,
+          party_key: partyKey,
+        },
+      },
+    });
+    const prev = parseCtosPartyOnboardingJson(existing?.onboarding_json);
+    const nextOnboarding = { ...prev, email };
     await prisma.ctosPartySupplement.upsert({
       where: {
         organization_id_party_key: {
@@ -1475,9 +1492,11 @@ export class OrganizationService {
       create: {
         organization_id: organizationId,
         party_key: partyKey,
-        email,
+        onboarding_json: nextOnboarding as Prisma.InputJsonValue,
       },
-      update: { email },
+      update: {
+        onboarding_json: nextOnboarding as Prisma.InputJsonValue,
+      },
     });
     logger.info({ organizationId, partyKey, userId }, "CTOS party supplement email upserted");
     return { success: true };
@@ -1485,7 +1504,7 @@ export class OrganizationService {
 
   /**
    * Trigger RegTank individual onboarding (2.1) for a CTOS director/shareholder party (issuer).
-   * Reuses RegTankAPIClient.createIndividualOnboarding; persists sent party keys on director_kyc_status JSON.
+   * Reuses RegTankAPIClient.createIndividualOnboarding; persists sent state on ctos_party_supplements.onboarding_json.
    */
   async sendDirectorCtosPartyOnboarding(
     userId: string,
@@ -1508,24 +1527,17 @@ export class OrganizationService {
       throw new AppError(400, "VALIDATION_ERROR", "Invalid party key");
     }
 
-    const orgRow = await prisma.issuerOrganization.findUnique({
-      where: { id: organizationId },
-      select: { director_kyc_status: true },
-    });
-    const curKyc = (orgRow?.director_kyc_status as Record<string, unknown>) || {};
-    const sentArr = Array.isArray(curKyc.ctosPartyOnboardingSentKeys)
-      ? [...(curKyc.ctosPartyOnboardingSentKeys as unknown[])].map((x) => String(x))
-      : [];
-    if (sentArr.some((k) => normalizeDirectorShareholderIdKey(k) === pk)) {
-      throw new AppError(400, "ALREADY_SENT", "Onboarding link was already sent for this party");
-    }
-
     const supplement = await prisma.ctosPartySupplement.findUnique({
       where: {
         organization_id_party_key: { organization_id: organizationId, party_key: pk },
       },
     });
-    const supplementEmail = supplement?.email?.trim();
+    const supOb = parseCtosPartyOnboardingJson(supplement?.onboarding_json);
+    if (supOb.sent === true) {
+      throw new AppError(400, "ALREADY_SENT", "Onboarding link was already sent for this party");
+    }
+    const supplementEmail =
+      supOb.email != null ? String(supOb.email).trim() : "";
     if (!supplementEmail) {
       throw new AppError(
         400,
@@ -1601,14 +1613,24 @@ export class OrganizationService {
       );
     }
 
-    const nextSent = [...sentArr, pk];
-    await prisma.issuerOrganization.update({
-      where: { id: organizationId },
-      data: {
-        director_kyc_status: {
-          ...curKyc,
-          ctosPartyOnboardingSentKeys: nextSent,
-        } as Prisma.InputJsonValue,
+    const nextOnboarding = {
+      ...supOb,
+      email: supplementEmail,
+      sent: true,
+      requestId,
+      sentAt: new Date().toISOString(),
+    };
+    await prisma.ctosPartySupplement.upsert({
+      where: {
+        organization_id_party_key: { organization_id: organizationId, party_key: pk },
+      },
+      create: {
+        organization_id: organizationId,
+        party_key: pk,
+        onboarding_json: nextOnboarding as Prisma.InputJsonValue,
+      },
+      update: {
+        onboarding_json: nextOnboarding as Prisma.InputJsonValue,
       },
     });
 
@@ -1624,7 +1646,6 @@ export class OrganizationService {
     directors: Array<Record<string, unknown>>;
     shareholders: Array<Record<string, unknown>>;
     corporateShareholders: Array<Record<string, unknown>>;
-    /** Includes optional `ctosPartyOnboardingSentKeys` for CTOS director invite state. */
     directorKycStatus?: Record<string, unknown> | null;
     latestOrganizationCtosCompanyJson?: unknown | null;
     latestOrganizationCtosFinancialsJson?: unknown | null;
@@ -1637,7 +1658,7 @@ export class OrganizationService {
       fetched_at: string;
       has_report_html: boolean;
     }>;
-    ctosPartySupplements?: { partyKey: string; email: string }[];
+    ctosPartySupplements?: { partyKey: string; onboardingJson: unknown }[];
   }> {
     // Verify access
     await this.getOrganization(userId, organizationId, portalType);
@@ -1657,17 +1678,10 @@ export class OrganizationService {
 
     const entities = (organization?.corporate_entities as any) || {};
     const raw = organization?.director_kyc_status as Record<string, unknown> | null | undefined;
-    let directorKyc: Record<string, unknown> | null = null;
-    if (raw && typeof raw === "object") {
-      if (Array.isArray(raw.directors)) {
-        directorKyc = raw as Record<string, unknown>;
-      } else {
-        directorKyc = {
-          ...raw,
-          directors: Array.isArray(raw.directors) ? raw.directors : [],
-        };
-      }
-    }
+    const directorKyc =
+      raw && typeof raw === "object" && Array.isArray(raw.directors)
+        ? (raw as Record<string, unknown>)
+        : null;
 
     const base = {
       directors: entities.directors || [],

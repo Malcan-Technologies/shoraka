@@ -36,7 +36,7 @@ export interface DirectorShareholdersUnifiedSectionProps {
   corporateEntities: unknown;
   directorKycStatus: unknown;
   organizationCtosCompanyJson?: unknown | null;
-  ctosPartySupplements?: { partyKey: string; email: string }[] | null;
+  ctosPartySupplements?: { partyKey: string; onboardingJson?: unknown }[] | null;
   className?: string;
   /** Highlight rows with Missing status or empty email (issuer profile). */
   highlightActionRequiredRows?: boolean;
