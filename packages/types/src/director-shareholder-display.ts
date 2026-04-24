@@ -2,7 +2,7 @@
  * SECTION: Director / shareholder display rows
  * WHY: One source of truth for issuer profile, company-details step, and admin financial tab
  * INPUT: corporate_entities JSON, director_kyc_status JSON, optional organization CTOS company_json
- * OUTPUT: merged rows with strict IC/SSM matching when CTOS list is used
+ * OUTPUT: merged rows (CTOS: one row per IC/SSM; onboarding: existing merge) with strict ID matching
  * WHERE USED: apps/issuer, apps/admin (via @cashsouk/types)
  */
 
@@ -89,10 +89,35 @@ function extractCtosOrgDirectorsFromCompanyJson(companyJson: unknown): CtosOrgDi
   return out;
 }
 
-function primaryCtosIdFromDirectorRow(r: CtosOrgDirectorRow): string {
-  const a = r.nic_brno != null ? String(r.nic_brno).trim() : "";
-  const b = r.ic_lcno != null ? String(r.ic_lcno).trim() : "";
-  return a || b;
+/** IC / government id display for individual CTOS parties (prefer ic_lcno). */
+function individualCtosIdDisplayRaw(r: CtosOrgDirectorRow): string {
+  const ic = (r.ic_lcno ?? "").trim();
+  const nic = (r.nic_brno ?? "").trim();
+  return ic || nic;
+}
+
+/** SSM / registration display for corporate CTOS parties (prefer nic_brno). */
+function corporateCtosRegDisplayRaw(r: CtosOrgDirectorRow): string {
+  const ssm = (r.nic_brno ?? "").trim();
+  const ic = (r.ic_lcno ?? "").trim();
+  return ssm || ic;
+}
+
+/**
+ * Normalized merge key for CTOS rows: same person → one bucket.
+ * INDIVIDUAL → IC / gov id; COMPANY → SSM / registration (not name-based).
+ */
+function ctosPartyNormalizedMergeKey(
+  r: CtosOrgDirectorRow,
+  kind: "INDIVIDUAL" | "CORPORATE" | null
+): string | null {
+  if (kind === "INDIVIDUAL") {
+    return normalizeDirectorShareholderIdKey(individualCtosIdDisplayRaw(r) || null);
+  }
+  if (kind === "CORPORATE") {
+    return normalizeDirectorShareholderIdKey(corporateCtosRegDisplayRaw(r) || null);
+  }
+  return null;
 }
 
 function ctosPositionCanonicalCode(position: string | null | undefined): string | null {
@@ -106,6 +131,11 @@ function roleLabelFromCtosOrgDirector(r: CtosOrgDirectorRow): string {
   if (c && CTOS_POSITION_LABEL_BY_CODE[c]) return CTOS_POSITION_LABEL_BY_CODE[c];
   const p = (r.position ?? "").trim();
   return p || "Director";
+}
+
+function rolePartsFromCtosOrgDirector(r: CtosOrgDirectorRow): string[] {
+  const label = roleLabelFromCtosOrgDirector(r);
+  return label.split(",").map((s) => s.trim()).filter(Boolean);
 }
 
 function directorSubjectKindFromCtosOrgRow(r: CtosOrgDirectorRow): "INDIVIDUAL" | "CORPORATE" | null {
@@ -549,39 +579,106 @@ function buildCtosBackedDisplayRows(
 ): DirectorShareholderDisplayRow[] {
   const kycById = buildKycByNormalizedId(directorKycStatus);
   const ctosList = extractCtosOrgDirectorsFromCompanyJson(companyJson);
-  const rows: DirectorShareholderDisplayRow[] = [];
-  let seq = 0;
+
+  type CtosMergedBucket = {
+    roles: Set<string>;
+    name: string;
+    type: DirectorShareholderPartyType;
+    idNumber: string | null;
+    registrationNumber: string | null;
+    enquiryId: string | null;
+    subjectKind: "INDIVIDUAL" | "CORPORATE" | null;
+    lookupKey: string | null;
+    ownershipDisplay: string | null;
+  };
+
+  const merged = new Map<string, CtosMergedBucket>();
+  const keyOrder: string[] = [];
+  let anonSeq = 0;
+
   for (const cr of ctosList) {
-    const primaryRaw = primaryCtosIdFromDirectorRow(cr);
-    const idKey = normalizeDirectorShareholderIdKey(primaryRaw);
     const kind = directorSubjectKindFromCtosOrgRow(cr);
-    const id = `ctos-${seq++}-${idKey ?? "noid"}`;
-    const matched = idKey ? kycById.get(idKey) : undefined;
-    const statusBase = !idKey ? "Missing" : matched?.status ? matched.status : "Missing";
-    const fromSupplement = idKey ? supplementEmailByPartyKey.get(idKey) : undefined;
+    const lookupKey = ctosPartyNormalizedMergeKey(cr, kind);
+    const mapKey = lookupKey ?? `__anon_${anonSeq++}`;
+
+    const party: DirectorShareholderPartyType = kind === "CORPORATE" ? "COMPANY" : "INDIVIDUAL";
+    const idDisp = individualCtosIdDisplayRaw(cr);
+    const regDisp = corporateCtosRegDisplayRaw(cr);
+    const parts = rolePartsFromCtosOrgDirector(cr);
+    const own = ownershipFromCtosDirectorRow(cr);
+
+    const existing = merged.get(mapKey);
+    if (!existing) {
+      merged.set(mapKey, {
+        roles: new Set(parts),
+        name: (cr.name ?? "").trim() || "Unknown",
+        type: party,
+        idNumber: party === "INDIVIDUAL" ? (idDisp || null) : null,
+        registrationNumber: party === "COMPANY" ? (regDisp || null) : null,
+        enquiryId: party === "INDIVIDUAL" ? (idDisp || null) : (regDisp || null),
+        subjectKind: kind,
+        lookupKey,
+        ownershipDisplay: own,
+      });
+      keyOrder.push(mapKey);
+    } else {
+      for (const p of parts) existing.roles.add(p);
+      const nm = (cr.name ?? "").trim();
+      if (nm && (existing.name === "Unknown" || !existing.name.trim())) {
+        existing.name = nm;
+      }
+      if (own && !existing.ownershipDisplay) {
+        existing.ownershipDisplay = own;
+      }
+      if (existing.type === "INDIVIDUAL") {
+        if (idDisp && !existing.idNumber?.trim()) {
+          existing.idNumber = idDisp;
+        }
+        if (idDisp && !existing.enquiryId?.trim()) {
+          existing.enquiryId = idDisp;
+        }
+      } else {
+        if (regDisp && !existing.registrationNumber?.trim()) {
+          existing.registrationNumber = regDisp;
+        }
+        if (regDisp && !existing.enquiryId?.trim()) {
+          existing.enquiryId = regDisp;
+        }
+      }
+    }
+  }
+
+  const rows: DirectorShareholderDisplayRow[] = [];
+  let anonOut = 0;
+  for (const mapKey of keyOrder) {
+    const b = merged.get(mapKey)!;
+    const idKeyNorm = b.lookupKey;
+    const stableId = idKeyNorm ? `ctos-${idKeyNorm}` : `ctos-anon-${anonOut++}`;
+
+    const matched = idKeyNorm ? kycById.get(idKeyNorm) : undefined;
+    const statusBase = !idKeyNorm ? "Missing" : matched?.status ? matched.status : "Missing";
+    const fromSupplement = idKeyNorm ? supplementEmailByPartyKey.get(idKeyNorm) : undefined;
     const kycEmail = matched?.email?.trim() ?? "";
     const email = (fromSupplement && fromSupplement.trim()) || kycEmail;
-    const sent = Boolean(sentRowIds?.has(id));
+    const sent = Boolean(sentRowIds?.has(stableId));
     const status = sent ? "Sent" : statusBase;
-    const party: DirectorShareholderPartyType = kind === "CORPORATE" ? "COMPANY" : "INDIVIDUAL";
-    const idNumber = party === "INDIVIDUAL" ? (primaryRaw.trim() || null) : null;
-    const registrationNumber = party === "COMPANY" ? (primaryRaw.trim() || null) : null;
     const canBase = !sent && (!email.trim() || statusBase === "Missing");
-    const ctosOwn = ownershipFromCtosDirectorRow(cr);
+    const role = mergeRoleLabels(b.roles);
+
     rows.push({
-      id,
-      name: (cr.name ?? "").trim() || "Unknown",
-      role: roleLabelFromCtosOrgDirector(cr),
-      type: party,
-      idNumber,
-      registrationNumber,
-      ownershipDisplay: ctosOwn,
+      id: stableId,
+      name: b.name,
+      role,
+      type: b.type,
+      idNumber: b.idNumber,
+      registrationNumber: b.registrationNumber,
+      ownershipDisplay: b.ownershipDisplay,
       email,
       status,
       canEnterEmail: canBase,
       canSendOnboarding: canBase,
-      enquiryId: primaryRaw.trim() || null,
-      subjectKind: kind,
+      enquiryId: b.enquiryId,
+      subjectKind: b.subjectKind,
     });
   }
   return rows;
