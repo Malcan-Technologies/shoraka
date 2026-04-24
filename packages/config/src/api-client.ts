@@ -423,35 +423,6 @@ export class ApiClient {
     );
   }
 
-  async listAdminApplicationCtosReports(
-    applicationId: string
-  ): Promise<ApiResponse<AdminCtosReportListItem[]> | ApiError> {
-    return this.get<AdminCtosReportListItem[]>(`/v1/admin/applications/${applicationId}/ctos-reports`);
-  }
-
-  async createAdminApplicationCtosReport(
-    applicationId: string
-  ): Promise<ApiResponse<AdminCtosReportListItem> | ApiError> {
-    return this.post<AdminCtosReportListItem>(`/v1/admin/applications/${applicationId}/ctos-reports`, {});
-  }
-
-  async listAdminApplicationCtosSubjectReports(
-    applicationId: string
-  ): Promise<ApiResponse<AdminCtosReportListItem[]> | ApiError> {
-    return this.get<AdminCtosReportListItem[]>(`/v1/admin/applications/${applicationId}/ctos-subject-reports`);
-  }
-
-  async createAdminApplicationCtosSubjectReport(
-    applicationId: string,
-    body: {
-      subjectRef: string;
-      subjectKind: "INDIVIDUAL" | "CORPORATE";
-      enquiryOverride?: { displayName: string; idNumber: string };
-    }
-  ): Promise<ApiResponse<AdminCtosReportListItem> | ApiError> {
-    return this.post<AdminCtosReportListItem>(`/v1/admin/applications/${applicationId}/ctos-subject-reports`, body);
-  }
-
   async listAdminOrganizationCtosReports(
     portal: "issuer" | "investor",
     organizationId: string
@@ -468,6 +439,30 @@ export class ApiClient {
     return this.post<AdminCtosReportListItem>(
       `/v1/admin/organizations/${portal}/${encodeURIComponent(organizationId)}/ctos-reports`,
       {}
+    );
+  }
+
+  async listAdminOrganizationCtosSubjectReports(
+    portal: "issuer" | "investor",
+    organizationId: string
+  ): Promise<ApiResponse<AdminCtosReportListItem[]> | ApiError> {
+    return this.get<AdminCtosReportListItem[]>(
+      `/v1/admin/organizations/${portal}/${encodeURIComponent(organizationId)}/ctos-subject-reports`
+    );
+  }
+
+  async createAdminOrganizationCtosSubjectReport(
+    portal: "issuer" | "investor",
+    organizationId: string,
+    body: {
+      subjectRef: string;
+      subjectKind: "INDIVIDUAL" | "CORPORATE";
+      enquiryOverride?: { displayName: string; idNumber: string };
+    }
+  ): Promise<ApiResponse<AdminCtosReportListItem> | ApiError> {
+    return this.post<AdminCtosReportListItem>(
+      `/v1/admin/organizations/${portal}/${encodeURIComponent(organizationId)}/ctos-subject-reports`,
+      body
     );
   }
 

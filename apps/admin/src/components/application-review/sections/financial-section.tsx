@@ -9,10 +9,21 @@ import { ApplicationFinancialReviewComparison } from "@/components/application-f
 
 export type FinancialSectionAppSlice = {
   issuer_organization?: {
+    id?: string;
     corporate_entities?: unknown;
     director_kyc_status?: unknown;
     director_aml_status?: unknown;
     latest_organization_ctos_company_json?: unknown | null;
+    latest_organization_ctos_financials_json?: unknown | null;
+    latest_organization_ctos_report_id?: string | null;
+    latest_organization_ctos_fetched_at?: string | null;
+    latest_organization_ctos_has_report_html?: boolean | null;
+    latest_organization_ctos_subject_reports?: Array<{
+      id: string;
+      subject_ref: string | null;
+      fetched_at: string;
+      has_report_html: boolean;
+    }> | null;
     ctos_party_supplements?: { party_key: string; email: string }[] | null;
   } | null;
   financial_statements?: unknown;
@@ -20,6 +31,7 @@ export type FinancialSectionAppSlice = {
 
 export interface FinancialSectionProps {
   applicationId: string;
+  issuerOrganizationId?: string | null;
   app: FinancialSectionAppSlice;
   section: ReviewSectionId;
   isReviewable: boolean;
@@ -43,6 +55,7 @@ export interface FinancialSectionProps {
 
 export function FinancialSection({
   applicationId,
+  issuerOrganizationId,
   app,
   section,
   isReviewable,
@@ -89,7 +102,11 @@ export function FinancialSection({
       onReject={onReject}
       onRequestAmendment={onRequestAmendment}
     >
-      <ApplicationFinancialReviewContent applicationId={applicationId} app={app} />
+      <ApplicationFinancialReviewContent
+        applicationId={applicationId}
+        issuerOrganizationId={issuerOrganizationId ?? app.issuer_organization?.id ?? null}
+        app={app}
+      />
       {!hideSectionComments ? (
         <SectionComments comments={comments} onSubmitComment={onAddComment} />
       ) : null}

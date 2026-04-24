@@ -321,6 +321,11 @@ async function getOrganization(
           ssmChecked: org.ssm_checked ?? false,
           ...(issuerPartyExtras && {
             latestOrganizationCtosCompanyJson: issuerPartyExtras.latestOrganizationCtosCompanyJson,
+            latestOrganizationCtosFinancialsJson: issuerPartyExtras.latestOrganizationCtosFinancialsJson,
+            latestOrganizationCtosReportId: issuerPartyExtras.latestOrganizationCtosReportId,
+            latestOrganizationCtosFetchedAt: issuerPartyExtras.latestOrganizationCtosFetchedAt,
+            latestOrganizationCtosHasReportHtml: issuerPartyExtras.latestOrganizationCtosHasReportHtml,
+            latestOrganizationCtosSubjectReports: issuerPartyExtras.latestOrganizationCtosSubjectReports,
             ctosPartySupplements: issuerPartyExtras.ctosPartySupplements,
           }),
         }),

@@ -35,6 +35,7 @@ import { sendEmail } from "../../lib/email/ses-client";
 import { organizationInvitationTemplate } from "../../lib/email/templates";
 import { randomBytes } from "crypto";
 import { normalizeDirectorShareholderIdKey } from "@cashsouk/types";
+import { listLatestCtosSubjectReportsForAdminOrg } from "../ctos/ctos-report-service";
 
 const cognitoClient = new CognitoIdentityProviderClient({
   region: process.env.AWS_REGION || "ap-southeast-5",
@@ -1378,22 +1379,49 @@ export class OrganizationService {
    */
   async getIssuerPartyListExtras(organizationId: string): Promise<{
     latestOrganizationCtosCompanyJson: unknown | null;
+    latestOrganizationCtosFinancialsJson: unknown | null;
+    latestOrganizationCtosReportId: string | null;
+    latestOrganizationCtosFetchedAt: string | null;
+    latestOrganizationCtosHasReportHtml: boolean;
+    latestOrganizationCtosSubjectReports: Array<{
+      id: string;
+      subject_ref: string | null;
+      fetched_at: string;
+      has_report_html: boolean;
+    }>;
     ctosPartySupplements: { partyKey: string; email: string }[];
   }> {
-    const [report, supplements] = await Promise.all([
+    const [report, supplements, subjectRows] = await Promise.all([
       prisma.ctosReport.findFirst({
         where: { issuer_organization_id: organizationId, subject_ref: null },
         orderBy: { fetched_at: "desc" },
-        select: { company_json: true },
+        select: {
+          id: true,
+          company_json: true,
+          financials_json: true,
+          report_html: true,
+          fetched_at: true,
+        },
       }),
       prisma.ctosPartySupplement.findMany({
         where: { organization_id: organizationId },
         select: { party_key: true, email: true },
         orderBy: { party_key: "asc" },
       }),
+      listLatestCtosSubjectReportsForAdminOrg("issuer", organizationId),
     ]);
     return {
       latestOrganizationCtosCompanyJson: report?.company_json ?? null,
+      latestOrganizationCtosFinancialsJson: report?.financials_json ?? null,
+      latestOrganizationCtosReportId: report?.id ?? null,
+      latestOrganizationCtosFetchedAt: report?.fetched_at ? report.fetched_at.toISOString() : null,
+      latestOrganizationCtosHasReportHtml: Boolean(report?.report_html && report.report_html.length > 0),
+      latestOrganizationCtosSubjectReports: subjectRows.map((r) => ({
+        id: r.id,
+        subject_ref: r.subject_ref ?? null,
+        fetched_at: r.fetched_at instanceof Date ? r.fetched_at.toISOString() : String(r.fetched_at),
+        has_report_html: r.has_report_html,
+      })),
       ctosPartySupplements: supplements.map((s) => ({
         partyKey: s.party_key,
         email: s.email,
@@ -1465,6 +1493,16 @@ export class OrganizationService {
       corpBizShareholderCount: number;
     } | null;
     latestOrganizationCtosCompanyJson?: unknown | null;
+    latestOrganizationCtosFinancialsJson?: unknown | null;
+    latestOrganizationCtosReportId?: string | null;
+    latestOrganizationCtosFetchedAt?: string | null;
+    latestOrganizationCtosHasReportHtml?: boolean;
+    latestOrganizationCtosSubjectReports?: Array<{
+      id: string;
+      subject_ref: string | null;
+      fetched_at: string;
+      has_report_html: boolean;
+    }>;
     ctosPartySupplements?: { partyKey: string; email: string }[];
   }> {
     // Verify access
@@ -1516,6 +1554,11 @@ export class OrganizationService {
       return {
         ...base,
         latestOrganizationCtosCompanyJson: extras.latestOrganizationCtosCompanyJson,
+        latestOrganizationCtosFinancialsJson: extras.latestOrganizationCtosFinancialsJson,
+        latestOrganizationCtosReportId: extras.latestOrganizationCtosReportId,
+        latestOrganizationCtosFetchedAt: extras.latestOrganizationCtosFetchedAt,
+        latestOrganizationCtosHasReportHtml: extras.latestOrganizationCtosHasReportHtml,
+        latestOrganizationCtosSubjectReports: extras.latestOrganizationCtosSubjectReports,
         ctosPartySupplements: extras.ctosPartySupplements,
       };
     }

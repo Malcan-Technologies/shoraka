@@ -4387,6 +4387,16 @@ export class AdminService {
       issuerOrganizationPayload = {
         ...issuerOrg,
         latest_organization_ctos_company_json: extras.latestOrganizationCtosCompanyJson,
+        latest_organization_ctos_financials_json: extras.latestOrganizationCtosFinancialsJson,
+        latest_organization_ctos_report_id: extras.latestOrganizationCtosReportId,
+        latest_organization_ctos_fetched_at: extras.latestOrganizationCtosFetchedAt,
+        latest_organization_ctos_has_report_html: extras.latestOrganizationCtosHasReportHtml,
+        latest_organization_ctos_subject_reports: extras.latestOrganizationCtosSubjectReports.map((r) => ({
+          id: r.id,
+          subject_ref: r.subject_ref,
+          fetched_at: r.fetched_at,
+          has_report_html: r.has_report_html,
+        })),
         ctos_party_supplements: extras.ctosPartySupplements.map((s) => ({
           party_key: s.partyKey,
           email: s.email,

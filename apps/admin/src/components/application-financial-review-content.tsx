@@ -51,11 +51,9 @@ import {
 import { toast } from "sonner";
 import { format, isValid, parse, parseISO } from "date-fns";
 import {
-  useAdminApplicationCtosReports,
-  useAdminApplicationCtosSubjectReports,
-  useCreateAdminApplicationCtosReport,
-  useCreateAdminApplicationCtosSubjectReport,
-} from "@/hooks/use-admin-application-ctos-reports";
+  useCreateIssuerOrganizationCtosReport,
+  useCreateIssuerOrganizationCtosSubjectReport,
+} from "@/hooks/use-admin-issuer-organization-ctos-mutations";
 import { CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -352,24 +350,45 @@ function subjectLastFetchDisplay(params: {
 
 interface ApplicationFinancialReviewContentProps {
   applicationId: string;
+  issuerOrganizationId: string | null;
   app: {
     issuer_organization?: {
       corporate_entities?: unknown;
       director_kyc_status?: unknown;
       director_aml_status?: unknown;
       latest_organization_ctos_company_json?: unknown | null;
+      latest_organization_ctos_financials_json?: unknown | null;
+      latest_organization_ctos_report_id?: string | null;
+      latest_organization_ctos_fetched_at?: string | null;
+      latest_organization_ctos_has_report_html?: boolean | null;
+      latest_organization_ctos_subject_reports?: Array<{
+        id: string;
+        subject_ref: string | null;
+        fetched_at: string;
+        has_report_html: boolean;
+      }> | null;
       ctos_party_supplements?: { party_key: string; email: string }[] | null;
     } | null;
     financial_statements?: unknown;
   };
 }
 
-export function ApplicationFinancialReviewContent({ applicationId, app }: ApplicationFinancialReviewContentProps) {
+export function ApplicationFinancialReviewContent({
+  applicationId,
+  issuerOrganizationId,
+  app,
+}: ApplicationFinancialReviewContentProps) {
+  const issuerOrgId = issuerOrganizationId?.trim() ?? "";
   const { getAccessToken } = useAuthToken();
-  const { data: ctosList, isLoading: ctosLoading } = useAdminApplicationCtosReports(applicationId);
-  const createCtos = useCreateAdminApplicationCtosReport(applicationId);
-  const { data: ctosSubjectList, isLoading: ctosSubjectLoading } = useAdminApplicationCtosSubjectReports(applicationId);
-  const createSubjectCtos = useCreateAdminApplicationCtosSubjectReport(applicationId);
+  const createOrgCtos = useCreateIssuerOrganizationCtosReport(
+    issuerOrgId || undefined,
+    applicationId
+  );
+  const createSubjectCtos = useCreateIssuerOrganizationCtosSubjectReport(
+    issuerOrgId || undefined,
+    applicationId
+  );
+  const ctosSubjectLoading = false;
   const [orgCtosConfirmOpen, setOrgCtosConfirmOpen] = React.useState(false);
   const [subjectCtosConfirm, setSubjectCtosConfirm] = React.useState<{
     row: DirectorShareholderRow;
@@ -378,22 +397,25 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
 
   const subjectReportByRef = React.useMemo(() => {
     const m = new Map<string, { id: string; has_report_html: boolean; fetched_at: string }>();
-    for (const r of ctosSubjectList ?? []) {
+    const raw = app.issuer_organization?.latest_organization_ctos_subject_reports;
+    for (const r of raw ?? []) {
       const ref = r.subject_ref;
       if (!ref) continue;
       const k = ref.trim().replace(/\s+/g, "").toLowerCase();
-      m.set(k, { id: r.id, has_report_html: Boolean(r.has_report_html), fetched_at: r.fetched_at });
+      m.set(k, {
+        id: r.id,
+        has_report_html: Boolean(r.has_report_html),
+        fetched_at: r.fetched_at,
+      });
     }
     return m;
-  }, [ctosSubjectList]);
+  }, [app.issuer_organization?.latest_organization_ctos_subject_reports]);
 
   const { unauditedByYear, questionnaire: financialQuestionnaire } = React.useMemo(
     () => extractQuestionnaireAndUnaudited(app.financial_statements),
     [app.financial_statements]
   );
   const hasIssuerFinancialData = Object.keys(unauditedByYear).length > 0;
-
-  const latestCtos = ctosList?.[0];
 
   /** Director/shareholder rows: organization-level CTOS only (`getDirectorShareholderDisplayRows` falls back to onboarding when unusable). */
   const latestOrganizationCtosCompanyJson =
@@ -421,16 +443,16 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
   );
 
   const financialRows: CtosFinRow[] = React.useMemo(() => {
-    const raw = latestCtos?.financials_json;
+    const raw = app.issuer_organization?.latest_organization_ctos_financials_json;
     if (!raw || !Array.isArray(raw)) return [];
     return raw as CtosFinRow[];
-  }, [latestCtos]);
+  }, [app.issuer_organization?.latest_organization_ctos_financials_json]);
 
   const ctosFetchState = React.useMemo((): CtosFetchState => {
-    if (!latestCtos) return "not_pulled";
+    if (!app.issuer_organization?.latest_organization_ctos_report_id) return "not_pulled";
     if (financialRows.length === 0) return "no_records";
     return "has_data";
-  }, [latestCtos, financialRows]);
+  }, [app.issuer_organization?.latest_organization_ctos_report_id, financialRows.length]);
 
   const byYear = React.useMemo(() => {
     const m = new Map<number, CtosFinRow>();
@@ -583,8 +605,12 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
   };
 
   const onGetCtos = () => {
+    if (!issuerOrgId) {
+      toast.error("Issuer organization is missing.");
+      return;
+    }
     const t = toast.loading("Fetching CTOS report…");
-    createCtos.mutate(undefined, {
+    createOrgCtos.mutate(undefined, {
       onSuccess: () => {
         toast.dismiss(t);
         toast.success("CTOS report saved.");
@@ -597,13 +623,14 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
   };
 
   const openFullReport = async () => {
-    if (!latestCtos?.id) return;
+    const reportId = app.issuer_organization?.latest_organization_ctos_report_id;
+    if (!reportId || !issuerOrgId) return;
     const token = await getAccessToken();
     if (!token) {
       toast.error("Not signed in");
       return;
     }
-    const url = `${API_URL}/v1/admin/applications/${applicationId}/ctos-reports/${latestCtos.id}/html`;
+    const url = `${API_URL}/v1/admin/organizations/issuer/${encodeURIComponent(issuerOrgId)}/ctos-reports/${reportId}/html`;
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (!res.ok) {
       toast.error("Could not load full report");
@@ -618,12 +645,13 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
   };
 
   const openSubjectHtmlReport = async (reportId: string) => {
+    if (!issuerOrgId) return;
     const token = await getAccessToken();
     if (!token) {
       toast.error("Not signed in");
       return;
     }
-    const url = `${API_URL}/v1/admin/applications/${applicationId}/ctos-reports/${reportId}/html`;
+    const url = `${API_URL}/v1/admin/organizations/issuer/${encodeURIComponent(issuerOrgId)}/ctos-reports/${reportId}/html`;
     const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (!res.ok) {
       toast.error("Could not load report");
@@ -859,8 +887,9 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
     }
   };
 
-  const fetchedLabel = latestCtos?.fetched_at
-    ? new Date(latestCtos.fetched_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+  const orgCtosFetchedAt = app.issuer_organization?.latest_organization_ctos_fetched_at;
+  const fetchedLabel = orgCtosFetchedAt
+    ? new Date(orgCtosFetchedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
     : null;
 
   const hadCtosUnauditedOverride = adminUserYears.some((y) => ctosFinancialYearsSet.has(y));
@@ -889,7 +918,9 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
               </p>
               {ctosFetchState === "not_pulled" || hadCtosUnauditedOverride ? (
                 <div className="space-y-1 rounded-lg border border-border/70 bg-muted/25 px-3 py-2 text-xs text-muted-foreground">
-                  {ctosFetchState === "not_pulled" ? <p className="m-0">Organization CTOS has not been fetched for this application yet.</p> : null}
+                  {ctosFetchState === "not_pulled" ? (
+                    <p className="m-0">Organization CTOS has not been fetched for this issuer organization yet.</p>
+                  ) : null}
                   {hadCtosUnauditedOverride ? <p className="m-0">Latest year already exists in CTOS.</p> : null}
                 </div>
               ) : null}
@@ -910,7 +941,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                   variant="outline"
                   size="sm"
                   className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}
-                  disabled={!latestCtos?.has_report_html || ctosLoading}
+                  disabled={!app.issuer_organization?.latest_organization_ctos_has_report_html}
                   onClick={() => void openFullReport()}
                 >
                   {CTOS_UI.viewReport}
@@ -919,10 +950,10 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                   variant="secondary"
                   size="sm"
                   className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}
-                  disabled={createCtos.isPending || ctosLoading}
+                  disabled={createOrgCtos.isPending || !issuerOrgId}
                   onClick={() => setOrgCtosConfirmOpen(true)}
                 >
-                  {createCtos.isPending ? CTOS_UI.fetching : CTOS_UI.fetchReport}
+                  {createOrgCtos.isPending ? CTOS_UI.fetching : CTOS_UI.fetchReport}
                 </Button>
               </div>
             </div>
@@ -1221,17 +1252,17 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
             <AlertDialogDescription>{CTOS_CONFIRM.organizationDescription}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-lg" disabled={createCtos.isPending}>
+            <AlertDialogCancel className="rounded-lg" disabled={createOrgCtos.isPending}>
               {CTOS_CONFIRM.cancel}
             </AlertDialogCancel>
             <AlertDialogAction
               className={cn(buttonVariants({ variant: "secondary" }), "rounded-lg")}
-              disabled={createCtos.isPending}
+              disabled={createOrgCtos.isPending}
               onClick={() => {
                 onGetCtos();
               }}
             >
-              {createCtos.isPending ? CTOS_UI.fetching : CTOS_CONFIRM.primaryAction}
+              {createOrgCtos.isPending ? CTOS_UI.fetching : CTOS_CONFIRM.primaryAction}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
