@@ -16,6 +16,7 @@ import { OrganizationRepository } from "../organization/repository";
 import { AuthRepository } from "../auth/repository";
 import { getRegTankConfig } from "../../config/regtank";
 import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-onboarding-status";
+import { mapRegtankIndividualLivenessRawToInternalStatus } from "@cashsouk/types";
 
 export class RegTankService {
   private repository: RegTankRepository;
@@ -1412,27 +1413,7 @@ export class RegTankService {
     // IN_PROGRESS → PENDING_APPROVAL → PENDING_AML → COMPLETED/APPROVED
     // Note: Final approval is done on our side, not in RegTank
 
-    // Map RegTank status to our internal status
-    let internalStatus = statusUpper;
-
-    // Map form filling statuses (before liveness test)
-    if (
-      statusUpper === "PROCESSING" ||
-      statusUpper === "ID_UPLOADED" ||
-      statusUpper === "LIVENESS_STARTED"
-    ) {
-      internalStatus = "FORM_FILLING";
-    } else if (statusUpper === "LIVENESS_PASSED") {
-      internalStatus = "LIVENESS_PASSED";
-    } else if (statusUpper === "WAIT_FOR_APPROVAL") {
-      internalStatus = "PENDING_APPROVAL";
-    } else if (statusUpper === "APPROVED") {
-      // When RegTank approves, set status to PENDING_AML (not APPROVED)
-      // Final approval (COMPLETED) happens on our side after AML approval
-      internalStatus = "PENDING_AML";
-    } else if (statusUpper === "REJECTED") {
-      internalStatus = statusUpper;
-    }
+    const internalStatus = mapRegtankIndividualLivenessRawToInternalStatus(status);
 
     // Detect when liveness test is completed (for organization status updates)
     const isLivenessCompleted =

@@ -759,14 +759,6 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
     return this.provider === "DOWJONES" ? "DOW_JONES" : "ACURIS";
   }
 
-  private mapCtosKycStatus(raw: string | undefined): "approved" | "rejected" | "pending" {
-    const u = (raw || "").toUpperCase();
-    if (u === "APPROVED") return "approved";
-    if (u === "REJECTED" || u === "FAILED") return "rejected";
-    if (u === "PROCESSING" || u === "PENDING" || u === "WAIT_FOR_APPROVAL") return "pending";
-    return "pending";
-  }
-
   /**
    * Issuer CTOS party individual onboarding: no reg_tank_onboarding row; match supplement by onboarding_json.requestId or referenceId.
    */
@@ -802,13 +794,21 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
         ? { ...(supplement.onboarding_json as Record<string, unknown>) }
         : {};
 
-    const mappedStatus = this.mapCtosKycStatus(status);
     const rawStatus = (status || "").toUpperCase();
+    const prevRt =
+      typeof prev.regtankStatus === "string" && prev.regtankStatus.trim()
+        ? prev.regtankStatus.trim()
+        : "";
+    const regtankStatus =
+      rawStatus === "APPROVED"
+        ? "APPROVED"
+        : rawStatus === "REJECTED" || rawStatus === "FAILED"
+          ? "REJECTED"
+          : prevRt || "PENDING_AML";
 
     const kycBlock: Record<string, unknown> = {
       provider: this.kycProviderLabel(),
       requestId,
-      status: mappedStatus,
       rawStatus,
       riskLevel: riskLevel ?? "",
       riskScore: riskScore ?? "",
@@ -819,8 +819,11 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
       kycBlock.messageStatus = messageStatus;
     }
 
+    const prevRest = { ...prev };
+    delete prevRest.status;
     const updated = {
-      ...prev,
+      ...prevRest,
+      regtankStatus,
       kyc: kycBlock,
       updatedAt: new Date().toISOString(),
     };

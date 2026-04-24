@@ -9,6 +9,7 @@ import { OnboardingStatus, Prisma, UserRole } from "@prisma/client";
 import { NotificationService } from "../../notification/service";
 import { NotificationTypeIds } from "../../notification/registry";
 import { prisma } from "../../../lib/prisma";
+import { mapRegtankIndividualLivenessRawToInternalStatus } from "@cashsouk/types";
 
 /**
  * Individual Onboarding Webhook Handler
@@ -56,22 +57,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
     // IN_PROGRESS → PENDING_APPROVAL → PENDING_AML → COMPLETED/APPROVED
     // Note: Final approval is done on our side, not in RegTank
     const statusUpper = status.toUpperCase();
-    let internalStatus = statusUpper;
-
-    // Map form filling statuses (before liveness test)
-    if (statusUpper === "PROCESSING" || statusUpper === "ID_UPLOADED" || statusUpper === "LIVENESS_STARTED") {
-      internalStatus = "FORM_FILLING";
-    } else if (statusUpper === "LIVENESS_PASSED") {
-      internalStatus = "LIVENESS_PASSED";
-    } else if (statusUpper === "WAIT_FOR_APPROVAL") {
-      internalStatus = "PENDING_APPROVAL";
-    } else if (statusUpper === "APPROVED") {
-      // When RegTank approves, set status to PENDING_AML (not APPROVED)
-      // Final approval (COMPLETED) happens on our side after AML approval
-      internalStatus = "PENDING_AML";
-    } else if (statusUpper === "REJECTED") {
-      internalStatus = statusUpper;
-    }
+    const internalStatus = mapRegtankIndividualLivenessRawToInternalStatus(status);
 
     // Update database
     const updateData: {
@@ -459,12 +445,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
     }
 
     const statusUpper = status.toUpperCase();
-    const mappedStatus =
-      statusUpper === "APPROVED"
-        ? "approved"
-        : statusUpper === "REJECTED"
-          ? "rejected"
-          : "pending";
+    const internalStatus = mapRegtankIndividualLivenessRawToInternalStatus(status);
 
     const prev =
       supplement.onboarding_json &&
@@ -472,10 +453,12 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
       !Array.isArray(supplement.onboarding_json)
         ? { ...(supplement.onboarding_json as Record<string, unknown>) }
         : {};
+    const prevRest = { ...prev };
+    delete prevRest.status;
 
     const updated = {
-      ...prev,
-      status: mappedStatus,
+      ...prevRest,
+      regtankStatus: internalStatus,
       updatedAt: new Date().toISOString(),
     };
 
@@ -489,7 +472,8 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
     logger.info(
       {
         requestId,
-        status: mappedStatus,
+        status: internalStatus,
+        rawRegTankStatus: statusUpper,
         partyKey: supplement.party_key,
         organizationId: supplement.organization_id,
       },

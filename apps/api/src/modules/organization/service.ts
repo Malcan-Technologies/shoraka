@@ -1630,11 +1630,13 @@ export class OrganizationService {
       ...supOb,
       email: supplementEmail,
       sent: true,
+      regtankStatus: "IN_PROGRESS",
       requestId,
       referenceId,
       ...(verifyLink ? { verifyLink } : {}),
       sentAt: new Date().toISOString(),
     };
+    delete (nextOnboarding as Record<string, unknown>).status;
     await prisma.ctosPartySupplement.upsert({
       where: {
         organization_id_party_key: { organization_id: organizationId, party_key: pk },

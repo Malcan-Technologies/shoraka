@@ -12,10 +12,12 @@ import {
 import {
   getDirectorShareholderDisplayRows,
   normalizeDirectorShareholderIdKey,
+  regtankDisplayStatusBadgeClass,
   type DirectorShareholderDisplayRow,
 } from "@cashsouk/types";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -54,6 +56,10 @@ function isDirectorLikeRow(r: DirectorShareholderDisplayRow): boolean {
 
 function isIndividualShareholderOnlyRow(r: DirectorShareholderDisplayRow): boolean {
   return r.type === "INDIVIDUAL" && !roleLower(r).includes("director");
+}
+
+function onboardingLinkSentForRow(row: DirectorShareholderDisplayRow): boolean {
+  return row.ctosOnboardingLinkSent === true || row.status === "Sent";
 }
 
 function partyKeyRawForRow(row: DirectorShareholderDisplayRow): string {
@@ -211,21 +217,22 @@ export function DirectorShareholdersUnifiedSection({
     const ic = row.idNumber?.trim();
     const em = displayEmail(row);
     const persistedEmail = row.email;
-    const isSent = row.status === "Sent";
+    const linkSent = onboardingLinkSentForRow(row);
+    const legacySentLabel = row.status === "Sent" && row.ctosOnboardingLinkSent !== true;
     const completedUx = isRowCompleteForUi(row, persistedEmail, em, sentRowIds);
     const showEmailControls =
       !completedUx &&
       !sentRowIds.has(row.id) &&
-      !isSent &&
+      !linkSent &&
       (!persistedEmail.trim() || row.status === "Missing");
     const needsAction = rowNeedsProfileAction(row, em);
     const rowHighlight =
-      highlightActionRequiredRows && !completedUx && !isSent && needsAction;
+      highlightActionRequiredRows && !completedUx && !linkSent && needsAction;
     const rowSentVisual =
-      isSent &&
+      linkSent &&
       "border-sky-300/80 bg-sky-50/70 ring-1 ring-sky-200/80 dark:border-sky-800 dark:bg-sky-950/25 dark:ring-sky-900/50";
     const rowCompleteVisual =
-      !isSent &&
+      !linkSent &&
       completedUx &&
       "border-emerald-300/80 bg-emerald-50/70 ring-1 ring-emerald-200/80 dark:border-emerald-800 dark:bg-emerald-950/25 dark:ring-emerald-900/50";
 
@@ -255,12 +262,27 @@ export function DirectorShareholdersUnifiedSection({
           {row.ownershipDisplay?.trim() ? (
             <p className="text-xs text-muted-foreground mt-1">{row.ownershipDisplay}</p>
           ) : null}
-          <p className="text-xs text-muted-foreground mt-1">Status: {row.status}</p>
+          {row.ctosOnboardingLinkSent ? (
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted-foreground">Status</span>
+              <Badge className={cn("text-xs font-medium", regtankDisplayStatusBadgeClass(row.status))}>
+                {row.status}
+              </Badge>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground mt-1">Status: {row.status}</p>
+          )}
         </div>
-        {isSent ? (
+        {linkSent ? (
           <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
             <PaperAirplaneIcon className="h-5 w-5 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden />
-            <span className="text-sm font-medium text-sky-900 dark:text-sky-200">Sent</span>
+            {legacySentLabel ? (
+              <span className="text-sm font-medium text-sky-900 dark:text-sky-200">Sent</span>
+            ) : (
+              <Badge className={cn("text-xs font-medium", regtankDisplayStatusBadgeClass(row.status))}>
+                {row.status}
+              </Badge>
+            )}
           </div>
         ) : completedUx ? (
           <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
@@ -296,15 +318,16 @@ export function DirectorShareholdersUnifiedSection({
 
   const renderCorpRow = (row: DirectorShareholderDisplayRow) => {
     const persistedEmail = row.email;
-    const isSent = row.status === "Sent";
+    const linkSent = onboardingLinkSentForRow(row);
+    const legacySentLabel = row.status === "Sent" && row.ctosOnboardingLinkSent !== true;
     const completedUx = isRowCompleteForUi(row, persistedEmail, persistedEmail, sentRowIds);
     const needsAction = rowNeedsProfileAction(row, row.email);
-    const rowHighlight = highlightActionRequiredRows && !completedUx && !isSent && needsAction;
+    const rowHighlight = highlightActionRequiredRows && !completedUx && !linkSent && needsAction;
     const rowSentVisual =
-      isSent &&
+      linkSent &&
       "border-sky-300/80 bg-sky-50/70 ring-1 ring-sky-200/80 dark:border-sky-800 dark:bg-sky-950/25 dark:ring-sky-900/50";
     const rowCompleteVisual =
-      !isSent &&
+      !linkSent &&
       completedUx &&
       "border-emerald-300/80 bg-emerald-50/70 ring-1 ring-emerald-200/80 dark:border-emerald-800 dark:bg-emerald-950/25 dark:ring-emerald-900/50";
     return (
@@ -326,12 +349,27 @@ export function DirectorShareholdersUnifiedSection({
           <p className="text-xs text-muted-foreground mt-1">
             {row.ownershipDisplay?.trim() ? row.ownershipDisplay : "Shareholder"}
           </p>
-          <p className="text-xs text-muted-foreground mt-1">Status: {row.status}</p>
+          {row.ctosOnboardingLinkSent ? (
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted-foreground">Status</span>
+              <Badge className={cn("text-xs font-medium", regtankDisplayStatusBadgeClass(row.status))}>
+                {row.status}
+              </Badge>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground mt-1">Status: {row.status}</p>
+          )}
         </div>
-        {isSent ? (
+        {linkSent ? (
           <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">
             <PaperAirplaneIcon className="h-5 w-5 shrink-0 text-sky-600 dark:text-sky-400" aria-hidden />
-            <span className="text-sm font-medium text-sky-900 dark:text-sky-200">Sent</span>
+            {legacySentLabel ? (
+              <span className="text-sm font-medium text-sky-900 dark:text-sky-200">Sent</span>
+            ) : (
+              <Badge className={cn("text-xs font-medium", regtankDisplayStatusBadgeClass(row.status))}>
+                {row.status}
+              </Badge>
+            )}
           </div>
         ) : completedUx ? (
           <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">

@@ -7,6 +7,10 @@
  */
 
 import { governmentIdFromDirectorKycForEod } from "./director-kyc-gov-id";
+import {
+  effectiveCtosRegtankStatusFromOnboardingJson,
+  mapRegtankStatusToDisplay,
+} from "./regtank-onboarding-status";
 
 export type DirectorShareholderPartyType = "INDIVIDUAL" | "COMPANY";
 
@@ -26,6 +30,10 @@ export interface DirectorShareholderDisplayRow {
   /** Admin CTOS subject enquiry (IC / SSM / EOD). */
   enquiryId: string | null;
   subjectKind: "INDIVIDUAL" | "CORPORATE" | null;
+  /** CTOS party: RegTank link sent (supplement.sent). Drives row chrome without overloading `status`. */
+  ctosOnboardingLinkSent?: boolean;
+  /** Raw internal RegTank status (reg_tank_onboarding semantics) when CTOS supplement exists. */
+  ctosRegtankStatus?: string | null;
 }
 
 export interface CtosPartySupplementInput {
@@ -62,10 +70,12 @@ function parseCtosPartyOnboardingJson(raw: unknown): Record<string, unknown> {
 function buildSupplementDerivedMaps(supplements: ReadonlyArray<CtosPartySupplementInput> | null | undefined): {
   emailByPartyKey: Map<string, string>;
   sentPartyKeys: Set<string>;
+  regtankStatusByPartyKey: Map<string, string>;
 } {
   const emailByPartyKey = new Map<string, string>();
   const sentPartyKeys = new Set<string>();
-  if (!supplements?.length) return { emailByPartyKey, sentPartyKeys };
+  const regtankStatusByPartyKey = new Map<string, string>();
+  if (!supplements?.length) return { emailByPartyKey, sentPartyKeys, regtankStatusByPartyKey };
   for (const row of supplements) {
     const k = normalizeDirectorShareholderIdKey(row.partyKey);
     if (!k) continue;
@@ -73,8 +83,10 @@ function buildSupplementDerivedMaps(supplements: ReadonlyArray<CtosPartySuppleme
     const em = ob.email != null ? String(ob.email).trim() : "";
     if (em) emailByPartyKey.set(k, em);
     if (ob.sent === true) sentPartyKeys.add(k);
+    const rs = effectiveCtosRegtankStatusFromOnboardingJson(ob);
+    if (rs) regtankStatusByPartyKey.set(k, rs);
   }
-  return { emailByPartyKey, sentPartyKeys };
+  return { emailByPartyKey, sentPartyKeys, regtankStatusByPartyKey };
 }
 
 interface CtosOrgDirectorRow {
@@ -589,7 +601,8 @@ function buildCtosBackedDisplayRows(
   directorKycStatus: Record<string, unknown> | null | undefined,
   sentRowIds: ReadonlySet<string> | null | undefined,
   supplementEmailByPartyKey: ReadonlyMap<string, string>,
-  supplementSentPartyKeys: ReadonlySet<string>
+  supplementSentPartyKeys: ReadonlySet<string>,
+  supplementRegtankStatusByPartyKey: ReadonlyMap<string, string>
 ): DirectorShareholderDisplayRow[] {
   const kycById = buildKycByNormalizedId(directorKycStatus);
   const ctosList = extractCtosOrgDirectorsFromCompanyJson(companyJson);
@@ -674,11 +687,12 @@ function buildCtosBackedDisplayRows(
     const fromSupplement = idKeyNorm ? supplementEmailByPartyKey.get(idKeyNorm) : undefined;
     const kycEmail = matched?.email?.trim() ?? "";
     const email = (fromSupplement && fromSupplement.trim()) || kycEmail;
-    const sent =
+    const linkSent =
       Boolean(sentRowIds?.has(stableId)) ||
       Boolean(idKeyNorm && supplementSentPartyKeys.has(idKeyNorm));
-    const status = sent ? "Sent" : statusBase;
-    const canBase = !sent && (!email.trim() || statusBase === "Missing");
+    const rsRaw = idKeyNorm ? supplementRegtankStatusByPartyKey.get(idKeyNorm) : undefined;
+    const status = linkSent ? mapRegtankStatusToDisplay(rsRaw ?? null) : statusBase;
+    const canBase = !linkSent && (!email.trim() || statusBase === "Missing");
     const role = mergeRoleLabels(b.roles);
 
     rows.push({
@@ -695,6 +709,8 @@ function buildCtosBackedDisplayRows(
       canSendOnboarding: canBase,
       enquiryId: b.enquiryId,
       subjectKind: b.subjectKind,
+      ctosOnboardingLinkSent: linkSent,
+      ctosRegtankStatus: rsRaw ?? null,
     });
   }
   return rows;
@@ -793,8 +809,11 @@ export function getDirectorShareholderDisplayRows(
   const directorKycStatus = input.directorKycStatus as Record<string, unknown> | null | undefined;
   const sent = input.sentRowIds ?? null;
   const ctosJson = input.organizationCtosCompanyJson;
-  const { emailByPartyKey: supplementEmailByPartyKey, sentPartyKeys: supplementSentPartyKeys } =
-    buildSupplementDerivedMaps(input.ctosPartySupplements ?? null);
+  const {
+    emailByPartyKey: supplementEmailByPartyKey,
+    sentPartyKeys: supplementSentPartyKeys,
+    regtankStatusByPartyKey: supplementRegtankStatusByPartyKey,
+  } = buildSupplementDerivedMaps(input.ctosPartySupplements ?? null);
 
   if (hasUsableCtosDirectorList(ctosJson)) {
     return buildCtosBackedDisplayRows(
@@ -802,7 +821,8 @@ export function getDirectorShareholderDisplayRows(
       directorKycStatus,
       sent,
       supplementEmailByPartyKey,
-      supplementSentPartyKeys
+      supplementSentPartyKeys,
+      supplementRegtankStatusByPartyKey
     );
   }
 
