@@ -126,7 +126,7 @@ export function OnboardingStatusCard({
             Welcome back, {displayName}!
           </h2>
           <p className="text-muted-foreground mt-1">
-            Apply for financing and manage your loans from your dashboard
+            Apply for financing and manage your financing applications from your dashboard
           </p>
         </div>
         {actionButton}

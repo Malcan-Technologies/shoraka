@@ -750,7 +750,7 @@ export default function ApplicationsPage() {
             Welcome back, {displayName}!
           </h2>
           <p className="text-[17px] leading-7 text-muted-foreground mt-1">
-            Manage your loan applications from this dashboard.
+            Manage your financing applications from this dashboard.
           </p>
         </div>
         <Button asChild className="gap-2 bg-primary text-primary-foreground shadow-brand hover:opacity-95 h-11 rounded-xl font-semibold shrink-0">

@@ -341,7 +341,7 @@ export default function NewApplicationPage() {
               Select financing type
             </h1>
             <p className="text-[15px] leading-7 text-muted-foreground mt-1">
-              Browse and invest in verified loan opportunities from your dashboard
+              Browse and invest in verified financing opportunities from your dashboard
             </p>
           </div>
 

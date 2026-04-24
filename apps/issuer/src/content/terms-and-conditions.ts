@@ -15,7 +15,7 @@ Welcome to CashSouk Issuer Portal. These Terms and Conditions govern your use of
 
 - **"Platform"** refers to the CashSouk Issuer Portal and all related services.
 - **"Issuer"** refers to any individual or business using the Platform to seek financing.
-- **"Loan"** refers to any financing facility obtained through the Platform.
+- **"Financing"** refers to any financing facility obtained through the Platform.
 - **"Investor"** refers to any individual or entity providing financing through the Platform.
 
 ## 3. Eligibility Requirements
@@ -59,7 +59,7 @@ You agree to provide accurate and complete information in your application.
 You agree to repay all amounts borrowed according to the agreed schedule.
 
 **6.2. Late Payment Fees**
-Late payments may incur additional fees and penalties as disclosed in your loan agreement.
+Late payments may incur additional fees and penalties as disclosed in your financing agreement.
 
 **6.3. Legal Action**
 Failure to repay may result in legal action and reporting to credit bureaus.

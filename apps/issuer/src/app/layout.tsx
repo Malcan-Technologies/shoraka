@@ -16,7 +16,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "CashSouk Issuer Portal",
-  description: "Apply for loans quickly and securely",
+  description: "Apply for financing quickly and securely",
   icons: {
     icon: "/shoraka_favicon.svg",
   },

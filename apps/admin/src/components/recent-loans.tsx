@@ -39,7 +39,7 @@ export function RecentLoans({ loading }: RecentLoansProps) {
   return (
     <Card className="rounded-2xl shadow-sm">
       <CardHeader>
-        <CardTitle>Recent Loans</CardTitle>
+        <CardTitle>Recent Financing</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">

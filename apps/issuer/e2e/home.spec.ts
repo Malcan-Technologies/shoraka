@@ -6,7 +6,7 @@ test.describe("Borrower Portal Home", () => {
 
     await expect(page.getByRole("heading", { name: /Welcome to CashSouk Borrower Portal/i })).toBeVisible();
 
-    await expect(page.getByText(/Apply for loans quickly and securely/i)).toBeVisible();
+    await expect(page.getByText(/Apply for financing quickly and securely/i)).toBeVisible();
   });
 });
 

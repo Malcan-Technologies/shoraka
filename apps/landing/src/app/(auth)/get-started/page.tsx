@@ -99,7 +99,7 @@ function GetStartedPageContent() {
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Earn competitive returns by funding loans from our curated borrower pool.
+                Earn competitive returns by funding financing opportunities from our curated borrower pool.
               </p>
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs text-primary/80">
@@ -126,7 +126,7 @@ function GetStartedPageContent() {
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Apply for a loan with flexible terms and transparent rates.
+                Apply for financing with flexible terms and transparent rates.
               </p>
               <div className="flex items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary/20 px-2.5 py-0.5 text-xs text-secondary-foreground/70">
@@ -192,7 +192,7 @@ function GetStartedPageContent() {
                 <p className="mb-4">Businesses that are primarily involved in non-Shariah-compliant activities including but not limited to:</p>
 
                 <ul className="list-disc pl-5 mb-4 space-y-2">
-                  <li>Conventional banking or interest-based lending;</li>
+                  <li>Conventional banking or profit-based lending;</li>
                   <li>Conventional insurance;</li>
                   <li>Gambling;</li>
                   <li>Liquor or liquor-related activities;</li>
@@ -200,7 +200,7 @@ function GetStartedPageContent() {
                   <li>Non-halal food and beverages;</li>
                   <li>Tobacco or tobacco-related activities;</li>
                   <li>Shariah non-compliant entertainment;</li>
-                  <li>Interest (riba)-based income or investments; or</li>
+                  <li>Profit (riba)-based income or investments; or</li>
                   <li>Any other activities deemed non-compliant by the relevant Shariah authorities</li>
                 </ul>
 
@@ -210,8 +210,8 @@ function GetStartedPageContent() {
 
                 <ul className="list-disc pl-5 mb-4 space-y-2">
                   <li>Revenue derived from non-compliant activities,</li>
-                  <li>Cash placed in conventional interest-bearing accounts, or</li>
-                  <li>Interest-bearing debt,</li>
+                  <li>Cash placed in conventional profit-bearing accounts, or</li>
+                  <li>Profit-bearing debt,</li>
                 </ul>
 
                 <p className="mb-4">may not meet our Shariah screening benchmarks.</p>

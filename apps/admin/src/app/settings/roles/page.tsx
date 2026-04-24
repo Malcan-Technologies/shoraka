@@ -72,9 +72,9 @@ const roles = [
     bgColor: "bg-purple-50",
     borderColor: "border-purple-200",
     description:
-      "Handles day-to-day platform operations including loan management, user support, and communication. Oversees investment processing and customer service.",
+      "Handles day-to-day platform operations including financing management, user support, and communication. Oversees investment processing and customer service.",
     permissions: [
-      "Loan and investment management",
+      "Financing and investment management",
       "User account operations",
       "Repayment and transaction records",
       "Customer support tools",
@@ -93,7 +93,7 @@ const roles = [
       "Disbursement triggering",
       "Financial compliance viewing",
       "Data export for finance",
-      "Limited loan operations access",
+      "Limited financing operations access",
     ],
   },
 ];
