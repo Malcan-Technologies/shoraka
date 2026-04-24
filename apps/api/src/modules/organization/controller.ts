@@ -12,6 +12,7 @@ import {
   changeMemberRoleSchema,
   transferOwnershipSchema,
   updateCorporateInfoSchema,
+  patchCtosPartyEmailSchema,
   PortalType,
 } from "./schemas";
 import { requireAuth } from "../../lib/auth/middleware";
@@ -236,6 +237,8 @@ async function getOrganization(
     const { id } = organizationIdParamSchema.parse(req.params);
 
     const organization = await organizationService.getOrganization(userId, id, portalType);
+    const issuerPartyExtras =
+      portalType === "issuer" ? await organizationService.getIssuerPartyListExtras(organization.id) : null;
 
     // Cast to access all fields from the organization
     const org = organization as {
@@ -316,6 +319,10 @@ async function getOrganization(
         // Issuer-specific flags
         ...(portalType === "issuer" && {
           ssmChecked: org.ssm_checked ?? false,
+          ...(issuerPartyExtras && {
+            latestOrganizationCtosCompanyJson: issuerPartyExtras.latestOrganizationCtosCompanyJson,
+            ctosPartySupplements: issuerPartyExtras.ctosPartySupplements,
+          }),
         }),
         // Corporate director KYC status (for COMPANY type)
         ...(organization.type === "COMPANY" && {
@@ -853,6 +860,25 @@ async function updateCorporateInfo(
 }
 
 /**
+ * PATCH /v1/organizations/issuer/:id/ctos-party-email
+ */
+async function patchCtosPartyEmail(req: Request, res: Response, next: NextFunction) {
+  try {
+    const userId = getUserId(req);
+    const { id } = organizationIdParamSchema.parse(req.params);
+    const input = patchCtosPartyEmailSchema.parse(req.body);
+    const result = await organizationService.upsertCtosPartyEmail(userId, id, input);
+    res.json({
+      success: true,
+      data: result,
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * Refresh AML status for an organization
  * POST /v1/organizations/investor/:id/refresh-aml
  * POST /v1/organizations/issuer/:id/refresh-aml
@@ -1008,6 +1034,7 @@ export function createOrganizationRouter(): Router {
   router.patch("/issuer/:id/corporate-info", requireAuth, (req, res, next) =>
     updateCorporateInfo(req, res, next, "issuer")
   );
+  router.patch("/issuer/:id/ctos-party-email", requireAuth, patchCtosPartyEmail);
   router.post("/issuer/:id/refresh-aml", requireAuth, (req, res, next) =>
     refreshOrganizationAML(req, res, next, "issuer")
   );

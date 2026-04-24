@@ -35,6 +35,8 @@ export function useCorporateEntities(organizationId: string | undefined) {
         shareholders: Array<Record<string, unknown>>;
         corporateShareholders: Array<Record<string, unknown>>;
         directorKycStatus?: DirectorKycStatus | null;
+        latestOrganizationCtosCompanyJson?: unknown | null;
+        ctosPartySupplements?: { partyKey: string; email: string }[] | null;
       }>(`/v1/organizations/issuer/${organizationId}/corporate-entities`);
       if (!result.success) {
         throw new Error(result.error.message);

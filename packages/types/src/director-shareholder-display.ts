@@ -28,10 +28,17 @@ export interface DirectorShareholderDisplayRow {
   subjectKind: "INDIVIDUAL" | "CORPORATE" | null;
 }
 
+export interface CtosPartySupplementInput {
+  partyKey: string;
+  email: string;
+}
+
 export interface GetDirectorShareholderDisplayRowsInput {
   corporateEntities: unknown;
   directorKycStatus: unknown;
   organizationCtosCompanyJson?: unknown | null;
+  /** Persisted party emails (normalized party_key in DB); highest priority for CTOS-backed rows. */
+  ctosPartySupplements?: ReadonlyArray<CtosPartySupplementInput> | null;
   /** Row ids (from this helper) marked as onboarding link sent (issuer UI only). */
   sentRowIds?: ReadonlySet<string> | null;
 }
@@ -321,7 +328,7 @@ function getCorpDisplayName(corp: Record<string, unknown>): string {
   return String(corp.companyName || corp.businessName || "Unknown");
 }
 
-function hasUsableCtosDirectorList(companyJson: unknown): boolean {
+export function hasUsableCtosDirectorList(companyJson: unknown): boolean {
   const list = extractCtosOrgDirectorsFromCompanyJson(companyJson);
   return list.length > 0;
 }
@@ -329,7 +336,8 @@ function hasUsableCtosDirectorList(companyJson: unknown): boolean {
 function buildOnboardingDisplayRows(
   corporateEntities: Record<string, unknown> | null | undefined,
   directorKycStatus: Record<string, unknown> | null | undefined,
-  sentRowIds: ReadonlySet<string> | null | undefined
+  sentRowIds: ReadonlySet<string> | null | undefined,
+  supplementEmailByPartyKey: ReadonlyMap<string, string>
 ): DirectorShareholderDisplayRow[] {
   const kycById = buildKycByNormalizedId(directorKycStatus);
   const directors = Array.isArray(corporateEntities?.directors)
@@ -464,7 +472,9 @@ function buildOnboardingDisplayRows(
     const b = indBuckets.get(key)!;
     const statusBase = resolveIndividualStatus(b.icKey, b.eod, directorKycStatus, kycById, b.ceStatus);
     const emailFromKyc = b.icKey ? kycById.get(b.icKey)?.email ?? "" : "";
-    const email = (b.email && b.email.trim()) || emailFromKyc;
+    const fromSup = b.icKey ? supplementEmailByPartyKey.get(b.icKey) : undefined;
+    const email =
+      (fromSup && fromSup.trim()) || (b.email && b.email.trim()) || emailFromKyc;
     const id = `onb-ind-${key}`;
     const sent = Boolean(sentRowIds?.has(id));
     const status = sent ? "Sent" : statusBase;
@@ -494,7 +504,8 @@ function buildOnboardingDisplayRows(
     const statusBase = resolveCompanyStatus(regKey, kycById, corp);
     const sent = Boolean(sentRowIds?.has(id));
     const status = sent ? "Sent" : statusBase;
-    const email = "";
+    const fromSupCorp = regKey ? supplementEmailByPartyKey.get(regKey) : undefined;
+    const email = (fromSupCorp && fromSupCorp.trim()) || "";
     const canBase = !sent && (!email.trim() || statusBase === "Missing");
     const corpOwn = ownershipFromCorpShareholder(corp);
     rows.push({
@@ -517,10 +528,24 @@ function buildOnboardingDisplayRows(
   return rows;
 }
 
+function buildSupplementEmailByPartyKey(
+  supplements: ReadonlyArray<CtosPartySupplementInput> | null | undefined
+): Map<string, string> {
+  const m = new Map<string, string>();
+  if (!supplements?.length) return m;
+  for (const row of supplements) {
+    const k = normalizeDirectorShareholderIdKey(row.partyKey);
+    const em = row.email != null ? String(row.email).trim() : "";
+    if (k && em) m.set(k, em);
+  }
+  return m;
+}
+
 function buildCtosBackedDisplayRows(
   companyJson: unknown,
   directorKycStatus: Record<string, unknown> | null | undefined,
-  sentRowIds: ReadonlySet<string> | null | undefined
+  sentRowIds: ReadonlySet<string> | null | undefined,
+  supplementEmailByPartyKey: ReadonlyMap<string, string>
 ): DirectorShareholderDisplayRow[] {
   const kycById = buildKycByNormalizedId(directorKycStatus);
   const ctosList = extractCtosOrgDirectorsFromCompanyJson(companyJson);
@@ -533,7 +558,9 @@ function buildCtosBackedDisplayRows(
     const id = `ctos-${seq++}-${idKey ?? "noid"}`;
     const matched = idKey ? kycById.get(idKey) : undefined;
     const statusBase = !idKey ? "Missing" : matched?.status ? matched.status : "Missing";
-    const email = matched?.email?.trim() ?? "";
+    const fromSupplement = idKey ? supplementEmailByPartyKey.get(idKey) : undefined;
+    const kycEmail = matched?.email?.trim() ?? "";
+    const email = (fromSupplement && fromSupplement.trim()) || kycEmail;
     const sent = Boolean(sentRowIds?.has(id));
     const status = sent ? "Sent" : statusBase;
     const party: DirectorShareholderPartyType = kind === "CORPORATE" ? "COMPANY" : "INDIVIDUAL";
@@ -562,7 +589,8 @@ function buildCtosBackedDisplayRows(
 
 function buildKycOnlyFallbackRows(
   directorKycStatus: Record<string, unknown> | null | undefined,
-  sentRowIds: ReadonlySet<string> | null | undefined
+  sentRowIds: ReadonlySet<string> | null | undefined,
+  supplementEmailByPartyKey: ReadonlyMap<string, string>
 ): DirectorShareholderDisplayRow[] {
   const rows: DirectorShareholderDisplayRow[] = [];
   let idx = 0;
@@ -583,7 +611,9 @@ function buildKycOnlyFallbackRows(
     const id = `kyc-only-${gKey ?? eod ?? `i${idx++}`}`;
     const stRaw = d.kycStatus != null ? String(d.kycStatus) : null;
     const statusBase = stRaw && stRaw.trim() !== "" ? stRaw : "Not requested";
-    const em = d.email != null ? String(d.email).trim() : "";
+    const fromSup = gKey ? supplementEmailByPartyKey.get(gKey) : undefined;
+    const emKyc = d.email != null ? String(d.email).trim() : "";
+    const em = (fromSup && fromSup.trim()) || emKyc;
     const sent = Boolean(sentRowIds?.has(id));
     const status = sent ? "Sent" : statusBase;
     const canBase = !sent && (!em || statusBase === "Missing");
@@ -616,7 +646,9 @@ function buildKycOnlyFallbackRows(
     if (dup) continue;
     const stRaw = s.kycStatus != null ? String(s.kycStatus) : null;
     const statusBase = stRaw && stRaw.trim() !== "" ? stRaw : "Not requested";
-    const em = s.email != null ? String(s.email).trim() : "";
+    const fromSupS = gKey ? supplementEmailByPartyKey.get(gKey) : undefined;
+    const emKycS = s.email != null ? String(s.email).trim() : "";
+    const em = (fromSupS && fromSupS.trim()) || emKycS;
     const sent = Boolean(sentRowIds?.has(id));
     const status = sent ? "Sent" : statusBase;
     const canBase = !sent && (!em || statusBase === "Missing");
@@ -648,9 +680,10 @@ export function getDirectorShareholderDisplayRows(
   const directorKycStatus = input.directorKycStatus as Record<string, unknown> | null | undefined;
   const sent = input.sentRowIds ?? null;
   const ctosJson = input.organizationCtosCompanyJson;
+  const supplementEmailByPartyKey = buildSupplementEmailByPartyKey(input.ctosPartySupplements ?? null);
 
   if (hasUsableCtosDirectorList(ctosJson)) {
-    return buildCtosBackedDisplayRows(ctosJson, directorKycStatus, sent);
+    return buildCtosBackedDisplayRows(ctosJson, directorKycStatus, sent, supplementEmailByPartyKey);
   }
 
   const directors = Array.isArray(corporateEntities?.directors)
@@ -664,8 +697,8 @@ export function getDirectorShareholderDisplayRows(
     : [];
 
   if (directors.length > 0 || shareholders.length > 0 || corp.length > 0) {
-    return buildOnboardingDisplayRows(corporateEntities, directorKycStatus, sent);
+    return buildOnboardingDisplayRows(corporateEntities, directorKycStatus, sent, supplementEmailByPartyKey);
   }
 
-  return buildKycOnlyFallbackRows(directorKycStatus, sent);
+  return buildKycOnlyFallbackRows(directorKycStatus, sent, supplementEmailByPartyKey);
 }

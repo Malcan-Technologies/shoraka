@@ -42,6 +42,7 @@ import {
   getAdminFinancialSummaryUserColumnYears,
   getLatestThreeCtosYearSlots,
   getDirectorShareholderDisplayRows,
+  hasUsableCtosDirectorList,
   type DirectorShareholderDisplayRow,
   normalizeFinancialStatementsQuestionnaire,
   type ColumnComputedMetrics,
@@ -357,6 +358,8 @@ interface ApplicationFinancialReviewContentProps {
       corporate_entities?: unknown;
       director_kyc_status?: unknown;
       director_aml_status?: unknown;
+      latest_organization_ctos_company_json?: unknown | null;
+      ctos_party_supplements?: { party_key: string; email: string }[] | null;
     } | null;
     financial_statements?: unknown;
   };
@@ -393,15 +396,37 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
 
   const latestCtos = ctosList?.[0];
 
+  const orgPartyCtosJson = app.issuer_organization?.latest_organization_ctos_company_json ?? null;
+  const appPartyCtosJson = latestCtos?.company_json ?? null;
+  const resolvedPartyCtosCompanyJson = hasUsableCtosDirectorList(orgPartyCtosJson)
+    ? orgPartyCtosJson
+    : hasUsableCtosDirectorList(appPartyCtosJson)
+      ? appPartyCtosJson
+      : null;
+
+  const ctosPartySupplementsForRows = React.useMemo(() => {
+    const raw = app.issuer_organization?.ctos_party_supplements;
+    if (!raw?.length) return undefined;
+    return raw.map((s) => ({
+      partyKey: s.party_key,
+      email: s.email,
+    }));
+  }, [app.issuer_organization?.ctos_party_supplements]);
+
   const directorDisplayRows = React.useMemo(
     () =>
       getDirectorShareholderDisplayRows({
         corporateEntities: app.issuer_organization?.corporate_entities,
         directorKycStatus: app.issuer_organization?.director_kyc_status,
-        organizationCtosCompanyJson: latestCtos?.company_json ?? null,
+        organizationCtosCompanyJson: resolvedPartyCtosCompanyJson,
+        ctosPartySupplements: ctosPartySupplementsForRows,
         sentRowIds: null,
       }),
-    [app.issuer_organization, latestCtos?.company_json]
+    [
+      app.issuer_organization,
+      resolvedPartyCtosCompanyJson,
+      ctosPartySupplementsForRows,
+    ]
   );
 
   const financialRows: CtosFinRow[] = React.useMemo(() => {

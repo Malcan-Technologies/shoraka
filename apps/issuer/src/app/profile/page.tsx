@@ -541,6 +541,8 @@ export default function ProfilePage() {
           corporateShareholders?: Array<Record<string, unknown>>;
         };
         directorKycStatus?: unknown;
+        latestOrganizationCtosCompanyJson?: unknown | null;
+        ctosPartySupplements?: { partyKey: string; email: string }[] | null;
       }>(`/v1/organizations/issuer/${activeOrganization.id}`);
       if (!result.success) {
         throw new Error(result.error.message);
@@ -1307,9 +1309,11 @@ export default function ProfilePage() {
               {/* 4. Directors/Shareholders Section - Only for COMPANY accounts */}
               {!isPersonal && activeOrganization?.id && orgData && (
                 <DirectorShareholdersUnifiedSection
+                  organizationId={activeOrganization.id}
                   corporateEntities={orgData.corporateEntities ?? {}}
                   directorKycStatus={orgData.directorKycStatus ?? null}
-                  organizationCtosCompanyJson={null}
+                  organizationCtosCompanyJson={orgData.latestOrganizationCtosCompanyJson ?? null}
+                  ctosPartySupplements={orgData.ctosPartySupplements ?? null}
                 />
               )}
 

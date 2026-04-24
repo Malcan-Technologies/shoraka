@@ -64,6 +64,7 @@ import {
   isRegtankIso3166Code,
   type SoukscoreRiskRating,
 } from "@cashsouk/types";
+import { OrganizationService } from "../organization/service";
 import { AMLFetcherService } from "../regtank/aml-fetcher";
 import type { PortalType } from "../regtank/types";
 import { extractCorporateEntities } from "../regtank/helpers/extract-corporate-entities";
@@ -4377,6 +4378,25 @@ export class AdminService {
     if (!application) {
       throw new AppError(404, "NOT_FOUND", "Application not found");
     }
+    const issuerOrgId = application.issuer_organization_id;
+    const issuerOrg = application.issuer_organization;
+    let issuerOrganizationPayload = issuerOrg;
+    if (issuerOrgId && issuerOrg) {
+      const orgService = new OrganizationService();
+      const extras = await orgService.getIssuerPartyListExtras(issuerOrgId);
+      issuerOrganizationPayload = {
+        ...issuerOrg,
+        latest_organization_ctos_company_json: extras.latestOrganizationCtosCompanyJson,
+        ctos_party_supplements: extras.ctosPartySupplements.map((s) => ({
+          party_key: s.partyKey,
+          email: s.email,
+        })),
+      } as typeof issuerOrg;
+    }
+    const applicationWithIssuerExtras =
+      issuerOrganizationPayload !== issuerOrg
+        ? { ...application, issuer_organization: issuerOrganizationPayload }
+        : application;
     const sectionPolicy = await this.getReviewSectionPolicy(application);
     const orderedRequiredSections = REVIEW_SECTION_ORDER.filter((section) =>
       sectionPolicy.requiredSections.has(section)
@@ -4385,8 +4405,10 @@ export class AdminService {
       sectionPolicy.visibleSections.has(section)
     );
     return {
-      ...application,
-      application_guarantors: this.mapApplicationGuarantorsForAdmin(application.application_guarantors),
+      ...applicationWithIssuerExtras,
+      application_guarantors: this.mapApplicationGuarantorsForAdmin(
+        applicationWithIssuerExtras.application_guarantors
+      ),
       required_review_sections: orderedRequiredSections,
       visible_review_sections: orderedVisibleSections,
       review_section_prerequisites: sectionPolicy.prerequisitesBySection,

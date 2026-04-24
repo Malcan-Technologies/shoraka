@@ -8,6 +8,7 @@ import {
   AcceptOrganizationInvitationInput,
   ChangeMemberRoleInput,
   UpdateCorporateInfoInput,
+  PatchCtosPartyEmailInput,
 } from "./schemas";
 import {
   OrganizationType,
@@ -33,6 +34,7 @@ import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-on
 import { sendEmail } from "../../lib/email/ses-client";
 import { organizationInvitationTemplate } from "../../lib/email/templates";
 import { randomBytes } from "crypto";
+import { normalizeDirectorShareholderIdKey } from "@cashsouk/types";
 
 const cognitoClient = new CognitoIdentityProviderClient({
   region: process.env.AWS_REGION || "ap-southeast-5",
@@ -1374,6 +1376,70 @@ export class OrganizationService {
   /**
    * Get corporate entities (directors, shareholders)
    */
+  async getIssuerPartyListExtras(organizationId: string): Promise<{
+    latestOrganizationCtosCompanyJson: unknown | null;
+    ctosPartySupplements: { partyKey: string; email: string }[];
+  }> {
+    const [report, supplements] = await Promise.all([
+      prisma.ctosReport.findFirst({
+        where: { issuer_organization_id: organizationId, subject_ref: null },
+        orderBy: { fetched_at: "desc" },
+        select: { company_json: true },
+      }),
+      prisma.ctosPartySupplement.findMany({
+        where: { organization_id: organizationId },
+        select: { party_key: true, email: true },
+        orderBy: { party_key: "asc" },
+      }),
+    ]);
+    return {
+      latestOrganizationCtosCompanyJson: report?.company_json ?? null,
+      ctosPartySupplements: supplements.map((s) => ({
+        partyKey: s.party_key,
+        email: s.email,
+      })),
+    };
+  }
+
+  /**
+   * Persist onboarding email for a CTOS party (normalized IC / SSM key).
+   */
+  async upsertCtosPartyEmail(
+    userId: string,
+    organizationId: string,
+    input: PatchCtosPartyEmailInput
+  ): Promise<{ success: true }> {
+    const organization = await this.getOrganization(userId, organizationId, "issuer");
+    const userMember = organization.members.find((m: { user_id: string; role: string }) => m.user_id === userId);
+    const canManage =
+      organization.owner_user_id === userId ||
+      userMember?.role === OrganizationMemberRole.ORGANIZATION_ADMIN;
+    if (!canManage) {
+      throw new AppError(403, "FORBIDDEN", "You do not have permission to update party email");
+    }
+    const partyKey = normalizeDirectorShareholderIdKey(input.partyKey);
+    if (!partyKey) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invalid party key");
+    }
+    const email = input.email.trim();
+    await prisma.ctosPartySupplement.upsert({
+      where: {
+        organization_id_party_key: {
+          organization_id: organizationId,
+          party_key: partyKey,
+        },
+      },
+      create: {
+        organization_id: organizationId,
+        party_key: partyKey,
+        email,
+      },
+      update: { email },
+    });
+    logger.info({ organizationId, partyKey, userId }, "CTOS party supplement email upserted");
+    return { success: true };
+  }
+
   async getCorporateEntities(
     userId: string,
     organizationId: string,
@@ -1398,6 +1464,8 @@ export class OrganizationService {
       corpIndvShareholderCount: number;
       corpBizShareholderCount: number;
     } | null;
+    latestOrganizationCtosCompanyJson?: unknown | null;
+    ctosPartySupplements?: { partyKey: string; email: string }[];
   }> {
     // Verify access
     await this.getOrganization(userId, organizationId, portalType);
@@ -1437,12 +1505,21 @@ export class OrganizationService {
           })
         : null;
 
-    return {
+    const base = {
       directors: entities.directors || [],
       shareholders: entities.shareholders || [],
       corporateShareholders: entities.corporateShareholders || [],
       directorKycStatus: directorKyc,
     };
+    if (portalType === "issuer") {
+      const extras = await this.getIssuerPartyListExtras(organizationId);
+      return {
+        ...base,
+        latestOrganizationCtosCompanyJson: extras.latestOrganizationCtosCompanyJson,
+        ctosPartySupplements: extras.ctosPartySupplements,
+      };
+    }
+    return base;
   }
 
   /**

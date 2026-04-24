@@ -8,6 +8,7 @@ import {
 } from "@heroicons/react/24/outline";
 import {
   getDirectorShareholderDisplayRows,
+  normalizeDirectorShareholderIdKey,
   type DirectorShareholderDisplayRow,
 } from "@cashsouk/types";
 import { Input } from "@/components/ui/input";
@@ -21,11 +22,18 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export interface DirectorShareholdersUnifiedSectionProps {
+  organizationId?: string;
   corporateEntities: unknown;
   directorKycStatus: unknown;
   organizationCtosCompanyJson?: unknown | null;
+  ctosPartySupplements?: { partyKey: string; email: string }[] | null;
   className?: string;
 }
 
@@ -41,15 +49,34 @@ function isIndividualShareholderOnlyRow(r: DirectorShareholderDisplayRow): boole
   return r.type === "INDIVIDUAL" && !roleLower(r).includes("director");
 }
 
+function partyKeyRawForRow(row: DirectorShareholderDisplayRow): string {
+  return (
+    row.registrationNumber?.trim() ||
+    row.idNumber?.trim() ||
+    row.enquiryId?.trim() ||
+    ""
+  );
+}
+
 export function DirectorShareholdersUnifiedSection({
+  organizationId,
   corporateEntities,
   directorKycStatus,
   organizationCtosCompanyJson,
+  ctosPartySupplements,
   className,
 }: DirectorShareholdersUnifiedSectionProps) {
+  const { getAccessToken } = useAuthToken();
+  const queryClient = useQueryClient();
+  const apiClient = React.useMemo(
+    () => createApiClient(API_URL, getAccessToken),
+    [getAccessToken]
+  );
+
   const [sentRowIds, setSentRowIds] = React.useState<Set<string>>(() => new Set());
   const [draftEmails, setDraftEmails] = React.useState<Record<string, string>>({});
   const [confirmRow, setConfirmRow] = React.useState<DirectorShareholderDisplayRow | null>(null);
+  const [savePending, setSavePending] = React.useState(false);
 
   const rows = React.useMemo(
     () =>
@@ -57,9 +84,16 @@ export function DirectorShareholdersUnifiedSection({
         corporateEntities,
         directorKycStatus,
         organizationCtosCompanyJson,
+        ctosPartySupplements: ctosPartySupplements ?? null,
         sentRowIds,
       }),
-    [corporateEntities, directorKycStatus, organizationCtosCompanyJson, sentRowIds]
+    [
+      corporateEntities,
+      directorKycStatus,
+      organizationCtosCompanyJson,
+      ctosPartySupplements,
+      sentRowIds,
+    ]
   );
 
   const directorLikeRows = React.useMemo(() => rows.filter(isDirectorLikeRow), [rows]);
@@ -75,12 +109,43 @@ export function DirectorShareholdersUnifiedSection({
     [draftEmails]
   );
 
-  const commitSend = () => {
+  const commitSend = async () => {
     if (!confirmRow) return;
     const email = displayEmail(confirmRow).trim();
-    if (email) setDraftEmails((prev) => ({ ...prev, [confirmRow.id]: email }));
-    setSentRowIds((prev) => new Set(prev).add(confirmRow.id));
-    setConfirmRow(null);
+    const rawKey = partyKeyRawForRow(confirmRow);
+    const partyKeyNorm = normalizeDirectorShareholderIdKey(rawKey);
+    if (!email || !partyKeyNorm) {
+      toast.error("Enter a valid email and ensure the row has an IC or SSM number.");
+      return;
+    }
+    if (!organizationId) {
+      if (email) setDraftEmails((prev) => ({ ...prev, [confirmRow.id]: email }));
+      setSentRowIds((prev) => new Set(prev).add(confirmRow.id));
+      setConfirmRow(null);
+      return;
+    }
+    setSavePending(true);
+    try {
+      const res = await apiClient.patch<{ success: boolean }>(
+        `/v1/organizations/issuer/${organizationId}/ctos-party-email`,
+        { partyKey: rawKey, email }
+      );
+      if (!res.success) {
+        toast.error(res.error.message);
+        return;
+      }
+      await queryClient.invalidateQueries({ queryKey: ["corporate-entities", organizationId] });
+      await queryClient.invalidateQueries({ queryKey: ["organization-detail", organizationId] });
+      setDraftEmails((prev) => {
+        const next = { ...prev };
+        delete next[confirmRow.id];
+        return next;
+      });
+      toast.success("Email saved");
+      setConfirmRow(null);
+    } finally {
+      setSavePending(false);
+    }
   };
 
   const renderPersonRow = (row: DirectorShareholderDisplayRow) => {
@@ -208,7 +273,7 @@ export function DirectorShareholdersUnifiedSection({
             <DialogTitle>Send onboarding link</DialogTitle>
             <DialogDescription>
               {confirmRow
-                ? `Mark onboarding as sent for ${confirmRow.name}? RegTank is not called in this preview.`
+                ? `Save email for ${confirmRow.name} and mark onboarding as sent. RegTank is not called in this preview.`
                 : null}
             </DialogDescription>
           </DialogHeader>
@@ -216,8 +281,8 @@ export function DirectorShareholdersUnifiedSection({
             <Button type="button" variant="outline" className="rounded-lg" onClick={() => setConfirmRow(null)}>
               Cancel
             </Button>
-            <Button type="button" className="rounded-lg" onClick={commitSend}>
-              Confirm
+            <Button type="button" className="rounded-lg" onClick={() => void commitSend()} disabled={savePending}>
+              {savePending ? "Saving…" : "Confirm"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -12,6 +12,8 @@ export type FinancialSectionAppSlice = {
     corporate_entities?: unknown;
     director_kyc_status?: unknown;
     director_aml_status?: unknown;
+    latest_organization_ctos_company_json?: unknown | null;
+    ctos_party_supplements?: { party_key: string; email: string }[] | null;
   } | null;
   financial_statements?: unknown;
 };

@@ -212,7 +212,8 @@ export function CompanyDetailsStep({
           corporateShareholders: entitiesData?.corporateShareholders ?? [],
         },
         directorKycStatus: entitiesData?.directorKycStatus ?? null,
-        organizationCtosCompanyJson: null,
+        organizationCtosCompanyJson: entitiesData?.latestOrganizationCtosCompanyJson ?? null,
+        ctosPartySupplements: entitiesData?.ctosPartySupplements ?? null,
         sentRowIds: null,
       }),
     [entitiesData]
