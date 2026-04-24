@@ -34,6 +34,7 @@ import { getPortalFromRole } from "../../lib/role-detector";
 import { AuthRepository } from "../auth/repository";
 import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-onboarding-status";
 import { sendEmail } from "../../lib/email/ses-client";
+import { sendOnboardingEmail } from "../../lib/email/ses";
 import { organizationInvitationTemplate } from "../../lib/email/templates";
 import { randomBytes } from "crypto";
 import {
@@ -1610,10 +1611,13 @@ export class OrganizationService {
 
     const regTankApi = new RegTankAPIClient();
     let requestId: string;
+    let verifyLink = "";
     try {
       logger.info({ referenceId }, "RegTank director onboarding referenceId");
       const regTankResponse = await regTankApi.createIndividualOnboarding(onboardingRequest);
       requestId = regTankResponse.requestId;
+      verifyLink =
+        typeof regTankResponse.verifyLink === "string" ? regTankResponse.verifyLink.trim() : "";
     } catch (e) {
       logger.error(
         { organizationId, partyKey: pk, error: e instanceof Error ? e.message : String(e) },
@@ -1632,6 +1636,7 @@ export class OrganizationService {
       email: supplementEmail,
       sent: true,
       requestId,
+      ...(verifyLink ? { verifyLink } : {}),
       sentAt: new Date().toISOString(),
     };
     await prisma.ctosPartySupplement.upsert({
@@ -1647,6 +1652,30 @@ export class OrganizationService {
         onboarding_json: nextOnboarding as Prisma.InputJsonValue,
       },
     });
+
+    if (verifyLink) {
+      try {
+        await sendOnboardingEmail({ to: supplementEmail, verifyLink });
+        logger.info(
+          { organizationId, partyKey: pk, userId, requestId },
+          "Director CTOS onboarding verify link sent via SES"
+        );
+      } catch (sesErr) {
+        logger.error(
+          {
+            organizationId,
+            partyKey: pk,
+            error: sesErr instanceof Error ? sesErr.message : String(sesErr),
+          },
+          "SES failed after RegTank success; verifyLink is stored in onboarding_json"
+        );
+      }
+    } else {
+      logger.warn(
+        { organizationId, partyKey: pk, requestId },
+        "RegTank returned no verifyLink; skipped SES onboarding email"
+      );
+    }
 
     logger.info({ organizationId, partyKey: pk, userId, requestId }, "Director CTOS party RegTank onboarding sent");
     return { requestId };
