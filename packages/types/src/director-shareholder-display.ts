@@ -17,6 +17,8 @@ export interface DirectorShareholderDisplayRow {
   type: DirectorShareholderPartyType;
   idNumber: string | null;
   registrationNumber: string | null;
+  /** Share ownership label, e.g. `10% ownership`, for application-flow layout. */
+  ownershipDisplay: string | null;
   email: string;
   status: string;
   canEnterEmail: boolean;
@@ -109,6 +111,44 @@ function directorSubjectKindFromCtosOrgRow(r: CtosOrgDirectorRow): "INDIVIDUAL" 
   if (nic) return "INDIVIDUAL";
   if (ic) return "CORPORATE";
   return null;
+}
+
+function ownershipFromCePerson(p: Record<string, unknown>): string | null {
+  const info = p.personalInfo as Record<string, unknown> | undefined;
+  const formContent = (info?.formContent ?? p.formContent) as Record<string, unknown> | undefined;
+  const content = Array.isArray(formContent?.content)
+    ? (formContent.content as Array<{ fieldName?: string; fieldValue?: string }>)
+    : [];
+  const shareField = content.find((f) => f.fieldName === "% of Shares");
+  return shareField?.fieldValue ? `${shareField.fieldValue}% ownership` : null;
+}
+
+function ownershipFromCorpShareholder(corp: Record<string, unknown>): string | null {
+  const formContent = corp.formContent as Record<string, unknown> | undefined;
+  const displayAreas = Array.isArray(formContent?.displayAreas) ? formContent.displayAreas : [];
+  for (const area of displayAreas) {
+    const content = Array.isArray((area as Record<string, unknown>)?.content)
+      ? ((area as Record<string, unknown>).content as Array<{ fieldName?: string; fieldValue?: string }>)
+      : [];
+    const shareField = content.find((f) => f.fieldName === "% of Shares");
+    if (shareField?.fieldValue) return `${shareField.fieldValue}% ownership`;
+  }
+  return null;
+}
+
+function ownershipFromCtosDirectorRow(r: CtosOrgDirectorRow): string | null {
+  if (r.equity_percentage != null && !Number.isNaN(Number(r.equity_percentage))) {
+    return `${r.equity_percentage}% ownership`;
+  }
+  if (r.equity != null && !Number.isNaN(Number(r.equity))) {
+    return `${r.equity}% ownership`;
+  }
+  return null;
+}
+
+function ownershipFromKycRoleString(roleStr: string): string | null {
+  const m = roleStr.match(/\((\d+)%\)/);
+  return m ? `${m[1]}% ownership` : null;
 }
 
 function personNameFromCe(p: Record<string, unknown>): string {
@@ -310,6 +350,7 @@ function buildOnboardingDisplayRows(
     icKey: string | null;
     eod: string | null;
     ceStatus: string | null;
+    ownershipDisplay: string | null;
   };
 
   const indBuckets = new Map<string, IndBucket>();
@@ -340,6 +381,8 @@ function buildOnboardingDisplayRows(
     if (patch.icKey && !cur.icKey) cur.icKey = patch.icKey;
     if (patch.eod && !cur.eod) cur.eod = patch.eod;
     if (patch.ceStatus && !cur.ceStatus) cur.ceStatus = patch.ceStatus;
+    const po = patch.ownershipDisplay != null ? String(patch.ownershipDisplay).trim() : "";
+    if (po && !cur.ownershipDisplay) cur.ownershipDisplay = patch.ownershipDisplay ?? null;
   };
 
   const addInd = (icKey: string | null, eod: string | null, init: IndBucket) => {
@@ -353,6 +396,7 @@ function buildOnboardingDisplayRows(
         icKey: init.icKey,
         eod: init.eod,
         ceStatus: init.ceStatus,
+        ownershipDisplay: init.ownershipDisplay,
       });
       return existing;
     }
@@ -368,6 +412,7 @@ function buildOnboardingDisplayRows(
     const eod = String(p.eodRequestId ?? "").trim() || null;
     const ceSt = (p.status ?? p.approveStatus) != null ? String(p.status ?? p.approveStatus) : null;
     const em = emailFromCePerson(p);
+    const own = ownershipFromCePerson(p);
     addInd(icKey, eod, {
       name: personNameFromCe(p),
       roles: new Set(["Director"]),
@@ -376,6 +421,7 @@ function buildOnboardingDisplayRows(
       icKey,
       eod,
       ceStatus: ceSt,
+      ownershipDisplay: own,
     });
   }
 
@@ -385,6 +431,7 @@ function buildOnboardingDisplayRows(
     const eod = String(p.eodRequestId ?? "").trim() || null;
     const ceSt = (p.status ?? p.approveStatus) != null ? String(p.status ?? p.approveStatus) : null;
     const em = emailFromCePerson(p);
+    const own = ownershipFromCePerson(p);
     const existingKey = findExistingIndKey(icKey, eod);
     if (existingKey) {
       mergeInd(existingKey, {
@@ -395,6 +442,7 @@ function buildOnboardingDisplayRows(
         icKey,
         eod,
         ceStatus: ceSt,
+        ownershipDisplay: own,
       });
     } else {
       addInd(icKey, eod, {
@@ -405,6 +453,7 @@ function buildOnboardingDisplayRows(
         icKey,
         eod,
         ceStatus: ceSt,
+        ownershipDisplay: own,
       });
     }
   }
@@ -427,6 +476,7 @@ function buildOnboardingDisplayRows(
       type: "INDIVIDUAL",
       idNumber: b.icRaw,
       registrationNumber: null,
+      ownershipDisplay: b.ownershipDisplay,
       email,
       status,
       canEnterEmail: canBase,
@@ -446,6 +496,7 @@ function buildOnboardingDisplayRows(
     const status = sent ? "Sent" : statusBase;
     const email = "";
     const canBase = !sent && (!email.trim() || statusBase === "Missing");
+    const corpOwn = ownershipFromCorpShareholder(corp);
     rows.push({
       id,
       name: getCorpDisplayName(corp),
@@ -453,6 +504,7 @@ function buildOnboardingDisplayRows(
       type: "COMPANY",
       idNumber: null,
       registrationNumber: regRaw,
+      ownershipDisplay: corpOwn,
       email,
       status,
       canEnterEmail: canBase,
@@ -488,6 +540,7 @@ function buildCtosBackedDisplayRows(
     const idNumber = party === "INDIVIDUAL" ? (primaryRaw.trim() || null) : null;
     const registrationNumber = party === "COMPANY" ? (primaryRaw.trim() || null) : null;
     const canBase = !sent && (!email.trim() || statusBase === "Missing");
+    const ctosOwn = ownershipFromCtosDirectorRow(cr);
     rows.push({
       id,
       name: (cr.name ?? "").trim() || "Unknown",
@@ -495,6 +548,7 @@ function buildCtosBackedDisplayRows(
       type: party,
       idNumber,
       registrationNumber,
+      ownershipDisplay: ctosOwn,
       email,
       status,
       canEnterEmail: canBase,
@@ -533,6 +587,7 @@ function buildKycOnlyFallbackRows(
     const sent = Boolean(sentRowIds?.has(id));
     const status = sent ? "Sent" : statusBase;
     const canBase = !sent && (!em || statusBase === "Missing");
+    const ownK = ownershipFromKycRoleString(roleStr);
     rows.push({
       id,
       name: String(d.name || "Unknown"),
@@ -540,6 +595,7 @@ function buildKycOnlyFallbackRows(
       type: "INDIVIDUAL",
       idNumber: gid || null,
       registrationNumber: null,
+      ownershipDisplay: ownK,
       email: em,
       status,
       canEnterEmail: canBase,
@@ -564,6 +620,8 @@ function buildKycOnlyFallbackRows(
     const sent = Boolean(sentRowIds?.has(id));
     const status = sent ? "Sent" : statusBase;
     const canBase = !sent && (!em || statusBase === "Missing");
+    const roleStrS = s.role ? String(s.role) : "";
+    const ownS = ownershipFromKycRoleString(roleStrS);
     rows.push({
       id,
       name: String(s.name || "Unknown"),
@@ -571,6 +629,7 @@ function buildKycOnlyFallbackRows(
       type: "INDIVIDUAL",
       idNumber: gid || null,
       registrationNumber: null,
+      ownershipDisplay: ownS,
       email: em,
       status,
       canEnterEmail: canBase,

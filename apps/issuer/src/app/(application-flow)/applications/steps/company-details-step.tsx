@@ -13,6 +13,7 @@
 
 import * as React from "react";
 import { useOrganization, createApiClient, useAuthToken } from "@cashsouk/config";
+import { getDirectorShareholderDisplayRows } from "@cashsouk/types";
 import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
 import { useApplication } from "@/hooks/use-applications";
@@ -27,7 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { PencilIcon } from "@heroicons/react/24/outline";
+import { CheckCircleIcon, PencilIcon } from "@heroicons/react/24/outline";
 import {
   Dialog,
   DialogContent,
@@ -53,7 +54,6 @@ import {
 } from "@/app/(application-flow)/applications/components/form-control";
 import { CompanyDetailsSkeleton } from "@/app/(application-flow)/applications/components/company-details-skeleton";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
-import { DirectorShareholdersUnifiedSection } from "@/components/director-shareholders-unified-section";
 
 interface CompanyDetailsStepProps {
   applicationId: string;
@@ -202,6 +202,21 @@ export function CompanyDetailsStep({
   } = useCorporateInfo(organizationId);
   const { data: entitiesData, isLoading: isLoadingEntities } = useCorporateEntities(organizationId);
   const isLoadingData = isLoadingInfo || isLoadingEntities;
+
+  const directorShareholderRows = React.useMemo(
+    () =>
+      getDirectorShareholderDisplayRows({
+        corporateEntities: {
+          directors: entitiesData?.directors ?? [],
+          shareholders: entitiesData?.shareholders ?? [],
+          corporateShareholders: entitiesData?.corporateShareholders ?? [],
+        },
+        directorKycStatus: entitiesData?.directorKycStatus ?? null,
+        organizationCtosCompanyJson: null,
+        sentRowIds: null,
+      }),
+    [entitiesData]
+  );
 
   /* ================================================================
      LOCAL FORM STATE - Single source of truth
@@ -641,21 +656,41 @@ export function CompanyDetailsStep({
         {/* Directors & Shareholders Section */}
         <div className="space-y-3">
           <div>
-            <h3 className={applicationFlowSectionTitleClassName}>Director and shareholders</h3>
+            <h3 className={applicationFlowSectionTitleClassName}>{"Director & Shareholders"}</h3>
             <div className={applicationFlowSectionDividerClassName} />
           </div>
-          <div className="mt-4 px-3">
-            <DirectorShareholdersUnifiedSection
-              corporateEntities={{
-                directors: entitiesData?.directors ?? [],
-                shareholders: entitiesData?.shareholders ?? [],
-                corporateShareholders: entitiesData?.corporateShareholders ?? [],
-              }}
-              directorKycStatus={entitiesData?.directorKycStatus ?? null}
-              organizationCtosCompanyJson={null}
-              variant="readonly"
-              showCardChrome={false}
-            />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center">
+            {directorShareholderRows.length === 0 ? (
+              <p className="text-[17px] leading-7 text-muted-foreground col-span-2">
+                No directors or shareholders found
+              </p>
+            ) : (
+              directorShareholderRows.map((row) => {
+                const statusVerified = row.status === "APPROVED" || row.status === "Approved";
+                const statusKind = row.type === "COMPANY" ? "KYB" : "KYC";
+                const own = row.ownershipDisplay?.trim() || "—";
+                return (
+                  <React.Fragment key={row.id}>
+                    <div className={labelClassName}>{row.role}</div>
+                    <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
+                      <div className="text-[17px] leading-7 font-medium whitespace-nowrap">{row.name}</div>
+                      <div className="h-4 w-px bg-border" />
+                      <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">{own}</div>
+                      <div className="h-4 w-px bg-border" />
+                      {statusVerified ? (
+                        <div className="flex items-center gap-1.5 whitespace-nowrap">
+                          <CheckCircleIcon className="h-4 w-4 text-green-600" />
+                          <span className="text-[17px] leading-7 text-green-600">{statusKind}</span>
+                        </div>
+                      ) : (
+                        <div />
+                      )}
+                    </div>
+                  </React.Fragment>
+                );
+              })
+            )}
           </div>
         </div>
 

@@ -318,7 +318,7 @@ function displayDirectorRowToSubjectRow(row: DirectorShareholderDisplayRow): Dir
     id: r.id,
     name: r.name,
     role: r.role,
-    ownership: null,
+    ownership: r.ownershipDisplay,
     icOrSsm: idStr || null,
     verificationLabel: r.type === "COMPANY" ? "KYB" : "KYC",
     verificationStatus: r.status,
@@ -1063,11 +1063,13 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
       <ReviewFieldBlock title="Director and Shareholders">
         {directorDisplayRows.length > 0 ? (
           <div className={applicationTableWrapperClass}>
-            <Table className="text-[15px]">
+            <div className="overflow-x-auto">
+            <Table className="min-w-[780px] text-[15px]">
               <TableHeader className={applicationTableHeaderBgClass}>
                 <TableRow className="hover:bg-transparent border-b border-border">
                   <TableHead className={applicationTableHeaderClass}>Name</TableHead>
                   <TableHead className={applicationTableHeaderClass}>Role</TableHead>
+                  <TableHead className={applicationTableHeaderClass}>Ownership</TableHead>
                   <TableHead className={applicationTableHeaderClass}>IC / SSM</TableHead>
                   <TableHead className={applicationTableHeaderClass}>Email</TableHead>
                   <TableHead className={applicationTableHeaderClass}>KYC / KYB status</TableHead>
@@ -1091,6 +1093,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                     <TableRow key={row.id} className={applicationTableRowClass}>
                       <TableCell className={`${applicationTableCellClass} font-medium`}>{row.name}</TableCell>
                       <TableCell className={applicationTableCellClass}>{row.role}</TableCell>
+                      <TableCell className={applicationTableCellClass}>{row.ownershipDisplay?.trim() || "—"}</TableCell>
                       <TableCell className={`${applicationTableCellClass} tabular-nums`}>
                         {icSm || "—"}
                       </TableCell>
@@ -1161,6 +1164,7 @@ export function ApplicationFinancialReviewContent({ applicationId, app }: Applic
                 })}
               </TableBody>
             </Table>
+            </div>
           </div>
         ) : (
           <div className="rounded-xl border border-border bg-card min-h-[80px] flex items-center justify-center">

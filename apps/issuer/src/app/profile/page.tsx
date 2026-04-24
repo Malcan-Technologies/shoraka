@@ -1310,7 +1310,6 @@ export default function ProfilePage() {
                   corporateEntities={orgData.corporateEntities ?? {}}
                   directorKycStatus={orgData.directorKycStatus ?? null}
                   organizationCtosCompanyJson={null}
-                  variant="issuer-profile"
                 />
               )}
 
