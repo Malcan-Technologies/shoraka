@@ -30,6 +30,7 @@ function GetStartedPageContent() {
   const [showShariah, setShowShariah] = React.useState(false);
   const [canContinue, setCanContinue] = React.useState(false);
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+  const pendingSignupRoleRef = React.useRef<"INVESTOR" | "ISSUER">("ISSUER");
   const error = searchParams.get("error");
   const errorMessage = searchParams.get("message");
 
@@ -46,6 +47,11 @@ function GetStartedPageContent() {
 
   const handleRoleSelect = (role: "INVESTOR" | "ISSUER") => {
     window.location.href = `${API_URL}/api/auth/login?role=${role}&signup=true`;
+  };
+
+  const openShariahForSignup = (role: "INVESTOR" | "ISSUER") => {
+    pendingSignupRoleRef.current = role;
+    setShowShariah(true);
   };
 
   return (
@@ -76,7 +82,7 @@ function GetStartedPageContent() {
       )}
 
       <div className="w-full max-w-xl grid gap-4">
-        <button onClick={() => handleRoleSelect("INVESTOR")} className="block text-left">
+        <button onClick={() => openShariahForSignup("INVESTOR")} className="block text-left">
           <Card className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50">
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -105,7 +111,7 @@ function GetStartedPageContent() {
           </Card>
         </button>
 
-        <button onClick={() => setShowShariah(true)} className="block text-left">
+        <button onClick={() => openShariahForSignup("ISSUER")} className="block text-left">
           <Card className="cursor-pointer transition-all hover:shadow-md hover:border-primary/50">
             <CardHeader>
               <div className="flex items-center gap-3">
@@ -233,7 +239,7 @@ function GetStartedPageContent() {
                 disabled={!canContinue}
                 onClick={() => {
                   setShowShariah(false);
-                  handleRoleSelect("ISSUER");
+                  handleRoleSelect(pendingSignupRoleRef.current);
                 }}
               >
                 I Acknowledge & Continue
