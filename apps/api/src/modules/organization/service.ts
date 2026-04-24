@@ -64,6 +64,18 @@ function parseCtosPartyOnboardingJson(v: unknown): Record<string, unknown> {
   return {};
 }
 
+/** RegTank referenceId: only [A-Za-z0-9_-], no colons; max length 99. */
+const REGTANK_REFERENCE_ID_MAX_LEN = 99;
+
+function buildSafeReferenceId(organizationId: string, partyKey: string): string {
+  const org = String(organizationId).replace(/[^a-zA-Z0-9_-]/g, "");
+  const party = String(partyKey).replace(/[^a-zA-Z0-9_-]/g, "");
+  const sep = "_";
+  const maxPartyLen = Math.max(1, REGTANK_REFERENCE_ID_MAX_LEN - org.length - sep.length);
+  const partyPart = party.length > maxPartyLen ? party.slice(0, maxPartyLen) : party;
+  return `${org}${sep}${partyPart}`.slice(0, REGTANK_REFERENCE_ID_MAX_LEN);
+}
+
 export class OrganizationService {
   private repository: OrganizationRepository;
   private authRepository: AuthRepository;
@@ -1577,11 +1589,12 @@ export class OrganizationService {
         "1036131",
       10
     );
+    const referenceId = buildSafeReferenceId(organizationId, pk);
     const onboardingRequest: RegTankIndividualOnboardingRequest = {
       email: supplementEmail,
       surname,
       forename,
-      referenceId: `issuer-dir:${organizationId}:${pk}`,
+      referenceId,
       countryOfResidence: "MY",
       nationality: "MY",
       placeOfBirth: "MY",
@@ -1598,6 +1611,7 @@ export class OrganizationService {
     const regTankApi = new RegTankAPIClient();
     let requestId: string;
     try {
+      logger.info({ referenceId }, "RegTank director onboarding referenceId");
       const regTankResponse = await regTankApi.createIndividualOnboarding(onboardingRequest);
       requestId = regTankResponse.requestId;
     } catch (e) {
