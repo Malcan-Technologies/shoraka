@@ -77,6 +77,8 @@ export function FinancialSection({
   sectionComparison,
   hideSectionComments = false,
 }: FinancialSectionProps) {
+  const kycNotReadyReason = "KYC not completed for all required directors/shareholders";
+  const kycNotReadyTooltip = "Cannot approve until all required KYC is approved";
   const financialApproveAllowed = (() => {
     const issuerOrg = app.issuer_organization;
     if (!issuerOrg) return true;
@@ -149,12 +151,22 @@ export function FinancialSection({
       isActionLocked={isActionLocked}
       actionLockTooltip={actionLockTooltip}
       sectionStatus={sectionStatus}
-      showApprove={financialApproveAllowed}
+      showApprove={true}
+      approveDisabled={!financialApproveAllowed}
+      approveDisabledReason={!financialApproveAllowed ? "KYC not ready" : undefined}
       onResetToPending={onResetSectionToPending}
       onApprove={onApprove}
       onReject={onReject}
       onRequestAmendment={onRequestAmendment}
     >
+      {!financialApproveAllowed ? (
+        <div
+          className="rounded-xl border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
+          title={kycNotReadyTooltip}
+        >
+          {kycNotReadyReason}
+        </div>
+      ) : null}
       <ApplicationFinancialReviewContent
         applicationId={applicationId}
         issuerOrganizationId={issuerOrganizationId ?? app.issuer_organization?.id ?? null}
