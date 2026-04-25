@@ -34,19 +34,19 @@ export function mapRegtankStatusToDisplay(status: string | undefined | null): st
   switch (s) {
     case "IN_PROGRESS":
     case "PENDING":
-      return "Pending";
+      return "KYC Pending";
     case "PENDING_AML":
-      return "Pending";
+      return "KYC Pending";
     case "APPROVED":
-      return "Approved";
+      return "KYC Approved";
     case "REJECTED":
-      return "Rejected";
+      return "KYC Failed";
     case "FORM_FILLING":
     case "LIVENESS_PASSED":
     case "PENDING_APPROVAL":
-      return "Pending";
+      return "KYC Pending";
     default:
-      return "Pending";
+      return "KYC Pending";
   }
 }
 
@@ -71,13 +71,13 @@ export function effectiveCtosRegtankStatusFromOnboardingJson(
 export function regtankDisplayStatusBadgeClass(displayLabel: string | undefined): string {
   if (!displayLabel) return "bg-muted text-muted-foreground";
   const s = displayLabel.toLowerCase();
-  if (s === "approved") {
+  if (s === "kyc approved") {
     return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400";
   }
-  if (s === "rejected") {
+  if (s === "kyc failed") {
     return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
   }
-  if (s === "pending") {
+  if (s === "kyc pending") {
     return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
   }
   return "bg-muted text-muted-foreground";
