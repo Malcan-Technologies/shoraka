@@ -65,16 +65,41 @@ export function getDisplayRoleLabel(row: {
   return roles.join(", ");
 }
 
-export type UnifiedDisplayKycStatus = "KYC Approved" | "KYC Pending" | "Not Started" | "KYC Failed";
+export type UnifiedDisplayKycStatus =
+  | "KYC Approved"
+  | "KYC Pending"
+  | "Not Started"
+  | "KYC Failed"
+  | "Status unavailable";
+
+const KNOWN_PENDING_STATUSES = new Set([
+  "IN_PROGRESS",
+  "PENDING",
+  "PENDING_AML",
+  "FORM_FILLING",
+  "LIVENESS_PASSED",
+  "PENDING_APPROVAL",
+  "WAIT_FOR_APPROVAL",
+  /** Common director_kyc_status / RegTank in-progress values not listed above */
+  "EMAIL_SENT",
+  "LIVENESS_STARTED",
+]);
+
+function normalizeKycStatusToken(s: string | null | undefined): string {
+  return String(s ?? "")
+    .trim()
+    .toUpperCase();
+}
 
 export type UnifiedOnboardingState = "NOT_STARTED" | "IN_PROGRESS" | "SUBMITTED" | "APPROVED";
 
 /**
  * Canonical display label for KYC/onboarding state across portals.
- * - APPROVED -> KYC Approved
- * - REJECTED/FAILED -> KYC Failed
  * - missing requestId -> Not Started
- * - everything else -> KYC Pending
+ * - REJECTED / FAILED (any of regtank / kyc / raw) -> KYC Failed
+ * - APPROVED (any) -> KYC Approved
+ * - known in-progress tokens (any) -> KYC Pending
+ * - anything else -> Status unavailable (not treated as pending)
  */
 export function getDisplayKycStatus(input: {
   requestId?: string | null;
@@ -82,15 +107,33 @@ export function getDisplayKycStatus(input: {
   kycRawStatus?: string | null;
   rawStatus?: string | null;
 }): UnifiedDisplayKycStatus {
-  const requestId = String(input.requestId ?? "").trim();
-  const status = String(input.regtankStatus ?? input.kycRawStatus ?? input.rawStatus ?? "")
-    .trim()
-    .toUpperCase();
-
+  const requestId = normalizeKycStatusToken(input.requestId);
   if (!requestId) return "Not Started";
-  if (status === "APPROVED") return "KYC Approved";
-  if (status === "REJECTED" || status === "FAILED") return "KYC Failed";
-  return "KYC Pending";
+
+  const rt = normalizeKycStatusToken(input.regtankStatus);
+  const kycRaw = normalizeKycStatusToken(input.kycRawStatus);
+  const raw = normalizeKycStatusToken(input.rawStatus);
+
+  const tokens = [rt, kycRaw, raw].filter((t) => t.length > 0);
+
+  if (tokens.some((t) => t === "REJECTED" || t === "FAILED")) {
+    return "KYC Failed";
+  }
+  if (tokens.some((t) => t === "APPROVED")) {
+    return "KYC Approved";
+  }
+  if (tokens.some((t) => KNOWN_PENDING_STATUSES.has(t))) {
+    return "KYC Pending";
+  }
+
+  if (tokens.length > 0) {
+    console.warn("Unknown KYC status:", {
+      regtankStatus: input.regtankStatus,
+      kycRawStatus: input.kycRawStatus,
+      rawStatus: input.rawStatus,
+    });
+  }
+  return "Status unavailable";
 }
 
 /**

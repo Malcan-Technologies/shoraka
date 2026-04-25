@@ -883,7 +883,9 @@ function DirectorStatusDisplay({
                                 ? kycDisplayStatus === "KYC Failed"
                                 : status === "REJECTED" || status === "Rejected")
                               ? "border-red-500/30 text-foreground bg-red-500/10 text-[10px]"
-                              : "border-amber-500/30 text-foreground bg-amber-500/10 text-[10px]"
+                              : statusKey === "kycStatus" && kycDisplayStatus === "Status unavailable"
+                                ? "border-muted-foreground/40 text-foreground bg-muted/50 text-[10px]"
+                                : "border-amber-500/30 text-foreground bg-amber-500/10 text-[10px]"
                         }
                       >
                         {statusKey === "kycStatus" ? kycDisplayStatus : status}

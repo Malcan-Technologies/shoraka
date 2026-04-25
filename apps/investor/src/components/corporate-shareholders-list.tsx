@@ -3,7 +3,13 @@
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { getDisplayKycStatus } from "@cashsouk/types";
-import { BuildingOffice2Icon, CheckCircleIcon, ClockIcon, XCircleIcon } from "@heroicons/react/24/outline";
+import {
+  BuildingOffice2Icon,
+  CheckCircleIcon,
+  ClockIcon,
+  ExclamationTriangleIcon,
+  XCircleIcon,
+} from "@heroicons/react/24/outline";
 
 interface CorporateShareholder {
   [key: string]: unknown;
@@ -109,6 +115,13 @@ export function CorporateShareholdersList({
           <Badge variant="outline" className="border-gray-400/30 text-foreground bg-gray-400/10">
             <ClockIcon className="h-3 w-3 mr-1 text-gray-500" />
             Not Started
+          </Badge>
+        );
+      case "Status unavailable":
+        return (
+          <Badge variant="outline" className="border-muted-foreground/40 text-foreground bg-muted/40">
+            <ExclamationTriangleIcon className="h-3 w-3 mr-1 text-muted-foreground" />
+            Status unavailable
           </Badge>
         );
       default:

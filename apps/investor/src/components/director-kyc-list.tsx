@@ -7,7 +7,7 @@ import {
   shouldIncludePerson,
   type DirectorKycStatus,
 } from "@cashsouk/types";
-import { CheckCircleIcon, ClockIcon, XCircleIcon } from "@heroicons/react/24/outline";
+import { CheckCircleIcon, ClockIcon, ExclamationTriangleIcon, XCircleIcon } from "@heroicons/react/24/outline";
 
 interface DirectorKycListProps {
   directors: DirectorKycStatus[];
@@ -69,6 +69,13 @@ export function DirectorKycList({ directors }: DirectorKycListProps) {
           <Badge variant="outline" className="border-gray-400/30 text-foreground bg-gray-400/10">
             <ClockIcon className="h-3 w-3 mr-1 text-gray-500" />
             Not Started
+          </Badge>
+        );
+      case "Status unavailable":
+        return (
+          <Badge variant="outline" className="border-muted-foreground/40 text-foreground bg-muted/40">
+            <ExclamationTriangleIcon className="h-3 w-3 mr-1 text-muted-foreground" />
+            Status unavailable
           </Badge>
         );
       default:
