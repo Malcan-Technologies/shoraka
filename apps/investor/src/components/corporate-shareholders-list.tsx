@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
-import { getDisplayKycStatus } from "@cashsouk/types";
+import { getDisplayAmlStatus, getDisplayKycStatus } from "@cashsouk/types";
 import {
   BuildingOffice2Icon,
   CheckCircleIcon,
@@ -46,7 +46,7 @@ export function CorporateShareholdersList({
       return (
         <Badge variant="outline" className="border-gray-400/30 text-foreground bg-gray-400/10">
           <ClockIcon className="h-3 w-3 mr-1 text-gray-500" />
-          Pending
+          {getDisplayAmlStatus("PENDING")}
         </Badge>
       );
     }
@@ -58,21 +58,21 @@ export function CorporateShareholdersList({
         return (
           <Badge variant="outline" className="border-green-500/30 text-foreground bg-green-500/10">
             <CheckCircleIcon className="h-3 w-3 mr-1 text-green-600" />
-            Approved
+            {getDisplayAmlStatus(amlStatus)}
           </Badge>
         );
       case "Unresolved":
         return (
           <Badge variant="outline" className="border-yellow-500/30 text-foreground bg-yellow-500/10">
             <ClockIcon className="h-3 w-3 mr-1 text-yellow-600" />
-            Unresolved
+            {getDisplayAmlStatus(amlStatus)}
           </Badge>
         );
       case "Rejected":
         return (
           <Badge variant="destructive">
             <XCircleIcon className="h-3 w-3 mr-1" />
-            Rejected
+            {getDisplayAmlStatus(amlStatus)}
           </Badge>
         );
       case "Pending":
@@ -80,7 +80,7 @@ export function CorporateShareholdersList({
         return (
           <Badge variant="outline" className="border-gray-400/30 text-foreground bg-gray-400/10">
             <ClockIcon className="h-3 w-3 mr-1 text-gray-500" />
-            Pending
+            {getDisplayAmlStatus(amlStatus)}
           </Badge>
         );
     }

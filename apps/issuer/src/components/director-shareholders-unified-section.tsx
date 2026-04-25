@@ -10,6 +10,7 @@ import {
 } from "@heroicons/react/24/outline";
 import {
   getDirectorShareholderDisplayRows,
+  getDisplayAmlStatus,
   getDisplayRoleLabel,
   isCtosIndividualKycEligibleRow,
   normalizeDirectorShareholderIdKey,
@@ -341,7 +342,7 @@ export function DirectorShareholdersUnifiedSection({
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs text-muted-foreground">AML</span>
                   <Badge variant="outline" className="text-xs font-medium">
-                    {row.amlStatus}
+                    {getDisplayAmlStatus(row.amlStatus)}
                   </Badge>
                 </div>
               ) : null}
@@ -465,7 +466,7 @@ export function DirectorShareholdersUnifiedSection({
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs text-muted-foreground">AML</span>
                   <Badge variant="outline" className="text-xs font-medium">
-                    {row.amlStatus}
+                    {getDisplayAmlStatus(row.amlStatus)}
                   </Badge>
                 </div>
               ) : null}

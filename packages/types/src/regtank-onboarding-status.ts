@@ -85,6 +85,20 @@ export function getCtosPartySupplementAmlRawStatus(
   return fb.length ? fb.toUpperCase() : null;
 }
 
+/**
+ * Human-readable AML label for UI surfaces.
+ * Keeps AML wording explicit and never returns raw backend tokens.
+ */
+export function getDisplayAmlStatus(raw?: string | null): string {
+  const s = (raw || "").trim().toUpperCase();
+
+  if (s === "APPROVED") return "AML Approved";
+  if (s === "REJECTED" || s === "FAILED") return "AML Failed";
+  if (s === "PENDING" || s === "IN_PROGRESS" || s === "UNRESOLVED") return "AML Pending";
+
+  return "Status unavailable";
+}
+
 /** Read regtankStatus from supplement JSON; migrate legacy lowercase `status` if present. */
 export function effectiveCtosRegtankStatusFromOnboardingJson(
   onboardingJson: unknown

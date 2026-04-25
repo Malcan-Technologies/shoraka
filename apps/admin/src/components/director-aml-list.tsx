@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
-import type { DirectorAmlStatus } from "@cashsouk/types";
+import { getDisplayAmlStatus, type DirectorAmlStatus } from "@cashsouk/types";
 import { CheckCircleIcon, ClockIcon, XCircleIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 
 interface DirectorAmlListProps {
@@ -17,21 +17,21 @@ export function DirectorAmlList({ directors, isRefreshing }: DirectorAmlListProp
         return (
           <Badge variant="outline" className="border-green-500/30 text-foreground bg-green-500/10">
             <CheckCircleIcon className="h-3 w-3 mr-1 text-green-600" />
-            Approved
+            {getDisplayAmlStatus(status)}
           </Badge>
         );
       case "Unresolved":
         return (
           <Badge variant="outline" className="border-yellow-500/30 text-foreground bg-yellow-500/10">
             <ExclamationTriangleIcon className="h-3 w-3 mr-1 text-yellow-600" />
-            Unresolved
+            {getDisplayAmlStatus(status)}
           </Badge>
         );
       case "Rejected":
         return (
           <Badge variant="outline" className="border-destructive/30 text-foreground bg-destructive/10">
             <XCircleIcon className="h-3 w-3 mr-1 text-destructive" />
-            Rejected
+            {getDisplayAmlStatus(status)}
           </Badge>
         );
       case "Pending":
@@ -39,7 +39,7 @@ export function DirectorAmlList({ directors, isRefreshing }: DirectorAmlListProp
         return (
           <Badge variant="outline" className="border-gray-400/30 text-foreground bg-gray-400/10">
             <ClockIcon className="h-3 w-3 mr-1 text-gray-500" />
-            Pending
+            {getDisplayAmlStatus(status)}
           </Badge>
         );
     }

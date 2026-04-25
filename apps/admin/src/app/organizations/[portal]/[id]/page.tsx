@@ -34,6 +34,7 @@ import {
   useRefreshCorporateEntities,
 } from "@/hooks/use-organization-detail";
 import {
+  getDisplayAmlStatus,
   getDisplayKycStatus,
   getDirectorShareholderDisplayRows,
   type DirectorShareholderDisplayRow,
@@ -854,6 +855,8 @@ function DirectorStatusDisplay({
                     rawStatus: status,
                   })
                 : null;
+            const amlDisplayStatus =
+              statusKey === "amlStatus" ? getDisplayAmlStatus(status) : null;
             const kycId = dir.kycId ? String(dir.kycId) : null;
             const eodId = dir.eodRequestId ? String(dir.eodRequestId) : null;
             const governmentIdNumber = dir.governmentIdNumber
@@ -877,18 +880,19 @@ function DirectorStatusDisplay({
                         className={
                           (statusKey === "kycStatus"
                             ? kycDisplayStatus === "KYC Approved"
-                            : status === "APPROVED" || status === "Approved")
+                            : amlDisplayStatus === "AML Approved")
                             ? "border-emerald-500/30 text-foreground bg-emerald-500/10 text-[10px]"
                             : (statusKey === "kycStatus"
                                 ? kycDisplayStatus === "KYC Failed"
-                                : status === "REJECTED" || status === "Rejected")
+                                : amlDisplayStatus === "AML Failed")
                               ? "border-red-500/30 text-foreground bg-red-500/10 text-[10px]"
-                              : statusKey === "kycStatus" && kycDisplayStatus === "Status unavailable"
+                              : (statusKey === "kycStatus" && kycDisplayStatus === "Status unavailable") ||
+                                  (statusKey === "amlStatus" && amlDisplayStatus === "Status unavailable")
                                 ? "border-muted-foreground/40 text-foreground bg-muted/50 text-[10px]"
                                 : "border-amber-500/30 text-foreground bg-amber-500/10 text-[10px]"
                         }
                       >
-                        {statusKey === "kycStatus" ? kycDisplayStatus : status}
+                        {statusKey === "kycStatus" ? kycDisplayStatus : amlDisplayStatus}
                       </Badge>
                     )}
                     {riskLevel && (
@@ -950,6 +954,7 @@ function BusinessShareholderStatusDisplay({
             const businessName = String(biz.businessName || "Unknown");
             const sharePercentage = biz.sharePercentage ? `${biz.sharePercentage}%` : null;
             const amlStatus = biz.amlStatus ? String(biz.amlStatus) : null;
+            const amlDisplayStatus = getDisplayAmlStatus(amlStatus);
             const codRequestId = biz.codRequestId ? String(biz.codRequestId) : null;
             const kybId = biz.kybId ? String(biz.kybId) : null;
             const riskLevel = biz.amlRiskLevel ? String(biz.amlRiskLevel) : null;
@@ -969,14 +974,16 @@ function BusinessShareholderStatusDisplay({
                       <Badge
                         variant="outline"
                         className={
-                          amlStatus === "Approved"
+                          amlDisplayStatus === "AML Approved"
                             ? "border-emerald-500/30 text-foreground bg-emerald-500/10 text-[10px]"
-                            : amlStatus === "Rejected"
+                            : amlDisplayStatus === "AML Failed"
                               ? "border-red-500/30 text-foreground bg-red-500/10 text-[10px]"
+                              : amlDisplayStatus === "Status unavailable"
+                                ? "border-muted-foreground/40 text-foreground bg-muted/50 text-[10px]"
                               : "border-amber-500/30 text-foreground bg-amber-500/10 text-[10px]"
                         }
                       >
-                        {amlStatus}
+                        {amlDisplayStatus}
                       </Badge>
                     )}
                     {riskLevel && (
