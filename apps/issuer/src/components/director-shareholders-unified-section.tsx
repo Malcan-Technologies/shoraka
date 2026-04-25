@@ -107,6 +107,17 @@ function rowNeedsProfileAction(
   return row.status === "Missing" || !emailDisplay.trim();
 }
 
+function onboardingApprovalLockActive(onboardingJson: unknown): boolean {
+  if (!onboardingJson || typeof onboardingJson !== "object" || Array.isArray(onboardingJson)) return false;
+  const onboarding = onboardingJson as Record<string, unknown>;
+  const regtankStatus = String(onboarding.regtankStatus ?? "").trim().toUpperCase();
+  const kycRawStatus =
+    onboarding.kyc && typeof onboarding.kyc === "object" && !Array.isArray(onboarding.kyc)
+      ? String((onboarding.kyc as Record<string, unknown>).rawStatus ?? "").trim().toUpperCase()
+      : "";
+  return regtankStatus === "APPROVED" || kycRawStatus === "APPROVED";
+}
+
 function isRowComplete(row: DirectorShareholderDisplayRow, persistedEmail: string): boolean {
   return Boolean(persistedEmail?.trim()) && row.status !== "Missing";
 }
@@ -193,6 +204,20 @@ export function DirectorShareholdersUnifiedSection({
     [draftEmails]
   );
 
+  const supplementByPartyKey = React.useMemo(() => {
+    const map = new Map<string, Record<string, unknown>>();
+    for (const row of ctosPartySupplements ?? []) {
+      const key = normalizeDirectorShareholderIdKey(row.partyKey);
+      if (!key) continue;
+      const onboarding =
+        row.onboardingJson && typeof row.onboardingJson === "object" && !Array.isArray(row.onboardingJson)
+          ? (row.onboardingJson as Record<string, unknown>)
+          : {};
+      map.set(key, onboarding);
+    }
+    return map;
+  }, [ctosPartySupplements]);
+
   const commitSend = async () => {
     if (!confirmRow) return;
     if (!isCtosIndividualKycEligibleRow(confirmRow)) {
@@ -203,6 +228,8 @@ export function DirectorShareholdersUnifiedSection({
     const email = displayEmail(confirmRow).trim();
     const rawKey = partyKeyRawForRow(confirmRow);
     const partyKeyNorm = normalizeDirectorShareholderIdKey(rawKey);
+    const latestOnboarding = partyKeyNorm ? supplementByPartyKey.get(partyKeyNorm) : undefined;
+    const hadRequestId = String(latestOnboarding?.requestId ?? "").trim().length > 0;
     if (!email || !partyKeyNorm) {
       toast.error("Enter a valid email and ensure the row has an IC or SSM number.");
       return;
@@ -240,7 +267,11 @@ export function DirectorShareholdersUnifiedSection({
         delete next[confirmRow.id];
         return next;
       });
-      toast.success("Email saved and onboarding link sent");
+      toast.success(
+        hadRequestId
+          ? "Email saved and onboarding restarted"
+          : "Email saved and onboarding link sent"
+      );
       setConfirmRow(null);
     } finally {
       setSavePending(false);
@@ -252,15 +283,15 @@ export function DirectorShareholdersUnifiedSection({
     const em = displayEmail(row);
     const persistedEmail = row.email;
     const linkSent = onboardingLinkSentForRow(row);
+    const partyKeyNorm = normalizeDirectorShareholderIdKey(partyKeyRawForRow(row));
+    const latestOnboarding = partyKeyNorm ? supplementByPartyKey.get(partyKeyNorm) : undefined;
+    const latestRequestId = String(latestOnboarding?.requestId ?? "").trim();
+    const latestVerifyLink = String(latestOnboarding?.verifyLink ?? "").trim();
+    const approvalLocked = onboardingApprovalLockActive(latestOnboarding);
     const regtankUi = showRegtankStandardStatusUi(row) ? regtankStatusUiFromRow(row) : null;
     const completedUx = isRowCompleteForUi(row, persistedEmail, em, sentRowIds);
     const kycEligible = isCtosIndividualKycEligibleRow(row);
-    const showEmailControls =
-      kycEligible &&
-      !completedUx &&
-      !sentRowIds.has(row.id) &&
-      !linkSent &&
-      (!persistedEmail.trim() || row.status === "Missing");
+    const showEmailControls = kycEligible && !approvalLocked;
     const needsAction = kycEligible && rowNeedsProfileAction(row, em);
     const rowHighlight =
       highlightActionRequiredRows && kycEligible && !completedUx && !linkSent && needsAction;
@@ -306,8 +337,21 @@ export function DirectorShareholdersUnifiedSection({
           ) : (
             <p className="text-xs text-muted-foreground mt-1">Status: {row.status}</p>
           )}
+          {latestRequestId ? (
+            <p className="text-xs text-muted-foreground mt-1">Latest request ID: {latestRequestId}</p>
+          ) : null}
+          {showEmailControls && latestRequestId ? (
+            <p className="text-xs text-amber-700 dark:text-amber-300 mt-2">
+              This will restart onboarding and discard previous progress.
+            </p>
+          ) : null}
         </div>
-        {linkSent ? null : completedUx ? (
+        {approvalLocked ? (
+          <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
+            <CheckCircleIcon className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+            <span className="text-sm font-medium text-emerald-800 dark:text-emerald-300">KYC approved</span>
+          </div>
+        ) : completedUx && !showEmailControls ? (
           <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
             <CheckCircleIcon className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
             <span className="text-sm font-medium text-emerald-800 dark:text-emerald-300">Completed</span>
@@ -331,8 +375,39 @@ export function DirectorShareholdersUnifiedSection({
               disabled={savePending || !em.trim()}
               onClick={() => setConfirmRow(row)}
             >
-              Confirm and send onboarding link
+              Confirm & Send
             </Button>
+            {latestVerifyLink ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="w-full rounded-xl sm:w-auto"
+                disabled={savePending}
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(latestVerifyLink);
+                    toast.success("Onboarding link copied");
+                  } catch {
+                    toast.error("Failed to copy onboarding link");
+                  }
+                }}
+              >
+                Copy link
+              </Button>
+            ) : null}
+            {linkSent ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="w-full rounded-xl sm:w-auto"
+                disabled={savePending}
+                onClick={() => setDraftEmails((prev) => ({ ...prev, [row.id]: "" }))}
+              >
+                Send to a different email
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </div>

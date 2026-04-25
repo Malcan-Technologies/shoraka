@@ -60,8 +60,11 @@ import {
   getSectionForScopeKey,
   parseItemScopeKey,
   REVIEW_SECTION_ORDER,
+  getDirectorShareholderDisplayRows,
+  isCtosIndividualKycEligibleRow,
   getStepKeyFromStepId,
   isRegtankIso3166Code,
+  normalizeDirectorShareholderIdKey,
   type SoukscoreRiskRating,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
@@ -4623,6 +4626,7 @@ export class AdminService {
     }
 
     if (status === ApplicationStatus.APPROVED) {
+      this.assertLatestCtosPartyKycApproved(application as any);
       const reviews = (application.application_reviews ?? []) as { section: string; status: string }[];
       const sectionPolicy = await this.getReviewSectionPolicy(application);
       const reviewStatusBySection = new Map<string, string>();
@@ -4726,6 +4730,73 @@ export class AdminService {
 
   private getCorrectionFlowGuidance(): string {
     return "Terminal corrections must use a dedicated audited correction flow";
+  }
+
+  private assertLatestCtosPartyKycApproved(application: {
+    issuer_organization?: {
+      corporate_entities?: unknown;
+      director_kyc_status?: unknown;
+      latest_organization_ctos_company_json?: unknown;
+      ctos_party_supplements?: { party_key: string; onboarding_json?: unknown }[];
+    } | null;
+  }): void {
+    const issuerOrg = application.issuer_organization;
+    if (!issuerOrg) return;
+
+    const supplements = Array.isArray(issuerOrg.ctos_party_supplements)
+      ? issuerOrg.ctos_party_supplements
+      : [];
+    const onboardingByPartyKey = new Map<string, Record<string, unknown>>();
+    for (const supplement of supplements) {
+      const key = normalizeDirectorShareholderIdKey(supplement.party_key);
+      if (!key) continue;
+      const onboarding =
+        supplement.onboarding_json &&
+        typeof supplement.onboarding_json === "object" &&
+        !Array.isArray(supplement.onboarding_json)
+          ? (supplement.onboarding_json as Record<string, unknown>)
+          : {};
+      onboardingByPartyKey.set(key, onboarding);
+    }
+
+    const rows = getDirectorShareholderDisplayRows({
+      corporateEntities: issuerOrg.corporate_entities,
+      directorKycStatus: issuerOrg.director_kyc_status,
+      organizationCtosCompanyJson: issuerOrg.latest_organization_ctos_company_json ?? null,
+      ctosPartySupplements: supplements.map((supplement) => ({
+        partyKey: supplement.party_key,
+        onboardingJson: supplement.onboarding_json ?? null,
+      })),
+      sentRowIds: null,
+    });
+
+    const notReady: string[] = [];
+    for (const row of rows) {
+      if (!isCtosIndividualKycEligibleRow(row)) continue;
+      const partyKey = normalizeDirectorShareholderIdKey(
+        row.idNumber?.trim() || row.registrationNumber?.trim() || row.enquiryId?.trim() || ""
+      );
+      if (!partyKey) continue;
+      const onboarding = onboardingByPartyKey.get(partyKey) ?? {};
+      const requestId = String(onboarding.requestId ?? "").trim();
+      const regtankStatus = String(onboarding.regtankStatus ?? "").trim().toUpperCase();
+      const kycRawStatus =
+        onboarding.kyc && typeof onboarding.kyc === "object" && !Array.isArray(onboarding.kyc)
+          ? String((onboarding.kyc as Record<string, unknown>).rawStatus ?? "").trim().toUpperCase()
+          : "";
+      const approved = regtankStatus === "APPROVED" || kycRawStatus === "APPROVED";
+      if (!requestId || !approved) {
+        notReady.push(row.name || partyKey);
+      }
+    }
+
+    if (notReady.length > 0) {
+      throw new AppError(
+        400,
+        "KYC_NOT_READY",
+        `Latest onboarding KYC is not approved for: ${notReady.join(", ")}`
+      );
+    }
   }
 
   /**
@@ -5772,6 +5843,9 @@ export class AdminService {
     logContext?: AdminLogContext
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
+    if (section === "financial") {
+      this.assertLatestCtosPartyKycApproved(application as any);
+    }
     await this.ensureUnderReview(
       repository,
       applicationId,

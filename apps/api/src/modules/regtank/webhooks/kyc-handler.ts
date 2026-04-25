@@ -822,6 +822,21 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
 
     const prevRest = { ...prev };
     delete prevRest.status;
+    const latestRequestId = typeof prev.requestId === "string" ? prev.requestId.trim() : "";
+    const webhookOnboardingId = typeof onboardingId === "string" ? onboardingId.trim() : "";
+    if (latestRequestId && webhookOnboardingId && latestRequestId !== webhookOnboardingId) {
+      logger.info(
+        {
+          latestRequestId,
+          webhookOnboardingId,
+          requestId,
+          partyKey: supplement.party_key,
+          organizationId: supplement.organization_id,
+        },
+        "Ignored stale CTOS party KYC webhook for non-latest onboarding requestId"
+      );
+      return true;
+    }
     const updated = {
       ...prevRest,
       regtankStatus,

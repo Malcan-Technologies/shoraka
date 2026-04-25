@@ -6,6 +6,11 @@ import { ReviewSectionCard } from "../review-section-card";
 import type { ReviewSectionId } from "../section-types";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
 import { ApplicationFinancialReviewComparison } from "@/components/application-financial-review-comparison";
+import {
+  getDirectorShareholderDisplayRows,
+  isCtosIndividualKycEligibleRow,
+  normalizeDirectorShareholderIdKey,
+} from "@cashsouk/types";
 
 export type FinancialSectionAppSlice = {
   issuer_organization?: {
@@ -72,6 +77,53 @@ export function FinancialSection({
   sectionComparison,
   hideSectionComments = false,
 }: FinancialSectionProps) {
+  const financialApproveAllowed = (() => {
+    const issuerOrg = app.issuer_organization;
+    if (!issuerOrg) return true;
+    const supplements = Array.isArray(issuerOrg.ctos_party_supplements)
+      ? issuerOrg.ctos_party_supplements
+      : [];
+    const onboardingByPartyKey = new Map<string, Record<string, unknown>>();
+    for (const supplement of supplements) {
+      const key = normalizeDirectorShareholderIdKey(supplement.party_key);
+      if (!key) continue;
+      const onboarding =
+        supplement.onboarding_json &&
+        typeof supplement.onboarding_json === "object" &&
+        !Array.isArray(supplement.onboarding_json)
+          ? (supplement.onboarding_json as Record<string, unknown>)
+          : {};
+      onboardingByPartyKey.set(key, onboarding);
+    }
+    const rows = getDirectorShareholderDisplayRows({
+      corporateEntities: issuerOrg.corporate_entities,
+      directorKycStatus: issuerOrg.director_kyc_status,
+      organizationCtosCompanyJson: issuerOrg.latest_organization_ctos_company_json ?? null,
+      ctosPartySupplements: supplements.map((supplement) => ({
+        partyKey: supplement.party_key,
+        onboardingJson: supplement.onboarding_json ?? null,
+      })),
+      sentRowIds: null,
+    });
+    for (const row of rows) {
+      if (!isCtosIndividualKycEligibleRow(row)) continue;
+      const partyKey = normalizeDirectorShareholderIdKey(
+        row.idNumber?.trim() || row.registrationNumber?.trim() || row.enquiryId?.trim() || ""
+      );
+      if (!partyKey) continue;
+      const onboarding = onboardingByPartyKey.get(partyKey) ?? {};
+      const requestId = String(onboarding.requestId ?? "").trim();
+      const regtankStatus = String(onboarding.regtankStatus ?? "").trim().toUpperCase();
+      const kycRawStatus =
+        onboarding.kyc && typeof onboarding.kyc === "object" && !Array.isArray(onboarding.kyc)
+          ? String((onboarding.kyc as Record<string, unknown>).rawStatus ?? "").trim().toUpperCase()
+          : "";
+      if (!requestId) return false;
+      if (regtankStatus !== "APPROVED" && kycRawStatus !== "APPROVED") return false;
+    }
+    return true;
+  })();
+
   if (sectionComparison) {
     return (
       <ReviewSectionCard title="Financial" icon={BanknotesIcon} section={section} isReviewable={false}>
@@ -97,6 +149,7 @@ export function FinancialSection({
       isActionLocked={isActionLocked}
       actionLockTooltip={actionLockTooltip}
       sectionStatus={sectionStatus}
+      showApprove={financialApproveAllowed}
       onResetToPending={onResetSectionToPending}
       onApprove={onApprove}
       onReject={onReject}

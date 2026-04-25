@@ -66,6 +66,33 @@ function parseCtosPartyOnboardingJson(v: unknown): Record<string, unknown> {
   return {};
 }
 
+function onboardingApprovalLockActive(onboarding: Record<string, unknown>): boolean {
+  const regtankStatus = String(onboarding.regtankStatus ?? "").trim().toUpperCase();
+  const kycRawStatus =
+    onboarding.kyc && typeof onboarding.kyc === "object" && !Array.isArray(onboarding.kyc)
+      ? String((onboarding.kyc as Record<string, unknown>).rawStatus ?? "").trim().toUpperCase()
+      : "";
+  return regtankStatus === "APPROVED" || kycRawStatus === "APPROVED";
+}
+
+function assertOnboardingEmailMutable(onboarding: Record<string, unknown>): void {
+  if (!onboardingApprovalLockActive(onboarding)) return;
+  throw new AppError(
+    400,
+    "KYC_ALREADY_APPROVED",
+    "This person has already completed KYC. Email cannot be changed."
+  );
+}
+
+function parseSendTimestamps(onboarding: Record<string, unknown>): string[] {
+  const raw = onboarding.sendTimestamps;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((v): v is string => typeof v === "string")
+    .map((v) => v.trim())
+    .filter((v) => v.length > 0);
+}
+
 /** RegTank referenceId: only [A-Za-z0-9_-], no colons; max length 99. */
 const REGTANK_REFERENCE_ID_MAX_LEN = 99;
 
@@ -1517,7 +1544,18 @@ export class OrganizationService {
       },
     });
     const prev = parseCtosPartyOnboardingJson(existing?.onboarding_json);
-    const nextOnboarding = { ...prev, email };
+    assertOnboardingEmailMutable(prev);
+    const previousEmail = typeof prev.email === "string" ? prev.email.trim() : "";
+    const emailChanged = previousEmail.toLowerCase() !== email.toLowerCase();
+    const nextOnboarding: Record<string, unknown> = { ...prev, email };
+    if (emailChanged) {
+      nextOnboarding.sent = false;
+      nextOnboarding.regtankStatus = "PENDING";
+      nextOnboarding.updatedAt = new Date().toISOString();
+      delete nextOnboarding.requestId;
+      delete nextOnboarding.verifyLink;
+      delete nextOnboarding.kyc;
+    }
     await prisma.ctosPartySupplement.upsert({
       where: {
         organization_id_party_key: {
@@ -1569,9 +1607,7 @@ export class OrganizationService {
       },
     });
     const supOb = parseCtosPartyOnboardingJson(supplement?.onboarding_json);
-    if (supOb.sent === true) {
-      throw new AppError(400, "ALREADY_SENT", "Onboarding link was already sent for this party");
-    }
+    assertOnboardingEmailMutable(supOb);
     const supplementEmail =
       supOb.email != null ? String(supOb.email).trim() : "";
     if (!supplementEmail) {
@@ -1637,9 +1673,44 @@ export class OrganizationService {
     const regTankApi = new RegTankAPIClient();
     let requestId: string;
     let verifyLink = "";
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const cooldownMs = 5 * 60 * 1000;
+    const maxPerDay = 5;
+    const prevLastSentAt = typeof supOb.lastSentAt === "string" ? supOb.lastSentAt.trim() : "";
+    if (prevLastSentAt) {
+      const lastMs = new Date(prevLastSentAt).getTime();
+      if (Number.isFinite(lastMs) && now.getTime() - lastMs < cooldownMs) {
+        throw new AppError(
+          429,
+          "RATE_LIMITED",
+          "Please wait 5 minutes before sending onboarding again."
+        );
+      }
+    }
+    const dailyCutoffMs = now.getTime() - 24 * 60 * 60 * 1000;
+    const recentSends = parseSendTimestamps(supOb).filter((ts) => {
+      const ms = new Date(ts).getTime();
+      return Number.isFinite(ms) && ms >= dailyCutoffMs;
+    });
+    if (recentSends.length >= maxPerDay) {
+      throw new AppError(
+        429,
+        "RATE_LIMITED",
+        "Daily send limit reached for this person. Please try again tomorrow."
+      );
+    }
     try {
       logger.info({ referenceId }, "RegTank director onboarding referenceId");
-      const regTankResponse = await regTankApi.createIndividualOnboarding(onboardingRequest);
+      const existingRequestId = typeof supOb.requestId === "string" ? supOb.requestId.trim() : "";
+      const regTankResponse = existingRequestId
+        ? await regTankApi.restartOnboarding(existingRequestId, {
+            email: supplementEmail,
+            language: "EN",
+            idType: "IDENTITY",
+            skipFormPage: false,
+          })
+        : await regTankApi.createIndividualOnboarding(onboardingRequest);
       requestId = regTankResponse.requestId;
       verifyLink =
         typeof regTankResponse.verifyLink === "string" ? regTankResponse.verifyLink.trim() : "";
@@ -1664,7 +1735,9 @@ export class OrganizationService {
       requestId,
       referenceId,
       ...(verifyLink ? { verifyLink } : {}),
-      sentAt: new Date().toISOString(),
+      sentAt: nowIso,
+      lastSentAt: nowIso,
+      sendTimestamps: [...recentSends, nowIso],
     };
     delete (nextOnboarding as Record<string, unknown>).status;
     await prisma.ctosPartySupplement.upsert({
