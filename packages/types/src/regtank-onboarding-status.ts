@@ -61,6 +61,30 @@ export function mapRegtankStatusToDisplay(status: string | undefined | null): st
   return "Status unavailable";
 }
 
+/**
+ * CTOS party supplement AML line (written by API KYC webhook CTOS path).
+ * Prefer `onboarding_json.aml.rawStatus`; optional legacy `director_aml_status` string for EOD-linked rows.
+ */
+export function getCtosPartySupplementAmlRawStatus(
+  onboardingJson: unknown,
+  fallbackDirectorAmlStatus?: string | null
+): string | null {
+  if (!onboardingJson || typeof onboardingJson !== "object" || Array.isArray(onboardingJson)) {
+    const fb = (fallbackDirectorAmlStatus ?? "").trim();
+    return fb.length ? fb.toUpperCase() : null;
+  }
+  const ob = onboardingJson as Record<string, unknown>;
+  const aml = ob.aml;
+  if (aml && typeof aml === "object" && !Array.isArray(aml)) {
+    const raw = (aml as Record<string, unknown>).rawStatus;
+    if (typeof raw === "string" && raw.trim()) {
+      return raw.trim().toUpperCase();
+    }
+  }
+  const fb = (fallbackDirectorAmlStatus ?? "").trim();
+  return fb.length ? fb.toUpperCase() : null;
+}
+
 /** Read regtankStatus from supplement JSON; migrate legacy lowercase `status` if present. */
 export function effectiveCtosRegtankStatusFromOnboardingJson(
   onboardingJson: unknown
