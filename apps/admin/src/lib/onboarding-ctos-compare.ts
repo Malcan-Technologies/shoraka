@@ -7,7 +7,9 @@
  */
 
 import {
+  getDisplayRoleLabel,
   governmentIdFromDirectorKycForEod,
+  shouldIncludePerson,
   type DirectorKycStatus,
   type OnboardingApplicationResponse,
 } from "@cashsouk/types";
@@ -103,12 +105,36 @@ function extractCtosOrgDirectorsFromCompanyJson(companyJson: unknown): CtosOrgDi
 
 function appDirectorsFromKyc(directors: DirectorKycStatus[] | undefined): DirectorKycStatus[] {
   if (!directors?.length) return [];
-  return directors.filter((d) => /director/i.test(d.role));
+  return directors.filter((d) => {
+    const role = String(d.role ?? "");
+    const roleLower = role.toLowerCase();
+    const isDirector = roleLower.includes("director");
+    const isShareholder = roleLower.includes("shareholder");
+    const sharePct = shareholderPctFromAppRole(role);
+    return shouldIncludePerson({
+      type: "INDIVIDUAL",
+      isDirector,
+      isShareholder,
+      sharePercentage: sharePct,
+    }) && isDirector;
+  });
 }
 
 function appShareholdersFromKyc(directors: DirectorKycStatus[] | undefined): DirectorKycStatus[] {
   if (!directors?.length) return [];
-  return directors.filter((d) => /shareholder/i.test(d.role));
+  return directors.filter((d) => {
+    const role = String(d.role ?? "");
+    const roleLower = role.toLowerCase();
+    const isDirector = roleLower.includes("director");
+    const isShareholder = roleLower.includes("shareholder");
+    const sharePct = shareholderPctFromAppRole(role);
+    return shouldIncludePerson({
+      type: "INDIVIDUAL",
+      isDirector,
+      isShareholder,
+      sharePercentage: sharePct,
+    }) && !isDirector && isShareholder;
+  });
 }
 
 function personNameFromCe(p: Record<string, unknown>): string {
@@ -152,9 +178,22 @@ function issuerIcOrSsmForCePersonRow(p: Record<string, unknown>, directorKycJson
 
 function roleForCeShareholder(p: Record<string, unknown>): string {
   const own = ownershipFromCePerson(p);
-  if (!own) return "Shareholder";
+  if (!own) {
+    return getDisplayRoleLabel({
+      isDirector: false,
+      isShareholder: true,
+      sharePercentage: 0,
+    }) || "Shareholder";
+  }
   const m = /^([\d.]+)/.exec(own);
-  return m ? `Shareholder (${m[1]}%)` : "Shareholder";
+  const pct = m ? Number(m[1]) : 0;
+  return (
+    getDisplayRoleLabel({
+      isDirector: false,
+      isShareholder: true,
+      sharePercentage: Number.isFinite(pct) ? pct : 0,
+    }) || "Shareholder"
+  );
 }
 
 function corpShareholderName(corp: Record<string, unknown>): string {
@@ -405,7 +444,7 @@ export function buildOnboardingCtosComparison(
   const kycList = effectiveKycDirectors(application);
   const appDirList = appDirectorsFromKyc(kycList);
   const appShList = appShareholdersFromKyc(kycList);
-  const appShFiltered = appShList.filter((d) => shareholderPctFromAppRole(d.role) >= 5);
+  const appShFiltered = appShList;
 
   const ctosAll = ready && companyJson ? extractCtosOrgDirectorsFromCompanyJson(companyJson) : [];
 
