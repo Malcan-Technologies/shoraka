@@ -1811,6 +1811,8 @@ export class AdminService {
       };
     };
     corporateEntities?: Record<string, unknown> | null;
+    latestOrganizationCtosCompanyJson?: Record<string, unknown> | null;
+    ctosPartySupplements?: Array<{ partyKey: string; onboardingJson?: unknown }> | null;
     corporateRequiredDocuments?: Record<string, unknown>[] | null;
     directorAmlStatus?: Record<string, unknown> | null;
     directorKycStatus?: Record<string, unknown> | null;
@@ -1826,6 +1828,20 @@ export class AdminService {
     if (org.type === "COMPANY") {
       const onboarding = await this.regTankRepository.findByOrganizationId(org.id, portal);
       codRequestId = onboarding?.request_id ?? null;
+    }
+
+    let latestOrganizationCtosCompanyJson: Record<string, unknown> | null | undefined = undefined;
+    let ctosPartySupplements: Array<{ partyKey: string; onboardingJson?: unknown }> | null | undefined =
+      undefined;
+    if (portal === "issuer") {
+      const orgService = new OrganizationService();
+      const extras = await orgService.getIssuerPartyListExtras(org.id);
+      latestOrganizationCtosCompanyJson =
+        (extras.latestOrganizationCtosCompanyJson as Record<string, unknown> | null) ?? null;
+      ctosPartySupplements = extras.ctosPartySupplements.map((row) => ({
+        partyKey: row.partyKey,
+        onboardingJson: row.onboardingJson,
+      }));
     }
 
     return {
@@ -1944,6 +1960,12 @@ export class AdminService {
         };
       })(),
       corporateEntities: org.type === "COMPANY" ? (org.corporate_entities as Record<string, unknown> | null) : undefined,
+      latestOrganizationCtosCompanyJson:
+        org.type === "COMPANY" && portal === "issuer"
+          ? latestOrganizationCtosCompanyJson ?? null
+          : undefined,
+      ctosPartySupplements:
+        org.type === "COMPANY" && portal === "issuer" ? ctosPartySupplements ?? [] : undefined,
       corporateRequiredDocuments: org.type === "COMPANY" ? (org.corporate_required_documents as Record<string, unknown>[] | null) : undefined,
       directorAmlStatus: org.type === "COMPANY" ? (org.director_aml_status as Record<string, unknown> | null) : undefined,
       directorKycStatus: org.type === "COMPANY" ? (org.director_kyc_status as Record<string, unknown> | null) : undefined,

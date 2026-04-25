@@ -33,7 +33,11 @@ import {
   useUpdateSophisticatedStatus,
   useRefreshCorporateEntities,
 } from "@/hooks/use-organization-detail";
-import type { PortalType } from "@cashsouk/types";
+import {
+  getDirectorShareholderDisplayRows,
+  type DirectorShareholderDisplayRow,
+  type PortalType,
+} from "@cashsouk/types";
 import { format } from "date-fns";
 import {
   UserIcon,
@@ -1006,6 +1010,73 @@ export default function OrganizationDetailPage() {
   const organizationId = params.id as string;
 
   const { data: org, isLoading, error } = useOrganizationDetail(portal, organizationId);
+  const corporateEntitiesDisplayData = React.useMemo(() => {
+    if (!org || org.type !== "COMPANY") return null;
+    const rows = getDirectorShareholderDisplayRows({
+      corporateEntities: org.corporateEntities ?? null,
+      directorKycStatus: org.directorKycStatus ?? null,
+      organizationCtosCompanyJson: org.latestOrganizationCtosCompanyJson ?? null,
+      ctosPartySupplements: org.ctosPartySupplements ?? null,
+      sentRowIds: null,
+    });
+
+    const toPerson = (row: DirectorShareholderDisplayRow, roleOverride?: string) => {
+      const personalInfo: Record<string, unknown> = {
+        fullName: row.name,
+        email: row.email || "",
+      };
+      if (row.idNumber) {
+        personalInfo.governmentIdNumber = row.idNumber;
+      }
+      return {
+        personalInfo,
+        role: roleOverride ?? row.role,
+        status: row.status,
+        eodRequestId: row.enquiryId ?? undefined,
+      } as Record<string, unknown>;
+    };
+
+    const directors = rows
+      .filter((row) => row.type === "INDIVIDUAL" && Boolean(row.isDirector))
+      .map((row) => toPerson(row));
+    const shareholders = rows
+      .filter((row) => row.type === "INDIVIDUAL" && !row.isDirector)
+      .map((row) => toPerson(row));
+    const corporateShareholders = rows
+      .filter((row) => row.type === "COMPANY")
+      .map((row) => {
+        const basicInfoContent: Array<{ fieldName: string; fieldValue: string }> = [
+          { fieldName: "Business Name", fieldValue: row.name },
+        ];
+        if (row.ownershipDisplay) {
+          basicInfoContent.push({ fieldName: "% of Shares", fieldValue: row.ownershipDisplay });
+        }
+        if (row.email) {
+          basicInfoContent.push({ fieldName: "Email", fieldValue: row.email });
+        }
+        return {
+          companyName: row.name,
+          email: row.email || "",
+          status: row.status,
+          requestId: row.enquiryId ?? undefined,
+          formContent: {
+            displayAreas: [
+              {
+                displayArea: "Basic Information Setting",
+                content: basicInfoContent,
+              },
+            ],
+          },
+        } as Record<string, unknown>;
+      });
+
+    return {
+      directors,
+      shareholders,
+      corporateShareholders,
+    } as Record<string, unknown>;
+  }, [org]);
+
   const updateSophisticatedMutation = useUpdateSophisticatedStatus();
   const refreshCorporateEntitiesMutation = useRefreshCorporateEntities();
 
@@ -1532,9 +1603,9 @@ export default function OrganizationDetailPage() {
                 )}
 
                 {/* Corporate entities — Directors & Shareholders (COMPANY only) */}
-                {org.type === "COMPANY" && org.corporateEntities && (
+                {org.type === "COMPANY" && corporateEntitiesDisplayData && (
                   <CorporateEntitiesDisplay
-                    data={org.corporateEntities as Record<string, unknown>}
+                    data={corporateEntitiesDisplayData}
                     onRefresh={() =>
                       refreshCorporateEntitiesMutation.mutate(
                         { organizationId: org.id, portal },

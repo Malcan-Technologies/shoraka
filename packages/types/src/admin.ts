@@ -602,6 +602,8 @@ export interface OrganizationDetailResponse {
 
   // Corporate entities (directors, shareholders, corporate shareholders) — COMPANY only
   corporateEntities?: Record<string, unknown> | null;
+  latestOrganizationCtosCompanyJson?: Record<string, unknown> | null;
+  ctosPartySupplements?: Array<{ partyKey: string; onboardingJson?: unknown }> | null;
 
   // Corporate required documents (SSM profile, etc.) — COMPANY only
   corporateRequiredDocuments?: Record<string, unknown>[] | null;
