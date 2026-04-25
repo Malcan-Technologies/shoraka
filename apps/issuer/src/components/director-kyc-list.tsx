@@ -2,7 +2,11 @@
 
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
-import type { DirectorKycStatus } from "@cashsouk/types";
+import {
+  getDisplayKycStatus,
+  shouldIncludePerson,
+  type DirectorKycStatus,
+} from "@cashsouk/types";
 import { CheckCircleIcon, ClockIcon, XCircleIcon } from "@heroicons/react/24/outline";
 
 interface DirectorKycListProps {
@@ -10,73 +14,80 @@ interface DirectorKycListProps {
 }
 
 export function DirectorKycList({ directors }: DirectorKycListProps) {
+  const parseSharePct = (role: string): number => {
+    const m = role.match(/\(\s*([\d.]+)\s*%\s*\)/);
+    if (!m) return 0;
+    const n = Number(m[1]);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const directorKeywords = [
+    "director",
+    "managing",
+    "ceo",
+    "coo",
+    "cto",
+    "cmo",
+    "cfo",
+    "president",
+    "vice president",
+    "controller",
+    "authorised personnel",
+  ];
+
+  const personFlags = (person: DirectorKycStatus) => {
+    const role = String(person.role ?? "");
+    const roleLower = role.toLowerCase();
+    const isDirector = directorKeywords.some((keyword) => roleLower.includes(keyword));
+    const isShareholder = roleLower.includes("shareholder");
+    const sharePercentage = parseSharePct(role);
+    return { isDirector, isShareholder, sharePercentage };
+  };
+
   const getStatusBadge = (status: DirectorKycStatus["kycStatus"]) => {
-    switch (status) {
-      case "APPROVED":
+    const displayStatus = getDisplayKycStatus({
+      requestId: "has-request",
+      rawStatus: status,
+    });
+    switch (displayStatus) {
+      case "KYC Approved":
         return (
           <Badge variant="outline" className="border-green-500/30 text-foreground bg-green-500/10">
             <CheckCircleIcon className="h-3 w-3 mr-1 text-green-600" />
-            Approved
+            KYC Approved
           </Badge>
         );
-      case "WAIT_FOR_APPROVAL":
-      case "LIVENESS_PASSED":
-        return (
-          <Badge variant="outline" className="border-yellow-500/30 text-foreground bg-yellow-500/10">
-            <ClockIcon className="h-3 w-3 mr-1 text-yellow-600" />
-            Pending Approval
-          </Badge>
-        );
-      case "LIVENESS_STARTED":
-        return (
-          <Badge variant="outline" className="border-blue-500/30 text-foreground bg-blue-500/10">
-            <ClockIcon className="h-3 w-3 mr-1 text-blue-600" />
-            In Progress
-          </Badge>
-        );
-      case "EMAIL_SENT":
-        return (
-          <Badge variant="outline" className="border-blue-500/30 text-foreground bg-blue-500/10">
-            <ClockIcon className="h-3 w-3 mr-1 text-blue-600" />
-            In Progress
-          </Badge>
-        );
-      case "REJECTED":
+      case "KYC Failed":
         return (
           <Badge variant="destructive">
             <XCircleIcon className="h-3 w-3 mr-1" />
-            Rejected
+            KYC Failed
           </Badge>
         );
-      case "PENDING":
+      case "Not Started":
+        return (
+          <Badge variant="outline" className="border-gray-400/30 text-foreground bg-gray-400/10">
+            <ClockIcon className="h-3 w-3 mr-1 text-gray-500" />
+            Not Started
+          </Badge>
+        );
       default:
         return (
           <Badge variant="outline" className="border-gray-400/30 text-foreground bg-gray-400/10">
             <ClockIcon className="h-3 w-3 mr-1 text-gray-500" />
-            Pending
+            KYC Pending
           </Badge>
         );
     }
   };
-
-  const directorRoles = [
-    "Director",
-    "Managing",
-    "CEO",
-    "COO",
-    "CTO",
-    "CMO",
-    "CFO",
-    "President",
-    "Vice President",
-    "Controller",
-    "Authorised Personnel",
-  ];
-
-  const directorsList = directors.filter((d) =>
-    directorRoles.some((role) => d.role.includes(role))
-  );
-  const shareholdersList = directors.filter((d) => d.role.includes("Shareholder"));
+  const directorsList = directors.filter((person) => {
+    const flags = personFlags(person);
+    return shouldIncludePerson({ type: "INDIVIDUAL", ...flags }) && flags.isDirector;
+  });
+  const shareholdersList = directors.filter((person) => {
+    const flags = personFlags(person);
+    return shouldIncludePerson({ type: "INDIVIDUAL", ...flags }) && !flags.isDirector && flags.isShareholder;
+  });
 
   const renderPersonCard = (person: DirectorKycStatus) => (
     <div

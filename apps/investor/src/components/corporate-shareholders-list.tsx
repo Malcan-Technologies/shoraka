@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
+import { getDisplayKycStatus } from "@cashsouk/types";
 import { BuildingOffice2Icon, CheckCircleIcon, ClockIcon, XCircleIcon } from "@heroicons/react/24/outline";
 
 interface CorporateShareholder {
@@ -79,49 +80,42 @@ export function CorporateShareholdersList({
     }
   };
 
-  // Get KYC/COD status badge (for PENDING_APPROVAL stage)
+  // Use shared KYC display mapping for COD/KYB status.
   const getStatusBadge = (status: string | null | undefined) => {
-    if (!status) {
-      return (
-        <Badge variant="outline" className="border-gray-400/30 text-foreground bg-gray-400/10">
-          <ClockIcon className="h-3 w-3 mr-1 text-gray-500" />
-          Pending
-        </Badge>
-      );
-    }
-
     const statusUpper = String(status).toUpperCase();
-    
-    switch (statusUpper) {
-      case "APPROVED":
-      case "CHECKED":
+    const normalizedRawStatus = statusUpper === "CHECKED" ? "APPROVED" : statusUpper;
+    const displayStatus = getDisplayKycStatus({
+      requestId: "has-request",
+      rawStatus: normalizedRawStatus,
+    });
+
+    switch (displayStatus) {
+      case "KYC Approved":
         return (
           <Badge variant="outline" className="border-green-500/30 text-foreground bg-green-500/10">
             <CheckCircleIcon className="h-3 w-3 mr-1 text-green-600" />
-            {statusUpper === "CHECKED" ? "Checked" : "Approved"}
+            KYC Approved
           </Badge>
         );
-      case "WAIT_FOR_APPROVAL":
-      case "PENDING_APPROVAL":
-        return (
-          <Badge variant="outline" className="border-yellow-500/30 text-foreground bg-yellow-500/10">
-            <ClockIcon className="h-3 w-3 mr-1 text-yellow-600" />
-            Pending Approval
-          </Badge>
-        );
-      case "REJECTED":
+      case "KYC Failed":
         return (
           <Badge variant="destructive">
             <XCircleIcon className="h-3 w-3 mr-1" />
-            Rejected
+            KYC Failed
           </Badge>
         );
-      case "PENDING":
-      default:
+      case "Not Started":
         return (
           <Badge variant="outline" className="border-gray-400/30 text-foreground bg-gray-400/10">
             <ClockIcon className="h-3 w-3 mr-1 text-gray-500" />
-            Pending
+            Not Started
+          </Badge>
+        );
+      default:
+        return (
+          <Badge variant="outline" className="border-yellow-500/30 text-foreground bg-yellow-500/10">
+            <ClockIcon className="h-3 w-3 mr-1 text-yellow-600" />
+            KYC Pending
           </Badge>
         );
     }

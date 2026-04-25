@@ -65,6 +65,80 @@ export function getDisplayRoleLabel(row: {
   return roles.join(", ");
 }
 
+export type UnifiedDisplayKycStatus = "KYC Approved" | "KYC Pending" | "Not Started" | "KYC Failed";
+
+export type UnifiedOnboardingState = "NOT_STARTED" | "IN_PROGRESS" | "SUBMITTED" | "APPROVED";
+
+/**
+ * Canonical display label for KYC/onboarding state across portals.
+ * - APPROVED -> KYC Approved
+ * - REJECTED/FAILED -> KYC Failed
+ * - missing requestId -> Not Started
+ * - everything else -> KYC Pending
+ */
+export function getDisplayKycStatus(input: {
+  requestId?: string | null;
+  regtankStatus?: string | null;
+  kycRawStatus?: string | null;
+  rawStatus?: string | null;
+}): UnifiedDisplayKycStatus {
+  const requestId = String(input.requestId ?? "").trim();
+  const status = String(input.regtankStatus ?? input.kycRawStatus ?? input.rawStatus ?? "")
+    .trim()
+    .toUpperCase();
+
+  if (!requestId) return "Not Started";
+  if (status === "APPROVED") return "KYC Approved";
+  if (status === "REJECTED" || status === "FAILED") return "KYC Failed";
+  return "KYC Pending";
+}
+
+/**
+ * Canonical onboarding state for latest onboarding only.
+ */
+export function getOnboardingState(input: {
+  requestId?: string | null;
+  regtankStatus?: string | null;
+  kycRawStatus?: string | null;
+}): UnifiedOnboardingState {
+  const requestId = String(input.requestId ?? "").trim();
+  if (!requestId) return "NOT_STARTED";
+
+  const regtankStatus = String(input.regtankStatus ?? "").trim().toUpperCase();
+  const kycRawStatus = String(input.kycRawStatus ?? "").trim().toUpperCase();
+
+  if (regtankStatus === "APPROVED" || kycRawStatus === "APPROVED") return "APPROVED";
+  if (regtankStatus === "WAIT_FOR_APPROVAL" || regtankStatus === "PENDING_APPROVAL") return "SUBMITTED";
+  return "IN_PROGRESS";
+}
+
+/**
+ * Canonical person inclusion rule:
+ * - Directors always included
+ * - Individual shareholders included only when >= 5%
+ * - Corporate shareholders always included
+ */
+export function shouldIncludePerson(input: {
+  type: DirectorShareholderPartyType;
+  isDirector?: boolean;
+  isShareholder?: boolean;
+  sharePercentage?: number | null;
+}): boolean {
+  if (input.type === "COMPANY") return true;
+  if (input.isDirector) return true;
+  if (input.isShareholder) return Number(input.sharePercentage ?? 0) >= 5;
+  return false;
+}
+
+/**
+ * Backward-compatible wrapper for callers that want an explicit "build" function.
+ */
+export function buildUnifiedDirectorShareholderList(
+  input: GetDirectorShareholderDisplayRowsInput
+): DirectorShareholderDisplayRow[] {
+  return getDirectorShareholderDisplayRows(input);
+}
+
 export interface CtosPartySupplementInput {
   partyKey: string;
   /** Persisted `ctos_party_supplements.onboarding_json` (email, sent, requestId, …). */

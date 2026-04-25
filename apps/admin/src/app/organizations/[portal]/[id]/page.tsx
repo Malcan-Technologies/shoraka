@@ -34,6 +34,7 @@ import {
   useRefreshCorporateEntities,
 } from "@/hooks/use-organization-detail";
 import {
+  getDisplayKycStatus,
   getDirectorShareholderDisplayRows,
   type DirectorShareholderDisplayRow,
   type PortalType,
@@ -846,6 +847,13 @@ function DirectorStatusDisplay({
               ? [...new Set(rawRole.split(",").map((s) => s.trim()).filter(Boolean))].join(", ")
               : null;
             const status = dir[statusKey] ? String(dir[statusKey]) : (dir.amlStatus ? String(dir.amlStatus) : null);
+            const kycDisplayStatus =
+              statusKey === "kycStatus"
+                ? getDisplayKycStatus({
+                    requestId: "has-request",
+                    rawStatus: status,
+                  })
+                : null;
             const kycId = dir.kycId ? String(dir.kycId) : null;
             const eodId = dir.eodRequestId ? String(dir.eodRequestId) : null;
             const governmentIdNumber = dir.governmentIdNumber
@@ -867,14 +875,18 @@ function DirectorStatusDisplay({
                       <Badge
                         variant="outline"
                         className={
-                          status === "APPROVED" || status === "Approved"
+                          (statusKey === "kycStatus"
+                            ? kycDisplayStatus === "KYC Approved"
+                            : status === "APPROVED" || status === "Approved")
                             ? "border-emerald-500/30 text-foreground bg-emerald-500/10 text-[10px]"
-                            : status === "REJECTED" || status === "Rejected"
+                            : (statusKey === "kycStatus"
+                                ? kycDisplayStatus === "KYC Failed"
+                                : status === "REJECTED" || status === "Rejected")
                               ? "border-red-500/30 text-foreground bg-red-500/10 text-[10px]"
                               : "border-amber-500/30 text-foreground bg-amber-500/10 text-[10px]"
                         }
                       >
-                        {status}
+                        {statusKey === "kycStatus" ? kycDisplayStatus : status}
                       </Badge>
                     )}
                     {riskLevel && (
