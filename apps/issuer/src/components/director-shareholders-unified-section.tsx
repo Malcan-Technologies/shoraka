@@ -81,7 +81,7 @@ function onboardingLinkSentForRow(row: DirectorShareholderDisplayRow): boolean {
   return row.ctosOnboardingLinkSent === true || row.status === "Sent";
 }
 
-/** Same labels and badge palette as `mapRegtankStatusToDisplay` + `regtankDisplayStatusBadgeClass` in @cashsouk/types. */
+/** RegTank row status: `mapRegtankStatusToDisplay` + `regtankDisplayStatusBadgeClass` (unknown → Status unavailable). */
 function regtankStatusUiFromRow(row: DirectorShareholderDisplayRow): { display: string; badgeClass: string } {
   const display = mapRegtankStatusToDisplay(row.ctosRegtankStatus ?? null);
   return { display, badgeClass: regtankDisplayStatusBadgeClass(display) };

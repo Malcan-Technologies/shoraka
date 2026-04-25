@@ -28,26 +28,37 @@ export function mapRegtankIndividualLivenessRawToInternalStatus(status: string):
   return internalStatus;
 }
 
-/** Human-readable label for profile / CTOS rows (aligned with org onboarding UX). */
+/** Known RegTank workflow tokens that map to in-progress KYC display (aligned with getDisplayKycStatus pending set). */
+const KNOWN_REGTANK_DISPLAY_PENDING = new Set([
+  "IN_PROGRESS",
+  "PENDING",
+  "PENDING_AML",
+  "FORM_FILLING",
+  "LIVENESS_PASSED",
+  "PENDING_APPROVAL",
+  "WAIT_FOR_APPROVAL",
+  /** Match getDisplayKycStatus pending set (director_kyc_status strings). */
+  "EMAIL_SENT",
+  "LIVENESS_STARTED",
+]);
+
+/** Human-readable label for profile / CTOS rows (aligned with org onboarding UX and getDisplayKycStatus). */
 export function mapRegtankStatusToDisplay(status: string | undefined | null): string {
-  const s = (status || "").trim();
-  switch (s) {
-    case "IN_PROGRESS":
-    case "PENDING":
-      return "KYC Pending";
-    case "PENDING_AML":
-      return "KYC Pending";
-    case "APPROVED":
-      return "KYC Approved";
-    case "REJECTED":
-      return "KYC Failed";
-    case "FORM_FILLING":
-    case "LIVENESS_PASSED":
-    case "PENDING_APPROVAL":
-      return "KYC Pending";
-    default:
-      return "KYC Pending";
+  const s = (status || "").trim().toUpperCase();
+  if (!s) {
+    return "Status unavailable";
   }
+  if (s === "APPROVED") {
+    return "KYC Approved";
+  }
+  if (s === "REJECTED" || s === "FAILED") {
+    return "KYC Failed";
+  }
+  if (KNOWN_REGTANK_DISPLAY_PENDING.has(s)) {
+    return "KYC Pending";
+  }
+  console.warn("Unknown RegTank status:", status);
+  return "Status unavailable";
 }
 
 /** Read regtankStatus from supplement JSON; migrate legacy lowercase `status` if present. */
@@ -79,6 +90,9 @@ export function regtankDisplayStatusBadgeClass(displayLabel: string | undefined)
   }
   if (s === "kyc pending") {
     return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
+  }
+  if (s === "status unavailable") {
+    return "bg-muted text-muted-foreground dark:bg-muted/40";
   }
   return "bg-muted text-muted-foreground";
 }
