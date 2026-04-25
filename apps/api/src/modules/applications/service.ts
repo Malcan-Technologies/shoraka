@@ -494,6 +494,7 @@ export class ApplicationService {
     const rows = getDirectorShareholderDisplayRows({
       corporateEntities: issuerOrganization.corporate_entities,
       directorKycStatus: issuerOrganization.director_kyc_status,
+      directorAmlStatus: issuerOrganization.director_aml_status ?? null,
       organizationCtosCompanyJson: issuerOrganization.latest_organization_ctos_company_json ?? null,
       ctosPartySupplements: supplements.map((s) => ({ partyKey: s.party_key, onboardingJson: s.onboarding_json })),
       sentRowIds: null,

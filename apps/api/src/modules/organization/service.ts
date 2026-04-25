@@ -1516,6 +1516,7 @@ export class OrganizationService {
     const displayRowsForParty = getDirectorShareholderDisplayRows({
       corporateEntities: entitiesForParty,
       directorKycStatus: (entitiesForParty.directorKycStatus as Record<string, unknown> | null) ?? null,
+      directorAmlStatus: (entitiesForParty as { directorAmlStatus?: unknown }).directorAmlStatus ?? null,
       organizationCtosCompanyJson: entitiesForParty.latestOrganizationCtosCompanyJson ?? null,
       ctosPartySupplements: entitiesForParty.ctosPartySupplements ?? null,
       sentRowIds: null,
@@ -1622,6 +1623,7 @@ export class OrganizationService {
     const rows = getDirectorShareholderDisplayRows({
       corporateEntities: entities,
       directorKycStatus: (entities.directorKycStatus as Record<string, unknown> | null) ?? null,
+      directorAmlStatus: (entities as { directorAmlStatus?: unknown }).directorAmlStatus ?? null,
       organizationCtosCompanyJson: entities.latestOrganizationCtosCompanyJson ?? null,
       ctosPartySupplements: entities.ctosPartySupplements ?? null,
       sentRowIds: null,
@@ -1727,6 +1729,14 @@ export class OrganizationService {
       );
     }
 
+    const prevKyc =
+      supOb.kyc && typeof supOb.kyc === "object" && !Array.isArray(supOb.kyc)
+        ? { ...(supOb.kyc as Record<string, unknown>) }
+        : {};
+    const prevAml =
+      supOb.aml && typeof supOb.aml === "object" && !Array.isArray(supOb.aml)
+        ? { ...(supOb.aml as Record<string, unknown>) }
+        : {};
     const nextOnboarding = {
       ...supOb,
       email: supplementEmail,
@@ -1734,6 +1744,8 @@ export class OrganizationService {
       regtankStatus: "IN_PROGRESS",
       requestId,
       referenceId,
+      kyc: { ...prevKyc, rawStatus: "PENDING" },
+      aml: { ...prevAml, rawStatus: "PENDING" },
       ...(verifyLink ? { verifyLink } : {}),
       sentAt: nowIso,
       lastSentAt: nowIso,
@@ -1803,20 +1815,25 @@ export class OrganizationService {
       has_report_html: boolean;
     }>;
     ctosPartySupplements?: { partyKey: string; onboardingJson: unknown }[];
+    directorAmlStatus?: Record<string, unknown> | null;
   }> {
     // Verify access
     await this.getOrganization(userId, organizationId, portalType);
 
-    let organization: { corporate_entities: unknown; director_kyc_status?: unknown } | null;
+    let organization: {
+      corporate_entities: unknown;
+      director_kyc_status?: unknown;
+      director_aml_status?: unknown;
+    } | null;
     if (portalType === "investor") {
       organization = await prisma.investorOrganization.findUnique({
         where: { id: organizationId },
-        select: { corporate_entities: true, director_kyc_status: true },
+        select: { corporate_entities: true, director_kyc_status: true, director_aml_status: true },
       });
     } else {
       organization = await prisma.issuerOrganization.findUnique({
         where: { id: organizationId },
-        select: { corporate_entities: true, director_kyc_status: true },
+        select: { corporate_entities: true, director_kyc_status: true, director_aml_status: true },
       });
     }
 
@@ -1827,11 +1844,16 @@ export class OrganizationService {
         ? (raw as Record<string, unknown>)
         : null;
 
+    const amlRaw = organization?.director_aml_status as Record<string, unknown> | null | undefined;
+    const directorAmlStatus =
+      amlRaw && typeof amlRaw === "object" && !Array.isArray(amlRaw) ? amlRaw : null;
+
     const base = {
       directors: entities.directors || [],
       shareholders: entities.shareholders || [],
       corporateShareholders: entities.corporateShareholders || [],
       directorKycStatus: directorKyc,
+      directorAmlStatus,
     };
     if (portalType === "issuer") {
       const extras = await this.getIssuerPartyListExtras(organizationId);

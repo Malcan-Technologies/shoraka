@@ -541,6 +541,7 @@ export default function ProfilePage() {
           corporateShareholders?: Array<Record<string, unknown>>;
         };
         directorKycStatus?: unknown;
+        directorAmlStatus?: Record<string, unknown> | null;
         latestOrganizationCtosCompanyJson?: unknown | null;
         ctosPartySupplements?: { partyKey: string; onboardingJson?: unknown }[] | null;
       }>(`/v1/organizations/issuer/${activeOrganization.id}`);
@@ -1327,6 +1328,7 @@ export default function ProfilePage() {
                     organizationId={activeOrganization.id}
                     corporateEntities={orgData.corporateEntities ?? {}}
                     directorKycStatus={orgData.directorKycStatus ?? null}
+                    directorAmlStatus={orgData.directorAmlStatus ?? null}
                     organizationCtosCompanyJson={orgData.latestOrganizationCtosCompanyJson ?? null}
                     ctosPartySupplements={orgData.ctosPartySupplements ?? null}
                     highlightActionRequiredRows

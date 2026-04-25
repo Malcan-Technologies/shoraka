@@ -261,6 +261,7 @@ async function getOrganization(
       ssm_checked?: boolean;
       is_sophisticated_investor?: boolean;
       director_kyc_status?: unknown;
+      director_aml_status?: unknown;
       corporate_onboarding_data?: unknown;
       corporate_entities?: unknown;
     };
@@ -349,6 +350,7 @@ async function getOrganization(
                 lastSyncedAt: string;
               })
             : undefined,
+          directorAmlStatus: org.director_aml_status ?? null,
           corporateOnboardingData: (() => {
             if (!org.corporate_onboarding_data) return undefined;
             const data = org.corporate_onboarding_data as {

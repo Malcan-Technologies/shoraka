@@ -12,7 +12,6 @@ import {
   getDirectorShareholderDisplayRows,
   getDisplayRoleLabel,
   isCtosIndividualKycEligibleRow,
-  mapRegtankStatusToDisplay,
   normalizeDirectorShareholderIdKey,
   regtankDisplayStatusBadgeClass,
   type DirectorShareholderDisplayRow,
@@ -39,6 +38,7 @@ export interface DirectorShareholdersUnifiedSectionProps {
   organizationId?: string;
   corporateEntities: unknown;
   directorKycStatus: unknown;
+  directorAmlStatus?: unknown;
   organizationCtosCompanyJson?: unknown | null;
   ctosPartySupplements?: { partyKey: string; onboardingJson?: unknown }[] | null;
   className?: string;
@@ -81,14 +81,13 @@ function onboardingLinkSentForRow(row: DirectorShareholderDisplayRow): boolean {
   return row.ctosOnboardingLinkSent === true || row.status === "Sent";
 }
 
-/** RegTank row status: `mapRegtankStatusToDisplay` + `regtankDisplayStatusBadgeClass` (unknown → Status unavailable). */
-function regtankStatusUiFromRow(row: DirectorShareholderDisplayRow): { display: string; badgeClass: string } {
-  const display = mapRegtankStatusToDisplay(row.ctosRegtankStatus ?? null);
-  return { display, badgeClass: regtankDisplayStatusBadgeClass(display) };
+/** CTOS-backed rows: `row.status` is already `getDisplayKycStatus` output. */
+function ctosKycStatusUiFromRow(row: DirectorShareholderDisplayRow): { display: string; badgeClass: string } {
+  return { display: row.status, badgeClass: regtankDisplayStatusBadgeClass(row.status) };
 }
 
-function showRegtankStandardStatusUi(row: DirectorShareholderDisplayRow): boolean {
-  return row.ctosOnboardingLinkSent === true || row.status === "Sent";
+function showCtosUnifiedKycStatusUi(row: DirectorShareholderDisplayRow): boolean {
+  return row.id.startsWith("ctos-") || row.ctosOnboardingLinkSent === true || row.status === "Sent";
 }
 
 function partyKeyRawForRow(row: DirectorShareholderDisplayRow): string {
@@ -104,7 +103,7 @@ function rowNeedsProfileAction(
   row: DirectorShareholderDisplayRow,
   emailDisplay: string
 ): boolean {
-  return row.status === "Missing" || !emailDisplay.trim();
+  return !emailDisplay.trim() || row.status === "Not Started";
 }
 
 function onboardingApprovalLockActive(onboardingJson: unknown): boolean {
@@ -119,7 +118,7 @@ function onboardingApprovalLockActive(onboardingJson: unknown): boolean {
 }
 
 function isRowComplete(row: DirectorShareholderDisplayRow, persistedEmail: string): boolean {
-  return Boolean(persistedEmail?.trim()) && row.status !== "Missing";
+  return Boolean(persistedEmail?.trim()) && row.status !== "Not Started";
 }
 
 /** Persisted save complete, or local preview after confirm (no API) when row shows sent + email. */
@@ -133,7 +132,7 @@ function isRowCompleteForUi(
   return (
     sentIds.has(row.id) &&
     Boolean(displayEmailStr.trim()) &&
-    row.status !== "Missing"
+    row.status !== "Not Started"
   );
 }
 
@@ -141,6 +140,7 @@ export function DirectorShareholdersUnifiedSection({
   organizationId,
   corporateEntities,
   directorKycStatus,
+  directorAmlStatus,
   organizationCtosCompanyJson,
   ctosPartySupplements,
   className,
@@ -164,6 +164,7 @@ export function DirectorShareholdersUnifiedSection({
       getDirectorShareholderDisplayRows({
         corporateEntities,
         directorKycStatus,
+        directorAmlStatus: directorAmlStatus ?? null,
         organizationCtosCompanyJson,
         ctosPartySupplements: ctosPartySupplements ?? null,
         sentRowIds,
@@ -171,6 +172,7 @@ export function DirectorShareholdersUnifiedSection({
     [
       corporateEntities,
       directorKycStatus,
+      directorAmlStatus,
       organizationCtosCompanyJson,
       ctosPartySupplements,
       sentRowIds,
@@ -288,11 +290,11 @@ export function DirectorShareholdersUnifiedSection({
     const latestRequestId = String(latestOnboarding?.requestId ?? "").trim();
     const latestVerifyLink = String(latestOnboarding?.verifyLink ?? "").trim();
     const approvalLocked = onboardingApprovalLockActive(latestOnboarding);
-    const regtankUi = showRegtankStandardStatusUi(row) ? regtankStatusUiFromRow(row) : null;
+    const kycUi = showCtosUnifiedKycStatusUi(row) ? ctosKycStatusUiFromRow(row) : null;
     const completedUx = isRowCompleteForUi(row, persistedEmail, em, sentRowIds);
     const kycEligible = isCtosIndividualKycEligibleRow(row);
     const showEmailControls = kycEligible && !approvalLocked;
-    const needsAction = kycEligible && rowNeedsProfileAction(row, em);
+    const needsAction = kycEligible && rowNeedsProfileAction(row, em) && !linkSent;
     const rowHighlight =
       highlightActionRequiredRows && kycEligible && !completedUx && !linkSent && needsAction;
     const rowSentVisual =
@@ -329,10 +331,20 @@ export function DirectorShareholdersUnifiedSection({
           {row.ownershipDisplay?.trim() ? (
             <p className="text-xs text-muted-foreground mt-1">{row.ownershipDisplay}</p>
           ) : null}
-          {regtankUi ? (
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <span className="text-xs text-muted-foreground">Status</span>
-              <Badge className={cn("text-xs font-medium", regtankUi.badgeClass)}>{regtankUi.display}</Badge>
+          {kycUi ? (
+            <div className="mt-1 flex flex-wrap flex-col gap-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground">KYC</span>
+                <Badge className={cn("text-xs font-medium", kycUi.badgeClass)}>{kycUi.display}</Badge>
+              </div>
+              {row.amlStatus?.trim() ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-muted-foreground">AML</span>
+                  <Badge variant="outline" className="text-xs font-medium">
+                    {row.amlStatus}
+                  </Badge>
+                </div>
+              ) : null}
             </div>
           ) : (
             <p className="text-xs text-muted-foreground mt-1">Status: {row.status}</p>
@@ -417,7 +429,7 @@ export function DirectorShareholdersUnifiedSection({
   const renderCorpRow = (row: DirectorShareholderDisplayRow) => {
     const persistedEmail = row.email;
     const linkSent = onboardingLinkSentForRow(row);
-    const regtankUi = showRegtankStandardStatusUi(row) ? regtankStatusUiFromRow(row) : null;
+    const kycUi = showCtosUnifiedKycStatusUi(row) ? ctosKycStatusUiFromRow(row) : null;
     const completedUx = isRowCompleteForUi(row, persistedEmail, persistedEmail, sentRowIds);
     const rowSentVisual =
       linkSent &&
@@ -443,10 +455,20 @@ export function DirectorShareholdersUnifiedSection({
           <p className="text-xs text-muted-foreground mt-1">
             {row.ownershipDisplay?.trim() ? row.ownershipDisplay : "Shareholder"}
           </p>
-          {regtankUi ? (
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <span className="text-xs text-muted-foreground">Status</span>
-              <Badge className={cn("text-xs font-medium", regtankUi.badgeClass)}>{regtankUi.display}</Badge>
+          {kycUi ? (
+            <div className="mt-1 flex flex-wrap flex-col gap-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground">KYC</span>
+                <Badge className={cn("text-xs font-medium", kycUi.badgeClass)}>{kycUi.display}</Badge>
+              </div>
+              {row.amlStatus?.trim() ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-muted-foreground">AML</span>
+                  <Badge variant="outline" className="text-xs font-medium">
+                    {row.amlStatus}
+                  </Badge>
+                </div>
+              ) : null}
             </div>
           ) : (
             <p className="text-xs text-muted-foreground mt-1">Status: {row.status}</p>

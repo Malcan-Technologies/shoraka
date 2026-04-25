@@ -4758,6 +4758,7 @@ export class AdminService {
     issuer_organization?: {
       corporate_entities?: unknown;
       director_kyc_status?: unknown;
+      director_aml_status?: unknown;
       latest_organization_ctos_company_json?: unknown;
       ctos_party_supplements?: { party_key: string; onboarding_json?: unknown }[];
     } | null;
@@ -4784,6 +4785,7 @@ export class AdminService {
     const rows = getDirectorShareholderDisplayRows({
       corporateEntities: issuerOrg.corporate_entities,
       directorKycStatus: issuerOrg.director_kyc_status,
+      directorAmlStatus: issuerOrg.director_aml_status ?? null,
       organizationCtosCompanyJson: issuerOrg.latest_organization_ctos_company_json ?? null,
       ctosPartySupplements: supplements.map((supplement) => ({
         partyKey: supplement.party_key,

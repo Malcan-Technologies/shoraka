@@ -100,6 +100,7 @@ export function FinancialSection({
     const rows = getDirectorShareholderDisplayRows({
       corporateEntities: issuerOrg.corporate_entities,
       directorKycStatus: issuerOrg.director_kyc_status,
+      directorAmlStatus: issuerOrg.director_aml_status ?? null,
       organizationCtosCompanyJson: issuerOrg.latest_organization_ctos_company_json ?? null,
       ctosPartySupplements: supplements.map((supplement) => ({
         partyKey: supplement.party_key,

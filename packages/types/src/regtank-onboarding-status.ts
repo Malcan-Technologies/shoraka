@@ -118,5 +118,8 @@ export function regtankDisplayStatusBadgeClass(displayLabel: string | undefined)
   if (s === "status unavailable") {
     return "bg-muted text-muted-foreground dark:bg-muted/40";
   }
+  if (s === "not started") {
+    return "bg-muted text-muted-foreground dark:bg-muted/40";
+  }
   return "bg-muted text-muted-foreground";
 }

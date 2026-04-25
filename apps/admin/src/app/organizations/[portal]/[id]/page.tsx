@@ -1029,6 +1029,7 @@ export default function OrganizationDetailPage() {
     const rows = getDirectorShareholderDisplayRows({
       corporateEntities: org.corporateEntities ?? null,
       directorKycStatus: org.directorKycStatus ?? null,
+      directorAmlStatus: org.directorAmlStatus ?? null,
       organizationCtosCompanyJson: org.latestOrganizationCtosCompanyJson ?? null,
       ctosPartySupplements: org.ctosPartySupplements ?? null,
       sentRowIds: null,

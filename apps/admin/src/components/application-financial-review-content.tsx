@@ -436,6 +436,7 @@ export function ApplicationFinancialReviewContent({
       getDirectorShareholderDisplayRows({
         corporateEntities: app.issuer_organization?.corporate_entities,
         directorKycStatus: app.issuer_organization?.director_kyc_status,
+        directorAmlStatus: app.issuer_organization?.director_aml_status ?? null,
         organizationCtosCompanyJson: latestOrganizationCtosCompanyJson,
         ctosPartySupplements: ctosPartySupplementsForRows,
         sentRowIds: null,
