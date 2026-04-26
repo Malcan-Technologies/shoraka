@@ -500,6 +500,7 @@ export class ApplicationService {
       sentRowIds: null,
     });
 
+    const preFormRegtankStatuses = new Set(["EMAIL_SENT", "FORM_FILLING", "LIVENESS_STARTED"]);
     const missingNames: string[] = [];
     for (const row of rows) {
       if (!isCtosIndividualKycEligibleRow(row)) continue;
@@ -509,7 +510,11 @@ export class ApplicationService {
       if (!partyKey) continue;
       const onboarding = supplementByPartyKey.get(partyKey) ?? {};
       const requestId = String(onboarding.requestId ?? "").trim();
-      if (!requestId) {
+      const regtankStatus = String(onboarding.regtankStatus ?? "").trim().toUpperCase();
+      const isFormSubmitted =
+        regtankStatus !== "" &&
+        !preFormRegtankStatuses.has(regtankStatus);
+      if (!requestId || !isFormSubmitted) {
         missingNames.push(row.name || partyKey);
       }
     }
@@ -517,7 +522,7 @@ export class ApplicationService {
       throw new AppError(
         400,
         "ONBOARDING_NOT_STARTED",
-        `Onboarding must be started for all required directors/shareholders before submission: ${missingNames.join(", ")}`
+        `RegTank onboarding form must be submitted for all required directors/shareholders before submission: ${missingNames.join(", ")}`
       );
     }
   }
@@ -700,6 +705,7 @@ export class ApplicationService {
     if ((application as any).status !== "AMENDMENT_REQUESTED") {
       throw new AppError(400, "INVALID_STATE", "Resubmit allowed only in AMENDMENT_REQUESTED state");
     }
+    await this.assertRequiredPartyOnboardingStarted(application);
     const result = await amendmentResubmitApplication(applicationId, userId, this.repository);
 
     try {
