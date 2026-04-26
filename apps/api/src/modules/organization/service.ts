@@ -1493,6 +1493,54 @@ export class OrganizationService {
   }
 
   /**
+   * Latest CTOS org snapshot + subject rows for an investor organization (same response shape as issuer extras).
+   * `ctos_party_supplements` rows are keyed to `issuer_organizations.id` only; investor responses return an empty list until that model supports investor orgs.
+   */
+  async getInvestorPartyListExtras(organizationId: string): Promise<{
+    latestOrganizationCtosCompanyJson: unknown | null;
+    latestOrganizationCtosFinancialsJson: unknown | null;
+    latestOrganizationCtosReportId: string | null;
+    latestOrganizationCtosFetchedAt: string | null;
+    latestOrganizationCtosHasReportHtml: boolean;
+    latestOrganizationCtosSubjectReports: Array<{
+      id: string;
+      subject_ref: string | null;
+      fetched_at: string;
+      has_report_html: boolean;
+    }>;
+    ctosPartySupplements: { partyKey: string; onboardingJson: unknown }[];
+  }> {
+    const [report, subjectRows] = await Promise.all([
+      prisma.ctosReport.findFirst({
+        where: { investor_organization_id: organizationId, subject_ref: null },
+        orderBy: { fetched_at: "desc" },
+        select: {
+          id: true,
+          company_json: true,
+          financials_json: true,
+          report_html: true,
+          fetched_at: true,
+        },
+      }),
+      listLatestCtosSubjectReportsForAdminOrg("investor", organizationId),
+    ]);
+    return {
+      latestOrganizationCtosCompanyJson: report?.company_json ?? null,
+      latestOrganizationCtosFinancialsJson: report?.financials_json ?? null,
+      latestOrganizationCtosReportId: report?.id ?? null,
+      latestOrganizationCtosFetchedAt: report?.fetched_at ? report.fetched_at.toISOString() : null,
+      latestOrganizationCtosHasReportHtml: Boolean(report?.report_html && report.report_html.length > 0),
+      latestOrganizationCtosSubjectReports: subjectRows.map((r) => ({
+        id: r.id,
+        subject_ref: r.subject_ref ?? null,
+        fetched_at: r.fetched_at instanceof Date ? r.fetched_at.toISOString() : String(r.fetched_at),
+        has_report_html: r.has_report_html,
+      })),
+      ctosPartySupplements: [],
+    };
+  }
+
+  /**
    * Persist onboarding email for a CTOS party (normalized IC / SSM key).
    */
   async upsertCtosPartyEmail(

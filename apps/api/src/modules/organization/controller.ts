@@ -240,6 +240,8 @@ async function getOrganization(
     const organization = await organizationService.getOrganization(userId, id, portalType);
     const issuerPartyExtras =
       portalType === "issuer" ? await organizationService.getIssuerPartyListExtras(organization.id) : null;
+    const investorPartyExtras =
+      portalType === "investor" ? await organizationService.getInvestorPartyListExtras(organization.id) : null;
 
     // Cast to access all fields from the organization
     const org = organization as {
@@ -317,6 +319,15 @@ async function getOrganization(
           depositReceived: org.deposit_received ?? false,
           ssmApproved: org.ssm_approved ?? false,
           isSophisticatedInvestor: org.is_sophisticated_investor ?? false,
+          ...(investorPartyExtras && {
+            latestOrganizationCtosCompanyJson: investorPartyExtras.latestOrganizationCtosCompanyJson,
+            latestOrganizationCtosFinancialsJson: investorPartyExtras.latestOrganizationCtosFinancialsJson,
+            latestOrganizationCtosReportId: investorPartyExtras.latestOrganizationCtosReportId,
+            latestOrganizationCtosFetchedAt: investorPartyExtras.latestOrganizationCtosFetchedAt,
+            latestOrganizationCtosHasReportHtml: investorPartyExtras.latestOrganizationCtosHasReportHtml,
+            latestOrganizationCtosSubjectReports: investorPartyExtras.latestOrganizationCtosSubjectReports,
+            ctosPartySupplements: investorPartyExtras.ctosPartySupplements,
+          }),
         }),
         // Issuer-specific flags
         ...(portalType === "issuer" && {
