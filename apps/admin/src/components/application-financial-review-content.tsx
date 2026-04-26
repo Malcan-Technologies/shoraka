@@ -917,12 +917,9 @@ export function ApplicationFinancialReviewContent({
                 <span className="font-medium text-foreground">last successful fetch</span> in a new browser tab (read-only). It
                 does not run another enquiry.
               </p>
-              {ctosFetchState === "not_pulled" || hadCtosUnauditedOverride ? (
+              {hadCtosUnauditedOverride ? (
                 <div className="space-y-1 rounded-lg border border-border/70 bg-muted/25 px-3 py-2 text-xs text-muted-foreground">
-                  {ctosFetchState === "not_pulled" ? (
-                    <p className="m-0">Organization CTOS has not been fetched for this issuer organization yet.</p>
-                  ) : null}
-                  {hadCtosUnauditedOverride ? <p className="m-0">Latest year already exists in CTOS.</p> : null}
+                  <p className="m-0">Latest year already exists in CTOS.</p>
                 </div>
               ) : null}
             </div>
