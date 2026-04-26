@@ -140,3 +140,5 @@ export {
 } from "./components/sidebar";
 export { useIsMobile } from "./hooks/use-mobile";
 export { YesNoRadioDisplay } from "./components/yes-no-radio-display";
+export { UnifiedKycAmlReadonlyRows } from "./components/unified-kyc-aml-readonly-rows";
+export type { UnifiedKycAmlReadonlyRowsProps } from "./components/unified-kyc-aml-readonly-rows";

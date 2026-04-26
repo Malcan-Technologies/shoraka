@@ -222,12 +222,157 @@ export interface GetDirectorShareholderDisplayRowsInput {
   sentRowIds?: ReadonlySet<string> | null;
 }
 
-export function normalizeDirectorShareholderIdKey(raw: string | null | undefined): string | null {
-  const s = String(raw ?? "")
+/**
+ * Canonical identity normalization for party keys, CTOS merge keys, supplement lookup, and legacy ID match.
+ * Trim, uppercase, strip non-alphanumerics (e.g. "S123-4567-A" and "S1234567A" both become "S1234567A").
+ */
+export function normalizeStrictPartyId(id: string | null | undefined): string {
+  return String(id ?? "")
     .trim()
-    .replace(/\s+/g, "")
-    .toUpperCase();
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+}
+
+/** Same rules as {@link normalizeStrictPartyId}; returns null when the normalized id is empty (existing API shape). */
+export function normalizeDirectorShareholderIdKey(raw: string | null | undefined): string | null {
+  const s = normalizeStrictPartyId(raw);
   return s.length ? s : null;
+}
+
+type LegacyKycPersonRecord = Record<string, unknown>;
+
+function findLegacyKycPersonByStrictId(
+  strictKey: string,
+  directorKycStatus: Record<string, unknown> | null | undefined
+): LegacyKycPersonRecord | null {
+  if (!strictKey || !directorKycStatus || typeof directorKycStatus !== "object") return null;
+  const dirs = Array.isArray(directorKycStatus.directors)
+    ? (directorKycStatus.directors as LegacyKycPersonRecord[])
+    : [];
+  for (const d of dirs) {
+    if (normalizeStrictPartyId(String(d.governmentIdNumber ?? "")) === strictKey) return d;
+  }
+  const sh = Array.isArray(directorKycStatus.individualShareholders)
+    ? (directorKycStatus.individualShareholders as LegacyKycPersonRecord[])
+    : [];
+  for (const s of sh) {
+    if (normalizeStrictPartyId(String(s.governmentIdNumber ?? "")) === strictKey) return s;
+  }
+  return null;
+}
+
+function findLegacyAmlRawForKycPerson(
+  person: LegacyKycPersonRecord,
+  directorAmlStatus: Record<string, unknown> | null | undefined
+): string | null {
+  if (!directorAmlStatus || typeof directorAmlStatus !== "object") return null;
+  const kycId = String(person.kycId ?? "").trim();
+  const eodPrimary = String(person.eodRequestId ?? "").trim();
+  const eodSh = String(person.shareholderEodRequestId ?? "").trim();
+
+  const tryMatch = (amlEntry: Record<string, unknown>): string | null => {
+    const amlSt = amlEntry.amlStatus;
+    if (amlSt == null || String(amlSt).trim() === "") return null;
+    const ak = String(amlEntry.kycId ?? "").trim();
+    const ae = String(amlEntry.eodRequestId ?? "").trim();
+    if (kycId && ak === kycId) return String(amlSt).trim();
+    if (eodPrimary && ae === eodPrimary) return String(amlSt).trim();
+    if (eodSh && ae === eodSh) return String(amlSt).trim();
+    return null;
+  };
+
+  const amlDirs = Array.isArray((directorAmlStatus as { directors?: unknown }).directors)
+    ? ((directorAmlStatus as { directors: LegacyKycPersonRecord[] }).directors as LegacyKycPersonRecord[])
+    : [];
+  for (const a of amlDirs) {
+    const hit = tryMatch(a);
+    if (hit) return hit;
+  }
+  const amlSh = Array.isArray((directorAmlStatus as { individualShareholders?: unknown }).individualShareholders)
+    ? ((directorAmlStatus as { individualShareholders: LegacyKycPersonRecord[] }).individualShareholders as LegacyKycPersonRecord[])
+    : [];
+  for (const a of amlSh) {
+    const hit = tryMatch(a);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+function findLegacyBusinessKycAmlByStrictReg(
+  strictReg: string,
+  directorKycStatus: Record<string, unknown> | null | undefined,
+  directorAmlStatus: Record<string, unknown> | null | undefined
+): { kycRaw: string | null; amlRaw: string | null; legacyEmail: string | null } {
+  const empty = { kycRaw: null as string | null, amlRaw: null as string | null, legacyEmail: null as string | null };
+  if (!strictReg || !directorKycStatus || typeof directorKycStatus !== "object") return empty;
+  const biz = Array.isArray(directorKycStatus.businessShareholders)
+    ? (directorKycStatus.businessShareholders as LegacyKycPersonRecord[])
+    : [];
+  for (const b of biz) {
+    const regRaw = String(
+      b.businessRegistrationNumber ??
+        b.ssmNumber ??
+        b.companyRegistrationNumber ??
+        b.ssmRegistrationNumber ??
+        ""
+    ).trim();
+    if (normalizeStrictPartyId(regRaw) !== strictReg) continue;
+    const kycRaw =
+      b.kybStatus != null && String(b.kybStatus).trim() !== ""
+        ? String(b.kybStatus)
+        : b.kycStatus != null && String(b.kycStatus).trim() !== ""
+          ? String(b.kycStatus)
+          : null;
+    const legacyEmail = b.email != null ? String(b.email).trim() : "";
+    let amlRaw: string | null = null;
+    if (directorAmlStatus && typeof directorAmlStatus === "object") {
+      const amlBiz = Array.isArray((directorAmlStatus as { businessShareholders?: unknown }).businessShareholders)
+        ? ((directorAmlStatus as { businessShareholders: LegacyKycPersonRecord[] }).businessShareholders as LegacyKycPersonRecord[])
+        : [];
+      const kybId = String(b.kybId ?? "").trim();
+      const codId = String(b.codRequestId ?? "").trim();
+      for (const a of amlBiz) {
+        const aKyb = String(a.kybId ?? "").trim();
+        const aCod = String(a.codRequestId ?? "").trim();
+        if (kybId && aKyb === kybId && a.amlStatus != null && String(a.amlStatus).trim() !== "") {
+          amlRaw = String(a.amlStatus).trim();
+          break;
+        }
+        if (codId && aCod === codId && a.amlStatus != null && String(a.amlStatus).trim() !== "") {
+          amlRaw = String(a.amlStatus).trim();
+          break;
+        }
+      }
+    }
+    return { kycRaw, amlRaw, legacyEmail: legacyEmail || null };
+  }
+  return empty;
+}
+
+function findLegacyKycAmlByStrictIdForCtosRow(
+  bucket: {
+    type: DirectorShareholderPartyType;
+    idNumber: string | null;
+    registrationNumber: string | null;
+    enquiryId: string | null;
+  },
+  directorKycStatus: Record<string, unknown> | null | undefined,
+  directorAmlStatus: Record<string, unknown> | null | undefined
+): { kycRaw: string | null; amlRaw: string | null; legacyEmail: string | null } {
+  const empty = { kycRaw: null as string | null, amlRaw: null as string | null, legacyEmail: null as string | null };
+  if (bucket.type === "COMPANY") {
+    const strictReg = normalizeStrictPartyId(bucket.registrationNumber || bucket.enquiryId || "");
+    if (!strictReg) return empty;
+    return findLegacyBusinessKycAmlByStrictReg(strictReg, directorKycStatus, directorAmlStatus);
+  }
+  const strictIc = normalizeStrictPartyId(bucket.idNumber || bucket.enquiryId || "");
+  if (!strictIc) return empty;
+  const person = findLegacyKycPersonByStrictId(strictIc, directorKycStatus);
+  if (!person) return empty;
+  const kycRaw = person.kycStatus != null && String(person.kycStatus).trim() !== "" ? String(person.kycStatus) : null;
+  const legacyEmail = person.email != null ? String(person.email).trim() : "";
+  const amlRaw = findLegacyAmlRawForKycPerson(person, directorAmlStatus);
+  return { kycRaw, amlRaw, legacyEmail: legacyEmail || null };
 }
 
 function parseCtosPartyOnboardingJson(raw: unknown): Record<string, unknown> {
@@ -335,7 +480,7 @@ function corporateCtosRegDisplayRaw(r: CtosOrgDirectorRow): string {
 
 /**
  * Normalized merge key for CTOS rows: same person → one bucket.
- * INDIVIDUAL → IC / gov id; COMPANY → SSM / registration (not name-based).
+ * INDIVIDUAL → IC / gov id; COMPANY → SSM / registration (not name-based). Uses {@link normalizeStrictPartyId} rules.
  */
 function ctosPartyNormalizedMergeKey(
   r: CtosOrgDirectorRow,
@@ -1052,7 +1197,9 @@ function buildCtosBackedDisplayRows(
   supplementEmailByPartyKey: ReadonlyMap<string, string>,
   supplementSentPartyKeys: ReadonlySet<string>,
   onboardingByPartyKey: ReadonlyMap<string, Record<string, unknown>>,
-  supplementPartyKeys: ReadonlySet<string>
+  supplementPartyKeys: ReadonlySet<string>,
+  directorKycStatus: Record<string, unknown> | null | undefined,
+  directorAmlStatus: Record<string, unknown> | null | undefined
 ): DirectorShareholderDisplayRow[] {
   const ctosList = extractCtosOrgDirectorsFromCompanyJson(companyJson);
 
@@ -1142,21 +1289,27 @@ function buildCtosBackedDisplayRows(
     const stableId = idKeyNorm ? `ctos-${idKeyNorm}` : `ctos-anon-${anonOut++}`;
 
     const hasSupplementRow = Boolean(idKeyNorm && supplementPartyKeys.has(idKeyNorm));
-    const supOb = idKeyNorm ? onboardingByPartyKey.get(idKeyNorm) : undefined;
+    const supOb: Record<string, unknown> | undefined = hasSupplementRow
+      ? idKeyNorm
+        ? onboardingByPartyKey.get(idKeyNorm) ?? {}
+        : {}
+      : undefined;
 
     let kycDisplay: UnifiedDisplayKycStatus;
     let amlLine: string | null = null;
+    let legacyEmailForRow: string | null = null;
 
-    if (hasSupplementRow && supOb) {
-      const req = String(supOb.requestId ?? "").trim();
-      const reg = String(supOb.regtankStatus ?? "").trim();
+    if (hasSupplementRow) {
+      const ob = supOb ?? {};
+      const req = String(ob.requestId ?? "").trim();
+      const reg = String(ob.regtankStatus ?? "").trim();
       const kycRaw =
-        supOb.kyc && typeof supOb.kyc === "object" && !Array.isArray(supOb.kyc)
-          ? String((supOb.kyc as Record<string, unknown>).rawStatus ?? "").trim()
+        ob.kyc && typeof ob.kyc === "object" && !Array.isArray(ob.kyc)
+          ? String((ob.kyc as Record<string, unknown>).rawStatus ?? "").trim()
           : "";
       const amlRaw =
-        supOb.aml && typeof supOb.aml === "object" && !Array.isArray(supOb.aml)
-          ? String((supOb.aml as Record<string, unknown>).rawStatus ?? "").trim()
+        ob.aml && typeof ob.aml === "object" && !Array.isArray(ob.aml)
+          ? String((ob.aml as Record<string, unknown>).rawStatus ?? "").trim()
           : "";
       kycDisplay = getDisplayKycStatus({
         requestId: req || undefined,
@@ -1166,12 +1319,30 @@ function buildCtosBackedDisplayRows(
       });
       amlLine = amlRaw ? getDisplayAmlStatus(amlRaw) : null;
     } else {
-      kycDisplay = "Not Started";
-      amlLine = null;
+      const legacy = findLegacyKycAmlByStrictIdForCtosRow(b, directorKycStatus, directorAmlStatus);
+      legacyEmailForRow = legacy.legacyEmail;
+      const hasLegacySignal =
+        (legacy.kycRaw != null && legacy.kycRaw.trim() !== "") ||
+        (legacy.amlRaw != null && legacy.amlRaw.trim() !== "");
+      if (hasLegacySignal) {
+        const rawForUnified =
+          legacy.kycRaw != null && legacy.kycRaw.trim() !== ""
+            ? legacy.kycRaw
+            : "Not requested";
+        kycDisplay = legacyDirectorKycRawToUnifiedDisplay(rawForUnified);
+        amlLine =
+          legacy.amlRaw != null && legacy.amlRaw.trim() !== "" ? getDisplayAmlStatus(legacy.amlRaw) : null;
+      } else {
+        kycDisplay = "Not Started";
+        amlLine = null;
+      }
     }
 
     const fromSupplement = idKeyNorm ? supplementEmailByPartyKey.get(idKeyNorm) : undefined;
-    const email = (fromSupplement && fromSupplement.trim()) || "";
+    const email =
+      (fromSupplement && fromSupplement.trim()) ||
+      (legacyEmailForRow && legacyEmailForRow.trim()) ||
+      "";
     const linkSent =
       Boolean(sentRowIds?.has(stableId)) ||
       Boolean(idKeyNorm && supplementSentPartyKeys.has(idKeyNorm));
@@ -1361,7 +1532,9 @@ export function getDirectorShareholderDisplayRows(
       supplementEmailByPartyKey,
       supplementSentPartyKeys,
       onboardingByPartyKey,
-      supplementPartyKeys
+      supplementPartyKeys,
+      directorKycStatus,
+      directorAmlJson
     );
   }
 

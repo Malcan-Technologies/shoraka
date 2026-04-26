@@ -7,9 +7,8 @@ import type { Organization } from "@cashsouk/config";
 import { useOrganization } from "@cashsouk/config";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { DirectorKycList } from "./director-kyc-list";
-import { DirectorAmlList } from "./director-aml-list";
-import { CorporateShareholdersList } from "./corporate-shareholders-list";
+import { getDirectorShareholderDisplayRows } from "@cashsouk/types";
+import { UnifiedKycAmlReadonlyRows } from "@cashsouk/ui";
 import { toast } from "sonner";
 
 interface OnboardingStep {
@@ -78,6 +77,11 @@ function getOnboardingSteps(organization: Organization): OnboardingStep[] {
   ];
 }
 
+type OrganizationWithCtos = Organization & {
+  latestOrganizationCtosCompanyJson?: unknown | null;
+  ctosPartySupplements?: ReadonlyArray<{ partyKey: string; onboardingJson?: unknown }> | null;
+};
+
 export function OnboardingStatusCard({
   organization,
   userName,
@@ -87,6 +91,19 @@ export function OnboardingStatusCard({
   const [isRefreshing, setIsRefreshing] = React.useState(false);
   const steps = getOnboardingSteps(organization);
   const allComplete = steps.every((step) => step.isCompleted);
+
+  const orgWithCtos = organization as OrganizationWithCtos;
+  const corporateUnifiedRows = React.useMemo(() => {
+    if (organization.type !== "COMPANY") return [];
+    return getDirectorShareholderDisplayRows({
+      corporateEntities: organization.corporateEntities ?? null,
+      directorKycStatus: organization.directorKycStatus ?? null,
+      directorAmlStatus: organization.directorAmlStatus ?? null,
+      organizationCtosCompanyJson: orgWithCtos.latestOrganizationCtosCompanyJson ?? null,
+      ctosPartySupplements: orgWithCtos.ctosPartySupplements ?? null,
+      sentRowIds: null,
+    });
+  }, [organization]);
 
   const handleRefreshAml = async () => {
     if (!organization.id) return;
@@ -195,8 +212,7 @@ export function OnboardingStatusCard({
       {/* Corporate Onboarding Details Card - Show in PENDING_APPROVAL */}
       {organization.type === "COMPANY" &&
         organization.onboardingStatus === "PENDING_APPROVAL" &&
-        ((organization.directorKycStatus && organization.directorKycStatus.directors.length > 0) ||
-          (organization.corporateEntities?.corporateShareholders && organization.corporateEntities.corporateShareholders.length > 0)) && (
+        corporateUnifiedRows.length > 0 && (
           <Card className="mt-6">
             <CardHeader className="pb-4">
               <CardTitle className="text-base">KYC Verification Status</CardTitle>
@@ -205,16 +221,11 @@ export function OnboardingStatusCard({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {organization.directorKycStatus && organization.directorKycStatus.directors.length > 0 && (
-                <DirectorKycList directors={organization.directorKycStatus.directors} />
-              )}
-              {organization.corporateEntities?.corporateShareholders && organization.corporateEntities.corporateShareholders.length > 0 && (
-                <CorporateShareholdersList
-                  corporateShareholders={organization.corporateEntities.corporateShareholders}
-                  businessShareholdersAml={organization.directorAmlStatus?.businessShareholders}
-                  status={organization.onboardingStatus}
-                />
-              )}
+              <UnifiedKycAmlReadonlyRows
+                rows={corporateUnifiedRows}
+                showKycColumn
+                showAmlColumn={false}
+              />
             </CardContent>
           </Card>
         )}
@@ -222,8 +233,7 @@ export function OnboardingStatusCard({
       {/* Corporate Onboarding Details Card - Show in PENDING_AML */}
       {organization.type === "COMPANY" &&
         organization.onboardingStatus === "PENDING_AML" &&
-        ((organization.directorAmlStatus && organization.directorAmlStatus.directors.length > 0) ||
-          (organization.corporateEntities?.corporateShareholders && organization.corporateEntities.corporateShareholders.length > 0)) && (
+        corporateUnifiedRows.length > 0 && (
           <Card className="mt-6">
             <CardHeader className="pb-4">
               <div className="flex items-start justify-between">
@@ -246,16 +256,12 @@ export function OnboardingStatusCard({
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {organization.directorAmlStatus && organization.directorAmlStatus.directors.length > 0 && (
-                <DirectorAmlList directors={organization.directorAmlStatus.directors} />
-              )}
-              {organization.corporateEntities?.corporateShareholders && organization.corporateEntities.corporateShareholders.length > 0 && (
-                <CorporateShareholdersList
-                  corporateShareholders={organization.corporateEntities.corporateShareholders}
-                  businessShareholdersAml={organization.directorAmlStatus?.businessShareholders}
-                  status={organization.onboardingStatus}
-                />
-              )}
+              <UnifiedKycAmlReadonlyRows
+                rows={corporateUnifiedRows}
+                showKycColumn={false}
+                showAmlColumn
+                isRefreshing={isRefreshing}
+              />
             </CardContent>
           </Card>
         )}

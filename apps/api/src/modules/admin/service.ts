@@ -2646,6 +2646,18 @@ export class AdminService {
     const registrationNumber =
       org?.registration_number ?? basicInfo?.ssmRegistrationNumber ?? basicInfo?.ssmRegisterNumber ?? null;
 
+    const orgForCtos = isInvestorOrg ? investorOrg : issuerOrg;
+    const latestOrganizationCtosCompanyJson =
+      orgForCtos?.ctos_reports?.[0]?.company_json ?? null;
+    const ctosPartySupplementsRaw = orgForCtos?.ctos_party_supplements;
+    const ctosPartySupplements =
+      Array.isArray(ctosPartySupplementsRaw) && ctosPartySupplementsRaw.length > 0
+        ? ctosPartySupplementsRaw.map((s) => ({
+            partyKey: s.party_key,
+            onboardingJson: s.onboarding_json ?? null,
+          }))
+        : null;
+
     return {
       id: record.id,
       userId: record.user.user_id,
@@ -2679,6 +2691,8 @@ export class AdminService {
       directorKycStatus,
       directorAmlStatus,
       corporateEntities,
+      latestOrganizationCtosCompanyJson,
+      ctosPartySupplements,
     };
   }
 
