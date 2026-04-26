@@ -2532,6 +2532,12 @@ export class AdminRepository {
                 email: true,
               },
             },
+            ctos_party_supplements: {
+              select: {
+                party_key: true,
+                onboarding_json: true,
+              },
+            },
           },
         },
         invoices: { orderBy: { created_at: "asc" } },

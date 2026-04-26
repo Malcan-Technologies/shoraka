@@ -10,6 +10,8 @@ import { prisma } from "../../../lib/prisma";
 import type { PortalType } from "../types";
 import { syncApplicationGuarantorsFromRegTankAmlWebhook } from "../../admin/guarantor-aml-webhook-sync";
 import { maybeAdvanceOrgAfterAmlScreeningCleared } from "./org-aml-milestone";
+import { linkCtosPartyToKyb } from "../../organization/ctos-party-kyb-link";
+import { findCtosPartySupplementByOnboardingJsonMatch } from "../../organization/ctos-party-supplement-webhook-lookup";
 
 /**
  * KYC (Know Your Customer) Webhook Handler
@@ -209,17 +211,19 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
         return;
       }
 
+      const ctosHandled = await this.tryHandleCtosPartyKycFromWebhook(payload);
+      if (ctosHandled) {
+        return;
+      }
+
       logger.warn(
         {
-          kycRequestId: requestId,
-          referenceId,
+          requestId,
           onboardingId,
-          note: "KYC requestId is the KYC ID, not the onboarding request ID. Use onboardingId field instead."
+          referenceId,
         },
-        "[KYC Webhook] ⚠ No matching onboarding record found - KYC webhook may be standalone or onboardingId/referenceId missing"
+        "KYC webhook request not found in normal or CTOS party flow"
       );
-      // Don't throw error - KYC webhooks may not always have associated onboarding records
-      // They might be standalone KYC checks
       return;
     }
 
@@ -751,6 +755,191 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
         // Don't throw - allow webhook to complete even if director AML update fails
       }
     }
+  }
+
+  private kycProviderLabel(): "ACURIS" | "DOW_JONES" {
+    return this.provider === "DOWJONES" ? "DOW_JONES" : "ACURIS";
+  }
+
+  /**
+   * Persist AML screening snapshot on CTOS party supplements (isolated from director_aml_status).
+   * Payload may expose amlStatus / screeningResult; otherwise messageStatus / status are used.
+   */
+  private buildCtosPartySupplementAmlBlock(payload: RegTankKYCWebhook): Record<string, unknown> {
+    const {
+      requestId,
+      referenceId,
+      status,
+      riskLevel,
+      riskScore,
+      messageStatus,
+      possibleMatchCount,
+      blacklistedMatchCount,
+    } = payload;
+    const ext = payload as Record<string, unknown>;
+    const firstStringField = (keys: string[]): string => {
+      for (const k of keys) {
+        const v = ext[k];
+        if (typeof v === "string" && v.trim()) return v.trim();
+      }
+      return "";
+    };
+    const explicitAml = firstStringField([
+      "amlStatus",
+      "screeningResult",
+      "screeningStatus",
+      "amlResult",
+      "screening_status",
+      "aml_screening_status",
+    ]);
+    const msg = typeof messageStatus === "string" ? messageStatus.trim() : "";
+    const st = typeof status === "string" ? status.trim() : "";
+    const combined = (explicitAml || msg || st).toUpperCase();
+    const rawStatus = combined.length > 0 ? combined : "PENDING";
+
+    const aml: Record<string, unknown> = {
+      provider: this.kycProviderLabel(),
+      requestId,
+      rawStatus,
+      riskLevel: riskLevel ?? "",
+      riskScore: riskScore ?? "",
+      updatedAt: new Date().toISOString(),
+    };
+    if (typeof referenceId === "string" && referenceId.trim()) {
+      aml.referenceId = referenceId.trim();
+    }
+    if (msg) {
+      aml.messageStatus = messageStatus;
+    }
+    if (typeof possibleMatchCount === "number") {
+      aml.possibleMatchCount = possibleMatchCount;
+    }
+    if (typeof blacklistedMatchCount === "number") {
+      aml.blacklistedMatchCount = blacklistedMatchCount;
+    }
+    return aml;
+  }
+
+  /**
+   * Issuer CTOS party individual onboarding: no reg_tank_onboarding row; match supplement by onboarding_json.requestId or referenceId.
+   * When webhook `referenceId` uses `buildSafeReferenceId(orgId, partyKey)`, lookup is scoped to that org so another org cannot match the same ids.
+   */
+  private async tryHandleCtosPartyKycFromWebhook(payload: RegTankKYCWebhook): Promise<boolean> {
+    const { requestId, referenceId, onboardingId, status, riskLevel, riskScore, messageStatus } =
+      payload;
+
+    const supplement = await findCtosPartySupplementByOnboardingJsonMatch(onboardingId, referenceId);
+    if (!supplement) {
+      return false;
+    }
+
+    const prev =
+      supplement.onboarding_json &&
+      typeof supplement.onboarding_json === "object" &&
+      !Array.isArray(supplement.onboarding_json)
+        ? { ...(supplement.onboarding_json as Record<string, unknown>) }
+        : {};
+
+    const rawStatus = (status || "").toUpperCase();
+    const prevRt =
+      typeof prev.regtankStatus === "string" && prev.regtankStatus.trim()
+        ? prev.regtankStatus.trim()
+        : "";
+    const regtankStatus =
+      rawStatus === "APPROVED"
+        ? "APPROVED"
+        : rawStatus === "REJECTED" || rawStatus === "FAILED"
+          ? "REJECTED"
+          : prevRt || "PENDING_AML";
+
+    const kycBlock: Record<string, unknown> = {
+      provider: this.kycProviderLabel(),
+      requestId,
+      rawStatus,
+      riskLevel: riskLevel ?? "",
+      riskScore: riskScore ?? "",
+      updatedAt: new Date().toISOString(),
+      lastPayload: {},
+    };
+    if (messageStatus !== undefined && messageStatus !== null && `${messageStatus}`.length > 0) {
+      kycBlock.messageStatus = messageStatus;
+    }
+
+    const prevRest = { ...prev };
+    delete prevRest.status;
+    const latestRequestId = typeof prev.requestId === "string" ? prev.requestId.trim() : "";
+    const webhookOnboardingId = typeof onboardingId === "string" ? onboardingId.trim() : "";
+    if (latestRequestId && webhookOnboardingId && latestRequestId !== webhookOnboardingId) {
+      logger.info(
+        {
+          latestRequestId,
+          webhookOnboardingId,
+          requestId,
+          partyKey: supplement.party_key,
+          issuerOrganizationId: supplement.issuer_organization_id,
+          investorOrganizationId: supplement.investor_organization_id,
+        },
+        "Ignored stale CTOS party KYC webhook for non-latest onboarding requestId"
+      );
+      return true;
+    }
+
+    const prevAml =
+      prevRest.aml && typeof prevRest.aml === "object" && !Array.isArray(prevRest.aml)
+        ? { ...(prevRest.aml as Record<string, unknown>) }
+        : {};
+    const amlBlock = { ...prevAml, ...this.buildCtosPartySupplementAmlBlock(payload) };
+
+    const updated = {
+      ...prevRest,
+      regtankStatus,
+      kyc: kycBlock,
+      aml: amlBlock,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await prisma.ctosPartySupplement.update({
+      where: { id: supplement.id },
+      data: { onboarding_json: updated as Prisma.InputJsonValue },
+    });
+
+    logger.info(
+      {
+        requestId,
+        onboardingId,
+        referenceId,
+        provider: this.kycProviderLabel(),
+        status,
+        amlRawStatus: amlBlock.rawStatus,
+        partyKey: supplement.party_key,
+        issuerOrganizationId: supplement.issuer_organization_id,
+        investorOrganizationId: supplement.investor_organization_id,
+      },
+      "CTOS party KYC/AML webhook handled"
+    );
+
+    const updatedRec = updated as Record<string, unknown>;
+    const approved = String(updatedRec.regtankStatus ?? "").trim().toUpperCase() === "APPROVED";
+    if (approved && this.provider === "ACURIS" && supplement.issuer_organization_id) {
+      try {
+        await linkCtosPartyToKyb({
+          organizationId: supplement.issuer_organization_id,
+          partyKey: supplement.party_key,
+          onboardingJson: updatedRec,
+        });
+      } catch (e) {
+        logger.error(
+          {
+            error: e instanceof Error ? e.message : String(e),
+            organizationId: supplement.issuer_organization_id,
+            partyKey: supplement.party_key,
+          },
+          "CTOS KYB auto-link failed (non-blocking)"
+        );
+      }
+    }
+
+    return true;
   }
 }
 

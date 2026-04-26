@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Skeleton } from "../../components/ui/skeleton";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
@@ -32,7 +32,7 @@ import { useAccountDocuments } from "../../hooks/use-account-documents";
 import { useOrganizationMembers } from "../../hooks/use-organization-members";
 import { useOrganizationInvitations } from "../../hooks/use-organization-invitations";
 import { CorporateInfoCard } from "../../components/corporate-info-card";
-import { DirectorsShareholdersCard } from "../../components/directors-shareholders-card";
+import { DirectorShareholdersUnifiedSection } from "../../components/director-shareholders-unified-section";
 import { InviteMemberDialog } from "../../components/invite-member-dialog";
 import { ConfirmDialog } from "../../components/confirm-dialog";
 import { TransferOwnershipDialog } from "../../components/transfer-ownership-dialog";
@@ -540,6 +540,10 @@ export default function ProfilePage() {
           shareholders?: Array<Record<string, unknown>>;
           corporateShareholders?: Array<Record<string, unknown>>;
         };
+        directorKycStatus?: unknown;
+        directorAmlStatus?: Record<string, unknown> | null;
+        latestOrganizationCtosCompanyJson?: unknown | null;
+        ctosPartySupplements?: { partyKey: string; onboardingJson?: unknown }[] | null;
       }>(`/v1/organizations/issuer/${activeOrganization.id}`);
       if (!result.success) {
         throw new Error(result.error.message);
@@ -549,6 +553,20 @@ export default function ProfilePage() {
     enabled: !!activeOrganization?.id,
     staleTime: 1000 * 60 * 5,
   });
+
+  const searchParams = useSearchParams();
+  const focusDirectors = searchParams.get("focus") === "directors";
+  const directorsSectionRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!focusDirectors) return;
+    const el = directorsSectionRef.current;
+    if (!el) return;
+    const t = window.setTimeout(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 200);
+    return () => window.clearTimeout(t);
+  }, [focusDirectors, orgData, activeOrganization?.id]);
 
   // Initialize form values when orgData loads
   React.useEffect(() => {
@@ -1304,8 +1322,20 @@ export default function ProfilePage() {
               </div>
 
               {/* 4. Directors/Shareholders Section - Only for COMPANY accounts */}
-              {!isPersonal && activeOrganization?.id && orgData?.corporateEntities && (
-                <DirectorsShareholdersCard corporateEntities={orgData.corporateEntities} />
+              {!isPersonal && activeOrganization?.id && orgData && (
+                <div ref={directorsSectionRef} className="scroll-mt-24">
+                  <DirectorShareholdersUnifiedSection
+                    organizationId={activeOrganization.id}
+                    organizationOnboardingStatus={orgData.onboardingStatus}
+                    corporateEntities={orgData.corporateEntities ?? {}}
+                    directorKycStatus={orgData.directorKycStatus ?? null}
+                    directorAmlStatus={orgData.directorAmlStatus ?? null}
+                    organizationCtosCompanyJson={orgData.latestOrganizationCtosCompanyJson ?? null}
+                    ctosPartySupplements={orgData.ctosPartySupplements ?? null}
+                    highlightActionRequiredRows
+                    autoFocusFirstEmptyEmail={focusDirectors}
+                  />
+                </div>
               )}
 
               {/* 5. Members Section */}

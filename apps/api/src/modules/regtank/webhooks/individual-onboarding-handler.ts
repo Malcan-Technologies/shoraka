@@ -2,13 +2,15 @@ import { BaseWebhookHandler } from "./base-webhook-handler";
 import { RegTankService } from "../service";
 import { RegTankIndividualOnboardingWebhook, PortalType } from "../types";
 import { logger } from "../../../lib/logger";
-import { AppError } from "../../../lib/http/error-handler";
 import { RegTankRepository } from "../repository";
 import { OrganizationRepository } from "../../organization/repository";
 import { AuthRepository } from "../../auth/repository";
 import { OnboardingStatus, Prisma, UserRole } from "@prisma/client";
 import { NotificationService } from "../../notification/service";
 import { NotificationTypeIds } from "../../notification/registry";
+import { prisma } from "../../../lib/prisma";
+import { mapRegtankIndividualLivenessRawToInternalStatus } from "@cashsouk/types";
+import { findCtosPartySupplementByOnboardingJsonMatch } from "../../organization/ctos-party-supplement-webhook-lookup";
 
 /**
  * Individual Onboarding Webhook Handler
@@ -41,12 +43,14 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
     // Find onboarding record
     const onboarding = await this.repository.findByRequestId(requestId);
     if (!onboarding) {
-      logger.warn({ requestId }, "Webhook received for unknown requestId");
-      throw new AppError(
-        404,
-        "ONBOARDING_NOT_FOUND",
-        `Onboarding not found for requestId: ${requestId}`
-      );
+      const payloadRefRaw = (payload as Record<string, unknown>).referenceId;
+      const payloadRef = typeof payloadRefRaw === "string" ? payloadRefRaw.trim() : "";
+      const handledCtos = await this.tryUpdateCtosPartyOnboardingFromWebhook(requestId, status, payloadRef);
+      if (handledCtos) {
+        return;
+      }
+      logger.warn({ requestId }, "Webhook requestId not found in any flow");
+      return;
     }
 
     // Append to history
@@ -56,22 +60,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
     // IN_PROGRESS → PENDING_APPROVAL → PENDING_AML → COMPLETED/APPROVED
     // Note: Final approval is done on our side, not in RegTank
     const statusUpper = status.toUpperCase();
-    let internalStatus = statusUpper;
-
-    // Map form filling statuses (before liveness test)
-    if (statusUpper === "PROCESSING" || statusUpper === "ID_UPLOADED" || statusUpper === "LIVENESS_STARTED") {
-      internalStatus = "FORM_FILLING";
-    } else if (statusUpper === "LIVENESS_PASSED") {
-      internalStatus = "LIVENESS_PASSED";
-    } else if (statusUpper === "WAIT_FOR_APPROVAL") {
-      internalStatus = "PENDING_APPROVAL";
-    } else if (statusUpper === "APPROVED") {
-      // When RegTank approves, set status to PENDING_AML (not APPROVED)
-      // Final approval (COMPLETED) happens on our side after AML approval
-      internalStatus = "PENDING_AML";
-    } else if (statusUpper === "REJECTED") {
-      internalStatus = statusUpper;
-    }
+    const internalStatus = mapRegtankIndividualLivenessRawToInternalStatus(status);
 
     // Update database
     const updateData: {
@@ -435,6 +424,61 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
         );
       }
     }
+  }
+
+  /**
+   * Issuer CTOS party RegTank individual onboarding: row lives on ctos_party_supplements.onboarding_json only.
+   * Normal org onboarding still uses reg_tank_onboarding (handled above).
+   */
+  private async tryUpdateCtosPartyOnboardingFromWebhook(
+    requestId: string,
+    status: string,
+    webhookReferenceId: string
+  ): Promise<boolean> {
+    const supplement = await findCtosPartySupplementByOnboardingJsonMatch(requestId, webhookReferenceId);
+
+    if (!supplement) {
+      return false;
+    }
+
+    const statusUpper = status.toUpperCase();
+    const internalStatus = mapRegtankIndividualLivenessRawToInternalStatus(status);
+
+    const prev =
+      supplement.onboarding_json &&
+      typeof supplement.onboarding_json === "object" &&
+      !Array.isArray(supplement.onboarding_json)
+        ? { ...(supplement.onboarding_json as Record<string, unknown>) }
+        : {};
+    const prevRest = { ...prev };
+    delete prevRest.status;
+
+    const updated = {
+      ...prevRest,
+      regtankStatus: internalStatus,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await prisma.ctosPartySupplement.update({
+      where: { id: supplement.id },
+      data: {
+        onboarding_json: updated as Prisma.InputJsonValue,
+      },
+    });
+
+    logger.info(
+      {
+        requestId,
+        status: internalStatus,
+        rawRegTankStatus: statusUpper,
+        partyKey: supplement.party_key,
+        issuerOrganizationId: supplement.issuer_organization_id,
+        investorOrganizationId: supplement.investor_organization_id,
+      },
+      "CTOS onboarding webhook handled"
+    );
+
+    return true;
   }
 }
 

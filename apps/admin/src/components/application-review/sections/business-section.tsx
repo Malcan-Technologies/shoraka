@@ -16,10 +16,7 @@ import {
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useAuthToken } from "@cashsouk/config";
-import {
-  useAdminApplicationCtosSubjectReports,
-  useCreateAdminApplicationCtosSubjectReport,
-} from "@/hooks/use-admin-application-ctos-reports";
+import { useCreateIssuerOrganizationCtosSubjectReport } from "@/hooks/use-admin-issuer-organization-ctos-mutations";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ReviewSectionCard } from "../review-section-card";
@@ -82,8 +79,18 @@ export type BusinessSectionComparisonProps = {
 };
 
 export interface BusinessSectionProps {
-  /** Used to list/create CTOS subject reports for guarantors (same app as admin detail / resubmit “after”). */
+  /** Used to invalidate application detail after org-level CTOS mutations. */
   applicationId?: string;
+  /** Issuer org id for organization-level CTOS subject reports (list + create + HTML). */
+  issuerOrganizationId?: string | null;
+  issuerOrganization?: {
+    latest_organization_ctos_subject_reports?: Array<{
+      id: string;
+      subject_ref: string | null;
+      fetched_at: string;
+      has_report_html: boolean;
+    }> | null;
+  } | null;
   businessDetails: unknown;
   applicationGuarantors?: unknown;
   section: ReviewSectionId;
@@ -994,7 +1001,7 @@ function GuarantorCtosToolbar({
       : !canView
         ? `No stored CTOS report for this subject yet. Use ${CTOS_UI.fetchReport} first.`
         : !applicationId
-          ? "Application id is missing."
+          ? "Issuer organization id is missing."
           : undefined
     : undefined;
   const getTitle = getDisabled
@@ -1085,7 +1092,6 @@ function GuarantorCtosToolbar({
         onClick={(e) => {
           e.stopPropagation();
           if (!guarantor) return;
-            console.log("Guarantor CTOS fetch:", subjectRef, guarantor.referenceId);
           onRequestGetReport(guarantor);
         }}
       >
@@ -1604,6 +1610,8 @@ const yesNoScaleWrapper = "inline-block scale-[0.88] origin-left";
 
 export function BusinessSection({
   applicationId = "",
+  issuerOrganizationId = null,
+  issuerOrganization = null,
   businessDetails,
   applicationGuarantors,
   section,
@@ -1626,31 +1634,39 @@ export function BusinessSection({
   hideSectionComments = false,
 }: BusinessSectionProps) {
   const ctosAppId = applicationId.trim() || undefined;
+  const issuerOrgId = issuerOrganizationId?.trim() || undefined;
   const { getAccessToken } = useAuthToken();
-  const { data: ctosSubjectList, isLoading: ctosSubjectLoading } =
-    useAdminApplicationCtosSubjectReports(ctosAppId);
-  const createSubjectCtos = useCreateAdminApplicationCtosSubjectReport(ctosAppId);
+  const ctosSubjectLoading = false;
+  const createSubjectCtos = useCreateIssuerOrganizationCtosSubjectReport(
+    issuerOrgId,
+    ctosAppId
+  );
 
   const subjectReportByRef = React.useMemo(() => {
     const m = new Map<string, { id: string; has_report_html: boolean; fetched_at: string }>();
-    for (const r of ctosSubjectList ?? []) {
+    const raw = issuerOrganization?.latest_organization_ctos_subject_reports;
+    for (const r of raw ?? []) {
       const ref = r.subject_ref;
       if (!ref) continue;
       const k = ref.trim().replace(/\s+/g, "").toLowerCase();
-      m.set(k, { id: r.id, has_report_html: Boolean(r.has_report_html), fetched_at: r.fetched_at });
+      m.set(k, {
+        id: r.id,
+        has_report_html: Boolean(r.has_report_html),
+        fetched_at: r.fetched_at,
+      });
     }
     return m;
-  }, [ctosSubjectList]);
+  }, [issuerOrganization?.latest_organization_ctos_subject_reports]);
 
   const openSubjectHtmlReport = React.useCallback(
     async (reportId: string) => {
-      if (!ctosAppId) return;
+      if (!issuerOrgId) return;
       const token = await getAccessToken();
       if (!token) {
         toast.error("Not signed in");
         return;
       }
-      const url = `${API_URL}/v1/admin/applications/${ctosAppId}/ctos-reports/${reportId}/html`;
+      const url = `${API_URL}/v1/admin/organizations/issuer/${encodeURIComponent(issuerOrgId)}/ctos-reports/${reportId}/html`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) {
         toast.error("Could not load report");
@@ -1663,12 +1679,12 @@ export function BusinessSection({
         w.document.close();
       }
     },
-    [ctosAppId, getAccessToken]
+    [issuerOrgId, getAccessToken]
   );
 
   const onCreateGuarantorSubjectCtos = React.useCallback(
     (g: GuarantorReviewRow) => {
-      if (!ctosAppId) return;
+      if (!issuerOrgId) return;
       const subjectRef = ctosSubjectReportLookupKeyFromGuarantor(g);
       if (!subjectRef) return;
       const subjectKind = g.kind === "individual" ? "INDIVIDUAL" : "CORPORATE";
@@ -1697,7 +1713,7 @@ export function BusinessSection({
         }
       );
     },
-    [ctosAppId, createSubjectCtos]
+    [issuerOrgId, createSubjectCtos]
   );
 
   const [pendingGuarantorCtos, setPendingGuarantorCtos] = React.useState<GuarantorReviewRow | null>(null);
@@ -1921,7 +1937,7 @@ export function BusinessSection({
               a={a}
               amlByKey={guarantorAmlByKey}
               isPathChanged={isPathChanged}
-              applicationId={ctosAppId}
+              applicationId={issuerOrgId ?? ""}
               subjectReportByRef={subjectReportByRef}
               ctosSubjectLoading={ctosSubjectLoading}
               createSubjectPending={createSubjectCtos.isPending}
@@ -2135,7 +2151,7 @@ export function BusinessSection({
                 guarantors={view.guarantors}
                 amlByKey={guarantorAmlByKey}
                 onTriggerGuarantorAml={onTriggerGuarantorAml}
-                applicationId={ctosAppId}
+                applicationId={issuerOrgId ?? ""}
                 subjectReportByRef={subjectReportByRef}
                 ctosSubjectLoading={ctosSubjectLoading}
                 createSubjectPending={createSubjectCtos.isPending}

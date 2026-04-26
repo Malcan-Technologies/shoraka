@@ -6,137 +6,144 @@ import {
   UserIcon,
   BuildingOffice2Icon,
 } from "@heroicons/react/24/outline";
+import {
+  getDirectorShareholderDisplayRows,
+  regtankDisplayStatusBadgeClass,
+  type DirectorShareholderDisplayRow,
+} from "@cashsouk/types";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
-interface CorporateEntities {
-  directors?: Array<Record<string, unknown>>;
-  shareholders?: Array<Record<string, unknown>>;
-  corporateShareholders?: Array<Record<string, unknown>>;
+function isDirectorLikeRow(r: DirectorShareholderDisplayRow): boolean {
+  if (r.type !== "INDIVIDUAL") return false;
+  if (typeof r.isDirector === "boolean") return r.isDirector;
+  return r.role.toLowerCase().includes("director");
 }
 
-interface DirectorsShareholdersCardProps {
-  corporateEntities: CorporateEntities;
+function isIndividualShareholderOnlyRow(r: DirectorShareholderDisplayRow): boolean {
+  if (r.type !== "INDIVIDUAL") return false;
+  if (typeof r.isDirector === "boolean") return !r.isDirector && Boolean(r.isShareholder);
+  return !r.role.toLowerCase().includes("director");
+}
+
+export interface DirectorsShareholdersCardProps {
+  corporateEntities: unknown;
+  directorKycStatus?: unknown | null;
+  directorAmlStatus?: unknown | null;
+  organizationCtosCompanyJson?: unknown | null;
+  ctosPartySupplements?: { partyKey: string; onboardingJson?: unknown }[] | null;
+}
+
+function renderIndividualRow(row: DirectorShareholderDisplayRow) {
+  const ic = row.idNumber?.trim() || "";
+  const kycBadge = regtankDisplayStatusBadgeClass(row.status);
+  return (
+    <div
+      key={row.id}
+      className="flex items-center justify-between p-4 rounded-lg border bg-muted/30"
+    >
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-sm">
+          {row.name}
+          {ic ? <span className="font-normal text-muted-foreground"> · IC {ic}</span> : null}
+        </p>
+        <p className="text-xs text-muted-foreground mt-1">{row.email.trim() ? row.email : "—"}</p>
+        <p className="text-xs text-muted-foreground mt-1">{row.role}</p>
+        <div className="mt-1 flex flex-wrap flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">KYC</span>
+            <Badge className={cn("text-xs font-medium", kycBadge)}>{row.status}</Badge>
+          </div>
+          {row.amlStatus?.trim() ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted-foreground">AML</span>
+              <Badge variant="outline" className="text-xs font-medium">
+                {row.amlStatus}
+              </Badge>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function renderCorporateRow(row: DirectorShareholderDisplayRow) {
+  const ssm = row.registrationNumber?.trim() || "";
+  const kycBadge = regtankDisplayStatusBadgeClass(row.status);
+  return (
+    <div
+      key={row.id}
+      className="flex items-center justify-between p-4 rounded-lg border bg-muted/30"
+    >
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-sm">{row.name}</p>
+        {ssm ? <p className="text-xs text-muted-foreground mt-1">SSM {ssm}</p> : null}
+        <p className="text-xs text-muted-foreground mt-1">
+          {row.ownershipDisplay?.trim() ? row.ownershipDisplay : row.role}
+        </p>
+        <div className="mt-1 flex flex-wrap flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">KYC</span>
+            <Badge className={cn("text-xs font-medium", kycBadge)}>{row.status}</Badge>
+          </div>
+          {row.amlStatus?.trim() ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted-foreground">AML</span>
+              <Badge variant="outline" className="text-xs font-medium">
+                {row.amlStatus}
+              </Badge>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function DirectorsShareholdersCard({
   corporateEntities,
+  directorKycStatus = null,
+  directorAmlStatus = null,
+  organizationCtosCompanyJson = null,
+  ctosPartySupplements = null,
 }: DirectorsShareholdersCardProps) {
-  const directors = corporateEntities.directors || [];
-  const shareholders = corporateEntities.shareholders || [];
-  const corporateShareholders = corporateEntities.corporateShareholders || [];
+  const rows = React.useMemo(
+    () =>
+      getDirectorShareholderDisplayRows({
+        corporateEntities: corporateEntities ?? null,
+        directorKycStatus: directorKycStatus ?? null,
+        directorAmlStatus: directorAmlStatus ?? null,
+        organizationCtosCompanyJson: organizationCtosCompanyJson ?? null,
+        ctosPartySupplements: ctosPartySupplements ?? null,
+        sentRowIds: null,
+      }),
+    [
+      corporateEntities,
+      directorKycStatus,
+      directorAmlStatus,
+      organizationCtosCompanyJson,
+      ctosPartySupplements,
+    ]
+  );
 
-  // Helper to extract name from director/shareholder
-  const getName = (entity: Record<string, unknown>): string => {
-    const personalInfo = entity.personalInfo as Record<string, unknown> | undefined;
-    if (personalInfo?.fullName) return String(personalInfo.fullName);
-    if (personalInfo?.firstName || personalInfo?.lastName) {
-      return [
-        personalInfo.firstName,
-        personalInfo.middleName,
-        personalInfo.lastName,
-      ]
-        .filter(Boolean)
-        .join(" ");
-    }
-    return "—";
-  };
+  const directorLikeRows = React.useMemo(() => rows.filter(isDirectorLikeRow), [rows]);
+  const shareholderOnlyRows = React.useMemo(() => rows.filter(isIndividualShareholderOnlyRow), [rows]);
+  const corporateRows = React.useMemo(() => rows.filter((r) => r.type === "COMPANY"), [rows]);
 
-  // Helper to extract email from director/shareholder
-  const getEmail = (entity: Record<string, unknown>): string => {
-    const personalInfo = entity.personalInfo as Record<string, unknown> | undefined;
-    return personalInfo?.email ? String(personalInfo.email) : "—";
-  };
-
-  // Helper to extract designation/role from director
-  const getDesignation = (entity: Record<string, unknown>): string => {
-    const personalInfo = entity.personalInfo as Record<string, unknown> | undefined;
-    const formContent = personalInfo?.formContent as
-      | { content?: Array<{ fieldName?: string; fieldValue?: unknown }> }
-      | undefined;
-    if (formContent?.content) {
-      const designationField = formContent.content.find(
-        (f) => f.fieldName === "Designation"
-      );
-      if (designationField?.fieldValue) {
-        return String(designationField.fieldValue);
-      }
-    }
-    return "Director";
-  };
-
-  // IC from formContent "Government ID Number" or API field governmentIdNumber
-  const getGovernmentId = (entity: Record<string, unknown>): string | null => {
-    const personalInfo = entity.personalInfo as Record<string, unknown> | undefined;
-    if (personalInfo?.governmentIdNumber) {
-      return String(personalInfo.governmentIdNumber).trim() || null;
-    }
-    const formContent = personalInfo?.formContent as
-      | { content?: Array<{ fieldName?: string; fieldValue?: unknown }> }
-      | undefined;
-    const field = formContent?.content?.find((f) => f.fieldName === "Government ID Number");
-    if (field?.fieldValue != null && String(field.fieldValue).trim() !== "") {
-      return String(field.fieldValue).trim();
-    }
-    return null;
-  };
-
-  // Helper to extract share percentage from shareholder
-  const getSharePercentage = (entity: Record<string, unknown>): string => {
-    const personalInfo = entity.personalInfo as Record<string, unknown> | undefined;
-    const formContent = personalInfo?.formContent as
-      | { content?: Array<{ fieldName?: string; fieldValue?: unknown }> }
-      | undefined;
-    if (formContent?.content) {
-      const shareField = formContent.content.find(
-        (f) => f.fieldName === "% of Shares"
-      );
-      if (shareField?.fieldValue) {
-        return String(shareField.fieldValue);
-      }
-    }
-    return "";
-  };
-
-  // Helper to get corporate shareholder name
-  const getCorporateShareholderName = (entity: Record<string, unknown>): string => {
-    return (
-      String(entity.companyName || entity.businessName || "—") ||
-      "—"
-    );
-  };
-
-  // Helper to get corporate shareholder share percentage
-  const getCorporateSharePercentage = (entity: Record<string, unknown>): string => {
-    const formContent = entity.formContent as
-      | { displayAreas?: Array<{ content?: Array<{ fieldName?: string; fieldValue?: unknown }> }> }
-      | undefined;
-    if (formContent?.displayAreas) {
-      for (const area of formContent.displayAreas) {
-        if (area.content) {
-          const shareField = area.content.find(
-            (f) => f.fieldName === "% of Shares"
-          );
-          if (shareField?.fieldValue) {
-            return String(shareField.fieldValue);
-          }
-        }
-      }
-    }
-    return "";
-  };
+  const emptyAll =
+    directorLikeRows.length === 0 && shareholderOnlyRows.length === 0 && corporateRows.length === 0;
 
   return (
     <div className="rounded-xl border bg-card">
       <div className="flex items-center justify-between p-6 border-b">
         <div>
           <h2 className="text-lg font-semibold">Directors and Shareholders</h2>
-          <p className="text-sm text-muted-foreground">
-			Directors and shareholders details
-          </p>
+          <p className="text-sm text-muted-foreground">Directors and shareholders details</p>
         </div>
       </div>
       <div className="p-6 space-y-6">
-        {/* Directors / Controllers / Authorised Personnel */}
-        {directors.length > 0 && (
+        {directorLikeRows.length > 0 && (
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <UserGroupIcon className="h-5 w-5 text-muted-foreground" />
@@ -144,39 +151,11 @@ export function DirectorsShareholdersCard({
                 Directors / Controllers / Authorised Personnel
               </h3>
             </div>
-            <div className="space-y-3">
-              {directors.map((director, index) => {
-                const name = getName(director);
-                const email = getEmail(director);
-                const designation = getDesignation(director);
-                const ic = getGovernmentId(director);
-                return (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-4 rounded-lg border bg-muted/30"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">
-                        {name}
-                        {ic && (
-                          <span className="font-normal text-muted-foreground">
-                            {" "}
-                            · IC {ic}
-                          </span>
-                        )}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">{email}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{designation}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <div className="space-y-3">{directorLikeRows.map(renderIndividualRow)}</div>
           </div>
         )}
 
-        {/* Individual Shareholders / Ultimate Beneficiaries */}
-        {shareholders.length > 0 && (
+        {shareholderOnlyRows.length > 0 && (
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <UserIcon className="h-5 w-5 text-muted-foreground" />
@@ -184,83 +163,28 @@ export function DirectorsShareholdersCard({
                 Individual Shareholders / Ultimate Beneficiaries
               </h3>
             </div>
-            <div className="space-y-3">
-              {shareholders.map((shareholder, index) => {
-                const name = getName(shareholder);
-                const email = getEmail(shareholder);
-                const sharePercent = getSharePercentage(shareholder);
-                const role = sharePercent
-                  ? `Shareholder (${sharePercent}%)`
-                  : "Shareholder";
-                const ic = getGovernmentId(shareholder);
-                return (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-4 rounded-lg border bg-muted/30"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">
-                        {name}
-                        {ic && (
-                          <span className="font-normal text-muted-foreground">
-                            {" "}
-                            · IC {ic}
-                          </span>
-                        )}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-1">{email}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{role}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <div className="space-y-3">{shareholderOnlyRows.map(renderIndividualRow)}</div>
           </div>
         )}
 
-        {/* Business Shareholders / Beneficiaries */}
-        {corporateShareholders.length > 0 && (
+        {corporateRows.length > 0 && (
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <BuildingOffice2Icon className="h-5 w-5 text-muted-foreground" />
-              <h3 className="text-base font-semibold">
-                Business Shareholders / Beneficiaries
-              </h3>
+              <h3 className="text-base font-semibold">Business Shareholders / Beneficiaries</h3>
             </div>
-            <div className="space-y-3">
-              {corporateShareholders.map((corpShareholder, index) => {
-                const name = getCorporateShareholderName(corpShareholder);
-                const sharePercent = getCorporateSharePercentage(corpShareholder);
-                const role = sharePercent
-                  ? `Shareholder (${sharePercent}%)`
-                  : "Shareholder";
-                return (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-4 rounded-lg border bg-muted/30"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-sm">{name}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{role}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <div className="space-y-3">{corporateRows.map(renderCorporateRow)}</div>
             <p className="text-xs text-muted-foreground">
               Corporate shareholders/beneficiaries associated with your organization.
             </p>
           </div>
         )}
 
-        {/* Empty state */}
-        {directors.length === 0 &&
-          shareholders.length === 0 &&
-          corporateShareholders.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              <p>No directors or shareholders information available.</p>
-            </div>
-          )}
+        {emptyAll && (
+          <div className="text-center py-8 text-muted-foreground">
+            <p>No directors or shareholders information available.</p>
+          </div>
+        )}
       </div>
     </div>
   );

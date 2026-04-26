@@ -44,10 +44,8 @@ import {
   useRefreshCorporateAmlStatus,
 } from "@/hooks/use-onboarding-applications";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DirectorKycList } from "./director-kyc-list";
-import { DirectorAmlList } from "./director-aml-list";
-import { CorporateShareholdersList } from "./corporate-shareholders-list";
-import type { OnboardingApprovalStatus } from "@cashsouk/types";
+import { getDirectorShareholderDisplayRows, type OnboardingApprovalStatus } from "@cashsouk/types";
+import { UnifiedKycAmlReadonlyRows } from "@cashsouk/ui";
 import {
   UserIcon,
   EnvelopeIcon,
@@ -104,6 +102,19 @@ export function OnboardingReviewDialog({
   }, [application]);
 
   const isCompany = application?.type === "COMPANY";
+
+  const corporateUnifiedRows = React.useMemo(() => {
+    if (!application || application.type !== "COMPANY") return [];
+    return getDirectorShareholderDisplayRows({
+      corporateEntities: application.corporateEntities ?? null,
+      directorKycStatus: application.directorKycStatus ?? null,
+      directorAmlStatus: application.directorAmlStatus ?? null,
+      organizationCtosCompanyJson: application.latestOrganizationCtosCompanyJson ?? null,
+      ctosPartySupplements: application.ctosPartySupplements ?? null,
+      sentRowIds: null,
+    });
+  }, [application]);
+
   const steps = React.useMemo(() => {
     if (!application) return [];
     return isCompany
@@ -369,8 +380,8 @@ export function OnboardingReviewDialog({
                 Open Onboarding Review
               </Button>
 
-              {/* Director KYC Status Section (for corporate onboarding) */}
-              {isCompany && application.directorKycStatus && (
+              {/* Director / shareholder / corporate KYC (unified system truth) */}
+              {isCompany && corporateUnifiedRows.length > 0 && (
                 <>
                   <Separator />
                   <div className="space-y-3">
@@ -388,23 +399,11 @@ export function OnboardingReviewDialog({
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <DirectorKycList
-                      directors={application.directorKycStatus.directors}
+                    <UnifiedKycAmlReadonlyRows
+                      rows={corporateUnifiedRows}
+                      showKycColumn
+                      showAmlColumn={false}
                       isRefreshing={refreshCorporateMutation.isPending}
-                    />
-                  </div>
-                </>
-              )}
-
-              {/* Business Shareholders / Beneficiaries Section (for corporate onboarding) */}
-              {isCompany && application.corporateEntities?.corporateShareholders && application.corporateEntities.corporateShareholders.length > 0 && (
-                <>
-                  <Separator />
-                  <div className="space-y-3">
-                    <CorporateShareholdersList
-                      corporateShareholders={application.corporateEntities.corporateShareholders}
-                      businessShareholdersAml={application.directorAmlStatus?.businessShareholders}
-                      onboardingStatus={application.onboardingStatus}
                     />
                   </div>
                 </>
@@ -507,13 +506,13 @@ export function OnboardingReviewDialog({
                 {isCompany ? "Open KYB/AML Review" : "Open KYC/AML Review"}
               </Button>
               
-              {/* Individual AML Screening Status Section (for corporate onboarding) */}
-              {isCompany && (
+              {/* AML (unified: individuals + corporate shareholders) */}
+              {isCompany && corporateUnifiedRows.length > 0 && (
                 <>
                   <Separator />
                   <div className="space-y-3">
                     <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-medium">Individual AML Screening Status</h4>
+                      <h4 className="text-sm font-medium">AML screening status</h4>
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <InformationCircleIcon className="h-4 w-4 text-muted-foreground cursor-help" />
@@ -527,23 +526,11 @@ export function OnboardingReviewDialog({
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <DirectorAmlList
-                      directors={application.directorAmlStatus?.directors || []}
+                    <UnifiedKycAmlReadonlyRows
+                      rows={corporateUnifiedRows}
+                      showKycColumn={false}
+                      showAmlColumn
                       isRefreshing={refreshCorporateAmlMutation.isPending}
-                    />
-                  </div>
-                </>
-              )}
-
-              {/* Business Shareholders / Beneficiaries Section (for corporate onboarding) */}
-              {isCompany && application.corporateEntities?.corporateShareholders && application.corporateEntities.corporateShareholders.length > 0 && (
-                <>
-                  <Separator />
-                  <div className="space-y-3">
-                    <CorporateShareholdersList
-                      corporateShareholders={application.corporateEntities.corporateShareholders}
-                      businessShareholdersAml={application.directorAmlStatus?.businessShareholders}
-                      onboardingStatus={application.onboardingStatus}
                     />
                   </div>
                 </>

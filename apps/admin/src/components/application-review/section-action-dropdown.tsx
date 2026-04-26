@@ -35,6 +35,10 @@ export interface SectionActionDropdownProps {
   actionLockTooltip?: string;
   /** When false, hides Approve action (offer-driven sections). */
   showApprove?: boolean;
+  /** When true, keep Approve visible but disabled. */
+  approveDisabled?: boolean;
+  /** Reason displayed next to disabled Approve item. */
+  approveDisabledReason?: string;
   /** When false, hides Reject (use item-level actions instead). */
   showReject?: boolean;
   /** When false, hides Request amendment (use item-level actions instead). */
@@ -60,6 +64,8 @@ export function SectionActionDropdown({
   isActionLocked = false,
   actionLockTooltip,
   showApprove = true,
+  approveDisabled = false,
+  approveDisabledReason,
   showReject = true,
   showRequestAmendment = true,
   viewSignedOfferOnly = false,
@@ -71,7 +77,7 @@ export function SectionActionDropdown({
 
   const showViewSignedOffer = !!onViewSignedOffer && signedOfferLetterAvailable === true;
   const normalizedStatus = (sectionStatus ?? "PENDING").toUpperCase();
-  const canApprove = showApprove && normalizedStatus !== "APPROVED";
+  const showApproveAction = showApprove && normalizedStatus !== "APPROVED";
   const canReject = showReject && normalizedStatus !== "REJECTED";
   const canRequestAmendment =
     showRequestAmendment && normalizedStatus !== "AMENDMENT_REQUESTED";
@@ -97,7 +103,7 @@ export function SectionActionDropdown({
 
   const showResetOption = !!(onResetToPending && sectionStatus && sectionStatus !== "PENDING");
   const hasAnyMenuAction =
-    canApprove || canReject || canRequestAmendment || showResetOption || showViewSignedOffer;
+    showApproveAction || canReject || canRequestAmendment || showResetOption || showViewSignedOffer;
 
   const button = (
     <Button
@@ -169,14 +175,17 @@ export function SectionActionDropdown({
             <DropdownMenuSeparator />
           </>
         )}
-        {canApprove && (
+        {showApproveAction && (
           <DropdownMenuItem
             className="rounded-lg"
             onClick={() => onApprove(section)}
-            disabled={isPending}
+            disabled={isPending || approveDisabled}
           >
             <CheckCircleIcon className="h-4 w-4 mr-2" />
             Approve
+            {approveDisabled && approveDisabledReason ? (
+              <span className="ml-2 text-xs text-muted-foreground">({approveDisabledReason})</span>
+            ) : null}
           </DropdownMenuItem>
         )}
         {canReject && (

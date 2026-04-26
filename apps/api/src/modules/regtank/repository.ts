@@ -391,6 +391,16 @@ export class RegTankRepository {
             director_kyc_status: true,
             director_aml_status: true,
             corporate_entities: true,
+            ctos_party_supplements: {
+              select: { party_key: true, onboarding_json: true },
+              orderBy: { party_key: "asc" },
+            },
+            ctos_reports: {
+              where: { subject_ref: null },
+              orderBy: { fetched_at: "desc" },
+              take: 1,
+              select: { company_json: true },
+            },
           },
         },
         issuer_organization: {
@@ -410,6 +420,16 @@ export class RegTankRepository {
             director_kyc_status: true,
             director_aml_status: true,
             corporate_entities: true,
+            ctos_party_supplements: {
+              select: { party_key: true, onboarding_json: true },
+              orderBy: { party_key: "asc" },
+            },
+            ctos_reports: {
+              where: { subject_ref: null },
+              orderBy: { fetched_at: "desc" },
+              take: 1,
+              select: { company_json: true },
+            },
           },
         },
       },
@@ -492,6 +512,16 @@ export class RegTankRepository {
               director_kyc_status: true,
               director_aml_status: true,
               corporate_entities: true,
+              ctos_party_supplements: {
+                select: { party_key: true, onboarding_json: true },
+                orderBy: { party_key: "asc" },
+              },
+              ctos_reports: {
+                where: { subject_ref: null },
+                orderBy: { fetched_at: "desc" },
+                take: 1,
+                select: { company_json: true },
+              },
             },
           },
           issuer_organization: {
@@ -511,6 +541,16 @@ export class RegTankRepository {
               director_kyc_status: true,
               director_aml_status: true,
               corporate_entities: true,
+              ctos_party_supplements: {
+                select: { party_key: true, onboarding_json: true },
+                orderBy: { party_key: "asc" },
+              },
+              ctos_reports: {
+                where: { subject_ref: null },
+                orderBy: { fetched_at: "desc" },
+                take: 1,
+                select: { company_json: true },
+              },
             },
           },
         },
@@ -545,6 +585,11 @@ export type OnboardingApplicationRecord = RegTankOnboarding & {
     kyc_id: string | null;
     is_sophisticated_investor: boolean;
     sophisticated_investor_reason: string | null;
+    director_kyc_status?: unknown;
+    director_aml_status?: unknown;
+    corporate_entities?: unknown;
+    ctos_party_supplements?: Array<{ party_key: string; onboarding_json: unknown | null }>;
+    ctos_reports?: Array<{ company_json: unknown | null }>;
   } | null;
   issuer_organization: {
     id: string;
@@ -559,5 +604,10 @@ export type OnboardingApplicationRecord = RegTankOnboarding & {
     tnc_accepted: boolean;
     ssm_checked: boolean;
     kyc_id: string | null;
+    director_kyc_status?: unknown;
+    director_aml_status?: unknown;
+    corporate_entities?: unknown;
+    ctos_party_supplements?: Array<{ party_key: string; onboarding_json: unknown | null }>;
+    ctos_reports?: Array<{ company_json: unknown | null }>;
   } | null;
 };

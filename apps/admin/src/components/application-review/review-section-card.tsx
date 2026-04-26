@@ -22,6 +22,8 @@ export interface ReviewSectionCardProps {
   /** When true, hides Approve/Reject/Amendment dropdown (used for offer-driven sections). */
   hideSectionActions?: boolean;
   showApprove?: boolean;
+  approveDisabled?: boolean;
+  approveDisabledReason?: string;
   viewSignedOfferOnly?: boolean;
   onViewSignedOffer?: () => void | Promise<void>;
   /** When true, "View Signed Offer" appears in the Action menu (signed PDF on file). */
@@ -48,6 +50,8 @@ export function ReviewSectionCard({
   onRequestAmendment,
   hideSectionActions = false,
   showApprove = true,
+  approveDisabled = false,
+  approveDisabledReason,
   viewSignedOfferOnly = false,
   onViewSignedOffer,
   signedOfferLetterAvailable = false,
@@ -83,6 +87,8 @@ export function ReviewSectionCard({
                 sectionStatus={sectionStatus}
                 onResetToPending={onResetToPending}
                 showApprove={showApprove}
+                approveDisabled={approveDisabled}
+                approveDisabledReason={approveDisabledReason}
                 viewSignedOfferOnly={viewSignedOfferOnly}
                 onViewSignedOffer={onViewSignedOffer}
                 signedOfferLetterAvailable={signedOfferLetterAvailable}

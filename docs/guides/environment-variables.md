@@ -90,6 +90,9 @@ See [DEPLOYMENT.md](./DEPLOYMENT.md) for AWS setup details.
 | `SMTP_USER`     | SMTP username | From SES SMTP credentials |
 | `SMTP_PASSWORD` | SMTP password | From Secrets Manager      |
 | `EMAIL_FROM`    | Sender email  | `noreply@cashsouk.com`    |
+| `SES_REGION`    | Region for `@aws-sdk/client-ses` | Default `ap-southeast-2`; identity must exist in this region |
+
+Issuer director CTOS RegTank onboarding: after a successful RegTank create call, the API stores `verifyLink` on `ctos_party_supplements.onboarding_json` and sends the link with SES using `EMAIL_FROM` and the default AWS credential chain (ECS task role or env keys for local dev).
 
 ### File Upload
 

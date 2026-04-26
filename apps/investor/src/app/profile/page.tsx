@@ -490,6 +490,7 @@ export default function ProfilePage() {
       if (!activeOrganization?.id) return null;
       const result = await apiClient.get<{
         id: string;
+        type: string;
         firstName: string | null;
         lastName: string | null;
         middleName: string | null;
@@ -534,6 +535,10 @@ export default function ProfilePage() {
           shareholders?: Array<Record<string, unknown>>;
           corporateShareholders?: Array<Record<string, unknown>>;
         };
+        directorKycStatus?: unknown;
+        directorAmlStatus?: unknown;
+        latestOrganizationCtosCompanyJson?: unknown | null;
+        ctosPartySupplements?: { partyKey: string; onboardingJson?: unknown }[] | null;
       }>(`/v1/organizations/investor/${activeOrganization.id}`);
       if (!result.success) {
         throw new Error(result.error.message);
@@ -1389,8 +1394,14 @@ export default function ProfilePage() {
               )}
 
               {/* 4. Directors/Shareholders Section - Only for COMPANY accounts */}
-              {!isPersonal && activeOrganization?.id && orgData?.corporateEntities && (
-                <DirectorsShareholdersCard corporateEntities={orgData.corporateEntities} />
+              {!isPersonal && activeOrganization?.id && orgData?.type === "COMPANY" && (
+                <DirectorsShareholdersCard
+                  corporateEntities={orgData.corporateEntities ?? null}
+                  directorKycStatus={orgData.directorKycStatus ?? null}
+                  directorAmlStatus={orgData.directorAmlStatus ?? null}
+                  organizationCtosCompanyJson={orgData.latestOrganizationCtosCompanyJson ?? null}
+                  ctosPartySupplements={orgData.ctosPartySupplements ?? null}
+                />
               )}
 
               {/* 5. Members Section */}

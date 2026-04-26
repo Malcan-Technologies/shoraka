@@ -12,7 +12,13 @@
  */
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { useOrganization, createApiClient, useAuthToken } from "@cashsouk/config";
+import {
+  getDirectorShareholderDisplayRows,
+  isCtosIndividualKycEligibleRow,
+  type DirectorShareholderDisplayRow,
+} from "@cashsouk/types";
 import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
 import { useApplication } from "@/hooks/use-applications";
@@ -124,10 +130,6 @@ function formatAddress(addr: Record<string, unknown> | null): string {
   return parts.length ? parts.join(", ") : ADDRESS_PLACEHOLDER;
 }
 
-function normalizeName(name: string): string {
-  return name.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
 const BANK_ACCOUNT_REGEX = /^\d*$/;
 const BANK_ACCOUNT_MIN_LENGTH = 10;
 const BANK_ACCOUNT_MAX_LENGTH = 18;
@@ -150,6 +152,12 @@ function isValidAddress(addr: Record<string, unknown> | null): boolean {
   const state = (addr.state as string)?.trim();
   const country = (addr.country as string)?.trim();
   return !!(line1 && city && postalCode && state && country);
+}
+
+function directorRowNeedsCompleteOnProfile(row: DirectorShareholderDisplayRow): boolean {
+  if (!isCtosIndividualKycEligibleRow(row)) return false;
+  const emptyEmail = !row.email.trim();
+  return row.status === "Not Started" || emptyEmail;
 }
 
 const inputClassName = cn(formInputClassName, formInputDisabledClassName);
@@ -205,6 +213,24 @@ export function CompanyDetailsStep({
   } = useCorporateInfo(organizationId);
   const { data: entitiesData, isLoading: isLoadingEntities } = useCorporateEntities(organizationId);
   const isLoadingData = isLoadingInfo || isLoadingEntities;
+  const router = useRouter();
+
+  const directorShareholderRows = React.useMemo(
+    () =>
+      getDirectorShareholderDisplayRows({
+        corporateEntities: {
+          directors: entitiesData?.directors ?? [],
+          shareholders: entitiesData?.shareholders ?? [],
+          corporateShareholders: entitiesData?.corporateShareholders ?? [],
+        },
+        directorKycStatus: entitiesData?.directorKycStatus ?? null,
+        directorAmlStatus: entitiesData?.directorAmlStatus ?? null,
+        organizationCtosCompanyJson: entitiesData?.latestOrganizationCtosCompanyJson ?? null,
+        ctosPartySupplements: entitiesData?.ctosPartySupplements ?? null,
+        sentRowIds: null,
+      }),
+    [entitiesData]
+  );
 
   /* ================================================================
      LOCAL FORM STATE - Single source of truth
@@ -496,78 +522,6 @@ export function CompanyDetailsStep({
   }, [organizationId, onDataChange, saveFunction, isValid, formState, hasPendingChanges]);
 
   /* ================================================================
-     DIRECTORS & SHAREHOLDERS LIST
-     ================================================================ */
-
-  const directorsDisplay = entitiesData?.directorsDisplay ?? [];
-  const shareholdersDisplay = entitiesData?.shareholdersDisplay ?? [];
-  const corporateShareholders = entitiesData?.corporateShareholders ?? [];
-
-  const combinedList = React.useMemo(() => {
-    const seen = new Set<string>();
-    const result: Array<Record<string, unknown>> = [];
-
-    directorsDisplay.forEach((d) => {
-      const normalized = normalizeName(d.name);
-      if (!seen.has(normalized)) {
-        seen.add(normalized);
-        const isAlsoShareholder = d.ownershipLabel !== "—";
-        result.push({
-          type: "director",
-          name: d.name,
-          roleLabel: isAlsoShareholder ? "Director, Shareholder" : "Director",
-          ownership: d.ownershipLabel,
-          statusType: "kyc",
-          statusVerified: d.kycVerified,
-          key: `dir-${normalized}`,
-        });
-      }
-    });
-
-    shareholdersDisplay.forEach((s) => {
-      const normalized = normalizeName(s.name);
-      if (!seen.has(normalized)) {
-        seen.add(normalized);
-        result.push({
-          type: "shareholder",
-          name: s.name,
-          roleLabel: "Shareholder",
-          ownership: s.ownershipLabel,
-          statusType: "kyc",
-          statusVerified: s.kycVerified,
-          key: `sh-${normalized}`,
-        });
-      }
-    });
-
-    corporateShareholders.forEach((corp: Record<string, unknown>) => {
-      const displayAreas = (corp.formContent as Record<string, unknown>)?.displayAreas as Array<Record<string, unknown>> | undefined;
-      const firstArea = displayAreas?.[0] as Record<string, unknown> | undefined;
-      const content = firstArea?.content as Array<Record<string, unknown>> | undefined;
-      const shareField = content?.find(
-        (f) => f.fieldName === "% of Shares"
-      );
-      const sharePercentage = shareField?.fieldValue ? Number(shareField.fieldValue) : null;
-      const ownershipLabel = sharePercentage != null ? `${sharePercentage}% ownership` : "—";
-      const kybApproved = corp.approveStatus === "APPROVED";
-
-      result.push({
-        type: "corporate_shareholder",
-        name: corp.businessName || corp.companyName || "—",
-        roleLabel: "Corporate Shareholder",
-        ownership: ownershipLabel,
-        statusType: "kyb",
-        statusVerified: kybApproved,
-        key: `corp-${corp.requestId}`,
-      });
-    });
-
-    return result;
-  }, [directorsDisplay, shareholdersDisplay, corporateShareholders]);
-
-  const hasDirectorsOrShareholders = combinedList.length > 0;
-
-  /* ================================================================
      RENDER
      ================================================================ */
 
@@ -716,41 +670,56 @@ export function CompanyDetailsStep({
         {/* Directors & Shareholders Section */}
         <div className="space-y-3">
           <div>
-            <h3 className={applicationFlowSectionTitleClassName}>Director & Shareholders</h3>
+            <h3 className={applicationFlowSectionTitleClassName}>{"Director & Shareholders"}</h3>
             <div className={applicationFlowSectionDividerClassName} />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center">
-            {!hasDirectorsOrShareholders ? (
+            {directorShareholderRows.length === 0 ? (
               <p className="text-[17px] leading-7 text-muted-foreground col-span-2">
                 No directors or shareholders found
               </p>
             ) : (
-              combinedList.map((item) => (
-                <React.Fragment key={item.key as string}>
-                  <div className={labelClassName}>{item.roleLabel as string}</div>
-                  <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
-                    <div className="text-[17px] leading-7 font-medium whitespace-nowrap">
-                      {item.name as string}
-                    </div>
-                    <div className="h-4 w-px bg-border" />
-                    <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">
-                      {item.ownership as string}
-                    </div>
-                    <div className="h-4 w-px bg-border" />
-                    {item.statusVerified ? (
-                      <div className="flex items-center gap-1.5 whitespace-nowrap">
-                        <CheckCircleIcon className="h-4 w-4 text-green-600" />
-                        <span className="text-[17px] leading-7 text-green-600">
-                          {item.statusType === "kyb" ? "KYB" : "KYC"}
-                        </span>
+              directorShareholderRows.map((row) => {
+                const statusVerified = row.status === "KYC Approved";
+                const statusKind = row.type === "COMPANY" ? "KYB" : "KYC";
+                const own = row.ownershipDisplay?.trim() || "—";
+                const showCompleteOnProfile = directorRowNeedsCompleteOnProfile(row);
+                return (
+                  <React.Fragment key={row.id}>
+                    <div className={labelClassName}>{row.role}</div>
+                    <div className="flex flex-col gap-2">
+                      <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
+                        <div className="text-[17px] leading-7 font-medium whitespace-nowrap">{row.name}</div>
+                        <div className="h-4 w-px bg-border" />
+                        <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">{own}</div>
+                        <div className="h-4 w-px bg-border" />
+                        {statusVerified ? (
+                          <div className="flex items-center gap-1.5 whitespace-nowrap">
+                            <CheckCircleIcon className="h-4 w-4 text-green-600" />
+                            <span className="text-[17px] leading-7 text-green-600">{statusKind}</span>
+                          </div>
+                        ) : (
+                          <div />
+                        )}
                       </div>
-                    ) : (
-                      <div />
-                    )}
-                  </div>
-                </React.Fragment>
-              ))
+                      {showCompleteOnProfile ? (
+                        <div className="flex justify-end sm:justify-start">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            className="rounded-xl"
+                            onClick={() => router.push("/profile?focus=directors")}
+                          >
+                            Complete on Profile
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
+                  </React.Fragment>
+                );
+              })
             )}
           </div>
         </div>

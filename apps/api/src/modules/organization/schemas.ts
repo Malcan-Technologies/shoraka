@@ -21,6 +21,17 @@ export const organizationIdParamSchema = z.object({
   id: z.string().cuid(),
 });
 
+export const patchCtosPartyEmailSchema = z.object({
+  partyKey: z.string().min(1),
+  email: z.string().email(),
+});
+
+export const sendDirectorOnboardingSchema = z.object({
+  partyKey: z.string().min(1),
+});
+
+export type SendDirectorOnboardingInput = z.infer<typeof sendDirectorOnboardingSchema>;
+
 export const memberIdParamSchema = z.object({
   id: z.string().cuid(),
   userId: z.string().regex(/^[A-Z]{5}$/, "Invalid user ID format"),
@@ -190,6 +201,7 @@ export type LeaveOrganizationInput = z.infer<typeof leaveOrganizationSchema>;
 export type ChangeMemberRoleInput = z.infer<typeof changeMemberRoleSchema>;
 export type TransferOwnershipInput = z.infer<typeof transferOwnershipSchema>;
 export type UpdateCorporateInfoInput = z.infer<typeof updateCorporateInfoSchema>;
+export type PatchCtosPartyEmailInput = z.infer<typeof patchCtosPartyEmailSchema>;
 export type PortalType = z.infer<typeof portalTypeSchema>;
 export type UpdateOrganizationProfileInput = z.infer<typeof updateOrganizationProfileSchema>;
 export type BankAccountDetails = z.infer<typeof bankAccountDetailsSchema>;

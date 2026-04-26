@@ -85,6 +85,18 @@ export type ReviewApplicationView = {
     director_kyc_status?: unknown;
     director_aml_status?: unknown;
     business_aml_status?: unknown;
+    latest_organization_ctos_company_json?: unknown | null;
+    latest_organization_ctos_financials_json?: unknown | null;
+    latest_organization_ctos_report_id?: string | null;
+    latest_organization_ctos_fetched_at?: string | null;
+    latest_organization_ctos_has_report_html?: boolean | null;
+    latest_organization_ctos_subject_reports?: Array<{
+      id: string;
+      subject_ref: string | null;
+      fetched_at: string;
+      has_report_html: boolean;
+    }> | null;
+    ctos_party_supplements?: { party_key: string; onboarding_json?: unknown }[] | null;
   } | null;
 };
 
@@ -211,6 +223,7 @@ export function SectionContent({
       return (
         <FinancialSection
           applicationId={app.id ?? ""}
+          issuerOrganizationId={app.issuer_organization_id ?? app.issuer_organization?.id ?? null}
           app={app}
           section={section}
           isReviewable={isReviewable}
@@ -240,6 +253,8 @@ export function SectionContent({
       return (
         <BusinessSection
           applicationId={app.id ?? ""}
+          issuerOrganizationId={app.issuer_organization_id ?? app.issuer_organization?.id ?? null}
+          issuerOrganization={app.issuer_organization}
           businessDetails={app.business_details}
           applicationGuarantors={app.application_guarantors}
           section={section}

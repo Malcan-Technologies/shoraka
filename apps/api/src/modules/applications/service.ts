@@ -47,10 +47,13 @@ import {
   ContractStatus,
   InvoiceStatus,
   WithdrawReason,
+  getDirectorShareholderDisplayRows,
+  isCtosIndividualKycEligibleRow,
   getFinancialYearEndComputationDetails,
   getIssuerFinancialTabYears,
   issuerUnauditedPlddForFyEndYear,
   getStepKeyFromStepId,
+  normalizeDirectorShareholderIdKey,
 } from "@cashsouk/types";
 import { computeApplicationStatus } from "./lifecycle";
 import * as crypto from "crypto";
@@ -468,6 +471,65 @@ export class ApplicationService {
     }
   }
 
+  private async assertRequiredPartyOnboardingStarted(application: Application): Promise<void> {
+    const issuerOrganization = (application as { issuer_organization?: Record<string, unknown> }).issuer_organization;
+    const organizationId = application.issuer_organization_id;
+    if (!organizationId || !issuerOrganization || typeof issuerOrganization !== "object") return;
+
+    const supplements = await prisma.ctosPartySupplement.findMany({
+      where: { issuer_organization_id: organizationId },
+      select: { party_key: true, onboarding_json: true },
+    });
+    const supplementByPartyKey = new Map<string, Record<string, unknown>>();
+    for (const sup of supplements) {
+      const key = normalizeDirectorShareholderIdKey(sup.party_key);
+      if (!key) continue;
+      const onboarding =
+        sup.onboarding_json && typeof sup.onboarding_json === "object" && !Array.isArray(sup.onboarding_json)
+          ? (sup.onboarding_json as Record<string, unknown>)
+          : {};
+      supplementByPartyKey.set(key, onboarding);
+    }
+
+    const rows = getDirectorShareholderDisplayRows({
+      corporateEntities: issuerOrganization.corporate_entities,
+      directorKycStatus: issuerOrganization.director_kyc_status,
+      directorAmlStatus: issuerOrganization.director_aml_status ?? null,
+      organizationCtosCompanyJson: issuerOrganization.latest_organization_ctos_company_json ?? null,
+      ctosPartySupplements: supplements.map((s) => ({ partyKey: s.party_key, onboardingJson: s.onboarding_json })),
+      sentRowIds: null,
+    });
+
+    const NOT_SUBMITTED = new Set([
+      "EMAIL_SENT",
+      "FORM_FILLING",
+      "LIVENESS_STARTED",
+      "LIVENESS_PASSED",
+    ]);
+    const missingNames: string[] = [];
+    for (const row of rows) {
+      if (!isCtosIndividualKycEligibleRow(row)) continue;
+      const partyKey = normalizeDirectorShareholderIdKey(
+        row.idNumber?.trim() || row.registrationNumber?.trim() || row.enquiryId?.trim() || ""
+      );
+      if (!partyKey) continue;
+      const onboarding = supplementByPartyKey.get(partyKey) ?? {};
+      const requestId = String(onboarding.requestId ?? "").trim();
+      const status = String(onboarding.regtankStatus || "").trim().toUpperCase();
+      const isFormSubmitted = status !== "" && !NOT_SUBMITTED.has(status);
+      if (!requestId || !isFormSubmitted) {
+        missingNames.push(row.name || partyKey);
+      }
+    }
+    if (missingNames.length > 0) {
+      throw new AppError(
+        400,
+        "ONBOARDING_NOT_STARTED",
+        `RegTank onboarding form must be submitted for all required directors/shareholders before submission: ${missingNames.join(", ")}`
+      );
+    }
+  }
+
   /**
    * Create a new application
    */
@@ -646,6 +708,7 @@ export class ApplicationService {
     if ((application as any).status !== "AMENDMENT_REQUESTED") {
       throw new AppError(400, "INVALID_STATE", "Resubmit allowed only in AMENDMENT_REQUESTED state");
     }
+    await this.assertRequiredPartyOnboardingStarted(application);
     const result = await amendmentResubmitApplication(applicationId, userId, this.repository);
 
     try {
@@ -1286,6 +1349,7 @@ export class ApplicationService {
 
     // If submitting, perform cleanup of unused steps
     if (status === "SUBMITTED") {
+      await this.assertRequiredPartyOnboardingStarted(application);
       // Get product to find active steps
       const financingType = application.financing_type as any;
       const productId = financingType?.product_id;

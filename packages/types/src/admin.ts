@@ -602,6 +602,8 @@ export interface OrganizationDetailResponse {
 
   // Corporate entities (directors, shareholders, corporate shareholders) — COMPANY only
   corporateEntities?: Record<string, unknown> | null;
+  latestOrganizationCtosCompanyJson?: Record<string, unknown> | null;
+  ctosPartySupplements?: Array<{ partyKey: string; onboardingJson?: unknown }> | null;
 
   // Corporate required documents (SSM profile, etc.) — COMPANY only
   corporateRequiredDocuments?: Record<string, unknown>[] | null;
@@ -682,6 +684,12 @@ export interface CorporateAmlData {
   lastSyncedAt: string; // ISO timestamp
 }
 
+/** CTOS party supplement row as returned on admin onboarding application (camelCase). */
+export interface OnboardingApplicationCtosPartySupplement {
+  partyKey: string;
+  onboardingJson?: unknown;
+}
+
 export interface OnboardingApplicationResponse {
   id: string;
   userId: string;
@@ -725,6 +733,9 @@ export interface OnboardingApplicationResponse {
     shareholders?: Array<Record<string, unknown>>;
     corporateShareholders?: Array<Record<string, unknown>>;
   };
+  /** Latest org-level CTOS `company_json` (subject_ref null); enables CTOS-backed unified KYC/AML in admin onboarding dialog. */
+  latestOrganizationCtosCompanyJson?: unknown | null;
+  ctosPartySupplements?: OnboardingApplicationCtosPartySupplement[] | null;
 }
 
 export interface GetOnboardingApplicationsParams extends PaginationParams {

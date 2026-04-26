@@ -12,6 +12,8 @@ import {
   changeMemberRoleSchema,
   transferOwnershipSchema,
   updateCorporateInfoSchema,
+  patchCtosPartyEmailSchema,
+  sendDirectorOnboardingSchema,
   PortalType,
 } from "./schemas";
 import { requireAuth } from "../../lib/auth/middleware";
@@ -236,6 +238,10 @@ async function getOrganization(
     const { id } = organizationIdParamSchema.parse(req.params);
 
     const organization = await organizationService.getOrganization(userId, id, portalType);
+    const issuerPartyExtras =
+      portalType === "issuer" ? await organizationService.getIssuerPartyListExtras(organization.id) : null;
+    const investorPartyExtras =
+      portalType === "investor" ? await organizationService.getInvestorPartyListExtras(organization.id) : null;
 
     // Cast to access all fields from the organization
     const org = organization as {
@@ -257,6 +263,7 @@ async function getOrganization(
       ssm_checked?: boolean;
       is_sophisticated_investor?: boolean;
       director_kyc_status?: unknown;
+      director_aml_status?: unknown;
       corporate_onboarding_data?: unknown;
       corporate_entities?: unknown;
     };
@@ -312,10 +319,28 @@ async function getOrganization(
           depositReceived: org.deposit_received ?? false,
           ssmApproved: org.ssm_approved ?? false,
           isSophisticatedInvestor: org.is_sophisticated_investor ?? false,
+          ...(investorPartyExtras && {
+            latestOrganizationCtosCompanyJson: investorPartyExtras.latestOrganizationCtosCompanyJson,
+            latestOrganizationCtosFinancialsJson: investorPartyExtras.latestOrganizationCtosFinancialsJson,
+            latestOrganizationCtosReportId: investorPartyExtras.latestOrganizationCtosReportId,
+            latestOrganizationCtosFetchedAt: investorPartyExtras.latestOrganizationCtosFetchedAt,
+            latestOrganizationCtosHasReportHtml: investorPartyExtras.latestOrganizationCtosHasReportHtml,
+            latestOrganizationCtosSubjectReports: investorPartyExtras.latestOrganizationCtosSubjectReports,
+            ctosPartySupplements: investorPartyExtras.ctosPartySupplements,
+          }),
         }),
         // Issuer-specific flags
         ...(portalType === "issuer" && {
           ssmChecked: org.ssm_checked ?? false,
+          ...(issuerPartyExtras && {
+            latestOrganizationCtosCompanyJson: issuerPartyExtras.latestOrganizationCtosCompanyJson,
+            latestOrganizationCtosFinancialsJson: issuerPartyExtras.latestOrganizationCtosFinancialsJson,
+            latestOrganizationCtosReportId: issuerPartyExtras.latestOrganizationCtosReportId,
+            latestOrganizationCtosFetchedAt: issuerPartyExtras.latestOrganizationCtosFetchedAt,
+            latestOrganizationCtosHasReportHtml: issuerPartyExtras.latestOrganizationCtosHasReportHtml,
+            latestOrganizationCtosSubjectReports: issuerPartyExtras.latestOrganizationCtosSubjectReports,
+            ctosPartySupplements: issuerPartyExtras.ctosPartySupplements,
+          }),
         }),
         // Corporate director KYC status (for COMPANY type)
         ...(organization.type === "COMPANY" && {
@@ -336,6 +361,7 @@ async function getOrganization(
                 lastSyncedAt: string;
               })
             : undefined,
+          directorAmlStatus: org.director_aml_status ?? null,
           corporateOnboardingData: (() => {
             if (!org.corporate_onboarding_data) return undefined;
             const data = org.corporate_onboarding_data as {
@@ -853,6 +879,54 @@ async function updateCorporateInfo(
 }
 
 /**
+ * PATCH /v1/organizations/:portal(investor|issuer)/:id/ctos-party-email
+ */
+async function patchCtosPartyEmail(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  portalType: PortalType
+) {
+  try {
+    const userId = getUserId(req);
+    const { id } = organizationIdParamSchema.parse(req.params);
+    const input = patchCtosPartyEmailSchema.parse(req.body);
+    const result = await organizationService.upsertCtosPartyEmail(userId, id, portalType, input);
+    res.json({
+      success: true,
+      data: result,
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * POST /v1/organizations/:portal(investor|issuer)/:id/send-director-onboarding
+ */
+async function sendDirectorOnboarding(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  portalType: PortalType
+) {
+  try {
+    const userId = getUserId(req);
+    const { id } = organizationIdParamSchema.parse(req.params);
+    const body = sendDirectorOnboardingSchema.parse(req.body);
+    const data = await organizationService.sendDirectorCtosPartyOnboarding(userId, id, portalType, body);
+    res.json({
+      success: true,
+      data,
+      correlationId: res.locals.correlationId,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
  * Refresh AML status for an organization
  * POST /v1/organizations/investor/:id/refresh-aml
  * POST /v1/organizations/issuer/:id/refresh-aml
@@ -952,6 +1026,12 @@ export function createOrganizationRouter(): Router {
   router.post("/investor/:id/refresh-aml", requireAuth, (req, res, next) =>
     refreshOrganizationAML(req, res, next, "investor")
   );
+  router.patch("/investor/:id/ctos-party-email", requireAuth, (req, res, next) =>
+    patchCtosPartyEmail(req, res, next, "investor")
+  );
+  router.post("/investor/:id/send-director-onboarding", requireAuth, (req, res, next) =>
+    sendDirectorOnboarding(req, res, next, "investor")
+  );
 
   // Issuer organization routes
   router.get("/issuer", requireAuth, (req, res, next) =>
@@ -1007,6 +1087,12 @@ export function createOrganizationRouter(): Router {
   );
   router.patch("/issuer/:id/corporate-info", requireAuth, (req, res, next) =>
     updateCorporateInfo(req, res, next, "issuer")
+  );
+  router.patch("/issuer/:id/ctos-party-email", requireAuth, (req, res, next) =>
+    patchCtosPartyEmail(req, res, next, "issuer")
+  );
+  router.post("/issuer/:id/send-director-onboarding", requireAuth, (req, res, next) =>
+    sendDirectorOnboarding(req, res, next, "issuer")
   );
   router.post("/issuer/:id/refresh-aml", requireAuth, (req, res, next) =>
     refreshOrganizationAML(req, res, next, "issuer")

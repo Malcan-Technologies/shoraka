@@ -165,13 +165,25 @@ export class RegTankAPIClient {
       "Creating RegTank individual onboarding request"
     );
 
-    return this.makeRequest<RegTankOnboardingResponse>(
-      "/v3/onboarding/indv/request",
-      {
-        method: "POST",
-        body: JSON.stringify(request),
-      }
-    );
+    const endpoint = "/v3/onboarding/indv/request";
+    const method = "POST";
+    const url = `${this.config.apiBaseUrl}${endpoint}`;
+    const payloadForLog = {
+      ...request,
+      email: "[redacted]",
+      governmentIdNumber: "[redacted]",
+    };
+    console.log("RegTank API:", method, url);
+    console.log("RegTank individual onboarding payload:", JSON.stringify(payloadForLog, null, 2));
+
+    const regTankReply = await this.makeRequest<RegTankOnboardingResponse>(endpoint, {
+      method,
+      body: JSON.stringify(request),
+    });
+
+    console.log("RegTank individual onboarding reply:", JSON.stringify(regTankReply, null, 2));
+
+    return regTankReply;
   }
 
   /**
@@ -408,6 +420,51 @@ export class RegTankAPIClient {
     logger.debug({ kybId }, "Querying RegTank KYB status");
 
     return this.makeRequest(`/v3/kyb/query?requestId=${kybId}`);
+  }
+
+  /**
+   * Acuris KYB — attach director KYC to company KYB (4.9).
+   * @see https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/4.-know-your-business-kyb/4.9-acuris-kyb-endpoint-json-add-director
+   */
+  async addKybDirector(body: {
+    requestId: string;
+    kycId: string;
+    designation?: string;
+    remark?: string;
+  }): Promise<{ requestId: string }> {
+    return this.makeRequest<{ requestId: string }>("/v3/kyb/add-director", {
+      method: "POST",
+      body: JSON.stringify({
+        requestId: body.requestId,
+        kycId: body.kycId,
+        designation: body.designation ?? "DIRECTOR",
+        remark: body.remark ?? "",
+      }),
+    });
+  }
+
+  /**
+   * Acuris KYB — attach individual shareholder KYC to company KYB (4.10).
+   * @see https://regtank.gitbook.io/regtank-api-docs/reference/api-reference/4.-know-your-business-kyb/4.10-acuris-kyb-endpoint-json-add-individual-shareholder
+   */
+  async addKybIndividualShareholder(body: {
+    requestId: string;
+    kycId: string;
+    percentOfShare?: number;
+    remark?: string;
+  }): Promise<{ requestId: string }> {
+    const payload: Record<string, unknown> = {
+      requestId: body.requestId,
+      kycId: body.kycId,
+      remark: body.remark ?? "",
+    };
+    if (body.percentOfShare != null && !Number.isNaN(Number(body.percentOfShare))) {
+      payload.percentOfShare = Number(body.percentOfShare);
+    }
+    return this.makeRequest<{ requestId: string }>("/v3/kyb/add-individual-shareholder", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
   }
 
   /**
