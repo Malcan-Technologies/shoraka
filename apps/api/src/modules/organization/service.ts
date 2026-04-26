@@ -161,7 +161,23 @@ async function upsertCtosPartySupplementOnboardingJson(
     });
     return;
   }
-  if (isLegacyCtosPartyKycApproved(partyKey, directorKycStatus)) {
+  let kycForGuard = directorKycStatus;
+  if (kycForGuard === undefined) {
+    if (portalType === "investor") {
+      const row = await prisma.investorOrganization.findUnique({
+        where: { id: organizationId },
+        select: { director_kyc_status: true },
+      });
+      kycForGuard = row?.director_kyc_status ?? null;
+    } else {
+      const row = await prisma.issuerOrganization.findUnique({
+        where: { id: organizationId },
+        select: { director_kyc_status: true },
+      });
+      kycForGuard = row?.director_kyc_status ?? null;
+    }
+  }
+  if (isLegacyCtosPartyKycApproved(partyKey, kycForGuard)) {
     logger.info(
       { organizationId, partyKey, portalType },
       "[upsertCtosPartySupplementOnboardingJson] Skipping create — legacy KYC already APPROVED"
