@@ -26,3 +26,7 @@ CREATE UNIQUE INDEX "ctos_party_supplements_issuer_org_party_key_key"
 CREATE UNIQUE INDEX "ctos_party_supplements_investor_org_party_key_key"
   ON "ctos_party_supplements" ("investor_organization_id", "party_key")
   WHERE "investor_organization_id" IS NOT NULL;
+
+-- Btree indexes for org-scoped lookups (were in 20260426172816_ctos but that timestamp ran before columns existed).
+CREATE INDEX IF NOT EXISTS "ctos_party_supplements_issuer_organization_id_idx" ON "ctos_party_supplements"("issuer_organization_id");
+CREATE INDEX IF NOT EXISTS "ctos_party_supplements_investor_organization_id_idx" ON "ctos_party_supplements"("investor_organization_id");
