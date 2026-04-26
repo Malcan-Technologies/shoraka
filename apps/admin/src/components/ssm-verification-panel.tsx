@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { formatApiErrorMessage } from "@/lib/format-api-error-message";
 import {
   CTOS_ACTION_BUTTON_COMPACT_CLASSNAME,
   CTOS_CONFIRM,
@@ -599,7 +600,7 @@ export function SSMVerificationPanel({
     queryFn: async () => {
       const res = await apiClient.listAdminOrganizationCtosReports(application.portal, orgId);
       if (!res.success) {
-        throw new Error(res.error.message);
+        throw new Error(formatApiErrorMessage(res.error));
       }
       return res.data;
     },
@@ -610,7 +611,7 @@ export function SSMVerificationPanel({
     mutationFn: async () => {
       const res = await apiClient.createAdminOrganizationCtosReport(application.portal, orgId);
       if (!res.success) {
-        throw new Error(res.error.message);
+        throw new Error(formatApiErrorMessage(res.error));
       }
       return res.data;
     },
