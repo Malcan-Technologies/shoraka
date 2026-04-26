@@ -477,7 +477,7 @@ export class ApplicationService {
     if (!organizationId || !issuerOrganization || typeof issuerOrganization !== "object") return;
 
     const supplements = await prisma.ctosPartySupplement.findMany({
-      where: { organization_id: organizationId },
+      where: { issuer_organization_id: organizationId },
       select: { party_key: true, onboarding_json: true },
     });
     const supplementByPartyKey = new Map<string, Record<string, unknown>>();

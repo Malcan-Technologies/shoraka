@@ -13,23 +13,14 @@ function asJsonRecord(v: unknown): Record<string, unknown> | null {
 }
 
 async function touchLastKybAttemptAt(organizationId: string, partyKey: string): Promise<void> {
-  const fresh = await prisma.ctosPartySupplement.findUnique({
-    where: {
-      organization_id_party_key: {
-        organization_id: organizationId,
-        party_key: partyKey,
-      },
-    },
-    select: { onboarding_json: true },
+  const fresh = await prisma.ctosPartySupplement.findFirst({
+    where: { issuer_organization_id: organizationId, party_key: partyKey },
+    select: { id: true, onboarding_json: true },
   });
-  const base = asJsonRecord(fresh?.onboarding_json) ?? {};
+  if (!fresh) return;
+  const base = asJsonRecord(fresh.onboarding_json) ?? {};
   await prisma.ctosPartySupplement.update({
-    where: {
-      organization_id_party_key: {
-        organization_id: organizationId,
-        party_key: partyKey,
-      },
-    },
+    where: { id: fresh.id },
     data: {
       onboarding_json: {
         ...base,
@@ -47,8 +38,9 @@ export async function runCtosKybRetryJob(): Promise<void> {
   logger.info("Running CTOS KYB retry job");
 
   const rows = await prisma.ctosPartySupplement.findMany({
+    where: { issuer_organization_id: { not: null } },
     select: {
-      organization_id: true,
+      issuer_organization_id: true,
       party_key: true,
       onboarding_json: true,
     },
@@ -75,14 +67,17 @@ export async function runCtosKybRetryJob(): Promise<void> {
         if (!Number.isNaN(t) && Date.now() - t < FIVE_MIN_MS) continue;
       }
 
+      const organizationId = row.issuer_organization_id;
+      if (!organizationId) continue;
+
       logger.info(
-        { partyKey: row.party_key, organizationId: row.organization_id },
+        { partyKey: row.party_key, organizationId },
         "Retrying CTOS KYB linking"
       );
 
       try {
         await linkCtosPartyToKyb({
-          organizationId: row.organization_id,
+          organizationId,
           partyKey: row.party_key,
           onboardingJson: json,
         });
@@ -91,19 +86,19 @@ export async function runCtosKybRetryJob(): Promise<void> {
           {
             error: e instanceof Error ? e.message : String(e),
             partyKey: row.party_key,
-            organizationId: row.organization_id,
+            organizationId,
           },
           "CTOS KYB retry linkCtosPartyToKyb threw (non-blocking)"
         );
       } finally {
         try {
-          await touchLastKybAttemptAt(row.organization_id, row.party_key);
+          await touchLastKybAttemptAt(organizationId, row.party_key);
         } catch (e) {
           logger.error(
             {
               error: e instanceof Error ? e.message : String(e),
               partyKey: row.party_key,
-              organizationId: row.organization_id,
+              organizationId,
             },
             "CTOS KYB retry lastKybAttemptAt update failed (non-blocking)"
           );

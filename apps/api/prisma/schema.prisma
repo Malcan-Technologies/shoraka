@@ -254,6 +254,7 @@ model InvestorOrganization {
   members                       OrganizationMember[]
   regtank_onboarding            RegTankOnboarding[]              @relation("RegTankOnboardingToInvestorOrg")
   ctos_reports                  CtosReport[]
+  ctos_party_supplements        CtosPartySupplement[]
 
   @@index([owner_user_id])
   @@index([owner_user_id, type])
@@ -318,17 +319,20 @@ model IssuerOrganization {
 }
 
 model CtosPartySupplement {
-  id                String             @id @default(cuid())
-  organization_id   String
-  party_key         String
+  id                       String @id @default(cuid())
+  issuer_organization_id   String?
+  investor_organization_id String?
+  party_key                String
   /// CTOS party onboarding: email, sent, requestId, status, sentAt, etc.
-  onboarding_json   Json?
-  created_at        DateTime           @default(now())
-  updated_at        DateTime           @updatedAt
-  issuer_organization IssuerOrganization @relation(fields: [organization_id], references: [id], onDelete: Cascade)
+  onboarding_json          Json?
+  created_at               DateTime @default(now())
+  updated_at               DateTime @updatedAt
 
-  @@unique([organization_id, party_key])
-  @@index([organization_id])
+  issuer_organization   IssuerOrganization?   @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
+  investor_organization   InvestorOrganization? @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
+
+  @@index([issuer_organization_id])
+  @@index([investor_organization_id])
   @@map("ctos_party_supplements")
 }
 

@@ -890,7 +890,8 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
           webhookOnboardingId,
           requestId,
           partyKey: supplement.party_key,
-          organizationId: supplement.organization_id,
+          issuerOrganizationId: supplement.issuer_organization_id,
+          investorOrganizationId: supplement.investor_organization_id,
         },
         "Ignored stale CTOS party KYC webhook for non-latest onboarding requestId"
       );
@@ -925,17 +926,18 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
         status,
         amlRawStatus: amlBlock.rawStatus,
         partyKey: supplement.party_key,
-        organizationId: supplement.organization_id,
+        issuerOrganizationId: supplement.issuer_organization_id,
+        investorOrganizationId: supplement.investor_organization_id,
       },
       "CTOS party KYC/AML webhook handled"
     );
 
     const updatedRec = updated as Record<string, unknown>;
     const approved = String(updatedRec.regtankStatus ?? "").trim().toUpperCase() === "APPROVED";
-    if (approved && this.provider === "ACURIS") {
+    if (approved && this.provider === "ACURIS" && supplement.issuer_organization_id) {
       try {
         await linkCtosPartyToKyb({
-          organizationId: supplement.organization_id,
+          organizationId: supplement.issuer_organization_id,
           partyKey: supplement.party_key,
           onboardingJson: updatedRec,
         });
@@ -943,7 +945,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
         logger.error(
           {
             error: e instanceof Error ? e.message : String(e),
-            organizationId: supplement.organization_id,
+            organizationId: supplement.issuer_organization_id,
             partyKey: supplement.party_key,
           },
           "CTOS KYB auto-link failed (non-blocking)"

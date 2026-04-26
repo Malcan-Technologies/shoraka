@@ -879,14 +879,19 @@ async function updateCorporateInfo(
 }
 
 /**
- * PATCH /v1/organizations/issuer/:id/ctos-party-email
+ * PATCH /v1/organizations/:portal(investor|issuer)/:id/ctos-party-email
  */
-async function patchCtosPartyEmail(req: Request, res: Response, next: NextFunction) {
+async function patchCtosPartyEmail(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  portalType: PortalType
+) {
   try {
     const userId = getUserId(req);
     const { id } = organizationIdParamSchema.parse(req.params);
     const input = patchCtosPartyEmailSchema.parse(req.body);
-    const result = await organizationService.upsertCtosPartyEmail(userId, id, input);
+    const result = await organizationService.upsertCtosPartyEmail(userId, id, portalType, input);
     res.json({
       success: true,
       data: result,
@@ -898,14 +903,19 @@ async function patchCtosPartyEmail(req: Request, res: Response, next: NextFuncti
 }
 
 /**
- * POST /v1/organizations/issuer/:id/send-director-onboarding
+ * POST /v1/organizations/:portal(investor|issuer)/:id/send-director-onboarding
  */
-async function sendDirectorOnboarding(req: Request, res: Response, next: NextFunction) {
+async function sendDirectorOnboarding(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+  portalType: PortalType
+) {
   try {
     const userId = getUserId(req);
     const { id } = organizationIdParamSchema.parse(req.params);
     const body = sendDirectorOnboardingSchema.parse(req.body);
-    const data = await organizationService.sendDirectorCtosPartyOnboarding(userId, id, body);
+    const data = await organizationService.sendDirectorCtosPartyOnboarding(userId, id, portalType, body);
     res.json({
       success: true,
       data,
@@ -1016,6 +1026,12 @@ export function createOrganizationRouter(): Router {
   router.post("/investor/:id/refresh-aml", requireAuth, (req, res, next) =>
     refreshOrganizationAML(req, res, next, "investor")
   );
+  router.patch("/investor/:id/ctos-party-email", requireAuth, (req, res, next) =>
+    patchCtosPartyEmail(req, res, next, "investor")
+  );
+  router.post("/investor/:id/send-director-onboarding", requireAuth, (req, res, next) =>
+    sendDirectorOnboarding(req, res, next, "investor")
+  );
 
   // Issuer organization routes
   router.get("/issuer", requireAuth, (req, res, next) =>
@@ -1072,8 +1088,12 @@ export function createOrganizationRouter(): Router {
   router.patch("/issuer/:id/corporate-info", requireAuth, (req, res, next) =>
     updateCorporateInfo(req, res, next, "issuer")
   );
-  router.patch("/issuer/:id/ctos-party-email", requireAuth, patchCtosPartyEmail);
-  router.post("/issuer/:id/send-director-onboarding", requireAuth, sendDirectorOnboarding);
+  router.patch("/issuer/:id/ctos-party-email", requireAuth, (req, res, next) =>
+    patchCtosPartyEmail(req, res, next, "issuer")
+  );
+  router.post("/issuer/:id/send-director-onboarding", requireAuth, (req, res, next) =>
+    sendDirectorOnboarding(req, res, next, "issuer")
+  );
   router.post("/issuer/:id/refresh-aml", requireAuth, (req, res, next) =>
     refreshOrganizationAML(req, res, next, "issuer")
   );

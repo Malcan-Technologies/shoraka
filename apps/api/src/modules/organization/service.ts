@@ -105,6 +105,54 @@ function buildSafeReferenceId(organizationId: string, partyKey: string): string 
   return `${org}${sep}${partyPart}`.slice(0, REGTANK_REFERENCE_ID_MAX_LEN);
 }
 
+function ctosPartySupplementOrgWhere(
+  portalType: PortalType,
+  organizationId: string,
+  partyKey: string
+): Prisma.CtosPartySupplementWhereInput {
+  if (portalType === "investor") {
+    return { investor_organization_id: organizationId, party_key: partyKey };
+  }
+  if (portalType === "issuer") {
+    return { issuer_organization_id: organizationId, party_key: partyKey };
+  }
+  throw new AppError(400, "VALIDATION_ERROR", "CTOS party supplements require issuer or investor portal");
+}
+
+async function findCtosPartySupplementForOrg(
+  portalType: PortalType,
+  organizationId: string,
+  partyKey: string
+) {
+  return prisma.ctosPartySupplement.findFirst({
+    where: ctosPartySupplementOrgWhere(portalType, organizationId, partyKey),
+  });
+}
+
+async function upsertCtosPartySupplementOnboardingJson(
+  portalType: PortalType,
+  organizationId: string,
+  partyKey: string,
+  onboardingJson: Prisma.InputJsonValue
+): Promise<void> {
+  const existing = await findCtosPartySupplementForOrg(portalType, organizationId, partyKey);
+  if (existing) {
+    await prisma.ctosPartySupplement.update({
+      where: { id: existing.id },
+      data: { onboarding_json: onboardingJson },
+    });
+    return;
+  }
+  await prisma.ctosPartySupplement.create({
+    data: {
+      issuer_organization_id: portalType === "issuer" ? organizationId : null,
+      investor_organization_id: portalType === "investor" ? organizationId : null,
+      party_key: partyKey,
+      onboarding_json: onboardingJson,
+    },
+  });
+}
+
 export class OrganizationService {
   private repository: OrganizationRepository;
   private authRepository: AuthRepository;
@@ -1467,7 +1515,7 @@ export class OrganizationService {
         },
       }),
       prisma.ctosPartySupplement.findMany({
-        where: { organization_id: organizationId },
+        where: { issuer_organization_id: organizationId },
         select: { party_key: true, onboarding_json: true },
         orderBy: { party_key: "asc" },
       }),
@@ -1493,8 +1541,7 @@ export class OrganizationService {
   }
 
   /**
-   * Latest CTOS org snapshot + subject rows for an investor organization (same response shape as issuer extras).
-   * `ctos_party_supplements` rows are keyed to `issuer_organizations.id` only; investor responses return an empty list until that model supports investor orgs.
+   * Latest CTOS org snapshot + subject rows + party supplements for an investor organization (same shape as issuer extras).
    */
   async getInvestorPartyListExtras(organizationId: string): Promise<{
     latestOrganizationCtosCompanyJson: unknown | null;
@@ -1510,7 +1557,7 @@ export class OrganizationService {
     }>;
     ctosPartySupplements: { partyKey: string; onboardingJson: unknown }[];
   }> {
-    const [report, subjectRows] = await Promise.all([
+    const [report, supplements, subjectRows] = await Promise.all([
       prisma.ctosReport.findFirst({
         where: { investor_organization_id: organizationId, subject_ref: null },
         orderBy: { fetched_at: "desc" },
@@ -1521,6 +1568,11 @@ export class OrganizationService {
           report_html: true,
           fetched_at: true,
         },
+      }),
+      prisma.ctosPartySupplement.findMany({
+        where: { investor_organization_id: organizationId },
+        select: { party_key: true, onboarding_json: true },
+        orderBy: { party_key: "asc" },
       }),
       listLatestCtosSubjectReportsForAdminOrg("investor", organizationId),
     ]);
@@ -1536,19 +1588,23 @@ export class OrganizationService {
         fetched_at: r.fetched_at instanceof Date ? r.fetched_at.toISOString() : String(r.fetched_at),
         has_report_html: r.has_report_html,
       })),
-      ctosPartySupplements: [],
+      ctosPartySupplements: supplements.map((s) => ({
+        partyKey: s.party_key,
+        onboardingJson: s.onboarding_json,
+      })),
     };
   }
 
   /**
-   * Persist onboarding email for a CTOS party (normalized IC / SSM key).
+   * Persist onboarding email for a CTOS party (normalized IC / SSM key). Issuer or investor org.
    */
   async upsertCtosPartyEmail(
     userId: string,
     organizationId: string,
+    portalType: PortalType,
     input: PatchCtosPartyEmailInput
   ): Promise<{ success: true }> {
-    const organization = await this.getOrganization(userId, organizationId, "issuer");
+    const organization = await this.getOrganization(userId, organizationId, portalType);
     const userMember = organization.members.find((m: { user_id: string; role: string }) => m.user_id === userId);
     const canManage =
       organization.owner_user_id === userId ||
@@ -1560,7 +1616,7 @@ export class OrganizationService {
     if (!partyKey) {
       throw new AppError(400, "VALIDATION_ERROR", "Invalid party key");
     }
-    const entitiesForParty = await this.getCorporateEntities(userId, organizationId, "issuer");
+    const entitiesForParty = await this.getCorporateEntities(userId, organizationId, portalType);
     const displayRowsForParty = getDirectorShareholderDisplayRows({
       corporateEntities: entitiesForParty,
       directorKycStatus: (entitiesForParty.directorKycStatus as Record<string, unknown> | null) ?? null,
@@ -1584,14 +1640,7 @@ export class OrganizationService {
       );
     }
     const email = input.email.trim();
-    const existing = await prisma.ctosPartySupplement.findUnique({
-      where: {
-        organization_id_party_key: {
-          organization_id: organizationId,
-          party_key: partyKey,
-        },
-      },
-    });
+    const existing = await findCtosPartySupplementForOrg(portalType, organizationId, partyKey);
     const prev = parseCtosPartyOnboardingJson(existing?.onboarding_json);
     assertOnboardingEmailMutable(prev);
     const previousEmail = typeof prev.email === "string" ? prev.email.trim() : "";
@@ -1606,36 +1655,27 @@ export class OrganizationService {
       delete nextOnboarding.kyc;
       delete nextOnboarding.aml;
     }
-    await prisma.ctosPartySupplement.upsert({
-      where: {
-        organization_id_party_key: {
-          organization_id: organizationId,
-          party_key: partyKey,
-        },
-      },
-      create: {
-        organization_id: organizationId,
-        party_key: partyKey,
-        onboarding_json: nextOnboarding as Prisma.InputJsonValue,
-      },
-      update: {
-        onboarding_json: nextOnboarding as Prisma.InputJsonValue,
-      },
-    });
-    logger.info({ organizationId, partyKey, userId }, "CTOS party supplement email upserted");
+    await upsertCtosPartySupplementOnboardingJson(
+      portalType,
+      organizationId,
+      partyKey,
+      nextOnboarding as Prisma.InputJsonValue
+    );
+    logger.info({ organizationId, partyKey, userId, portalType }, "CTOS party supplement email upserted");
     return { success: true };
   }
 
   /**
-   * Trigger RegTank individual onboarding (2.1) for a CTOS director/shareholder party (issuer).
+   * Trigger RegTank individual onboarding (2.1) for a CTOS director/shareholder party.
    * Reuses RegTankAPIClient.createIndividualOnboarding; persists sent state on ctos_party_supplements.onboarding_json.
    */
   async sendDirectorCtosPartyOnboarding(
     userId: string,
     organizationId: string,
+    portalType: PortalType,
     input: SendDirectorOnboardingInput
   ): Promise<{ requestId: string }> {
-    const organization = await this.getOrganization(userId, organizationId, "issuer");
+    const organization = await this.getOrganization(userId, organizationId, portalType);
     const userMember = organization.members.find(
       (m: { user_id: string; role: string }) => m.user_id === userId
     );
@@ -1651,11 +1691,7 @@ export class OrganizationService {
       throw new AppError(400, "VALIDATION_ERROR", "Invalid party key");
     }
 
-    const supplement = await prisma.ctosPartySupplement.findUnique({
-      where: {
-        organization_id_party_key: { organization_id: organizationId, party_key: pk },
-      },
-    });
+    const supplement = await findCtosPartySupplementForOrg(portalType, organizationId, pk);
     const supOb = parseCtosPartyOnboardingJson(supplement?.onboarding_json);
     assertOnboardingEmailMutable(supOb);
     const supplementEmail =
@@ -1668,7 +1704,7 @@ export class OrganizationService {
       );
     }
 
-    const entities = await this.getCorporateEntities(userId, organizationId, "issuer");
+    const entities = await this.getCorporateEntities(userId, organizationId, portalType);
     const rows = getDirectorShareholderDisplayRows({
       corporateEntities: entities,
       directorKycStatus: (entities.directorKycStatus as Record<string, unknown> | null) ?? null,
@@ -1801,25 +1837,18 @@ export class OrganizationService {
       sendTimestamps: [...recentSends, nowIso],
     };
     delete (nextOnboarding as Record<string, unknown>).status;
-    await prisma.ctosPartySupplement.upsert({
-      where: {
-        organization_id_party_key: { organization_id: organizationId, party_key: pk },
-      },
-      create: {
-        organization_id: organizationId,
-        party_key: pk,
-        onboarding_json: nextOnboarding as Prisma.InputJsonValue,
-      },
-      update: {
-        onboarding_json: nextOnboarding as Prisma.InputJsonValue,
-      },
-    });
+    await upsertCtosPartySupplementOnboardingJson(
+      portalType,
+      organizationId,
+      pk,
+      nextOnboarding as Prisma.InputJsonValue
+    );
 
     if (verifyLink) {
       try {
         await sendOnboardingEmail({ to: supplementEmail, verifyLink });
         logger.info(
-          { organizationId, partyKey: pk, userId, requestId },
+          { organizationId, partyKey: pk, userId, requestId, portalType },
           "Director CTOS onboarding verify link sent via SES"
         );
       } catch (sesErr) {
@@ -1839,7 +1868,10 @@ export class OrganizationService {
       );
     }
 
-    logger.info({ organizationId, partyKey: pk, userId, requestId }, "Director CTOS party RegTank onboarding sent");
+    logger.info(
+      { organizationId, partyKey: pk, userId, requestId, portalType },
+      "Director CTOS party RegTank onboarding sent"
+    );
     return { requestId };
   }
 
@@ -1906,6 +1938,19 @@ export class OrganizationService {
     };
     if (portalType === "issuer") {
       const extras = await this.getIssuerPartyListExtras(organizationId);
+      return {
+        ...base,
+        latestOrganizationCtosCompanyJson: extras.latestOrganizationCtosCompanyJson,
+        latestOrganizationCtosFinancialsJson: extras.latestOrganizationCtosFinancialsJson,
+        latestOrganizationCtosReportId: extras.latestOrganizationCtosReportId,
+        latestOrganizationCtosFetchedAt: extras.latestOrganizationCtosFetchedAt,
+        latestOrganizationCtosHasReportHtml: extras.latestOrganizationCtosHasReportHtml,
+        latestOrganizationCtosSubjectReports: extras.latestOrganizationCtosSubjectReports,
+        ctosPartySupplements: extras.ctosPartySupplements,
+      };
+    }
+    if (portalType === "investor") {
+      const extras = await this.getInvestorPartyListExtras(organizationId);
       return {
         ...base,
         latestOrganizationCtosCompanyJson: extras.latestOrganizationCtosCompanyJson,

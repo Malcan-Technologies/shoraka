@@ -475,7 +475,8 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
         status: internalStatus,
         rawRegTankStatus: statusUpper,
         partyKey: supplement.party_key,
-        organizationId: supplement.organization_id,
+        issuerOrganizationId: supplement.issuer_organization_id,
+        investorOrganizationId: supplement.investor_organization_id,
       },
       "CTOS onboarding webhook handled"
     );

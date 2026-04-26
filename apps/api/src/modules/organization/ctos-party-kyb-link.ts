@@ -143,13 +143,19 @@ async function persistOnboardingJson(
   json: Record<string, unknown>
 ): Promise<void> {
   const data = stripLegacyKybFlags(json);
+  const row = await prisma.ctosPartySupplement.findFirst({
+    where: { issuer_organization_id: organizationId, party_key: partyKey },
+    select: { id: true },
+  });
+  if (!row) {
+    logger.error(
+      { organizationId, partyKey },
+      "CTOS KYB persist skipped: no issuer ctos_party_supplements row"
+    );
+    return;
+  }
   await prisma.ctosPartySupplement.update({
-    where: {
-      organization_id_party_key: {
-        organization_id: organizationId,
-        party_key: partyKey,
-      },
-    },
+    where: { id: row.id },
     data: { onboarding_json: data as Prisma.InputJsonValue },
   });
 }
