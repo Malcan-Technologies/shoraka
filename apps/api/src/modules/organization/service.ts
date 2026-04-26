@@ -1556,6 +1556,7 @@ export class OrganizationService {
       delete nextOnboarding.requestId;
       delete nextOnboarding.verifyLink;
       delete nextOnboarding.kyc;
+      delete nextOnboarding.aml;
     }
     await prisma.ctosPartySupplement.upsert({
       where: {
