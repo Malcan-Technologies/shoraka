@@ -157,7 +157,7 @@ function isValidAddress(addr: Record<string, unknown> | null): boolean {
 function directorRowNeedsCompleteOnProfile(row: DirectorShareholderDisplayRow): boolean {
   if (!isCtosIndividualKycEligibleRow(row)) return false;
   const emptyEmail = !row.email.trim();
-  return row.status === "Missing" || emptyEmail;
+  return row.status === "Not Started" || emptyEmail;
 }
 
 const inputClassName = cn(formInputClassName, formInputDisabledClassName);
@@ -681,7 +681,7 @@ export function CompanyDetailsStep({
               </p>
             ) : (
               directorShareholderRows.map((row) => {
-                const statusVerified = row.status === "APPROVED" || row.status === "Approved";
+                const statusVerified = row.status === "KYC Approved";
                 const statusKind = row.type === "COMPANY" ? "KYB" : "KYC";
                 const own = row.ownershipDisplay?.trim() || "—";
                 const showCompleteOnProfile = directorRowNeedsCompleteOnProfile(row);

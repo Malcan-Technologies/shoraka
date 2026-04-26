@@ -10,7 +10,6 @@ import {
 } from "@heroicons/react/24/outline";
 import {
   getDirectorShareholderDisplayRows,
-  getDisplayAmlStatus,
   getDisplayRoleLabel,
   isCtosIndividualKycEligibleRow,
   normalizeDirectorShareholderIdKey,
@@ -43,7 +42,7 @@ export interface DirectorShareholdersUnifiedSectionProps {
   organizationCtosCompanyJson?: unknown | null;
   ctosPartySupplements?: { partyKey: string; onboardingJson?: unknown }[] | null;
   className?: string;
-  /** Highlight rows with Missing status or empty email (issuer profile). */
+  /** Highlight rows with Not Started KYC or empty email (issuer profile). */
   highlightActionRequiredRows?: boolean;
   /** After navigation from company details; focuses first visible empty email field. */
   autoFocusFirstEmptyEmail?: boolean;
@@ -82,13 +81,9 @@ function onboardingLinkSentForRow(row: DirectorShareholderDisplayRow): boolean {
   return row.ctosOnboardingLinkSent === true || row.status === "Sent";
 }
 
-/** CTOS-backed rows: `row.status` is already `getDisplayKycStatus` output. */
+/** `row.status` is always unified KYC display (CTOS or legacy). */
 function ctosKycStatusUiFromRow(row: DirectorShareholderDisplayRow): { display: string; badgeClass: string } {
   return { display: row.status, badgeClass: regtankDisplayStatusBadgeClass(row.status) };
-}
-
-function showCtosUnifiedKycStatusUi(row: DirectorShareholderDisplayRow): boolean {
-  return row.id.startsWith("ctos-") || row.ctosOnboardingLinkSent === true || row.status === "Sent";
 }
 
 function partyKeyRawForRow(row: DirectorShareholderDisplayRow): string {
@@ -291,7 +286,7 @@ export function DirectorShareholdersUnifiedSection({
     const latestRequestId = String(latestOnboarding?.requestId ?? "").trim();
     const latestVerifyLink = String(latestOnboarding?.verifyLink ?? "").trim();
     const approvalLocked = onboardingApprovalLockActive(latestOnboarding);
-    const kycUi = showCtosUnifiedKycStatusUi(row) ? ctosKycStatusUiFromRow(row) : null;
+    const kycUi = ctosKycStatusUiFromRow(row);
     const completedUx = isRowCompleteForUi(row, persistedEmail, em, sentRowIds);
     const kycEligible = isCtosIndividualKycEligibleRow(row);
     const showEmailControls = kycEligible && !approvalLocked;
@@ -332,24 +327,20 @@ export function DirectorShareholdersUnifiedSection({
           {row.ownershipDisplay?.trim() ? (
             <p className="text-xs text-muted-foreground mt-1">{row.ownershipDisplay}</p>
           ) : null}
-          {kycUi ? (
-            <div className="mt-1 flex flex-wrap flex-col gap-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-muted-foreground">KYC</span>
-                <Badge className={cn("text-xs font-medium", kycUi.badgeClass)}>{kycUi.display}</Badge>
-              </div>
-              {row.amlStatus?.trim() ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-muted-foreground">AML</span>
-                  <Badge variant="outline" className="text-xs font-medium">
-                    {getDisplayAmlStatus(row.amlStatus)}
-                  </Badge>
-                </div>
-              ) : null}
+          <div className="mt-1 flex flex-wrap flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted-foreground">KYC</span>
+              <Badge className={cn("text-xs font-medium", kycUi.badgeClass)}>{kycUi.display}</Badge>
             </div>
-          ) : (
-            <p className="text-xs text-muted-foreground mt-1">Status: {row.status}</p>
-          )}
+            {row.amlStatus?.trim() ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground">AML</span>
+                <Badge variant="outline" className="text-xs font-medium">
+                  {row.amlStatus}
+                </Badge>
+              </div>
+            ) : null}
+          </div>
           {latestRequestId ? (
             <p className="text-xs text-muted-foreground mt-1">Latest request ID: {latestRequestId}</p>
           ) : null}
@@ -430,7 +421,7 @@ export function DirectorShareholdersUnifiedSection({
   const renderCorpRow = (row: DirectorShareholderDisplayRow) => {
     const persistedEmail = row.email;
     const linkSent = onboardingLinkSentForRow(row);
-    const kycUi = showCtosUnifiedKycStatusUi(row) ? ctosKycStatusUiFromRow(row) : null;
+    const kycUi = ctosKycStatusUiFromRow(row);
     const completedUx = isRowCompleteForUi(row, persistedEmail, persistedEmail, sentRowIds);
     const rowSentVisual =
       linkSent &&
@@ -456,24 +447,20 @@ export function DirectorShareholdersUnifiedSection({
           <p className="text-xs text-muted-foreground mt-1">
             {row.ownershipDisplay?.trim() ? row.ownershipDisplay : "Shareholder"}
           </p>
-          {kycUi ? (
-            <div className="mt-1 flex flex-wrap flex-col gap-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-muted-foreground">KYC</span>
-                <Badge className={cn("text-xs font-medium", kycUi.badgeClass)}>{kycUi.display}</Badge>
-              </div>
-              {row.amlStatus?.trim() ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-muted-foreground">AML</span>
-                  <Badge variant="outline" className="text-xs font-medium">
-                    {getDisplayAmlStatus(row.amlStatus)}
-                  </Badge>
-                </div>
-              ) : null}
+          <div className="mt-1 flex flex-wrap flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted-foreground">KYC</span>
+              <Badge className={cn("text-xs font-medium", kycUi.badgeClass)}>{kycUi.display}</Badge>
             </div>
-          ) : (
-            <p className="text-xs text-muted-foreground mt-1">Status: {row.status}</p>
-          )}
+            {row.amlStatus?.trim() ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground">AML</span>
+                <Badge variant="outline" className="text-xs font-medium">
+                  {row.amlStatus}
+                </Badge>
+              </div>
+            ) : null}
+          </div>
         </div>
         {linkSent ? null : completedUx ? (
           <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">

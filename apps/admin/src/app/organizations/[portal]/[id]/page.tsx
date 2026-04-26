@@ -684,12 +684,14 @@ function CorporateEntitiesDisplay({
             <Badge
               variant="outline"
               className={
-                status === "APPROVED" || status === "ID_UPLOADED" || status === "CHECKED"
+                status === "KYC Approved"
                   ? "border-emerald-500/30 text-foreground bg-emerald-500/10 text-[10px]"
-                  : "border-amber-500/30 text-foreground bg-amber-500/10 text-[10px]"
+                  : status === "KYC Failed"
+                    ? "border-destructive/30 text-foreground bg-destructive/10 text-[10px]"
+                    : "border-amber-500/30 text-foreground bg-amber-500/10 text-[10px]"
               }
             >
-              {status.replace(/_/g, " ")}
+              {status}
             </Badge>
             {kycType && (
               <Badge variant="secondary" className="text-[10px]">

@@ -42,7 +42,6 @@ import {
   getAdminFinancialSummaryUserColumnYears,
   getLatestThreeCtosYearSlots,
   getDirectorShareholderDisplayRows,
-  getDisplayKycStatus,
   type DirectorShareholderDisplayRow,
   normalizeFinancialStatementsQuestionnaire,
   type ColumnComputedMetrics,
@@ -1137,10 +1136,7 @@ export function ApplicationFinancialReviewContent({
                     subjectRow.subjectRef
                   );
                   const canViewSubject = Boolean(subjectSnap?.has_report_html);
-                  const displayStatus = getDisplayKycStatus({
-                    requestId: row.status === "Missing" ? "" : "has-request",
-                    rawStatus: row.status,
-                  });
+                  const displayStatus = row.status;
                   const approvedLike = displayStatus === "KYC Approved";
                   return (
                     <TableRow key={row.id} className={applicationTableRowClass}>
