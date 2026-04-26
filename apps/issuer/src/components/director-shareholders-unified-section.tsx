@@ -12,6 +12,7 @@ import {
   getDirectorShareholderDisplayRows,
   getDisplayRoleLabel,
   isCtosIndividualKycEligibleRow,
+  isLegacyCtosPartyKycApproved,
   normalizeDirectorShareholderIdKey,
   regtankDisplayStatusBadgeClass,
   type DirectorShareholderDisplayRow,
@@ -99,8 +100,11 @@ function partyKeyRawForRow(row: DirectorShareholderDisplayRow): string {
 
 function rowNeedsProfileAction(
   row: DirectorShareholderDisplayRow,
-  emailDisplay: string
+  emailDisplay: string,
+  directorKycStatus: unknown
 ): boolean {
+  const k = normalizeDirectorShareholderIdKey(partyKeyRawForRow(row));
+  if (k && isLegacyCtosPartyKycApproved(k, directorKycStatus)) return false;
   return !emailDisplay.trim() || row.status === "Not Started";
 }
 
@@ -115,7 +119,9 @@ function onboardingApprovalLockActive(onboardingJson: unknown): boolean {
   return regtankStatus === "APPROVED" || kycRawStatus === "APPROVED";
 }
 
-function isRowComplete(row: DirectorShareholderDisplayRow, persistedEmail: string): boolean {
+function isRowComplete(row: DirectorShareholderDisplayRow, persistedEmail: string, directorKycStatus: unknown): boolean {
+  const k = normalizeDirectorShareholderIdKey(partyKeyRawForRow(row));
+  if (k && isLegacyCtosPartyKycApproved(k, directorKycStatus)) return true;
   return Boolean(persistedEmail?.trim()) && row.status !== "Not Started";
 }
 
@@ -124,9 +130,10 @@ function isRowCompleteForUi(
   row: DirectorShareholderDisplayRow,
   persistedEmail: string,
   displayEmailStr: string,
-  sentIds: ReadonlySet<string>
+  sentIds: ReadonlySet<string>,
+  directorKycStatus: unknown
 ): boolean {
-  if (isRowComplete(row, persistedEmail)) return true;
+  if (isRowComplete(row, persistedEmail, directorKycStatus)) return true;
   return (
     sentIds.has(row.id) &&
     Boolean(displayEmailStr.trim()) &&
@@ -234,6 +241,12 @@ export function DirectorShareholdersUnifiedSection({
       setConfirmRow(null);
       return;
     }
+    const confirmPk = normalizeDirectorShareholderIdKey(partyKeyRawForRow(confirmRow));
+    if (confirmPk && isLegacyCtosPartyKycApproved(confirmPk, directorKycStatus)) {
+      toast.error("This person already completed KYC on the company record.");
+      setConfirmRow(null);
+      return;
+    }
     const email = displayEmail(confirmRow).trim();
     const rawKey = partyKeyRawForRow(confirmRow);
     const partyKeyNorm = normalizeDirectorShareholderIdKey(rawKey);
@@ -296,12 +309,14 @@ export function DirectorShareholdersUnifiedSection({
     const latestOnboarding = partyKeyNorm ? supplementByPartyKey.get(partyKeyNorm) : undefined;
     const latestRequestId = String(latestOnboarding?.requestId ?? "").trim();
     const latestVerifyLink = String(latestOnboarding?.verifyLink ?? "").trim();
-    const approvalLocked = onboardingApprovalLockActive(latestOnboarding);
+    const legacyKycApproved =
+      partyKeyNorm != null && isLegacyCtosPartyKycApproved(partyKeyNorm, directorKycStatus);
+    const approvalLocked = legacyKycApproved || onboardingApprovalLockActive(latestOnboarding);
     const kycUi = ctosKycStatusUiFromRow(row);
-    const completedUx = isRowCompleteForUi(row, persistedEmail, em, sentRowIds);
+    const completedUx = isRowCompleteForUi(row, persistedEmail, em, sentRowIds, directorKycStatus);
     const kycEligible = isCtosIndividualKycEligibleRow(row);
     const showEmailControls = kycEligible && !approvalLocked && !blockPartyOnboarding;
-    const needsAction = kycEligible && rowNeedsProfileAction(row, em) && !linkSent;
+    const needsAction = kycEligible && rowNeedsProfileAction(row, em, directorKycStatus) && !linkSent;
     const rowHighlight =
       highlightActionRequiredRows && kycEligible && !completedUx && !linkSent && needsAction;
     const rowSentVisual =
@@ -361,16 +376,16 @@ export function DirectorShareholdersUnifiedSection({
             </p>
           ) : null}
         </div>
-        {approvalLocked ? (
-          <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
-            <CheckCircleIcon className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
-            <span className="text-sm font-medium text-emerald-800 dark:text-emerald-300">KYC approved</span>
-          </div>
-        ) : kycEligible && !approvalLocked && blockPartyOnboarding ? (
+        {kycEligible && blockPartyOnboarding ? (
           <div className="flex w-full shrink-0 flex-col items-end gap-1 sm:w-auto">
             <p className="text-right text-xs text-muted-foreground max-w-xs">
               Complete company onboarding first
             </p>
+          </div>
+        ) : approvalLocked ? (
+          <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
+            <CheckCircleIcon className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+            <span className="text-sm font-medium text-emerald-800 dark:text-emerald-300">KYC approved</span>
           </div>
         ) : showEmailControls ? (
           <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:items-end">
@@ -439,7 +454,7 @@ export function DirectorShareholdersUnifiedSection({
     const persistedEmail = row.email;
     const linkSent = onboardingLinkSentForRow(row);
     const kycUi = ctosKycStatusUiFromRow(row);
-    const completedUx = isRowCompleteForUi(row, persistedEmail, persistedEmail, sentRowIds);
+    const completedUx = isRowCompleteForUi(row, persistedEmail, persistedEmail, sentRowIds, directorKycStatus);
     const rowSentVisual =
       linkSent &&
       "border-sky-300/80 bg-sky-50/70 ring-1 ring-sky-200/80 dark:border-sky-800 dark:bg-sky-950/25 dark:ring-sky-900/50";
