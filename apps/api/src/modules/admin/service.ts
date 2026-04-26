@@ -62,6 +62,7 @@ import {
   REVIEW_SECTION_ORDER,
   getDirectorShareholderDisplayRows,
   isCtosIndividualKycEligibleRow,
+  isLegacyCtosPartyKycApproved,
   getStepKeyFromStepId,
   isRegtankIso3166Code,
   normalizeDirectorShareholderIdKey,
@@ -4784,9 +4785,11 @@ export class AdminService {
       ? issuerOrg.ctos_party_supplements
       : [];
     const onboardingByPartyKey = new Map<string, Record<string, unknown>>();
+    const supplementPartyKeys = new Set<string>();
     for (const supplement of supplements) {
       const key = normalizeDirectorShareholderIdKey(supplement.party_key);
       if (!key) continue;
+      supplementPartyKeys.add(key);
       const onboarding =
         supplement.onboarding_json &&
         typeof supplement.onboarding_json === "object" &&
@@ -4815,15 +4818,16 @@ export class AdminService {
         row.idNumber?.trim() || row.registrationNumber?.trim() || row.enquiryId?.trim() || ""
       );
       if (!partyKey) continue;
+      if (isLegacyCtosPartyKycApproved(partyKey, issuerOrg.director_kyc_status)) continue;
+      if (!supplementPartyKeys.has(partyKey)) continue;
       const onboarding = onboardingByPartyKey.get(partyKey) ?? {};
-      const requestId = String(onboarding.requestId ?? "").trim();
       const regtankStatus = String(onboarding.regtankStatus ?? "").trim().toUpperCase();
       const kycRawStatus =
         onboarding.kyc && typeof onboarding.kyc === "object" && !Array.isArray(onboarding.kyc)
           ? String((onboarding.kyc as Record<string, unknown>).rawStatus ?? "").trim().toUpperCase()
           : "";
       const approved = regtankStatus === "APPROVED" || kycRawStatus === "APPROVED";
-      if (!requestId || !approved) {
+      if (!approved) {
         notReady.push(row.name || partyKey);
       }
     }

@@ -694,6 +694,25 @@ export function isCtosIndividualKycEligibleRow(row: DirectorShareholderDisplayRo
   return true;
 }
 
+/**
+ * True when legacy `director_kyc_status` lists this party (strict government ID) with `kycStatus` APPROVED.
+ * Used to treat a CTOS person as EXISTING (no supplement / email / financial gate for that person).
+ */
+export function isLegacyCtosPartyKycApproved(
+  partyKeyRaw: string | null | undefined,
+  directorKycStatus: unknown
+): boolean {
+  const strictKey = normalizeDirectorShareholderIdKey(partyKeyRaw);
+  if (!strictKey) return false;
+  const root =
+    directorKycStatus && typeof directorKycStatus === "object" && !Array.isArray(directorKycStatus)
+      ? (directorKycStatus as Record<string, unknown>)
+      : undefined;
+  const person = findLegacyKycPersonByStrictId(strictKey, root);
+  if (!person) return false;
+  return String(person.kycStatus ?? "").trim().toUpperCase() === "APPROVED";
+}
+
 function directorSubjectKindFromCtosOrgRow(r: CtosOrgDirectorRow): "INDIVIDUAL" | "CORPORATE" | null {
   if (r.party_type === "I") return "INDIVIDUAL";
   if (r.party_type === "C") return "CORPORATE";

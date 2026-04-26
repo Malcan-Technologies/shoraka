@@ -9,6 +9,7 @@ import { ApplicationFinancialReviewComparison } from "@/components/application-f
 import {
   getDirectorShareholderDisplayRows,
   isCtosIndividualKycEligibleRow,
+  isLegacyCtosPartyKycApproved,
   normalizeDirectorShareholderIdKey,
 } from "@cashsouk/types";
 
@@ -86,9 +87,11 @@ export function FinancialSection({
       ? issuerOrg.ctos_party_supplements
       : [];
     const onboardingByPartyKey = new Map<string, Record<string, unknown>>();
+    const supplementPartyKeys = new Set<string>();
     for (const supplement of supplements) {
       const key = normalizeDirectorShareholderIdKey(supplement.party_key);
       if (!key) continue;
+      supplementPartyKeys.add(key);
       const onboarding =
         supplement.onboarding_json &&
         typeof supplement.onboarding_json === "object" &&
@@ -114,15 +117,16 @@ export function FinancialSection({
         row.idNumber?.trim() || row.registrationNumber?.trim() || row.enquiryId?.trim() || ""
       );
       if (!partyKey) continue;
+      if (isLegacyCtosPartyKycApproved(partyKey, issuerOrg.director_kyc_status)) continue;
+      if (!supplementPartyKeys.has(partyKey)) continue;
       const onboarding = onboardingByPartyKey.get(partyKey) ?? {};
-      const requestId = String(onboarding.requestId ?? "").trim();
       const regtankStatus = String(onboarding.regtankStatus ?? "").trim().toUpperCase();
       const kycRawStatus =
         onboarding.kyc && typeof onboarding.kyc === "object" && !Array.isArray(onboarding.kyc)
           ? String((onboarding.kyc as Record<string, unknown>).rawStatus ?? "").trim().toUpperCase()
           : "";
-      if (!requestId) return false;
-      if (regtankStatus !== "APPROVED" && kycRawStatus !== "APPROVED") return false;
+      const approved = regtankStatus === "APPROVED" || kycRawStatus === "APPROVED";
+      if (!approved) return false;
     }
     return true;
   })();

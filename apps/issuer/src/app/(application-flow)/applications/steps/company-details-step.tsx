@@ -17,6 +17,8 @@ import { useOrganization, createApiClient, useAuthToken } from "@cashsouk/config
 import {
   getDirectorShareholderDisplayRows,
   isCtosIndividualKycEligibleRow,
+  isLegacyCtosPartyKycApproved,
+  normalizeDirectorShareholderIdKey,
   type DirectorShareholderDisplayRow,
 } from "@cashsouk/types";
 import { useCorporateInfo } from "@/hooks/use-corporate-info";
@@ -154,8 +156,12 @@ function isValidAddress(addr: Record<string, unknown> | null): boolean {
   return !!(line1 && city && postalCode && state && country);
 }
 
-function directorRowNeedsCompleteOnProfile(row: DirectorShareholderDisplayRow): boolean {
+function directorRowNeedsCompleteOnProfile(row: DirectorShareholderDisplayRow, directorKycStatus: unknown): boolean {
   if (!isCtosIndividualKycEligibleRow(row)) return false;
+  const pk = normalizeDirectorShareholderIdKey(
+    row.idNumber?.trim() || row.registrationNumber?.trim() || row.enquiryId?.trim() || ""
+  );
+  if (pk && isLegacyCtosPartyKycApproved(pk, directorKycStatus)) return false;
   const emptyEmail = !row.email.trim();
   return row.status === "Not Started" || emptyEmail;
 }
@@ -684,7 +690,10 @@ export function CompanyDetailsStep({
                 const statusVerified = row.status === "KYC Approved";
                 const statusKind = row.type === "COMPANY" ? "KYB" : "KYC";
                 const own = row.ownershipDisplay?.trim() || "—";
-                const showCompleteOnProfile = directorRowNeedsCompleteOnProfile(row);
+                const showCompleteOnProfile = directorRowNeedsCompleteOnProfile(
+                  row,
+                  entitiesData?.directorKycStatus ?? null
+                );
                 return (
                   <React.Fragment key={row.id}>
                     <div className={labelClassName}>{row.role}</div>

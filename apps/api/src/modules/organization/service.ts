@@ -40,6 +40,7 @@ import { randomBytes } from "crypto";
 import {
   getDirectorShareholderDisplayRows,
   isCtosIndividualKycEligibleRow,
+  isLegacyCtosPartyKycApproved,
   normalizeDirectorShareholderIdKey,
 } from "@cashsouk/types";
 import { RegTankAPIClient } from "../regtank/api-client";
@@ -149,7 +150,8 @@ async function upsertCtosPartySupplementOnboardingJson(
   portalType: PortalType,
   organizationId: string,
   partyKey: string,
-  onboardingJson: Prisma.InputJsonValue
+  onboardingJson: Prisma.InputJsonValue,
+  directorKycStatus?: unknown
 ): Promise<void> {
   const existing = await findCtosPartySupplementForOrg(portalType, organizationId, partyKey);
   if (existing) {
@@ -157,6 +159,13 @@ async function upsertCtosPartySupplementOnboardingJson(
       where: { id: existing.id },
       data: { onboarding_json: onboardingJson },
     });
+    return;
+  }
+  if (isLegacyCtosPartyKycApproved(partyKey, directorKycStatus)) {
+    logger.info(
+      { organizationId, partyKey, portalType },
+      "[upsertCtosPartySupplementOnboardingJson] Skipping create — legacy KYC already APPROVED"
+    );
     return;
   }
   await prisma.ctosPartySupplement.create({
@@ -1656,6 +1665,9 @@ export class OrganizationService {
         "Party email can only be saved for individuals eligible for onboarding under CTOS rules"
       );
     }
+    if (isLegacyCtosPartyKycApproved(partyKey, entitiesForParty.directorKycStatus)) {
+      return { success: true };
+    }
     const email = input.email.trim();
     const existing = await findCtosPartySupplementForOrg(portalType, organizationId, partyKey);
     const prev = parseCtosPartyOnboardingJson(existing?.onboarding_json);
@@ -1676,7 +1688,8 @@ export class OrganizationService {
       portalType,
       organizationId,
       partyKey,
-      nextOnboarding as Prisma.InputJsonValue
+      nextOnboarding as Prisma.InputJsonValue,
+      entitiesForParty.directorKycStatus
     );
     logger.info({ organizationId, partyKey, userId, portalType }, "CTOS party supplement email upserted");
     return { success: true };
@@ -1709,6 +1722,15 @@ export class OrganizationService {
       throw new AppError(400, "VALIDATION_ERROR", "Invalid party key");
     }
 
+    const entities = await this.getCorporateEntities(userId, organizationId, portalType);
+    if (isLegacyCtosPartyKycApproved(pk, entities.directorKycStatus)) {
+      throw new AppError(
+        400,
+        "NOT_REQUIRED",
+        "This person already completed KYC on the company record."
+      );
+    }
+
     const supplement = await findCtosPartySupplementForOrg(portalType, organizationId, pk);
     const supOb = parseCtosPartyOnboardingJson(supplement?.onboarding_json);
     assertOnboardingEmailMutable(supOb);
@@ -1722,7 +1744,6 @@ export class OrganizationService {
       );
     }
 
-    const entities = await this.getCorporateEntities(userId, organizationId, portalType);
     const rows = getDirectorShareholderDisplayRows({
       corporateEntities: entities,
       directorKycStatus: (entities.directorKycStatus as Record<string, unknown> | null) ?? null,
@@ -1859,7 +1880,8 @@ export class OrganizationService {
       portalType,
       organizationId,
       pk,
-      nextOnboarding as Prisma.InputJsonValue
+      nextOnboarding as Prisma.InputJsonValue,
+      entities.directorKycStatus
     );
 
     if (verifyLink) {

@@ -49,6 +49,7 @@ import {
   WithdrawReason,
   getDirectorShareholderDisplayRows,
   isCtosIndividualKycEligibleRow,
+  isLegacyCtosPartyKycApproved,
   getFinancialYearEndComputationDetails,
   getIssuerFinancialTabYears,
   issuerUnauditedPlddForFyEndYear,
@@ -481,9 +482,11 @@ export class ApplicationService {
       select: { party_key: true, onboarding_json: true },
     });
     const supplementByPartyKey = new Map<string, Record<string, unknown>>();
+    const supplementPartyKeys = new Set<string>();
     for (const sup of supplements) {
       const key = normalizeDirectorShareholderIdKey(sup.party_key);
       if (!key) continue;
+      supplementPartyKeys.add(key);
       const onboarding =
         sup.onboarding_json && typeof sup.onboarding_json === "object" && !Array.isArray(sup.onboarding_json)
           ? (sup.onboarding_json as Record<string, unknown>)
@@ -513,6 +516,8 @@ export class ApplicationService {
         row.idNumber?.trim() || row.registrationNumber?.trim() || row.enquiryId?.trim() || ""
       );
       if (!partyKey) continue;
+      if (isLegacyCtosPartyKycApproved(partyKey, issuerOrganization.director_kyc_status)) continue;
+      if (!supplementPartyKeys.has(partyKey)) continue;
       const onboarding = supplementByPartyKey.get(partyKey) ?? {};
       const requestId = String(onboarding.requestId ?? "").trim();
       const status = String(onboarding.regtankStatus || "").trim().toUpperCase();
