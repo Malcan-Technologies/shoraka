@@ -261,6 +261,88 @@ function findLegacyKycPersonByStrictId(
   return null;
 }
 
+function collectDirectorAmlIndividualEntries(
+  directorAmlStatus: Record<string, unknown> | null | undefined
+): Record<string, unknown>[] {
+  if (!directorAmlStatus || typeof directorAmlStatus !== "object") return [];
+  const dirs = Array.isArray((directorAmlStatus as { directors?: unknown }).directors)
+    ? ((directorAmlStatus as { directors: unknown[] }).directors as Record<string, unknown>[])
+    : [];
+  const sh = Array.isArray((directorAmlStatus as { individualShareholders?: unknown }).individualShareholders)
+    ? ((directorAmlStatus as { individualShareholders: unknown[] }).individualShareholders as Record<string, unknown>[])
+    : [];
+  return [...dirs, ...sh];
+}
+
+function legacyAmlRawFromMatch(match: Record<string, unknown> | null): string | null {
+  if (!match) return null;
+  const amlSt = match.amlStatus;
+  if (amlSt == null || String(amlSt).trim() === "") return null;
+  return String(amlSt).trim();
+}
+
+/**
+ * Match `director_aml_status` individual entries by `eodRequestId` when provided, else by `kycId`.
+ * Does not use name or IC. When `eodRequestId` is set, kycId is not used for matching (split director vs shareholder rows).
+ */
+function findLegacyAmlMatch(
+  row: { kycId?: string | null; eodRequestId?: string | null },
+  directorAmlStatus: Record<string, unknown> | null | undefined
+): Record<string, unknown> | null {
+  const entries = collectDirectorAmlIndividualEntries(directorAmlStatus);
+  const reod = String(row.eodRequestId ?? "").trim();
+  const rkyc = String(row.kycId ?? "").trim();
+
+  if (reod) {
+    return entries.find((d) => String(d.eodRequestId ?? "").trim() === reod) ?? null;
+  }
+  if (rkyc) {
+    return entries.find((d) => String(d.kycId ?? "").trim() === rkyc) ?? null;
+  }
+  return null;
+}
+
+function findLegacyKycPersonByEod(
+  eod: string | null | undefined,
+  directorKycStatus: Record<string, unknown> | null | undefined
+): LegacyKycPersonRecord | null {
+  const e = String(eod ?? "").trim();
+  if (!e || !directorKycStatus || typeof directorKycStatus !== "object") return null;
+  const dirs = Array.isArray(directorKycStatus.directors)
+    ? (directorKycStatus.directors as LegacyKycPersonRecord[])
+    : [];
+  for (const d of dirs) {
+    if (String(d.eodRequestId ?? "").trim() === e || String(d.shareholderEodRequestId ?? "").trim() === e) {
+      return d;
+    }
+  }
+  const sh = Array.isArray(directorKycStatus.individualShareholders)
+    ? (directorKycStatus.individualShareholders as LegacyKycPersonRecord[])
+    : [];
+  for (const s of sh) {
+    if (String(s.eodRequestId ?? "").trim() === e) return s;
+  }
+  return null;
+}
+
+/** AML for onboarding buckets: when the row has an EOD, match AML by that EOD only. */
+function findLegacyAmlRawForOnboardingRow(
+  icKey: string | null,
+  eod: string | null,
+  directorKycStatus: Record<string, unknown> | null | undefined,
+  directorAmlStatus: Record<string, unknown> | null | undefined
+): string | null {
+  const e = String(eod ?? "").trim();
+  const person =
+    (e ? findLegacyKycPersonByEod(e, directorKycStatus) : null) ||
+    (icKey ? findLegacyKycPersonByStrictId(icKey, directorKycStatus) : null);
+  if (!person) return null;
+  if (e) {
+    return legacyAmlRawFromMatch(findLegacyAmlMatch({ kycId: null, eodRequestId: e }, directorAmlStatus));
+  }
+  return findLegacyAmlRawForKycPerson(person, directorAmlStatus);
+}
+
 function findLegacyAmlRawForKycPerson(
   person: LegacyKycPersonRecord,
   directorAmlStatus: Record<string, unknown> | null | undefined
@@ -269,31 +351,15 @@ function findLegacyAmlRawForKycPerson(
   const kycId = String(person.kycId ?? "").trim();
   const eodPrimary = String(person.eodRequestId ?? "").trim();
   const eodSh = String(person.shareholderEodRequestId ?? "").trim();
+  const hadEod = Boolean(eodPrimary || eodSh);
+  const eodOrder = [eodPrimary, eodSh].filter((x, i, a) => x && a.indexOf(x) === i);
 
-  const tryMatch = (amlEntry: Record<string, unknown>): string | null => {
-    const amlSt = amlEntry.amlStatus;
-    if (amlSt == null || String(amlSt).trim() === "") return null;
-    const ak = String(amlEntry.kycId ?? "").trim();
-    const ae = String(amlEntry.eodRequestId ?? "").trim();
-    if (kycId && ak === kycId) return String(amlSt).trim();
-    if (eodPrimary && ae === eodPrimary) return String(amlSt).trim();
-    if (eodSh && ae === eodSh) return String(amlSt).trim();
-    return null;
-  };
-
-  const amlDirs = Array.isArray((directorAmlStatus as { directors?: unknown }).directors)
-    ? ((directorAmlStatus as { directors: LegacyKycPersonRecord[] }).directors as LegacyKycPersonRecord[])
-    : [];
-  for (const a of amlDirs) {
-    const hit = tryMatch(a);
-    if (hit) return hit;
+  for (const eod of eodOrder) {
+    const raw = legacyAmlRawFromMatch(findLegacyAmlMatch({ kycId: null, eodRequestId: eod }, directorAmlStatus));
+    if (raw) return raw;
   }
-  const amlSh = Array.isArray((directorAmlStatus as { individualShareholders?: unknown }).individualShareholders)
-    ? ((directorAmlStatus as { individualShareholders: LegacyKycPersonRecord[] }).individualShareholders as LegacyKycPersonRecord[])
-    : [];
-  for (const a of amlSh) {
-    const hit = tryMatch(a);
-    if (hit) return hit;
+  if (kycId && !hadEod) {
+    return legacyAmlRawFromMatch(findLegacyAmlMatch({ kycId, eodRequestId: null }, directorAmlStatus));
   }
   return null;
 }
@@ -1124,7 +1190,7 @@ function buildOnboardingDisplayRows(
     const sent = Boolean(sentRowIds?.has(id));
     const status = sent ? "Sent" : unifiedBase;
     const canBase = !sent && (!email.trim() || unifiedBase === "Not Started");
-    const amlRaw = b.icKey ? amlByGov.get(b.icKey) : undefined;
+    const amlRaw = findLegacyAmlRawForOnboardingRow(b.icKey, b.eod, directorKycStatus, directorAmlStatus);
     const amlLine =
       amlRaw != null && String(amlRaw).trim() !== "" ? getDisplayAmlStatus(amlRaw) : undefined;
     const role =
@@ -1189,6 +1255,38 @@ function buildOnboardingDisplayRows(
   }
 
   return rows;
+}
+
+/**
+ * Parsed supplement fields for CTOS display.
+ * `amlRaw` is for rendering only; {@link ctosSupplementHasMeaningfulOnboarding} ignores AML when deciding override.
+ */
+function ctosSupplementOnboardingFields(ob: Record<string, unknown>): {
+  req: string;
+  reg: string;
+  kycRaw: string;
+  amlRaw: string;
+} {
+  const req = String(ob.requestId ?? "").trim();
+  const reg = String(ob.regtankStatus ?? "").trim();
+  const kycRaw =
+    ob.kyc && typeof ob.kyc === "object" && !Array.isArray(ob.kyc)
+      ? String((ob.kyc as Record<string, unknown>).rawStatus ?? "").trim()
+      : "";
+  const amlRaw =
+    ob.aml && typeof ob.aml === "object" && !Array.isArray(ob.aml)
+      ? String((ob.aml as Record<string, unknown>).rawStatus ?? "").trim()
+      : "";
+  return { req, reg, kycRaw, amlRaw };
+}
+
+/** True when supplement should override legacy: real KYC / RegTank activity only (not aml.rawStatus alone). */
+function ctosSupplementHasMeaningfulOnboarding(fields: {
+  req: string;
+  reg: string;
+  kycRaw: string;
+}): boolean {
+  return Boolean(fields.req || fields.reg || fields.kycRaw);
 }
 
 function buildCtosBackedDisplayRows(
@@ -1295,22 +1393,33 @@ function buildCtosBackedDisplayRows(
         : {}
       : undefined;
 
-    let kycDisplay: UnifiedDisplayKycStatus;
-    let amlLine: string | null = null;
-    let legacyEmailForRow: string | null = null;
+    const legacy = findLegacyKycAmlByStrictIdForCtosRow(b, directorKycStatus, directorAmlStatus);
+    const legacyEmailForRow = legacy.legacyEmail;
+    const hasLegacyData =
+      (legacy.kycRaw != null && legacy.kycRaw.trim() !== "") ||
+      (legacy.amlRaw != null && legacy.amlRaw.trim() !== "");
 
-    if (hasSupplementRow) {
-      const ob = supOb ?? {};
-      const req = String(ob.requestId ?? "").trim();
-      const reg = String(ob.regtankStatus ?? "").trim();
-      const kycRaw =
-        ob.kyc && typeof ob.kyc === "object" && !Array.isArray(ob.kyc)
-          ? String((ob.kyc as Record<string, unknown>).rawStatus ?? "").trim()
-          : "";
-      const amlRaw =
-        ob.aml && typeof ob.aml === "object" && !Array.isArray(ob.aml)
-          ? String((ob.aml as Record<string, unknown>).rawStatus ?? "").trim()
-          : "";
+    const ob = hasSupplementRow ? (supOb ?? {}) : {};
+    const supFields = ctosSupplementOnboardingFields(ob);
+    const hasValidSupplement = hasSupplementRow && ctosSupplementHasMeaningfulOnboarding(supFields);
+
+    let kycDisplay: UnifiedDisplayKycStatus = "Not Started";
+    let amlLine: string | null = null;
+
+    const applyLegacyKycAml = (): void => {
+      const rawForUnified =
+        legacy.kycRaw != null && legacy.kycRaw.trim() !== ""
+          ? legacy.kycRaw
+          : "Not requested";
+      kycDisplay = legacyDirectorKycRawToUnifiedDisplay(rawForUnified);
+      amlLine =
+        legacy.amlRaw != null && legacy.amlRaw.trim() !== "" ? getDisplayAmlStatus(legacy.amlRaw) : null;
+    };
+
+    if (hasLegacyData && !hasValidSupplement) {
+      applyLegacyKycAml();
+    } else if (hasValidSupplement) {
+      const { req, reg, kycRaw, amlRaw } = supFields;
       kycDisplay = getDisplayKycStatus({
         requestId: req || undefined,
         regtankStatus: reg || undefined,
@@ -1318,24 +1427,11 @@ function buildCtosBackedDisplayRows(
         rawStatus: kycRaw || undefined,
       });
       amlLine = amlRaw ? getDisplayAmlStatus(amlRaw) : null;
+    } else if (hasLegacyData) {
+      applyLegacyKycAml();
     } else {
-      const legacy = findLegacyKycAmlByStrictIdForCtosRow(b, directorKycStatus, directorAmlStatus);
-      legacyEmailForRow = legacy.legacyEmail;
-      const hasLegacySignal =
-        (legacy.kycRaw != null && legacy.kycRaw.trim() !== "") ||
-        (legacy.amlRaw != null && legacy.amlRaw.trim() !== "");
-      if (hasLegacySignal) {
-        const rawForUnified =
-          legacy.kycRaw != null && legacy.kycRaw.trim() !== ""
-            ? legacy.kycRaw
-            : "Not requested";
-        kycDisplay = legacyDirectorKycRawToUnifiedDisplay(rawForUnified);
-        amlLine =
-          legacy.amlRaw != null && legacy.amlRaw.trim() !== "" ? getDisplayAmlStatus(legacy.amlRaw) : null;
-      } else {
-        kycDisplay = "Not Started";
-        amlLine = null;
-      }
+      kycDisplay = "Not Started";
+      amlLine = null;
     }
 
     const fromSupplement = idKeyNorm ? supplementEmailByPartyKey.get(idKeyNorm) : undefined;
@@ -1392,7 +1488,6 @@ function buildKycOnlyFallbackRows(
   sentRowIds: ReadonlySet<string> | null | undefined
 ): DirectorShareholderDisplayRow[] {
   const rows: DirectorShareholderDisplayRow[] = [];
-  const amlByGov = buildAmlByNormalizedGovId(directorAmlStatus, directorKycStatus);
   let idx = 0;
   const kycDirs = Array.isArray(directorKycStatus?.directors)
     ? (directorKycStatus!.directors as Record<string, unknown>[])
@@ -1416,7 +1511,10 @@ function buildKycOnlyFallbackRows(
     const sent = Boolean(sentRowIds?.has(id));
     const status = sent ? "Sent" : unifiedBase;
     const canBase = !sent && (!em || unifiedBase === "Not Started");
-    const amlRaw = gKey ? amlByGov.get(gKey) : undefined;
+    const kycIdRow = String(d.kycId ?? "").trim();
+    const amlRaw = legacyAmlRawFromMatch(
+      findLegacyAmlMatch({ kycId: kycIdRow || null, eodRequestId: eod || null }, directorAmlStatus)
+    );
     const amlLine =
       amlRaw != null && String(amlRaw).trim() !== "" ? getDisplayAmlStatus(amlRaw) : undefined;
     const ownK = ownershipFromKycRoleString(roleStr);
@@ -1471,7 +1569,11 @@ function buildKycOnlyFallbackRows(
     const sent = Boolean(sentRowIds?.has(id));
     const status = sent ? "Sent" : unifiedBase;
     const canBase = !sent && (!em || unifiedBase === "Not Started");
-    const amlRawS = gKey ? amlByGov.get(gKey) : undefined;
+    const kycIdS = String(s.kycId ?? "").trim();
+    const eodS = String(s.eodRequestId ?? "").trim();
+    const amlRawS = legacyAmlRawFromMatch(
+      findLegacyAmlMatch({ kycId: kycIdS || null, eodRequestId: eodS || null }, directorAmlStatus)
+    );
     const amlLineS =
       amlRawS != null && String(amlRawS).trim() !== "" ? getDisplayAmlStatus(amlRawS) : undefined;
     const ownS = ownershipFromKycRoleString(roleStrS);
