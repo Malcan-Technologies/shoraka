@@ -23,6 +23,13 @@ import {
 
 export type AdminOrgCtosPortal = "issuer" | "investor";
 
+/** TEMP: always attach SOAP/token failure text to CTOS_FETCH_FAILED; remove after prod debug. */
+function ctosFetchFailedDetails(e: unknown): { upstreamMessage: string; upstreamName?: string } {
+  const upstreamMessage = e instanceof Error ? e.message : String(e);
+  const upstreamName = e instanceof Error ? e.name : undefined;
+  return { upstreamMessage, ...(upstreamName ? { upstreamName } : {}) };
+}
+
 const listSelect = {
   id: true,
   issuer_organization_id: true,
@@ -193,7 +200,12 @@ export async function fetchAndInsertCtosReport(
       { correlationId, issuerOrganizationId, err: e instanceof Error ? e.message : String(e) },
       "CTOS SOAP fetch failed"
     );
-    throw new AppError(502, "CTOS_FETCH_FAILED", "Failed to retrieve CTOS report");
+    throw new AppError(
+      502,
+      "CTOS_FETCH_FAILED",
+      "Failed to retrieve CTOS report",
+      ctosFetchFailedDetails(e)
+    );
   }
 
   const parsed = await parseCtosReportXml(rawXml);
@@ -259,7 +271,12 @@ export async function fetchAndInsertCtosReportForAdminOrg(
       },
       "CTOS SOAP fetch failed"
     );
-    throw new AppError(502, "CTOS_FETCH_FAILED", "Failed to retrieve CTOS report");
+    throw new AppError(
+      502,
+      "CTOS_FETCH_FAILED",
+      "Failed to retrieve CTOS report",
+      ctosFetchFailedDetails(e)
+    );
   }
 
   const parsed = await parseCtosReportXml(rawXml);
@@ -359,7 +376,12 @@ export async function fetchAndInsertCtosSubjectReport(
       },
       "CTOS SOAP fetch failed (subject)"
     );
-    throw new AppError(502, "CTOS_FETCH_FAILED", "Failed to retrieve CTOS report");
+    throw new AppError(
+      502,
+      "CTOS_FETCH_FAILED",
+      "Failed to retrieve CTOS report",
+      ctosFetchFailedDetails(e)
+    );
   }
 
   const parsed = await parseCtosReportXml(rawXml);
@@ -465,7 +487,12 @@ export async function fetchAndInsertCtosSubjectReportForAdminOrg(
       },
       "CTOS SOAP fetch failed (subject)"
     );
-    throw new AppError(502, "CTOS_FETCH_FAILED", "Failed to retrieve CTOS report");
+    throw new AppError(
+      502,
+      "CTOS_FETCH_FAILED",
+      "Failed to retrieve CTOS report",
+      ctosFetchFailedDetails(e)
+    );
   }
 
   const parsed = await parseCtosReportXml(rawXml);
