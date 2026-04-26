@@ -11,6 +11,7 @@ import type { PortalType } from "../types";
 import { syncApplicationGuarantorsFromRegTankAmlWebhook } from "../../admin/guarantor-aml-webhook-sync";
 import { maybeAdvanceOrgAfterAmlScreeningCleared } from "./org-aml-milestone";
 import { linkCtosPartyToKyb } from "../../organization/ctos-party-kyb-link";
+import { findCtosPartySupplementByOnboardingJsonMatch } from "../../organization/ctos-party-supplement-webhook-lookup";
 
 /**
  * KYC (Know Your Customer) Webhook Handler
@@ -821,28 +822,13 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
 
   /**
    * Issuer CTOS party individual onboarding: no reg_tank_onboarding row; match supplement by onboarding_json.requestId or referenceId.
+   * When webhook `referenceId` uses `buildSafeReferenceId(orgId, partyKey)`, lookup is scoped to that org so another org cannot match the same ids.
    */
   private async tryHandleCtosPartyKycFromWebhook(payload: RegTankKYCWebhook): Promise<boolean> {
     const { requestId, referenceId, onboardingId, status, riskLevel, riskScore, messageStatus } =
       payload;
 
-    const oid = typeof onboardingId === "string" ? onboardingId.trim() : "";
-    const ref = typeof referenceId === "string" ? referenceId.trim() : "";
-
-    const orWhere: Prisma.CtosPartySupplementWhereInput[] = [];
-    if (oid) {
-      orWhere.push({ onboarding_json: { path: ["requestId"], equals: oid } });
-    }
-    if (ref) {
-      orWhere.push({ onboarding_json: { path: ["referenceId"], equals: ref } });
-    }
-    if (orWhere.length === 0) {
-      return false;
-    }
-
-    const supplement = await prisma.ctosPartySupplement.findFirst({
-      where: { OR: orWhere },
-    });
+    const supplement = await findCtosPartySupplementByOnboardingJsonMatch(onboardingId, referenceId);
     if (!supplement) {
       return false;
     }

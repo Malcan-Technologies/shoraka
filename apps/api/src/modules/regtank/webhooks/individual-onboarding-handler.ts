@@ -10,6 +10,7 @@ import { NotificationService } from "../../notification/service";
 import { NotificationTypeIds } from "../../notification/registry";
 import { prisma } from "../../../lib/prisma";
 import { mapRegtankIndividualLivenessRawToInternalStatus } from "@cashsouk/types";
+import { findCtosPartySupplementByOnboardingJsonMatch } from "../../organization/ctos-party-supplement-webhook-lookup";
 
 /**
  * Individual Onboarding Webhook Handler
@@ -42,7 +43,9 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
     // Find onboarding record
     const onboarding = await this.repository.findByRequestId(requestId);
     if (!onboarding) {
-      const handledCtos = await this.tryUpdateCtosPartyOnboardingFromWebhook(requestId, status);
+      const payloadRefRaw = (payload as Record<string, unknown>).referenceId;
+      const payloadRef = typeof payloadRefRaw === "string" ? payloadRefRaw.trim() : "";
+      const handledCtos = await this.tryUpdateCtosPartyOnboardingFromWebhook(requestId, status, payloadRef);
       if (handledCtos) {
         return;
       }
@@ -429,16 +432,10 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
    */
   private async tryUpdateCtosPartyOnboardingFromWebhook(
     requestId: string,
-    status: string
+    status: string,
+    webhookReferenceId: string
   ): Promise<boolean> {
-    const supplement = await prisma.ctosPartySupplement.findFirst({
-      where: {
-        onboarding_json: {
-          path: ["requestId"],
-          equals: requestId,
-        },
-      },
-    });
+    const supplement = await findCtosPartySupplementByOnboardingJsonMatch(requestId, webhookReferenceId);
 
     if (!supplement) {
       return false;
