@@ -500,7 +500,12 @@ export class ApplicationService {
       sentRowIds: null,
     });
 
-    const preFormRegtankStatuses = new Set(["EMAIL_SENT", "FORM_FILLING", "LIVENESS_STARTED"]);
+    const NOT_SUBMITTED = new Set([
+      "EMAIL_SENT",
+      "FORM_FILLING",
+      "LIVENESS_STARTED",
+      "LIVENESS_PASSED",
+    ]);
     const missingNames: string[] = [];
     for (const row of rows) {
       if (!isCtosIndividualKycEligibleRow(row)) continue;
@@ -510,10 +515,8 @@ export class ApplicationService {
       if (!partyKey) continue;
       const onboarding = supplementByPartyKey.get(partyKey) ?? {};
       const requestId = String(onboarding.requestId ?? "").trim();
-      const regtankStatus = String(onboarding.regtankStatus ?? "").trim().toUpperCase();
-      const isFormSubmitted =
-        regtankStatus !== "" &&
-        !preFormRegtankStatuses.has(regtankStatus);
+      const status = String(onboarding.regtankStatus || "").trim().toUpperCase();
+      const isFormSubmitted = status !== "" && !NOT_SUBMITTED.has(status);
       if (!requestId || !isFormSubmitted) {
         missingNames.push(row.name || partyKey);
       }
