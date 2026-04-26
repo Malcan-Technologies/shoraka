@@ -23,7 +23,6 @@ import {
 
 export type AdminOrgCtosPortal = "issuer" | "investor";
 
-/** TEMP: always attach SOAP/token failure text to CTOS_FETCH_FAILED; remove after prod debug. */
 function ctosFetchFailedDetails(e: unknown): { upstreamMessage: string; upstreamName?: string } {
   const upstreamMessage = e instanceof Error ? e.message : String(e);
   const upstreamName = e instanceof Error ? e.name : undefined;
@@ -200,6 +199,16 @@ export async function fetchAndInsertCtosReport(
       { correlationId, issuerOrganizationId, err: e instanceof Error ? e.message : String(e) },
       "CTOS SOAP fetch failed"
     );
+    // ===============================
+    // SECTION: CTOS DEBUG LOG
+    // WHY: Track CTOS flow step-by-step (prod vs local issue)
+    // INPUT: request / response / token
+    // OUTPUT: console logs only
+    // WHERE USED: CTOS integration flow
+    // ===============================
+    console.error("CTOS ERROR MESSAGE:", e instanceof Error ? e.message : String(e));
+    console.error("CTOS ERROR RESPONSE:", (e as { response?: { data?: unknown } }).response?.data);
+    console.error("CTOS ERROR STATUS:", (e as { response?: { status?: number } }).response?.status);
     throw new AppError(
       502,
       "CTOS_FETCH_FAILED",
@@ -243,6 +252,11 @@ export async function fetchAndInsertCtosReport(
   });
 
   console.log("Inserted CTOS report row:", row.id, "for issuer org:", issuerOrganizationId);
+  console.log("CTOS FINAL OUTPUT TO UI (persisted report row):", {
+    id: row.id,
+    issuer_organization_id: row.issuer_organization_id,
+    fetched_at: row.fetched_at,
+  });
   return row;
 }
 
@@ -271,6 +285,16 @@ export async function fetchAndInsertCtosReportForAdminOrg(
       },
       "CTOS SOAP fetch failed"
     );
+    // ===============================
+    // SECTION: CTOS DEBUG LOG
+    // WHY: Track CTOS flow step-by-step (prod vs local issue)
+    // INPUT: request / response / token
+    // OUTPUT: console logs only
+    // WHERE USED: CTOS integration flow
+    // ===============================
+    console.error("CTOS ERROR MESSAGE:", e instanceof Error ? e.message : String(e));
+    console.error("CTOS ERROR RESPONSE:", (e as { response?: { data?: unknown } }).response?.data);
+    console.error("CTOS ERROR STATUS:", (e as { response?: { status?: number } }).response?.status);
     throw new AppError(
       502,
       "CTOS_FETCH_FAILED",
@@ -312,6 +336,13 @@ export async function fetchAndInsertCtosReportForAdminOrg(
   });
 
   console.log("Inserted CTOS report row:", row.id, "portal:", portal, "org:", organizationId);
+  console.log("CTOS FINAL OUTPUT TO UI (persisted report row):", {
+    id: row.id,
+    portal,
+    organizationId,
+    subject_ref: row.subject_ref,
+    fetched_at: row.fetched_at,
+  });
   return row;
 }
 
@@ -376,6 +407,16 @@ export async function fetchAndInsertCtosSubjectReport(
       },
       "CTOS SOAP fetch failed (subject)"
     );
+    // ===============================
+    // SECTION: CTOS DEBUG LOG
+    // WHY: Track CTOS flow step-by-step (prod vs local issue)
+    // INPUT: request / response / token
+    // OUTPUT: console logs only
+    // WHERE USED: CTOS integration flow
+    // ===============================
+    console.error("CTOS ERROR MESSAGE:", e instanceof Error ? e.message : String(e));
+    console.error("CTOS ERROR RESPONSE:", (e as { response?: { data?: unknown } }).response?.data);
+    console.error("CTOS ERROR STATUS:", (e as { response?: { status?: number } }).response?.status);
     throw new AppError(
       502,
       "CTOS_FETCH_FAILED",
@@ -426,6 +467,11 @@ export async function fetchAndInsertCtosSubjectReport(
     "issuer org:",
     issuerOrganizationId
   );
+  console.log("CTOS FINAL OUTPUT TO UI (persisted subject report row):", {
+    id: row.id,
+    subject_ref: row.subject_ref,
+    issuer_organization_id: row.issuer_organization_id,
+  });
   return row;
 }
 
@@ -487,6 +533,16 @@ export async function fetchAndInsertCtosSubjectReportForAdminOrg(
       },
       "CTOS SOAP fetch failed (subject)"
     );
+    // ===============================
+    // SECTION: CTOS DEBUG LOG
+    // WHY: Track CTOS flow step-by-step (prod vs local issue)
+    // INPUT: request / response / token
+    // OUTPUT: console logs only
+    // WHERE USED: CTOS integration flow
+    // ===============================
+    console.error("CTOS ERROR MESSAGE:", e instanceof Error ? e.message : String(e));
+    console.error("CTOS ERROR RESPONSE:", (e as { response?: { data?: unknown } }).response?.data);
+    console.error("CTOS ERROR STATUS:", (e as { response?: { status?: number } }).response?.status);
     throw new AppError(
       502,
       "CTOS_FETCH_FAILED",
@@ -538,5 +594,11 @@ export async function fetchAndInsertCtosSubjectReportForAdminOrg(
     "org:",
     organizationId
   );
+  console.log("CTOS FINAL OUTPUT TO UI (persisted subject report row):", {
+    id: row.id,
+    subject_ref: row.subject_ref,
+    portal,
+    organizationId,
+  });
   return row;
 }
