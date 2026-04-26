@@ -1326,6 +1326,7 @@ export default function ProfilePage() {
                 <div ref={directorsSectionRef} className="scroll-mt-24">
                   <DirectorShareholdersUnifiedSection
                     organizationId={activeOrganization.id}
+                    organizationOnboardingStatus={orgData.onboardingStatus}
                     corporateEntities={orgData.corporateEntities ?? {}}
                     directorKycStatus={orgData.directorKycStatus ?? null}
                     directorAmlStatus={orgData.directorAmlStatus ?? null}

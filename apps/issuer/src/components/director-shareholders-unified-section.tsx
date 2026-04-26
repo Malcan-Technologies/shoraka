@@ -36,6 +36,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export interface DirectorShareholdersUnifiedSectionProps {
   organizationId?: string;
+  /** When set with `organizationId`, party email / send onboarding are allowed only if `COMPLETED`. */
+  organizationOnboardingStatus?: string | null;
   corporateEntities: unknown;
   directorKycStatus: unknown;
   directorAmlStatus?: unknown;
@@ -134,6 +136,7 @@ function isRowCompleteForUi(
 
 export function DirectorShareholdersUnifiedSection({
   organizationId,
+  organizationOnboardingStatus = null,
   corporateEntities,
   directorKycStatus,
   directorAmlStatus,
@@ -154,6 +157,9 @@ export function DirectorShareholdersUnifiedSection({
   const [draftEmails, setDraftEmails] = React.useState<Record<string, string>>({});
   const [confirmRow, setConfirmRow] = React.useState<DirectorShareholderDisplayRow | null>(null);
   const [savePending, setSavePending] = React.useState(false);
+
+  const blockPartyOnboarding =
+    Boolean(organizationId) && organizationOnboardingStatus !== "COMPLETED";
 
   const rows = React.useMemo(
     () =>
@@ -218,6 +224,11 @@ export function DirectorShareholdersUnifiedSection({
 
   const commitSend = async () => {
     if (!confirmRow) return;
+    if (blockPartyOnboarding) {
+      toast.error("Complete company onboarding first");
+      setConfirmRow(null);
+      return;
+    }
     if (!isCtosIndividualKycEligibleRow(confirmRow)) {
       toast.error("Individual onboarding is not required for this party.");
       setConfirmRow(null);
@@ -289,7 +300,7 @@ export function DirectorShareholdersUnifiedSection({
     const kycUi = ctosKycStatusUiFromRow(row);
     const completedUx = isRowCompleteForUi(row, persistedEmail, em, sentRowIds);
     const kycEligible = isCtosIndividualKycEligibleRow(row);
-    const showEmailControls = kycEligible && !approvalLocked;
+    const showEmailControls = kycEligible && !approvalLocked && !blockPartyOnboarding;
     const needsAction = kycEligible && rowNeedsProfileAction(row, em) && !linkSent;
     const rowHighlight =
       highlightActionRequiredRows && kycEligible && !completedUx && !linkSent && needsAction;
@@ -355,10 +366,11 @@ export function DirectorShareholdersUnifiedSection({
             <CheckCircleIcon className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
             <span className="text-sm font-medium text-emerald-800 dark:text-emerald-300">KYC approved</span>
           </div>
-        ) : completedUx && !showEmailControls ? (
-          <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
-            <CheckCircleIcon className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
-            <span className="text-sm font-medium text-emerald-800 dark:text-emerald-300">Completed</span>
+        ) : kycEligible && !approvalLocked && blockPartyOnboarding ? (
+          <div className="flex w-full shrink-0 flex-col items-end gap-1 sm:w-auto">
+            <p className="text-right text-xs text-muted-foreground max-w-xs">
+              Complete company onboarding first
+            </p>
           </div>
         ) : showEmailControls ? (
           <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:items-end">
@@ -412,6 +424,11 @@ export function DirectorShareholdersUnifiedSection({
                 Send to a different email
               </Button>
             ) : null}
+          </div>
+        ) : completedUx ? (
+          <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
+            <CheckCircleIcon className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+            <span className="text-sm font-medium text-emerald-800 dark:text-emerald-300">Completed</span>
           </div>
         ) : null}
       </div>
@@ -484,6 +501,14 @@ export function DirectorShareholdersUnifiedSection({
         </div>
       </div>
       <div className="p-6 space-y-6">
+        {blockPartyOnboarding ? (
+          <p
+            className="rounded-lg border border-amber-200/80 bg-amber-50/80 px-3 py-2 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
+            role="status"
+          >
+            Complete company onboarding first
+          </p>
+        ) : null}
         {emptyAll ? (
           <p className="text-sm text-muted-foreground text-center py-8">No directors or shareholders listed.</p>
         ) : (
@@ -548,7 +573,12 @@ export function DirectorShareholdersUnifiedSection({
               type="button"
               className="inline-flex items-center gap-2 rounded-lg"
               onClick={() => void commitSend()}
-              disabled={savePending || !confirmRow || !displayEmail(confirmRow).trim()}
+              disabled={
+                savePending ||
+                !confirmRow ||
+                !displayEmail(confirmRow).trim() ||
+                blockPartyOnboarding
+              }
             >
               {savePending ? (
                 <>

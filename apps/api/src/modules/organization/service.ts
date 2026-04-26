@@ -84,6 +84,22 @@ function assertOnboardingEmailMutable(onboarding: Record<string, unknown>): void
   );
 }
 
+function assertOrgOnboardingCompletedForCompanyPartyActions(org: {
+  type: OrganizationType;
+  onboarding_status: OnboardingStatus;
+}): void {
+  if (org.type !== OrganizationType.COMPANY) {
+    return;
+  }
+  if (org.onboarding_status !== OnboardingStatus.COMPLETED) {
+    throw new AppError(
+      400,
+      "ONBOARDING_NOT_COMPLETED",
+      "Please complete company onboarding before onboarding directors or shareholders."
+    );
+  }
+}
+
 function parseSendTimestamps(onboarding: Record<string, unknown>): string[] {
   const raw = onboarding.sendTimestamps;
   if (!Array.isArray(raw)) return [];
@@ -1612,6 +1628,7 @@ export class OrganizationService {
     if (!canManage) {
       throw new AppError(403, "FORBIDDEN", "You do not have permission to update party email");
     }
+    assertOrgOnboardingCompletedForCompanyPartyActions(organization);
     const partyKey = normalizeDirectorShareholderIdKey(input.partyKey);
     if (!partyKey) {
       throw new AppError(400, "VALIDATION_ERROR", "Invalid party key");
@@ -1685,6 +1702,7 @@ export class OrganizationService {
     if (!canManage) {
       throw new AppError(403, "FORBIDDEN", "You do not have permission to send director onboarding");
     }
+    assertOrgOnboardingCompletedForCompanyPartyActions(organization);
 
     const pk = normalizeDirectorShareholderIdKey(input.partyKey);
     if (!pk) {
