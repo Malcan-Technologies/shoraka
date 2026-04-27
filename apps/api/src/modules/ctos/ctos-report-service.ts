@@ -231,6 +231,11 @@ export async function fetchAndInsertCtosReport(
   });
 
   console.log("Inserted CTOS report row:", row.id, "for issuer org:", issuerOrganizationId);
+  console.log("CTOS FINAL OUTPUT TO UI (persisted report row):", {
+    id: row.id,
+    issuer_organization_id: row.issuer_organization_id,
+    fetched_at: row.fetched_at,
+  });
   return row;
 }
 
@@ -295,6 +300,13 @@ export async function fetchAndInsertCtosReportForAdminOrg(
   });
 
   console.log("Inserted CTOS report row:", row.id, "portal:", portal, "org:", organizationId);
+  console.log("CTOS FINAL OUTPUT TO UI (persisted report row):", {
+    id: row.id,
+    portal,
+    organizationId,
+    subject_ref: row.subject_ref,
+    fetched_at: row.fetched_at,
+  });
   return row;
 }
 
@@ -404,6 +416,11 @@ export async function fetchAndInsertCtosSubjectReport(
     "issuer org:",
     issuerOrganizationId
   );
+  console.log("CTOS FINAL OUTPUT TO UI (persisted subject report row):", {
+    id: row.id,
+    subject_ref: row.subject_ref,
+    issuer_organization_id: row.issuer_organization_id,
+  });
   return row;
 }
 
@@ -511,5 +528,11 @@ export async function fetchAndInsertCtosSubjectReportForAdminOrg(
     "org:",
     organizationId
   );
+  console.log("CTOS FINAL OUTPUT TO UI (persisted subject report row):", {
+    id: row.id,
+    subject_ref: row.subject_ref,
+    portal,
+    organizationId,
+  });
   return row;
 }
