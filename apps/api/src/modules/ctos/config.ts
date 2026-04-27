@@ -36,17 +36,6 @@ function readPrivateKeyPem(): string | null {
 }
 
 export function getCtosConfig(): CtosConfig | null {
-  // ===============================
-  // SECTION: CTOS DEBUG LOG
-  // WHY: Track CTOS flow step-by-step (prod vs local issue)
-  // INPUT: request / response / token
-  // OUTPUT: console logs only
-  // WHERE USED: CTOS integration flow
-  // ===============================
-  console.log("CTOS ENV:", process.env.CTOS_ENV);
-  console.log("CTOS BASE URL:", process.env.CTOS_SOAP_URL);
-  console.log("CTOS SSO URL:", process.env.CTOS_TOKEN_URL);
-
   const clientId = process.env.CTOS_CLIENT_ID?.trim();
   const username = process.env.CTOS_USERNAME?.trim();
   const password = process.env.CTOS_PASSWORD?.trim();
@@ -68,7 +57,6 @@ export function getCtosConfig(): CtosConfig | null {
     !userId ||
     !privateKeyPem
   ) {
-    console.log("CTOS CONFIG: incomplete or disabled (one or more required values missing)");
     return null;
   }
 

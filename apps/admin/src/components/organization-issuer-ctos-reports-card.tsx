@@ -29,7 +29,6 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
-import { formatApiErrorMessage } from "@/lib/format-api-error-message";
 import { CTOS_CONFIRM, CTOS_FETCH_BUTTON_CLASSNAME, CTOS_UI } from "@/lib/ctos-ui-labels";
 import {
   ArrowDownTrayIcon,
@@ -74,7 +73,7 @@ export function OrganizationIssuerCtosReportsCard({
     queryFn: async () => {
       const res = await apiClient.listAdminOrganizationCtosReports(portal, organizationId);
       if (!res.success) {
-        throw new Error(formatApiErrorMessage(res.error));
+        throw new Error(res.error.message);
       }
       return res.data;
     },
@@ -85,7 +84,7 @@ export function OrganizationIssuerCtosReportsCard({
     mutationFn: async () => {
       const res = await apiClient.createAdminOrganizationCtosReport(portal, organizationId);
       if (!res.success) {
-        throw new Error(formatApiErrorMessage(res.error));
+        throw new Error(res.error.message);
       }
       return res.data;
     },

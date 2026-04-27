@@ -3,7 +3,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { applicationsKeys } from "@/applications/query-keys";
-import { formatApiErrorMessage } from "@/lib/format-api-error-message";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
@@ -19,7 +18,7 @@ export function useCreateIssuerOrganizationCtosReport(
     mutationFn: async () => {
       const response = await apiClient.createAdminOrganizationCtosReport("issuer", organizationId!);
       if (!response.success) {
-        throw new Error(formatApiErrorMessage(response.error));
+        throw new Error(response.error.message);
       }
       return response.data;
     },
@@ -51,7 +50,7 @@ export function useCreateIssuerOrganizationCtosSubjectReport(
         body
       );
       if (!response.success) {
-        throw new Error(formatApiErrorMessage(response.error));
+        throw new Error(response.error.message);
       }
       return response.data;
     },

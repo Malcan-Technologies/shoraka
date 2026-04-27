@@ -279,14 +279,7 @@ export async function parseCtosReportXml(xmlStr: string): Promise<CtosReportPars
 
   if (!hasEnquiry) {
     const summarySlice = buildSummaryJsonSlice(undefined, enqSum0, null);
-    // ===============================
-    // SECTION: CTOS DEBUG LOG
-    // WHY: Track CTOS flow step-by-step (prod vs local issue)
-    // INPUT: request / response / token
-    // OUTPUT: console logs only
-    // WHERE USED: CTOS integration flow
-    // ===============================
-    const parsedResultNoEnquiry = {
+    return {
       raw_xml: xmlStr,
       summary_json: {
         ...summarySlice,
@@ -337,18 +330,6 @@ export async function parseCtosReportXml(xmlStr: string): Promise<CtosReportPars
       },
       financials_json: [],
     };
-    console.log("CTOS PARSED RESULT:", parsedResultNoEnquiry);
-    {
-      const pe = parsedResultNoEnquiry as unknown as Record<string, unknown>;
-      if (pe.entities) {
-        console.log("CTOS MULTIPLE ENTITIES DETECTED:", pe.entities);
-      }
-    }
-    console.log("CTOS FINAL OUTPUT TO UI (parser, no-enquiry):", {
-      raw_xml_len: parsedResultNoEnquiry.raw_xml.length,
-      has_company_json: Boolean(parsedResultNoEnquiry.company_json),
-    });
-    return parsedResultNoEnquiry;
   }
 
   const summary = (enquiry.section_summary as unknown[] | undefined)?.[0] as Record<string, unknown> | undefined;
@@ -457,14 +438,7 @@ export async function parseCtosReportXml(xmlStr: string): Promise<CtosReportPars
 
   const finalEnquiryError = pickEnquiryError(headerStatus, enqSumStatus, true);
 
-  // ===============================
-  // SECTION: CTOS DEBUG LOG
-  // WHY: Track CTOS flow step-by-step (prod vs local issue)
-  // INPUT: request / response / token
-  // OUTPUT: console logs only
-  // WHERE USED: CTOS integration flow
-  // ===============================
-  const parsedResultFull = {
+  return {
     raw_xml: xmlStr,
     summary_json: {
       ...summarySlice,
@@ -516,23 +490,4 @@ export async function parseCtosReportXml(xmlStr: string): Promise<CtosReportPars
     },
     financials_json: financialsArray,
   };
-  console.log("CTOS PARSED RESULT:", parsedResultFull);
-  {
-    const pe = parsedResultFull as unknown as Record<string, unknown>;
-    if (pe.entities) {
-      console.log("CTOS MULTIPLE ENTITIES DETECTED:", pe.entities);
-    }
-  }
-  if (directors.length > 1) {
-    console.log("CTOS MULTIPLE ENTITIES DETECTED (directors count):", directors.length);
-  }
-  console.log("CTOS FINAL OUTPUT TO UI (parser, full):", {
-    person_json: parsedResultFull.person_json != null,
-    company_name:
-      !isIndividual && parsedResultFull.company_json
-        ? (parsedResultFull.company_json as { name?: unknown }).name
-        : null,
-    financials_json_count: parsedResultFull.financials_json.length,
-  });
-  return parsedResultFull;
 }
