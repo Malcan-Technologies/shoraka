@@ -1,7 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
-  transpilePackages: ['@cashsouk/ui', '@cashsouk/styles', '@cashsouk/types', '@cashsouk/config'],
+  transpilePackages: [
+    '@cashsouk/ui',
+    '@cashsouk/styles',
+    '@cashsouk/types',
+    '@cashsouk/config',
+    '@cashsouk/help-content',
+  ],
   experimental: {
     optimizePackageImports: ['@cashsouk/ui'],
   },

@@ -1,6 +1,5 @@
 "use client";
 
-import * as React from "react";
 import type { DirectorShareholderDisplayRow } from "@cashsouk/types";
 import { getDisplayAmlStatus, regtankDisplayStatusBadgeClass } from "@cashsouk/types";
 import { Badge } from "./badge";

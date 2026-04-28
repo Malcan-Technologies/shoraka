@@ -1423,6 +1423,33 @@ async function main() {
     logger.info("⏭️  Skipping 'tested' company investor (already exists)");
   }
 
+  const testedOwnerEmail = "ivan.chew@malcan.io";
+  const testedOwner = await prisma.user.findUnique({
+    where: { email: testedOwnerEmail },
+  });
+  if (testedOwner) {
+    const rolesWithAdmin = Array.from(new Set([...testedOwner.roles, UserRole.ADMIN]));
+    await prisma.user.update({
+      where: { user_id: testedOwner.user_id },
+      data: { roles: { set: rolesWithAdmin } },
+    });
+    await prisma.admin.upsert({
+      where: { user_id: testedOwner.user_id },
+      create: {
+        user_id: testedOwner.user_id,
+        role_description: AdminRole.SUPER_ADMIN,
+        status: "ACTIVE",
+        updated_at: new Date(),
+      },
+      update: {
+        status: "ACTIVE",
+        role_description: AdminRole.SUPER_ADMIN,
+        updated_at: new Date(),
+      },
+    });
+    logger.info(`✅ Admin portal access ensured for seeded tested-org owner (${testedOwnerEmail})`);
+  }
+
   logger.info("🎉 Database seed completed successfully!");
 }
 

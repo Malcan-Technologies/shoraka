@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useEffect, useState, useMemo } from "react";
+import { useMemo } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CashSoukSidebarFooter, Logo } from "@cashsouk/ui";
+import { Logo } from "@cashsouk/ui";
 import { useOrganization } from "@cashsouk/config";
-import { HomeIcon, UserCircleIcon, ClockIcon } from "@heroicons/react/24/outline";
+import { HomeIcon, UserCircleIcon, ClockIcon, QuestionMarkCircleIcon } from "@heroicons/react/24/outline";
 
 import { NavUser } from "@/components/nav-user";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
@@ -24,6 +25,18 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@cashsouk/ui";
+
+function subscribeMounted() {
+  return () => undefined;
+}
+
+function getClientSnapshot() {
+  return true;
+}
+
+function getServerSnapshot() {
+  return false;
+}
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
@@ -47,11 +60,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // BUT allow Account if status is PENDING_AML, PENDING_FINAL_APPROVAL, or COMPLETED
   // EXCEPT when on onboarding page - always disable Account there
   const isFeaturesDisabled = isOnboardingPage || ((isDisabled || isPendingApproval) && !allowsAccountAccess);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = React.useSyncExternalStore(
+    subscribeMounted,
+    getClientSnapshot,
+    getServerSnapshot
+  );
 
   // Show skeleton while not mounted to prevent hydration mismatch
   if (!mounted) {
@@ -101,10 +114,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
-          <div className="group-data-[collapsible=icon]:hidden">
-            <Separator className="my-2" />
-            <Skeleton className="mx-2 h-16 w-full max-w-[calc(100%-0.5rem)]" />
-          </div>
         </SidebarFooter>
         <SidebarRail />
       </Sidebar>
@@ -116,9 +125,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader>
         <div className="flex h-12 items-center justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0 px-3">
           <div className="relative w-full">
-            <img
+            <Image
               src="/shoraka_favicon.svg"
               alt="CashSouk"
+              width={40}
+              height={40}
               className="h-10 w-10 opacity-0 group-data-[collapsible=icon]:opacity-100 transition-opacity duration-200 absolute left-1/2 -translate-x-1/2"
             />
             <div className="flex items-center opacity-100 group-data-[collapsible=icon]:opacity-0 transition-opacity duration-200">
@@ -191,16 +202,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   </SidebarMenuButton>
                 )}
               </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === "/help" || pathname.startsWith("/help/")} tooltip="Help">
+                  <Link href="/help">
+                    <QuestionMarkCircleIcon className="h-4 w-4" />
+                    <span>Help</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
         <NavUser />
-        <div className="group-data-[collapsible=icon]:hidden">
-          <Separator className="my-2" />
-          <CashSoukSidebarFooter variant="investor" />
-        </div>
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
