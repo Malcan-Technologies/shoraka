@@ -253,7 +253,7 @@ function buildMockOrgCtosReports(application: OnboardingApplicationResponse): Ad
   return [latest, older];
 }
 
-const tableBase = "w-full min-w-[20rem] text-sm";
+const tableBase = "w-full min-w-[20rem] table-fixed text-sm";
 
 /** Same shell for onboarding vs CTOS tables — matches card-in-step pattern from onboarding review. */
 const compareTableWrap = "rounded-lg border border-border bg-card overflow-x-auto shadow-sm";
@@ -366,10 +366,14 @@ function AppDirectorTable({ rows }: { rows: DirectorKycStatus[] }) {
   return (
     <div className={compareTableWrap}>
       <Table className={tableBase}>
+        <colgroup>
+          <col className="w-[62%]" />
+          <col className="w-[38%]" />
+        </colgroup>
         <TableHeader>
           <TableRow className={compareTableHeaderRow}>
-            <TableHead className={compareTh}>Name</TableHead>
-            <TableHead className={compareTh}>IC</TableHead>
+            <TableHead className={cn(compareTh, "w-[62%]")}>Name</TableHead>
+            <TableHead className={cn(compareTh, "w-[38%]")}>IC</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -390,10 +394,14 @@ function CtosDirectorTable({ rows }: { rows: CtosOrgDirectorParsed[] }) {
   return (
     <div className={compareTableWrap}>
       <Table className={tableBase}>
+        <colgroup>
+          <col className="w-[62%]" />
+          <col className="w-[38%]" />
+        </colgroup>
         <TableHeader>
           <TableRow className={compareTableHeaderRow}>
-            <TableHead className={compareTh}>Name</TableHead>
-            <TableHead className={compareTh}>IC</TableHead>
+            <TableHead className={cn(compareTh, "w-[62%]")}>Name</TableHead>
+            <TableHead className={cn(compareTh, "w-[38%]")}>IC</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -414,11 +422,16 @@ function AppShareholderTable({ rows }: { rows: DirectorKycStatus[] }) {
   return (
     <div className={compareTableWrap}>
       <Table className={tableBase}>
+        <colgroup>
+          <col className="w-[50%]" />
+          <col className="w-[35%]" />
+          <col className="w-[15%]" />
+        </colgroup>
         <TableHeader>
           <TableRow className={compareTableHeaderRow}>
-            <TableHead className={compareTh}>Name</TableHead>
-            <TableHead className={compareTh}>IC / SSM</TableHead>
-            <TableHead className={cn(compareTh, "w-24 text-right")}>%</TableHead>
+            <TableHead className={cn(compareTh, "w-[50%]")}>Name</TableHead>
+            <TableHead className={cn(compareTh, "w-[35%]")}>IC / SSM</TableHead>
+            <TableHead className={cn(compareTh, "w-[15%] text-right")}>%</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -442,11 +455,16 @@ function CtosShareholderTable({ rows }: { rows: CtosOrgDirectorParsed[] }) {
   return (
     <div className={compareTableWrap}>
       <Table className={tableBase}>
+        <colgroup>
+          <col className="w-[50%]" />
+          <col className="w-[35%]" />
+          <col className="w-[15%]" />
+        </colgroup>
         <TableHeader>
           <TableRow className={compareTableHeaderRow}>
-            <TableHead className={compareTh}>Name</TableHead>
-            <TableHead className={compareTh}>IC / SSM</TableHead>
-            <TableHead className={cn(compareTh, "w-24 text-right")}>%</TableHead>
+            <TableHead className={cn(compareTh, "w-[50%]")}>Name</TableHead>
+            <TableHead className={cn(compareTh, "w-[35%]")}>IC / SSM</TableHead>
+            <TableHead className={cn(compareTh, "w-[15%] text-right")}>%</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>

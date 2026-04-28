@@ -353,18 +353,23 @@ export function getOnboardingPeopleSplit(application: OnboardingApplicationRespo
   };
 }
 
+/** Company block uses root `ptype` (not row-level `party_type`). */
 function parseCtosNameReg(companyJson: unknown): { ctosName: string | null; ctosReg: string | null } {
   const cj = companyJson as Record<string, unknown> | null | undefined;
   if (!cj || typeof cj !== "object") return { ctosName: null, ctosReg: null };
   const ctosName = cj.name != null ? String(cj.name) : null;
-  const ctosReg =
-    cj.brn_ssm != null
-      ? String(cj.brn_ssm)
-      : cj.nic_brno != null
-        ? String(cj.nic_brno)
-        : cj.ic_lcno != null
-          ? String(cj.ic_lcno)
-          : null;
+  const partyType = String(cj.ptype ?? "").trim().toUpperCase();
+
+  let ctosReg: string | null = null;
+  if (partyType === "C") {
+    const ic = cj.ic_lcno != null ? String(cj.ic_lcno).trim() : "";
+    const brn = cj.brn_ssm != null ? String(cj.brn_ssm).trim() : "";
+    ctosReg = ic || brn || null;
+  } else if (partyType === "I") {
+    const nb = cj.nic_brno != null ? String(cj.nic_brno).trim() : "";
+    ctosReg = nb || null;
+  }
+
   return { ctosName, ctosReg };
 }
 
