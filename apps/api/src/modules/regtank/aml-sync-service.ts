@@ -5,6 +5,7 @@ import { AmlIdentityRepository } from "./aml-identity-repository";
 import { getRegTankAPIClient } from "./api-client";
 import { AMLFetcherService } from "./aml-fetcher";
 import { OrganizationRepository } from "../organization/repository";
+import { mapRegTankKycScreeningStatusToAmlStatus } from "./helpers/regtank-kyc-screening-to-aml-status";
 
 export interface DirectorAMLStatus {
   directors: Array<{
@@ -611,12 +612,7 @@ export class AMLSyncService {
   }
 
   private mapKYCStatusToAML(status: string | undefined): "Unresolved" | "Approved" | "Rejected" | "Pending" {
-    if (!status) return "Pending";
-    const statusUpper = status.toUpperCase();
-    if (statusUpper === "APPROVED" || statusUpper === "RISK ASSESSED") return "Approved";
-    if (statusUpper === "REJECTED") return "Rejected";
-    if (statusUpper === "UNRESOLVED" || statusUpper === "NO_MATCH") return "Unresolved";
-    return "Pending";
+    return mapRegTankKycScreeningStatusToAmlStatus(status);
   }
 
   private mapKYBStatusToAML(status: string | undefined): "Unresolved" | "Approved" | "Rejected" | "Pending" {

@@ -13,6 +13,7 @@ import { maybeAdvanceOrgAfterAmlScreeningCleared } from "./org-aml-milestone";
 import { linkCtosPartyToKyb } from "../../organization/ctos-party-kyb-link";
 import { findCtosPartySupplementByOnboardingJsonMatch } from "../../organization/ctos-party-supplement-webhook-lookup";
 import { updateCtosSupplementNormalizedStatus } from "../helpers/update-ctos-normalized-status";
+import { mapRegTankKycScreeningStatusToAmlStatus } from "../helpers/regtank-kyc-screening-to-aml-status";
 
 /**
  * KYC (Know Your Customer) Webhook Handler
@@ -678,15 +679,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
           );
         }
 
-        // Map RegTank status to our AML status
-        let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
-        if (statusUpper === "APPROVED") {
-          amlStatus = "Approved";
-        } else if (statusUpper === "REJECTED") {
-          amlStatus = "Rejected";
-        } else if (statusUpper === "UNRESOLVED") {
-          amlStatus = "Unresolved";
-        }
+        const amlStatus = mapRegTankKycScreeningStatusToAmlStatus(statusRaw);
 
         // Extract risk score and level from payload
         // Note: riskScore and riskLevel come from the webhook payload

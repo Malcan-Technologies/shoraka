@@ -10,6 +10,7 @@ import { prisma } from "../../../lib/prisma";
 import type { PortalType } from "../types";
 import { OrganizationRepository } from "../../organization/repository";
 import { getRegTankAPIClient } from "../api-client";
+import { mapRegTankKycScreeningStatusToAmlStatus } from "../helpers/regtank-kyc-screening-to-aml-status";
 
 type DirectorKycJsonRow = {
   eodRequestId: string;
@@ -657,16 +658,9 @@ export class EODWebhookHandler extends BaseWebhookHandler {
           const kycStatusResponse = await this.apiClient.queryKYCStatus(finalKycId);
           const kycStatusData = Array.isArray(kycStatusResponse) ? kycStatusResponse[0] : kycStatusResponse;
 
-          // Map RegTank status to our AML status
-          let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
-          const regTankStatus = kycStatusData?.status?.toUpperCase() || "";
-          if (regTankStatus === "APPROVED") {
-            amlStatus = "Approved";
-          } else if (regTankStatus === "REJECTED") {
-            amlStatus = "Rejected";
-          } else if (regTankStatus === "UNRESOLVED") {
-            amlStatus = "Unresolved";
-          }
+          const amlStatus = mapRegTankKycScreeningStatusToAmlStatus(
+            typeof kycStatusData?.status === "string" ? kycStatusData.status : undefined
+          );
 
           // Extract risk score and level
           const individualRiskScore = kycStatusData?.individualRiskScore;
