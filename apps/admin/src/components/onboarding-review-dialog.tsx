@@ -65,13 +65,16 @@ import {
   ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
+import {
+  filterVisiblePeopleRows,
+  formatPeopleRolesLine,
+  type PeopleRolesRowInput,
+} from "@/lib/onboarding-people-display";
 
-type OnboardingPersonRow = {
+type OnboardingPersonRow = PeopleRolesRowInput & {
   matchKey: string;
   name: string | null;
   entityType: "INDIVIDUAL" | "CORPORATE";
-  roles: string[];
-  sharePercentage: number | null;
   status: string;
 };
 
@@ -177,7 +180,7 @@ function OnboardingPeopleReadonlyCards({
       aria-busy={isRefreshing || undefined}
     >
       {rows.map((p) => {
-        const rolesLine = p.roles.map((r) => r.toUpperCase()).join(", ");
+        const rolesLine = formatPeopleRolesLine(p);
         const idLine =
           p.entityType === "CORPORATE" ? `SSM ${p.matchKey}` : `IC ${p.matchKey}`;
 
@@ -250,34 +253,12 @@ export function OnboardingReviewDialog({
 
   const isCompany = application?.type === "COMPANY";
   const peopleRows = application?.people ?? [];
-  const visiblePeopleRows = React.useMemo(() => {
-    return peopleRows
-      .map((p) => {
-        const roles = Array.isArray(p.roles) ? p.roles : [];
-        const hasDirector = roles.includes("DIRECTOR");
-        const hasShareholder = roles.includes("SHAREHOLDER");
-        const sharePct = p.sharePercentage;
-        const shareholderAllowed =
-          !hasShareholder || sharePct === null || typeof sharePct !== "number" || sharePct >= 5;
+  const visiblePeopleRows = React.useMemo(() => filterVisiblePeopleRows(peopleRows), [peopleRows]);
 
-        // If both roles exist and shareholder is under 5%, keep only director role.
-        const nextRoles = roles.filter((role) => {
-          if (role === "DIRECTOR") return true;
-          if (role === "SHAREHOLDER") return shareholderAllowed;
-          return true;
-        });
-
-        // Hide shareholder-only row when known percentage is under 5%.
-        if (!hasDirector && hasShareholder && !shareholderAllowed) return null;
-        if (nextRoles.length === 0) return null;
-
-        return {
-          ...p,
-          roles: nextRoles,
-        };
-      })
-      .filter((p): p is NonNullable<typeof p> => p !== null);
-  }, [peopleRows]);
+  React.useEffect(() => {
+    console.log("Onboarding dialog people[]:", peopleRows);
+    console.log("Onboarding dialog visible people[]:", visiblePeopleRows);
+  }, [peopleRows, visiblePeopleRows]);
 
   const steps = React.useMemo(() => {
     if (!application) return [];

@@ -1,3 +1,5 @@
+import { ctosPositionDirectorShareholderFlags } from "./ctos-position-roles";
+
 /**
  * SECTION: Detect onboarding gaps for CTOS individuals
  * WHY: Show admin what is new, in-progress, or incomplete
@@ -131,9 +133,8 @@ export function extractCtosIndividuals(ctos: unknown): CtosIndividual[] {
   if (!isObject(ctos)) return [];
 
   const individuals: CtosIndividual[] = [];
-  const seen = new Set<string>();
 
-  const addIndividual = (
+  const pushIndividual = (
     person: UnknownRecord,
     name: unknown,
     email: unknown,
@@ -148,8 +149,6 @@ export function extractCtosIndividuals(ctos: unknown): CtosIndividual[] {
         ? normalizeIdValue(asStringOrNull(person.nic_brno) ?? "") ?? ""
         : "";
     if (!matchKey) return;
-    if (seen.has(matchKey)) return;
-    seen.add(matchKey);
     individuals.push({
       matchKey,
       governmentIdNumber,
@@ -164,13 +163,18 @@ export function extractCtosIndividuals(ctos: unknown): CtosIndividual[] {
   const directors = asArray(ctos.directors);
   for (const d of directors) {
     if (!isObject(d)) continue;
-    addIndividual(
-      d,
-      d.name ?? d.fullName ?? d.businessName ?? d.companyName,
-      d.email ?? d.emailAddress,
-      "DIRECTOR",
-      null
-    );
+    const posRaw = asStringOrNull((d as UnknownRecord).position);
+    const { isDirector, isShareholder } = ctosPositionDirectorShareholderFlags(posRaw);
+    const pct = parseCtosEquityPercentage((d as UnknownRecord).equity_percentage);
+    const displayName = d.name ?? d.fullName ?? d.businessName ?? d.companyName;
+    const displayEmail = d.email ?? d.emailAddress;
+
+    if (isDirector) {
+      pushIndividual(d, displayName, displayEmail, "DIRECTOR", null);
+    }
+    if (isShareholder && pct !== null && pct >= 5) {
+      pushIndividual(d, displayName, displayEmail, "SHAREHOLDER", pct);
+    }
   }
 
   const shareholders = asArray(ctos.shareholders);
@@ -180,7 +184,7 @@ export function extractCtosIndividuals(ctos: unknown): CtosIndividual[] {
     if (!shareholderKey) continue;
     const pct = parseCtosEquityPercentage(s.equity_percentage);
     if (pct === null || pct < 5) continue;
-    addIndividual(
+    pushIndividual(
       s,
       s.name ?? s.fullName ?? s.businessName ?? s.companyName,
       s.email ?? s.emailAddress,
@@ -189,6 +193,7 @@ export function extractCtosIndividuals(ctos: unknown): CtosIndividual[] {
     );
   }
 
+  console.log("CTOS people extracted:", individuals);
   return individuals;
 }
 
@@ -246,10 +251,14 @@ export function detectDirectorGaps({ ctos, issuer, supplement }: GapInput): Dete
   const kycIssues: KycIssue[] = [];
   const amlIssues: AmlIssue[] = [];
 
+  const gapProcessedMatchKeys = new Set<string>();
+
   for (const individual of ctosIndividuals) {
     const { matchKey, governmentIdNumber, name, email, type } = individual;
     if (individual.entityType !== "INDIVIDUAL") continue;
     if (!matchKey) continue;
+    if (gapProcessedMatchKeys.has(matchKey)) continue;
+    gapProcessedMatchKeys.add(matchKey);
 
     const issuerEntry = issuerMap.get(matchKey);
     const supplementEntry = supplementMap.get(matchKey);

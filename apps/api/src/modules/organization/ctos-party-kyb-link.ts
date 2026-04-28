@@ -3,6 +3,7 @@ import { normalizeDirectorShareholderIdKey } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
 import { getRegTankAPIClient } from "../regtank/api-client";
+import { ctosPositionDirectorShareholderFlags } from "../regtank/helpers/ctos-position-roles";
 
 type CtosDirectorJson = {
   ic_lcno?: unknown;
@@ -75,17 +76,6 @@ function mergeKeyForCtosRow(r: CtosDirectorJson): string | null {
   return null;
 }
 
-/** DO/AD → director only; SO → shareholder only; DS/AS → both. */
-function ctosDirectorShareholderFlags(position: string | undefined): {
-  isDirector: boolean;
-  isShareholder: boolean;
-} {
-  const pos = String(position ?? "").trim().toUpperCase();
-  const isDirector = ["DO", "AD", "DS", "AS"].includes(pos);
-  const isShareholder = ["SO", "DS", "AS"].includes(pos);
-  return { isDirector, isShareholder };
-}
-
 function findCtosPartyRow(
   companyJson: unknown,
   partyKeyNorm: string | null
@@ -98,7 +88,7 @@ function findCtosPartyRow(
     if (ctosPartyKind(r) === "CORPORATE") continue;
     const mk = mergeKeyForCtosRow(r);
     if (mk !== partyKeyNorm) continue;
-    const { isDirector, isShareholder } = ctosDirectorShareholderFlags(String(r.position ?? ""));
+    const { isDirector, isShareholder } = ctosPositionDirectorShareholderFlags(String(r.position ?? ""));
     if (!isDirector && !isShareholder) {
       logger.warn(
         { partyKeyNorm, position: r.position },

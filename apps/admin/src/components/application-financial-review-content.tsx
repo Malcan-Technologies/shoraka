@@ -29,6 +29,7 @@ import {
   applicationTableWrapperClass,
 } from "@/components/application-review/application-table-styles";
 import { cn } from "@/lib/utils";
+import { filterVisiblePeopleRows, formatPeopleRolesLine } from "@/lib/onboarding-people-display";
 import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
 import { reviewEmptyStateClass } from "@/components/application-review/review-section-styles";
 import { formatCurrency, formatNumber, useAuthToken } from "@cashsouk/config";
@@ -292,6 +293,12 @@ export function ApplicationFinancialReviewContent({
   const hasIssuerFinancialData = Object.keys(unauditedByYear).length > 0;
 
   const peopleRows = React.useMemo(() => app.people ?? [], [app.people]);
+  const visiblePeopleRows = React.useMemo(() => filterVisiblePeopleRows(peopleRows), [peopleRows]);
+
+  React.useEffect(() => {
+    console.log("Application review people[]:", peopleRows);
+    console.log("Application review visible people[]:", visiblePeopleRows);
+  }, [peopleRows, visiblePeopleRows]);
 
   const financialRows: CtosFinRow[] = React.useMemo(() => {
     const raw = app.issuer_organization?.latest_organization_ctos_financials_json;
@@ -896,7 +903,7 @@ export function ApplicationFinancialReviewContent({
       </ReviewFieldBlock>
 
       <ReviewFieldBlock title="Director and Shareholders">
-        {peopleRows.length > 0 ? (
+        {visiblePeopleRows.length > 0 ? (
           <div className={applicationTableWrapperClass}>
             <div className="overflow-x-auto">
             <Table className="min-w-[780px] text-[15px]">
@@ -911,11 +918,11 @@ export function ApplicationFinancialReviewContent({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {peopleRows.map((p) => {
+                {visiblePeopleRows.map((p) => {
                   return (
                     <TableRow key={p.matchKey} className={applicationTableRowClass}>
                       <TableCell className={`${applicationTableCellClass} font-medium`}>{p.name ?? "—"}</TableCell>
-                      <TableCell className={applicationTableCellClass}>{p.roles.join(", ")}</TableCell>
+                      <TableCell className={applicationTableCellClass}>{formatPeopleRolesLine(p)}</TableCell>
                       <TableCell className={applicationTableCellClass}>{p.entityType}</TableCell>
                       <TableCell className={applicationTableCellClass}>{p.sharePercentage ?? "-"}</TableCell>
                       <TableCell className={applicationTableCellClass}>

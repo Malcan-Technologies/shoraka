@@ -255,7 +255,7 @@ export class AdminService {
         existing.name = p.name;
       }
     }
-    return Array.from(peopleMap.values()).map((person) => {
+    const people = Array.from(peopleMap.values()).map((person) => {
       const rawStatus =
         person.entityType === "CORPORATE"
           ? corporateStatusMap.get(person.matchKey) ?? null
@@ -269,6 +269,8 @@ export class AdminService {
         action,
       };
     });
+    console.log("Admin API people[]:", people);
+    return people;
   }
 
   private async sendIssuerNotification<T extends NotificationTypeId>(
