@@ -12,6 +12,7 @@ import { syncApplicationGuarantorsFromRegTankAmlWebhook } from "../../admin/guar
 import { maybeAdvanceOrgAfterAmlScreeningCleared } from "./org-aml-milestone";
 import { linkCtosPartyToKyb } from "../../organization/ctos-party-kyb-link";
 import { findCtosPartySupplementByOnboardingJsonMatch } from "../../organization/ctos-party-supplement-webhook-lookup";
+import { updateCtosSupplementNormalizedStatus } from "../helpers/update-ctos-normalized-status";
 
 /**
  * KYC (Know Your Customer) Webhook Handler
@@ -866,13 +867,14 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
     }
     const regtankStatus = rawStatus;
 
+    const now = new Date().toISOString();
     const kycBlock: Record<string, unknown> = {
       provider: this.kycProviderLabel(),
       requestId,
       rawStatus,
       riskLevel: riskLevel ?? "",
       riskScore: riskScore ?? "",
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
       lastPayload: {},
     };
     if (messageStatus !== undefined && messageStatus !== null && `${messageStatus}`.length > 0) {
@@ -904,13 +906,32 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
         : {};
     const amlBlock = { ...prevAml, ...this.buildCtosPartySupplementAmlBlock(payload) };
 
-    const updated = {
+    const prevKyc =
+      prevRest.kyc && typeof prevRest.kyc === "object" && !Array.isArray(prevRest.kyc)
+        ? { ...(prevRest.kyc as Record<string, unknown>) }
+        : {};
+
+    const updatedBase = {
       ...prevRest,
       regtankStatus,
-      kyc: kycBlock,
+      kyc: {
+        ...prevKyc,
+        ...kycBlock,
+      },
       aml: amlBlock,
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
     };
+    const normalizedUpdated = updateCtosSupplementNormalizedStatus({
+      onboardingJson: updatedBase,
+      status: rawStatus,
+      now,
+      identifiers: {
+        kycId: requestId,
+        eodRequestId: onboardingId?.startsWith("EOD") ? onboardingId : null,
+        email: referenceId?.includes("@") ? referenceId : null,
+      },
+    });
+    const updated = normalizedUpdated;
 
     await prisma.ctosPartySupplement.update({
       where: { id: supplement.id },

@@ -11,6 +11,7 @@ import { NotificationTypeIds } from "../../notification/registry";
 import { prisma } from "../../../lib/prisma";
 import { mapRegtankIndividualLivenessRawToInternalStatus } from "@cashsouk/types";
 import { findCtosPartySupplementByOnboardingJsonMatch } from "../../organization/ctos-party-supplement-webhook-lookup";
+import { updateCtosSupplementNormalizedStatus } from "../helpers/update-ctos-normalized-status";
 
 /**
  * Individual Onboarding Webhook Handler
@@ -459,11 +460,21 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
     const prevRest = { ...prev };
     delete prevRest.status;
 
-    const updated = {
+    const now = new Date().toISOString();
+    const updatedBase = {
       ...prevRest,
       regtankStatus: status,
-      updatedAt: new Date().toISOString(),
+      updatedAt: now,
     };
+    const updated = updateCtosSupplementNormalizedStatus({
+      onboardingJson: updatedBase,
+      status,
+      now,
+      identifiers: {
+        kycId: requestId,
+        email: webhookReferenceId?.includes("@") ? webhookReferenceId : null,
+      },
+    });
 
     await prisma.ctosPartySupplement.update({
       where: { id: supplement.id },
