@@ -1470,7 +1470,8 @@ export class RegTankService {
           if (orgExists) {
             await this.organizationRepository.updateInvestorOrganizationOnboarding(
               organizationId,
-              OnboardingStatus.PENDING_APPROVAL
+              OnboardingStatus.PENDING_APPROVAL,
+              { resetCompanySsmGateFromRegtankWebhook: true }
             );
             logger.info(
               { organizationId, portalType, requestId, status: statusUpper },
@@ -1488,7 +1489,8 @@ export class RegTankService {
           if (orgExists) {
             await this.organizationRepository.updateIssuerOrganizationOnboarding(
               organizationId,
-              OnboardingStatus.PENDING_APPROVAL
+              OnboardingStatus.PENDING_APPROVAL,
+              { resetCompanySsmGateFromRegtankWebhook: true }
             );
             logger.info(
               { organizationId, portalType, requestId, status: statusUpper },
@@ -1752,7 +1754,8 @@ export class RegTankService {
                 const fallbackOrgStatus = OnboardingStatus.PENDING_APPROVAL;
                 await this.organizationRepository.updateInvestorOrganizationOnboarding(
                   organizationId,
-                  fallbackOrgStatus
+                  fallbackOrgStatus,
+                  { resetCompanySsmGateFromRegtankWebhook: true }
                 );
 
                 try {

@@ -348,6 +348,9 @@ export class RegTankDevWebhookHandler {
               data: {
                 onboarding_status: nextStatus,
                 onboarding_approved: false,
+                ...(nextStatus === OnboardingStatus.PENDING_APPROVAL && {
+                  ssm_approved: false,
+                }),
               },
             });
             logger.info(

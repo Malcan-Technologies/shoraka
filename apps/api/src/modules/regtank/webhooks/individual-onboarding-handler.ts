@@ -100,7 +100,8 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
             const previousStatus = orgExists.onboarding_status;
             await this.organizationRepository.updateInvestorOrganizationOnboarding(
               organizationId,
-              OnboardingStatus.PENDING_APPROVAL
+              OnboardingStatus.PENDING_APPROVAL,
+              { resetCompanySsmGateFromRegtankWebhook: true }
             );
 
             // Create onboarding log - FORM_FILLED when form is completed
@@ -143,7 +144,8 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
             const previousStatus = orgExists.onboarding_status;
             await this.organizationRepository.updateIssuerOrganizationOnboarding(
               organizationId,
-              OnboardingStatus.PENDING_APPROVAL
+              OnboardingStatus.PENDING_APPROVAL,
+              { resetCompanySsmGateFromRegtankWebhook: true }
             );
 
             // Create onboarding status updated log
@@ -203,7 +205,8 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
             const previousStatus = orgExists.onboarding_status;
             await this.organizationRepository.updateInvestorOrganizationOnboarding(
               organizationId,
-              OnboardingStatus.PENDING_APPROVAL
+              OnboardingStatus.PENDING_APPROVAL,
+              { resetCompanySsmGateFromRegtankWebhook: true }
             );
 
             // Create onboarding status updated log
@@ -246,7 +249,8 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
             const previousStatus = orgExists.onboarding_status;
             await this.organizationRepository.updateIssuerOrganizationOnboarding(
               organizationId,
-              OnboardingStatus.PENDING_APPROVAL
+              OnboardingStatus.PENDING_APPROVAL,
+              { resetCompanySsmGateFromRegtankWebhook: true }
             );
 
             // Create onboarding status updated log
