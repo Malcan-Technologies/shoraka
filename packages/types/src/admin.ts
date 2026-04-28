@@ -736,6 +736,14 @@ export interface OnboardingApplicationResponse {
   /** Latest org-level CTOS `company_json` (subject_ref null); enables CTOS-backed unified KYC/AML in admin onboarding dialog. */
   latestOrganizationCtosCompanyJson?: unknown | null;
   ctosPartySupplements?: OnboardingApplicationCtosPartySupplement[] | null;
+  people?: Array<{
+    matchKey: string;
+    name: string | null;
+    role: "DIRECTOR" | "SHAREHOLDER";
+    sharePercentage: number | null;
+    status: "NEW_REQUIRED" | "IN_PROGRESS" | "KYC_INCOMPLETE" | "AML_INCOMPLETE" | "APPROVED";
+    action: "SEND_EMAIL" | null;
+  }>;
 }
 
 export interface GetOnboardingApplicationsParams extends PaginationParams {

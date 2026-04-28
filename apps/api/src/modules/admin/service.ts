@@ -73,6 +73,10 @@ import { AMLFetcherService } from "../regtank/aml-fetcher";
 import type { PortalType } from "../regtank/types";
 import { extractCorporateEntities } from "../regtank/helpers/extract-corporate-entities";
 import { extractGovernmentIdFromCorporateUserInfo } from "../regtank/helpers/extract-government-id";
+import {
+  detectDirectorGaps,
+  extractCtosIndividuals,
+} from "../regtank/helpers/detect-director-gaps";
 import { logApplicationActivity } from "../applications/logs/service";
 import { ActivityPortal } from "../applications/logs/types";
 
@@ -2239,7 +2243,67 @@ export class AdminService {
     if (!refreshed) {
       return null;
     }
-    return this.mapToOnboardingApplicationResponse(refreshed);
+    const existingResponse = this.mapToOnboardingApplicationResponse(refreshed);
+    const ctos = existingResponse.latestOrganizationCtosCompanyJson;
+    const ctosSafe =
+      ctos && typeof ctos === "object"
+        ? {
+            ...(ctos as Record<string, unknown>),
+            directors: Array.isArray((ctos as { directors?: unknown }).directors)
+              ? (ctos as { directors?: unknown[] }).directors
+              : [],
+            shareholders: Array.isArray((ctos as { shareholders?: unknown }).shareholders)
+              ? (ctos as { shareholders?: unknown[] }).shareholders
+              : [],
+          }
+        : null;
+    if (!ctosSafe) {
+      return { ...existingResponse, people: [] };
+    }
+
+    const issuer = {
+      director_kyc_status: refreshed.issuer_organization?.director_kyc_status ?? null,
+      director_aml_status: refreshed.issuer_organization?.director_aml_status ?? null,
+    };
+    const supplement = refreshed.issuer_organization?.ctos_party_supplements?.[0] ?? null;
+    const gaps = detectDirectorGaps({ ctos: ctosSafe, issuer, supplement });
+    type PeopleStatus =
+      | "NEW_REQUIRED"
+      | "IN_PROGRESS"
+      | "KYC_INCOMPLETE"
+      | "AML_INCOMPLETE"
+      | "APPROVED";
+    const gapMap = new Map<string, Exclude<PeopleStatus, "APPROVED">>();
+    gaps.amlIssues.forEach((x) => gapMap.set(x.matchKey, "AML_INCOMPLETE"));
+    gaps.kycIssues.forEach((x) => gapMap.set(x.matchKey, "KYC_INCOMPLETE"));
+    gaps.inProgress.forEach((x) => gapMap.set(x.matchKey, "IN_PROGRESS"));
+    gaps.newRequired.forEach((x) => gapMap.set(x.matchKey, "NEW_REQUIRED"));
+
+    const ctosPeople = extractCtosIndividuals(ctosSafe);
+    const seen = new Set<string>();
+    const people = ctosPeople
+      .filter((p) => {
+        if (typeof p.matchKey !== "string") return false;
+        if (!p.matchKey || seen.has(p.matchKey)) return false;
+        seen.add(p.matchKey);
+        return true;
+      })
+      .map((p) => {
+        const raw = gapMap.get(p.matchKey);
+        const status: PeopleStatus = raw ?? "APPROVED";
+        const role = p.type === "DIRECTOR" || p.type === "SHAREHOLDER" ? p.type : "DIRECTOR";
+        const action: "SEND_EMAIL" | null = status === "NEW_REQUIRED" ? "SEND_EMAIL" : null;
+        return {
+          matchKey: p.matchKey,
+          name: p.name,
+          role,
+          sharePercentage: typeof p.sharePercentage === "number" ? p.sharePercentage : null,
+          status,
+          action,
+        };
+      });
+
+    return { ...existingResponse, people };
   }
 
   /**

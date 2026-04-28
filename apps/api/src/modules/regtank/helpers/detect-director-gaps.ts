@@ -21,6 +21,7 @@ type CtosIndividual = {
   name: string | null;
   email: string | null;
   type: CtosIndividualType;
+  sharePercentage: number | null;
 };
 
 type NewRequiredIssue = {
@@ -75,15 +76,6 @@ function asStringOrNull(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function asNumberOrNull(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim()) {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-}
-
 function normalizeId(id?: string | null): string | null {
   if (!id || typeof id !== "string") return null;
   const normalized = id.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
@@ -98,7 +90,7 @@ function getCtosPersonId(x: unknown): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
-function extractCtosIndividuals(ctos: unknown): CtosIndividual[] {
+export function extractCtosIndividuals(ctos: unknown): CtosIndividual[] {
   if (!isObject(ctos)) return [];
 
   const individuals: CtosIndividual[] = [];
@@ -108,7 +100,8 @@ function extractCtosIndividuals(ctos: unknown): CtosIndividual[] {
     person: UnknownRecord,
     name: unknown,
     email: unknown,
-    type: CtosIndividualType
+    type: CtosIndividualType,
+    sharePercentage: number | null
   ): void => {
     const matchKey = getCtosPersonId(person);
     const governmentIdNumber = asStringOrNull(person.nic_brno) ?? asStringOrNull(person.ic_lcno);
@@ -121,6 +114,7 @@ function extractCtosIndividuals(ctos: unknown): CtosIndividual[] {
       name: asStringOrNull(name),
       email: asStringOrNull(email),
       type,
+      sharePercentage,
     });
   };
 
@@ -131,22 +125,26 @@ function extractCtosIndividuals(ctos: unknown): CtosIndividual[] {
       d,
       d.name ?? d.fullName,
       d.email ?? d.emailAddress,
-      "DIRECTOR"
+      "DIRECTOR",
+      typeof d.equity_percentage === "number" ? d.equity_percentage : null
     );
   }
 
   const shareholders = asArray(ctos.shareholders);
   for (const s of shareholders) {
     if (!isObject(s)) continue;
-    const sharePercentage = asNumberOrNull(
-      s.sharePercentage ?? s.share_percentage ?? s.percentage ?? s.sharesPercentage
-    );
-    if (sharePercentage === null || sharePercentage < 5) continue;
+    const pctFromSharePercentage =
+      typeof s.sharePercentage === "number" ? s.sharePercentage : null;
+    const pctFromEquityPercentage =
+      typeof s.equity_percentage === "number" ? s.equity_percentage : null;
+    const pct = pctFromSharePercentage ?? pctFromEquityPercentage;
+    if (pct === null || pct < 5) continue;
     addIndividual(
       s,
       s.name ?? s.fullName,
       s.email ?? s.emailAddress,
-      "SHAREHOLDER"
+      "SHAREHOLDER",
+      pct
     );
   }
 
