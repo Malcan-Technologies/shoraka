@@ -44,8 +44,7 @@ import {
   useRefreshCorporateAmlStatus,
 } from "@/hooks/use-onboarding-applications";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getDirectorShareholderDisplayRows, type OnboardingApprovalStatus } from "@cashsouk/types";
-import { UnifiedKycAmlReadonlyRows } from "@cashsouk/ui";
+import { type OnboardingApprovalStatus } from "@cashsouk/types";
 import {
   UserIcon,
   EnvelopeIcon,
@@ -102,18 +101,7 @@ export function OnboardingReviewDialog({
   }, [application]);
 
   const isCompany = application?.type === "COMPANY";
-
-  const corporateUnifiedRows = React.useMemo(() => {
-    if (!application || application.type !== "COMPANY") return [];
-    return getDirectorShareholderDisplayRows({
-      corporateEntities: application.corporateEntities ?? null,
-      directorKycStatus: application.directorKycStatus ?? null,
-      directorAmlStatus: application.directorAmlStatus ?? null,
-      organizationCtosCompanyJson: application.latestOrganizationCtosCompanyJson ?? null,
-      ctosPartySupplements: application.ctosPartySupplements ?? null,
-      sentRowIds: null,
-    });
-  }, [application]);
+  const peopleRows = application?.people ?? [];
 
   const steps = React.useMemo(() => {
     if (!application) return [];
@@ -380,8 +368,8 @@ export function OnboardingReviewDialog({
                 Open Onboarding Review
               </Button>
 
-              {/* Director / shareholder / corporate KYC (unified system truth) */}
-              {isCompany && corporateUnifiedRows.length > 0 && (
+              {/* Director / shareholder list from backend people[] */}
+              {isCompany && peopleRows.length > 0 && (
                 <>
                   <Separator />
                   <div className="space-y-3">
@@ -399,12 +387,38 @@ export function OnboardingReviewDialog({
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <UnifiedKycAmlReadonlyRows
-                      rows={corporateUnifiedRows}
-                      showKycColumn
-                      showAmlColumn={false}
-                      isRefreshing={refreshCorporateMutation.isPending}
-                    />
+                    <div className="overflow-x-auto rounded-lg border border-border">
+                      <table className="w-full min-w-[640px] text-sm">
+                        <thead className="bg-muted/40">
+                          <tr className="border-b border-border">
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Name</th>
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Roles</th>
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Type</th>
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Share %</th>
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Status</th>
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {peopleRows.map((p) => (
+                            <tr key={p.matchKey} className="border-b border-border/80 last:border-0">
+                              <td className="px-3 py-2 text-foreground">{p.name ?? "-"}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{p.roles.join(", ")}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{p.entityType}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{p.sharePercentage ?? "-"}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{p.status}</td>
+                              <td className="px-3 py-2">
+                                {p.entityType === "INDIVIDUAL" && p.status === "NEW REQUIRED" ? (
+                                  <Button variant="secondary" size="sm">
+                                    Send Email
+                                  </Button>
+                                ) : null}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </>
               )}
@@ -506,8 +520,8 @@ export function OnboardingReviewDialog({
                 {isCompany ? "Open KYB/AML Review" : "Open KYC/AML Review"}
               </Button>
               
-              {/* AML (unified: individuals + corporate shareholders) */}
-              {isCompany && corporateUnifiedRows.length > 0 && (
+              {/* Director / shareholder list from backend people[] */}
+              {isCompany && peopleRows.length > 0 && (
                 <>
                   <Separator />
                   <div className="space-y-3">
@@ -526,12 +540,38 @@ export function OnboardingReviewDialog({
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <UnifiedKycAmlReadonlyRows
-                      rows={corporateUnifiedRows}
-                      showKycColumn={false}
-                      showAmlColumn
-                      isRefreshing={refreshCorporateAmlMutation.isPending}
-                    />
+                    <div className="overflow-x-auto rounded-lg border border-border">
+                      <table className="w-full min-w-[640px] text-sm">
+                        <thead className="bg-muted/40">
+                          <tr className="border-b border-border">
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Name</th>
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Roles</th>
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Type</th>
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Share %</th>
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Status</th>
+                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {peopleRows.map((p) => (
+                            <tr key={p.matchKey} className="border-b border-border/80 last:border-0">
+                              <td className="px-3 py-2 text-foreground">{p.name ?? "-"}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{p.roles.join(", ")}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{p.entityType}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{p.sharePercentage ?? "-"}</td>
+                              <td className="px-3 py-2 text-muted-foreground">{p.status}</td>
+                              <td className="px-3 py-2">
+                                {p.entityType === "INDIVIDUAL" && p.status === "NEW REQUIRED" ? (
+                                  <Button variant="secondary" size="sm">
+                                    Send Email
+                                  </Button>
+                                ) : null}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </>
               )}

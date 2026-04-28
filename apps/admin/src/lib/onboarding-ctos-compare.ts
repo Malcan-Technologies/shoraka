@@ -20,11 +20,36 @@ export type OnboardingCtosOrgFetchState = "not_pulled" | "no_record" | "ready";
 export interface CtosOrgDirectorParsed {
   ic_lcno: string | null;
   nic_brno: string | null;
+  brn_ssm: string | null;
   name: string | null;
   position: string | null;
   equity_percentage: number | null;
   equity: number | null;
   party_type: string | null;
+}
+
+function getCtosId(x: unknown): string | null {
+  if (!x || typeof x !== "object") return null;
+  const row = x as Record<string, unknown>;
+  const partyType = typeof row.party_type === "string" ? row.party_type.trim().toUpperCase() : "";
+  if (partyType === "I") {
+    const id = row.nic_brno;
+    if (typeof id === "string" && id.trim()) {
+      return id.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+    }
+    return null;
+  }
+  if (partyType === "C") {
+    const id =
+      typeof row.ic_lcno === "string" && row.ic_lcno.trim()
+        ? row.ic_lcno
+        : row.brn_ssm;
+    if (typeof id === "string" && id.trim()) {
+      return id.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+    }
+    return null;
+  }
+  return null;
 }
 
 export interface OnboardingCompanyTable {
@@ -68,9 +93,7 @@ function isCtosShareholderTableRow(code: string): boolean {
 }
 
 export function primaryCtosIdFromDirectorRow(r: CtosOrgDirectorParsed): string {
-  const a = r.nic_brno != null ? String(r.nic_brno).trim() : "";
-  const b = r.ic_lcno != null ? String(r.ic_lcno).trim() : "";
-  return a || b;
+  return getCtosId(r) ?? "";
 }
 
 export function displayIdFromApp(governmentId: string | null | undefined): string | null {
@@ -93,6 +116,7 @@ function extractCtosOrgDirectorsFromCompanyJson(companyJson: unknown): CtosOrgDi
     out.push({
       ic_lcno: x.ic_lcno != null ? String(x.ic_lcno) : null,
       nic_brno: x.nic_brno != null ? String(x.nic_brno) : null,
+      brn_ssm: x.brn_ssm != null ? String(x.brn_ssm) : null,
       name: x.name != null ? String(x.name) : null,
       position: x.position != null ? String(x.position) : null,
       equity_percentage: typeof x.equity_percentage === "number" ? x.equity_percentage : null,
@@ -222,6 +246,24 @@ function corpShareholderBrn(corp: Record<string, unknown>): string | undefined {
   return undefined;
 }
 
+function corpShareholderPct(corp: Record<string, unknown>): number | null {
+  const formContent = corp.formContent as Record<string, unknown> | undefined;
+  const displayAreas = Array.isArray(formContent?.displayAreas) ? formContent.displayAreas : [];
+  for (const area of displayAreas) {
+    const content = Array.isArray((area as Record<string, unknown>)?.content)
+      ? ((area as Record<string, unknown>).content as Array<{ fieldName?: string; fieldValue?: string }>)
+      : [];
+    const pctField = content.find((f) => f.fieldName === "% of Shares");
+    if (!pctField?.fieldValue) continue;
+    const pct =
+      typeof pctField.fieldValue === "string"
+        ? Number(pctField.fieldValue)
+        : pctField.fieldValue;
+    if (typeof pct === "number" && Number.isFinite(pct)) return pct;
+  }
+  return null;
+}
+
 function corporateEntitiesHasPeople(
   ce: NonNullable<OnboardingApplicationResponse["corporateEntities"]>
 ): boolean {
@@ -269,6 +311,8 @@ function directorKycRowsFromCorporateEntities(
   }
   for (const c of ce.corporateShareholders ?? []) {
     const corp = c as Record<string, unknown>;
+    const pct = corpShareholderPct(corp);
+    if (pct === null || pct < 5) continue;
     const codRequestId = String(
       (corp.corporateOnboardingRequest as Record<string, unknown> | undefined)?.requestId ??
         corp.requestId ??
@@ -278,7 +322,7 @@ function directorKycRowsFromCorporateEntities(
       eodRequestId: codRequestId || `ce-corp-${idx++}`,
       name: corpShareholderName(corp),
       email: "",
-      role: "Corporate Shareholder",
+      role: `Corporate Shareholder (${pct}%)`,
       kycStatus: "APPROVED",
       governmentIdNumber: corpShareholderBrn(corp),
       lastUpdated: new Date(0).toISOString(),
@@ -340,9 +384,8 @@ export function companyJsonReadyForCtosCompare(companyJson: unknown): boolean {
   return Array.isArray(cj.directors) && cj.directors.length > 0;
 }
 
-/** Parse % from role like "Shareholder (35%)". Invalid → 0. Corporate without % → 100 (keep visible). */
+/** Parse % from role like "Shareholder (35%)". Invalid → 0. */
 export function shareholderPctFromAppRole(role: string): number {
-  if (/corporate\s*shareholder/i.test(role)) return 100;
   const m = /\(\s*([\d.]+%?)\s*\)/.exec(role);
   if (!m) return 0;
   const n = parseFloat(String(m[1]).replace("%", ""));

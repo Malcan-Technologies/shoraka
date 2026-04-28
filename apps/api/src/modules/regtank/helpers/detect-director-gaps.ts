@@ -84,24 +84,32 @@ function normalizeId(id?: string | null): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
-function getCtosPersonId(x: unknown): string | null {
+function getCtosId(x: unknown): string | null {
   if (!isObject(x)) return null;
-  const raw = x.nic_brno || x.ic_lcno || null;
-  if (!raw || typeof raw !== "string") return null;
-  const normalized = raw.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
-  return normalized.length > 0 ? normalized : null;
+  const partyType = typeof x.party_type === "string" ? x.party_type.trim().toUpperCase() : "";
+  if (partyType === "I") {
+    const id = x.nic_brno;
+    if (typeof id !== "string" || !id.trim()) return null;
+    const normalized = id.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+    return normalized.length > 0 ? normalized : null;
+  }
+  if (partyType === "C") {
+    const id = typeof x.ic_lcno === "string" && x.ic_lcno.trim() ? x.ic_lcno : x.brn_ssm;
+    if (typeof id !== "string" || !id.trim()) return null;
+    const normalized = id.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+    return normalized.length > 0 ? normalized : null;
+  }
+  return null;
 }
 
-function getCtosCorporateId(x: unknown): string | null {
-  if (!isObject(x)) return null;
-  const raw =
-    x.businessNumber ||
-    x.registrationNumber ||
-    x.brn_ssm ||
-    x.ic_lcno ||
-    x.additional_registration_no ||
-    null;
-  if (!raw || typeof raw !== "string") return null;
+function getCtosEntityType(x: UnknownRecord): CtosEntityType | null {
+  const partyType = typeof x.party_type === "string" ? x.party_type.trim().toUpperCase() : "";
+  if (partyType === "I") return "INDIVIDUAL";
+  if (partyType === "C") return "CORPORATE";
+  return null;
+}
+
+function normalizeIdValue(raw: string): string | null {
   const normalized = raw.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
   return normalized.length > 0 ? normalized : null;
 }
@@ -128,11 +136,13 @@ export function extractCtosIndividuals(ctos: unknown): CtosIndividual[] {
     type: CtosIndividualType,
     sharePercentage: number | null
   ): void => {
-    const personId = getCtosPersonId(person);
-    const corporateId = getCtosCorporateId(person);
-    const entityType: CtosEntityType = personId ? "INDIVIDUAL" : "CORPORATE";
-    const matchKey = personId ?? corporateId;
-    const governmentIdNumber = asStringOrNull(person.nic_brno) ?? asStringOrNull(person.ic_lcno) ?? "";
+    const entityType = getCtosEntityType(person);
+    if (!entityType) return;
+    const matchKey = getCtosId(person);
+    const governmentIdNumber =
+      entityType === "INDIVIDUAL"
+        ? normalizeIdValue(asStringOrNull(person.nic_brno) ?? "") ?? ""
+        : "";
     if (!matchKey) return;
     if (seen.has(matchKey)) return;
     seen.add(matchKey);
