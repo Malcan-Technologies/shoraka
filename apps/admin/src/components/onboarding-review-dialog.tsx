@@ -102,6 +102,34 @@ export function OnboardingReviewDialog({
 
   const isCompany = application?.type === "COMPANY";
   const peopleRows = application?.people ?? [];
+  const visiblePeopleRows = React.useMemo(() => {
+    return peopleRows
+      .map((p) => {
+        const roles = Array.isArray(p.roles) ? p.roles : [];
+        const hasDirector = roles.includes("DIRECTOR");
+        const hasShareholder = roles.includes("SHAREHOLDER");
+        const sharePct = p.sharePercentage;
+        const shareholderAllowed =
+          !hasShareholder || sharePct === null || typeof sharePct !== "number" || sharePct >= 5;
+
+        // If both roles exist and shareholder is under 5%, keep only director role.
+        const nextRoles = roles.filter((role) => {
+          if (role === "DIRECTOR") return true;
+          if (role === "SHAREHOLDER") return shareholderAllowed;
+          return true;
+        });
+
+        // Hide shareholder-only row when known percentage is under 5%.
+        if (!hasDirector && hasShareholder && !shareholderAllowed) return null;
+        if (nextRoles.length === 0) return null;
+
+        return {
+          ...p,
+          roles: nextRoles,
+        };
+      })
+      .filter((p): p is NonNullable<typeof p> => p !== null);
+  }, [peopleRows]);
 
   const steps = React.useMemo(() => {
     if (!application) return [];
@@ -199,7 +227,7 @@ export function OnboardingReviewDialog({
   const handleCombinedRefresh = async () => {
     if (!application) return;
     if (isCompany) {
-      if (application.onboardingStatus === "PENDING_APPROVAL" && application.directorKycStatus) {
+      if (application.onboardingStatus === "PENDING_APPROVAL") {
         try {
           await refreshCorporateMutation.mutateAsync(onboardingId);
           toast.success("Director KYC statuses refreshed");
@@ -209,7 +237,7 @@ export function OnboardingReviewDialog({
           });
         }
       }
-      if (application.onboardingStatus === "PENDING_AML" && application.directorAmlStatus) {
+      if (application.onboardingStatus === "PENDING_AML") {
         try {
           await refreshCorporateAmlMutation.mutateAsync(onboardingId);
           toast.success("Director AML statuses refreshed");
@@ -369,7 +397,7 @@ export function OnboardingReviewDialog({
               </Button>
 
               {/* Director / shareholder list from backend people[] */}
-              {isCompany && peopleRows.length > 0 && (
+              {isCompany && visiblePeopleRows.length > 0 && (
                 <>
                   <Separator />
                   <div className="space-y-3">
@@ -400,15 +428,19 @@ export function OnboardingReviewDialog({
                           </tr>
                         </thead>
                         <tbody>
-                          {peopleRows.map((p) => (
+                          {visiblePeopleRows.map((p) => (
                             <tr key={p.matchKey} className="border-b border-border/80 last:border-0">
                               <td className="px-3 py-2 text-foreground">{p.name ?? "-"}</td>
                               <td className="px-3 py-2 text-muted-foreground">{p.roles.join(", ")}</td>
                               <td className="px-3 py-2 text-muted-foreground">{p.entityType}</td>
-                              <td className="px-3 py-2 text-muted-foreground">{p.sharePercentage ?? "-"}</td>
+                              <td className="px-3 py-2 text-muted-foreground">
+                                {typeof p.sharePercentage === "number" ? p.sharePercentage : "—"}
+                              </td>
                               <td className="px-3 py-2 text-muted-foreground">{p.status}</td>
                               <td className="px-3 py-2">
-                                {p.entityType === "INDIVIDUAL" && p.status === "NEW REQUIRED" ? (
+                                {application.portal === "issuer" &&
+                                p.entityType === "INDIVIDUAL" &&
+                                p.status === "NEW REQUIRED" ? (
                                   <Button variant="secondary" size="sm">
                                     Send Email
                                   </Button>
@@ -521,7 +553,7 @@ export function OnboardingReviewDialog({
               </Button>
               
               {/* Director / shareholder list from backend people[] */}
-              {isCompany && peopleRows.length > 0 && (
+              {isCompany && visiblePeopleRows.length > 0 && (
                 <>
                   <Separator />
                   <div className="space-y-3">
@@ -553,15 +585,19 @@ export function OnboardingReviewDialog({
                           </tr>
                         </thead>
                         <tbody>
-                          {peopleRows.map((p) => (
+                          {visiblePeopleRows.map((p) => (
                             <tr key={p.matchKey} className="border-b border-border/80 last:border-0">
                               <td className="px-3 py-2 text-foreground">{p.name ?? "-"}</td>
                               <td className="px-3 py-2 text-muted-foreground">{p.roles.join(", ")}</td>
                               <td className="px-3 py-2 text-muted-foreground">{p.entityType}</td>
-                              <td className="px-3 py-2 text-muted-foreground">{p.sharePercentage ?? "-"}</td>
+                              <td className="px-3 py-2 text-muted-foreground">
+                                {typeof p.sharePercentage === "number" ? p.sharePercentage : "—"}
+                              </td>
                               <td className="px-3 py-2 text-muted-foreground">{p.status}</td>
                               <td className="px-3 py-2">
-                                {p.entityType === "INDIVIDUAL" && p.status === "NEW REQUIRED" ? (
+                                {application.portal === "issuer" &&
+                                p.entityType === "INDIVIDUAL" &&
+                                p.status === "NEW REQUIRED" ? (
                                   <Button variant="secondary" size="sm">
                                     Send Email
                                   </Button>
