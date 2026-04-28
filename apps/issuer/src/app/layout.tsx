@@ -3,7 +3,7 @@ import { Inter } from "next/font/google";
 import "@cashsouk/styles/globals.css";
 import "./globals.css";
 import { AppSidebar } from "../components/app-sidebar";
-import { SidebarInset, SidebarProvider, Header } from "@cashsouk/ui";
+import { CashSoukPortalFooter, Header, SidebarInset, SidebarProvider } from "@cashsouk/ui";
 import { Toaster } from "../components/ui/sonner";
 import { Providers } from "../lib/providers";
 import { AuthGuard } from "../components/auth-guard";
@@ -32,7 +32,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <AppSidebar />
               <SidebarInset className="min-w-0 overflow-x-hidden">
                 <Header />
-                {children}
+                <div className="flex min-h-0 flex-1 flex-col">{children}</div>
+                <CashSoukPortalFooter variant="issuer" />
               </SidebarInset>
             </SidebarProvider>
             <Toaster />

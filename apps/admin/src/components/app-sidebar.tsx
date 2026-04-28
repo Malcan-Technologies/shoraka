@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CashSoukSidebarFooter, Logo } from "@cashsouk/ui";
@@ -18,6 +19,7 @@ import {
   FolderOpenIcon,
   DocumentDuplicateIcon,
   CubeIcon,
+  QuestionMarkCircleIcon,
 } from "@heroicons/react/24/outline";
 
 import { NavUser } from "@/components/nav-user";
@@ -150,6 +152,11 @@ const navPlatform = [
     icon: DocumentDuplicateIcon,
   },
   {
+    title: "Help",
+    url: "/help",
+    icon: QuestionMarkCircleIcon,
+  },
+  {
     title: "Settings",
     url: "#",
     icon: Cog6ToothIcon,
@@ -201,9 +208,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader>
         <div className="flex h-12 items-center justify-center group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:pt-0 px-3">
           <div className="relative w-full">
-            <img
+            <Image
               src="/shoraka_favicon.svg"
               alt="CashSouk"
+              width={40}
+              height={40}
               className="h-10 w-10 opacity-0 group-data-[collapsible=icon]:opacity-100 transition-opacity duration-200 absolute left-1/2 -translate-x-1/2"
             />
             <div className="flex items-center opacity-100 group-data-[collapsible=icon]:opacity-0 transition-opacity duration-200">

@@ -111,7 +111,18 @@ export {
 } from "./components/select";
 export { Header } from "./components/header";
 export { HeaderProvider, useHeader } from "./components/header-provider";
-export { CashSoukSidebarFooter, type SidebarFooterVariant } from "./cashsouk-sidebar-footer";
+export {
+  CashSoukPortalFooter,
+  CashSoukSidebarFooter,
+  type PortalFooterVariant,
+  type SidebarFooterVariant,
+} from "./cashsouk-sidebar-footer";
+export {
+  HelpArticleView,
+  HelpIndexView,
+  type HelpArticleSummaryViewModel,
+  type HelpArticleViewModel,
+} from "./help";
 export {
   Sidebar,
   SidebarContent,
