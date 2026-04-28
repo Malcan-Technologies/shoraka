@@ -46,6 +46,13 @@ export class CODWebhookHandler extends BaseWebhookHandler {
 
   protected async handle(payload: RegTankCODWebhook): Promise<void> {
     const { requestId, status, isPrimary, corpIndvDirectors, corpIndvShareholders, corpBizShareholders, kybId } = payload;
+    if (typeof status !== "string" || !status) {
+      logger.warn(
+        { requestId },
+        "[COD Webhook] Missing status in webhook payload, skipping persistence safely"
+      );
+      return;
+    }
 
     // Find onboarding record
     const onboarding = await this.repository.findByRequestId(requestId);

@@ -50,6 +50,19 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
       blacklistedMatchCount,
       onboardingId,
     } = payload;
+    const statusRaw = typeof status === "string" ? status : null;
+    if (!statusRaw) {
+      logger.warn(
+        {
+          kybRequestId: requestId,
+          referenceId,
+          onboardingId,
+        },
+        "[KYB Webhook] Missing status in webhook payload, skipping persistence safely"
+      );
+      return;
+    }
+    const statusUpper = statusRaw.toUpperCase();
 
     logger.info(
       {
@@ -135,7 +148,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
       const guarantorRows = await syncApplicationGuarantorsFromRegTankAmlWebhook({
         requestId,
         referenceId,
-        status,
+        status: statusRaw,
         messageStatus,
         riskScore,
         riskLevel,
@@ -200,8 +213,12 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
         "[KYB Webhook] ✓ Successfully processed and linked to onboarding record"
       );
 
-      // Handle KYB approval for corporate onboarding — next org status depends on CTOS (SSM) already done
-      const statusUpper = status?.toUpperCase();
+      // Always persist raw status first
+      await this.repository.updateStatus(onboarding.request_id, {
+        status: statusRaw,
+      });
+
+      // Handle KYB approval side effects — next org status depends on CTOS (SSM) already done
       const organizationId = onboarding.investor_organization_id || onboarding.issuer_organization_id;
       const portalType = onboarding.portal_type as PortalType;
       const isCorporateOnboarding = onboarding.onboarding_type === "CORPORATE";
@@ -339,6 +356,8 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
    */
   private async handleBusinessShareholderKYB(payload: RegTankKYBWebhook): Promise<void> {
     const { requestId: kybId, onboardingId, status, riskScore, riskLevel, messageStatus } = payload;
+    const statusRaw = typeof status === "string" ? status : "";
+    const statusUpper = statusRaw.toUpperCase();
 
     // If onboardingId is provided, it must be a COD for business shareholders
     // If not provided, we'll search by kybId
@@ -446,7 +465,6 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
 
         // Map status
         let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
-        const statusUpper = status?.toUpperCase() || "";
         if (statusUpper === "RISK ASSESSED" || statusUpper === "APPROVED") {
           amlStatus = "Approved";
         } else if (statusUpper === "REJECTED") {
@@ -483,6 +501,7 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
           businessName,
           sharePercentage: sharePercentage ? parseFloat(sharePercentage) : null,
           amlStatus,
+          rawStatus: statusRaw,
           amlMessageStatus: messageStatus || "PENDING",
           amlRiskScore: riskScore ? parseFloat(String(riskScore)) : null,
           amlRiskLevel: riskLevel || null,

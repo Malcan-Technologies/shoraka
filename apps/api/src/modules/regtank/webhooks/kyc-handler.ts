@@ -50,6 +50,19 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
       blacklistedMatchCount,
       onboardingId,
     } = payload;
+    const statusRaw = typeof status === "string" ? status : null;
+    if (!statusRaw) {
+      logger.warn(
+        {
+          kycRequestId: requestId,
+          referenceId,
+          onboardingId,
+        },
+        "[KYC Webhook] Missing status in webhook payload, skipping persistence safely"
+      );
+      return;
+    }
+    const statusUpper = statusRaw.toUpperCase();
 
     logger.info(
       {
@@ -190,7 +203,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
       const guarantorRows = await syncApplicationGuarantorsFromRegTankAmlWebhook({
         requestId,
         referenceId,
-        status,
+        status: statusRaw,
         messageStatus,
         riskScore,
         riskLevel,
@@ -360,8 +373,12 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
       }
     }
 
-    // Handle KYC approval - update regtank_onboarding status and organization aml_approved flag
-    const statusUpper = status?.toUpperCase();
+    // Always persist raw status first
+    await this.repository.updateStatus(onboarding.request_id, {
+      status: statusRaw,
+    });
+
+    // Handle KYC approval side effects (unchanged behavior)
     const organizationId = onboarding.investor_organization_id || onboarding.issuer_organization_id;
     const portalType = onboarding.portal_type;
 
@@ -379,19 +396,14 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
           "[KYC Webhook] Processing KYC approval - updating regtank_onboarding status and storing KYC payload (org step admin-driven)"
         );
 
-        // Update regtank_onboarding.status to APPROVED
-        await this.repository.updateStatus(onboarding.request_id, {
-          status: "APPROVED",
-        });
-
         logger.info(
           {
             kycRequestId: requestId,
             onboardingRequestId: onboarding.request_id,
             previousRegTankStatus: onboarding.status,
-            newRegTankStatus: "APPROVED",
+            newRegTankStatus: statusRaw,
           },
-          "[KYC Webhook] ✓ Updated regtank_onboarding.status to APPROVED"
+          "[KYC Webhook] ✓ Stored raw KYC webhook status before approval side effects"
         );
 
         if (portalType === "investor" && onboarding.investor_organization_id) {
@@ -793,9 +805,8 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
       "aml_screening_status",
     ]);
     const msg = typeof messageStatus === "string" ? messageStatus.trim() : "";
-    const st = typeof status === "string" ? status.trim() : "";
-    const combined = (explicitAml || msg || st).toUpperCase();
-    const rawStatus = combined.length > 0 ? combined : "PENDING";
+    const st = typeof status === "string" ? status : "";
+    const rawStatus = st || explicitAml || msg || "PENDING";
 
     const aml: Record<string, unknown> = {
       provider: this.kycProviderLabel(),
@@ -840,17 +851,20 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
         ? { ...(supplement.onboarding_json as Record<string, unknown>) }
         : {};
 
-    const rawStatus = (status || "").toUpperCase();
-    const prevRt =
-      typeof prev.regtankStatus === "string" && prev.regtankStatus.trim()
-        ? prev.regtankStatus.trim()
-        : "";
-    const regtankStatus =
-      rawStatus === "APPROVED"
-        ? "APPROVED"
-        : rawStatus === "REJECTED" || rawStatus === "FAILED"
-          ? "REJECTED"
-          : prevRt || "PENDING_AML";
+    const rawStatus = typeof status === "string" ? status : "";
+    if (!rawStatus) {
+      logger.warn(
+        {
+          requestId,
+          onboardingId,
+          referenceId,
+          partyKey: supplement.party_key,
+        },
+        "CTOS party KYC webhook missing status, skipping supplement persistence safely"
+      );
+      return true;
+    }
+    const regtankStatus = rawStatus;
 
     const kycBlock: Record<string, unknown> = {
       provider: this.kycProviderLabel(),

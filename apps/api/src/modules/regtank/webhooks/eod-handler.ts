@@ -38,6 +38,14 @@ export class EODWebhookHandler extends BaseWebhookHandler {
 
   protected async handle(payload: RegTankEODWebhook): Promise<void> {
     const { requestId: eodRequestId, status, confidence, kycId } = payload;
+    const statusRaw = typeof status === "string" ? status : null;
+    if (!statusRaw) {
+      logger.warn(
+        { eodRequestId },
+        "[EOD Webhook] Missing status in webhook payload, skipping persistence safely"
+      );
+      return;
+    }
 
     // EOD requestId is for individual entities (directors/shareholders), not the company
     // The main onboarding record stores COD requestId, not EOD requestId
@@ -131,7 +139,7 @@ export class EODWebhookHandler extends BaseWebhookHandler {
     // The COD onboarding record status is updated by COD webhooks, not EOD webhooks
     // We only store the EOD webhook payload in the COD onboarding record's webhook_payloads array
 
-    const statusUpper = status.toUpperCase();
+    const statusUpper = statusRaw.toUpperCase();
 
     logger.info(
       {
@@ -201,17 +209,7 @@ export class EODWebhookHandler extends BaseWebhookHandler {
       try {
         const portalType = onboarding.portal_type as PortalType;
 
-        // Map EOD status to KYC status
-        let kycStatus = "PENDING";
-        if (statusUpper === "LIVENESS_STARTED") {
-          kycStatus = "LIVENESS_STARTED";
-        } else if (statusUpper === "WAIT_FOR_APPROVAL") {
-          kycStatus = "WAIT_FOR_APPROVAL";
-        } else if (statusUpper === "APPROVED") {
-          kycStatus = "APPROVED";
-        } else if (statusUpper === "REJECTED") {
-          kycStatus = "REJECTED";
-        }
+        const kycStatus = statusRaw;
 
         if (portalType === "investor") {
           const org = await this.organizationRepository.findInvestorOrganizationById(organizationId);

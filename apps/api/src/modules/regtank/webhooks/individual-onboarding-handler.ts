@@ -39,6 +39,13 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
 
   protected async handle(payload: RegTankIndividualOnboardingWebhook): Promise<void> {
     const { requestId, status } = payload;
+    if (typeof status !== "string" || !status) {
+      logger.warn(
+        { requestId },
+        "[Individual Webhook] Missing status in webhook payload, skipping persistence safely"
+      );
+      return;
+    }
 
     // Find onboarding record
     const onboarding = await this.repository.findByRequestId(requestId);
