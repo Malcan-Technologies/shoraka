@@ -1,6 +1,12 @@
+const path = require("path");
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
+  outputFileTracingRoot: path.join(__dirname, "../.."),
+  outputFileTracingIncludes: {
+    "/*": ["../../docs/help/**/*.md"],
+  },
   transpilePackages: [
     "@cashsouk/ui",
     "@cashsouk/styles",

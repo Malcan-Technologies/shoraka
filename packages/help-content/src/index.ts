@@ -48,7 +48,22 @@ function getWorkspaceRoot() {
 }
 
 function getHelpDirectory() {
-  return path.join(getWorkspaceRoot(), ...HELP_DIRECTORY);
+  const candidates = [
+    path.join(getWorkspaceRoot(), ...HELP_DIRECTORY),
+    path.join(process.cwd(), ...HELP_DIRECTORY),
+    path.join(process.cwd(), "..", ...HELP_DIRECTORY),
+    path.join(process.cwd(), "..", "..", ...HELP_DIRECTORY),
+  ];
+  const seen = new Set<string>();
+
+  for (const candidate of candidates) {
+    const resolved = path.resolve(candidate);
+    if (seen.has(resolved)) continue;
+    seen.add(resolved);
+    if (fs.existsSync(resolved)) return resolved;
+  }
+
+  return path.resolve(candidates[0] ?? path.join(process.cwd(), ...HELP_DIRECTORY));
 }
 
 function parseTags(value: unknown) {
