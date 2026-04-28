@@ -131,7 +131,7 @@ function renderCorporateRow(row: DirectorShareholderDisplayRow) {
         <p className="font-medium text-sm">{row.name}</p>
         {ssm ? <p className="text-xs text-muted-foreground mt-1">SSM {ssm}</p> : null}
         <p className="text-xs text-muted-foreground mt-1">
-          {row.ownershipDisplay?.trim() ? row.ownershipDisplay : row.role}
+          {row.role?.trim() ? row.role : "Corporate Shareholder"}
         </p>
         <div className="mt-1 flex flex-wrap flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">

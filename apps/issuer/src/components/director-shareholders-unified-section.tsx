@@ -44,7 +44,7 @@ export interface DirectorShareholdersUnifiedSectionProps {
   people: ApplicationPersonRow[];
   ctosPartySupplements?: { partyKey: string; onboardingJson?: unknown }[] | null;
   className?: string;
-  /** Highlight rows with Not Started KYC or empty email (issuer profile). */
+  /** Marks rows needing email/KYC with `data-action-required` (no colored row chrome). */
   highlightActionRequiredRows?: boolean;
   /** After navigation from company details; focuses first visible empty email field. */
   autoFocusFirstEmptyEmail?: boolean;
@@ -348,23 +348,19 @@ export function DirectorShareholdersUnifiedSection({
     const kycEligible = isCtosIndividualKycEligibleRow(row);
     const showEmailControls = kycEligible && !approvalLocked && !blockPartyOnboarding;
     const needsAction = kycEligible && rowNeedsProfileAction(row, em) && !linkSent;
-    const rowHighlight =
+    const showActionCue =
       highlightActionRequiredRows && kycEligible && !completedUx && !linkSent && needsAction;
     const rowSentVisual =
-      linkSent &&
-      "border-sky-300/80 bg-sky-50/70 ring-1 ring-sky-200/80 dark:border-sky-800 dark:bg-sky-950/25 dark:ring-sky-900/50";
+      linkSent && "border-border bg-muted/50 ring-1 ring-border/80";
     const rowCompleteVisual =
-      !linkSent &&
-      completedUx &&
-      "border-emerald-300/80 bg-emerald-50/70 ring-1 ring-emerald-200/80 dark:border-emerald-800 dark:bg-emerald-950/25 dark:ring-emerald-900/50";
+      !linkSent && completedUx && "border-primary/25 bg-primary/5 ring-1 ring-primary/20";
 
     return (
       <div
         key={row.id}
+        data-action-required={showActionCue ? "true" : undefined}
         className={cn(
-          "flex flex-col gap-3 p-4 rounded-lg border bg-muted/30 sm:flex-row sm:items-start sm:justify-between",
-          rowHighlight &&
-            "border-amber-300/90 bg-amber-50/80 ring-1 ring-amber-200/90 dark:border-amber-800 dark:bg-amber-950/30 dark:ring-amber-900/60",
+          "flex flex-col gap-3 p-4 rounded-lg border border-border bg-muted/30 sm:flex-row sm:items-start sm:justify-between",
           rowSentVisual,
           rowCompleteVisual
         )}
@@ -381,9 +377,6 @@ export function DirectorShareholdersUnifiedSection({
           </p>
           <p className="text-xs text-muted-foreground mt-1">{em.trim() ? em : "—"}</p>
           <p className="text-xs text-muted-foreground mt-1">{personRoleDisplayLabel(row)}</p>
-          {row.ownershipDisplay?.trim() ? (
-            <p className="text-xs text-muted-foreground mt-1">{row.ownershipDisplay}</p>
-          ) : null}
           <div className="mt-1 flex flex-wrap flex-col gap-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-muted-foreground">KYC</span>
@@ -402,7 +395,7 @@ export function DirectorShareholdersUnifiedSection({
             <p className="text-xs text-muted-foreground mt-1">Latest request ID: {latestRequestId}</p>
           ) : null}
           {showEmailControls && latestRequestId ? (
-            <p className="text-xs text-amber-700 dark:text-amber-300 mt-2">
+            <p className="text-xs text-muted-foreground mt-2">
               This will restart onboarding and discard previous progress.
             </p>
           ) : null}
@@ -415,8 +408,8 @@ export function DirectorShareholdersUnifiedSection({
           </div>
         ) : approvalLocked ? (
           <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
-            <CheckCircleIcon className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
-            <span className="text-sm font-medium text-emerald-800 dark:text-emerald-300">KYC approved</span>
+            <CheckCircleIcon className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+            <span className="text-sm font-medium text-foreground">KYC approved</span>
           </div>
         ) : showEmailControls ? (
           <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:items-end">
@@ -432,7 +425,7 @@ export function DirectorShareholdersUnifiedSection({
             <Button
               type="button"
               size="sm"
-              variant="secondary"
+              variant="default"
               className="w-full gap-2 rounded-xl sm:w-auto"
               disabled={savePending || !em.trim()}
               onClick={() => setConfirmRow(row)}
@@ -473,8 +466,8 @@ export function DirectorShareholdersUnifiedSection({
           </div>
         ) : completedUx ? (
           <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
-            <CheckCircleIcon className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
-            <span className="text-sm font-medium text-emerald-800 dark:text-emerald-300">Completed</span>
+            <CheckCircleIcon className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+            <span className="text-sm font-medium text-foreground">Completed</span>
           </div>
         ) : null}
       </div>
@@ -486,18 +479,13 @@ export function DirectorShareholdersUnifiedSection({
     const linkSent = onboardingLinkSentForRow(row);
     const kycUi = ctosKycStatusUiFromRow(row);
     const completedUx = isRowCompleteForUi(row, persistedEmail, persistedEmail, sentRowIds);
-    const rowSentVisual =
-      linkSent &&
-      "border-sky-300/80 bg-sky-50/70 ring-1 ring-sky-200/80 dark:border-sky-800 dark:bg-sky-950/25 dark:ring-sky-900/50";
-    const rowCompleteVisual =
-      !linkSent &&
-      completedUx &&
-      "border-emerald-300/80 bg-emerald-50/70 ring-1 ring-emerald-200/80 dark:border-emerald-800 dark:bg-emerald-950/25 dark:ring-emerald-900/50";
+    const rowSentVisual = linkSent && "border-border bg-muted/50 ring-1 ring-border/80";
+    const rowCompleteVisual = !linkSent && completedUx && "border-primary/25 bg-primary/5 ring-1 ring-primary/20";
     return (
       <div
         key={row.id}
         className={cn(
-          "flex flex-col gap-3 p-4 rounded-lg border bg-muted/30 sm:flex-row sm:items-center sm:justify-between",
+          "flex flex-col gap-3 p-4 rounded-lg border border-border bg-muted/30 sm:flex-row sm:items-center sm:justify-between",
           rowSentVisual,
           rowCompleteVisual
         )}
@@ -508,7 +496,7 @@ export function DirectorShareholdersUnifiedSection({
             <p className="text-xs text-muted-foreground mt-1">SSM {row.registrationNumber}</p>
           ) : null}
           <p className="text-xs text-muted-foreground mt-1">
-            {row.ownershipDisplay?.trim() ? row.ownershipDisplay : "Shareholder"}
+            {row.role?.trim() ? row.role : "Corporate Shareholder"}
           </p>
           <div className="mt-1 flex flex-wrap flex-col gap-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -527,8 +515,8 @@ export function DirectorShareholdersUnifiedSection({
         </div>
         {linkSent ? null : completedUx ? (
           <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">
-            <CheckCircleIcon className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
-            <span className="text-sm font-medium text-emerald-800 dark:text-emerald-300">Completed</span>
+            <CheckCircleIcon className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+            <span className="text-sm font-medium text-foreground">Completed</span>
           </div>
         ) : null}
       </div>
@@ -549,7 +537,7 @@ export function DirectorShareholdersUnifiedSection({
       <div className="p-6 space-y-6">
         {blockPartyOnboarding ? (
           <p
-            className="rounded-lg border border-amber-200/80 bg-amber-50/80 px-3 py-2 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100"
+            className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground"
             role="status"
           >
             Complete company onboarding first
