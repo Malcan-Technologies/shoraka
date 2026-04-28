@@ -21,7 +21,7 @@ The product money-flow diagrams separate issuer-side fees from note servicing fl
 Issuer onboarding fee flow:
 
 1. SME/issuer starts sign-in or onboarding.
-2. Issuer onboarding fee is paid to CashSouk.
+2. Issuer pays the RM 150 onboarding fee before the onboarding flow starts.
 3. CashSouk records the fee in the Operating Account.
 4. The onboarding process runs eKYC/KYB.
 5. The onboarding outcome is either successful or rejected.
@@ -30,7 +30,7 @@ Note issuance or financing request processing fee flow:
 
 1. Onboarded SME/issuer creates a draft note or financing application.
 2. Issuer submits the financing request.
-3. Financing processing fee is paid to CashSouk.
+3. Issuer pays the RM 50 application fee at submission.
 4. CashSouk records the fee in the Operating Account.
 5. Application is accepted for review and eventual listing if approved.
 
@@ -38,7 +38,9 @@ Implementation implication:
 
 - These fees are separate from investor funding, paymaster repayment, service fee, ta'widh, and gharamah flows.
 - Current codebase has onboarding and application workflows, but there is not yet a dedicated financial ledger for these fee movements.
+- The RM 50 application fee is a future implementation item and should be enabled after the payment gateway is ready.
 - Future implementation should avoid mixing issuer application fees with note repayment ledger entries.
+- The application fee should be visible in admin finance/audit context as an issuer-paid Operating Account movement tied to the submitted application.
 
 ## Main Code Paths
 

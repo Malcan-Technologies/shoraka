@@ -44,6 +44,7 @@
     "date-fns": "^4.1.0",
     "dompurify": "^3.3.3",
     "lucide-react": "^0.554.0",
+    "mermaid": "^11.14.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "react-markdown": "^10.1.0",

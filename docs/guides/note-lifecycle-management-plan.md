@@ -1,6 +1,6 @@
 # Note Lifecycle Management Plan
 
-This document proposes the future note lifecycle from the point where a completed issuer application becomes an investable note. It covers marketplace listing, investor funding, admin controls, repayments, late payments, partial and advance payments, paymaster refunds, ledger requirements, and implementation phases.
+This document proposes the future note lifecycle from the point where a completed issuer application becomes an investable note. It covers marketplace listing, investor funding, admin controls, repayments, late payments, partial and advance payments, issuer residual returns, ledger requirements, and implementation phases.
 
 ## Scope
 
@@ -13,11 +13,14 @@ In scope:
 - Investor marketplace listing and investment commitments.
 - Successful funding threshold at 80% or more of target funding.
 - Paymaster repayment handling for invoice/contract financing, using the existing customer/paymaster data captured during issuer origination.
+- Issuer payment on behalf of paymaster, likely initiated from the issuer portal and reconciled by admin.
 - Investor settlement.
-- Platform fee handling.
-- Refund to paymaster when funding percentage is below 100%.
+- Platform fee deducted at disbursement, capped at 3% per note.
+- Customer-specific service fee deducted at repayment from investor profit before investor distribution, standard up to 15% of profit.
+- Residual repayment balance returned to the issuer when funding percentage is below 100%.
 - Late payment calculations borne by the issuer.
 - Late payment split into ta'widh and gharamah accounts for Syariah compliance.
+- Arrears, default, and withdrawal letter PDF generation.
 - Ledger, audit, reconciliation, and reporting foundations.
 
 Out of scope for the first implementation pass unless explicitly added:
@@ -118,30 +121,38 @@ High-level pools and accounts:
 - `Ta'widh Account` receives the late payment fee component, if applicable.
 - `Gharamah Account` receives the penalty charge component, if applicable.
 
+These five buckets are the platform-level accounting model for the first note implementation. Product/application fees from issuers also go to the Operating Account, even though the current money-flow chart only shows investor and repayment movements.
+
 Proposed money movement:
 
 1. Investor deposits enter the Investor Pool.
-2. Platform fee can move from the Investor Pool or funding workflow into the Operating Account, depending on final fee policy.
-3. Successful note disbursement moves funded capital from the Investor Pool to the SME/issuer.
-4. The buyer/paymaster pays financing repayment into the Repayment Pool.
-5. The Repayment Pool distributes investor principal plus profit/return back into the Investor Pool.
-6. Service fee moves from the Repayment Pool to the Operating Account.
-7. Late payment fee, if any, moves from the Repayment Pool or issuer receivable workflow into the Ta'widh Account.
-8. Penalty charge, if any, moves into the Gharamah Account.
-9. Investor withdrawals move available investor balance out of the Investor Pool.
+2. Platform fee is deducted at disbursement and moves from the funded amount to the Operating Account, capped at 3%.
+3. Successful note disbursement moves net funded capital from the Investor Pool to the SME/issuer.
+4. The buyer/paymaster pays financing repayment into the Repayment Pool. If needed, the issuer can pay into the Repayment Pool on behalf of the paymaster.
+5. Service fee is deducted from investor profit/return in the Repayment Pool, based on the customer-specific setting and capped at the agreed rate.
+6. The Repayment Pool distributes investor principal plus net profit/return back into the Investor Pool.
+7. Service fee moves from the Repayment Pool to the Operating Account.
+8. Late payment fee, if any, moves from the Repayment Pool or issuer receivable workflow into the Ta'widh Account.
+9. Penalty charge, if any, moves into the Gharamah Account.
+10. Any residual repayment balance for the unfunded portion of the invoice/contract is returned to the issuer.
+11. Investor withdrawals move available investor balance out of the Investor Pool.
 
 Implementation implication:
 
 - These pools/accounts should map to ledger accounts in `NoteAccount` and immutable postings in `NoteLedgerEntry`.
 - The UI can show note status, but finance operations should be driven by balanced ledger movements between pools/accounts.
 - Late payment servicing must keep ta'widh and gharamah separate from platform operating income.
-- If the paymaster repayment exceeds what is needed for investor principal, investor return, fees, and late charges, the remaining balance is payable/refundable according to the note terms and final product policy.
+- Late fees are borne by the issuer, but they are deducted from the repayment proceeds before the issuer residual is returned.
+- If the paymaster repayment exceeds what is needed for investor principal, investor profit, service fee, and approved late charges, the remaining balance is payable back to the issuer as the unfunded residual.
+- Example: if a note is 60% funded and the paymaster repays 100%, investors receive the funded 60% principal plus net profit on that funded portion, and the issuer receives the remaining 40% less approved late fees, service fee, and investor profit.
+- Investor deposit already has a placeholder in the investor onboarding flow; the note implementation should wire that placeholder into the Investor Pool ledger.
+- Any withdrawal from a platform pool should generate a PDF template letter with withdrawal details for manual trustee submission.
 
 ## Perspective Overview
 
 ### Investor
 
-The investor deposits funds into the Investor Pool, browses marketplace notes, commits an investment amount, and waits for the note to reach the successful funding threshold. After the note is activated and later repaid by the paymaster, the investor receives principal plus agreed profit/return back into the Investor Pool. The investor can then withdraw available balance.
+The investor deposits funds into the Investor Pool, browses marketplace notes, commits an investment amount, and waits for the note to reach the successful funding threshold. After the note is activated and later repaid by the paymaster or by the issuer on behalf of the paymaster, the investor receives principal plus agreed profit/return back into the Investor Pool. The investor can then withdraw available balance.
 
 Investor-facing controls should show:
 
@@ -164,11 +175,12 @@ Issuer-facing controls should show:
 - offer status,
 - note listing/funding status after acceptance,
 - disbursement status,
+- option to submit repayment on behalf of the paymaster,
 - late payment obligations where applicable.
 
 ### Paymaster
 
-The paymaster is the buyer/customer/obligor from the source invoice or contract. This data already exists in origination as customer/paymaster details. The paymaster does not fund the note; the paymaster repays the financing obligation into the Repayment Pool when the invoice/contract is due.
+The paymaster is the buyer/customer/obligor from the source invoice or contract. This data already exists in origination as customer/paymaster details. The paymaster does not fund the note; the paymaster repays the financing obligation into the Repayment Pool when the invoice/contract is due. If the paymaster does not pay directly, the issuer may pay on behalf of the paymaster through the issuer portal, while admin still tracks the source obligation as paymaster-linked.
 
 Paymaster-related admin data should show:
 
@@ -176,8 +188,9 @@ Paymaster-related admin data should show:
 - invoice or contract obligation,
 - due date,
 - repayment receipt status,
+- repayment source, either paymaster direct or issuer on behalf of paymaster,
 - partial or full payment history,
-- refund/payable balance if applicable.
+- issuer residual/payable balance if applicable.
 
 ### Admin
 
@@ -187,6 +200,9 @@ Admin controls should cover:
 
 - note creation from completed applications,
 - source data validation and snapshot,
+- platform fee review at disbursement,
+- customer-specific service fee review,
+- global late-charge setting review,
 - marketplace publishing,
 - funding close/fail/extension,
 - disbursement confirmation,
@@ -195,7 +211,8 @@ Admin controls should cover:
 - ta'widh and gharamah split approval,
 - service fee and platform fee posting,
 - investor settlement,
-- paymaster refund/payable workflow,
+- issuer residual payable workflow,
+- withdrawal PDF letter generation for trustee submission,
 - audit trail and ledger export.
 
 ## Proposed End-to-End Flow
@@ -213,8 +230,8 @@ flowchart TD
   repaymentDue --> paymentReceived["Payment received"]
   paymentReceived --> reconcile["Admin reconciliation"]
   reconcile --> settleInvestors["Settle investors"]
-  settleInvestors --> refundPaymaster["Refund paymaster balance if applicable"]
-  refundPaymaster --> closeNote["Close note"]
+  settleInvestors --> issuerResidual["Return issuer residual if applicable"]
+  issuerResidual --> closeNote["Close note"]
   repaymentDue --> latePayment["Late payment"]
   latePayment --> lateSplit["Split late charge into ta'widh and gharamah"]
   lateSplit --> reconcile
@@ -301,6 +318,8 @@ Core origination linkage:
   - `expected_profit_rate_percent`
   - `platform_fee_amount`
   - `platform_fee_rate_percent`
+  - `service_fee_rate_percent`
+  - `service_fee_customer_scope`
   - `issue_date`
   - `maturity_date`
   - `payment_due_date`
@@ -344,12 +363,12 @@ Servicing and repayment:
   - due dates and expected receivable amounts.
 
 - `NotePayment`
-  - payment receipts from paymaster.
+  - payment receipts from paymaster or issuer-on-behalf-of-paymaster.
   - supports full, partial, and advance payments.
-  - stores bank reference, received date, value date, amount, method, and reconciliation state.
+  - stores bank reference, received date, value date, amount, method, payment source, payer organization, payer user, and reconciliation state.
 
 - `NoteSettlement`
-  - settlement batch for investor principal/profit, platform fee, paymaster refund, ta'widh, and gharamah.
+  - settlement batch for investor principal/profit, platform fee, service fee, issuer residual payable, ta'widh, and gharamah.
 
 Ledger:
 
@@ -359,7 +378,22 @@ Ledger:
   - include debit/credit account, counterparty, source event, and idempotency key.
 
 - `NoteAccount`
-  - logical accounts such as investor payable, platform fee income, paymaster refund payable, ta'widh compensation, and gharamah charity.
+  - logical accounts such as investor payable, platform fee income, service fee income, issuer residual payable, ta'widh compensation, and gharamah charity.
+
+- `PlatformFinanceSetting`
+  - global settings for grace period, ta'widh default/cap, gharamah default/cap, arrears threshold, and manual default marking controls.
+  - default grace period should be 7 days after due date.
+  - ta'widh should be manually set when repayment funds are received, with a configurable default and cap of 1% per annum.
+  - gharamah should be manually set when repayment funds are received, with a configurable default and cap of 9% per annum.
+  - default ta'widh and gharamah values should be suggested when funds are received, then reviewed and adjusted by admin before posting.
+  - default arrears threshold should be 14 days after the grace period.
+  - default should be manually marked by admin after a note has entered arrears.
+  - these settings affect all products unless a future product override model is explicitly approved.
+
+- `WithdrawalInstruction`
+  - stores withdrawal requests from investor or platform pools.
+  - generates a PDF template letter containing beneficiary, amount, source pool, reason, trustee submission details, maker/checker approvals, and audit metadata.
+  - supports manual submission to the trustee before marking the withdrawal as completed.
 
 Audit:
 
@@ -381,6 +415,19 @@ Recommended amount fields:
 - Store percentages as decimal columns with enough precision, for example `numeric(9,6)`.
 - Round only at posting boundaries, not during intermediate calculations.
 
+Global settings:
+
+- Platform fee should not be a global setting. It is set per note at disbursement and capped at 3%.
+- Service fee should not be a global setting. It is determined per customer/note and deducted from investor profit when paymaster repayment is received, with a standard cap up to 15% of profit.
+- Grace period should be configurable in the admin portal as a global platform setting, with an initial default of 7 days.
+- Ta'widh and gharamah defaults should be configurable in the admin portal and suggested when payment is received.
+- Ta'widh should be manually set by admin at receipt time and capped at 1% per annum.
+- Gharamah should be manually set by admin at receipt time and capped at 9% per annum.
+- Late fees should be calculated and applied only when repayment funds are received. Do not accrue or post late fees through a daily cron job.
+- Arrears threshold should be configurable in the admin portal, defaulting to 14 days after the grace period. With the default 7-day grace period, arrears starts 21 days after the missed payment date.
+- Default should not be automatic. Admin can manually mark the note as default any time after it is already in arrears.
+- Every setting change should be audited with before/after values, actor, timestamp, IP address, user agent, and correlation ID.
+
 ## Funding Rules
 
 Definitions:
@@ -401,43 +448,99 @@ Rules:
 - Funding below 80% at close should either fail, extend, or require explicit admin override depending on product rules.
 - Investor allocations must be locked before note activation.
 - If funding fails, confirmed investor funds must be refunded or released according to the payment rail model.
+- If a note is funded below 100%, only the funded portion is disbursed from the Investor Pool to the issuer at note activation.
+- Platform fee is deducted at disbursement from the funded amount before the issuer receives net proceeds.
+- When the paymaster later repays the full invoice/contract amount, the Repayment Pool must return the unfunded residual balance to the issuer after investor settlement, service fee, and any approved late charges.
 
-## Paymaster Repayment and Refund Logic
+## Paymaster Repayment and Issuer Residual Logic
 
 Paymaster repayment assumption:
 
 - Paymaster means the existing customer/obligor from the source contract or invoice, not a newly-entered party.
-- Paymaster repays the invoice/contract financing obligation in full.
-- If investor funding is below 100%, the unfunded balance exists as surplus after investor and platform obligations are satisfied.
-- The balance, less applicable platform fee, is refunded to the paymaster.
+- Paymaster repays the invoice/contract financing obligation in full, unless the issuer pays on behalf of the paymaster.
+- Issuer-on-behalf-of-paymaster payments should settle the same note obligation but must preserve the true payment source for audit, reconciliation, and reporting.
+- If investor funding is below 100%, the unfunded balance remains payable to the issuer because the issuer owns the receivable.
+- The residual balance, less applicable service fee and approved issuer-borne late charges, is returned to the issuer from the Repayment Pool. Platform fee has already been deducted at disbursement.
 
 Proposed settlement waterfall:
 
 1. Record paymaster receipt.
-2. Match receipt to note and payment schedule.
-3. Allocate investor principal repayment based on confirmed investment allocations.
-4. Allocate investor profit according to accepted note terms.
-5. Allocate platform fee.
-6. Allocate late charges if applicable.
-7. Allocate paymaster refund for surplus caused by funding below 100%.
-8. Post ledger entries.
-9. Mark settlement as approved and posted.
+2. Or record issuer-on-behalf-of-paymaster receipt submitted through the issuer portal.
+3. Match receipt to note and payment schedule.
+4. Allocate investor principal repayment based on confirmed investment allocations.
+5. Calculate gross investor profit according to accepted note terms.
+6. Deduct customer-specific service fee from gross investor profit, capped at the configured note/customer rate and standard maximum of 15% of profit.
+7. Allocate investor net profit.
+8. Allocate late charges if applicable.
+9. Allocate issuer residual payable for the unfunded portion.
+10. Post ledger entries.
+11. Mark settlement as approved and posted.
 
 Formula baseline:
 
 - `funding_gap_amount = funding_target_amount - funded_amount`
+- `platform_fee_due_at_disbursement = funded_amount * platform_fee_rate`, capped at 3%
+- `issuer_net_disbursement = funded_amount - platform_fee_due_at_disbursement`
 - `paymaster_receipt_amount = amount received from paymaster`
+- `issuer_on_behalf_receipt_amount = amount received from issuer on behalf of paymaster`
+- `repayment_receipt_amount = paymaster_receipt_amount + issuer_on_behalf_receipt_amount`
 - `investor_principal_due = funded_amount`
-- `investor_profit_due = calculated from note terms`
-- `platform_fee_due = configured fee amount or rate-based calculation`
+- `investor_gross_profit_due = calculated from note terms`
+- `service_fee_due = investor_gross_profit_due * service_fee_rate`, capped at standard maximum of 15% of profit
+- `investor_net_profit_due = investor_gross_profit_due - service_fee_due`
 - `late_charge_due = ta'widh_amount + gharamah_amount`
-- `paymaster_refund_due = paymaster_receipt_amount - investor_principal_due - investor_profit_due - platform_fee_due - late_charge_due`
+- `issuer_residual_due = repayment_receipt_amount - investor_principal_due - investor_net_profit_due - service_fee_due - late_charge_due`
 
-The refund should never be posted from a negative value. If the formula is negative, the note is underpaid and should remain in partial or exception state.
+The issuer residual should never be posted from a negative value. If the formula is negative, the note is underpaid and should remain in partial or exception state.
 
-Open accounting decision:
+Fee timing:
 
-- Confirm whether platform fee is deducted from the total paymaster receipt, the unfunded balance, issuer proceeds, investor return, or another contractual base. The implementation should make this configurable per product/note until the policy is finalized.
+- Platform fee is applied once at disbursement and should not be deducted again during repayment settlement.
+- Service fee is applied when paymaster repayment is received, before investor profit is distributed.
+
+Investor split:
+
+- Investor principal and net profit are split among investors according to each investor's confirmed allocation ratio.
+- `investor_ratio = investor_confirmed_amount / funded_amount`
+- `investor_principal_share = investor_principal_due * investor_ratio`
+- `investor_net_profit_share = investor_net_profit_due * investor_ratio`
+
+### Repayment Waterfall Diagram
+
+```mermaid
+flowchart TD
+  fundingClose["Funding closes at funded percent"] --> disbursement["Disbursement"]
+  disbursement --> platformFee["Deduct platform fee, max 3%"]
+  platformFee --> issuerNet["Net funded amount to issuer"]
+  paymasterFull["Paymaster repays 100% invoice or contract amount"] --> repaymentPool["Repayment Pool"]
+  issuerOnBehalf["Issuer may pay on behalf of paymaster"] --> repaymentPool
+  repaymentPool --> principal["Investor funded principal"]
+  repaymentPool --> grossProfit["Gross investor profit"]
+  grossProfit --> serviceFee["Deduct service fee up to 15% of profit"]
+  serviceFee --> operating["Operating Account"]
+  grossProfit --> netProfit["Net investor profit after service fee"]
+  principal --> proRataSplit["Split by investor funding ratio"]
+  netProfit --> proRataSplit
+  proRataSplit --> investors["Investors receive principal plus net profit"]
+  repaymentPool --> lateFees["Issuer-borne late fees if approved"]
+  lateFees --> tawidh["Ta'widh Account"]
+  lateFees --> gharamah["Gharamah Account"]
+  repaymentPool --> residual["Issuer residual return"]
+  residual --> residualFormula["Example 60% funded: issuer gets 40% residual minus late fees, service fee, and investor profit"]
+  residualFormula --> issuer["Issuer"]
+
+  class repaymentPool pool
+  class platformFee,serviceFee,operating fee
+  class tawidh,gharamah syariah
+  class principal,grossProfit,netProfit,proRataSplit investor
+  class residual,residualFormula,issuerNet issuerClass
+
+  classDef pool fill:#dbeafe,stroke:#2563eb,color:#0f172a
+  classDef fee fill:#fee2e2,stroke:#dc2626,color:#0f172a
+  classDef syariah fill:#dcfce7,stroke:#16a34a,color:#0f172a
+  classDef investor fill:#fef3c7,stroke:#d97706,color:#0f172a
+  classDef issuerClass fill:#ede9fe,stroke:#7c3aed,color:#0f172a
+```
 
 ## Payment Scenarios
 
@@ -451,7 +554,7 @@ Admin controls:
 - Approve reconciliation.
 - Post ledger.
 - Mark investors settled.
-- Process paymaster refund if any.
+- Process issuer residual return if any.
 - Close note.
 
 ### Partial Payment
@@ -466,7 +569,7 @@ Admin controls:
   - manual allocation with approval.
 - Keep remaining receivable open.
 - Update note to `PARTIALLY_PAID`.
-- Show outstanding principal, profit, fee, refund, and late charge projections.
+- Show outstanding principal, gross profit, service fee, net profit, issuer residual, and late charge projections.
 - Support later top-up payments.
 
 Recommended default:
@@ -496,34 +599,59 @@ Admin controls:
 
 - Detect late payment from due date and grace period.
 - Calculate days late.
-- Calculate late charge.
+- Calculate late charge only when repayment funds are received.
 - Split late charge into:
   - ta'widh compensation account,
   - gharamah charity account.
+- Suggest configured default ta'widh and gharamah values at receipt time.
+- Allow admin to manually set ta'widh up to the configured 1% per annum cap.
+- Allow admin to manually set gharamah up to the configured 9% per annum cap.
 - Show calculation basis and approval history.
 - Allow approved adjustment or waiver.
 - Post late charge ledger entries.
 - Track issuer receivable separately from paymaster receipt if the paymaster pays the principal obligation but issuer owes late charges.
+- Deduct approved late charges from the residual balance returned to the issuer where sufficient balance exists.
+- Generate the arrears letter when the arrears threshold is reached, and generate the default letter only when admin manually marks the note as default.
 
 Recommended baseline fields:
 
 - `due_date`
-- `grace_period_days`
+- `grace_period_days` defaulting to 7
 - `late_start_date`
 - `days_late`
 - `late_charge_base_amount`
 - `tawidh_rate`
+- `tawidh_rate_cap` defaulting to 1% per annum
 - `gharamah_rate`
+- `gharamah_rate_cap` defaulting to 9% per annum
 - `tawidh_amount`
 - `gharamah_amount`
 - `late_charge_status`
 - `waived_amount`
 - `waiver_reason`
 - `approved_by_admin_user_id`
+- `arrears_threshold_days` defaulting to 14
+- `default_marked_at`
+- `default_marked_by_admin_user_id`
+- `default_reason`
+- `arrears_letter_pdf_key`
+- `default_letter_pdf_key`
+
+### Arrears and Default
+
+Arrears and default should be tracked as distinct servicing states.
+
+- The grace period controls late-fee eligibility, not whether missed-payment monitoring exists.
+- Arrears begins after the grace period plus the configured arrears threshold. With default settings, that is 7 days of grace plus 14 arrears-threshold days, or 21 days after the missed payment date.
+- When a note enters arrears, the platform should generate an arrears/default warning letter PDF from a template and attach it to the note timeline.
+- Default is not automatic. Admin can manually mark the note as default any time after the note has entered arrears.
+- When admin marks a note as default, the platform should generate a default letter PDF from a template and attach it to the note timeline.
+- Arrears and default transitions must be audited and should require admin review before any irreversible external communication or trustee submission. Default marking must store the admin, timestamp, and reason.
+- Defaulted notes should remain open for recovery, manual settlement, write-off, or legal/escalation workflows.
 
 Open policy decision:
 
-- Confirm the exact ta'widh and gharamah rates, caps, rounding, grace period, and whether the split applies daily, monthly, or at final settlement.
+- Confirm the initial default ta'widh and gharamah values that should be suggested at receipt time. The caps are ta'widh up to 1% per annum and gharamah up to 9% per annum.
 
 ## Admin Notes Page
 
@@ -577,7 +705,9 @@ Recommended detail page sections:
 - Payment receipts.
 - Settlement waterfall preview.
 - Late payment calculator.
-- Paymaster refund calculator.
+- Issuer residual return calculator.
+- Arrears and default letter history.
+- Withdrawal instruction letters.
 - Ledger entries.
 - Documents and signed offer letters.
 - Timeline and audit log.
@@ -604,7 +734,9 @@ Admin actions:
 - Approve reconciliation.
 - Post ledger entries.
 - Trigger investor settlement.
-- Trigger paymaster refund.
+- Trigger issuer residual return.
+- Generate withdrawal instruction PDF letters for trustee submission.
+- Generate arrears and default letter PDFs from templates.
 - Mark settled.
 - Open dispute/exception.
 - Attach supporting documents.
@@ -651,11 +783,20 @@ Admin APIs:
 - `POST /v1/admin/notes/:id/funding/fail`
 - `POST /v1/admin/notes/:id/activate`
 - `POST /v1/admin/notes/:id/payments`
+- `POST /v1/issuer/notes/:id/payments/on-behalf-of-paymaster`
+- `GET /v1/issuer/notes/:id/payment-instructions`
 - `POST /v1/admin/notes/:id/late-charge/calculate`
 - `POST /v1/admin/notes/:id/late-charge/approve`
+- `POST /v1/admin/notes/:id/arrears/generate-letter`
+- `POST /v1/admin/notes/:id/default/generate-letter`
 - `POST /v1/admin/notes/:id/settlements/preview`
 - `POST /v1/admin/notes/:id/settlements/approve`
 - `POST /v1/admin/notes/:id/settlements/post`
+- `POST /v1/admin/withdrawals`
+- `POST /v1/admin/withdrawals/:id/generate-letter`
+- `POST /v1/admin/withdrawals/:id/mark-submitted-to-trustee`
+- `GET /v1/admin/platform-finance-settings`
+- `PATCH /v1/admin/platform-finance-settings`
 - `GET /v1/admin/notes/:id/ledger`
 - `GET /v1/admin/notes/:id/events`
 
@@ -682,13 +823,23 @@ Recommended backend modules:
   - immutable ledger posting and balance checks.
 - `apps/api/src/modules/note-servicing`
   - repayments, late charges, settlements, refunds.
+- `apps/api/src/modules/issuer-note-payments`
+  - issuer portal payment instructions, payment evidence upload, and issuer-on-behalf-of-paymaster submission.
+- `apps/api/src/modules/platform-finance-settings`
+  - global grace period, late fee, ta'widh/gharamah allocation, arrears threshold, and manual default marking controls.
+- `apps/api/src/modules/withdrawals`
+  - withdrawal instruction workflow and trustee letter PDF generation.
 
 Recommended frontend modules:
 
 - `apps/admin/src/notes`
   - hooks, query keys, table, toolbar, detail sections, calculators.
+- `apps/admin/src/platform-finance-settings`
+  - global setting forms for grace period, late fee allocation, arrears threshold, and manual default marking controls.
 - `apps/investor/src/investments`
   - marketplace hooks, cards, detail page, invest flow, portfolio widgets.
+- `apps/issuer/src/notes`
+  - issuer-facing note status, repayment instructions, and issuer-on-behalf-of-paymaster payment submission.
 - `packages/types`
   - note DTOs, statuses, request/response types.
 - `packages/config`
@@ -722,11 +873,18 @@ Recommended model:
 
 - Ta'widh is compensation/recovery and can be tracked separately from platform fee income.
 - Gharamah is a charity-bound amount and must be tracked in a separate account.
+- Ta'widh and gharamah are both set manually by admin at the point repayment funds are received, subject to their configured caps.
 - Admin should see the split before approval.
 - Settlement should prevent posting if the late charge split is missing, unapproved, or out of balance.
 - Reports should separately export ta'widh and gharamah amounts.
+- Late fees are paid by the issuer, not the paymaster.
+- The default grace period should be 7 days.
+- Ta'widh should be manually set and capped at 1% per annum.
+- Gharamah should be manually set and capped at 9% per annum.
+- Late fees should not be accrued or posted through a daily cron job; calculation and posting happen when repayment funds are received and admin approves the allocation.
+- Where possible, approved late charges should be deducted from the residual balance returned to the issuer before funds leave the Repayment Pool.
 
-Implementation should keep rates, caps, rounding, and grace period configurable by note/product because final policy may depend on Shariah board approval.
+Implementation should keep grace period, ta'widh/gharamah defaults, caps, rounding, arrears threshold, and manual default marking controls configurable as global platform settings. Product-specific overrides should only be added later if explicitly required.
 
 ## Implementation Phases
 
@@ -738,6 +896,7 @@ Implementation should keep rates, caps, rounding, and grace period configurable 
 - Add note creation from completed application.
 - Add immutable source snapshot fields.
 - Add basic note event log.
+- Add global platform finance settings with audited defaults for 7-day grace period, ta'widh cap up to 1% p.a., gharamah cap up to 9% p.a., and 14-day arrears threshold after grace.
 - Add `packages/types` and `packages/config` client methods.
 
 ### Phase 2: Admin Notes Page
@@ -746,6 +905,9 @@ Implementation should keep rates, caps, rounding, and grace period configurable 
 - Add list filters, summary cards, and note table.
 - Add note detail page or modal.
 - Add draft validation, publish controls, and source application context.
+- Add admin global settings controls for grace period, ta'widh/gharamah defaults and caps, arrears threshold, and manual default marking rules.
+- Add per-note platform fee controls capped at 3% for disbursement.
+- Add per-customer/note service fee controls capped at the standard 15% of investor profit.
 - Reuse admin list patterns from contracts and users pages.
 
 ### Phase 3: Marketplace and Funding
@@ -762,16 +924,19 @@ Implementation should keep rates, caps, rounding, and grace period configurable 
 
 - Add payment schedule and payment receipt models.
 - Add admin payment recording.
+- Add issuer portal repayment submission for issuer payments on behalf of paymaster.
 - Add settlement waterfall preview.
 - Add partial and advance payment handling.
 - Add investor portfolio/repayment display.
+- Add withdrawal instruction workflow and PDF template letter generation for manual trustee submission.
 
 ### Phase 5: Late Payment and Refunds
 
 - Add late payment calculator.
 - Add ta'widh/gharamah split.
-- Add fee/refund calculator.
-- Add paymaster refund workflow.
+- Add fee and issuer residual calculator.
+- Add issuer residual return workflow for unfunded repayment balances.
+- Add arrears and default PDF letter generation.
 - Add reconciliation approval and ledger posting.
 - Add exports for finance and compliance.
 
@@ -790,11 +955,12 @@ Backend unit tests:
 - Funding threshold calculation.
 - Investor allocation calculation.
 - Settlement waterfall.
-- Paymaster refund formula.
+- Issuer residual return formula.
 - Partial payment allocation.
 - Advance payment adjustment.
 - Late payment day count.
 - Ta'widh/gharamah split.
+- Arrears threshold transition and manual default marking.
 - Ledger balance validation.
 
 Backend integration tests:
@@ -806,8 +972,11 @@ Backend integration tests:
 - Close funding at 80%.
 - Fail funding below 80%.
 - Record paymaster full payment.
+- Record issuer payment on behalf of paymaster.
 - Record partial payment.
 - Record late payment and split charges.
+- Generate arrears and default letter PDFs.
+- Generate withdrawal instruction PDF and mark submitted to trustee.
 - Post settlement and prevent duplicate posting.
 
 Frontend tests:
@@ -824,12 +993,14 @@ Frontend tests:
 
 These should be resolved before implementation begins:
 
-- Exact platform fee basis and timing.
+- Exact platform fee basis within the 3% disbursement cap.
+- Exact customer-specific service fee source and approval flow within the standard 15% profit cap.
 - Exact investor profit calculation for early, on-time, partial, and late payment.
-- Exact ta'widh and gharamah rates, caps, rounding, and grace period.
+- Initial default ta'widh and gharamah values to suggest when repayment funds are received, within the 1% and 9% p.a. caps.
 - Whether investor funds are actually held before 80% close or only committed/reserved.
 - Whether funding can close automatically at 100% or requires admin approval.
 - Whether paymaster should be normalized immediately as a standalone counterparty/entity or initially stored as a note-level snapshot derived from source `customer_details`.
+- Whether withdrawal letters need maker-checker approval before trustee submission.
 - Whether existing `Loan` and `Investment` tables should be archived, renamed, migrated, or ignored in favor of new note tables.
 - Whether manual admin overrides need maker-checker approval for finance actions.
 
@@ -843,5 +1014,5 @@ The safest first slice is admin-visible note creation and review without investo
 4. Validate immutable terms and publish readiness.
 5. Add read-only marketplace listing API from published notes.
 
-After that, add investment commitments, funding close, servicing, payment receipt, settlement, late payment, and refund workflows in separate slices.
+After that, add investment commitments, funding close, servicing, payment receipt, settlement, late payment, and issuer residual return workflows in separate slices.
 

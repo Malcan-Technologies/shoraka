@@ -4,6 +4,7 @@ import { ArrowLeftIcon, BookOpenIcon } from "@heroicons/react/24/outline";
 
 import { Badge } from "./components/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/card";
+import { MermaidDiagram } from "./components/mermaid-diagram";
 import { Separator } from "./components/separator";
 import { cn } from "./lib/utils";
 
@@ -74,26 +75,38 @@ const markdownComponents: Components = {
       {...props}
     />
   ),
-  code: ({ className, children, ...props }) => (
-    <code
-      className={cn(
-        "rounded-md bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-foreground",
-        className
-      )}
-      {...props}
-    >
-      {children}
-    </code>
-  ),
-  pre: ({ className, ...props }) => (
-    <pre
-      className={cn(
-        "mt-6 overflow-x-auto rounded-2xl border bg-muted/60 p-5 text-sm leading-6 text-foreground",
-        className
-      )}
-      {...props}
-    />
-  ),
+  code: ({ className, children, ...props }) => {
+    const code = String(children).replace(/\n$/, "");
+    const language = /language-(\w+)/.exec(className ?? "")?.[1];
+    const isBlock = Boolean(language) || code.includes("\n");
+
+    if (language === "mermaid") {
+      return <MermaidDiagram chart={code} />;
+    }
+
+    if (isBlock) {
+      return (
+        <pre className="mt-6 overflow-x-auto rounded-2xl border bg-muted/60 p-5 text-sm leading-6 text-foreground">
+          <code className={cn("font-mono", className)} {...props}>
+            {code}
+          </code>
+        </pre>
+      );
+    }
+
+    return (
+      <code
+        className={cn(
+          "rounded-md bg-muted px-1.5 py-0.5 font-mono text-[0.9em] text-foreground",
+          className
+        )}
+        {...props}
+      >
+        {children}
+      </code>
+    );
+  },
+  pre: ({ children }) => <>{children}</>,
   table: ({ className, ...props }) => (
     <div className="mt-6 overflow-x-auto rounded-2xl border">
       <table className={cn("w-full border-collapse text-left text-sm", className)} {...props} />

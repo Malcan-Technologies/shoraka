@@ -15,7 +15,7 @@ Use this guide when reviewing issuer financing applications in the admin portal.
 ## Flow at a Glance
 
 1. The issuer selects a product and creates a draft application.
-2. The issuer completes the application wizard and submits the application.
+2. The issuer completes the application wizard and submits the application. A RM 50 application fee will be required at submission after payment gateway support is ready.
 3. Admin reviews the financial, company, business, document, contract or customer, and invoice sections that are required for the selected product.
 4. Admin either approves sections, rejects sections, or adds amendment remarks.
 5. If amendments are sent, the issuer edits only the flagged areas and resubmits for the next review cycle.
@@ -119,5 +119,5 @@ Use an invoice offer when an individual invoice is ready for approval. Before se
 - Check guarantor AML status before relying on guarantor support.
 - Use invoice offers for invoice-level approval and contract offers for facility-level approval.
 - Do not send offers until upstream sections are approved and the relevant tab is unlocked.
-- Do not treat application fees as investor funding or note repayment activity.
+- Do not treat application fees as investor funding or note repayment activity. Issuer onboarding fees are RM 150 before onboarding; issuer application fees are RM 50 at financing application submission after payment gateway support is ready.
 - Review accepted terms carefully before any future note creation or financing instrument is prepared.
