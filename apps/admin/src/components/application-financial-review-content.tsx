@@ -31,7 +31,6 @@ import {
 import { cn } from "@/lib/utils";
 import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
 import { reviewEmptyStateClass } from "@/components/application-review/review-section-styles";
-import { CheckCircleIcon } from "@heroicons/react/24/outline";
 import { formatCurrency, formatNumber, useAuthToken } from "@cashsouk/config";
 import {
   FINANCIAL_FIELD_LABELS,
@@ -41,8 +40,6 @@ import {
   formatFinancialFyPeriodDisplay,
   getAdminFinancialSummaryUserColumnYears,
   getLatestThreeCtosYearSlots,
-  getDirectorShareholderDisplayRows,
-  type DirectorShareholderDisplayRow,
   normalizeFinancialStatementsQuestionnaire,
   type ColumnComputedMetrics,
   type FinancialStatementsInput,
@@ -52,7 +49,6 @@ import { toast } from "sonner";
 import { format, isValid, parse, parseISO } from "date-fns";
 import {
   useCreateIssuerOrganizationCtosReport,
-  useCreateIssuerOrganizationCtosSubjectReport,
 } from "@/hooks/use-admin-issuer-organization-ctos-mutations";
 import { CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
 
@@ -245,117 +241,20 @@ function financialRecordToInput(fs: Record<string, unknown>): FinancialStatement
   };
 }
 
-export interface DirectorShareholderRow {
-  id: string;
-  name: string;
-  role: string;
-  ownership: string | null;
-  /** Government ID (individual) or business registration number (corporate); used only for CTOS cross-check key. */
-  icOrSsm: string | null;
-  verificationLabel: "KYC" | "KYB";
-  verificationStatus: string | null;
-  /** RegTank EOD… or COD…; Get/View CTOS subject report when set. */
-  subjectRef: string | null;
-  subjectKind: "INDIVIDUAL" | "CORPORATE" | null;
-}
-
-function normalizeIcSsmKey(raw: string | null | undefined): string | null {
-  const s = String(raw ?? "")
-    .trim()
-    .replace(/\s+/g, "");
-  if (!s) return null;
-  return s.toLowerCase();
-}
-
-/**
- * SECTION: CTOS subject report map / request key
- * WHY: DB stores canonical IC/SSM (see ctos-report-service); list keys normalized; fallback EOD/COD for legacy rows
- * INPUT: icOrSsm, subjectRef
- * OUTPUT: lookup key or null
- * WHERE USED: subjectReportByRef get, Get report payload
- */
-function ctosSubjectReportLookupKey(
-  icOrSsm: string | null | undefined,
-  subjectRef: string | null | undefined
-): string | null {
-  const fromIc = normalizeIcSsmKey(icOrSsm);
-  if (fromIc) return fromIc;
-  const s = String(subjectRef ?? "")
-    .trim()
-    .replace(/\s+/g, "");
-  return s ? s.toLowerCase() : null;
-}
-
-function lookupSubjectReportSnap(
-  m: Map<string, { id: string; has_report_html: boolean; fetched_at: string }>,
-  icOrSsm: string | null | undefined,
-  subjectRef: string | null | undefined
-): { id: string; has_report_html: boolean; fetched_at: string } | undefined {
-  const kIc = normalizeIcSsmKey(icOrSsm);
-  if (kIc) {
-    const hit = m.get(kIc);
-    if (hit) return hit;
-  }
-  const kRef = String(subjectRef ?? "")
-    .trim()
-    .replace(/\s+/g, "")
-    .toLowerCase();
-  if (kRef) return m.get(kRef);
-  return undefined;
-}
-
-/** Value sent as POST subjectRef: prefer government ID / business number; else RegTank EOD/COD (normalized). */
-function ctosSubjectRefForRequest(row: DirectorShareholderRow): string | null {
-  return ctosSubjectReportLookupKey(row.icOrSsm, row.subjectRef);
-}
-
-function displayDirectorRowToSubjectRow(row: DirectorShareholderDisplayRow): DirectorShareholderRow {
-  const r = row;
-  const idStr = r.idNumber?.trim() || r.registrationNumber?.trim() || "";
-  return {
-    id: r.id,
-    name: r.name,
-    role: r.role,
-    ownership: r.ownershipDisplay,
-    icOrSsm: idStr || null,
-    verificationLabel: r.type === "COMPANY" ? "KYB" : "KYC",
-    verificationStatus: r.status,
-    subjectRef: null,
-    subjectKind: r.subjectKind,
-  };
-}
-
-function formatCtosListFetchedAt(iso: string | null | undefined): string | null {
-  if (!iso) return null;
-  try {
-    return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-  } catch {
-    return null;
-  }
-}
-
-function subjectLastFetchDisplay(params: {
-  subjectRef: string | null;
-  snap: { fetched_at: string } | undefined;
-}): React.ReactNode {
-  if (!params.subjectRef) {
-    return <span className="text-muted-foreground">{HEADER_PLACEHOLDER}</span>;
-  }
-  const formatted = params.snap?.fetched_at ? formatCtosListFetchedAt(params.snap.fetched_at) : null;
-  if (formatted) {
-    return <span className="tabular-nums text-muted-foreground">{formatted}</span>;
-  }
-  return <span className="text-muted-foreground">{HEADER_PLACEHOLDER}</span>;
-}
-
 interface ApplicationFinancialReviewContentProps {
   applicationId: string;
   issuerOrganizationId: string | null;
   app: {
+    people?: Array<{
+      matchKey: string;
+      name: string | null;
+      roles: string[];
+      entityType: "INDIVIDUAL" | "CORPORATE";
+      sharePercentage: number | null;
+      status: string;
+      action: "SEND_EMAIL" | null;
+    }>;
     issuer_organization?: {
-      corporate_entities?: unknown;
-      director_kyc_status?: unknown;
-      director_aml_status?: unknown;
       latest_organization_ctos_company_json?: unknown | null;
       latest_organization_ctos_financials_json?: unknown | null;
       latest_organization_ctos_report_id?: string | null;
@@ -384,32 +283,7 @@ export function ApplicationFinancialReviewContent({
     issuerOrgId || undefined,
     applicationId
   );
-  const createSubjectCtos = useCreateIssuerOrganizationCtosSubjectReport(
-    issuerOrgId || undefined,
-    applicationId
-  );
-  const ctosSubjectLoading = false;
   const [orgCtosConfirmOpen, setOrgCtosConfirmOpen] = React.useState(false);
-  const [subjectCtosConfirm, setSubjectCtosConfirm] = React.useState<{
-    row: DirectorShareholderRow;
-    enquiryOverride?: { displayName: string; idNumber: string };
-  } | null>(null);
-
-  const subjectReportByRef = React.useMemo(() => {
-    const m = new Map<string, { id: string; has_report_html: boolean; fetched_at: string }>();
-    const raw = app.issuer_organization?.latest_organization_ctos_subject_reports;
-    for (const r of raw ?? []) {
-      const ref = r.subject_ref;
-      if (!ref) continue;
-      const k = ref.trim().replace(/\s+/g, "").toLowerCase();
-      m.set(k, {
-        id: r.id,
-        has_report_html: Boolean(r.has_report_html),
-        fetched_at: r.fetched_at,
-      });
-    }
-    return m;
-  }, [app.issuer_organization?.latest_organization_ctos_subject_reports]);
 
   const { unauditedByYear, questionnaire: financialQuestionnaire } = React.useMemo(
     () => extractQuestionnaireAndUnaudited(app.financial_statements),
@@ -417,31 +291,7 @@ export function ApplicationFinancialReviewContent({
   );
   const hasIssuerFinancialData = Object.keys(unauditedByYear).length > 0;
 
-  /** Director/shareholder rows: organization-level CTOS only (`getDirectorShareholderDisplayRows` falls back to onboarding when unusable). */
-  const latestOrganizationCtosCompanyJson =
-    app.issuer_organization?.latest_organization_ctos_company_json ?? null;
-
-  const ctosPartySupplementsForRows = React.useMemo(() => {
-    const raw = app.issuer_organization?.ctos_party_supplements;
-    if (!raw?.length) return undefined;
-    return raw.map((s) => ({
-      partyKey: s.party_key,
-      onboardingJson: s.onboarding_json ?? null,
-    }));
-  }, [app.issuer_organization?.ctos_party_supplements]);
-
-  const directorDisplayRows = React.useMemo(
-    () =>
-      getDirectorShareholderDisplayRows({
-        corporateEntities: app.issuer_organization?.corporate_entities,
-        directorKycStatus: app.issuer_organization?.director_kyc_status,
-        directorAmlStatus: app.issuer_organization?.director_aml_status ?? null,
-        organizationCtosCompanyJson: latestOrganizationCtosCompanyJson,
-        ctosPartySupplements: ctosPartySupplementsForRows,
-        sentRowIds: null,
-      }),
-    [app.issuer_organization, latestOrganizationCtosCompanyJson, ctosPartySupplementsForRows]
-  );
+  const peopleRows = React.useMemo(() => app.people ?? [], [app.people]);
 
   const financialRows: CtosFinRow[] = React.useMemo(() => {
     const raw = app.issuer_organization?.latest_organization_ctos_financials_json;
@@ -644,66 +494,6 @@ export function ApplicationFinancialReviewContent({
       w.document.close();
     }
   };
-
-  const openSubjectHtmlReport = async (reportId: string) => {
-    if (!issuerOrgId) return;
-    const token = await getAccessToken();
-    if (!token) {
-      toast.error("Not signed in");
-      return;
-    }
-    const url = `${API_URL}/v1/admin/organizations/issuer/${encodeURIComponent(issuerOrgId)}/ctos-reports/${reportId}/html`;
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) {
-      toast.error("Could not load report");
-      return;
-    }
-    const html = await res.text();
-    const w = window.open("", "_blank");
-    if (w) {
-      w.document.write(html);
-      w.document.close();
-    }
-  };
-
-  const commitGetSubjectCtos = React.useCallback(
-    (row: DirectorShareholderRow, options?: { enquiryOverride: { displayName: string; idNumber: string } }) => {
-      const subjectRef = ctosSubjectRefForRequest(row);
-      if (!subjectRef || !row.subjectKind) return;
-      const t = toast.loading("Fetching CTOS report…");
-      createSubjectCtos.mutate(
-        {
-          subjectRef,
-          subjectKind: row.subjectKind,
-          ...(options?.enquiryOverride ? { enquiryOverride: options.enquiryOverride } : {}),
-        },
-        {
-          onSuccess: () => {
-            toast.dismiss(t);
-            toast.success("CTOS report saved.");
-          },
-          onError: (e: Error) => {
-            toast.dismiss(t);
-            toast.error(e.message || "CTOS request failed");
-          },
-        }
-      );
-    },
-    [createSubjectCtos]
-  );
-
-  const requestGetSubjectCtos = React.useCallback(
-    (row: DirectorShareholderRow, options?: { enquiryOverride: { displayName: string; idNumber: string } }) => {
-      const subjectRef = ctosSubjectRefForRequest(row);
-      if (!subjectRef || !row.subjectKind) return;
-      setSubjectCtosConfirm(
-        options?.enquiryOverride
-          ? { row, enquiryOverride: options.enquiryOverride }
-          : { row }
-      );
-    },
-    []
-  );
 
   /** Short hint under label for computed rows (admin scan speed). */
   const rowLabels: { id: string; label: string; formulaHint?: string }[] = [
@@ -1106,104 +896,37 @@ export function ApplicationFinancialReviewContent({
       </ReviewFieldBlock>
 
       <ReviewFieldBlock title="Director and Shareholders">
-        {directorDisplayRows.length > 0 ? (
+        {peopleRows.length > 0 ? (
           <div className={applicationTableWrapperClass}>
             <div className="overflow-x-auto">
             <Table className="min-w-[780px] text-[15px]">
               <TableHeader className={applicationTableHeaderBgClass}>
                 <TableRow className="hover:bg-transparent border-b border-border">
                   <TableHead className={applicationTableHeaderClass}>Name</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>Role</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>Ownership</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>IC / SSM</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>Email</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>KYC / KYB status</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>Last subject fetch</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>{CTOS_UI.viewReport}</TableHead>
+                  <TableHead className={applicationTableHeaderClass}>Roles</TableHead>
+                  <TableHead className={applicationTableHeaderClass}>Type</TableHead>
+                  <TableHead className={applicationTableHeaderClass}>Share %</TableHead>
+                  <TableHead className={applicationTableHeaderClass}>Status</TableHead>
                   <TableHead className={`${applicationTableHeaderClass} w-[140px]`}>Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {directorDisplayRows.map((row: DirectorShareholderDisplayRow) => {
-                  const subjectRow = displayDirectorRowToSubjectRow(row);
-                  const icSm = row.idNumber?.trim() || row.registrationNumber?.trim() || "";
-                  const subjectSnap = lookupSubjectReportSnap(
-                    subjectReportByRef,
-                    subjectRow.icOrSsm,
-                    subjectRow.subjectRef
-                  );
-                  const canViewSubject = Boolean(subjectSnap?.has_report_html);
-                  const displayStatus = row.status;
-                  const approvedLike = displayStatus === "KYC Approved";
+                {peopleRows.map((p) => {
                   return (
-                    <TableRow key={row.id} className={applicationTableRowClass}>
-                      <TableCell className={`${applicationTableCellClass} font-medium`}>{row.name}</TableCell>
-                      <TableCell className={applicationTableCellClass}>{row.role}</TableCell>
-                      <TableCell className={applicationTableCellClass}>{row.ownershipDisplay?.trim() || "—"}</TableCell>
-                      <TableCell className={`${applicationTableCellClass} tabular-nums`}>
-                        {icSm || "—"}
+                    <TableRow key={p.matchKey} className={applicationTableRowClass}>
+                      <TableCell className={`${applicationTableCellClass} font-medium`}>{p.name ?? "—"}</TableCell>
+                      <TableCell className={applicationTableCellClass}>{p.roles.join(", ")}</TableCell>
+                      <TableCell className={applicationTableCellClass}>{p.entityType}</TableCell>
+                      <TableCell className={applicationTableCellClass}>{p.sharePercentage ?? "-"}</TableCell>
+                      <TableCell className={applicationTableCellClass}>
+                        <span className="text-muted-foreground">{p.status}</span>
                       </TableCell>
                       <TableCell className={applicationTableCellClass}>
-                        {row.email.trim() ? row.email : "—"}
-                      </TableCell>
-                      <TableCell className={applicationTableCellClass}>
-                        {approvedLike ? (
-                          <Badge
-                            variant="outline"
-                            className="border-emerald-500/30 bg-emerald-500/10 text-emerald-700"
-                          >
-                            <CheckCircleIcon className="h-3 w-3 mr-1 inline" />
-                            {displayStatus}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">{displayStatus}</span>
-                        )}
-                      </TableCell>
-                      <TableCell className={applicationTableCellClass}>
-                        {subjectLastFetchDisplay({
-                          subjectRef: ctosSubjectReportLookupKey(subjectRow.icOrSsm, subjectRow.subjectRef),
-                          snap: subjectSnap,
-                        })}
-                      </TableCell>
-                      <TableCell className={applicationTableCellClass}>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}
-                          disabled={
-                            !ctosSubjectRefForRequest(subjectRow) ||
-                            !canViewSubject ||
-                            ctosSubjectLoading ||
-                            !subjectSnap?.id
-                          }
-                          onClick={() => void openSubjectHtmlReport(subjectSnap!.id)}
-                        >
-                          {CTOS_UI.viewReport}
-                        </Button>
-                      </TableCell>
-                      <TableCell className={applicationTableCellClass}>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}
-                          disabled={
-                            !ctosSubjectRefForRequest(subjectRow) ||
-                            !subjectRow.subjectKind ||
-                            createSubjectCtos.isPending ||
-                            ctosSubjectLoading
-                          }
-                          onClick={() => {
-                            if (!subjectRow.icOrSsm) return;
-                            requestGetSubjectCtos(subjectRow, {
-                              enquiryOverride: {
-                                displayName: subjectRow.name,
-                                idNumber: subjectRow.icOrSsm,
-                              },
-                            });
-                          }}
-                        >
-                          {createSubjectCtos.isPending ? CTOS_UI.fetching : CTOS_UI.fetchReport}
-                        </Button>
+                        {p.entityType === "INDIVIDUAL" && p.status === "NEW REQUIRED" ? (
+                          <Button variant="secondary" size="sm" className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}>
+                            Send Email
+                          </Button>
+                        ) : null}
                       </TableCell>
                     </TableRow>
                   );
@@ -1267,61 +990,6 @@ export function ApplicationFinancialReviewContent({
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog
-        open={subjectCtosConfirm != null}
-        onOpenChange={(open) => {
-          if (!open) setSubjectCtosConfirm(null);
-        }}
-      >
-        <AlertDialogContent className="rounded-xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle>{CTOS_CONFIRM.title}</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                {subjectCtosConfirm ? (
-                  <>
-                    <p className="m-0">{CTOS_CONFIRM.subjectLead}</p>
-                    <p className="m-0">
-                      <span className="font-medium text-foreground">Name:</span> {subjectCtosConfirm.row.name}
-                    </p>
-                    <p className="m-0">
-                      <span className="font-medium text-foreground">Kind:</span>{" "}
-                      {subjectCtosConfirm.row.subjectKind ?? "—"}
-                    </p>
-                    {subjectCtosConfirm.enquiryOverride ? (
-                      <p className="m-0">
-                        <span className="font-medium text-foreground">Enquiry ID:</span>{" "}
-                        {subjectCtosConfirm.enquiryOverride.idNumber}
-                      </p>
-                    ) : null}
-                  </>
-                ) : null}
-              </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-lg" disabled={createSubjectCtos.isPending}>
-              {CTOS_CONFIRM.cancel}
-            </AlertDialogCancel>
-            <AlertDialogAction
-              className={cn(buttonVariants({ variant: "secondary" }), "rounded-lg")}
-              disabled={createSubjectCtos.isPending}
-              onClick={() => {
-                if (!subjectCtosConfirm) return;
-                commitGetSubjectCtos(
-                  subjectCtosConfirm.row,
-                  subjectCtosConfirm.enquiryOverride
-                    ? { enquiryOverride: subjectCtosConfirm.enquiryOverride }
-                    : undefined
-                );
-                setSubjectCtosConfirm(null);
-              }}
-            >
-              {createSubjectCtos.isPending ? CTOS_UI.fetching : CTOS_CONFIRM.primaryAction}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 }
