@@ -472,7 +472,6 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
       now,
       identifiers: {
         kycId: requestId,
-        email: webhookReferenceId?.includes("@") ? webhookReferenceId : null,
       },
     });
 

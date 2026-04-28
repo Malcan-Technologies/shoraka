@@ -10,7 +10,6 @@ type JsonObject = Record<string, unknown>;
 type MatchIdentifiers = {
   kycId?: string | null;
   eodRequestId?: string | null;
-  email?: string | null;
 };
 
 function isObject(value: unknown): value is JsonObject {
@@ -28,16 +27,12 @@ function normalizedValue(value: unknown): string {
 function isEntryMatch(entry: JsonObject, ids: MatchIdentifiers): boolean {
   const entryKycId = normalizedValue(entry.kycId);
   const entryEodRequestId = normalizedValue(entry.eodRequestId);
-  const entryEmail = normalizedValue(entry.email);
 
   const targetKycId = normalizedValue(ids.kycId);
   if (targetKycId && entryKycId === targetKycId) return true;
 
   const targetEodRequestId = normalizedValue(ids.eodRequestId);
   if (targetEodRequestId && entryEodRequestId === targetEodRequestId) return true;
-
-  const targetEmail = normalizedValue(ids.email);
-  if (targetEmail && entryEmail === targetEmail) return true;
 
   return false;
 }

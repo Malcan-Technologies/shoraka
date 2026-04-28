@@ -90,6 +90,14 @@ function normalizeId(id?: string | null): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
+function getCtosPersonId(x: unknown): string | null {
+  if (!isObject(x)) return null;
+  const raw = x.nic_brno || x.ic_lcno || null;
+  if (!raw || typeof raw !== "string") return null;
+  const normalized = raw.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  return normalized.length > 0 ? normalized : null;
+}
+
 function extractCtosIndividuals(ctos: unknown): CtosIndividual[] {
   if (!isObject(ctos)) return [];
 
@@ -97,13 +105,13 @@ function extractCtosIndividuals(ctos: unknown): CtosIndividual[] {
   const seen = new Set<string>();
 
   const addIndividual = (
-    rawId: unknown,
+    person: UnknownRecord,
     name: unknown,
     email: unknown,
     type: CtosIndividualType
   ): void => {
-    const governmentIdNumber = asStringOrNull(rawId);
-    const matchKey = normalizeId(governmentIdNumber);
+    const matchKey = getCtosPersonId(person);
+    const governmentIdNumber = asStringOrNull(person.nic_brno) ?? asStringOrNull(person.ic_lcno);
     if (!governmentIdNumber || !matchKey) return;
     if (seen.has(matchKey)) return;
     seen.add(matchKey);
@@ -120,7 +128,7 @@ function extractCtosIndividuals(ctos: unknown): CtosIndividual[] {
   for (const d of directors) {
     if (!isObject(d)) continue;
     addIndividual(
-      d.governmentIdNumber,
+      d,
       d.name ?? d.fullName,
       d.email ?? d.emailAddress,
       "DIRECTOR"
@@ -135,7 +143,7 @@ function extractCtosIndividuals(ctos: unknown): CtosIndividual[] {
     );
     if (sharePercentage === null || sharePercentage < 5) continue;
     addIndividual(
-      s.governmentIdNumber,
+      s,
       s.name ?? s.fullName,
       s.email ?? s.emailAddress,
       "SHAREHOLDER"

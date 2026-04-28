@@ -69,7 +69,7 @@ function mergeKeyForCtosRow(r: CtosDirectorJson): string | null {
   }
   if (kind === "INDIVIDUAL") {
     return normalizeDirectorShareholderIdKey(
-      String(r.ic_lcno ?? "").trim() || String(r.nic_brno ?? "").trim() || null
+      String(r.nic_brno ?? "").trim() || String(r.ic_lcno ?? "").trim() || null
     );
   }
   return null;

@@ -928,7 +928,6 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
       identifiers: {
         kycId: requestId,
         eodRequestId: onboardingId?.startsWith("EOD") ? onboardingId : null,
-        email: referenceId?.includes("@") ? referenceId : null,
       },
     });
     const updated = normalizedUpdated;
