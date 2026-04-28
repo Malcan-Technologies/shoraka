@@ -43,6 +43,7 @@ import {
   isLegacyCtosPartyKycApproved,
   normalizeDirectorShareholderIdKey,
 } from "@cashsouk/types";
+import { buildAdminPeopleList } from "../admin/build-people-list";
 import { RegTankAPIClient } from "../regtank/api-client";
 import type { RegTankIndividualOnboardingRequest } from "../regtank/types";
 import { listLatestCtosSubjectReportsForAdminOrg } from "../ctos/ctos-report-service";
@@ -1939,6 +1940,7 @@ export class OrganizationService {
     directors: Array<Record<string, unknown>>;
     shareholders: Array<Record<string, unknown>>;
     corporateShareholders: Array<Record<string, unknown>>;
+    people?: import("@cashsouk/types").OnboardingApplicationResponse["people"];
     directorKycStatus?: Record<string, unknown> | null;
     latestOrganizationCtosCompanyJson?: unknown | null;
     latestOrganizationCtosFinancialsJson?: unknown | null;
@@ -1994,8 +1996,16 @@ export class OrganizationService {
     };
     if (portalType === "issuer") {
       const extras = await this.getIssuerPartyListExtras(organizationId);
+      const people = buildAdminPeopleList({
+        ctos: extras.latestOrganizationCtosCompanyJson ?? null,
+        issuerDirectorKycStatus: organization?.director_kyc_status ?? null,
+        issuerDirectorAmlStatus: organization?.director_aml_status ?? null,
+        supplement: extras.ctosPartySupplements[0] ?? null,
+        corporateEntities: organization?.corporate_entities ?? null,
+      });
       return {
         ...base,
+        people,
         latestOrganizationCtosCompanyJson: extras.latestOrganizationCtosCompanyJson,
         latestOrganizationCtosFinancialsJson: extras.latestOrganizationCtosFinancialsJson,
         latestOrganizationCtosReportId: extras.latestOrganizationCtosReportId,
@@ -2007,8 +2017,16 @@ export class OrganizationService {
     }
     if (portalType === "investor") {
       const extras = await this.getInvestorPartyListExtras(organizationId);
+      const people = buildAdminPeopleList({
+        ctos: extras.latestOrganizationCtosCompanyJson ?? null,
+        issuerDirectorKycStatus: organization?.director_kyc_status ?? null,
+        issuerDirectorAmlStatus: organization?.director_aml_status ?? null,
+        supplement: extras.ctosPartySupplements[0] ?? null,
+        corporateEntities: organization?.corporate_entities ?? null,
+      });
       return {
         ...base,
+        people,
         latestOrganizationCtosCompanyJson: extras.latestOrganizationCtosCompanyJson,
         latestOrganizationCtosFinancialsJson: extras.latestOrganizationCtosFinancialsJson,
         latestOrganizationCtosReportId: extras.latestOrganizationCtosReportId,

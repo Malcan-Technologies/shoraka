@@ -9,6 +9,7 @@ import {
   useEffect,
   useMemo,
 } from "react";
+import type { ApplicationPersonRow } from "@cashsouk/types";
 import { createApiClient } from "./api-client";
 import { useAuthToken } from "./auth-context";
 
@@ -133,6 +134,10 @@ export interface Organization {
     shareholders?: Array<Record<string, unknown>>;
     corporateShareholders?: Array<Record<string, unknown>>;
   };
+  /** Company orgs: CTOS-backed party list for dashboards (issuer/investor). */
+  people?: ApplicationPersonRow[];
+  latestOrganizationCtosCompanyJson?: unknown | null;
+  ctosPartySupplements?: ReadonlyArray<{ partyKey: string; onboardingJson?: unknown }>;
 }
 
 interface OrganizationContextType {

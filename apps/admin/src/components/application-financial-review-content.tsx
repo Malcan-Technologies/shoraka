@@ -29,7 +29,12 @@ import {
   applicationTableWrapperClass,
 } from "@/components/application-review/application-table-styles";
 import { cn } from "@/lib/utils";
-import { filterVisiblePeopleRows, formatPeopleRolesLine } from "@/lib/onboarding-people-display";
+import {
+  filterVisiblePeopleRows,
+  formatPeopleRolesLine,
+  formatSharePercentageCell,
+  shouldShowPeopleSendEmailButton,
+} from "@/lib/onboarding-people-display";
 import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
 import { reviewEmptyStateClass } from "@/components/application-review/review-section-styles";
 import { formatCurrency, formatNumber, useAuthToken } from "@cashsouk/config";
@@ -294,11 +299,6 @@ export function ApplicationFinancialReviewContent({
 
   const peopleRows = React.useMemo(() => app.people ?? [], [app.people]);
   const visiblePeopleRows = React.useMemo(() => filterVisiblePeopleRows(peopleRows), [peopleRows]);
-
-  React.useEffect(() => {
-    console.log("Application review people[]:", peopleRows);
-    console.log("Application review visible people[]:", visiblePeopleRows);
-  }, [peopleRows, visiblePeopleRows]);
 
   const financialRows: CtosFinRow[] = React.useMemo(() => {
     const raw = app.issuer_organization?.latest_organization_ctos_financials_json;
@@ -910,6 +910,7 @@ export function ApplicationFinancialReviewContent({
               <TableHeader className={applicationTableHeaderBgClass}>
                 <TableRow className="hover:bg-transparent border-b border-border">
                   <TableHead className={applicationTableHeaderClass}>Name</TableHead>
+                  <TableHead className={applicationTableHeaderClass}>ID</TableHead>
                   <TableHead className={applicationTableHeaderClass}>Roles</TableHead>
                   <TableHead className={applicationTableHeaderClass}>Type</TableHead>
                   <TableHead className={applicationTableHeaderClass}>Share %</TableHead>
@@ -922,14 +923,15 @@ export function ApplicationFinancialReviewContent({
                   return (
                     <TableRow key={p.matchKey} className={applicationTableRowClass}>
                       <TableCell className={`${applicationTableCellClass} font-medium`}>{p.name ?? "—"}</TableCell>
+                      <TableCell className={`${applicationTableCellClass} font-mono text-xs`}>{p.matchKey}</TableCell>
                       <TableCell className={applicationTableCellClass}>{formatPeopleRolesLine(p)}</TableCell>
                       <TableCell className={applicationTableCellClass}>{p.entityType}</TableCell>
-                      <TableCell className={applicationTableCellClass}>{p.sharePercentage ?? "-"}</TableCell>
+                      <TableCell className={applicationTableCellClass}>{formatSharePercentageCell(p)}</TableCell>
                       <TableCell className={applicationTableCellClass}>
                         <span className="text-muted-foreground">{p.status}</span>
                       </TableCell>
                       <TableCell className={applicationTableCellClass}>
-                        {p.entityType === "INDIVIDUAL" && p.status === "NEW REQUIRED" ? (
+                        {shouldShowPeopleSendEmailButton(p, "issuer") ? (
                           <Button variant="secondary" size="sm" className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}>
                             Send Email
                           </Button>

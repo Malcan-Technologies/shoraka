@@ -544,6 +544,7 @@ export default function ProfilePage() {
         directorAmlStatus?: Record<string, unknown> | null;
         latestOrganizationCtosCompanyJson?: unknown | null;
         ctosPartySupplements?: { partyKey: string; onboardingJson?: unknown }[] | null;
+        people?: import("@cashsouk/types").ApplicationPersonRow[];
       }>(`/v1/organizations/issuer/${activeOrganization.id}`);
       if (!result.success) {
         throw new Error(result.error.message);
@@ -1327,10 +1328,7 @@ export default function ProfilePage() {
                   <DirectorShareholdersUnifiedSection
                     organizationId={activeOrganization.id}
                     organizationOnboardingStatus={orgData.onboardingStatus}
-                    corporateEntities={orgData.corporateEntities ?? {}}
-                    directorKycStatus={orgData.directorKycStatus ?? null}
-                    directorAmlStatus={orgData.directorAmlStatus ?? null}
-                    organizationCtosCompanyJson={orgData.latestOrganizationCtosCompanyJson ?? null}
+                    people={orgData.people ?? []}
                     ctosPartySupplements={orgData.ctosPartySupplements ?? null}
                     highlightActionRequiredRows
                     autoFocusFirstEmptyEmail={focusDirectors}

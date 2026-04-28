@@ -7,7 +7,10 @@ import type { Organization } from "@cashsouk/config";
 import { useOrganization } from "@cashsouk/config";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { getDirectorShareholderDisplayRows } from "@cashsouk/types";
+import {
+  applicationPeopleToUnifiedDirectorRows,
+  getDirectorShareholderDisplayRows,
+} from "@cashsouk/types";
 import { UnifiedKycAmlReadonlyRows } from "@cashsouk/ui";
 import { toast } from "sonner";
 
@@ -90,6 +93,7 @@ function getOnboardingSteps(organization: Organization): OnboardingStep[] {
 type OrganizationWithCtos = Organization & {
   latestOrganizationCtosCompanyJson?: unknown | null;
   ctosPartySupplements?: ReadonlyArray<{ partyKey: string; onboardingJson?: unknown }> | null;
+  people?: import("@cashsouk/types").ApplicationPersonRow[];
 };
 
 export function OnboardingStatusCard({
@@ -105,14 +109,19 @@ export function OnboardingStatusCard({
   const orgWithCtos = organization as OrganizationWithCtos;
   const corporateUnifiedRows = React.useMemo(() => {
     if (organization.type !== "COMPANY") return [];
-    return getDirectorShareholderDisplayRows({
+    const legacyInput = {
       corporateEntities: organization.corporateEntities ?? null,
       directorKycStatus: organization.directorKycStatus ?? null,
       directorAmlStatus: organization.directorAmlStatus ?? null,
       organizationCtosCompanyJson: orgWithCtos.latestOrganizationCtosCompanyJson ?? null,
       ctosPartySupplements: orgWithCtos.ctosPartySupplements ?? null,
       sentRowIds: null,
-    });
+    };
+    const people = orgWithCtos.people ?? [];
+    if (people.length > 0) {
+      return applicationPeopleToUnifiedDirectorRows(people, legacyInput);
+    }
+    return getDirectorShareholderDisplayRows(legacyInput);
   }, [organization]);
 
   const handleRefreshAml = async () => {

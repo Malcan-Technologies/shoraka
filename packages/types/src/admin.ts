@@ -611,6 +611,9 @@ export interface OrganizationDetailResponse {
   // Director AML screening status — COMPANY only
   directorAmlStatus?: Record<string, unknown> | null;
 
+  /** Unified CTOS-backed people list (COMPANY only); same shape as onboarding application `people`. */
+  people?: import("./application-people-display").ApplicationPersonRow[];
+
   // Director KYC screening status — COMPANY only
   directorKycStatus?: Record<string, unknown> | null;
 

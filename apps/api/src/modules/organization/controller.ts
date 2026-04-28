@@ -19,6 +19,7 @@ import {
 import { requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { AMLSyncService } from "../regtank/aml-sync-service";
+import { buildAdminPeopleList } from "../admin/build-people-list";
 
 const organizationService = new OrganizationService();
 
@@ -49,6 +50,37 @@ async function listOrganizations(
     const organizations = await organizationService.listOrganizations(userId, portalType);
 
     const hasPersonal = await organizationService.hasPersonalOrganization(userId, portalType);
+
+    const companyPartyById = new Map<
+      string,
+      {
+        people: ReturnType<typeof buildAdminPeopleList>;
+        latestOrganizationCtosCompanyJson: unknown | null;
+        ctosPartySupplements: { partyKey: string; onboardingJson: unknown }[];
+      }
+    >();
+    await Promise.all(
+      organizations
+        .filter((o) => o.type === "COMPANY")
+        .map(async (org) => {
+          const extras =
+            portalType === "investor"
+              ? await organizationService.getInvestorPartyListExtras(org.id)
+              : await organizationService.getIssuerPartyListExtras(org.id);
+          const people = buildAdminPeopleList({
+            ctos: extras.latestOrganizationCtosCompanyJson ?? null,
+            issuerDirectorKycStatus: (org as { director_kyc_status?: unknown }).director_kyc_status ?? null,
+            issuerDirectorAmlStatus: (org as { director_aml_status?: unknown }).director_aml_status ?? null,
+            supplement: extras.ctosPartySupplements[0] ?? null,
+            corporateEntities: (org as { corporate_entities?: unknown }).corporate_entities ?? null,
+          });
+          companyPartyById.set(org.id, {
+            people,
+            latestOrganizationCtosCompanyJson: extras.latestOrganizationCtosCompanyJson,
+            ctosPartySupplements: extras.ctosPartySupplements,
+          });
+        })
+    );
 
     res.json({
       success: true,
@@ -178,6 +210,7 @@ async function listOrganizations(
                   };
                 })
               : undefined,
+            ...(companyPartyById.get(org.id) ?? {}),
           }),
         })),
         hasPersonalOrganization: hasPersonal,
@@ -452,6 +485,19 @@ async function getOrganization(
                 corporateShareholders?: Array<Record<string, unknown>>;
               })
             : undefined,
+          people: buildAdminPeopleList({
+            ctos:
+              portalType === "issuer"
+                ? (issuerPartyExtras?.latestOrganizationCtosCompanyJson ?? null)
+                : (investorPartyExtras?.latestOrganizationCtosCompanyJson ?? null),
+            issuerDirectorKycStatus: org.director_kyc_status ?? null,
+            issuerDirectorAmlStatus: org.director_aml_status ?? null,
+            supplement:
+              portalType === "issuer"
+                ? (issuerPartyExtras?.ctosPartySupplements?.[0] ?? null)
+                : (investorPartyExtras?.ctosPartySupplements?.[0] ?? null),
+            corporateEntities: org.corporate_entities ?? null,
+          }),
         }),
       },
     });

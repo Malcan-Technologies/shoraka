@@ -355,6 +355,7 @@ export * from "./financial-unaudited-ctos-validation";
 export * from "./review-scope";
 export * from "./resubmit-path-utils";
 export * from "./resubmit-meaningful-field-path";
+export * from "./application-people-display";
 export * from "./director-kyc-gov-id";
 export * from "./director-shareholder-display";
 export * from "./regtank-onboarding-status";
