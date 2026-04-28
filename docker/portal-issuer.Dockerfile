@@ -16,6 +16,7 @@ COPY packages/styles/package.json ./packages/styles/
 COPY packages/types/package.json ./packages/types/
 COPY packages/config/package.json ./packages/config/
 COPY packages/icons/package.json ./packages/icons/
+COPY packages/help-content/package.json ./packages/help-content/
 
 RUN pnpm install --frozen-lockfile
 
@@ -26,6 +27,8 @@ COPY packages/styles ./packages/styles
 COPY packages/types ./packages/types
 COPY packages/config ./packages/config
 COPY packages/icons ./packages/icons
+COPY packages/help-content ./packages/help-content
+COPY docs/help ./docs/help
 
 RUN pnpm --filter @cashsouk/api prisma generate
 RUN pnpm --filter @cashsouk/types build
@@ -69,6 +72,7 @@ RUN adduser --system --uid 1001 nextjs
 COPY --from=builder --chown=nextjs:nodejs /app/apps/issuer/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/issuer/.next/static ./apps/issuer/.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/apps/issuer/public ./apps/issuer/public
+COPY --from=builder --chown=nextjs:nodejs /app/docs/help ./docs/help
 
 USER nextjs
 
