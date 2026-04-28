@@ -611,7 +611,6 @@ const TEST_CASES: TestRow[] = [
   { kind: "business", name: "LITI INTER P", reg: "911109090103" },
 
   // ===================== OLD TEST CASES (TEMP DISABLED) =====================
-  /*
   { kind: "company", name: "REDIAL ONE SDN BHD", reg: "200501525124" },
   { kind: "company", name: "GINSENGA CHICKEN RESTAURANTSA SDN BHD", reg: "200001020876" },
   { kind: "company", name: "SHINING SDN BHD", reg: "198501006938" },
@@ -649,7 +648,6 @@ const TEST_CASES: TestRow[] = [
   { kind: "individual", name: "VIGNESH RAJ", nic: "800706217043" },
   { kind: "individual", name: "KIRAN CHANDRASEKAR", nic: "870227082659" },
   { kind: "individual", name: "Siti Hajar Binti Mohd Zain", nic: "870515051120" },
-  */
 ];
 
 function generateJWT() {
