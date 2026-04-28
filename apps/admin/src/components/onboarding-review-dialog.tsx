@@ -44,7 +44,13 @@ import {
   useRefreshCorporateAmlStatus,
 } from "@/hooks/use-onboarding-applications";
 import { Skeleton } from "@/components/ui/skeleton";
-import { type OnboardingApprovalStatus } from "@cashsouk/types";
+import {
+  type OnboardingApprovalStatus,
+  getDisplayAmlStatus,
+  mapRegtankStatusToDisplay,
+  regtankDisplayStatusBadgeClass,
+} from "@cashsouk/types";
+import { cn } from "@/lib/utils";
 import {
   UserIcon,
   EnvelopeIcon,
@@ -56,8 +62,150 @@ import {
   ClockIcon,
   ArrowPathIcon,
   StarIcon,
+  ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
+
+type OnboardingPersonRow = {
+  matchKey: string;
+  name: string | null;
+  entityType: "INDIVIDUAL" | "CORPORATE";
+  roles: string[];
+  sharePercentage: number | null;
+  status: string;
+};
+
+function PeopleKycStatusBadge({ status }: { status: string }) {
+  const mapped = mapRegtankStatusToDisplay(status);
+  const styleKey = mapped === "Status unavailable" && status.trim() ? "KYC Pending" : mapped;
+  const cls = regtankDisplayStatusBadgeClass(styleKey);
+  const label = status;
+  if (styleKey === "KYC Approved" || styleKey === "KYC Failed") {
+    return (
+      <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
+        {styleKey === "KYC Approved" ? (
+          <CheckCircleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
+        ) : (
+          <XCircleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
+        )}
+        {label}
+      </Badge>
+    );
+  }
+  if (styleKey === "KYC Pending" || styleKey === "Sent") {
+    return (
+      <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
+        <ClockIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
+        {label}
+      </Badge>
+    );
+  }
+  if (styleKey === "Status unavailable") {
+    return (
+      <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
+        <ExclamationTriangleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
+        {label}
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
+      <ClockIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
+      {label}
+    </Badge>
+  );
+}
+
+function PeopleAmlStatusBadge({ status }: { status: string }) {
+  const display = getDisplayAmlStatus(status);
+  const label = status;
+  if (display === "AML Approved") {
+    return (
+      <Badge
+        variant="outline"
+        className="border-green-500/30 text-foreground bg-green-500/10 text-[11px] font-normal"
+      >
+        <CheckCircleIcon className="h-3 w-3 mr-1 text-green-600 shrink-0" aria-hidden />
+        {label}
+      </Badge>
+    );
+  }
+  if (display === "AML Failed") {
+    return (
+      <Badge variant="destructive" className="text-[11px] font-normal">
+        <XCircleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
+        {label}
+      </Badge>
+    );
+  }
+  if (display === "AML Pending") {
+    return (
+      <Badge
+        variant="outline"
+        className="border-gray-400/30 text-foreground bg-gray-400/10 text-[11px] font-normal"
+      >
+        <ClockIcon className="h-3 w-3 mr-1 text-gray-500 shrink-0" aria-hidden />
+        {label}
+      </Badge>
+    );
+  }
+  return (
+    <Badge
+      variant="outline"
+      className="border-muted-foreground/40 text-foreground bg-muted/40 text-[11px] font-normal"
+    >
+      <ExclamationTriangleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
+      {label}
+    </Badge>
+  );
+}
+
+function OnboardingPeopleReadonlyCards({
+  variant,
+  rows,
+  isRefreshing,
+}: {
+  variant: "kyc" | "aml";
+  rows: OnboardingPersonRow[];
+  isRefreshing: boolean;
+}) {
+  if (rows.length === 0) return null;
+
+  return (
+    <div
+      className={cn("divide-y rounded-lg border bg-card", isRefreshing && "opacity-70")}
+      aria-busy={isRefreshing || undefined}
+    >
+      {rows.map((p) => {
+        const rolesLine = p.roles.map((r) => r.toUpperCase()).join(", ");
+        const idLine =
+          p.entityType === "CORPORATE" ? `SSM ${p.matchKey}` : `IC ${p.matchKey}`;
+
+        return (
+          <div
+            key={p.matchKey}
+            className="flex flex-col gap-2 p-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+          >
+            <div className="min-w-0 flex-1 space-y-0.5">
+              <p className="text-sm font-medium">{p.name ?? "-"}</p>
+              {rolesLine ? (
+                <p className="text-xs text-muted-foreground tracking-wide">{rolesLine}</p>
+              ) : null}
+              <p className="text-xs text-muted-foreground font-mono break-all">{idLine}</p>
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2 shrink-0 sm:pt-0.5">
+              {variant === "kyc" ? (
+                <PeopleKycStatusBadge status={p.status} />
+              ) : (
+                <PeopleAmlStatusBadge status={p.status} />
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 interface OnboardingReviewDialogProps {
   onboardingId: string;
@@ -415,42 +563,11 @@ export function OnboardingReviewDialog({
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <div className="overflow-x-auto rounded-lg border border-border">
-                      <table className="w-full min-w-[640px] text-sm">
-                        <thead className="bg-muted/40">
-                          <tr className="border-b border-border">
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Name</th>
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Roles</th>
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Type</th>
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Share %</th>
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Status</th>
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {visiblePeopleRows.map((p) => (
-                            <tr key={p.matchKey} className="border-b border-border/80 last:border-0">
-                              <td className="px-3 py-2 text-foreground">{p.name ?? "-"}</td>
-                              <td className="px-3 py-2 text-muted-foreground">{p.roles.join(", ")}</td>
-                              <td className="px-3 py-2 text-muted-foreground">{p.entityType}</td>
-                              <td className="px-3 py-2 text-muted-foreground">
-                                {typeof p.sharePercentage === "number" ? p.sharePercentage : "—"}
-                              </td>
-                              <td className="px-3 py-2 text-muted-foreground">{p.status}</td>
-                              <td className="px-3 py-2">
-                                {application.portal === "issuer" &&
-                                p.entityType === "INDIVIDUAL" &&
-                                p.status === "NEW REQUIRED" ? (
-                                  <Button variant="secondary" size="sm">
-                                    Send Email
-                                  </Button>
-                                ) : null}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                    <OnboardingPeopleReadonlyCards
+                      variant="kyc"
+                      rows={visiblePeopleRows}
+                      isRefreshing={refreshCorporateMutation.isPending}
+                    />
                   </div>
                 </>
               )}
@@ -572,42 +689,11 @@ export function OnboardingReviewDialog({
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <div className="overflow-x-auto rounded-lg border border-border">
-                      <table className="w-full min-w-[640px] text-sm">
-                        <thead className="bg-muted/40">
-                          <tr className="border-b border-border">
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Name</th>
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Roles</th>
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Type</th>
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Share %</th>
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Status</th>
-                            <th className="px-3 py-2 text-left font-medium text-muted-foreground">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {visiblePeopleRows.map((p) => (
-                            <tr key={p.matchKey} className="border-b border-border/80 last:border-0">
-                              <td className="px-3 py-2 text-foreground">{p.name ?? "-"}</td>
-                              <td className="px-3 py-2 text-muted-foreground">{p.roles.join(", ")}</td>
-                              <td className="px-3 py-2 text-muted-foreground">{p.entityType}</td>
-                              <td className="px-3 py-2 text-muted-foreground">
-                                {typeof p.sharePercentage === "number" ? p.sharePercentage : "—"}
-                              </td>
-                              <td className="px-3 py-2 text-muted-foreground">{p.status}</td>
-                              <td className="px-3 py-2">
-                                {application.portal === "issuer" &&
-                                p.entityType === "INDIVIDUAL" &&
-                                p.status === "NEW REQUIRED" ? (
-                                  <Button variant="secondary" size="sm">
-                                    Send Email
-                                  </Button>
-                                ) : null}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                    <OnboardingPeopleReadonlyCards
+                      variant="aml"
+                      rows={visiblePeopleRows}
+                      isRefreshing={refreshCorporateAmlMutation.isPending}
+                    />
                   </div>
                 </>
               )}
