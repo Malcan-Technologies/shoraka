@@ -208,61 +208,6 @@ export class AdminService {
     }
 
     const ctosPeople = extractCtosIndividuals(ctosSafe);
-    const corporateSharePctByKey = new Map<string, number>();
-    const corporateEntitiesObj =
-      params.corporateEntities && typeof params.corporateEntities === "object"
-        ? (params.corporateEntities as Record<string, unknown>)
-        : null;
-    const corporateShareholders = Array.isArray(corporateEntitiesObj?.corporateShareholders)
-      ? (corporateEntitiesObj.corporateShareholders as unknown[])
-      : [];
-    for (const item of corporateShareholders) {
-      if (!item || typeof item !== "object" || Array.isArray(item)) continue;
-      const row = item as Record<string, unknown>;
-      const formContent =
-        row.formContent && typeof row.formContent === "object" && !Array.isArray(row.formContent)
-          ? (row.formContent as Record<string, unknown>)
-          : null;
-      const displayAreas = Array.isArray(formContent?.displayAreas)
-        ? (formContent?.displayAreas as unknown[])
-        : [];
-      let businessNumber: string | null = null;
-      let sharePercentage: number | null = null;
-      for (const area of displayAreas) {
-        if (!area || typeof area !== "object" || Array.isArray(area)) continue;
-        const content = Array.isArray((area as { content?: unknown }).content)
-          ? ((area as { content?: unknown[] }).content ?? [])
-          : [];
-        for (const field of content) {
-          if (!field || typeof field !== "object" || Array.isArray(field)) continue;
-          const f = field as Record<string, unknown>;
-          const fieldName = String(f.fieldName ?? "").trim();
-          const fieldValue = f.fieldValue;
-          if (fieldName === "Business Number" && typeof fieldValue === "string" && fieldValue.trim()) {
-            businessNumber = fieldValue.trim();
-          }
-          if (fieldName === "% of Shares") {
-            const pct = typeof fieldValue === "string" ? Number(fieldValue) : fieldValue;
-            if (typeof pct === "number" && Number.isFinite(pct)) {
-              sharePercentage = pct;
-            }
-          }
-        }
-      }
-      const key = normalizeDirectorShareholderIdKey(
-        businessNumber ??
-          String(
-            row.businessNumber ??
-              row.registrationNumber ??
-              row.brn_ssm ??
-              row.ic_lcno ??
-              row.additional_registration_no ??
-              ""
-          )
-      );
-      if (!key || sharePercentage === null) continue;
-      corporateSharePctByKey.set(key, sharePercentage);
-    }
 
     const peopleMap = new Map<
       string,
@@ -278,23 +223,18 @@ export class AdminService {
     >();
     for (const p of ctosPeople) {
       if (!p.matchKey) continue;
-      const isCorporate = p.entityType === "CORPORATE";
-      const corporateSharePct = isCorporate ? (corporateSharePctByKey.get(p.matchKey) ?? null) : null;
-      if (isCorporate && corporateSharePct !== null && corporateSharePct < 5) {
+      const role = p.type === "DIRECTOR" || p.type === "SHAREHOLDER" ? p.type : "DIRECTOR";
+      const incomingSharePercentage = typeof p.sharePercentage === "number" ? p.sharePercentage : null;
+      if (role === "SHAREHOLDER" && (incomingSharePercentage === null || incomingSharePercentage < 5)) {
         continue;
       }
-      const role = p.type === "DIRECTOR" || p.type === "SHAREHOLDER" ? p.type : "DIRECTOR";
       if (!peopleMap.has(p.matchKey)) {
         peopleMap.set(p.matchKey, {
           matchKey: p.matchKey,
           name: p.name,
           entityType: p.entityType,
           roles: [role],
-          sharePercentage: isCorporate
-            ? corporateSharePct
-            : typeof p.sharePercentage === "number"
-              ? p.sharePercentage
-              : null,
+          sharePercentage: incomingSharePercentage,
           status: null,
           action: null,
         });
@@ -305,11 +245,6 @@ export class AdminService {
       if (!existing.roles.includes(role)) {
         existing.roles.push(role);
       }
-      const incomingSharePercentage = isCorporate
-        ? corporateSharePct
-        : typeof p.sharePercentage === "number"
-          ? p.sharePercentage
-          : null;
       if (incomingSharePercentage !== null) {
         existing.sharePercentage =
           existing.sharePercentage === null

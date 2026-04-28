@@ -114,13 +114,17 @@ function normalizeIdValue(raw: string): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
-function parseSharePercentage(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim()) {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
+/** CTOS `equity_percentage` only; 0–1 → percent scale. */
+function parseCtosEquityPercentage(value: unknown): number | null {
+  const raw =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value)
+        : null;
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return null;
+  if (raw > 0 && raw <= 1) return raw * 100;
+  return raw;
 }
 
 export function extractCtosIndividuals(ctos: unknown): CtosIndividual[] {
@@ -165,14 +169,16 @@ export function extractCtosIndividuals(ctos: unknown): CtosIndividual[] {
       d.name ?? d.fullName ?? d.businessName ?? d.companyName,
       d.email ?? d.emailAddress,
       "DIRECTOR",
-      parseSharePercentage(d.sharePercentage ?? d.equity_percentage)
+      null
     );
   }
 
   const shareholders = asArray(ctos.shareholders);
   for (const s of shareholders) {
     if (!isObject(s)) continue;
-    const pct = parseSharePercentage(s.sharePercentage ?? s.equity_percentage);
+    const shareholderKey = getCtosId(s);
+    if (!shareholderKey) continue;
+    const pct = parseCtosEquityPercentage(s.equity_percentage);
     if (pct === null || pct < 5) continue;
     addIndividual(
       s,
@@ -305,4 +311,3 @@ export function detectDirectorGaps({ ctos, issuer, supplement }: GapInput): Dete
     amlIssues,
   };
 }
-
