@@ -449,7 +449,6 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
     }
 
     const statusUpper = status.toUpperCase();
-    const internalStatus = mapRegtankIndividualLivenessRawToInternalStatus(status);
 
     const prev =
       supplement.onboarding_json &&
@@ -462,7 +461,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
 
     const updated = {
       ...prevRest,
-      regtankStatus: internalStatus,
+      regtankStatus: status,
       updatedAt: new Date().toISOString(),
     };
 
@@ -476,7 +475,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
     logger.info(
       {
         requestId,
-        status: internalStatus,
+        status,
         rawRegTankStatus: statusUpper,
         partyKey: supplement.party_key,
         issuerOrganizationId: supplement.issuer_organization_id,
