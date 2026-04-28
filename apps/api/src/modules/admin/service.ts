@@ -2303,35 +2303,69 @@ export class AdminService {
     }
 
     const ctosPeople = extractCtosIndividuals(ctosSafe);
-    const seen = new Set<string>();
-    const people = ctosPeople
-      .filter((p) => {
-        if (typeof p.matchKey !== "string") return false;
-        if (!p.matchKey || seen.has(p.matchKey)) return false;
-        seen.add(p.matchKey);
-        return true;
-      })
-      .map((p) => {
-        const raw =
-          p.entityType === "CORPORATE"
-            ? corporateStatusMap.get(p.matchKey) ?? null
-            : gapMap.get(p.matchKey) ?? "APPROVED";
-        const status = normalizeStatus(raw ?? null);
-        const role = p.type === "DIRECTOR" || p.type === "SHAREHOLDER" ? p.type : "DIRECTOR";
-        const action: "SEND_EMAIL" | null =
-          p.entityType === "INDIVIDUAL" && status === "NEW REQUIRED" ? "SEND_EMAIL" : null;
-        return {
+    const peopleMap = new Map<
+      string,
+      {
+        matchKey: string;
+        name: string | null;
+        entityType: "INDIVIDUAL" | "CORPORATE";
+        roles: Array<"DIRECTOR" | "SHAREHOLDER">;
+        sharePercentage: number | null;
+        status: string | null;
+        action: "SEND_EMAIL" | null;
+      }
+    >();
+    for (const p of ctosPeople) {
+      if (!p.matchKey) continue;
+      const role = p.type === "DIRECTOR" || p.type === "SHAREHOLDER" ? p.type : "DIRECTOR";
+      if (!peopleMap.has(p.matchKey)) {
+        peopleMap.set(p.matchKey, {
           matchKey: p.matchKey,
           name: p.name,
-          role,
           entityType: p.entityType,
+          roles: [role],
           sharePercentage: typeof p.sharePercentage === "number" ? p.sharePercentage : null,
-          status,
-          action,
-        };
-      });
+          status: null,
+          action: null,
+        });
+        continue;
+      }
+      const existing = peopleMap.get(p.matchKey);
+      if (!existing) continue;
+      if (!existing.roles.includes(role)) {
+        existing.roles.push(role);
+      }
+      const incomingSharePercentage =
+        typeof p.sharePercentage === "number" ? p.sharePercentage : null;
+      if (incomingSharePercentage !== null) {
+        existing.sharePercentage =
+          existing.sharePercentage === null
+            ? incomingSharePercentage
+            : Math.max(existing.sharePercentage, incomingSharePercentage);
+      }
+      if (!existing.name && p.name) {
+        existing.name = p.name;
+      }
+    }
+    const mergedPeople = Array.from(peopleMap.values()).map((person) => {
+      const rawStatus =
+        person.entityType === "CORPORATE"
+          ? corporateStatusMap.get(person.matchKey) ?? null
+          : gapMap.get(person.matchKey) ?? "APPROVED";
+      const status = normalizeStatus(rawStatus ?? null);
+      const action: "SEND_EMAIL" | null =
+        person.entityType === "INDIVIDUAL" && status === "NEW REQUIRED" ? "SEND_EMAIL" : null;
+      return {
+        ...person,
+        status,
+        action,
+      };
+    });
 
-    return { ...existingResponse, people };
+    return {
+      ...existingResponse,
+      people: mergedPeople,
+    };
   }
 
   /**

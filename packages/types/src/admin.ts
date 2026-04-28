@@ -739,8 +739,8 @@ export interface OnboardingApplicationResponse {
   people?: Array<{
     matchKey: string;
     name: string | null;
-    role: "DIRECTOR" | "SHAREHOLDER";
     entityType: "INDIVIDUAL" | "CORPORATE";
+    roles: string[];
     sharePercentage: number | null;
     status: string;
     action: "SEND_EMAIL" | null;
