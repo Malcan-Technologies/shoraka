@@ -10,6 +10,7 @@ import { prisma } from "../../../lib/prisma";
 import type { PortalType } from "../types";
 import { syncApplicationGuarantorsFromRegTankAmlWebhook } from "../../admin/guarantor-aml-webhook-sync";
 import { maybeAdvanceOrgAfterAmlScreeningCleared } from "./org-aml-milestone";
+import { syncCorporateShareholderStatusInOrganization } from "../helpers/corporate-shareholder-status-sync";
 
 /**
  * KYB (Know Your Business) Webhook Handler
@@ -531,6 +532,29 @@ export class KYBWebhookHandler extends BaseWebhookHandler {
             where: { id: organizationId },
             data: { director_aml_status: directorAmlStatus as Prisma.InputJsonValue },
           });
+        }
+
+        try {
+          await syncCorporateShareholderStatusInOrganization({
+            organizationId,
+            portalType,
+            incomingCodRequestId: onboardingId && onboardingId.startsWith("COD") ? onboardingId : "",
+            newStatus: statusRaw,
+            source: "KYB",
+            codDetailsForBrnFallback: null,
+            kybPayloadForBrnFallback: payload,
+            logWebhookRequestId: kybId,
+          });
+        } catch (corpEntitySyncError) {
+          logger.warn(
+            {
+              error: corpEntitySyncError instanceof Error ? corpEntitySyncError.message : String(corpEntitySyncError),
+              kybId,
+              onboardingId,
+              organizationId,
+            },
+            "[KYB Webhook] Failed to sync corporate_entities corporateShareholder status (non-blocking)"
+          );
         }
 
         // Update AML identity mapping

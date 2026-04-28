@@ -2,6 +2,7 @@ import { BaseWebhookHandler } from "./base-webhook-handler";
 import { RegTankCODWebhook } from "../types";
 import { extractCorporateEntities } from "../helpers/extract-corporate-entities";
 import { extractGovernmentIdFromCorporateUserInfo } from "../helpers/extract-government-id";
+import { syncCorporateShareholderStatusInOrganization } from "../helpers/corporate-shareholder-status-sync";
 import { logger } from "../../../lib/logger";
 import { AppError } from "../../../lib/http/error-handler";
 import { RegTankRepository } from "../repository";
@@ -1233,139 +1234,22 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           // Don't throw - allow webhook to complete even if document refresh fails
         }
 
-        // Refresh corporate shareholders status from COD details
-        // Status should be updated when COD is approved
+        // corporate_entities.corporateShareholders[].status — strict COD / BRN match only (no new rows)
         try {
           logger.info(
             { requestId, organizationId, portalType },
-            "[COD Webhook] Refreshing corporate shareholders status after COD approval"
+            "[COD Webhook] Syncing corporate shareholder status in corporate_entities after COD approval"
           );
-
-          // Fetch latest COD details to get updated corporate shareholders status
-          const codDetails = await this.apiClient.getCorporateOnboardingDetails(requestId);
-
-          const org = portalType === "investor"
-            ? await prisma.investorOrganization.findUnique({
-              where: { id: organizationId },
-              select: { corporate_entities: true },
-            })
-            : await prisma.issuerOrganization.findUnique({
-              where: { id: organizationId },
-              select: { corporate_entities: true },
-            });
-
-          if (org && org.corporate_entities && codDetails.corpBizShareholders) {
-            const corporateEntities = org.corporate_entities as any;
-            let updated = false;
-
-            // Update corporate shareholders with latest status from COD details
-            if (corporateEntities.corporateShareholders && Array.isArray(corporateEntities.corporateShareholders)) {
-              const codCorpShareholders = codDetails.corpBizShareholders as any[];
-
-              // Create a map of existing corporate shareholders by COD requestId or company name
-              const existingMap = new Map<string, any>();
-              for (const existing of corporateEntities.corporateShareholders) {
-                const key = existing.corporateOnboardingRequest?.requestId || existing.requestId || existing.name || "";
-                if (key) {
-                  existingMap.set(key, existing);
-                }
-              }
-
-              // Update existing corporate shareholders with latest status from COD details
-              for (const codShareholder of codCorpShareholders) {
-                const codRequestId = codShareholder.corporateOnboardingRequest?.requestId || codShareholder.requestId || "";
-                const codName = codShareholder.name || codShareholder.businessName || "";
-                const key = codRequestId || codName;
-
-                if (key) {
-                  const existing = existingMap.get(key);
-                  if (existing) {
-                    // Update status and other fields from COD details
-                    const updatedShareholder = {
-                      ...existing,
-                      ...codShareholder,
-                      // Preserve any fields we want to keep from existing
-                      lastUpdated: new Date().toISOString(),
-                    };
-
-                    // Replace in array
-                    const index = corporateEntities.corporateShareholders.findIndex(
-                      (s: any) => (s.corporateOnboardingRequest?.requestId || s.requestId || s.name || "") === key
-                    );
-                    if (index !== -1) {
-                      corporateEntities.corporateShareholders[index] = updatedShareholder;
-                      updated = true;
-                      logger.debug(
-                        {
-                          codRequestId,
-                          name: codName,
-                          status: codShareholder.status || codShareholder.corporateOnboardingRequest?.status,
-                        },
-                        "[COD Webhook] Updated corporate shareholder status from COD details"
-                      );
-                    }
-                  } else {
-                    // New corporate shareholder - add it
-                    corporateEntities.corporateShareholders.push({
-                      ...codShareholder,
-                      lastUpdated: new Date().toISOString(),
-                    });
-                    updated = true;
-                    logger.debug(
-                      {
-                        codRequestId,
-                        name: codName,
-                      },
-                      "[COD Webhook] Added new corporate shareholder from COD details"
-                    );
-                  }
-                }
-              }
-            } else if (codDetails.corpBizShareholders && Array.isArray(codDetails.corpBizShareholders) && codDetails.corpBizShareholders.length > 0) {
-              // No existing corporate shareholders, but COD has them - initialize the array
-              corporateEntities.corporateShareholders = (codDetails.corpBizShareholders as any[]).map((corpShareholder: any) => ({
-                ...corpShareholder,
-                lastUpdated: new Date().toISOString(),
-              }));
-              updated = true;
-              logger.debug(
-                {
-                  count: codDetails.corpBizShareholders.length,
-                },
-                "[COD Webhook] Initialized corporate shareholders array from COD details"
-              );
-            }
-
-            // Update organization if corporate shareholders were refreshed
-            if (updated) {
-              if (portalType === "investor") {
-                await prisma.investorOrganization.update({
-                  where: { id: organizationId },
-                  data: {
-                    corporate_entities: corporateEntities as Prisma.InputJsonValue,
-                  },
-                });
-              } else {
-                await prisma.issuerOrganization.update({
-                  where: { id: organizationId },
-                  data: {
-                    corporate_entities: corporateEntities as Prisma.InputJsonValue,
-                  },
-                });
-              }
-
-              logger.info(
-                { requestId, organizationId },
-                "[COD Webhook] ✓ Refreshed corporate shareholders status after COD approval"
-              );
-            } else {
-              logger.debug(
-                { requestId, organizationId },
-                "[COD Webhook] No corporate shareholders to refresh (already up to date or none present)"
-              );
-            }
-
-          }
+          await syncCorporateShareholderStatusInOrganization({
+            organizationId,
+            portalType,
+            incomingCodRequestId: requestId,
+            newStatus: "APPROVED",
+            source: "COD",
+            codDetailsForBrnFallback: codDetails,
+            kybPayloadForBrnFallback: null,
+            logWebhookRequestId: requestId,
+          });
         } catch (corpShareholderRefreshError) {
           logger.error(
             {
@@ -1373,9 +1257,8 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               requestId,
               organizationId,
             },
-            "[COD Webhook] Failed to refresh corporate shareholders status (non-blocking)"
+            "[COD Webhook] Failed to sync corporate shareholder status in corporate_entities (non-blocking)"
           );
-          // Don't throw - allow webhook to complete even if corporate shareholder refresh fails
         }
 
         // Corporate COD APPROVED: set onboarding_approved (when on PENDING_APPROVAL), then flag-driven status via advanceOnboardingStatusFromFlags.
