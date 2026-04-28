@@ -14,6 +14,7 @@ type GapInput = {
 };
 
 type CtosIndividualType = "DIRECTOR" | "SHAREHOLDER";
+type CtosEntityType = "INDIVIDUAL" | "CORPORATE";
 
 type CtosIndividual = {
   matchKey: string;
@@ -21,6 +22,7 @@ type CtosIndividual = {
   name: string | null;
   email: string | null;
   type: CtosIndividualType;
+  entityType: CtosEntityType;
   sharePercentage: number | null;
 };
 
@@ -90,6 +92,29 @@ function getCtosPersonId(x: unknown): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
+function getCtosCorporateId(x: unknown): string | null {
+  if (!isObject(x)) return null;
+  const raw =
+    x.businessNumber ||
+    x.registrationNumber ||
+    x.brn_ssm ||
+    x.ic_lcno ||
+    x.additional_registration_no ||
+    null;
+  if (!raw || typeof raw !== "string") return null;
+  const normalized = raw.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  return normalized.length > 0 ? normalized : null;
+}
+
+function parseSharePercentage(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 export function extractCtosIndividuals(ctos: unknown): CtosIndividual[] {
   if (!isObject(ctos)) return [];
 
@@ -103,9 +128,12 @@ export function extractCtosIndividuals(ctos: unknown): CtosIndividual[] {
     type: CtosIndividualType,
     sharePercentage: number | null
   ): void => {
-    const matchKey = getCtosPersonId(person);
-    const governmentIdNumber = asStringOrNull(person.nic_brno) ?? asStringOrNull(person.ic_lcno);
-    if (!governmentIdNumber || !matchKey) return;
+    const personId = getCtosPersonId(person);
+    const corporateId = getCtosCorporateId(person);
+    const entityType: CtosEntityType = personId ? "INDIVIDUAL" : "CORPORATE";
+    const matchKey = personId ?? corporateId;
+    const governmentIdNumber = asStringOrNull(person.nic_brno) ?? asStringOrNull(person.ic_lcno) ?? "";
+    if (!matchKey) return;
     if (seen.has(matchKey)) return;
     seen.add(matchKey);
     individuals.push({
@@ -114,6 +142,7 @@ export function extractCtosIndividuals(ctos: unknown): CtosIndividual[] {
       name: asStringOrNull(name),
       email: asStringOrNull(email),
       type,
+      entityType,
       sharePercentage,
     });
   };
@@ -123,25 +152,21 @@ export function extractCtosIndividuals(ctos: unknown): CtosIndividual[] {
     if (!isObject(d)) continue;
     addIndividual(
       d,
-      d.name ?? d.fullName,
+      d.name ?? d.fullName ?? d.businessName ?? d.companyName,
       d.email ?? d.emailAddress,
       "DIRECTOR",
-      typeof d.equity_percentage === "number" ? d.equity_percentage : null
+      parseSharePercentage(d.sharePercentage ?? d.equity_percentage)
     );
   }
 
   const shareholders = asArray(ctos.shareholders);
   for (const s of shareholders) {
     if (!isObject(s)) continue;
-    const pctFromSharePercentage =
-      typeof s.sharePercentage === "number" ? s.sharePercentage : null;
-    const pctFromEquityPercentage =
-      typeof s.equity_percentage === "number" ? s.equity_percentage : null;
-    const pct = pctFromSharePercentage ?? pctFromEquityPercentage;
+    const pct = parseSharePercentage(s.sharePercentage ?? s.equity_percentage);
     if (pct === null || pct < 5) continue;
     addIndividual(
       s,
-      s.name ?? s.fullName,
+      s.name ?? s.fullName ?? s.businessName ?? s.companyName,
       s.email ?? s.emailAddress,
       "SHAREHOLDER",
       pct
@@ -207,6 +232,7 @@ export function detectDirectorGaps({ ctos, issuer, supplement }: GapInput): Dete
 
   for (const individual of ctosIndividuals) {
     const { matchKey, governmentIdNumber, name, email, type } = individual;
+    if (individual.entityType !== "INDIVIDUAL") continue;
     if (!matchKey) continue;
 
     const issuerEntry = issuerMap.get(matchKey);

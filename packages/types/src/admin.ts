@@ -740,8 +740,9 @@ export interface OnboardingApplicationResponse {
     matchKey: string;
     name: string | null;
     role: "DIRECTOR" | "SHAREHOLDER";
+    entityType: "INDIVIDUAL" | "CORPORATE";
     sharePercentage: number | null;
-    status: "NEW_REQUIRED" | "IN_PROGRESS" | "KYC_INCOMPLETE" | "AML_INCOMPLETE" | "APPROVED";
+    status: string;
     action: "SEND_EMAIL" | null;
   }>;
 }

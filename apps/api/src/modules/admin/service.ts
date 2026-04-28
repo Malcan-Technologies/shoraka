@@ -2267,17 +2267,40 @@ export class AdminService {
     };
     const supplement = refreshed.issuer_organization?.ctos_party_supplements?.[0] ?? null;
     const gaps = detectDirectorGaps({ ctos: ctosSafe, issuer, supplement });
-    type PeopleStatus =
-      | "NEW_REQUIRED"
-      | "IN_PROGRESS"
-      | "KYC_INCOMPLETE"
-      | "AML_INCOMPLETE"
-      | "APPROVED";
-    const gapMap = new Map<string, Exclude<PeopleStatus, "APPROVED">>();
+    const gapMap = new Map<string, "NEW_REQUIRED" | "IN_PROGRESS" | "KYC_INCOMPLETE" | "AML_INCOMPLETE">();
     gaps.amlIssues.forEach((x) => gapMap.set(x.matchKey, "AML_INCOMPLETE"));
     gaps.kycIssues.forEach((x) => gapMap.set(x.matchKey, "KYC_INCOMPLETE"));
     gaps.inProgress.forEach((x) => gapMap.set(x.matchKey, "IN_PROGRESS"));
     gaps.newRequired.forEach((x) => gapMap.set(x.matchKey, "NEW_REQUIRED"));
+
+    const normalizeStatus = (value: unknown): string => {
+      if (typeof value !== "string" || !value.trim()) return "NONE";
+      return value.trim().replace(/_/g, " ").toUpperCase();
+    };
+    const businessShareholders = Array.isArray(
+      (issuer.director_aml_status as { businessShareholders?: unknown } | null | undefined)
+        ?.businessShareholders
+    )
+      ? ((issuer.director_aml_status as { businessShareholders?: unknown[] }).businessShareholders ??
+        [])
+      : [];
+    const corporateStatusMap = new Map<string, string>();
+    for (const shareholder of businessShareholders) {
+      if (!shareholder || typeof shareholder !== "object" || Array.isArray(shareholder)) continue;
+      const row = shareholder as Record<string, unknown>;
+      const key = normalizeDirectorShareholderIdKey(
+        String(
+          row.businessNumber ??
+            row.registrationNumber ??
+            row.brn_ssm ??
+            row.ic_lcno ??
+            row.additional_registration_no ??
+            ""
+        )
+      );
+      if (!key) continue;
+      corporateStatusMap.set(key, normalizeStatus(row.amlStatus));
+    }
 
     const ctosPeople = extractCtosIndividuals(ctosSafe);
     const seen = new Set<string>();
@@ -2289,14 +2312,19 @@ export class AdminService {
         return true;
       })
       .map((p) => {
-        const raw = gapMap.get(p.matchKey);
-        const status: PeopleStatus = raw ?? "APPROVED";
+        const raw =
+          p.entityType === "CORPORATE"
+            ? corporateStatusMap.get(p.matchKey) ?? null
+            : gapMap.get(p.matchKey) ?? "APPROVED";
+        const status = normalizeStatus(raw ?? null);
         const role = p.type === "DIRECTOR" || p.type === "SHAREHOLDER" ? p.type : "DIRECTOR";
-        const action: "SEND_EMAIL" | null = status === "NEW_REQUIRED" ? "SEND_EMAIL" : null;
+        const action: "SEND_EMAIL" | null =
+          p.entityType === "INDIVIDUAL" && status === "NEW REQUIRED" ? "SEND_EMAIL" : null;
         return {
           matchKey: p.matchKey,
           name: p.name,
           role,
+          entityType: p.entityType,
           sharePercentage: typeof p.sharePercentage === "number" ? p.sharePercentage : null,
           status,
           action,
