@@ -8,6 +8,7 @@ export {
   formatPeopleRolesLineWithoutShare,
   formatSharePercentageCell,
   getDisplayStatus,
+  requiresOnboardingEmail,
   isNotifyEligible,
   isDirectorShareholderAmlScreeningApproved,
   shouldShowPeopleSendEmailButton,

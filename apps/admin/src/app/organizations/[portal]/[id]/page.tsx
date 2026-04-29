@@ -68,7 +68,7 @@ import {
   filterVisiblePeopleRows,
   getDisplayStatus,
   formatSharePercentageCell,
-  isNotifyEligible,
+  requiresOnboardingEmail,
 } from "@/lib/onboarding-people-display";
 import {
   getEffectiveCtosPartyOnboarding,
@@ -1783,7 +1783,7 @@ export default function OrganizationDetailPage() {
                                         </div>
                                       </TableCell>
                                       <TableCell>
-                                        {isNotifyEligible(p) ? (
+                                        <span title={requiresOnboardingEmail(p) ? undefined : "No onboarding required"}>
                                           <Button
                                             type="button"
                                             variant="outline"
@@ -1791,9 +1791,11 @@ export default function OrganizationDetailPage() {
                                             className="h-8"
                                             disabled={
                                               portal !== "issuer" ||
-                                              notifyActionRequiredMutation.isPending
+                                              notifyActionRequiredMutation.isPending ||
+                                              !requiresOnboardingEmail(p)
                                             }
                                             onClick={() => {
+                                              if (!requiresOnboardingEmail(p)) return;
                                               notifyActionRequiredMutation.mutate({
                                                 partyKey: p.matchKey,
                                               });
@@ -1801,9 +1803,7 @@ export default function OrganizationDetailPage() {
                                           >
                                             Notify
                                           </Button>
-                                        ) : (
-                                          <span className="text-muted-foreground">—</span>
-                                        )}
+                                        </span>
                                       </TableCell>
                                     </TableRow>
                                   );

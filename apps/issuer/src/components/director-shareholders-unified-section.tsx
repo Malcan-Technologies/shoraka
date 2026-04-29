@@ -23,6 +23,7 @@ import {
   isCtosPartySupplementApprovalLocked,
   normalizeDirectorShareholderIdKey,
   normalizeRawStatus,
+  requiresOnboardingEmail,
   regtankDisplayStatusBadgeClass,
   type ApplicationPersonRow,
   type DirectorShareholderDisplayRow,
@@ -432,8 +433,8 @@ export function DirectorShareholdersUnifiedSection({
       : isRowCompleteForUi(row, persistedEmail, em, sentRowIds);
     const kycEligible = isCtosIndividualKycEligibleRow(row);
     const showEmailControls = partySource
-      ? !typeA && kycEligible && !supplementLocked && !blockPartyOnboarding
-      : kycEligible && !approvalLocked && !blockPartyOnboarding;
+      ? requiresOnboardingEmail(person) && !typeA && kycEligible && !supplementLocked && !blockPartyOnboarding
+      : requiresOnboardingEmail(person) && kycEligible && !approvalLocked && !blockPartyOnboarding;
     const needsAction = partySource
       ? !typeA && kycEligible && !supplementReady && !blockPartyOnboarding
       : kycEligible && rowNeedsProfileAction(row, em) && !linkSent;

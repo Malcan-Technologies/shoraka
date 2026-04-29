@@ -143,13 +143,18 @@ export function formatSharePercentageCell(p: { sharePercentage: number | null })
  * OUTPUT: True when row is eligible for notify action
  * WHERE USED: Admin application/org director-shareholder tables
  */
-export function isNotifyEligible(p: ApplicationPersonRow): boolean {
+export function requiresOnboardingEmail(p: ApplicationPersonRow): boolean {
   if (p.entityType !== "INDIVIDUAL") return false;
   const roles = (p.roles ?? []).map((r) => String(r).toUpperCase());
   const isDirector = roles.includes("DIRECTOR");
   const isShareholder = roles.includes("SHAREHOLDER");
   const share = Number(p.sharePercentage ?? 0);
   return isDirector || (isShareholder && share >= 5);
+}
+
+/** Backward-compatible alias for existing call sites. */
+export function isNotifyEligible(p: ApplicationPersonRow): boolean {
+  return requiresOnboardingEmail(p);
 }
 
 export function shouldShowPeopleSendEmailButton(

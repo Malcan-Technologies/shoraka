@@ -34,7 +34,7 @@ import {
   filterVisiblePeopleRows,
   formatPeopleRolesLineWithoutShare,
   formatSharePercentageCell,
-  isNotifyEligible,
+  requiresOnboardingEmail,
 } from "@/lib/onboarding-people-display";
 import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
 import { reviewEmptyStateClass } from "@/components/application-review/review-section-styles";
@@ -1036,14 +1036,15 @@ export function ApplicationFinancialReviewContent({
                         </Button>
                       </TableCell>
                       <TableCell className={`${applicationTableCellClass} text-right`}>
-                        {isNotifyEligible(p) ? (
+                        <span title={requiresOnboardingEmail(p) ? undefined : "No onboarding required"}>
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
                             className="h-8 rounded-lg text-xs"
-                            disabled={!issuerOrgId || notifyActionRequired.isPending}
+                            disabled={!issuerOrgId || notifyActionRequired.isPending || !requiresOnboardingEmail(p)}
                             onClick={() => {
+                              if (!requiresOnboardingEmail(p)) return;
                               notifyActionRequired.mutate(
                                 { partyKey: p.matchKey },
                                 {
@@ -1056,9 +1057,7 @@ export function ApplicationFinancialReviewContent({
                           >
                             Notify
                           </Button>
-                        ) : (
-                          <span className="text-muted-foreground">{"\u2014"}</span>
-                        )}
+                        </span>
                       </TableCell>
                       <TableCell className={`${applicationTableCellClass} text-right`}>
                         {p.entityType === "INDIVIDUAL" &&

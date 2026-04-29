@@ -69,7 +69,7 @@ import {
   normalizeDirectorShareholderIdKey,
   peopleHasPendingDirectorShareholderAml,
   filterVisiblePeopleRows,
-  isNotifyEligible,
+  requiresOnboardingEmail,
   type SoukscoreRiskRating,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
@@ -2160,7 +2160,7 @@ export class AdminService {
     if (!match) {
       throw new AppError(404, "NOT_FOUND", "Party not found among visible directors/shareholders");
     }
-    if (!isNotifyEligible(match)) {
+    if (!requiresOnboardingEmail(match)) {
       throw new AppError(400, "VALIDATION_ERROR", "Not eligible for notify");
     }
 
