@@ -17,6 +17,7 @@ import {
   getCtosPartySupplementFlatRead,
   getCtosPartySupplementRequestId,
   getDirectorKycPartyRecord,
+  getDisplayStatus,
   getDisplayKycStatus,
   getDisplayRoleLabel,
   isCtosIndividualKycEligibleRow,
@@ -228,9 +229,13 @@ function personToDisplayRow(
     kycRawStatus,
     rawStatus: null,
   });
-  if (sentIds.has(p.matchKey)) {
-    status = "Sent";
-  }
+  status = sentIds.has(p.matchKey)
+    ? "SENT"
+    : getDisplayStatus({
+        screening: p.screening,
+        directorKycStatus: status,
+        onboarding: { status: regtankStatus },
+      });
   const rolesU = (p.roles ?? []).map((r) => r.toUpperCase());
   const isDirector = rolesU.includes("DIRECTOR");
   const isShareholder = rolesU.includes("SHAREHOLDER");

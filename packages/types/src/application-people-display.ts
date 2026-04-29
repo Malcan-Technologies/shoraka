@@ -26,6 +26,13 @@ export type ApplicationPersonRow = {
   screening?: { status?: string | null } | null;
 };
 
+export type DisplayStatusPerson = {
+  screening?: { status?: string | null } | null;
+  directorAmlStatus?: string | null;
+  directorKycStatus?: string | null;
+  onboarding?: { status?: string | null } | null;
+};
+
 export type PeopleRolesRowInput = {
   roles: string[];
   sharePercentage: number | null;
@@ -89,6 +96,29 @@ export function formatPeopleRolesLineWithoutShare(p: PeopleRolesRowInput): strin
 }
 
 const EM_DASH = "\u2014";
+
+function firstUsableStatus(raw: unknown): string | null {
+  const s = String(raw ?? "").trim();
+  if (!s || s === "-" || s === EM_DASH) return null;
+  return s;
+}
+
+/**
+ * SECTION: Unified director/shareholder display status priority
+ * WHY: Keep one shared status order across portals and pages
+ * INPUT: person-level screening + legacy AML/KYC + onboarding progress status
+ * OUTPUT: highest-priority available status string, or em dash when empty
+ * WHERE USED: admin/issuer/investor director-shareholder views
+ */
+export function getDisplayStatus(person: DisplayStatusPerson): string {
+  return (
+    firstUsableStatus(person.screening?.status) ??
+    firstUsableStatus(person.directorAmlStatus) ??
+    firstUsableStatus(person.directorKycStatus) ??
+    firstUsableStatus(person.onboarding?.status) ??
+    EM_DASH
+  );
+}
 
 export function formatSharePercentageCell(p: { sharePercentage: number | null }): string {
   const v = p.sharePercentage;
@@ -202,6 +232,9 @@ export function applicationPeopleToUnifiedDirectorRows(
     const isDirector = rolesU.includes("DIRECTOR");
     const isShareholder = rolesU.includes("SHAREHOLDER");
     if (!base) {
+      const displayStatus = getDisplayStatus({
+        screening: p.screening,
+      });
       return {
         id: p.matchKey,
         name: p.name ?? "",
@@ -211,7 +244,7 @@ export function applicationPeopleToUnifiedDirectorRows(
         registrationNumber: p.entityType === "CORPORATE" ? p.matchKey : null,
         ownershipDisplay,
         email: "",
-        status: "Not Started",
+        status: displayStatus,
         canEnterEmail: false,
         canSendOnboarding: false,
         enquiryId: null,
@@ -221,12 +254,19 @@ export function applicationPeopleToUnifiedDirectorRows(
         sharePercentage: sharePct,
       };
     }
+    const displayStatus = getDisplayStatus({
+      screening: p.screening,
+      directorAmlStatus: base.amlStatus ?? null,
+      directorKycStatus: base.status ?? null,
+      onboarding: { status: base.ctosRegtankStatus ?? null },
+    });
     return {
       ...base,
       id: p.matchKey,
       name: p.name?.trim() ? (p.name as string) : base.name,
       role,
       ownershipDisplay: ownershipDisplay ?? base.ownershipDisplay,
+      status: displayStatus,
       isDirector,
       isShareholder,
       sharePercentage: sharePct,

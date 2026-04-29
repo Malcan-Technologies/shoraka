@@ -47,6 +47,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   normalizeDirectorShareholderIdKey,
   type OnboardingApprovalStatus,
+  getDisplayStatus,
   getDisplayAmlStatus,
   mapRegtankStatusToDisplay,
   regtankDisplayStatusBadgeClass,
@@ -77,6 +78,7 @@ type OnboardingPersonRow = PeopleRolesRowInput & {
   name: string | null;
   entityType: "INDIVIDUAL" | "CORPORATE";
   status: string;
+  screening?: { status?: string | null } | null;
 };
 
 function PeopleKycStatusBadge({ status }: { status: string }) {
@@ -274,13 +276,14 @@ export function OnboardingReviewDialog({
       byIc.set(key, kycStatus);
     }
     return visiblePeopleRows.map((p) => {
-      const rawStatus = String(p.status ?? "").trim();
-      const hasUsableStatus = rawStatus.length > 0 && rawStatus !== "-" && rawStatus !== "—";
-      if (hasUsableStatus) return p;
       const key = normalizeDirectorShareholderIdKey(p.matchKey);
-      if (!key) return p;
-      const fallback = byIc.get(key);
-      return fallback ? { ...p, status: fallback } : p;
+      const fallback = key ? byIc.get(key) : undefined;
+      const status = getDisplayStatus({
+        screening: p.screening,
+        directorKycStatus: fallback ?? null,
+        onboarding: { status: p.status ?? null },
+      });
+      return { ...p, status };
     });
   }, [application?.directorKycStatus, visiblePeopleRows]);
   const visiblePeopleRowsWithAmlStatus = React.useMemo(() => {
@@ -345,13 +348,14 @@ export function OnboardingReviewDialog({
     collect(individualShareholders);
 
     return visiblePeopleRows.map((p) => {
-      const rawStatus = String(p.status ?? "").trim();
-      const hasUsableStatus = rawStatus.length > 0 && rawStatus !== "-" && rawStatus !== "—";
-      if (hasUsableStatus) return p;
       const key = normalizeDirectorShareholderIdKey(p.matchKey);
-      if (!key) return p;
-      const fallback = byIc.get(key);
-      return fallback ? { ...p, status: fallback } : p;
+      const fallback = key ? byIc.get(key) : undefined;
+      const status = getDisplayStatus({
+        screening: p.screening,
+        directorAmlStatus: fallback ?? null,
+        directorKycStatus: p.status ?? null,
+      });
+      return { ...p, status };
     });
   }, [application?.directorAmlStatus, application?.directorKycStatus, visiblePeopleRows]);
 

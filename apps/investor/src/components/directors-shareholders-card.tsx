@@ -10,6 +10,7 @@ import {
   filterVisiblePeopleRows,
   formatPeopleRolesLine,
   getCtosPartySupplementFlatRead,
+  getDisplayStatus,
   getDisplayKycStatus,
   normalizeDirectorShareholderIdKey,
   regtankDisplayStatusBadgeClass,
@@ -42,11 +43,16 @@ function personToDisplayRow(
   const regtankStatus = flat.regtankStatus;
   const kycBlock = flat.kycBlock;
   const kycRawStatus = kycBlock ? String(kycBlock.rawStatus ?? "").trim() || null : null;
-  const status = getDisplayKycStatus({
+  const kycStatus = getDisplayKycStatus({
     requestId,
     regtankStatus,
     kycRawStatus,
     rawStatus: null,
+  });
+  const status = getDisplayStatus({
+    screening: p.screening,
+    directorKycStatus: kycStatus,
+    onboarding: { status: regtankStatus },
   });
   const rolesU = (p.roles ?? []).map((r) => r.toUpperCase());
   const isDirector = rolesU.includes("DIRECTOR");
