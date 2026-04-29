@@ -8,27 +8,21 @@
 
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
-import { filterVisiblePeopleRows, normalizeRawStatus, type ApplicationPersonRow } from "@cashsouk/types";
+import {
+  filterVisiblePeopleRows,
+  isReadyOnboardingStatus,
+  type ApplicationPersonRow,
+} from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
 import { buildAdminPeopleList } from "../admin/build-people-list";
 
 const DIRECTOR_SHAREHOLDER_PENDING_MESSAGE =
   "Please submit onboarding for all directors/shareholders before submitting.";
 
-function isReadyStatus(statusRaw: unknown): boolean {
-  const s = normalizeRawStatus(statusRaw);
-  return (
-    s === "WAIT_FOR_APPROVAL" ||
-    s === "WAITING_FOR_APPROVAL" ||
-    s === "PENDING_APPROVAL" ||
-    s === "APPROVED"
-  );
-}
-
 function peopleHavePendingOnboarding(visible: ApplicationPersonRow[]): boolean {
   const individuals = visible.filter((p) => p.entityType === "INDIVIDUAL");
   if (individuals.length === 0) return false;
-  return individuals.some((p) => !isReadyStatus(p.onboarding?.status));
+  return individuals.some((p) => !isReadyOnboardingStatus(p.onboarding?.status ?? null));
 }
 
 export async function getIssuerDirectorShareholderSubmitReadiness(issuerOrganizationId: string): Promise<{

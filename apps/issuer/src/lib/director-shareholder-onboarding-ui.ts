@@ -3,6 +3,7 @@ import {
   getCtosPartySupplementPipelineStatus,
   getCtosPartySupplementRequestId,
   getDirectorKycPartyRecord,
+  isReadyOnboardingStatus as isReadyOnboardingStatusShared,
   normalizeRawStatus,
   normalizeDirectorShareholderIdKey,
   type ApplicationPersonRow,
@@ -16,15 +17,6 @@ export function getSupplementRequestId(onboarding: Record<string, unknown>): str
   return getCtosPartySupplementRequestId(onboarding);
 }
 
-/** Submission allowed for this party when RegTank is waiting for ops approval or already approved. */
-export function isRegTankSubmitReadyStatus(statusRaw: string): boolean {
-  const u = normalizeRawStatus(statusRaw);
-  if (!u) return false;
-  if (u === "APPROVED") return true;
-  if (u === "WAITING_FOR_APPROVAL" || u === "WAIT_FOR_APPROVAL" || u === "PENDING_APPROVAL") return true;
-  return false;
-}
-
 /**
  * SECTION: Director/shareholder onboarding status helpers
  * WHY: Use onboarding.status only for banner + proceed checks
@@ -33,7 +25,18 @@ export function isRegTankSubmitReadyStatus(statusRaw: string): boolean {
  * WHERE USED: Issuer banner, proceed gating, profile checks
  */
 export function isReadyOnboardingStatus(statusRaw: unknown): boolean {
-  return isRegTankSubmitReadyStatus(String(statusRaw ?? ""));
+  return isReadyOnboardingStatusShared(String(statusRaw ?? ""));
+}
+
+/**
+ * SECTION: Backward compatible readiness alias
+ * WHY: Keep existing component calls stable while using shared readiness logic
+ * INPUT: Raw onboarding status
+ * OUTPUT: True when onboarding is submit-ready
+ * WHERE USED: Legacy UI calls in director/shareholder section
+ */
+export function isRegTankSubmitReadyStatus(statusRaw: string): boolean {
+  return isReadyOnboardingStatusShared(statusRaw);
 }
 
 export function hasStartedOnboarding(p: Pick<ApplicationPersonRow, "onboarding">): boolean {

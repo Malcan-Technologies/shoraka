@@ -20,24 +20,17 @@ import { requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { AMLSyncService } from "../regtank/aml-sync-service";
 import { buildAdminPeopleList } from "../admin/build-people-list";
-import { filterVisiblePeopleRows, normalizeRawStatus } from "@cashsouk/types";
+import { filterVisiblePeopleRows, isReadyOnboardingStatus } from "@cashsouk/types";
 
 const organizationService = new OrganizationService();
-
-function isReadyStatus(statusRaw: unknown): boolean {
-  const s = normalizeRawStatus(statusRaw);
-  return (
-    s === "WAIT_FOR_APPROVAL" ||
-    s === "WAITING_FOR_APPROVAL" ||
-    s === "PENDING_APPROVAL" ||
-    s === "APPROVED"
-  );
-}
 
 function issuerDirectorShareholderOnboardingPending(people: ReturnType<typeof buildAdminPeopleList>): boolean {
   const visible = filterVisiblePeopleRows(people);
   const visibleIndividuals = visible.filter((p) => p.entityType === "INDIVIDUAL");
-  return visibleIndividuals.length > 0 && visibleIndividuals.some((p) => !isReadyStatus(p.onboarding?.status));
+  return (
+    visibleIndividuals.length > 0 &&
+    visibleIndividuals.some((p) => !isReadyOnboardingStatus(p.onboarding?.status ?? null))
+  );
 }
 
 /**

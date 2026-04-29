@@ -6,6 +6,7 @@
 
 import {
   filterVisiblePeopleRows,
+  isReadyOnboardingStatus,
   normalizeDirectorShareholderIdKey,
   normalizeRawStatus,
   type ApplicationPersonRow,
@@ -43,16 +44,6 @@ type PeopleListInput = ReturnType<typeof buildPeopleListParams>;
 
 function hasStartedOnboarding(p: Pick<ApplicationPersonRow, "onboarding">): boolean {
   return Boolean(normalizeRawStatus(p.onboarding?.status));
-}
-
-function isReadyOnboardingStatus(statusRaw: unknown): boolean {
-  const s = normalizeRawStatus(statusRaw);
-  return (
-    s === "WAIT_FOR_APPROVAL" ||
-    s === "WAITING_FOR_APPROVAL" ||
-    s === "PENDING_APPROVAL" ||
-    s === "APPROVED"
-  );
 }
 
 function shouldNotifyNewPerson(p: Pick<ApplicationPersonRow, "onboarding">): boolean {

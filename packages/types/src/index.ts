@@ -360,5 +360,6 @@ export * from "./director-kyc-gov-id";
 export * from "./director-shareholder-display";
 export * from "./regtank-onboarding-status";
 export * from "./status-normalization";
+export * from "./onboarding-readiness";
 export * from "./ctos-party-supplement-json";
 export * from "./regtank-iso3166-countries";
