@@ -1,9 +1,12 @@
 "use client";
 
+import * as React from "react";
 import { format } from "date-fns";
 import { BanknotesIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
+import type { NoteLedgerBucketBalance } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -16,7 +19,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useNoteBucketBalances } from "@/notes/hooks/use-notes";
+import { useNoteBucketActivity, useNoteBucketBalances } from "@/notes/hooks/use-notes";
+import { TablePagination } from "@/shared/admin-list/components/table-pagination";
 
 const bucketDescriptions: Record<string, string> = {
   INVESTOR_POOL: "Investor funds, disbursements, principal returns, and net profit allocations.",
@@ -26,13 +30,148 @@ const bucketDescriptions: Record<string, string> = {
   GHARAMAH_ACCOUNT: "Syariah charity/penalty account for approved Gharamah late charges.",
 };
 
+const ACTIVITY_PAGE_SIZE = 20;
+
 function formatDateTime(value: string | null) {
   return value ? format(new Date(value), "dd MMM yyyy, h:mm a") : "No entries";
+}
+
+function BucketActivityLog({
+  bucket,
+  page,
+  onPageChange,
+}: {
+  bucket: NoteLedgerBucketBalance | null;
+  page: number;
+  onPageChange: (page: number) => void;
+}) {
+  const { data, isLoading, error } = useNoteBucketActivity(bucket?.accountCode ?? null, page, ACTIVITY_PAGE_SIZE);
+  const entries = data?.entries ?? [];
+  const pagination = data?.pagination;
+  const startIndex = pagination && pagination.totalCount > 0 ? (pagination.page - 1) * pagination.pageSize + 1 : 0;
+  const endIndex = pagination ? Math.min(pagination.page * pagination.pageSize, pagination.totalCount) : 0;
+
+  return (
+    <Card className="overflow-hidden rounded-2xl">
+      <CardHeader className="flex flex-row items-start justify-between gap-4">
+        <div>
+          <CardTitle className="text-base">{bucket?.accountName ?? "Bucket"} Activity Log</CardTitle>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Ledger movements posted to the selected bucket, ordered by latest transaction first.
+          </p>
+        </div>
+        {bucket ? <Badge variant="outline">{bucket.currency}</Badge> : null}
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {bucket ? (
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border p-3">
+              <div className="text-xs text-muted-foreground">Credits</div>
+              <div className="mt-1 font-semibold">{formatCurrency(data?.bucket.creditTotal ?? bucket.creditTotal)}</div>
+            </div>
+            <div className="rounded-xl border p-3">
+              <div className="text-xs text-muted-foreground">Debits</div>
+              <div className="mt-1 font-semibold">{formatCurrency(data?.bucket.debitTotal ?? bucket.debitTotal)}</div>
+            </div>
+            <div className="rounded-xl border p-3">
+              <div className="text-xs text-muted-foreground">Balance</div>
+              <div className="mt-1 font-semibold">{formatCurrency(data?.bucket.balance ?? bucket.balance)}</div>
+            </div>
+          </div>
+        ) : null}
+
+        {error ? (
+          <div className="rounded-lg border border-destructive/30 p-4 text-sm text-destructive">
+            Error loading bucket activity: {error instanceof Error ? error.message : "Unknown error"}
+          </div>
+        ) : null}
+
+        <div className="overflow-hidden rounded-xl border">
+          <Table className="w-full table-fixed">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[16%]">Posted</TableHead>
+                <TableHead className="w-[18%]">Note</TableHead>
+                <TableHead className="w-[26%]">Description</TableHead>
+                <TableHead className="w-[13%] text-right">Debit</TableHead>
+                <TableHead className="w-[13%] text-right">Credit</TableHead>
+                <TableHead className="w-[14%]">Reference</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                    Loading activity...
+                  </TableCell>
+                </TableRow>
+              ) : entries.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                    No transactions posted to this bucket yet.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                entries.map((entry) => (
+                  <TableRow key={entry.id}>
+                    <TableCell className="truncate text-xs text-muted-foreground">
+                      {formatDateTime(entry.postedAt)}
+                    </TableCell>
+                    <TableCell className="min-w-0">
+                      <div className="truncate font-medium">{entry.noteReference ?? "-"}</div>
+                      <div className="truncate text-xs text-muted-foreground">{entry.noteTitle ?? "No linked note"}</div>
+                    </TableCell>
+                    <TableCell className="truncate text-sm">{entry.description}</TableCell>
+                    <TableCell className="text-right font-mono text-sm">
+                      {entry.direction === "DEBIT" ? formatCurrency(entry.amount) : "-"}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm">
+                      {entry.direction === "CREDIT" ? formatCurrency(entry.amount) : "-"}
+                    </TableCell>
+                    <TableCell className="truncate font-mono text-[11px] text-muted-foreground">
+                      {entry.idempotencyKey}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+          {pagination ? (
+            <TablePagination
+              currentPage={pagination.page}
+              totalPages={pagination.totalPages}
+              startIndex={startIndex}
+              endIndex={endIndex}
+              totalItems={pagination.totalCount}
+              onPageChange={onPageChange}
+            />
+          ) : null}
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Generated at {formatDateTime(data?.generatedAt ?? null)}.
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function BucketBalancesPage() {
   const { data, isLoading, error } = useNoteBucketBalances();
   const buckets = data?.buckets ?? [];
+  const [selectedBucketCode, setSelectedBucketCode] = React.useState<string | null>(null);
+  const [activityPage, setActivityPage] = React.useState(1);
+  const activeBucket = buckets.find((bucket) => bucket.accountCode === selectedBucketCode) ?? buckets[0] ?? null;
+
+  React.useEffect(() => {
+    if (!selectedBucketCode && buckets[0]) {
+      setSelectedBucketCode(buckets[0].accountCode);
+    }
+  }, [buckets, selectedBucketCode]);
+
+  const handleSelectBucket = (accountCode: string) => {
+    setSelectedBucketCode(accountCode);
+    setActivityPage(1);
+  };
 
   return (
     <>
@@ -129,49 +268,37 @@ export default function BucketBalancesPage() {
                   ))}
             </div>
 
-            <div className="overflow-hidden rounded-2xl border bg-card">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Bucket</TableHead>
-                    <TableHead className="text-right">Credits</TableHead>
-                    <TableHead className="text-right">Debits</TableHead>
-                    <TableHead className="text-right">Balance</TableHead>
-                    <TableHead className="text-right">Entries</TableHead>
-                    <TableHead>Last Movement</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                        Loading bucket balances...
-                      </TableCell>
-                    </TableRow>
-                  ) : buckets.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                        No ledger buckets found.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    buckets.map((bucket) => (
-                      <TableRow key={bucket.accountCode}>
-                        <TableCell>
-                          <div className="font-medium">{bucket.accountName}</div>
-                          <div className="text-xs text-muted-foreground">{bucket.accountCode}</div>
-                        </TableCell>
-                        <TableCell className="text-right">{formatCurrency(bucket.creditTotal)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(bucket.debitTotal)}</TableCell>
-                        <TableCell className="text-right font-semibold">{formatCurrency(bucket.balance)}</TableCell>
-                        <TableCell className="text-right">{bucket.entryCount}</TableCell>
-                        <TableCell>{formatDateTime(bucket.lastPostedAt)}</TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+            <section className="space-y-4">
+              <div>
+                <h3 className="text-base font-semibold">Bucket Activity Log</h3>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Switch buckets to review posted ledger transactions. Each page shows 20 rows.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {buckets.map((bucket) => {
+                  const isActive = activeBucket?.accountCode === bucket.accountCode;
+                  return (
+                    <Button
+                      key={bucket.accountCode}
+                      type="button"
+                      size="sm"
+                      variant={isActive ? "default" : "outline"}
+                      className="rounded-full"
+                      onClick={() => handleSelectBucket(bucket.accountCode)}
+                    >
+                      {bucket.accountName}
+                      <span className="ml-2 rounded-full bg-background/20 px-2 py-0.5 text-xs">
+                        {bucket.entryCount}
+                      </span>
+                    </Button>
+                  );
+                })}
+              </div>
+
+              <BucketActivityLog bucket={activeBucket} page={activityPage} onPageChange={setActivityPage} />
+            </section>
 
             <p className="text-xs text-muted-foreground">
               Balances are calculated from posted note ledger entries as credits minus debits. Generated at{" "}

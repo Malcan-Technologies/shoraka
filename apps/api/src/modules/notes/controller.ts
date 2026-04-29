@@ -5,6 +5,8 @@ import { AppError } from "../../lib/http/error-handler";
 import { noteService } from "./service";
 import {
   applicationIdParamSchema,
+  bucketAccountParamSchema,
+  bucketActivityQuerySchema,
   createInvestmentSchema,
   createNoteFromApplicationSchema,
   createWithdrawalSchema,
@@ -74,6 +76,16 @@ adminNotesRouter.get("/source-invoices", async (_req: Request, res: Response, ne
 adminNotesRouter.get("/bucket-balances", async (_req: Request, res: Response, next: NextFunction) => {
   try {
     send(res, await noteService.listLedgerBucketBalances());
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminNotesRouter.get("/bucket-balances/:accountCode/activity", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { accountCode } = bucketAccountParamSchema.parse(req.params);
+    const query = bucketActivityQuerySchema.parse(req.query);
+    send(res, await noteService.listLedgerBucketActivity(accountCode, query));
   } catch (error) {
     next(error);
   }

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   NoteFundingStatus,
+  NoteLedgerAccountType,
   NoteListingStatus,
   NotePaymentSource,
   NoteServicingStatus,
@@ -17,6 +18,15 @@ export const applicationIdParamSchema = z.object({
 
 export const invoiceIdParamSchema = z.object({
   invoiceId: z.string().min(1),
+});
+
+export const bucketAccountParamSchema = z.object({
+  accountCode: z.nativeEnum(NoteLedgerAccountType),
+});
+
+export const bucketActivityQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });
 
 export const getNotesQuerySchema = z.object({

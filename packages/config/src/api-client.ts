@@ -88,6 +88,7 @@ import type {
   NoteDetail,
   NoteActionRequiredCountResponse,
   NoteEvent,
+  NoteLedgerBucketActivityResponse,
   NoteLedgerBucketBalancesResponse,
   NoteLedgerEntry,
   NotesResponse,
@@ -539,6 +540,19 @@ export class ApiClient {
 
   async getAdminNoteBucketBalances(): Promise<ApiResponse<NoteLedgerBucketBalancesResponse> | ApiError> {
     return this.get<NoteLedgerBucketBalancesResponse>("/v1/admin/notes/bucket-balances");
+  }
+
+  async getAdminNoteBucketActivity(
+    accountCode: string,
+    params: { page?: number; pageSize?: number } = {}
+  ): Promise<ApiResponse<NoteLedgerBucketActivityResponse> | ApiError> {
+    const query = new URLSearchParams();
+    if (params.page) query.set("page", String(params.page));
+    if (params.pageSize) query.set("pageSize", String(params.pageSize));
+    const queryString = query.toString();
+    return this.get<NoteLedgerBucketActivityResponse>(
+      `/v1/admin/notes/bucket-balances/${encodeURIComponent(accountCode)}/activity${queryString ? `?${queryString}` : ""}`
+    );
   }
 
   async getAdminNoteActionRequiredCount(): Promise<ApiResponse<NoteActionRequiredCountResponse> | ApiError> {

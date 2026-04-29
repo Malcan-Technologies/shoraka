@@ -314,6 +314,23 @@ export interface NoteLedgerBucketBalancesResponse {
   generatedAt: string;
 }
 
+export interface NoteLedgerBucketActivityEntry extends NoteLedgerEntry {
+  noteReference: string | null;
+  noteTitle: string | null;
+}
+
+export interface NoteLedgerBucketActivityResponse {
+  bucket: NoteLedgerBucketBalance;
+  entries: NoteLedgerBucketActivityEntry[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    totalCount: number;
+    totalPages: number;
+  };
+  generatedAt: string;
+}
+
 export interface NoteActionRequiredCountResponse {
   count: number;
   breakdown: {

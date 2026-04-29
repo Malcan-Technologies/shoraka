@@ -60,6 +60,20 @@ export function useNoteBucketBalances() {
   });
 }
 
+export function useNoteBucketActivity(accountCode: string | null, page: number, pageSize = 20) {
+  const apiClient = useNotesApiClient();
+  return useQuery({
+    queryKey: [...notesKeys.all, "bucket-balances", accountCode, "activity", page, pageSize],
+    queryFn: async () => {
+      if (!accountCode) throw new Error("Bucket code is required");
+      const response = await apiClient.getAdminNoteBucketActivity(accountCode, { page, pageSize });
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+    enabled: accountCode != null,
+  });
+}
+
 export function useNoteActionRequiredCount() {
   const apiClient = useNotesApiClient();
   return useQuery({

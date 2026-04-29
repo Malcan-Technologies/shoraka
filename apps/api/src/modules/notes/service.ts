@@ -4,6 +4,7 @@ import {
   InvoiceStatus,
   NoteFundingStatus,
   NoteInvestmentStatus,
+  NoteLedgerAccountType,
   NoteLedgerDirection,
   NoteListingStatus,
   NotePaymentStatus,
@@ -30,6 +31,7 @@ import { calculateLateCharge as calculateLateChargeValues, calculateSettlementWa
 import type {
   createInvestmentSchema,
   createNoteFromApplicationSchema,
+  bucketActivityQuerySchema,
   createWithdrawalSchema,
   getNotesQuerySchema,
   lateChargeSchema,
@@ -954,7 +956,7 @@ export class NoteService {
     const investments = await prisma.noteInvestment.findMany({
       where: {
         investor_organization_id: { in: orgIds },
-        status: { in: [NoteInvestmentStatus.COMMITTED, NoteInvestmentStatus.CONFIRMED, NoteInvestmentStatus.SETTLED] },
+        status: { in: [NoteInvestmentStatus.COMMITTED, NoteInvestmentStatus.CONFIRMED] },
       },
     });
     const committed = investments.reduce((sum, investment) => sum + toNumber(investment.amount), 0);
@@ -1255,6 +1257,13 @@ export class NoteService {
           repaid_at: new Date(),
         },
       });
+      await tx.noteInvestment.updateMany({
+        where: {
+          note_id: id,
+          status: { in: [NoteInvestmentStatus.COMMITTED, NoteInvestmentStatus.CONFIRMED] },
+        },
+        data: { status: NoteInvestmentStatus.SETTLED },
+      });
       await this.logEvent(tx, id, "SETTLEMENT_POSTED", actor, { settlementId });
     });
     return this.getAdminNoteDetail(id);
@@ -1523,14 +1532,31 @@ export class NoteService {
   async markWithdrawalSubmitted(id: string, actor: ActorContext) {
     const existing = await prisma.withdrawalInstruction.findUnique({ where: { id } });
     if (!existing) throw new AppError(404, "WITHDRAWAL_NOT_FOUND", "Withdrawal not found");
+    if (existing.status !== WithdrawalStatus.LETTER_GENERATED) {
+      throw new AppError(
+        409,
+        "WITHDRAWAL_LETTER_REQUIRED",
+        "Withdrawal can be submitted to trustee only after its instruction letter is generated"
+      );
+    }
 
-    const withdrawal = await prisma.withdrawalInstruction.update({
-      where: { id },
-      data: {
-        status: WithdrawalStatus.SUBMITTED_TO_TRUSTEE,
-        submitted_by_user_id: actor.userId,
-        submitted_to_trustee_at: new Date(),
-      },
+    const withdrawal = await prisma.$transaction(async (tx) => {
+      const stateUpdate = await tx.withdrawalInstruction.updateMany({
+        where: { id, status: WithdrawalStatus.LETTER_GENERATED },
+        data: {
+          status: WithdrawalStatus.SUBMITTED_TO_TRUSTEE,
+          submitted_by_user_id: actor.userId,
+          submitted_to_trustee_at: new Date(),
+        },
+      });
+      if (stateUpdate.count !== 1) {
+        throw new AppError(
+          409,
+          "WITHDRAWAL_LETTER_REQUIRED",
+          "Withdrawal can be submitted to trustee only after its instruction letter is generated"
+        );
+      }
+      return tx.withdrawalInstruction.findUniqueOrThrow({ where: { id } });
     });
     if (withdrawal.note_id) {
       await this.logEvent(prisma, withdrawal.note_id, "WITHDRAWAL_SUBMITTED_TO_TRUSTEE", actor, { withdrawalId: id });
@@ -1587,6 +1613,65 @@ export class NoteService {
         debitTotal: buckets.reduce((sum, bucket) => sum + bucket.debitTotal, 0),
         creditTotal: buckets.reduce((sum, bucket) => sum + bucket.creditTotal, 0),
         balance: buckets.reduce((sum, bucket) => sum + bucket.balance, 0),
+      },
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  async listLedgerBucketActivity(accountCode: NoteLedgerAccountType, query: z.infer<typeof bucketActivityQuerySchema>) {
+    const account = await prisma.noteLedgerAccount.findUnique({
+      where: { code: accountCode },
+      include: { ledger_entries: true },
+    });
+    if (!account) throw new AppError(404, "LEDGER_ACCOUNT_NOT_FOUND", "Ledger bucket not found");
+
+    const debitTotal = account.ledger_entries
+      .filter((entry) => entry.direction === NoteLedgerDirection.DEBIT)
+      .reduce((sum, entry) => sum + toNumber(entry.amount), 0);
+    const creditTotal = account.ledger_entries
+      .filter((entry) => entry.direction === NoteLedgerDirection.CREDIT)
+      .reduce((sum, entry) => sum + toNumber(entry.amount), 0);
+    const lastPostedAt = account.ledger_entries.reduce<Date | null>((latest, entry) => {
+      if (!latest || entry.posted_at > latest) return entry.posted_at;
+      return latest;
+    }, null);
+    const where = { account: { code: accountCode } };
+    const [entries, totalCount] = await Promise.all([
+      prisma.noteLedgerEntry.findMany({
+        where,
+        include: {
+          account: true,
+          note: { select: { note_reference: true, title: true } },
+        },
+        orderBy: { posted_at: "desc" },
+        skip: (query.page - 1) * query.pageSize,
+        take: query.pageSize,
+      }),
+      prisma.noteLedgerEntry.count({ where }),
+    ]);
+
+    return {
+      bucket: {
+        accountCode: account.code,
+        accountName: account.name,
+        accountType: account.type,
+        currency: account.currency,
+        debitTotal,
+        creditTotal,
+        balance: creditTotal - debitTotal,
+        entryCount: account.ledger_entries.length,
+        lastPostedAt: lastPostedAt?.toISOString() ?? null,
+      },
+      entries: entries.map((entry) => ({
+        ...mapLedgerEntry(entry),
+        noteReference: entry.note?.note_reference ?? null,
+        noteTitle: entry.note?.title ?? null,
+      })),
+      pagination: {
+        page: query.page,
+        pageSize: query.pageSize,
+        totalCount,
+        totalPages: Math.max(1, Math.ceil(totalCount / query.pageSize)),
       },
       generatedAt: new Date().toISOString(),
     };
