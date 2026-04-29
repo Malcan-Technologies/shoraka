@@ -261,6 +261,20 @@ function findLegacyKycPersonByStrictId(
   return null;
 }
 
+/** Issuer UI: party appears on company `director_kyc_status` (director or individual shareholder row). */
+export function getDirectorKycPartyRecord(
+  partyKeyRaw: string | null | undefined,
+  directorKycStatus: unknown
+): Record<string, unknown> | null {
+  const strictKey = normalizeDirectorShareholderIdKey(partyKeyRaw);
+  if (!strictKey) return null;
+  const root =
+    directorKycStatus && typeof directorKycStatus === "object" && !Array.isArray(directorKycStatus)
+      ? (directorKycStatus as Record<string, unknown>)
+      : undefined;
+  return findLegacyKycPersonByStrictId(strictKey, root);
+}
+
 function collectDirectorAmlIndividualEntries(
   directorAmlStatus: Record<string, unknown> | null | undefined
 ): Record<string, unknown>[] {

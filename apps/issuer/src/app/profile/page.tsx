@@ -1330,6 +1330,10 @@ export default function ProfilePage() {
                     organizationOnboardingStatus={orgData.onboardingStatus}
                     people={orgData.people ?? []}
                     ctosPartySupplements={orgData.ctosPartySupplements ?? null}
+                    partySource={{
+                      directorKycStatus: orgData.directorKycStatus ?? null,
+                      corporateEntities: orgData.corporateEntities ?? null,
+                    }}
                     highlightActionRequiredRows
                     autoFocusFirstEmptyEmail={focusDirectors}
                   />

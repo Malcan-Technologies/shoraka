@@ -46,6 +46,8 @@ import {
   useResubmitApplication,
 } from "@/hooks/use-applications";
 import { useApprovedContracts } from "@/hooks/use-contracts";
+import { useCorporateEntities } from "@/hooks/use-corporate-entities";
+import { areDirectorShareholdersReadyForApplicationSubmit } from "@/lib/director-shareholder-onboarding-ui";
 import { useProducts } from "@/hooks/use-products";
 import { toast } from "sonner";
 import {
@@ -184,9 +186,24 @@ function EditApplicationPageBody() {
   });
 
   /** Approved contracts for Fill Entire Application (existing_contract option). */
-  const { data: approvedContracts = [] } = useApprovedContracts(
-    application?.issuer_organization_id || ""
-  );
+  const issuerOrgId = application?.issuer_organization_id ?? "";
+
+  const { data: approvedContracts = [] } = useApprovedContracts(issuerOrgId);
+
+  const { data: partyEntities } = useCorporateEntities(issuerOrgId || undefined);
+
+  const directorPartySubmitReady = React.useMemo(() => {
+    if (!issuerOrgId) return true;
+    if (!partyEntities) return false;
+    const people = partyEntities.people ?? [];
+    if (people.length === 0) return true;
+    return areDirectorShareholdersReadyForApplicationSubmit({
+      people,
+      directorKycStatus: partyEntities.directorKycStatus ?? null,
+      corporateEntities: partyEntities,
+      ctosPartySupplements: partyEntities.ctosPartySupplements ?? null,
+    });
+  }, [issuerOrgId, partyEntities]);
 
   /** Handle application not found */
   React.useEffect(() => {
@@ -1073,6 +1090,14 @@ function EditApplicationPageBody() {
       toast.error("Please complete all required amendment updates first");
       return;
     }
+    if (!devPreviewAmendment && !directorPartySubmitReady) {
+      toast.error(
+        "Director onboarding is not ready to submit. Each new party must have onboarding sent and RegTank status waiting for approval (or approved)."
+      );
+      isSubmittingRef.current = false;
+      setIsSubmittingApplication(false);
+      return;
+    }
 
     /** Before any await: keeps edit layout on screen while React Query refetches (avoid wizard/step skeleton). */
     isSubmittingRef.current = true;
@@ -1702,6 +1727,7 @@ function EditApplicationPageBody() {
                       application?.status === "AMENDMENT_REQUESTED" &&
                       !allAmendmentStepsAcknowledged) ||
                     (!devPreviewAmendment && !isCurrentStepValid) ||
+                    (!devPreviewAmendment && !directorPartySubmitReady) ||
                     !isStepMapped
                   : updateStepMutation.isPending ||
                     updateStatusMutation.isPending ||
