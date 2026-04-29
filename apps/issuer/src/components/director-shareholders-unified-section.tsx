@@ -22,6 +22,7 @@ import {
   isCtosIndividualKycEligibleRow,
   isCtosPartySupplementApprovalLocked,
   normalizeDirectorShareholderIdKey,
+  normalizeDirectorShareholderPartyEmail,
   normalizeRawStatus,
   requiresOnboardingEmail,
   regtankDisplayStatusBadgeClass,
@@ -210,20 +211,13 @@ function personToDisplayRow(
     directorKycStatus: p.directorKycStatus ?? kycRawStatus,
     onboarding: { status: p.onboarding?.status ?? regtankStatus ?? null },
   });
-  console.log("DS person", {
-    matchKey: p.matchKey,
-    screening: p.screening?.status,
-    aml: p.directorAmlStatus,
-    kyc: p.directorKycStatus,
-    onboarding: p.onboarding?.status,
-  });
   const rolesU = (p.roles ?? []).map((r) => r.toUpperCase());
   const isDirector = rolesU.includes("DIRECTOR");
   const isShareholder = rolesU.includes("SHAREHOLDER");
   const sharePct = p.sharePercentage;
   const ownershipDisplay =
     sharePct != null && Number.isFinite(sharePct) ? `${sharePct}% ownership` : null;
-  const email = String(sup.email ?? sup.contactEmail ?? "").trim();
+  const email = String(p.email ?? "").trim() || flat.email.trim();
   const draftEligible =
     p.entityType === "INDIVIDUAL" &&
     (isDirector || (isShareholder && (sharePct ?? 0) >= 5));
@@ -358,6 +352,19 @@ export function DirectorShareholdersUnifiedSection({
     if (!email || !partyKeyNorm) {
       toast.error("Enter a valid email and ensure the row has an IC or SSM number.");
       return;
+    }
+    const nextEmailNorm = normalizeDirectorShareholderPartyEmail(email);
+    if (nextEmailNorm) {
+      for (const r of rows) {
+        if (r.id === confirmRow.id) continue;
+        if (r.__person.entityType !== "INDIVIDUAL") continue;
+        if (!requiresOnboardingEmail(r.__person)) continue;
+        if (normalizeDirectorShareholderPartyEmail(displayEmail(r)) === nextEmailNorm) {
+          toast.error("Email already used for another director/shareholder");
+          setConfirmRow(null);
+          return;
+        }
+      }
     }
     if (!organizationId) {
       if (email) setDraftEmails((prev) => ({ ...prev, [confirmRow.id]: email }));

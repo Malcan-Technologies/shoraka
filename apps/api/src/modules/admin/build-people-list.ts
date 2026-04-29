@@ -3,6 +3,7 @@ import {
   parseCtosPartySupplementRoot,
   getEffectiveCtosPartyScreening,
   getEffectiveCtosPartyOnboarding,
+  getCtosPartySupplementFlatRead,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
 import { extractCtosIndividuals } from "../regtank/helpers/detect-director-gaps";
@@ -56,6 +57,7 @@ export function buildAdminPeopleList(params: {
 
   const screeningByPartyKey = new Map<string, { status: string | null }>();
   const onboardingByPartyKey = new Map<string, { status: string | null }>();
+  const userEmailByPartyKey = new Map<string, string>();
   for (const s of supplements) {
     const pk = normalizeDirectorShareholderIdKey(String(s.party_key ?? s.partyKey ?? ""));
     if (!pk) continue;
@@ -66,6 +68,8 @@ export function buildAdminPeopleList(params: {
     const onboarding = getEffectiveCtosPartyOnboarding(root);
     const onboardingStatus = String(onboarding.status ?? onboarding.regtankStatus ?? "").trim() || null;
     onboardingByPartyKey.set(pk, { status: onboardingStatus });
+    const flatEm = getCtosPartySupplementFlatRead(raw).email.trim();
+    if (flatEm) userEmailByPartyKey.set(pk, flatEm);
   }
 
   const issuer = {
@@ -109,7 +113,13 @@ export function buildAdminPeopleList(params: {
   ];
   const individualKycRefByGov = new Map<
     string,
-    { kycId: string; eodRequestId: string; shareholderEodRequestId: string; kycStatus: string }
+    {
+      kycId: string;
+      eodRequestId: string;
+      shareholderEodRequestId: string;
+      kycStatus: string;
+      email: string;
+    }
   >();
   for (const row of individualKycRows) {
     if (!row || typeof row !== "object" || Array.isArray(row)) continue;
@@ -121,6 +131,7 @@ export function buildAdminPeopleList(params: {
       eodRequestId: String(r.eodRequestId ?? "").trim(),
       shareholderEodRequestId: String(r.shareholderEodRequestId ?? "").trim(),
       kycStatus: String(r.kycStatus ?? r.status ?? "").trim(),
+      email: String(r.email ?? "").trim(),
     });
   }
 
@@ -135,6 +146,9 @@ export function buildAdminPeopleList(params: {
   const individualSyncAmlByGov = new Map<string, string>();
   const individualSyncAmlByKycId = new Map<string, string>();
   const individualSyncAmlByEod = new Map<string, string>();
+  const individualAmlEmailByGov = new Map<string, string>();
+  const individualAmlEmailByKycId = new Map<string, string>();
+  const individualAmlEmailByNameKey = new Map<string, string>();
   for (const row of individualAmlRows) {
     if (!row || typeof row !== "object" || Array.isArray(row)) continue;
     const r = row as Record<string, unknown>;
@@ -145,6 +159,17 @@ export function buildAdminPeopleList(params: {
     if (kycId) individualSyncAmlByKycId.set(kycId, amlStatus);
     const eod = String(r.eodRequestId ?? "").trim();
     if (eod) individualSyncAmlByEod.set(eod, amlStatus);
+
+    const amlEm = String(r.email ?? "").trim();
+    if (amlEm) {
+      if (gov) individualAmlEmailByGov.set(gov, amlEm);
+      if (kycId) individualAmlEmailByKycId.set(kycId, amlEm);
+      const nm = String(r.name ?? "")
+        .trim()
+        .toLowerCase()
+        .replace(/\s+/g, " ");
+      if (nm) individualAmlEmailByNameKey.set(nm, amlEm);
+    }
   }
 
   const ctosPeople = extractCtosIndividuals(ctosSafe);
@@ -229,6 +254,37 @@ export function buildAdminPeopleList(params: {
       ? kycRefs.kycStatus.trim()
       : null;
     const onboardingStatus = key ? onboardingByPartyKey.get(key)?.status ?? null : null;
+
+    const rawSaved = key ? userEmailByPartyKey.get(key) : undefined;
+    const userEmail = rawSaved?.trim() ? rawSaved.trim() : null;
+
+    let kycEmail: string | null = null;
+    let amlEmail: string | null = null;
+    if (person.entityType === "INDIVIDUAL") {
+      kycEmail = kycRefs?.email?.trim() ? kycRefs.email.trim() : null;
+      const amlByIc = key ? individualAmlEmailByGov.get(key) : undefined;
+      if (amlByIc?.trim()) {
+        amlEmail = amlByIc.trim();
+      } else if (kycRefs?.kycId) {
+        const amlByKyc = individualAmlEmailByKycId.get(kycRefs.kycId);
+        if (amlByKyc?.trim()) amlEmail = amlByKyc.trim();
+      }
+      if (!amlEmail) {
+        const nk = String(person.name ?? "")
+          .trim()
+          .toLowerCase()
+          .replace(/\s+/g, " ");
+        const amlByName = nk ? individualAmlEmailByNameKey.get(nk) : undefined;
+        if (amlByName?.trim()) amlEmail = amlByName.trim();
+      }
+    }
+
+    const email =
+      (userEmail && userEmail.length > 0 ? userEmail : "") ||
+      (kycEmail && kycEmail.length > 0 ? kycEmail : "") ||
+      (amlEmail && amlEmail.length > 0 ? amlEmail : "") ||
+      "";
+
     return {
       ...person,
       screening,
@@ -237,6 +293,10 @@ export function buildAdminPeopleList(params: {
       onboarding: { status: onboardingStatus },
       status: amlLabel,
       action: null,
+      userEmail,
+      kycEmail,
+      amlEmail,
+      email,
     };
   });
 }

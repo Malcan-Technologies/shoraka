@@ -20,6 +20,17 @@ export type ApplicationPersonRow = {
   entityType: "INDIVIDUAL" | "CORPORATE";
   roles: string[];
   sharePercentage: number | null;
+  /**
+   * Resolved contact email: user-saved (supplement) → KYC → AML (see {@link ApplicationPersonRow.userEmail}…).
+   * Built server-side in `buildAdminPeopleList`.
+   */
+  email?: string;
+  /** Email saved in `ctos_party_supplements.onboarding_json` for this party (user input). */
+  userEmail?: string | null;
+  /** Email from issuer `director_kyc_status` row matched by `matchKey` / government ID. */
+  kycEmail?: string | null;
+  /** Email from issuer `director_aml_status` row matched by IC, kycId, or name. */
+  amlEmail?: string | null;
   /** Legacy display / gap label; prefer {@link ApplicationPersonRow.screening} for AML gating. */
   status: string;
   /** Optional per-person AML fallback label (e.g. from director_aml_status). */
@@ -44,6 +55,11 @@ export type PeopleRolesRowInput = {
   roles: string[];
   sharePercentage: number | null;
 };
+
+/** Normalize party email for duplicate checks (trim + lowercase). */
+export function normalizeDirectorShareholderPartyEmail(email: string | null | undefined): string {
+  return String(email ?? "").trim().toLowerCase();
+}
 
 export function filterVisiblePeopleRows<T extends PeopleRolesRowInput>(peopleRows: T[]): T[] {
   return peopleRows
@@ -292,7 +308,7 @@ export function applicationPeopleToUnifiedDirectorRows(
         idNumber: p.entityType === "INDIVIDUAL" ? p.matchKey : null,
         registrationNumber: p.entityType === "CORPORATE" ? p.matchKey : null,
         ownershipDisplay,
-        email: "",
+        email: String(p.email ?? "").trim(),
         status: displayStatus,
         canEnterEmail: false,
         canSendOnboarding: false,
@@ -309,12 +325,14 @@ export function applicationPeopleToUnifiedDirectorRows(
       directorKycStatus: base.status ?? null,
       onboarding: { status: base.ctosRegtankStatus ?? null },
     });
+    const personEmail = String(p.email ?? "").trim();
     return {
       ...base,
       id: p.matchKey,
       name: p.name?.trim() ? (p.name as string) : base.name,
       role,
       ownershipDisplay: ownershipDisplay ?? base.ownershipDisplay,
+      email: personEmail || String(base.email ?? "").trim(),
       status: displayStatus,
       isDirector,
       isShareholder,
