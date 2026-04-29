@@ -56,6 +56,7 @@ import type {
   OnboardingStatusEnum,
 } from "@cashsouk/types";
 import {
+  getCtosPartySupplementFlatRead,
   getSectionForPendingAmendment,
   getSectionForScopeKey,
   parseItemScopeKey,
@@ -4879,10 +4880,11 @@ export class AdminService {
       if (isLegacyCtosPartyKycApproved(partyKey, issuerOrg.director_kyc_status)) continue;
       if (!supplementPartyKeys.has(partyKey)) continue;
       const onboarding = onboardingByPartyKey.get(partyKey) ?? {};
-      const regtankStatus = String(onboarding.regtankStatus ?? "").trim().toUpperCase();
+      const flat = getCtosPartySupplementFlatRead(onboarding);
+      const regtankStatus = String(flat.regtankStatus ?? "").trim().toUpperCase();
       const kycRawStatus =
-        onboarding.kyc && typeof onboarding.kyc === "object" && !Array.isArray(onboarding.kyc)
-          ? String((onboarding.kyc as Record<string, unknown>).rawStatus ?? "").trim().toUpperCase()
+        flat.kycBlock && typeof flat.kycBlock.rawStatus === "string"
+          ? String(flat.kycBlock.rawStatus).trim().toUpperCase()
           : "";
       const approved = regtankStatus === "APPROVED" || kycRawStatus === "APPROVED";
       if (!approved) {

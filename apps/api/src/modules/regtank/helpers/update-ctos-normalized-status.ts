@@ -1,10 +1,12 @@
 /**
  * SECTION: CTOS supplement normalized status updates
- * WHY: Keep supplement normalized blocks aligned with issuer shape
+ * WHY: Keep screening.kyc / screening.aml normalized blocks aligned with issuer shape
  * INPUT: onboarding_json + raw webhook status + match identifiers
- * OUTPUT: merged onboarding_json with updated normalized statuses
+ * OUTPUT: merged document with `screening` only (legacy kyc/aml stripped)
  * WHERE USED: RegTank CTOS supplement webhook handlers
  */
+import { getEffectiveCtosPartyScreening } from "@cashsouk/types";
+
 type JsonObject = Record<string, unknown>;
 
 type MatchIdentifiers = {
@@ -131,14 +133,17 @@ export function updateCtosSupplementNormalizedStatus(params: {
   const { onboardingJson, status, now, identifiers } = params;
 
   const next = { ...onboardingJson };
+  const eff = getEffectiveCtosPartyScreening(next);
+  let kycBlock = { ...eff.kyc };
+  let amlBlock = { ...eff.aml };
 
-  const existingKyc = asObject(next.kyc);
+  const existingKyc = asObject(kycBlock);
   if (existingKyc) {
     const existingKycNormalized = asObject(existingKyc.normalized);
     if (existingKycNormalized) {
       const kycResult = updateKycNormalized(existingKycNormalized, status, now, identifiers);
       if (kycResult.changed) {
-        next.kyc = {
+        kycBlock = {
           ...existingKyc,
           normalized: kycResult.normalized,
         };
@@ -146,13 +151,13 @@ export function updateCtosSupplementNormalizedStatus(params: {
     }
   }
 
-  const existingAml = asObject(next.aml);
+  const existingAml = asObject(amlBlock);
   if (existingAml) {
     const existingAmlNormalized = asObject(existingAml.normalized);
     if (existingAmlNormalized) {
       const amlResult = updateAmlNormalized(existingAmlNormalized, status, now, identifiers);
       if (amlResult.changed) {
-        next.aml = {
+        amlBlock = {
           ...existingAml,
           normalized: amlResult.normalized,
         };
@@ -160,6 +165,13 @@ export function updateCtosSupplementNormalizedStatus(params: {
     }
   }
 
+  next.screening = {
+    provider: eff.provider,
+    kyc: kycBlock,
+    aml: amlBlock,
+  };
+  delete next.kyc;
+  delete next.aml;
+
   return next;
 }
-

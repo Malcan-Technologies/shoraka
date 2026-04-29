@@ -39,9 +39,14 @@ import { organizationInvitationTemplate } from "../../lib/email/templates";
 import { randomBytes } from "crypto";
 import {
   getDirectorShareholderDisplayRows,
+  getEffectiveCtosPartyOnboarding,
+  getEffectiveCtosPartyScreening,
   isCtosIndividualKycEligibleRow,
+  isCtosPartySupplementApprovalLocked,
   isLegacyCtosPartyKycApproved,
+  mergeCtosPartySupplementDocument,
   normalizeDirectorShareholderIdKey,
+  parseCtosPartySupplementRoot,
 } from "@cashsouk/types";
 import { buildAdminPeopleList } from "../admin/build-people-list";
 import { RegTankAPIClient } from "../regtank/api-client";
@@ -61,24 +66,8 @@ function splitForenameSurname(full: string): { forename: string; surname: string
   return { forename: parts[0], surname: parts.slice(1).join(" ") };
 }
 
-function parseCtosPartyOnboardingJson(v: unknown): Record<string, unknown> {
-  if (v && typeof v === "object" && !Array.isArray(v)) {
-    return v as Record<string, unknown>;
-  }
-  return {};
-}
-
-function onboardingApprovalLockActive(onboarding: Record<string, unknown>): boolean {
-  const regtankStatus = String(onboarding.regtankStatus ?? "").trim().toUpperCase();
-  const kycRawStatus =
-    onboarding.kyc && typeof onboarding.kyc === "object" && !Array.isArray(onboarding.kyc)
-      ? String((onboarding.kyc as Record<string, unknown>).rawStatus ?? "").trim().toUpperCase()
-      : "";
-  return regtankStatus === "APPROVED" || kycRawStatus === "APPROVED";
-}
-
-function assertOnboardingEmailMutable(onboarding: Record<string, unknown>): void {
-  if (!onboardingApprovalLockActive(onboarding)) return;
+function assertOnboardingEmailMutable(root: Record<string, unknown>): void {
+  if (!isCtosPartySupplementApprovalLocked(root)) return;
   throw new AppError(
     400,
     "KYC_ALREADY_APPROVED",
@@ -1687,25 +1676,29 @@ export class OrganizationService {
     }
     const email = input.email.trim();
     const existing = await findCtosPartySupplementForOrg(portalType, organizationId, partyKey);
-    const prev = parseCtosPartyOnboardingJson(existing?.onboarding_json);
-    assertOnboardingEmailMutable(prev);
-    const previousEmail = typeof prev.email === "string" ? prev.email.trim() : "";
+    const prevRoot = parseCtosPartySupplementRoot(existing?.onboarding_json);
+    assertOnboardingEmailMutable(prevRoot);
+    const prevOnb = getEffectiveCtosPartyOnboarding(prevRoot);
+    const previousEmail = typeof prevOnb.email === "string" ? prevOnb.email.trim() : "";
     const emailChanged = previousEmail.toLowerCase() !== email.toLowerCase();
-    const nextOnboarding: Record<string, unknown> = { ...prev, email };
+    const nextOnb: Record<string, unknown> = { ...prevOnb, email };
     if (emailChanged) {
-      nextOnboarding.sent = false;
-      nextOnboarding.regtankStatus = "PENDING";
-      nextOnboarding.updatedAt = new Date().toISOString();
-      delete nextOnboarding.requestId;
-      delete nextOnboarding.verifyLink;
-      delete nextOnboarding.kyc;
-      delete nextOnboarding.aml;
+      nextOnb.sent = false;
+      nextOnb.status = "PENDING";
+      nextOnb.updatedAt = new Date().toISOString();
+      delete nextOnb.requestId;
+      delete nextOnb.verifyLink;
+      delete nextOnb.regtankStatus;
     }
+    const mergedDoc = mergeCtosPartySupplementDocument(prevRoot, {
+      onboarding: nextOnb,
+      ...(emailChanged ? { screening: { kyc: {}, aml: {} } } : {}),
+    });
     await upsertCtosPartySupplementOnboardingJson(
       portalType,
       organizationId,
       partyKey,
-      nextOnboarding as Prisma.InputJsonValue,
+      mergedDoc as Prisma.InputJsonValue,
       entitiesForParty.directorKycStatus
     );
     logger.info({ organizationId, partyKey, userId, portalType }, "CTOS party supplement email upserted");
@@ -1749,8 +1742,9 @@ export class OrganizationService {
     }
 
     const supplement = await findCtosPartySupplementForOrg(portalType, organizationId, pk);
-    const supOb = parseCtosPartyOnboardingJson(supplement?.onboarding_json);
-    assertOnboardingEmailMutable(supOb);
+    const prevRoot = parseCtosPartySupplementRoot(supplement?.onboarding_json);
+    assertOnboardingEmailMutable(prevRoot);
+    const supOb = getEffectiveCtosPartyOnboarding(prevRoot);
     const supplementEmail =
       supOb.email != null ? String(supOb.email).trim() : "";
     if (!supplementEmail) {
@@ -1820,7 +1814,8 @@ export class OrganizationService {
     const nowIso = now.toISOString();
     const cooldownMs = 5 * 60 * 1000;
     const maxPerDay = 5;
-    const prevLastSentAt = typeof supOb.lastSentAt === "string" ? supOb.lastSentAt.trim() : "";
+    const prevLastSentAt =
+      typeof supOb.lastSentAt === "string" ? (supOb.lastSentAt as string).trim() : "";
     if (prevLastSentAt) {
       const lastMs = new Date(prevLastSentAt).getTime();
       if (Number.isFinite(lastMs) && now.getTime() - lastMs < cooldownMs) {
@@ -1832,7 +1827,7 @@ export class OrganizationService {
       }
     }
     const dailyCutoffMs = now.getTime() - 24 * 60 * 60 * 1000;
-    const recentSends = parseSendTimestamps(supOb).filter((ts) => {
+    const recentSends = parseSendTimestamps(getEffectiveCtosPartyOnboarding(prevRoot)).filter((ts) => {
       const ms = new Date(ts).getTime();
       return Number.isFinite(ms) && ms >= dailyCutoffMs;
     });
@@ -1845,7 +1840,8 @@ export class OrganizationService {
     }
     try {
       logger.info({ referenceId }, "RegTank director onboarding referenceId");
-      const existingRequestId = typeof supOb.requestId === "string" ? supOb.requestId.trim() : "";
+      const existingRequestId =
+        typeof supOb.requestId === "string" ? (supOb.requestId as string).trim() : "";
       const regTankResponse = existingRequestId
         ? await regTankApi.restartOnboarding(existingRequestId, {
             email: supplementEmail,
@@ -1870,34 +1866,34 @@ export class OrganizationService {
       );
     }
 
-    const prevKyc =
-      supOb.kyc && typeof supOb.kyc === "object" && !Array.isArray(supOb.kyc)
-        ? { ...(supOb.kyc as Record<string, unknown>) }
-        : {};
-    const prevAml =
-      supOb.aml && typeof supOb.aml === "object" && !Array.isArray(supOb.aml)
-        ? { ...(supOb.aml as Record<string, unknown>) }
-        : {};
-    const nextOnboarding = {
+    const prevScr = getEffectiveCtosPartyScreening(prevRoot);
+    const prevKyc = { ...prevScr.kyc };
+    const prevAml = { ...prevScr.aml };
+    const nextOnb: Record<string, unknown> = {
       ...supOb,
       email: supplementEmail,
       sent: true,
-      regtankStatus: "IN_PROGRESS",
+      status: "IN_PROGRESS",
       requestId,
       referenceId,
-      kyc: { ...prevKyc, rawStatus: "PENDING" },
-      aml: { ...prevAml, rawStatus: "PENDING" },
       ...(verifyLink ? { verifyLink } : {}),
       sentAt: nowIso,
       lastSentAt: nowIso,
       sendTimestamps: [...recentSends, nowIso],
     };
-    delete (nextOnboarding as Record<string, unknown>).status;
+    delete nextOnb.regtankStatus;
+    const mergedSend = mergeCtosPartySupplementDocument(prevRoot, {
+      onboarding: nextOnb,
+      screening: {
+        kyc: { ...prevKyc, rawStatus: "PENDING" },
+        aml: { ...prevAml, rawStatus: "PENDING" },
+      },
+    });
     await upsertCtosPartySupplementOnboardingJson(
       portalType,
       organizationId,
       pk,
-      nextOnboarding as Prisma.InputJsonValue,
+      mergedSend as Prisma.InputJsonValue,
       entities.directorKycStatus
     );
 

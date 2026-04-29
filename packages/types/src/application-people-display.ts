@@ -6,6 +6,7 @@
  * WHERE USED: Admin application/org review, issuer/investor profile, company step
  */
 
+import { getCtosPartySupplementFlatRead } from "./ctos-party-supplement-json";
 import {
   getDirectorShareholderDisplayRows,
   normalizeDirectorShareholderIdKey,
@@ -135,11 +136,12 @@ export function isFinancialReviewKycReadyForApprove(params: {
       .replace(/_/g, " ");
     if (st === "APPROVED") continue;
     if (!supplementPartyKeys.has(partyKey)) continue;
-    const onboarding = onboardingByPartyKey.get(partyKey) ?? {};
-    const regtankStatus = String(onboarding.regtankStatus ?? "").trim().toUpperCase();
+    const raw = onboardingByPartyKey.get(partyKey) ?? {};
+    const flat = getCtosPartySupplementFlatRead(raw);
+    const regtankStatus = String(flat.regtankStatus ?? "").trim().toUpperCase();
     const kycRawStatus =
-      onboarding.kyc && typeof onboarding.kyc === "object" && !Array.isArray(onboarding.kyc)
-        ? String((onboarding.kyc as Record<string, unknown>).rawStatus ?? "").trim().toUpperCase()
+      flat.kycBlock && typeof flat.kycBlock.rawStatus === "string"
+        ? String(flat.kycBlock.rawStatus).trim().toUpperCase()
         : "";
     const approved = regtankStatus === "APPROVED" || kycRawStatus === "APPROVED";
     if (!approved) return false;

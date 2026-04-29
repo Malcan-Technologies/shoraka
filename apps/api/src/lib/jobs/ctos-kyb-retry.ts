@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { getCtosPartySupplementPipelineStatus } from "@cashsouk/types";
 import { prisma } from "../prisma";
 import { logger } from "../logger";
 import { linkCtosPartyToKyb } from "../../modules/organization/ctos-party-kyb-link";
@@ -51,7 +52,7 @@ export async function runCtosKybRetryJob(): Promise<void> {
       const json = asJsonRecord(row.onboarding_json);
       if (!json) continue;
 
-      if (String(json.regtankStatus ?? "").trim().toUpperCase() !== "APPROVED") continue;
+      if (getCtosPartySupplementPipelineStatus(json).toUpperCase() !== "APPROVED") continue;
 
       const directorDone = json.kybDirectorLinked === true || json.kybLinked === true;
       const shareholderDone = json.kybShareholderLinked === true || json.kybLinked === true;

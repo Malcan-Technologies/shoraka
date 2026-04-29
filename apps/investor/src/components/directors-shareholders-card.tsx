@@ -9,6 +9,7 @@ import {
 import {
   filterVisiblePeopleRows,
   formatPeopleRolesLine,
+  getCtosPartySupplementFlatRead,
   getDisplayKycStatus,
   normalizeDirectorShareholderIdKey,
   regtankDisplayStatusBadgeClass,
@@ -36,12 +37,10 @@ function personToDisplayRow(
 ): DirectorShareholderDisplayRow {
   const pk = normalizeDirectorShareholderIdKey(p.matchKey);
   const sup = pk ? onboardingByPartyKey.get(pk) ?? {} : {};
-  const requestId = String(sup.requestId ?? "").trim();
-  const regtankStatus = String(sup.regtankStatus ?? "").trim() || null;
-  const kycBlock =
-    sup.kyc && typeof sup.kyc === "object" && !Array.isArray(sup.kyc)
-      ? (sup.kyc as Record<string, unknown>)
-      : null;
+  const flat = getCtosPartySupplementFlatRead(sup);
+  const requestId = flat.requestId;
+  const regtankStatus = flat.regtankStatus;
+  const kycBlock = flat.kycBlock;
   const kycRawStatus = kycBlock ? String(kycBlock.rawStatus ?? "").trim() || null : null;
   const status = getDisplayKycStatus({
     requestId,

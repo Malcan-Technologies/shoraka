@@ -12,6 +12,13 @@ import { syncApplicationGuarantorsFromRegTankAmlWebhook } from "../../admin/guar
 import { maybeAdvanceOrgAfterAmlScreeningCleared } from "./org-aml-milestone";
 import { linkCtosPartyToKyb } from "../../organization/ctos-party-kyb-link";
 import { findCtosPartySupplementByOnboardingJsonMatch } from "../../organization/ctos-party-supplement-webhook-lookup";
+import {
+  getEffectiveCtosPartyOnboarding,
+  getEffectiveCtosPartyScreening,
+  getCtosPartySupplementPipelineStatus,
+  mergeCtosPartySupplementDocument,
+  parseCtosPartySupplementRoot,
+} from "@cashsouk/types";
 import { updateCtosSupplementNormalizedStatus } from "../helpers/update-ctos-normalized-status";
 import { mapRegTankKycScreeningStatusToAmlStatus } from "../helpers/regtank-kyc-screening-to-aml-status";
 
@@ -838,12 +845,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
       return false;
     }
 
-    const prev =
-      supplement.onboarding_json &&
-      typeof supplement.onboarding_json === "object" &&
-      !Array.isArray(supplement.onboarding_json)
-        ? { ...(supplement.onboarding_json as Record<string, unknown>) }
-        : {};
+    const prevRoot = parseCtosPartySupplementRoot(supplement.onboarding_json);
 
     const rawStatus = typeof status === "string" ? status : "";
     if (!rawStatus) {
@@ -874,9 +876,8 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
       kycBlock.messageStatus = messageStatus;
     }
 
-    const prevRest = { ...prev };
-    delete prevRest.status;
-    const latestRequestId = typeof prev.requestId === "string" ? prev.requestId.trim() : "";
+    const prevOnb = getEffectiveCtosPartyOnboarding(prevRoot);
+    const latestRequestId = typeof prevOnb.requestId === "string" ? prevOnb.requestId.trim() : "";
     const webhookOnboardingId = typeof onboardingId === "string" ? onboardingId.trim() : "";
     if (latestRequestId && webhookOnboardingId && latestRequestId !== webhookOnboardingId) {
       logger.info(
@@ -893,29 +894,23 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
       return true;
     }
 
-    const prevAml =
-      prevRest.aml && typeof prevRest.aml === "object" && !Array.isArray(prevRest.aml)
-        ? { ...(prevRest.aml as Record<string, unknown>) }
-        : {};
-    const amlBlock = { ...prevAml, ...this.buildCtosPartySupplementAmlBlock(payload) };
+    const effScr = getEffectiveCtosPartyScreening(prevRoot);
+    const amlBlock = { ...effScr.aml, ...this.buildCtosPartySupplementAmlBlock(payload) };
+    const prevKyc = { ...effScr.kyc };
 
-    const prevKyc =
-      prevRest.kyc && typeof prevRest.kyc === "object" && !Array.isArray(prevRest.kyc)
-        ? { ...(prevRest.kyc as Record<string, unknown>) }
-        : {};
-
-    const updatedBase = {
-      ...prevRest,
-      regtankStatus,
-      kyc: {
-        ...prevKyc,
-        ...kycBlock,
+    const mergedBase = mergeCtosPartySupplementDocument(prevRoot, {
+      regtankPipelineStatus: regtankStatus,
+      onboarding: { updatedAt: now },
+      screening: {
+        kyc: {
+          ...prevKyc,
+          ...kycBlock,
+        },
+        aml: amlBlock,
       },
-      aml: amlBlock,
-      updatedAt: now,
-    };
+    });
     const normalizedUpdated = updateCtosSupplementNormalizedStatus({
-      onboardingJson: updatedBase,
+      onboardingJson: mergedBase,
       status: rawStatus,
       now,
       identifiers: {
@@ -946,7 +941,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
     );
 
     const updatedRec = updated as Record<string, unknown>;
-    const approved = String(updatedRec.regtankStatus ?? "").trim().toUpperCase() === "APPROVED";
+    const approved = getCtosPartySupplementPipelineStatus(updatedRec).toUpperCase() === "APPROVED";
     if (approved && this.provider === "ACURIS" && supplement.issuer_organization_id) {
       try {
         await linkCtosPartyToKyb({

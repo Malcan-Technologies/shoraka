@@ -1,5 +1,10 @@
 import { Prisma } from "@prisma/client";
-import { normalizeDirectorShareholderIdKey } from "@cashsouk/types";
+import {
+  getCtosPartySupplementPipelineStatus,
+  getEffectiveCtosPartyScreening,
+  normalizeDirectorShareholderIdKey,
+  parseCtosPartySupplementRoot,
+} from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
 import { getRegTankAPIClient } from "../regtank/api-client";
@@ -163,16 +168,18 @@ export type LinkCtosPartyToKybInput = {
  */
 export async function linkCtosPartyToKyb(input: LinkCtosPartyToKybInput): Promise<void> {
   const { organizationId, partyKey, onboardingJson } = input;
-  if (String(onboardingJson.regtankStatus ?? "").trim().toUpperCase() !== "APPROVED") return;
+  if (getCtosPartySupplementPipelineStatus(onboardingJson).toUpperCase() !== "APPROVED") return;
 
-  const kyc = onboardingJson.kyc;
-  const kycOb = kyc && typeof kyc === "object" && !Array.isArray(kyc) ? (kyc as Record<string, unknown>) : null;
+  const root = parseCtosPartySupplementRoot(onboardingJson);
+  const scr = getEffectiveCtosPartyScreening(root);
+  const kycOb =
+    scr.kyc && typeof scr.kyc === "object" && !Array.isArray(scr.kyc) ? (scr.kyc as Record<string, unknown>) : null;
   const kycId =
     kycOb && typeof kycOb.requestId === "string" && kycOb.requestId.trim() ? kycOb.requestId.trim() : "";
   if (!kycId) {
     logger.error(
       { organizationId, partyKey },
-      "CTOS KYB link skipped: missing KYC requestId on onboarding_json.kyc"
+      "CTOS KYB link skipped: missing KYC requestId on screening.kyc"
     );
     return;
   }

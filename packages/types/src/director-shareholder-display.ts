@@ -8,6 +8,10 @@
 
 import { governmentIdFromDirectorKycForEod } from "./director-kyc-gov-id";
 import {
+  getEffectiveCtosPartyOnboarding,
+  getEffectiveCtosPartyScreening,
+} from "./ctos-party-supplement-json";
+import {
   effectiveCtosRegtankStatusFromOnboardingJson,
   getDisplayAmlStatus,
 } from "./regtank-onboarding-status";
@@ -1300,15 +1304,17 @@ function ctosSupplementOnboardingFields(ob: Record<string, unknown>): {
   kycRaw: string;
   amlRaw: string;
 } {
-  const req = String(ob.requestId ?? "").trim();
-  const reg = String(ob.regtankStatus ?? "").trim();
+  const onb = getEffectiveCtosPartyOnboarding(ob);
+  const scr = getEffectiveCtosPartyScreening(ob);
+  const req = String(onb.requestId ?? "").trim();
+  const reg = String(onb.status ?? onb.regtankStatus ?? "").trim();
   const kycRaw =
-    ob.kyc && typeof ob.kyc === "object" && !Array.isArray(ob.kyc)
-      ? String((ob.kyc as Record<string, unknown>).rawStatus ?? "").trim()
+    scr.kyc && typeof scr.kyc === "object" && !Array.isArray(scr.kyc)
+      ? String((scr.kyc as Record<string, unknown>).rawStatus ?? "").trim()
       : "";
   const amlRaw =
-    ob.aml && typeof ob.aml === "object" && !Array.isArray(ob.aml)
-      ? String((ob.aml as Record<string, unknown>).rawStatus ?? "").trim()
+    scr.aml && typeof scr.aml === "object" && !Array.isArray(scr.aml)
+      ? String((scr.aml as Record<string, unknown>).rawStatus ?? "").trim()
       : "";
   return { req, reg, kycRaw, amlRaw };
 }

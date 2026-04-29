@@ -74,7 +74,10 @@ export function getCtosPartySupplementAmlRawStatus(
     return fb.length ? fb.toUpperCase() : null;
   }
   const ob = onboardingJson as Record<string, unknown>;
-  const aml = ob.aml;
+  const screening = ob.screening && typeof ob.screening === "object" && !Array.isArray(ob.screening)
+    ? (ob.screening as Record<string, unknown>)
+    : null;
+  const aml = screening?.aml ?? ob.aml;
   if (aml && typeof aml === "object" && !Array.isArray(aml)) {
     const raw = (aml as Record<string, unknown>).rawStatus;
     if (typeof raw === "string" && raw.trim()) {
@@ -99,7 +102,7 @@ export function getDisplayAmlStatus(raw?: string | null): string {
   return "Status unavailable";
 }
 
-/** Read regtankStatus from supplement JSON; migrate legacy lowercase `status` if present. */
+/** Read RegTank pipeline status from supplement JSON (`onboarding.status` or legacy `regtankStatus`). */
 export function effectiveCtosRegtankStatusFromOnboardingJson(
   onboardingJson: unknown
 ): string | null {
@@ -107,7 +110,12 @@ export function effectiveCtosRegtankStatusFromOnboardingJson(
     return null;
   }
   const ob = onboardingJson as Record<string, unknown>;
-  const rs = ob.regtankStatus;
+  const nested = ob.onboarding;
+  const fromOnb =
+    nested && typeof nested === "object" && !Array.isArray(nested)
+      ? (nested as Record<string, unknown>)
+      : null;
+  const rs = (fromOnb?.status ?? fromOnb?.regtankStatus ?? ob.regtankStatus) as unknown;
   if (typeof rs === "string" && rs.trim()) return rs.trim();
   const legacy = ob.status;
   if (legacy === "approved") return "APPROVED";

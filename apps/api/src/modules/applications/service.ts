@@ -47,6 +47,8 @@ import {
   ContractStatus,
   InvoiceStatus,
   WithdrawReason,
+  getCtosPartySupplementPipelineStatus,
+  getCtosPartySupplementRequestId,
   getDirectorShareholderDisplayRows,
   isCtosIndividualKycEligibleRow,
   isLegacyCtosPartyKycApproved,
@@ -519,8 +521,8 @@ export class ApplicationService {
       if (isLegacyCtosPartyKycApproved(partyKey, issuerOrganization.director_kyc_status)) continue;
       if (!supplementPartyKeys.has(partyKey)) continue;
       const onboarding = supplementByPartyKey.get(partyKey) ?? {};
-      const requestId = String(onboarding.requestId ?? "").trim();
-      const status = String(onboarding.regtankStatus || "").trim().toUpperCase();
+      const requestId = getCtosPartySupplementRequestId(onboarding);
+      const status = getCtosPartySupplementPipelineStatus(onboarding).toUpperCase();
       const isFormSubmitted = status !== "" && !NOT_SUBMITTED.has(status);
       if (!requestId || !isFormSubmitted) {
         missingNames.push(row.name || partyKey);

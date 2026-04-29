@@ -1,5 +1,7 @@
 import {
   filterVisiblePeopleRows,
+  getCtosPartySupplementPipelineStatus,
+  getCtosPartySupplementRequestId,
   getDirectorKycPartyRecord,
   normalizeDirectorShareholderIdKey,
   type ApplicationPersonRow,
@@ -83,11 +85,11 @@ export function getSupplementOnboardingJson(
 
 /** Pipeline status from CTOS party supplement JSON only (not AML). */
 export function getSupplementPipelineStatus(onboarding: Record<string, unknown>): string {
-  return String(onboarding.status ?? onboarding.regtankStatus ?? "").trim();
+  return getCtosPartySupplementPipelineStatus(onboarding);
 }
 
 export function getSupplementRequestId(onboarding: Record<string, unknown>): string {
-  return String(onboarding.requestId ?? onboarding.eodRequestId ?? "").trim();
+  return getCtosPartySupplementRequestId(onboarding);
 }
 
 /**

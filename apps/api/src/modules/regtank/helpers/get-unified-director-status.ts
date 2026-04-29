@@ -26,10 +26,13 @@ export function getUnifiedKyc(source: unknown): UnknownRecord | null {
   const onboardingJson = source.onboarding_json;
   if (!isObject(onboardingJson)) return null;
 
-  const kyc = onboardingJson.kyc;
+  const screening = isObject(onboardingJson.screening)
+    ? (onboardingJson.screening as UnknownRecord)
+    : null;
+  const kyc = (screening?.kyc ?? onboardingJson.kyc) as unknown;
   if (!isObject(kyc)) return null;
 
-  const normalized = kyc.normalized;
+  const normalized = (kyc as UnknownRecord).normalized;
   if (isObject(normalized)) return normalized;
 
   return null;
@@ -50,10 +53,13 @@ export function getUnifiedAml(source: unknown): UnknownRecord | null {
   const onboardingJson = source.onboarding_json;
   if (!isObject(onboardingJson)) return null;
 
-  const aml = onboardingJson.aml;
+  const screening = isObject(onboardingJson.screening)
+    ? (onboardingJson.screening as UnknownRecord)
+    : null;
+  const aml = (screening?.aml ?? onboardingJson.aml) as unknown;
   if (!isObject(aml)) return null;
 
-  const normalized = aml.normalized;
+  const normalized = (aml as UnknownRecord).normalized;
   if (isObject(normalized)) return normalized;
 
   return null;

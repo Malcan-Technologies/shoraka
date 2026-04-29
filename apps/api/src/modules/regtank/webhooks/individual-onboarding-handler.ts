@@ -9,7 +9,11 @@ import { OnboardingStatus, Prisma, UserRole } from "@prisma/client";
 import { NotificationService } from "../../notification/service";
 import { NotificationTypeIds } from "../../notification/registry";
 import { prisma } from "../../../lib/prisma";
-import { mapRegtankIndividualLivenessRawToInternalStatus } from "@cashsouk/types";
+import {
+  mapRegtankIndividualLivenessRawToInternalStatus,
+  mergeCtosPartySupplementDocument,
+  parseCtosPartySupplementRoot,
+} from "@cashsouk/types";
 import { findCtosPartySupplementByOnboardingJsonMatch } from "../../organization/ctos-party-supplement-webhook-lookup";
 import { updateCtosSupplementNormalizedStatus } from "../helpers/update-ctos-normalized-status";
 
@@ -455,23 +459,14 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
 
     const statusUpper = status.toUpperCase();
 
-    const prev =
-      supplement.onboarding_json &&
-      typeof supplement.onboarding_json === "object" &&
-      !Array.isArray(supplement.onboarding_json)
-        ? { ...(supplement.onboarding_json as Record<string, unknown>) }
-        : {};
-    const prevRest = { ...prev };
-    delete prevRest.status;
-
+    const prevRoot = parseCtosPartySupplementRoot(supplement.onboarding_json);
     const now = new Date().toISOString();
-    const updatedBase = {
-      ...prevRest,
-      regtankStatus: status,
-      updatedAt: now,
-    };
+    const mergedBase = mergeCtosPartySupplementDocument(prevRoot, {
+      regtankPipelineStatus: status,
+      onboarding: { updatedAt: now },
+    });
     const updated = updateCtosSupplementNormalizedStatus({
-      onboardingJson: updatedBase,
+      onboardingJson: mergedBase,
       status,
       now,
       identifiers: {

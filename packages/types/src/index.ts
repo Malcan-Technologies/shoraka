@@ -359,4 +359,5 @@ export * from "./application-people-display";
 export * from "./director-kyc-gov-id";
 export * from "./director-shareholder-display";
 export * from "./regtank-onboarding-status";
+export * from "./ctos-party-supplement-json";
 export * from "./regtank-iso3166-countries";

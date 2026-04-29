@@ -237,8 +237,12 @@ export function detectDirectorGaps({ ctos, issuer, supplement }: GapInput): Dete
   const supplementOnboardingJson = isObject(supplementObj?.onboarding_json)
     ? (supplementObj?.onboarding_json as UnknownRecord)
     : null;
-  const supplementKyc = isObject(supplementOnboardingJson?.kyc)
-    ? (supplementOnboardingJson?.kyc as UnknownRecord).normalized ?? null
+  const screening = isObject(supplementOnboardingJson?.screening)
+    ? (supplementOnboardingJson.screening as UnknownRecord)
+    : null;
+  const kycNode = screening?.kyc ?? supplementOnboardingJson?.kyc;
+  const supplementKyc = isObject(kycNode)
+    ? ((kycNode as UnknownRecord).normalized as UnknownRecord | null) ?? null
     : null;
 
   const ctosIndividuals = extractCtosIndividuals(ctos);

@@ -11,10 +11,13 @@ import {
 import {
   filterVisiblePeopleRows,
   formatPeopleRolesLine,
+  getCtosPartySupplementFlatRead,
+  getCtosPartySupplementRequestId,
   getDirectorKycPartyRecord,
   getDisplayKycStatus,
   getDisplayRoleLabel,
   isCtosIndividualKycEligibleRow,
+  isCtosPartySupplementApprovalLocked,
   normalizeDirectorShareholderIdKey,
   regtankDisplayStatusBadgeClass,
   type ApplicationPersonRow,
@@ -130,14 +133,7 @@ function rowNeedsProfileAction(row: DirectorShareholderDisplayRow, emailDisplay:
 }
 
 function onboardingApprovalLockActive(onboardingJson: unknown): boolean {
-  if (!onboardingJson || typeof onboardingJson !== "object" || Array.isArray(onboardingJson)) return false;
-  const onboarding = onboardingJson as Record<string, unknown>;
-  const regtankStatus = String(onboarding.regtankStatus ?? "").trim().toUpperCase();
-  const kycRawStatus =
-    onboarding.kyc && typeof onboarding.kyc === "object" && !Array.isArray(onboarding.kyc)
-      ? String((onboarding.kyc as Record<string, unknown>).rawStatus ?? "").trim().toUpperCase()
-      : "";
-  return regtankStatus === "APPROVED" || kycRawStatus === "APPROVED";
+  return isCtosPartySupplementApprovalLocked(onboardingJson);
 }
 
 function isRowComplete(row: DirectorShareholderDisplayRow, persistedEmail: string): boolean {
@@ -166,12 +162,10 @@ function personToDisplayRow(
 ): DirectorShareholderDisplayRow {
   const pk = normalizeDirectorShareholderIdKey(p.matchKey);
   const sup = pk ? onboardingByPartyKey.get(pk) ?? {} : {};
-  const requestId = String(sup.requestId ?? "").trim();
-  const regtankStatus = String(sup.regtankStatus ?? "").trim() || null;
-  const kycBlock =
-    sup.kyc && typeof sup.kyc === "object" && !Array.isArray(sup.kyc)
-      ? (sup.kyc as Record<string, unknown>)
-      : null;
+  const flat = getCtosPartySupplementFlatRead(sup);
+  const requestId = flat.requestId;
+  const regtankStatus = flat.regtankStatus;
+  const kycBlock = flat.kycBlock;
   const kycRawStatus = kycBlock ? String(kycBlock.rawStatus ?? "").trim() || null : null;
   let status: string = getDisplayKycStatus({
     requestId,
@@ -320,8 +314,7 @@ export function DirectorShareholdersUnifiedSection({
     const rawKey = partyKeyRawForRow(confirmRow);
     const partyKeyNorm = normalizeDirectorShareholderIdKey(rawKey);
     const latestOnboarding = partyKeyNorm ? onboardingByPartyKey.get(partyKeyNorm) : undefined;
-    const hadRequestId =
-      String(latestOnboarding?.requestId ?? latestOnboarding?.eodRequestId ?? "").trim().length > 0;
+    const hadRequestId = getCtosPartySupplementRequestId(latestOnboarding ?? {}).length > 0;
     if (!email || !partyKeyNorm) {
       toast.error("Enter a valid email and ensure the row has an IC or SSM number.");
       return;
@@ -378,8 +371,9 @@ export function DirectorShareholdersUnifiedSection({
     const linkSent = onboardingLinkSentForRow(row);
     const partyKeyNorm = normalizeDirectorShareholderIdKey(partyKeyRawForRow(row));
     const latestOnboarding = partyKeyNorm ? onboardingByPartyKey.get(partyKeyNorm) : undefined;
-    const latestRequestId = String(latestOnboarding?.requestId ?? latestOnboarding?.eodRequestId ?? "").trim();
-    const latestVerifyLink = String(latestOnboarding?.verifyLink ?? "").trim();
+    const latestFlat = getCtosPartySupplementFlatRead(latestOnboarding ?? {});
+    const latestRequestId = latestFlat.requestId;
+    const latestVerifyLink = latestFlat.verifyLink;
     const supJson =
       partySource && ctosPartySupplements
         ? getSupplementOnboardingJson(person.matchKey, ctosPartySupplements)
