@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -66,14 +67,95 @@ import {
 import {
   filterVisiblePeopleRows,
   getDisplayStatus,
-  formatPeopleRolesLine,
   formatSharePercentageCell,
 } from "@/lib/onboarding-people-display";
 import {
   getEffectiveCtosPartyOnboarding,
   getEffectiveCtosPartyScreening,
   normalizeDirectorShareholderIdKey,
+  regtankDisplayStatusBadgeClass,
+  type AdminCtosReportListItem,
 } from "@cashsouk/types";
+import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { formatApiErrorMessage } from "@/lib/format-api-error-message";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const REGTANK_PORTAL_BASE_URL =
+  typeof process !== "undefined" ? (process.env.NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL ?? "").trim() : "";
+
+function resolveRegtankPortalBase(raw: string | null | undefined): string {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  try {
+    const u = new URL(s);
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return s.replace(/\/+$/, "");
+  }
+}
+
+function regtankResultUrl(base: string, requestId: string, kind: "individual" | "company"): string | undefined {
+  const b = base.replace(/\/+$/, "");
+  const rid = String(requestId ?? "").trim();
+  if (!b || !rid || rid === "—") return undefined;
+  const enc = encodeURIComponent(rid);
+  return kind === "company" ? `${b}/app/screen-kyb/result/${enc}` : `${b}/app/screen-kyc/result/${enc}`;
+}
+
+/** Issuer corporate onboarding: open director/shareholder KYC in corporate flow (COD + EOD). */
+function regtankOnboardingCorporatePartyUrl(base: string, cod: string, eod: string): string | undefined {
+  const b = base.replace(/\/+$/, "");
+  const c = String(cod ?? "").trim();
+  const e = String(eod ?? "").trim();
+  if (!b || !c || !e) return undefined;
+  const cu = c.toUpperCase();
+  const eu = e.toUpperCase();
+  if (!cu.startsWith("COD") || !eu.startsWith("EOD")) return undefined;
+  return `${b}/app/onboardingCorporate/${encodeURIComponent(c)}/${encodeURIComponent(e)}`;
+}
+
+function firstEodId(...candidates: Array<string | null | undefined>): string {
+  for (const raw of candidates) {
+    const v = String(raw ?? "").trim();
+    if (v.toUpperCase().startsWith("EOD")) return v;
+  }
+  return "";
+}
+
+function comparableSubjectRef(raw: string | null | undefined): string {
+  return String(raw ?? "")
+    .trim()
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .toLowerCase();
+}
+
+/** Same as API `normalizeCtosSubjectRefKey` (ctos subject_ref in DB). */
+function ctosSubjectRefKey(raw: string | null | undefined): string {
+  return String(raw ?? "")
+    .trim()
+    .replace(/\s+/g, "")
+    .toLowerCase();
+}
+
+function ctosSubjectRefsMatch(a: string | null | undefined, b: string | null | undefined): boolean {
+  const ka = ctosSubjectRefKey(a);
+  const kb = ctosSubjectRefKey(b);
+  if (ka.length > 0 && kb.length > 0 && ka === kb) return true;
+  return comparableSubjectRef(a) === comparableSubjectRef(b);
+}
+
+function looksLikeRequestId(raw: string | null | undefined): boolean {
+  const v = String(raw ?? "").trim().toUpperCase();
+  return v.startsWith("EOD") || v.startsWith("COD");
+}
+
+type PendingCtosSubjectFetch = {
+  subjectRef: string;
+  subjectKind: "INDIVIDUAL" | "CORPORATE";
+  displayName: string;
+  idNumber?: string;
+  partyLabel: string;
+};
 
 function DetailRow({
   label,
@@ -617,28 +699,145 @@ function getFirstString(obj: unknown, paths: string[][]): string | null {
   return null;
 }
 
-function buildStatusByGovernmentId(
-  source: unknown,
-  statusKeys: string[]
-): Map<string, string> {
-  const byGov = new Map<string, string>();
-  if (!source || typeof source !== "object" || Array.isArray(source)) return byGov;
+function formatRoleTitleCaseWithoutShare(roles: string[]): string {
+  const cleaned = roles
+    .map((r) => String(r || "").trim().toUpperCase())
+    .filter(Boolean)
+    .map((r) => r.replace(/^SHAREHOLDER$/, "Shareholder").replace(/^DIRECTOR$/, "Director"))
+    .map((r) => (r === "Shareholder" || r === "Director" ? r : r.toLowerCase().replace(/\b\w/g, (m) => m.toUpperCase())));
+  const uniq = [...new Set(cleaned)];
+  return uniq.length > 0 ? uniq.join(", ") : "—";
+}
+
+function extractFormFieldValue(formContent: unknown, fieldName: string): string {
+  if (!formContent || typeof formContent !== "object" || Array.isArray(formContent)) return "";
+  const root = formContent as Record<string, unknown>;
+  const areas = Array.isArray(root.displayAreas)
+    ? (root.displayAreas as Array<{ content?: unknown[] }>)
+    : [{ content: Array.isArray(root.content) ? root.content : [] }];
+  for (const area of areas) {
+    const rows = Array.isArray(area?.content) ? area.content : [];
+    for (const row of rows) {
+      if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+      const r = row as Record<string, unknown>;
+      if (String(r.fieldName ?? "").trim().toLowerCase() !== fieldName.trim().toLowerCase()) continue;
+      const val = String(r.fieldValue ?? "").trim();
+      if (val) return val;
+    }
+  }
+  return "";
+}
+
+type AmlInfo = { status: string; riskLevel: string; riskScore: string };
+type KycInfo = {
+  status: string;
+  governmentIdNumber: string;
+  eodRequestId: string;
+  shareholderEodRequestId: string;
+  kycId: string;
+};
+type CorporateEntityInfo = {
+  kycType: string;
+  eodRequestId: string;
+  requestId: string;
+  frontDocumentUrl: string;
+  backDocumentUrl: string;
+  status: string;
+};
+
+type AmlLookup = {
+  byGov: Map<string, AmlInfo>;
+  byKycId: Map<string, AmlInfo>;
+  byEod: Map<string, AmlInfo>;
+};
+
+function buildAmlLookup(source: unknown): AmlLookup {
+  const byGov = new Map<string, AmlInfo>();
+  const byKycId = new Map<string, AmlInfo>();
+  const byEod = new Map<string, AmlInfo>();
+  if (!source || typeof source !== "object" || Array.isArray(source)) return { byGov, byKycId, byEod };
   const root = source as { directors?: unknown[]; individualShareholders?: unknown[] };
   const rows = [...(root.directors ?? []), ...(root.individualShareholders ?? [])];
   for (const row of rows) {
     if (!row || typeof row !== "object" || Array.isArray(row)) continue;
     const r = row as Record<string, unknown>;
-    const gov = normalizeDirectorShareholderIdKey(String(r.governmentIdNumber ?? ""));
+    const status = String(r.amlStatus ?? r.status ?? "").trim();
+    const riskLevel = String(r.amlRiskLevel ?? "").trim();
+    const scoreRaw = r.amlRiskScore;
+    const riskScore =
+      scoreRaw === null || scoreRaw === undefined
+        ? ""
+        : String(typeof scoreRaw === "number" ? scoreRaw : scoreRaw).trim();
+    if (!status && !riskLevel && !riskScore) continue;
+    const info: AmlInfo = {
+      status: status || "",
+      riskLevel,
+      riskScore,
+    };
+    const gov = normalizeDirectorShareholderIdKey(String(r.governmentIdNumber ?? "")) ?? "";
+    if (gov) byGov.set(gov, info);
+    const kycId = String(r.kycId ?? "").trim();
+    if (kycId) byKycId.set(kycId, info);
+    const eod = String(r.eodRequestId ?? "").trim();
+    if (eod) byEod.set(eod, info);
+  }
+  return { byGov, byKycId, byEod };
+}
+
+function buildKycLookup(source: unknown): {
+  byGov: Map<string, KycInfo>;
+  byEod: Map<string, KycInfo>;
+  byKycId: Map<string, KycInfo>;
+} {
+  const byGov = new Map<string, KycInfo>();
+  const byEod = new Map<string, KycInfo>();
+  const byKycId = new Map<string, KycInfo>();
+  if (!source || typeof source !== "object" || Array.isArray(source)) return { byGov, byEod, byKycId };
+  const root = source as { directors?: unknown[]; individualShareholders?: unknown[] };
+  const rows = [...(root.directors ?? []), ...(root.individualShareholders ?? [])];
+  for (const row of rows) {
+    if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+    const r = row as Record<string, unknown>;
+    const gov = normalizeDirectorShareholderIdKey(String(r.governmentIdNumber ?? "")) ?? "";
+    const status = String(r.kycStatus ?? r.status ?? "").trim();
+    const info: KycInfo = {
+      status,
+      governmentIdNumber: gov,
+      eodRequestId: String(r.eodRequestId ?? "").trim(),
+      shareholderEodRequestId: String(r.shareholderEodRequestId ?? "").trim(),
+      kycId: String(r.kycId ?? "").trim(),
+    };
+    if (gov) byGov.set(gov, info);
+    if (info.eodRequestId) byEod.set(ctosSubjectRefKey(info.eodRequestId), info);
+    if (info.shareholderEodRequestId) byEod.set(ctosSubjectRefKey(info.shareholderEodRequestId), info);
+    if (info.kycId) byKycId.set(ctosSubjectRefKey(info.kycId), info);
+  }
+  return { byGov, byEod, byKycId };
+}
+
+function buildCorporateEntityByGovernmentId(source: unknown): Map<string, CorporateEntityInfo> {
+  const byGov = new Map<string, CorporateEntityInfo>();
+  if (!source || typeof source !== "object" || Array.isArray(source)) return byGov;
+  const root = source as { directors?: unknown[]; shareholders?: unknown[] };
+  const rows = [...(root.directors ?? []), ...(root.shareholders ?? [])];
+  for (const row of rows) {
+    if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+    const r = row as Record<string, unknown>;
+    const personalInfo = r.personalInfo as Record<string, unknown> | undefined;
+    const documents = r.documents as Record<string, unknown> | undefined;
+    const govRaw =
+      String(personalInfo?.governmentIdNumber ?? "").trim() ||
+      extractFormFieldValue(personalInfo?.formContent, "Government ID Number");
+    const gov = normalizeDirectorShareholderIdKey(govRaw);
     if (!gov) continue;
-    let status = "";
-    for (const key of statusKeys) {
-      const raw = r[key];
-      if (typeof raw === "string" && raw.trim()) {
-        status = raw.trim();
-        break;
-      }
-    }
-    if (status) byGov.set(gov, status);
+    byGov.set(gov, {
+      kycType: String(r.kycType ?? "").trim(),
+      eodRequestId: String(r.eodRequestId ?? "").trim(),
+      requestId: String(r.requestId ?? "").trim(),
+      frontDocumentUrl: String(documents?.frontDocumentUrl ?? "").trim(),
+      backDocumentUrl: String(documents?.backDocumentUrl ?? "").trim(),
+      status: String(r.status ?? r.approveStatus ?? "").trim(),
+    });
   }
   return byGov;
 }
@@ -667,6 +866,62 @@ export default function OrganizationDetailPage() {
   const organizationId = params.id as string;
 
   const { data: org, isLoading, error } = useOrganizationDetail(portal, organizationId);
+  const { getAccessToken } = useAuthToken();
+  const apiClient = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
+  const queryClient = useQueryClient();
+
+  const ctosReportsQuery = useQuery<AdminCtosReportListItem[]>({
+    queryKey: ["admin", "organization-ctos-reports-inline", portal, organizationId],
+    queryFn: async () => {
+      const res = await apiClient.listAdminOrganizationCtosSubjectReports(
+        portal as "issuer" | "investor",
+        organizationId
+      );
+      if (!res.success) throw new Error(formatApiErrorMessage(res.error));
+      return res.data;
+    },
+    enabled: Boolean(organizationId && (portal === "issuer" || portal === "investor")),
+  });
+
+  const [ctosFetchSubjectKey, setCtosFetchSubjectKey] = React.useState<string | null>(null);
+  const [pendingCtosSubjectFetch, setPendingCtosSubjectFetch] = React.useState<PendingCtosSubjectFetch | null>(null);
+
+  const fetchSubjectCtosMutation = useMutation({
+    mutationFn: async (input: {
+      subjectRef: string;
+      subjectKind: "INDIVIDUAL" | "CORPORATE";
+      displayName?: string;
+      idNumber?: string;
+    }) => {
+      const idNumber = String(input.idNumber ?? "").trim();
+      const displayName = String(input.displayName ?? "").trim();
+      const res = await apiClient.createAdminOrganizationCtosSubjectReport(
+        portal as "issuer" | "investor",
+        organizationId,
+        {
+          subjectRef: input.subjectRef,
+          subjectKind: input.subjectKind,
+          enquiryOverride: idNumber && displayName ? { displayName, idNumber } : undefined,
+        }
+      );
+      if (!res.success) throw new Error(formatApiErrorMessage(res.error));
+      return res.data;
+    },
+    onMutate: (input) => {
+      setCtosFetchSubjectKey(normalizeDirectorShareholderIdKey(input.subjectRef));
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "organization-ctos-reports-inline", portal, organizationId] });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "organization-ctos-reports", portal, organizationId] });
+      toast.success("CTOS subject report saved.");
+    },
+    onError: (e: Error) => {
+      toast.error(e.message || "CTOS subject request failed");
+    },
+    onSettled: () => {
+      setCtosFetchSubjectKey(null);
+    },
+  });
   const updateSophisticatedMutation = useUpdateSophisticatedStatus();
   const [showSophisticatedDialog, setShowSophisticatedDialog] = React.useState(false);
   const [pendingSophisticatedStatus, setPendingSophisticatedStatus] = React.useState<boolean | null>(null);
@@ -718,6 +973,29 @@ export default function OrganizationDetailPage() {
       ? `${org.firstName} ${org.lastName}`
       : `${org.owner.firstName} ${org.owner.lastName}`;
   }, [org]);
+
+  const openSubjectReportHtml = React.useCallback(
+    async (reportId: string) => {
+      const token = await getAccessToken();
+      if (!token) {
+        toast.error("Not signed in");
+        return;
+      }
+      const url = `${API_URL}/v1/admin/organizations/${portal}/${encodeURIComponent(organizationId)}/ctos-reports/${reportId}/html`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        toast.error("Could not load report");
+        return;
+      }
+      const html = await res.text();
+      const w = window.open("", "_blank");
+      if (w) {
+        w.document.write(html);
+        w.document.close();
+      }
+    },
+    [getAccessToken, organizationId, portal]
+  );
 
   return (
     <>
@@ -1193,10 +1471,13 @@ export default function OrganizationDetailPage() {
                 {org.type === "COMPANY" && (
                   <Card className="rounded-2xl">
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-medium flex items-center gap-2">
-                        <UsersIcon className="h-4 w-4" />
-                        Directors and shareholders
-                      </CardTitle>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                          <UsersIcon className="h-4 w-4" />
+                          Directors and Shareholders
+                        </CardTitle>
+                        {null}
+                      </div>
                     </CardHeader>
                     <CardContent>
                       {(() => {
@@ -1213,8 +1494,9 @@ export default function OrganizationDetailPage() {
                               : {};
                           supplementsByKey.set(key, json);
                         }
-                        const amlByGov = buildStatusByGovernmentId(org.directorAmlStatus, ["amlStatus", "status"]);
-                        const kycByGov = buildStatusByGovernmentId(org.directorKycStatus, ["kycStatus", "status"]);
+                        const amlLookup = buildAmlLookup(org.directorAmlStatus);
+                        const kycLookup = buildKycLookup(org.directorKycStatus);
+                        const entitiesByGov = buildCorporateEntityByGovernmentId(org.corporateEntities);
 
                         if (rows.length === 0) {
                           return (
@@ -1229,19 +1511,15 @@ export default function OrganizationDetailPage() {
                               <TableHeader>
                                 <TableRow>
                                   <TableHead>Name</TableHead>
-                                  <TableHead>ID</TableHead>
                                   <TableHead>Roles</TableHead>
-                                  <TableHead>Type</TableHead>
                                   <TableHead>Share %</TableHead>
                                   <TableHead>Status</TableHead>
-                                  <TableHead>Screening</TableHead>
-                                  <TableHead>AML</TableHead>
-                                  <TableHead>KYC</TableHead>
-                                  <TableHead>Onboarding</TableHead>
+                                  <TableHead>Risk Level</TableHead>
                                   <TableHead>Request ID</TableHead>
-                                  <TableHead>Acuris Risk</TableHead>
                                   <TableHead>IC Front</TableHead>
                                   <TableHead>IC Back</TableHead>
+                                  <TableHead>Timestamp</TableHead>
+                                  <TableHead>CTOS</TableHead>
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
@@ -1250,46 +1528,72 @@ export default function OrganizationDetailPage() {
                                   const supplement = key ? supplementsByKey.get(key) ?? {} : {};
                                   const onboarding = getEffectiveCtosPartyOnboarding(supplement);
                                   const screening = getEffectiveCtosPartyScreening(supplement);
+                                  const entity = key ? entitiesByGov.get(key) : undefined;
 
-                                  const screeningStatus = String(p.screening?.status ?? "").trim() || "—";
-                                  const amlFallback = key ? amlByGov.get(key) ?? "—" : "—";
-                                  const kycFallback = key ? kycByGov.get(key) ?? "—" : "—";
+                                  const rowRefKey = ctosSubjectRefKey(p.matchKey);
+                                  const kycInfo =
+                                    (key ? kycLookup.byGov.get(key) : undefined) ||
+                                    kycLookup.byEod.get(rowRefKey) ||
+                                    kycLookup.byKycId.get(rowRefKey);
+                                  const amlInfo =
+                                    (key ? amlLookup.byGov.get(key) : undefined) ||
+                                    (kycInfo?.kycId ? amlLookup.byKycId.get(kycInfo.kycId) : undefined) ||
+                                    (kycInfo?.eodRequestId ? amlLookup.byEod.get(kycInfo.eodRequestId) : undefined) ||
+                                    (kycInfo?.shareholderEodRequestId
+                                      ? amlLookup.byEod.get(kycInfo.shareholderEodRequestId)
+                                      : undefined);
+                                  const amlFallback = String(amlInfo?.status ?? "").trim() || "—";
+                                  const kycFallback = kycInfo?.status || entity?.status || "—";
                                   const onboardingStatus =
                                     String(onboarding.status ?? onboarding.regtankStatus ?? "").trim() || "—";
-                                  const requestId =
-                                    String(onboarding.requestId ?? onboarding.eodRequestId ?? screening.requestId ?? "").trim() ||
+                                  const fallbackRequestId =
+                                    String(
+                                      onboarding.requestId ??
+                                        onboarding.eodRequestId ??
+                                        kycInfo?.eodRequestId ??
+                                        entity?.eodRequestId ??
+                                        entity?.requestId ??
+                                        screening.requestId ??
+                                        ""
+                                    ).trim() ||
                                     "—";
-                                  const riskLevel = String(screening.riskLevel ?? "").trim();
-                                  const riskScore = String(screening.riskScore ?? "").trim();
-                                  const acurisRisk =
-                                    riskLevel || riskScore
-                                      ? [riskLevel ? `Level: ${riskLevel}` : "", riskScore ? `Score: ${riskScore}` : ""]
-                                          .filter(Boolean)
-                                          .join(" · ")
-                                      : "—";
-
-                                  const icFront =
-                                    getFirstString(supplement, [
-                                      ["identityDocument", "frontUrl"],
-                                      ["identityDocument", "frontImageUrl"],
-                                      ["documents", "idFrontUrl"],
-                                      ["documents", "identityFrontUrl"],
-                                      ["icFrontUrl"],
-                                      ["frontIcUrl"],
-                                      ["idFrontUrl"],
-                                      ["frontImageUrl"],
-                                    ]) ?? "—";
-                                  const icBack =
-                                    getFirstString(supplement, [
-                                      ["identityDocument", "backUrl"],
-                                      ["identityDocument", "backImageUrl"],
-                                      ["documents", "idBackUrl"],
-                                      ["documents", "identityBackUrl"],
-                                      ["icBackUrl"],
-                                      ["backIcUrl"],
-                                      ["idBackUrl"],
-                                      ["backImageUrl"],
-                                    ]) ?? "—";
+                                  const eodForRegtankLink = firstEodId(
+                                    kycInfo?.eodRequestId,
+                                    kycInfo?.shareholderEodRequestId,
+                                    String(onboarding.eodRequestId ?? "").trim() || undefined,
+                                    fallbackRequestId !== "—" ? fallbackRequestId : undefined
+                                  );
+                                  const codForRegtankLink = String(org.codRequestId ?? "").trim();
+                                  const requestId =
+                                    eodForRegtankLink ||
+                                    String(kycInfo?.kycId ?? "").trim() ||
+                                    fallbackRequestId;
+                                  const icFront = entity?.frontDocumentUrl || getFirstString(supplement, [
+                                    ["identityDocument", "frontUrl"],
+                                    ["identityDocument", "frontImageUrl"],
+                                    ["documents", "idFrontUrl"],
+                                    ["documents", "identityFrontUrl"],
+                                    ["icFrontUrl"],
+                                    ["frontIcUrl"],
+                                    ["idFrontUrl"],
+                                    ["frontImageUrl"],
+                                  ]) || "—";
+                                  const icBack = entity?.backDocumentUrl || getFirstString(supplement, [
+                                    ["identityDocument", "backUrl"],
+                                    ["identityDocument", "backImageUrl"],
+                                    ["documents", "idBackUrl"],
+                                    ["documents", "identityBackUrl"],
+                                    ["icBackUrl"],
+                                    ["backIcUrl"],
+                                    ["idBackUrl"],
+                                    ["backImageUrl"],
+                                  ]) || "—";
+                                  const subjectIdNumber =
+                                    (p.entityType !== "CORPORATE" && kycInfo?.governmentIdNumber
+                                      ? kycInfo.governmentIdNumber
+                                      : "") ||
+                                    (!looksLikeRequestId(p.matchKey) ? String(p.matchKey ?? "").trim() : "") ||
+                                    "";
 
                                   const displayStatus = getDisplayStatus({
                                     screening: p.screening,
@@ -1297,21 +1601,89 @@ export default function OrganizationDetailPage() {
                                     directorKycStatus: kycFallback !== "—" ? kycFallback : null,
                                     onboarding: { status: onboardingStatus !== "—" ? onboardingStatus : null },
                                   });
+                                  const regtankBase =
+                                    resolveRegtankPortalBase(org.regtankPortalUrl) ||
+                                    resolveRegtankPortalBase(REGTANK_PORTAL_BASE_URL);
+                                  const requestUrl =
+                                    regtankOnboardingCorporatePartyUrl(
+                                      regtankBase,
+                                      codForRegtankLink,
+                                      eodForRegtankLink
+                                    ) ??
+                                    regtankResultUrl(
+                                      regtankBase,
+                                      eodForRegtankLink ||
+                                        String(kycInfo?.kycId ?? "").trim() ||
+                                        (fallbackRequestId !== "—" ? fallbackRequestId : ""),
+                                      p.entityType === "CORPORATE" || requestId.toUpperCase().startsWith("COD")
+                                        ? "company"
+                                        : "individual"
+                                    );
+                                  const subjectRefCandidates = [
+                                    p.matchKey,
+                                    requestId,
+                                    eodForRegtankLink,
+                                    fallbackRequestId,
+                                    kycInfo?.eodRequestId ?? "",
+                                    kycInfo?.shareholderEodRequestId ?? "",
+                                    entity?.eodRequestId ?? "",
+                                    entity?.requestId ?? "",
+                                  ].filter((v) => String(v ?? "").trim().length > 0);
+                                  const latestSubjectReport = (ctosReportsQuery.data ?? [])
+                                    .filter((r) => !!r.subject_ref)
+                                    .filter((r) =>
+                                      subjectRefCandidates.some((c) => ctosSubjectRefsMatch(c, r.subject_ref))
+                                    )
+                                    .sort((a, b) => new Date(b.fetched_at).getTime() - new Date(a.fetched_at).getTime())[0];
+                                  console.log("Admin org people row CTOS match:", {
+                                    matchKey: p.matchKey,
+                                    subject_ref_in_db: latestSubjectReport?.subject_ref,
+                                    report_id: latestSubjectReport?.id,
+                                    has_html: latestSubjectReport?.has_report_html,
+                                  });
+                                  const timestamp = latestSubjectReport?.fetched_at
+                                    ? format(new Date(latestSubjectReport.fetched_at), "PPpp")
+                                    : "—";
+                                  const riskLevel =
+                                    String(amlInfo?.riskLevel ?? "").trim() ||
+                                    String(amlInfo?.riskScore ?? "").trim() ||
+                                    String(screening.riskLevel ?? "").trim() ||
+                                    "—";
+                                  console.log("Admin org people row AML risk:", {
+                                    matchKey: p.matchKey,
+                                    kycId: kycInfo?.kycId,
+                                    amlRiskLevel: amlInfo?.riskLevel,
+                                    amlRiskScore: amlInfo?.riskScore,
+                                  });
 
                                   return (
                                     <TableRow key={p.matchKey}>
-                                      <TableCell className="font-medium">{p.name ?? "—"}</TableCell>
-                                      <TableCell className="font-mono text-xs">{p.matchKey}</TableCell>
-                                      <TableCell>{formatPeopleRolesLine(p)}</TableCell>
-                                      <TableCell>{p.entityType}</TableCell>
+                                      <TableCell className="font-medium">
+                                        <div>{p.name ?? "—"}</div>
+                                        <div className="font-mono text-xs text-muted-foreground mt-0.5">{p.matchKey}</div>
+                                      </TableCell>
+                                      <TableCell>{formatRoleTitleCaseWithoutShare(p.roles ?? [])}</TableCell>
                                       <TableCell>{formatSharePercentageCell(p)}</TableCell>
-                                      <TableCell>{displayStatus}</TableCell>
-                                      <TableCell>{screeningStatus}</TableCell>
-                                      <TableCell>{amlFallback}</TableCell>
-                                      <TableCell>{kycFallback}</TableCell>
-                                      <TableCell>{onboardingStatus}</TableCell>
-                                      <TableCell className="font-mono text-xs">{requestId}</TableCell>
-                                      <TableCell>{acurisRisk}</TableCell>
+                                      <TableCell>
+                                        <Badge
+                                          variant="outline"
+                                          className={`border-transparent text-[11px] font-normal ${regtankDisplayStatusBadgeClass(String(displayStatus))}`}
+                                        >
+                                          {displayStatus}
+                                        </Badge>
+                                      </TableCell>
+                                      <TableCell>{riskLevel}</TableCell>
+                                      <TableCell>
+                                        {requestUrl ? (
+                                          <Button type="button" variant="outline" size="sm" asChild className="h-8 gap-1.5">
+                                            <a href={requestUrl} target="_blank" rel="noopener noreferrer">
+                                              {requestId}
+                                            </a>
+                                          </Button>
+                                        ) : (
+                                          <span className="font-mono text-xs text-muted-foreground">{requestId}</span>
+                                        )}
+                                      </TableCell>
                                       <TableCell>
                                         {icFront !== "—" && isUrl(icFront) ? (
                                           <a
@@ -1339,6 +1711,51 @@ export default function OrganizationDetailPage() {
                                         ) : (
                                           "—"
                                         )}
+                                      </TableCell>
+                                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{timestamp}</TableCell>
+                                      <TableCell>
+                                        <div className="flex items-center gap-2">
+                                          <Button
+                                            type="button"
+                                            variant="secondary"
+                                            size="sm"
+                                            className="h-8"
+                                            onClick={() => {
+                                              const subjectDisplayName = String(p.name ?? "").trim() || p.matchKey;
+                                              console.log("Open CTOS fetch confirm:", {
+                                                subjectRef: p.matchKey,
+                                                displayName: subjectDisplayName,
+                                                idNumber: subjectIdNumber || "(server resolve)",
+                                              });
+                                              setPendingCtosSubjectFetch({
+                                                subjectRef: p.matchKey,
+                                                subjectKind: p.entityType === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL",
+                                                displayName: subjectDisplayName,
+                                                idNumber: subjectIdNumber || undefined,
+                                                partyLabel: p.name?.trim() ? `${p.name} (${p.matchKey})` : p.matchKey,
+                                              });
+                                            }}
+                                            disabled={
+                                              fetchSubjectCtosMutation.isPending &&
+                                              ctosFetchSubjectKey === normalizeDirectorShareholderIdKey(p.matchKey)
+                                            }
+                                          >
+                                            {fetchSubjectCtosMutation.isPending &&
+                                            ctosFetchSubjectKey === normalizeDirectorShareholderIdKey(p.matchKey)
+                                              ? "Fetching..."
+                                              : "Fetch"}
+                                          </Button>
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8"
+                                            onClick={() => latestSubjectReport?.id && void openSubjectReportHtml(latestSubjectReport.id)}
+                                            disabled={!latestSubjectReport?.id}
+                                          >
+                                            View Last
+                                          </Button>
+                                        </div>
                                       </TableCell>
                                     </TableRow>
                                   );
@@ -1463,6 +1880,51 @@ export default function OrganizationDetailPage() {
           </div>
         </div>
       </div>
+
+      <AlertDialog
+        open={pendingCtosSubjectFetch !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingCtosSubjectFetch(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Fetch CTOS subject report?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This requests a new CTOS report for{" "}
+              <span className="font-medium text-foreground">
+                {pendingCtosSubjectFetch?.partyLabel ?? "this party"}
+              </span>
+              . Charges or provider limits may apply. Continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              onClick={() => {
+                const payload = pendingCtosSubjectFetch;
+                if (!payload) return;
+                setPendingCtosSubjectFetch(null);
+                console.log("Confirm CTOS subject fetch:", {
+                  subjectRef: payload.subjectRef,
+                  displayName: payload.displayName,
+                  idNumber: payload.idNumber ?? "(server resolve)",
+                });
+                fetchSubjectCtosMutation.mutate({
+                  subjectRef: payload.subjectRef,
+                  subjectKind: payload.subjectKind,
+                  displayName: payload.displayName,
+                  idNumber: payload.idNumber,
+                });
+              }}
+              disabled={fetchSubjectCtosMutation.isPending}
+            >
+              {fetchSubjectCtosMutation.isPending ? "Fetching..." : "Fetch"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* AlertDialog for sophisticated investor status change */}
       <AlertDialog open={showSophisticatedDialog} onOpenChange={setShowSophisticatedDialog}>
