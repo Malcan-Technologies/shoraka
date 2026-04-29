@@ -610,22 +610,20 @@ export function buildOnboardingCtosComparison(
 
   const ctosAll = ready && companyJson ? extractCtosOrgDirectorsFromCompanyJson(companyJson) : [];
 
-  const used = new Set<number>();
-  const dirPart = partitionPeople(appDirList, ctosAll, qualifiesCtosDirector, used);
-  const shPart = partitionPeople(appShFiltered, ctosAll, qualifiesCtosShareholderListed, used);
-
-  const allMatched = new Set([...dirPart.matchedCtosIndices, ...shPart.matchedCtosIndices]);
+  // Keep director/shareholder matching independent so DS/AS rows can appear in both sections.
+  const dirPart = partitionPeople(appDirList, ctosAll, qualifiesCtosDirector, new Set<number>());
+  const shPart = partitionPeople(appShFiltered, ctosAll, qualifiesCtosShareholderListed, new Set<number>());
 
   const directors: OnboardingPeopleBuckets = {
     matched: dirPart.matched,
     onlyApplication: onlyApplicationPeople(appDirList, dirPart.matched),
-    onlyCtos: onlyCtosPeople(ctosAll, qualifiesCtosDirector, allMatched),
+    onlyCtos: onlyCtosPeople(ctosAll, qualifiesCtosDirector, dirPart.matchedCtosIndices),
   };
 
   const shareholders: OnboardingPeopleBuckets = {
     matched: shPart.matched,
     onlyApplication: onlyApplicationPeople(appShFiltered, shPart.matched),
-    onlyCtos: onlyCtosPeople(ctosAll, qualifiesCtosShareholderListed, allMatched),
+    onlyCtos: onlyCtosPeople(ctosAll, qualifiesCtosShareholderListed, shPart.matchedCtosIndices),
   };
 
   if (process.env.NODE_ENV === "development") {
