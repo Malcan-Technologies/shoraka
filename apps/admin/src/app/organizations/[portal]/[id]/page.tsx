@@ -34,7 +34,7 @@ import {
   useUpdateSophisticatedStatus,
 } from "@/hooks/use-organization-detail";
 import type { PortalType } from "@cashsouk/types";
-import { format, formatDistanceToNow } from "date-fns";
+import { format } from "date-fns";
 import {
   UserIcon,
   BuildingOffice2Icon,
@@ -81,7 +81,6 @@ import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { formatApiErrorMessage } from "@/lib/format-api-error-message";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-const NOTIFY_COOLDOWN_MS = 5 * 60 * 1000;
 const REGTANK_PORTAL_BASE_URL =
   typeof process !== "undefined" ? (process.env.NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL ?? "").trim() : "";
 
@@ -1674,15 +1673,6 @@ export default function OrganizationDetailPage() {
                                     String(amlInfo?.riskScore ?? "").trim() ||
                                     String(screening.riskLevel ?? "").trim() ||
                                     "—";
-                                  const lastNotifiedAt = p.lastNotifiedAt ? new Date(p.lastNotifiedAt) : null;
-                                  const isInCooldown =
-                                    !!lastNotifiedAt &&
-                                    !Number.isNaN(lastNotifiedAt.getTime()) &&
-                                    Date.now() - lastNotifiedAt.getTime() < NOTIFY_COOLDOWN_MS;
-                                  const lastNotifiedLabel =
-                                    lastNotifiedAt && !Number.isNaN(lastNotifiedAt.getTime())
-                                      ? formatDistanceToNow(lastNotifiedAt, { addSuffix: true })
-                                      : null;
                                   console.log("Admin org people row AML risk:", {
                                     matchKey: p.matchKey,
                                     kycId: kycInfo?.kycId,
@@ -1800,21 +1790,14 @@ export default function OrganizationDetailPage() {
                                             variant="outline"
                                             size="sm"
                                             className="h-8"
-                                            title={
-                                              !requiresOnboardingEmail(p)
-                                                ? "No onboarding required"
-                                                : isInCooldown
-                                                  ? "Recently notified. Please wait."
-                                                  : undefined
-                                            }
+                                            title={!requiresOnboardingEmail(p) ? "No onboarding required" : undefined}
                                             disabled={
                                               portal !== "issuer" ||
                                               notifyActionRequiredMutation.isPending ||
-                                              !requiresOnboardingEmail(p) ||
-                                              isInCooldown
+                                              !requiresOnboardingEmail(p)
                                             }
                                             onClick={() => {
-                                              if (!requiresOnboardingEmail(p) || isInCooldown) return;
+                                              if (!requiresOnboardingEmail(p)) return;
                                               notifyActionRequiredMutation.mutate({
                                                 partyKey: p.matchKey,
                                               });
@@ -1822,11 +1805,6 @@ export default function OrganizationDetailPage() {
                                           >
                                             Notify
                                           </Button>
-                                          {lastNotifiedLabel ? (
-                                            <span className="text-[11px] text-muted-foreground">
-                                              Last notified: {lastNotifiedLabel}
-                                            </span>
-                                          ) : null}
                                         </div>
                                       </TableCell>
                                     </TableRow>

@@ -55,7 +55,7 @@ import {
   type FinancialStatementsQuestionnaire,
 } from "@cashsouk/types";
 import { toast } from "sonner";
-import { format, formatDistanceToNow, isValid, parse, parseISO } from "date-fns";
+import { format, isValid, parse, parseISO } from "date-fns";
 import {
   useCreateIssuerOrganizationCtosReport,
   useCreateIssuerOrganizationCtosSubjectReport,
@@ -65,7 +65,6 @@ import {
 import { CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-const NOTIFY_COOLDOWN_MS = 5 * 60 * 1000;
 
 /** Year row placeholder when no year (em dash). */
 const HEADER_PLACEHOLDER = "\u2014";
@@ -986,15 +985,6 @@ export function ApplicationFinancialReviewContent({
                     p.name?.trim() ||
                     (p.entityType === "CORPORATE" ? "Corporate party" : "Individual");
                   const ctosIdNormalized = p.matchKey.replace(/[^a-zA-Z0-9]/g, "");
-                  const lastNotifiedAt = p.lastNotifiedAt ? new Date(p.lastNotifiedAt) : null;
-                  const isInCooldown =
-                    !!lastNotifiedAt &&
-                    !Number.isNaN(lastNotifiedAt.getTime()) &&
-                    Date.now() - lastNotifiedAt.getTime() < NOTIFY_COOLDOWN_MS;
-                  const lastNotifiedLabel =
-                    lastNotifiedAt && !Number.isNaN(lastNotifiedAt.getTime())
-                      ? formatDistanceToNow(lastNotifiedAt, { addSuffix: true })
-                      : null;
                   return (
                     <TableRow key={p.matchKey} className={applicationTableRowClass}>
                       <TableCell className={`${applicationTableCellClass} font-medium`}>{p.name ?? "\u2014"}</TableCell>
@@ -1052,21 +1042,14 @@ export function ApplicationFinancialReviewContent({
                             variant="outline"
                             size="sm"
                             className="h-8 rounded-lg text-xs"
-                            title={
-                              !requiresOnboardingEmail(p)
-                                ? "No onboarding required"
-                                : isInCooldown
-                                  ? "Recently notified. Please wait."
-                                  : undefined
-                            }
+                            title={!requiresOnboardingEmail(p) ? "No onboarding required" : undefined}
                             disabled={
                               !issuerOrgId ||
                               notifyActionRequired.isPending ||
-                              !requiresOnboardingEmail(p) ||
-                              isInCooldown
+                              !requiresOnboardingEmail(p)
                             }
                             onClick={() => {
-                              if (!requiresOnboardingEmail(p) || isInCooldown) return;
+                              if (!requiresOnboardingEmail(p)) return;
                               notifyActionRequired.mutate(
                                 { partyKey: p.matchKey },
                                 {
@@ -1079,11 +1062,6 @@ export function ApplicationFinancialReviewContent({
                           >
                             Notify
                           </Button>
-                          {lastNotifiedLabel ? (
-                            <span className="text-[11px] text-muted-foreground">
-                              Last notified: {lastNotifiedLabel}
-                            </span>
-                          ) : null}
                         </div>
                       </TableCell>
                       <TableCell className={`${applicationTableCellClass} text-right`}>
