@@ -45,6 +45,16 @@ function hasStartedOnboarding(p: Pick<ApplicationPersonRow, "onboarding">): bool
   return Boolean(normalizeRawStatus(p.onboarding?.status));
 }
 
+function isReadyOnboardingStatus(statusRaw: unknown): boolean {
+  const s = normalizeRawStatus(statusRaw);
+  return (
+    s === "WAIT_FOR_APPROVAL" ||
+    s === "WAITING_FOR_APPROVAL" ||
+    s === "PENDING_APPROVAL" ||
+    s === "APPROVED"
+  );
+}
+
 function shouldNotifyNewPerson(p: Pick<ApplicationPersonRow, "onboarding">): boolean {
   return !hasStartedOnboarding(p);
 }
@@ -105,7 +115,7 @@ export async function runIssuerDirectorShareholderNotificationsAfterOrgCtosRepor
   });
 
   const { visible: beforeVisible } = computeVisiblePeopleState(beforeInput);
-  const { people: afterPeople, visible: afterVisible } = computeVisiblePeopleState(afterInput);
+  const { visible: afterVisible } = computeVisiblePeopleState(afterInput);
 
   const beforeKeys = new Set(beforeVisible.map((p) => p.matchKey));
   const newPeopleWithoutOnboarding = afterVisible.filter(
@@ -126,9 +136,7 @@ export async function runIssuerDirectorShareholderNotificationsAfterOrgCtosRepor
   await resolveIssuerDirectorShareholderNotificationsIfCleared({
     issuerOrganizationId,
     ownerUserId,
-    people: afterPeople,
     visible: afterVisible,
-    hasAnyNewPersonWithoutOnboarding: newPeopleWithoutOnboarding.length > 0,
   });
 
   if (shouldTriggerNotification) {
@@ -191,28 +199,23 @@ export async function runIssuerDirectorShareholderNotificationResolutionFromDb(
     directorAmlStatus: org.director_aml_status ?? null,
     supplements: extras.ctosPartySupplements,
   });
-  const { people, visible } = computeVisiblePeopleState(listInput);
-  const hasAnyNewPersonWithoutOnboarding = visible.some((p) => shouldNotifyNewPerson(p));
+  const { visible } = computeVisiblePeopleState(listInput);
 
   await resolveIssuerDirectorShareholderNotificationsIfCleared({
     issuerOrganizationId,
     ownerUserId: org.owner_user_id,
-    people,
     visible,
-    hasAnyNewPersonWithoutOnboarding,
   });
 }
 
 async function resolveIssuerDirectorShareholderNotificationsIfCleared(params: {
   issuerOrganizationId: string;
   ownerUserId: string;
-  people: ApplicationPersonRow[];
   visible: ApplicationPersonRow[];
-  hasAnyNewPersonWithoutOnboarding: boolean;
 }): Promise<void> {
-  const { issuerOrganizationId, ownerUserId, visible, hasAnyNewPersonWithoutOnboarding } = params;
-
-  const shouldResolve = visible.length > 0 && !hasAnyNewPersonWithoutOnboarding;
+  const { issuerOrganizationId, ownerUserId, visible } = params;
+  const noOneNeedsOnboarding = visible.every((p) => isReadyOnboardingStatus(p.onboarding?.status));
+  const shouldResolve = noOneNeedsOnboarding;
   if (!shouldResolve) {
     return;
   }
