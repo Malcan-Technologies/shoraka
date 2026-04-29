@@ -26,6 +26,7 @@ import {
   normalizeRawStatus,
   requiresOnboardingEmail,
   regtankDisplayStatusBadgeClass,
+  toTitleCase,
   type ApplicationPersonRow,
   type DirectorShareholderDisplayRow,
 } from "@cashsouk/types";
@@ -123,11 +124,13 @@ function renderStatusBadge(raw: string) {
   if (!label) return null;
   const cls = regtankDisplayStatusBadgeClass(label);
 
+  const text = toTitleCase(label);
+
   if (label === "APPROVED") {
     return (
       <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
         <CheckCircleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
-        {label}
+        {text}
       </Badge>
     );
   }
@@ -136,7 +139,7 @@ function renderStatusBadge(raw: string) {
     return (
       <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
         <XCircleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
-        {label}
+        {text}
       </Badge>
     );
   }
@@ -144,7 +147,7 @@ function renderStatusBadge(raw: string) {
   return (
     <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
       <ClockIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
-      {label}
+      {text}
     </Badge>
   );
 }

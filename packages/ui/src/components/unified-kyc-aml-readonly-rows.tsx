@@ -1,7 +1,7 @@
 "use client";
 
 import type { DirectorShareholderDisplayRow } from "@cashsouk/types";
-import { normalizeRawStatus, regtankDisplayStatusBadgeClass } from "@cashsouk/types";
+import { normalizeRawStatus, regtankDisplayStatusBadgeClass, toTitleCase } from "@cashsouk/types";
 import { Badge } from "./badge";
 import { cn } from "../lib/utils";
 import {
@@ -29,7 +29,7 @@ function kycBadge(row: DirectorShareholderDisplayRow) {
         ) : (
           <XCircleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
         )}
-        {label}
+        {toTitleCase(label)}
       </Badge>
     );
   }
@@ -37,14 +37,14 @@ function kycBadge(row: DirectorShareholderDisplayRow) {
     return (
       <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
         <ClockIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
-        {label}
+        {toTitleCase(label)}
       </Badge>
     );
   }
   return (
     <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
       <ClockIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
-      {label}
+      {toTitleCase(label)}
     </Badge>
   );
 }
@@ -55,7 +55,7 @@ function amlBadge(display: string) {
     return (
       <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
         <CheckCircleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
-        {display}
+        {toTitleCase(display)}
       </Badge>
     );
   }
@@ -63,7 +63,7 @@ function amlBadge(display: string) {
     return (
       <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
         <XCircleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
-        {display}
+        {toTitleCase(display)}
       </Badge>
     );
   }
@@ -71,14 +71,14 @@ function amlBadge(display: string) {
     return (
       <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
         <ClockIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
-        {display}
+        {toTitleCase(display)}
       </Badge>
     );
   }
   return (
     <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
       <ClockIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
-      {display}
+      {toTitleCase(display)}
     </Badge>
   );
 }

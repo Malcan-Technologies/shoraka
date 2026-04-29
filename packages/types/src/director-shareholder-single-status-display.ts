@@ -8,6 +8,7 @@
 
 import { normalizeRawStatus } from "./status-normalization";
 import { regtankDisplayStatusBadgeClass } from "./regtank-onboarding-status";
+import { toTitleCase } from "./title-case";
 
 export type AmlStatusGroup = "NOT_STARTED" | "IN_PROGRESS" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
 
@@ -91,19 +92,9 @@ export function getKycGroup(statusRaw: string): KycStatusGroup {
   return "IN_PROGRESS";
 }
 
-/** Single-line badge text: no AML/KYC prefix, ALL CAPS, spaces between words. */
-const GROUP_DISPLAY_LABEL: Record<AmlStatusGroup | KycStatusGroup, string> = {
-  NOT_STARTED: "NOT STARTED",
-  IN_PROGRESS: "IN PROGRESS",
-  UNDER_REVIEW: "UNDER REVIEW",
-  PENDING_REVIEW: "PENDING REVIEW",
-  APPROVED: "APPROVED",
-  REJECTED: "REJECTED",
-  EXPIRED: "EXPIRED",
-};
-
+/** Title Case label for badge; `group` enum unchanged for consumers (display-only). */
 function displayLabelForGroup(group: AmlStatusGroup | KycStatusGroup): string {
-  return GROUP_DISPLAY_LABEL[group].toUpperCase();
+  return toTitleCase(group);
 }
 
 /** Reuse shared RegTank badge colors (same helper as raw status badges). */

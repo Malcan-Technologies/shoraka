@@ -14,6 +14,7 @@ import {
   normalizeDirectorShareholderIdKey,
   normalizeRawStatus,
   regtankDisplayStatusBadgeClass,
+  toTitleCase,
   type ApplicationPersonRow,
   type DirectorShareholderDisplayRow,
 } from "@cashsouk/types";
@@ -103,14 +104,14 @@ function renderIndividualRow(row: DirectorShareholderDisplayRow) {
         <div className="mt-1 flex flex-wrap flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-muted-foreground">KYC</span>
-            {status ? <Badge className={cn("text-xs font-medium", kycBadge)}>{status}</Badge> : null}
+            {status ? <Badge className={cn("text-xs font-medium", kycBadge)}>{toTitleCase(status)}</Badge> : null}
           </div>
           {row.amlStatus?.trim() ? (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-muted-foreground">AML</span>
               {normalizeRawStatus(row.amlStatus) ? (
                 <Badge variant="outline" className="text-xs font-medium">
-                  {normalizeRawStatus(row.amlStatus)}
+                  {toTitleCase(normalizeRawStatus(row.amlStatus))}
                 </Badge>
               ) : null}
             </div>
@@ -139,14 +140,14 @@ function renderCorporateRow(row: DirectorShareholderDisplayRow) {
         <div className="mt-1 flex flex-wrap flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-muted-foreground">KYC</span>
-            {status ? <Badge className={cn("text-xs font-medium", kycBadge)}>{status}</Badge> : null}
+            {status ? <Badge className={cn("text-xs font-medium", kycBadge)}>{toTitleCase(status)}</Badge> : null}
           </div>
           {row.amlStatus?.trim() ? (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-muted-foreground">AML</span>
               {normalizeRawStatus(row.amlStatus) ? (
                 <Badge variant="outline" className="text-xs font-medium">
-                  {normalizeRawStatus(row.amlStatus)}
+                  {toTitleCase(normalizeRawStatus(row.amlStatus))}
                 </Badge>
               ) : null}
             </div>
