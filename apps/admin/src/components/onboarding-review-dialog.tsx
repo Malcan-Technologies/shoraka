@@ -279,7 +279,7 @@ export function OnboardingReviewDialog({
       const status = getDisplayStatus({
         screening: p.screening,
         directorKycStatus: fallback ?? null,
-        onboarding: { status: p.status ?? null },
+        onboarding: { status: p.onboarding?.status ?? null },
       });
       return { ...p, status };
     });
@@ -351,7 +351,8 @@ export function OnboardingReviewDialog({
       const status = getDisplayStatus({
         screening: p.screening,
         directorAmlStatus: fallback ?? null,
-        directorKycStatus: null,
+        directorKycStatus: p.directorKycStatus ?? null,
+        onboarding: { status: p.onboarding?.status ?? null },
       });
       return { ...p, status };
     });

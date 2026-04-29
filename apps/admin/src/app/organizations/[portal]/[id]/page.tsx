@@ -1599,6 +1599,13 @@ export default function OrganizationDetailPage() {
                                     directorKycStatus: kycFallback || null,
                                     onboarding: { status: onboardingStatus || null },
                                   });
+                                  console.log("DS person", {
+                                    matchKey: p.matchKey,
+                                    screening: p.screening?.status,
+                                    aml: p.directorAmlStatus,
+                                    kyc: p.directorKycStatus,
+                                    onboarding: p.onboarding?.status,
+                                  });
                                   const regtankBase =
                                     resolveRegtankPortalBase(org.regtankPortalUrl) ||
                                     resolveRegtankPortalBase(REGTANK_PORTAL_BASE_URL);

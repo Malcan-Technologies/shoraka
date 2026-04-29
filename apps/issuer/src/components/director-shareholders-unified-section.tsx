@@ -200,14 +200,21 @@ function personToDisplayRow(
   const pk = normalizeDirectorShareholderIdKey(p.matchKey);
   const sup = pk ? onboardingByPartyKey.get(pk) ?? {} : {};
   const flat = getCtosPartySupplementFlatRead(sup);
-  const requestId = flat.requestId;
   const regtankStatus = flat.regtankStatus;
   const kycBlock = flat.kycBlock;
   const kycRawStatus = kycBlock ? String(kycBlock.rawStatus ?? "").trim() || null : null;
   const status = getDisplayStatus({
     screening: p.screening,
-    directorKycStatus: kycRawStatus,
-    onboarding: { status: regtankStatus || requestId },
+    directorAmlStatus: p.directorAmlStatus ?? null,
+    directorKycStatus: p.directorKycStatus ?? kycRawStatus,
+    onboarding: { status: p.onboarding?.status ?? regtankStatus ?? null },
+  });
+  console.log("DS person", {
+    matchKey: p.matchKey,
+    screening: p.screening?.status,
+    aml: p.directorAmlStatus,
+    kyc: p.directorKycStatus,
+    onboarding: p.onboarding?.status,
   });
   const rolesU = (p.roles ?? []).map((r) => r.toUpperCase());
   const isDirector = rolesU.includes("DIRECTOR");

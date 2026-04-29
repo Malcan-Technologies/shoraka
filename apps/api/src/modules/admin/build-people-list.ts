@@ -2,6 +2,7 @@ import {
   normalizeDirectorShareholderIdKey,
   parseCtosPartySupplementRoot,
   getEffectiveCtosPartyScreening,
+  getEffectiveCtosPartyOnboarding,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
 import { extractCtosIndividuals } from "../regtank/helpers/detect-director-gaps";
@@ -54,12 +55,17 @@ export function buildAdminPeopleList(params: {
         : [];
 
   const screeningByPartyKey = new Map<string, { status: string | null }>();
+  const onboardingByPartyKey = new Map<string, { status: string | null }>();
   for (const s of supplements) {
     const pk = normalizeDirectorShareholderIdKey(String(s.party_key ?? s.partyKey ?? ""));
     if (!pk) continue;
     const raw = s.onboarding_json ?? s.onboardingJson;
     const st = screeningStatusFromSupplement(raw);
     screeningByPartyKey.set(pk, { status: st });
+    const root = parseCtosPartySupplementRoot(raw);
+    const onboarding = getEffectiveCtosPartyOnboarding(root);
+    const onboardingStatus = String(onboarding.status ?? onboarding.regtankStatus ?? "").trim() || null;
+    onboardingByPartyKey.set(pk, { status: onboardingStatus });
   }
 
   const issuer = {
@@ -103,7 +109,7 @@ export function buildAdminPeopleList(params: {
   ];
   const individualKycRefByGov = new Map<
     string,
-    { kycId: string; eodRequestId: string; shareholderEodRequestId: string }
+    { kycId: string; eodRequestId: string; shareholderEodRequestId: string; kycStatus: string }
   >();
   for (const row of individualKycRows) {
     if (!row || typeof row !== "object" || Array.isArray(row)) continue;
@@ -114,6 +120,7 @@ export function buildAdminPeopleList(params: {
       kycId: String(r.kycId ?? "").trim(),
       eodRequestId: String(r.eodRequestId ?? "").trim(),
       shareholderEodRequestId: String(r.shareholderEodRequestId ?? "").trim(),
+      kycStatus: String(r.kycStatus ?? r.status ?? "").trim(),
     });
   }
 
@@ -193,30 +200,12 @@ export function buildAdminPeopleList(params: {
 
   return Array.from(peopleMap.values()).map((person) => {
     const key = normalizeDirectorShareholderIdKey(person.matchKey) ?? "";
-    let screening: { status: string | null } | null = null;
-    if (person.entityType === "CORPORATE") {
-      const fromSup = key ? screeningByPartyKey.get(key) : undefined;
-      const fromSync = key ? corporateRawAmlByKey.get(key) : undefined;
-      const st = (fromSup?.status != null && fromSup.status !== "" ? fromSup.status : null) ?? fromSync ?? null;
-      screening = { status: st };
-    } else {
-      const fromSup = key ? screeningByPartyKey.get(key) : undefined;
-      const kycRefs = key ? individualKycRefByGov.get(key) : undefined;
-      const fromSync =
-        (key ? individualSyncAmlByGov.get(key) : undefined) ||
-        (kycRefs?.kycId ? individualSyncAmlByKycId.get(kycRefs.kycId) : undefined) ||
-        (kycRefs?.eodRequestId ? individualSyncAmlByEod.get(kycRefs.eodRequestId) : undefined) ||
-        (kycRefs?.shareholderEodRequestId
-          ? individualSyncAmlByEod.get(kycRefs.shareholderEodRequestId)
-          : undefined);
-      const st =
-        (fromSup?.status != null && String(fromSup.status).trim() !== ""
-          ? String(fromSup.status).trim()
-          : null) ??
-        (fromSync && fromSync.trim() !== "" ? fromSync : null);
-      screening = { status: st };
-    }
-    const amlLabel = screening.status?.trim() || "—";
+    const fromSup = key ? screeningByPartyKey.get(key) : undefined;
+    const screeningStatus = fromSup?.status != null && String(fromSup.status).trim() !== ""
+      ? String(fromSup.status).trim()
+      : null;
+    const screening: { status: string | null } = { status: screeningStatus };
+    const amlLabel = screening.status?.trim() || "";
     const rawAmlSync =
       person.entityType === "CORPORATE"
         ? key
@@ -235,10 +224,17 @@ export function buildAdminPeopleList(params: {
           })();
     const directorAmlStatus =
       rawAmlSync != null && String(rawAmlSync).trim() !== "" ? String(rawAmlSync).trim() : null;
+    const kycRefs = key ? individualKycRefByGov.get(key) : undefined;
+    const directorKycStatus = kycRefs?.kycStatus?.trim()
+      ? kycRefs.kycStatus.trim()
+      : null;
+    const onboardingStatus = key ? onboardingByPartyKey.get(key)?.status ?? null : null;
     return {
       ...person,
       screening,
       directorAmlStatus,
+      directorKycStatus,
+      onboarding: { status: onboardingStatus },
       status: amlLabel,
       action: null,
     };

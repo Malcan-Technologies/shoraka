@@ -24,6 +24,10 @@ export type ApplicationPersonRow = {
   status: string;
   /** Optional per-person AML fallback label (e.g. from director_aml_status). */
   directorAmlStatus?: string | null;
+  /** Optional per-person KYC fallback (e.g. from director_kyc_status). */
+  directorKycStatus?: string | null;
+  /** Optional onboarding pipeline snapshot from CTOS party supplement. */
+  onboarding?: { status?: string | null } | null;
   action?: "SEND_EMAIL" | null;
   /** Flat AML screening snapshot (e.g. RegTank ACURIS `status`). Single source for submit/badge gating. */
   screening?: { status?: string | null } | null;
