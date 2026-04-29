@@ -9,6 +9,7 @@ export {
   formatSharePercentageCell,
   getDisplayStatus,
   requiresOnboardingEmail,
+  isDirectorShareholderNotifyRowEnabled,
   isNotifyEligible,
   isDirectorShareholderAmlScreeningApproved,
   shouldShowPeopleSendEmailButton,

@@ -359,6 +359,7 @@ export * from "./application-people-display";
 export * from "./director-kyc-gov-id";
 export * from "./director-shareholder-single-status-display";
 export * from "./director-shareholder-display";
+export * from "./director-shareholder-party-type-a";
 export * from "./regtank-onboarding-status";
 export * from "./status-normalization";
 export * from "./title-case";

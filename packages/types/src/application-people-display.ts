@@ -12,6 +12,7 @@ import {
   type DirectorShareholderDisplayRow,
   type GetDirectorShareholderDisplayRowsInput,
 } from "./director-shareholder-display";
+import { isPartyTypeA, type CorporateEntitiesShape } from "./director-shareholder-party-type-a";
 import { normalizeRawStatus } from "./status-normalization";
 
 export type ApplicationPersonRow = {
@@ -166,6 +167,26 @@ export function requiresOnboardingEmail(p: ApplicationPersonRow): boolean {
   const isShareholder = roles.includes("SHAREHOLDER");
   const share = Number(p.sharePercentage ?? 0);
   return isDirector || (isShareholder && share >= 5);
+}
+
+export type DirectorShareholderNotifyAdminContext = {
+  directorKycStatus: unknown;
+  corporateEntities: unknown;
+};
+
+/**
+ * Admin “Notify” matches issuer onboarding-email scope: {@link requiresOnboardingEmail}
+ * plus Type A (legacy KYC row or corporate shareholder on KYB list).
+ */
+export function isDirectorShareholderNotifyRowEnabled(
+  p: ApplicationPersonRow,
+  ctx: DirectorShareholderNotifyAdminContext
+): boolean {
+  if (!requiresOnboardingEmail(p)) return false;
+  if (isPartyTypeA(p, ctx.directorKycStatus, ctx.corporateEntities as CorporateEntitiesShape | null | undefined)) {
+    return false;
+  }
+  return true;
 }
 
 /** Backward-compatible alias for existing call sites. */

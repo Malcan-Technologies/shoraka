@@ -68,8 +68,9 @@ import {
   filterVisiblePeopleRows,
   getDisplayStatus,
   formatSharePercentageCell,
-  requiresOnboardingEmail,
+  isDirectorShareholderNotifyRowEnabled,
 } from "@/lib/onboarding-people-display";
+import { DirectorShareholderNotifyButton } from "@/components/director-shareholder-notify-button";
 import {
   getEffectiveCtosPartyOnboarding,
   getEffectiveCtosPartyScreening,
@@ -1514,6 +1515,10 @@ export default function OrganizationDetailPage() {
                         const amlLookup = buildAmlLookup(org.directorAmlStatus);
                         const kycLookup = buildKycLookup(org.directorKycStatus);
                         const entitiesByGov = buildCorporateEntityByGovernmentId(org.corporateEntities);
+                        const notifyCtx = {
+                          directorKycStatus: org.directorKycStatus,
+                          corporateEntities: org.corporateEntities,
+                        };
 
                         if (rows.length === 0) {
                           return (
@@ -1543,6 +1548,7 @@ export default function OrganizationDetailPage() {
                               <TableBody>
                                 {rows.map((p) => {
                                   const key = normalizeDirectorShareholderIdKey(p.matchKey);
+                                  const notifyRowEnabled = isDirectorShareholderNotifyRowEnabled(p, notifyCtx);
                                   const supplement = key ? supplementsByKey.get(key) ?? {} : {};
                                   const onboarding = getEffectiveCtosPartyOnboarding(supplement);
                                   const screening = getEffectiveCtosPartyScreening(supplement);
@@ -1786,26 +1792,19 @@ export default function OrganizationDetailPage() {
                                       </TableCell>
                                       <TableCell>
                                         <div className="flex flex-col items-start gap-1">
-                                          <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            className="h-8"
-                                            title={!requiresOnboardingEmail(p) ? "No onboarding required" : undefined}
+                                          <DirectorShareholderNotifyButton
+                                            rowActionable={notifyRowEnabled}
                                             disabled={
                                               portal !== "issuer" ||
                                               notifyActionRequiredMutation.isPending ||
-                                              !requiresOnboardingEmail(p)
+                                              !notifyRowEnabled
                                             }
-                                            onClick={() => {
-                                              if (!requiresOnboardingEmail(p)) return;
+                                            onNotify={() =>
                                               notifyActionRequiredMutation.mutate({
                                                 partyKey: p.matchKey,
-                                              });
-                                            }}
-                                          >
-                                            Notify
-                                          </Button>
+                                              })
+                                            }
+                                          />
                                         </div>
                                       </TableCell>
                                     </TableRow>

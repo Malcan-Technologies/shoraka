@@ -1,13 +1,19 @@
 import {
   filterVisiblePeopleRows,
+  getCorporateShareholderEntityRecord,
   getCtosPartySupplementPipelineStatus,
   getCtosPartySupplementRequestId,
-  getDirectorKycPartyRecord,
+  hasCorporateShareholderEntity,
+  isPartyTypeA,
   isReadyOnboardingStatus as isReadyOnboardingStatusShared,
   normalizeRawStatus,
   normalizeDirectorShareholderIdKey,
   type ApplicationPersonRow,
+  type CorporateEntitiesShape,
 } from "@cashsouk/types";
+
+export type { CorporateEntitiesShape };
+export { getCorporateShareholderEntityRecord, hasCorporateShareholderEntity, isPartyTypeA };
 
 export function getSupplementPipelineStatus(onboarding: Record<string, unknown>): string {
   return getCtosPartySupplementPipelineStatus(onboarding);
@@ -53,65 +59,6 @@ export function hasStartedOnboarding(p: Pick<ApplicationPersonRow, "onboarding">
 function getVisibleIndividualPeople(people: ApplicationPersonRow[]): ApplicationPersonRow[] {
   const visible = filterVisiblePeopleRows(people);
   return visible.filter((p) => p.entityType === "INDIVIDUAL");
-}
-
-export type CorporateEntitiesShape = {
-  directors?: unknown[];
-  shareholders?: unknown[];
-  corporateShareholders?: unknown[];
-};
-
-function corpKeysFromRecord(rec: Record<string, unknown>): string[] {
-  const raw =
-    rec.businessNumber ??
-    rec.registrationNumber ??
-    rec.brn_ssm ??
-    rec.ssmRegisterNumber ??
-    rec.ssmRegistrationNumber ??
-    rec.companyRegistrationNumber ??
-    rec.additional_registration_no ??
-    rec.ic_lcno ??
-    rec.nic_brno ??
-    "";
-  const n = normalizeDirectorShareholderIdKey(String(raw));
-  return n ? [n] : [];
-}
-
-/** Party exists on company corporate_entities.corporateShareholders (KYB path). */
-export function hasCorporateShareholderEntity(
-  matchKey: string,
-  corporateShareholders: unknown
-): boolean {
-  return getCorporateShareholderEntityRecord(matchKey, corporateShareholders) != null;
-}
-
-export function getCorporateShareholderEntityRecord(
-  matchKey: string,
-  corporateShareholders: unknown
-): Record<string, unknown> | null {
-  const want = normalizeDirectorShareholderIdKey(matchKey);
-  if (!want) return null;
-  if (!Array.isArray(corporateShareholders)) return null;
-  for (const row of corporateShareholders) {
-    if (!row || typeof row !== "object" || Array.isArray(row)) continue;
-    const rec = row as Record<string, unknown>;
-    for (const k of corpKeysFromRecord(rec)) {
-      if (k === want) return rec;
-    }
-  }
-  return null;
-}
-
-/** TYPE A: already on company KYC/KYB records (legacy lists). */
-export function isPartyTypeA(
-  p: ApplicationPersonRow,
-  directorKycStatus: unknown,
-  corporateEntities: CorporateEntitiesShape | null | undefined
-): boolean {
-  if (p.entityType === "CORPORATE") {
-    return hasCorporateShareholderEntity(p.matchKey, corporateEntities?.corporateShareholders);
-  }
-  return getDirectorKycPartyRecord(p.matchKey, directorKycStatus) != null;
 }
 
 export function getSupplementOnboardingJson(

@@ -28,14 +28,14 @@ import {
   regtankDisplayStatusBadgeClass,
   toTitleCase,
   type ApplicationPersonRow,
+  type CorporateEntitiesShape,
   type DirectorShareholderDisplayRow,
+  isPartyTypeA,
 } from "@cashsouk/types";
 import {
-  type CorporateEntitiesShape,
   getSupplementOnboardingJson,
   getSupplementPipelineStatus,
   getSupplementRequestId,
-  isPartyTypeA,
   isRegTankSubmitReadyStatus,
 } from "@/lib/director-shareholder-onboarding-ui";
 import { Input } from "@/components/ui/input";

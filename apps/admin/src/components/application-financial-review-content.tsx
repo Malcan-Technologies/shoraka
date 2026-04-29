@@ -34,8 +34,9 @@ import {
   filterVisiblePeopleRows,
   formatPeopleRolesLineWithoutShare,
   formatSharePercentageCell,
-  requiresOnboardingEmail,
+  isDirectorShareholderNotifyRowEnabled,
 } from "@/lib/onboarding-people-display";
+import { DirectorShareholderNotifyButton } from "@/components/director-shareholder-notify-button";
 import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
 import { reviewEmptyStateClass } from "@/components/application-review/review-section-styles";
 import { formatCurrency, formatNumber, useAuthToken } from "@cashsouk/config";
@@ -317,6 +318,8 @@ interface ApplicationFinancialReviewContentProps {
         has_report_html: boolean;
       }> | null;
       ctos_party_supplements?: { party_key: string; onboarding_json?: unknown }[] | null;
+      director_kyc_status?: unknown;
+      corporate_entities?: unknown;
     } | null;
     financial_statements?: unknown;
   };
@@ -355,6 +358,13 @@ export function ApplicationFinancialReviewContent({
 
   const peopleRows = React.useMemo(() => app.people ?? [], [app.people]);
   const visiblePeopleRows = React.useMemo(() => filterVisiblePeopleRows(peopleRows), [peopleRows]);
+  const notifyCtx = React.useMemo(
+    () => ({
+      directorKycStatus: app.issuer_organization?.director_kyc_status,
+      corporateEntities: app.issuer_organization?.corporate_entities,
+    }),
+    [app.issuer_organization?.director_kyc_status, app.issuer_organization?.corporate_entities]
+  );
   const orgSubjectReports = app.issuer_organization?.latest_organization_ctos_subject_reports;
 
   const financialRows: CtosFinRow[] = React.useMemo(() => {
@@ -978,6 +988,7 @@ export function ApplicationFinancialReviewContent({
               </TableHeader>
               <TableBody>
                 {visiblePeopleRows.map((p) => {
+                  const notifyRowEnabled = isDirectorShareholderNotifyRowEnabled(p, notifyCtx);
                   const lastReport = latestSubjectReportForMatchKey(p.matchKey, orgSubjectReports);
                   const lastReportLabel = formatSubjectReportTimestamp(lastReport?.fetched_at);
                   const kycKybLabel = directorShareholderKycKybBadgeLabel(p);
@@ -1037,19 +1048,15 @@ export function ApplicationFinancialReviewContent({
                       </TableCell>
                       <TableCell className={`${applicationTableCellClass} text-right`}>
                         <div className="flex flex-col items-end gap-1">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
+                          <DirectorShareholderNotifyButton
+                            rowActionable={notifyRowEnabled}
                             className="h-8 rounded-lg text-xs"
-                            title={!requiresOnboardingEmail(p) ? "No onboarding required" : undefined}
                             disabled={
                               !issuerOrgId ||
                               notifyActionRequired.isPending ||
-                              !requiresOnboardingEmail(p)
+                              !notifyRowEnabled
                             }
-                            onClick={() => {
-                              if (!requiresOnboardingEmail(p)) return;
+                            onNotify={() =>
                               notifyActionRequired.mutate(
                                 { partyKey: p.matchKey },
                                 {
@@ -1057,11 +1064,9 @@ export function ApplicationFinancialReviewContent({
                                   onError: (err: unknown) =>
                                     toast.error(err instanceof Error ? err.message : "Notify failed"),
                                 }
-                              );
-                            }}
-                          >
-                            Notify
-                          </Button>
+                              )
+                            }
+                          />
                         </div>
                       </TableCell>
                       <TableCell className={`${applicationTableCellClass} text-right`}>
