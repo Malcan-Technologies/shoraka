@@ -20,13 +20,23 @@ import { requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { AMLSyncService } from "../regtank/aml-sync-service";
 import { buildAdminPeopleList } from "../admin/build-people-list";
-import { filterVisiblePeopleRows, peopleHasPendingDirectorShareholderAml } from "@cashsouk/types";
+import { filterVisiblePeopleRows, normalizeRawStatus } from "@cashsouk/types";
 
 const organizationService = new OrganizationService();
 
-function issuerDirectorShareholderAmlPending(people: ReturnType<typeof buildAdminPeopleList>): boolean {
+function isReadyStatus(statusRaw: unknown): boolean {
+  const s = normalizeRawStatus(statusRaw);
+  return (
+    s === "WAIT_FOR_APPROVAL" ||
+    s === "WAITING_FOR_APPROVAL" ||
+    s === "PENDING_APPROVAL" ||
+    s === "APPROVED"
+  );
+}
+
+function issuerDirectorShareholderOnboardingPending(people: ReturnType<typeof buildAdminPeopleList>): boolean {
   const visible = filterVisiblePeopleRows(people);
-  return visible.length > 0 && peopleHasPendingDirectorShareholderAml(visible);
+  return visible.length > 0 && visible.some((p) => !isReadyStatus(p.onboarding?.status));
 }
 
 /**
@@ -133,11 +143,11 @@ async function listOrganizations(
             directorShareholderSubmitReady:
               org.type !== "COMPANY"
                 ? true
-                : !issuerDirectorShareholderAmlPending(companyPartyById.get(org.id)?.people ?? []),
+                : !issuerDirectorShareholderOnboardingPending(companyPartyById.get(org.id)?.people ?? []),
             directorShareholderSubmitBlockedMessage:
               org.type === "COMPANY" &&
-              issuerDirectorShareholderAmlPending(companyPartyById.get(org.id)?.people ?? [])
-                ? "Please complete AML for all directors/shareholders before submitting."
+              issuerDirectorShareholderOnboardingPending(companyPartyById.get(org.id)?.people ?? [])
+                ? "Please submit onboarding for all directors/shareholders before submitting."
                 : undefined,
           }),
           // Corporate director KYC status (for COMPANY type)
@@ -328,7 +338,7 @@ async function getOrganization(
         : [];
     const issuerDsPending =
       portalType === "issuer" && organization.type === "COMPANY"
-        ? issuerDirectorShareholderAmlPending(peopleForSubmit)
+        ? issuerDirectorShareholderOnboardingPending(peopleForSubmit)
         : false;
 
     res.json({

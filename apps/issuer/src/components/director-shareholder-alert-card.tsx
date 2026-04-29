@@ -3,13 +3,13 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
-  isDirectorShareholderAmlScreeningApproved,
-  peopleHasPendingDirectorShareholderAml,
+  normalizeRawStatus,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
 import { useNotifications } from "@cashsouk/config";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { isReadyOnboardingStatus } from "@/lib/director-shareholder-onboarding-ui";
 
 const REJECTED_TYPE_ID = "director_shareholder_rejected";
 
@@ -25,8 +25,8 @@ export function DirectorShareholderAlertCard({ visiblePeople, issuerOrganization
   const router = useRouter();
   const isEmpty = visiblePeople.length === 0;
 
-  const hasPending = peopleHasPendingDirectorShareholderAml(visiblePeople);
-  console.log("Director/Shareholder AML banner check:", {
+  const hasPending = visiblePeople.some((p) => !isReadyOnboardingStatus(p.onboarding?.status));
+  console.log("Director/Shareholder onboarding banner check:", {
     issuerOrganizationId,
     enabled,
     visibleCount: visiblePeople.length,
@@ -34,12 +34,9 @@ export function DirectorShareholderAlertCard({ visiblePeople, issuerOrganization
     rows: visiblePeople.map((p) => ({
       matchKey: p.matchKey,
       name: p.name,
-      screeningStatus: p.screening?.status ?? null,
-      directorAmlStatus: p.directorAmlStatus ?? null,
-      isApproved: isDirectorShareholderAmlScreeningApproved({
-        screening: p.screening,
-        directorAmlStatus: p.directorAmlStatus,
-      }),
+      onboardingStatus: p.onboarding?.status ?? null,
+      onboardingStatusNormalized: normalizeRawStatus(p.onboarding?.status),
+      isReady: isReadyOnboardingStatus(p.onboarding?.status),
     })),
   });
 
@@ -65,7 +62,7 @@ export function DirectorShareholderAlertCard({ visiblePeople, issuerOrganization
       <AlertTitle>
         {isEmpty
           ? "Directors/shareholders data is not available yet"
-          : "Action required: directors/shareholders verification"}
+          : "Action required: directors/shareholders onboarding"}
       </AlertTitle>
       <AlertDescription>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
@@ -77,8 +74,8 @@ export function DirectorShareholderAlertCard({ visiblePeople, issuerOrganization
               </p>
             ) : (
               <p>
-                Some directors or shareholders have not completed AML verification. Complete
-                verification on your company profile before submitting an application.
+                Some directors or shareholders have not submitted onboarding yet. Complete
+                onboarding on your company profile before submitting an application.
               </p>
             )}
             {!isEmpty && showRejectLine ? (

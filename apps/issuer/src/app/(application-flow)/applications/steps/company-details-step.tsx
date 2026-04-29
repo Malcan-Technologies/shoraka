@@ -17,10 +17,11 @@ import {
   filterVisiblePeopleRows,
   formatPeopleRolesLine,
   formatSharePercentageCell,
-  isDirectorShareholderAmlScreeningApproved,
-  peopleHasPendingDirectorShareholderAml,
 } from "@cashsouk/types";
-import { areDirectorShareholdersReadyForApplicationSubmit } from "@/lib/director-shareholder-onboarding-ui";
+import {
+  areDirectorShareholdersReadyForApplicationSubmit,
+  isReadyOnboardingStatus,
+} from "@/lib/director-shareholder-onboarding-ui";
 import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
 import { useApplication } from "@/hooks/use-applications";
@@ -666,9 +667,10 @@ export function CompanyDetailsStep({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center">
-            {visiblePeopleRows.length > 0 && peopleHasPendingDirectorShareholderAml(visiblePeopleRows) ? (
+            {visiblePeopleRows.length > 0 &&
+            !areDirectorShareholdersReadyForApplicationSubmit({ people: visiblePeopleRows }) ? (
               <p className="text-[17px] leading-7 text-destructive col-span-2 border border-destructive/30 rounded-lg bg-destructive/5 px-3 py-2">
-                Complete AML screening for all directors and shareholders (status must be Approved). Use Profile →
+                Submit onboarding for all directors and shareholders. Use Profile →
                 Directors and shareholders.
               </p>
             ) : null}
@@ -678,10 +680,10 @@ export function CompanyDetailsStep({
               </p>
             ) : (
               visiblePeopleRows.map((p) => {
-                const amlOk = isDirectorShareholderAmlScreeningApproved(p.screening);
-                const amlLabel = p.screening?.status?.trim() || "—";
+                const onboardingReady = isReadyOnboardingStatus(p.onboarding?.status);
+                const onboardingLabel = p.onboarding?.status?.trim() || "—";
                 const own = formatSharePercentageCell(p);
-                const showCompleteOnProfile = !amlOk;
+                const showCompleteOnProfile = !onboardingReady;
                 return (
                   <React.Fragment key={p.matchKey}>
                     <div className={labelClassName}>{formatPeopleRolesLine(p)}</div>
@@ -692,20 +694,22 @@ export function CompanyDetailsStep({
                         <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">{own}</div>
                         <div className="h-4 w-px bg-border" />
                         <div className="flex flex-col gap-0.5 min-w-0">
-                          <span className="text-xs text-muted-foreground">AML</span>
-                          {amlOk ? (
+                          <span className="text-xs text-muted-foreground">Onboarding</span>
+                          {onboardingReady ? (
                             <div className="flex items-center gap-1.5 whitespace-nowrap">
                               <CheckCircleIcon className="h-4 w-4 text-green-600 shrink-0" />
-                              <span className="text-[17px] leading-7 text-green-600 truncate">{amlLabel}</span>
+                              <span className="text-[17px] leading-7 text-green-600 truncate">{onboardingLabel}</span>
                             </div>
                           ) : (
-                            <span className="text-[17px] leading-7 text-muted-foreground truncate">{amlLabel}</span>
+                            <span className="text-[17px] leading-7 text-muted-foreground truncate">
+                              {onboardingLabel}
+                            </span>
                           )}
                         </div>
                       </div>
                       {showCompleteOnProfile ? (
                         <p className="text-sm text-muted-foreground">
-                          Finish AML on Profile → Directors and shareholders.
+                          Submit onboarding on Profile → Directors and shareholders.
                         </p>
                       ) : null}
                     </div>

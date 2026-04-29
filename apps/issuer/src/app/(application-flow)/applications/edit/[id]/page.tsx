@@ -51,12 +51,12 @@ import { toast } from "sonner";
 import {
   filterVisiblePeopleRows,
   getStepKeyFromStepId,
-  peopleHasPendingDirectorShareholderAml,
   APPLICATION_STEP_KEYS_WITH_UI,
   STEP_KEY_DISPLAY,
   enforceDeclarationsLastAndDropReview,
   type ApplicationStepKey,
 } from "@cashsouk/types";
+import { areDirectorShareholdersReadyForApplicationSubmit } from "@/lib/director-shareholder-onboarding-ui";
 import { DirectorShareholderAlertCard } from "@/components/director-shareholder-alert-card";
 import { ProgressIndicator } from "../../components/progress-indicator";
 import {
@@ -201,12 +201,12 @@ function EditApplicationPageBody() {
   const directorPartySubmitReady = React.useMemo(() => {
     if (activeOrganization?.type !== "COMPANY") return true;
     if (issuerVisiblePeopleForAlert.length === 0) return true;
-    return !peopleHasPendingDirectorShareholderAml(issuerVisiblePeopleForAlert);
+    return areDirectorShareholdersReadyForApplicationSubmit({ people: issuerVisiblePeopleForAlert });
   }, [activeOrganization?.type, issuerVisiblePeopleForAlert]);
 
   const directorPartySubmitBlockedMessage =
     activeOrganization?.directorShareholderSubmitBlockedMessage ??
-    "Please complete AML for all directors/shareholders before submitting.";
+    "Please submit onboarding for all directors/shareholders before submitting.";
 
   /** Handle application not found */
   React.useEffect(() => {

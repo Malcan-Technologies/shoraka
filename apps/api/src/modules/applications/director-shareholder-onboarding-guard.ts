@@ -8,12 +8,26 @@
 
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
-import { filterVisiblePeopleRows, peopleHasPendingDirectorShareholderAml } from "@cashsouk/types";
+import { filterVisiblePeopleRows, normalizeRawStatus, type ApplicationPersonRow } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
 import { buildAdminPeopleList } from "../admin/build-people-list";
 
 const DIRECTOR_SHAREHOLDER_PENDING_MESSAGE =
-  "Please complete AML for all directors/shareholders before submitting.";
+  "Please submit onboarding for all directors/shareholders before submitting.";
+
+function isReadyStatus(statusRaw: unknown): boolean {
+  const s = normalizeRawStatus(statusRaw);
+  return (
+    s === "WAIT_FOR_APPROVAL" ||
+    s === "WAITING_FOR_APPROVAL" ||
+    s === "PENDING_APPROVAL" ||
+    s === "APPROVED"
+  );
+}
+
+function peopleHavePendingOnboarding(visible: ApplicationPersonRow[]): boolean {
+  return visible.some((p) => !isReadyStatus(p.onboarding?.status));
+}
 
 export async function getIssuerDirectorShareholderSubmitReadiness(issuerOrganizationId: string): Promise<{
   ready: boolean;
@@ -56,7 +70,7 @@ export async function assertIssuerOrgDirectorShareholderOnboardingReady(
   if (visible.length === 0) {
     return;
   }
-  if (peopleHasPendingDirectorShareholderAml(visible)) {
+  if (peopleHavePendingOnboarding(visible)) {
     throw new AppError(400, "DIRECTOR_SHAREHOLDER_PENDING", DIRECTOR_SHAREHOLDER_PENDING_MESSAGE);
   }
 }

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useIssuerProducts } from "@/hooks/use-products";
 import { useCreateApplication } from "@/hooks/use-applications";
-import { filterVisiblePeopleRows, peopleHasPendingDirectorShareholderAml } from "@cashsouk/types";
+import { filterVisiblePeopleRows } from "@cashsouk/types";
 import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
 import { toast } from "sonner";
 import { useNavigationGuard } from "@/hooks/use-navigation-guard2";
@@ -20,6 +20,7 @@ import { DirectorShareholderAlertCard } from "@/components/director-shareholder-
 import { ProductList } from "../components/product-list";
 import { ProgressIndicator } from "../components/progress-indicator";
 import { FinancingTypeSkeleton } from "../components/financing-type-skeleton";
+import { areDirectorShareholdersReadyForApplicationSubmit } from "@/lib/director-shareholder-onboarding-ui";
 import {
   MOCK_FINANCING_TYPE_PRODUCTS,
   USE_MOCK_FINANCING_TYPE_CATALOG,
@@ -45,11 +46,11 @@ export default function NewApplicationPage() {
     () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
     [activeOrganization?.people]
   );
-  const dsAmlPending =
+  const dsOnboardingPending =
     !!activeOrganization &&
     activeOrganization.type === "COMPANY" &&
     visiblePeopleForDsAlert.length > 0 &&
-    peopleHasPendingDirectorShareholderAml(visiblePeopleForDsAlert);
+    !areDirectorShareholdersReadyForApplicationSubmit({ people: visiblePeopleForDsAlert });
   const { setTitle } = useHeader();
 
   React.useEffect(() => {
@@ -428,7 +429,7 @@ export default function NewApplicationPage() {
             onClick={handleContinue}
             disabled={
               USE_MOCK_FINANCING_TYPE_CATALOG ||
-              dsAmlPending ||
+              dsOnboardingPending ||
               products.length === 0 ||
               !selectedProductId ||
               !products.some((p: { id: string }) => p.id === selectedProductId) ||

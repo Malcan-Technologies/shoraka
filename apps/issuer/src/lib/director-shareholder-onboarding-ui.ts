@@ -3,8 +3,8 @@ import {
   getCtosPartySupplementPipelineStatus,
   getCtosPartySupplementRequestId,
   getDirectorKycPartyRecord,
+  normalizeRawStatus,
   normalizeDirectorShareholderIdKey,
-  peopleHasPendingDirectorShareholderAml,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
 
@@ -18,11 +18,26 @@ export function getSupplementRequestId(onboarding: Record<string, unknown>): str
 
 /** Submission allowed for this party when RegTank is waiting for ops approval or already approved. */
 export function isRegTankSubmitReadyStatus(statusRaw: string): boolean {
-  const u = statusRaw.toUpperCase().replace(/\s+/g, "_");
+  const u = normalizeRawStatus(statusRaw);
   if (!u) return false;
   if (u === "APPROVED") return true;
   if (u === "WAITING_FOR_APPROVAL" || u === "WAIT_FOR_APPROVAL" || u === "PENDING_APPROVAL") return true;
   return false;
+}
+
+/**
+ * SECTION: Director/shareholder onboarding status helpers
+ * WHY: Use onboarding.status only for banner + proceed checks
+ * INPUT: Person row onboarding status
+ * OUTPUT: True when status is submission-ready
+ * WHERE USED: Issuer banner, proceed gating, profile checks
+ */
+export function isReadyOnboardingStatus(statusRaw: unknown): boolean {
+  return isRegTankSubmitReadyStatus(String(statusRaw ?? ""));
+}
+
+export function hasStartedOnboarding(p: Pick<ApplicationPersonRow, "onboarding">): boolean {
+  return Boolean(normalizeRawStatus(p.onboarding?.status));
 }
 
 export type CorporateEntitiesShape = {
@@ -101,7 +116,7 @@ export function getSupplementOnboardingJson(
   return {};
 }
 
-/** True when every visible CTOS party row has AML screening Approved. */
+/** True when every visible CTOS party row has onboarding submitted/ready status. */
 export function areDirectorShareholdersReadyForApplicationSubmit(params: {
   people: ApplicationPersonRow[];
   directorKycStatus?: unknown;
@@ -112,7 +127,8 @@ export function areDirectorShareholdersReadyForApplicationSubmit(params: {
   void params.corporateEntities;
   void params.ctosPartySupplements;
   const visible = filterVisiblePeopleRows(params.people);
-  return !peopleHasPendingDirectorShareholderAml(visible);
+  if (visible.length === 0) return true;
+  return visible.every((p) => isReadyOnboardingStatus(p.onboarding?.status));
 }
 
 export function personNeedsProfileDirectorAction(
@@ -123,5 +139,5 @@ export function personNeedsProfileDirectorAction(
 ): boolean {
   if (isPartyTypeA(p, directorKycStatus, corporateEntities)) return false;
   void ctosPartySupplements;
-  return peopleHasPendingDirectorShareholderAml([p]);
+  return !isReadyOnboardingStatus(p.onboarding?.status);
 }

@@ -23,7 +23,7 @@ import {
   getStatusPresentationByBadgeKey,
 } from "@cashsouk/config";
 import type { WithdrawReason } from "@cashsouk/types";
-import { filterVisiblePeopleRows, peopleHasPendingDirectorShareholderAml } from "@cashsouk/types";
+import { filterVisiblePeopleRows } from "@cashsouk/types";
 import { useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,6 +56,7 @@ import { Separator } from "@/components/ui/separator";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import type { NormalizedApplication, NormalizedInvoice } from "./status";
 import { ScrollableInvoiceTable } from "./components/scrollable-invoice-table";
+import { areDirectorShareholdersReadyForApplicationSubmit } from "@/lib/director-shareholder-onboarding-ui";
 import {
   Dialog,
   DialogContent,
@@ -698,15 +699,15 @@ export default function ApplicationsPage() {
     () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
     [activeOrganization?.people]
   );
-  const dsAmlPending =
+  const dsOnboardingPending =
     activeOrganization?.type === "COMPANY" &&
     visiblePeopleForDsGating.length > 0 &&
-    peopleHasPendingDirectorShareholderAml(visiblePeopleForDsGating);
+    !areDirectorShareholdersReadyForApplicationSubmit({ people: visiblePeopleForDsGating });
 
-  const directorSubmitBlocked = dsAmlPending;
+  const directorSubmitBlocked = dsOnboardingPending;
   const directorSubmitBlockedMessage =
     activeOrganization?.directorShareholderSubmitBlockedMessage ??
-    "Please complete AML for all directors/shareholders before submitting.";
+    "Please submit onboarding for all directors/shareholders before submitting.";
   const displayName = React.useMemo(() => {
     if (!activeOrganization) return "";
     if (activeOrganization.firstName && activeOrganization.lastName) {
@@ -718,7 +719,7 @@ export default function ApplicationsPage() {
     return activeOrganization.type === "PERSONAL" ? "Personal Account" : "Company Account";
   }, [activeOrganization]);
 
-  const directorAmlPendingForDashboard = dsAmlPending;
+  const directorAmlPendingForDashboard = dsOnboardingPending;
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-x-hidden p-4 pt-4">

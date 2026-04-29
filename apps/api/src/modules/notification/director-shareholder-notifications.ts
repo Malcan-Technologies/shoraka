@@ -7,7 +7,7 @@
 import {
   filterVisiblePeopleRows,
   normalizeDirectorShareholderIdKey,
-  peopleHasPendingDirectorShareholderAml,
+  normalizeRawStatus,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
 import { buildAdminPeopleList } from "../admin/build-people-list";
@@ -41,15 +41,21 @@ function buildPeopleListParams(params: {
 
 type PeopleListInput = ReturnType<typeof buildPeopleListParams>;
 
-function computeVisiblePendingState(input: PeopleListInput): {
+function hasStartedOnboarding(p: Pick<ApplicationPersonRow, "onboarding">): boolean {
+  return Boolean(normalizeRawStatus(p.onboarding?.status));
+}
+
+function shouldNotifyNewPerson(p: Pick<ApplicationPersonRow, "onboarding">): boolean {
+  return !hasStartedOnboarding(p);
+}
+
+function computeVisiblePeopleState(input: PeopleListInput): {
   people: ApplicationPersonRow[];
   visible: ApplicationPersonRow[];
-  nowPending: boolean;
 } {
   const people = buildAdminPeopleList(input);
   const visible = filterVisiblePeopleRows(people);
-  const nowPending = visible.length > 0 && peopleHasPendingDirectorShareholderAml(visible);
-  return { people, visible, nowPending };
+  return { people, visible };
 }
 
 /**
@@ -98,19 +104,23 @@ export async function runIssuerDirectorShareholderNotificationsAfterOrgCtosRepor
     supplements,
   });
 
-  const { visible: beforeVisible, nowPending: wasPending } = computeVisiblePendingState(beforeInput);
-  const { people: afterPeople, visible: afterVisible, nowPending } = computeVisiblePendingState(afterInput);
-  const shouldTriggerOnPull = true;
+  const { visible: beforeVisible } = computeVisiblePeopleState(beforeInput);
+  const { people: afterPeople, visible: afterVisible } = computeVisiblePeopleState(afterInput);
+
+  const beforeKeys = new Set(beforeVisible.map((p) => p.matchKey));
+  const newPeopleWithoutOnboarding = afterVisible.filter(
+    (p) => !beforeKeys.has(p.matchKey) && shouldNotifyNewPerson(p)
+  );
+  const shouldTriggerNotification = afterVisible.length > 0 && newPeopleWithoutOnboarding.length > 0;
+
   console.log("DS mismatch check", {
     issuerOrganizationId,
     ownerUserId,
     newCtosReportId,
     beforeVisibleCount: beforeVisible.length,
     afterVisibleCount: afterVisible.length,
-    wasPending,
-    nowPending,
-    shouldTriggerOnPull,
-    willTrigger: shouldTriggerOnPull,
+    newPeopleWithoutOnboardingCount: newPeopleWithoutOnboarding.length,
+    shouldTriggerNotification,
   });
 
   await resolveIssuerDirectorShareholderNotificationsIfCleared({
@@ -118,10 +128,10 @@ export async function runIssuerDirectorShareholderNotificationsAfterOrgCtosRepor
     ownerUserId,
     people: afterPeople,
     visible: afterVisible,
-    nowPending,
+    hasAnyNewPersonWithoutOnboarding: newPeopleWithoutOnboarding.length > 0,
   });
 
-  if (shouldTriggerOnPull) {
+  if (shouldTriggerNotification) {
     const idempotencyKey = `ds_mismatch:${issuerOrganizationId}:${newCtosReportId}`;
     const dupKey = await prisma.notification.findUnique({
       where: { idempotency_key: idempotencyKey },
@@ -147,11 +157,10 @@ export async function runIssuerDirectorShareholderNotificationsAfterOrgCtosRepor
       "Created director_shareholder_mismatch notification"
     );
   } else {
-    console.log("DS mismatch skipped: temporary trigger disabled", {
+    console.log("DS mismatch skipped: no new person needing onboarding notification", {
       issuerOrganizationId,
-      beforeWasPending: wasPending,
-      afterNowPending: nowPending,
       afterVisibleCount: afterVisible.length,
+      newPeopleWithoutOnboardingCount: newPeopleWithoutOnboarding.length,
     });
   }
 }
@@ -182,14 +191,15 @@ export async function runIssuerDirectorShareholderNotificationResolutionFromDb(
     directorAmlStatus: org.director_aml_status ?? null,
     supplements: extras.ctosPartySupplements,
   });
-  const { people, visible, nowPending } = computeVisiblePendingState(listInput);
+  const { people, visible } = computeVisiblePeopleState(listInput);
+  const hasAnyNewPersonWithoutOnboarding = visible.some((p) => shouldNotifyNewPerson(p));
 
   await resolveIssuerDirectorShareholderNotificationsIfCleared({
     issuerOrganizationId,
     ownerUserId: org.owner_user_id,
     people,
     visible,
-    nowPending,
+    hasAnyNewPersonWithoutOnboarding,
   });
 }
 
@@ -198,11 +208,11 @@ async function resolveIssuerDirectorShareholderNotificationsIfCleared(params: {
   ownerUserId: string;
   people: ApplicationPersonRow[];
   visible: ApplicationPersonRow[];
-  nowPending: boolean;
+  hasAnyNewPersonWithoutOnboarding: boolean;
 }): Promise<void> {
-  const { issuerOrganizationId, ownerUserId, visible, nowPending } = params;
+  const { issuerOrganizationId, ownerUserId, visible, hasAnyNewPersonWithoutOnboarding } = params;
 
-  const shouldResolve = visible.length > 0 && !nowPending;
+  const shouldResolve = visible.length > 0 && !hasAnyNewPersonWithoutOnboarding;
   if (!shouldResolve) {
     return;
   }
