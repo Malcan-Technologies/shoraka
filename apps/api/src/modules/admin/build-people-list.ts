@@ -148,7 +148,6 @@ export function buildAdminPeopleList(params: {
   const individualSyncAmlByEod = new Map<string, string>();
   const individualAmlEmailByGov = new Map<string, string>();
   const individualAmlEmailByKycId = new Map<string, string>();
-  const individualAmlEmailByNameKey = new Map<string, string>();
   for (const row of individualAmlRows) {
     if (!row || typeof row !== "object" || Array.isArray(row)) continue;
     const r = row as Record<string, unknown>;
@@ -164,11 +163,6 @@ export function buildAdminPeopleList(params: {
     if (amlEm) {
       if (gov) individualAmlEmailByGov.set(gov, amlEm);
       if (kycId) individualAmlEmailByKycId.set(kycId, amlEm);
-      const nm = String(r.name ?? "")
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, " ");
-      if (nm) individualAmlEmailByNameKey.set(nm, amlEm);
     }
   }
 
@@ -269,21 +263,9 @@ export function buildAdminPeopleList(params: {
         const amlByKyc = individualAmlEmailByKycId.get(kycRefs.kycId);
         if (amlByKyc?.trim()) amlEmail = amlByKyc.trim();
       }
-      if (!amlEmail) {
-        const nk = String(person.name ?? "")
-          .trim()
-          .toLowerCase()
-          .replace(/\s+/g, " ");
-        const amlByName = nk ? individualAmlEmailByNameKey.get(nk) : undefined;
-        if (amlByName?.trim()) amlEmail = amlByName.trim();
-      }
     }
 
-    const email =
-      (userEmail && userEmail.length > 0 ? userEmail : "") ||
-      (kycEmail && kycEmail.length > 0 ? kycEmail : "") ||
-      (amlEmail && amlEmail.length > 0 ? amlEmail : "") ||
-      "";
+    const email = userEmail ?? kycEmail ?? amlEmail ?? "";
 
     return {
       ...person,
