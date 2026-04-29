@@ -239,7 +239,6 @@ export function detectDirectorGaps({ ctos, issuer, supplement }: GapInput): Dete
   const screening = isObject(supplementOnboardingJson?.screening)
     ? (supplementOnboardingJson.screening as UnknownRecord)
     : null;
-  const fromFlatNorm = isObject(screening?.normalized) ? (screening.normalized as UnknownRecord) : null;
   const nestedKyc = screening && isObject((screening as { kyc?: unknown }).kyc)
     ? ((screening as { kyc: UnknownRecord }).kyc as UnknownRecord)
     : null;
@@ -248,7 +247,7 @@ export function detectDirectorGaps({ ctos, issuer, supplement }: GapInput): Dete
     ? (supplementOnboardingJson.kyc as UnknownRecord)
     : null;
   const legacyNorm = isObject(legacyKyc?.normalized) ? (legacyKyc.normalized as UnknownRecord) : null;
-  const supplementKyc = fromFlatNorm ?? nestedNorm ?? legacyNorm;
+  const supplementKyc = nestedNorm ?? legacyNorm;
 
   const ctosIndividuals = extractCtosIndividuals(ctos);
   const issuerMap = buildKycMap(issuerKyc);

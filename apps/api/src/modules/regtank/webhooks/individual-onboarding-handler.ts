@@ -15,7 +15,6 @@ import {
   parseCtosPartySupplementRoot,
 } from "@cashsouk/types";
 import { findCtosPartySupplementByOnboardingJsonMatch } from "../../organization/ctos-party-supplement-webhook-lookup";
-import { updateCtosSupplementNormalizedStatus } from "../helpers/update-ctos-normalized-status";
 
 /**
  * Individual Onboarding Webhook Handler
@@ -465,19 +464,11 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
       regtankPipelineStatus: status,
       onboarding: { updatedAt: now },
     });
-    const updated = updateCtosSupplementNormalizedStatus({
-      onboardingJson: mergedBase,
-      status,
-      now,
-      identifiers: {
-        kycId: requestId,
-      },
-    });
 
     await prisma.ctosPartySupplement.update({
       where: { id: supplement.id },
       data: {
-        onboarding_json: updated as Prisma.InputJsonValue,
+        onboarding_json: mergedBase as Prisma.InputJsonValue,
       },
     });
 

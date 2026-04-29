@@ -4,6 +4,7 @@ import {
   getEffectiveCtosPartyScreening,
   normalizeDirectorShareholderIdKey,
   parseCtosPartySupplementRoot,
+  sanitizeCtosPartySupplementOnboardingJsonForPersist,
 } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
@@ -137,7 +138,7 @@ async function persistOnboardingJson(
   partyKey: string,
   json: Record<string, unknown>
 ): Promise<void> {
-  const data = stripLegacyKybFlags(json);
+  const data = sanitizeCtosPartySupplementOnboardingJsonForPersist(stripLegacyKybFlags(json));
   const row = await prisma.ctosPartySupplement.findFirst({
     where: { issuer_organization_id: organizationId, party_key: partyKey },
     select: { id: true },

@@ -1,6 +1,6 @@
 /**
  * SECTION: CTOS party supplement `onboarding_json` shape
- * WHY: `onboarding` = RegTank link flow; `screening` = single ACURIS blob (+ optional `normalized`)
+ * WHY: `onboarding` = RegTank link flow; `screening` = single flat ACURIS blob (no derived `normalized`)
  * INPUT: Raw Prisma Json for `ctos_party_supplements.onboarding_json`
  * OUTPUT: Effective onboarding + flat screening + merged persist document
  * WHERE USED: API webhooks, organization service, issuer/investor UI, types helpers
@@ -13,6 +13,28 @@ function isObject(value: unknown): value is Record<string, unknown> {
 export function parseCtosPartySupplementRoot(raw: unknown): Record<string, unknown> {
   if (isObject(raw)) return { ...raw };
   return {};
+}
+
+/** Allowed keys persisted under `screening` (RegTank / ACURIS raw snapshot only). */
+const SCREENING_PERSIST_KEYS = [
+  "provider",
+  "requestId",
+  "status",
+  "riskLevel",
+  "riskScore",
+  "updatedAt",
+  "messageStatus",
+  "possibleMatchCount",
+  "blacklistedMatchCount",
+  "referenceId",
+] as const;
+
+function pickPersistedScreening(s: Record<string, unknown>): Record<string, unknown> {
+  const o: Record<string, unknown> = {};
+  for (const k of SCREENING_PERSIST_KEYS) {
+    if (s[k] !== undefined) o[k] = s[k];
+  }
+  return o;
 }
 
 const RESERVED_TOP_KEYS = new Set([
@@ -68,6 +90,14 @@ function asObject(value: unknown): Record<string, unknown> | null {
   return isObject(value) ? (value as Record<string, unknown>) : null;
 }
 
+function stripScreeningDerivedKeys(s: Record<string, unknown>): Record<string, unknown> {
+  const o = { ...s };
+  delete o.normalized;
+  delete o.kyc;
+  delete o.aml;
+  return o;
+}
+
 /** Legacy top-level `kyc` + `aml` → one flat screening (aml wins on duplicate keys). */
 function flatScreeningFromLegacyKycAml(
   kyc: Record<string, unknown>,
@@ -79,12 +109,6 @@ function flatScreeningFromLegacyKycAml(
   const amlRaw = typeof aml.rawStatus === "string" ? aml.rawStatus.trim() : "";
   const kycRaw = typeof kyc.rawStatus === "string" ? kyc.rawStatus.trim() : "";
   const status = amlRaw || kycRaw || String(merged.status ?? "").trim();
-  const nk = asObject(kyc.normalized);
-  const na = asObject(aml.normalized);
-  let normalized: Record<string, unknown> | undefined;
-  if (nk && na) normalized = { ...nk, ...na };
-  else if (na) normalized = { ...na };
-  else if (nk) normalized = { ...nk };
   const out: Record<string, unknown> = {
     provider,
     requestId,
@@ -101,12 +125,11 @@ function flatScreeningFromLegacyKycAml(
   }
   if (typeof aml.possibleMatchCount === "number") out.possibleMatchCount = aml.possibleMatchCount;
   if (typeof aml.blacklistedMatchCount === "number") out.blacklistedMatchCount = aml.blacklistedMatchCount;
-  if (normalized) out.normalized = normalized;
   return out;
 }
 
 /**
- * Single flat ACURIS screening (+ optional `normalized` for issuer-shaped sync).
+ * Single flat ACURIS screening for reads (no `normalized`).
  * Legacy: merges top-level `aml` over `kyc`, or nested `screening.kyc` / `screening.aml`.
  */
 export function getEffectiveCtosPartyScreening(root: Record<string, unknown>): Record<string, unknown> {
@@ -117,14 +140,22 @@ export function getEffectiveCtosPartyScreening(root: Record<string, unknown>): R
     if (kycChild || amlChild) {
       const flatFromChildren = flatScreeningFromLegacyKycAml(kycChild ?? {}, amlChild ?? {});
       const { kyc: _k, aml: _a, ...rest } = nested as Record<string, unknown>;
-      return { ...flatFromChildren, ...rest };
+      return stripScreeningDerivedKeys({ ...flatFromChildren, ...rest });
     }
-    return { ...nested };
+    return stripScreeningDerivedKeys({ ...nested });
   }
   const kyc = asObject(root.kyc) ?? {};
   const aml = asObject(root.aml) ?? {};
   if (Object.keys(kyc).length === 0 && Object.keys(aml).length === 0) return {};
   return flatScreeningFromLegacyKycAml(kyc, aml);
+}
+
+/** Drop legacy `screening.normalized` and keep only persisted screening keys (for any write path). */
+export function sanitizeCtosPartySupplementOnboardingJsonForPersist(raw: unknown): Record<string, unknown> {
+  const doc = parseCtosPartySupplementRoot(raw);
+  if (!isObject(doc.screening)) return doc;
+  doc.screening = pickPersistedScreening(getEffectiveCtosPartyScreening(doc));
+  return doc;
 }
 
 /** True when RegTank KYC is already approved (email must not change). */
@@ -139,7 +170,7 @@ export function isCtosPartySupplementApprovalLocked(root: unknown): boolean {
 
 export type CtosPartySupplementMergePatch = {
   onboarding?: Record<string, unknown>;
-  /** Flat ACURIS fields (+ optional `normalized`). Shallow-merged over previous screening. */
+  /** Partial flat ACURIS fields; merged then reduced to persisted keys only. */
   screening?: Record<string, unknown> | null;
   /** When true, `screening` replaces screening entirely (no merge with prior). */
   screeningReset?: boolean;
@@ -149,7 +180,7 @@ export type CtosPartySupplementMergePatch = {
 
 /**
  * Build persisted JSON: `onboarding` + `screening` + non-reserved extras (KYB flags, etc.).
- * Strips legacy duplicate keys from the merged output.
+ * `screening` is always reduced to allowed raw keys (never `normalized`).
  */
 export function mergeCtosPartySupplementDocument(
   prevRaw: unknown,
@@ -165,17 +196,20 @@ export function mergeCtosPartySupplementDocument(
   }
   delete onboarding.regtankStatus;
 
-  let screening: Record<string, unknown>;
+  let screeningMerged: Record<string, unknown>;
   if (patch.screeningReset && patch.screening && isObject(patch.screening)) {
-    screening = { ...patch.screening };
+    screeningMerged = { ...patch.screening };
   } else {
-    screening = {
+    screeningMerged = {
       ...effScr,
       ...(patch.screening ?? {}),
     };
   }
-  delete screening.kyc;
-  delete screening.aml;
+  delete screeningMerged.kyc;
+  delete screeningMerged.aml;
+  delete screeningMerged.normalized;
+
+  const screening = pickPersistedScreening(screeningMerged);
 
   const extras: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(prev)) {
@@ -220,7 +254,7 @@ export function getCtosPartySupplementFlatRead(root: unknown): {
   const st = String(onb.status ?? onb.regtankStatus ?? "").trim();
   const screeningStatus = String(scr.status ?? "").trim();
   const hasScreeningPayload = Object.keys(scr).some(
-    (k) => k !== "normalized" && scr[k] !== undefined && scr[k] !== null && String(scr[k]).trim() !== ""
+    (k) => scr[k] !== undefined && scr[k] !== null && String(scr[k]).trim() !== ""
   );
   const synthetic =
     screeningStatus || hasScreeningPayload ? { rawStatus: screeningStatus || undefined } : null;

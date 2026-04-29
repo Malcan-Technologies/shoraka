@@ -19,7 +19,6 @@ import {
   mergeCtosPartySupplementDocument,
   parseCtosPartySupplementRoot,
 } from "@cashsouk/types";
-import { updateCtosSupplementNormalizedStatus } from "../helpers/update-ctos-normalized-status";
 import { mapRegTankKycScreeningStatusToAmlStatus } from "../helpers/regtank-kyc-screening-to-aml-status";
 
 /**
@@ -929,20 +928,10 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
       onboarding: { updatedAt: now },
       screening: screeningPatch,
     });
-    const normalizedUpdated = updateCtosSupplementNormalizedStatus({
-      onboardingJson: mergedBase,
-      status: rawStatus,
-      now,
-      identifiers: {
-        kycId: requestId,
-        eodRequestId: onboardingId?.startsWith("EOD") ? onboardingId : null,
-      },
-    });
-    const updated = normalizedUpdated;
 
     await prisma.ctosPartySupplement.update({
       where: { id: supplement.id },
-      data: { onboarding_json: updated as Prisma.InputJsonValue },
+      data: { onboarding_json: mergedBase as Prisma.InputJsonValue },
     });
 
     logger.info(
@@ -960,7 +949,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
       "CTOS party KYC/AML webhook handled"
     );
 
-    const updatedRec = updated as Record<string, unknown>;
+    const updatedRec = mergedBase as Record<string, unknown>;
     const approved = getCtosPartySupplementPipelineStatus(updatedRec).toUpperCase() === "APPROVED";
     if (approved && this.provider === "ACURIS" && supplement.issuer_organization_id) {
       try {

@@ -1,8 +1,8 @@
 /**
  * SECTION: Unified director status readers
- * WHY: Read issuer or supplement status using one interface
+ * WHY: Read issuer `director_kyc_status` / `director_aml_status`, or legacy supplement `kyc`/`aml` blobs (not `screening.normalized`)
  * INPUT: issuer org object OR CTOS supplement object
- * OUTPUT: issuer status first, fallback to supplement normalized, else null
+ * OUTPUT: issuer JSON first; supplement falls back to legacy top-level kyc/aml only
  * WHERE USED: API/UI read layer composition
  */
 type UnknownRecord = Record<string, unknown>;
@@ -29,9 +29,6 @@ export function getUnifiedKyc(source: unknown): UnknownRecord | null {
   const screening = isObject(onboardingJson.screening)
     ? (onboardingJson.screening as UnknownRecord)
     : null;
-  const flatNorm = screening?.normalized;
-  if (isObject(flatNorm)) return flatNorm as UnknownRecord;
-
   const nestedKyc =
     screening && isObject((screening as { kyc?: unknown }).kyc)
       ? ((screening as { kyc: UnknownRecord }).kyc as UnknownRecord)
@@ -63,9 +60,6 @@ export function getUnifiedAml(source: unknown): UnknownRecord | null {
   const screening = isObject(onboardingJson.screening)
     ? (onboardingJson.screening as UnknownRecord)
     : null;
-  const flatNorm = screening?.normalized;
-  if (isObject(flatNorm)) return flatNorm as UnknownRecord;
-
   const nestedAml =
     screening && isObject((screening as { aml?: unknown }).aml)
       ? ((screening as { aml: UnknownRecord }).aml as UnknownRecord)
@@ -78,4 +72,3 @@ export function getUnifiedAml(source: unknown): UnknownRecord | null {
 
   return null;
 }
-

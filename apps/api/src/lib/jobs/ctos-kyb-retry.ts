@@ -1,5 +1,8 @@
 import { Prisma } from "@prisma/client";
-import { getCtosPartySupplementPipelineStatus } from "@cashsouk/types";
+import {
+  getCtosPartySupplementPipelineStatus,
+  sanitizeCtosPartySupplementOnboardingJsonForPersist,
+} from "@cashsouk/types";
 import { prisma } from "../prisma";
 import { logger } from "../logger";
 import { linkCtosPartyToKyb } from "../../modules/organization/ctos-party-kyb-link";
@@ -19,7 +22,9 @@ async function touchLastKybAttemptAt(organizationId: string, partyKey: string): 
     select: { id: true, onboarding_json: true },
   });
   if (!fresh) return;
-  const base = asJsonRecord(fresh.onboarding_json) ?? {};
+  const base = sanitizeCtosPartySupplementOnboardingJsonForPersist(
+    asJsonRecord(fresh.onboarding_json) ?? {}
+  );
   await prisma.ctosPartySupplement.update({
     where: { id: fresh.id },
     data: {
