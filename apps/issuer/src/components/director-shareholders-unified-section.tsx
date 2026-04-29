@@ -18,11 +18,11 @@ import {
   getCtosPartySupplementRequestId,
   getDirectorKycPartyRecord,
   getDisplayStatus,
-  getDisplayKycStatus,
   getDisplayRoleLabel,
   isCtosIndividualKycEligibleRow,
   isCtosPartySupplementApprovalLocked,
   normalizeDirectorShareholderIdKey,
+  normalizeRawStatus,
   regtankDisplayStatusBadgeClass,
   type ApplicationPersonRow,
   type DirectorShareholderDisplayRow,
@@ -74,24 +74,6 @@ export interface DirectorShareholdersUnifiedSectionProps {
 
 type AugmentedRow = DirectorShareholderDisplayRow & { __person: ApplicationPersonRow };
 
-function normalizeStatusText(raw: string): string {
-  const t = raw.trim();
-  if (!t) return "NOT_STARTED";
-  const mapped: Record<string, string> = {
-    "KYC Approved": "APPROVED",
-    "KYC Pending": "PENDING",
-    "KYC Failed": "REJECTED",
-    "AML Approved": "APPROVED",
-    "AML Pending": "PENDING",
-    "AML Failed": "REJECTED",
-    "Not Started": "NOT_STARTED",
-    "Status unavailable": "STATUS_UNAVAILABLE",
-    Sent: "SENT",
-  };
-  if (mapped[t]) return mapped[t];
-  return t.toUpperCase().replace(/\s+/g, "_");
-}
-
 function roleLower(r: DirectorShareholderDisplayRow): string {
   return r.role.toLowerCase();
 }
@@ -127,12 +109,13 @@ function onboardingLinkSentForRow(row: DirectorShareholderDisplayRow): boolean {
 
 /** `row.status` is always unified KYC display (CTOS or legacy). */
 function ctosKycStatusUiFromRow(row: DirectorShareholderDisplayRow): { display: string; badgeClass: string } {
-  const display = normalizeStatusText(row.status);
+  const display = normalizeRawStatus(row.status);
   return { display, badgeClass: regtankDisplayStatusBadgeClass(display) };
 }
 
 function renderStatusBadge(raw: string) {
-  const label = normalizeStatusText(raw);
+  const label = normalizeRawStatus(raw);
+  if (!label) return null;
   const cls = regtankDisplayStatusBadgeClass(label);
 
   if (label === "APPROVED") {
@@ -180,12 +163,12 @@ function partyKeyRawForRow(row: DirectorShareholderDisplayRow): string {
 }
 
 function rowKycApproved(row: DirectorShareholderDisplayRow): boolean {
-  return normalizeStatusText(row.status) === "APPROVED";
+  return normalizeRawStatus(row.status) === "APPROVED";
 }
 
 function rowNeedsProfileAction(row: DirectorShareholderDisplayRow, emailDisplay: string): boolean {
   if (rowKycApproved(row)) return false;
-  return !emailDisplay.trim() || normalizeStatusText(row.status) === "NOT_STARTED";
+  return !emailDisplay.trim() || !normalizeRawStatus(row.status);
 }
 
 function onboardingApprovalLockActive(onboardingJson: unknown): boolean {
@@ -193,7 +176,7 @@ function onboardingApprovalLockActive(onboardingJson: unknown): boolean {
 }
 
 function isRowComplete(row: DirectorShareholderDisplayRow, persistedEmail: string): boolean {
-  return Boolean(persistedEmail?.trim()) && normalizeStatusText(row.status) !== "NOT_STARTED";
+  return Boolean(persistedEmail?.trim()) && Boolean(normalizeRawStatus(row.status));
 }
 
 /** Persisted save complete, or local preview after confirm (no API) when row shows sent + email. */
@@ -207,14 +190,13 @@ function isRowCompleteForUi(
   return (
     sentIds.has(row.id) &&
     Boolean(displayEmailStr.trim()) &&
-    normalizeStatusText(row.status) !== "NOT_STARTED"
+    Boolean(normalizeRawStatus(row.status))
   );
 }
 
 function personToDisplayRow(
   p: ApplicationPersonRow,
-  onboardingByPartyKey: Map<string, Record<string, unknown>>,
-  sentIds: ReadonlySet<string>
+  onboardingByPartyKey: Map<string, Record<string, unknown>>
 ): DirectorShareholderDisplayRow {
   const pk = normalizeDirectorShareholderIdKey(p.matchKey);
   const sup = pk ? onboardingByPartyKey.get(pk) ?? {} : {};
@@ -223,19 +205,11 @@ function personToDisplayRow(
   const regtankStatus = flat.regtankStatus;
   const kycBlock = flat.kycBlock;
   const kycRawStatus = kycBlock ? String(kycBlock.rawStatus ?? "").trim() || null : null;
-  let status: string = getDisplayKycStatus({
-    requestId,
-    regtankStatus,
-    kycRawStatus,
-    rawStatus: null,
+  const status = getDisplayStatus({
+    screening: p.screening,
+    directorKycStatus: kycRawStatus,
+    onboarding: { status: regtankStatus || requestId },
   });
-  status = sentIds.has(p.matchKey)
-    ? "SENT"
-    : getDisplayStatus({
-        screening: p.screening,
-        directorKycStatus: status,
-        onboarding: { status: regtankStatus },
-      });
   const rolesU = (p.roles ?? []).map((r) => r.toUpperCase());
   const isDirector = rolesU.includes("DIRECTOR");
   const isShareholder = rolesU.includes("SHAREHOLDER");
@@ -311,7 +285,7 @@ export function DirectorShareholdersUnifiedSection({
       filterVisiblePeopleRows(people).map(
         (p) =>
           ({
-            ...personToDisplayRow(p, onboardingByPartyKey, sentRowIds),
+            ...personToDisplayRow(p, onboardingByPartyKey),
             __person: p,
           }) as AugmentedRow
       ),
@@ -465,7 +439,7 @@ export function DirectorShareholdersUnifiedSection({
 
     const legacyKycRec =
       partySource && typeA ? getDirectorKycPartyRecord(person.matchKey, partySource.directorKycStatus) : null;
-    const legacyKycLabel = normalizeStatusText(String(legacyKycRec?.kycStatus ?? "PENDING"));
+    const legacyKycLabel = normalizeRawStatus(legacyKycRec?.kycStatus);
 
     return (
       <div
@@ -487,7 +461,7 @@ export function DirectorShareholdersUnifiedSection({
               </span>
             ) : null}
           </p>
-          {!typeA ? <p className="text-xs text-muted-foreground mt-1">{em.trim() ? em : "—"}</p> : null}
+          {!typeA ? <p className="text-xs text-muted-foreground mt-1">{em.trim() ? em : ""}</p> : null}
           <p className="text-xs text-muted-foreground mt-1">{personRoleDisplayLabel(row)}</p>
           <div className="mt-1 flex flex-wrap flex-col gap-1">
             {partySource && typeA ? (
@@ -640,7 +614,7 @@ export function DirectorShareholdersUnifiedSection({
             {partySource && typeA ? (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-muted-foreground">KYB</span>
-                {renderStatusBadge(pipelineStatus || entityLabel || "PENDING")}
+                {renderStatusBadge(pipelineStatus || entityLabel)}
               </div>
             ) : partySource && !typeA ? (
               <div className="flex flex-wrap items-center gap-2">

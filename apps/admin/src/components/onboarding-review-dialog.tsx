@@ -48,8 +48,7 @@ import {
   normalizeDirectorShareholderIdKey,
   type OnboardingApprovalStatus,
   getDisplayStatus,
-  getDisplayAmlStatus,
-  mapRegtankStatusToDisplay,
+  normalizeRawStatus,
   regtankDisplayStatusBadgeClass,
 } from "@cashsouk/types";
 import { cn } from "@/lib/utils";
@@ -82,14 +81,13 @@ type OnboardingPersonRow = PeopleRolesRowInput & {
 };
 
 function PeopleKycStatusBadge({ status }: { status: string }) {
-  const mapped = mapRegtankStatusToDisplay(status);
-  const styleKey = mapped === "Status unavailable" && status.trim() ? "KYC Pending" : mapped;
-  const cls = regtankDisplayStatusBadgeClass(styleKey);
-  const label = status;
-  if (styleKey === "KYC Approved" || styleKey === "KYC Failed") {
+  const label = normalizeRawStatus(status);
+  if (!label) return null;
+  const cls = regtankDisplayStatusBadgeClass(label);
+  if (label === "APPROVED" || label === "REJECTED") {
     return (
       <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
-        {styleKey === "KYC Approved" ? (
+        {label === "APPROVED" ? (
           <CheckCircleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
         ) : (
           <XCircleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
@@ -98,7 +96,7 @@ function PeopleKycStatusBadge({ status }: { status: string }) {
       </Badge>
     );
   }
-  if (styleKey === "KYC Pending" || styleKey === "Sent") {
+  if (label === "PENDING" || label === "SENT") {
     return (
       <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
         <ClockIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
@@ -106,7 +104,7 @@ function PeopleKycStatusBadge({ status }: { status: string }) {
       </Badge>
     );
   }
-  if (styleKey === "Status unavailable") {
+  if (label === "STATUS_UNAVAILABLE") {
     return (
       <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
         <ExclamationTriangleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
@@ -123,9 +121,9 @@ function PeopleKycStatusBadge({ status }: { status: string }) {
 }
 
 function PeopleAmlStatusBadge({ status }: { status: string }) {
-  const display = getDisplayAmlStatus(status);
-  const label = status;
-  if (display === "AML Approved") {
+  const label = normalizeRawStatus(status);
+  if (!label) return null;
+  if (label === "APPROVED") {
     return (
       <Badge
         variant="outline"
@@ -136,7 +134,7 @@ function PeopleAmlStatusBadge({ status }: { status: string }) {
       </Badge>
     );
   }
-  if (display === "AML Failed") {
+  if (label === "REJECTED") {
     return (
       <Badge variant="destructive" className="text-[11px] font-normal">
         <XCircleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
@@ -144,7 +142,7 @@ function PeopleAmlStatusBadge({ status }: { status: string }) {
       </Badge>
     );
   }
-  if (display === "AML Pending") {
+  if (label === "PENDING") {
     return (
       <Badge
         variant="outline"
@@ -186,8 +184,8 @@ function OnboardingPeopleReadonlyCards({
         const rolesLine = formatPeopleRolesLine(p);
         const idLine =
           p.entityType === "CORPORATE" ? `SSM ${p.matchKey}` : `IC ${p.matchKey}`;
-        const statusText = String(p.status ?? "").trim();
-        const hasStatus = statusText.length > 0 && statusText !== "-" && statusText !== "—";
+        const statusText = normalizeRawStatus(p.status);
+        const hasStatus = statusText.length > 0;
 
         return (
           <div
@@ -353,7 +351,7 @@ export function OnboardingReviewDialog({
       const status = getDisplayStatus({
         screening: p.screening,
         directorAmlStatus: fallback ?? null,
-        directorKycStatus: p.status ?? null,
+        directorKycStatus: null,
       });
       return { ...p, status };
     });

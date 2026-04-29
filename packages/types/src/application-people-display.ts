@@ -12,6 +12,7 @@ import {
   type DirectorShareholderDisplayRow,
   type GetDirectorShareholderDisplayRowsInput,
 } from "./director-shareholder-display";
+import { normalizeRawStatus } from "./status-normalization";
 
 export type ApplicationPersonRow = {
   matchKey: string;
@@ -97,11 +98,9 @@ export function formatPeopleRolesLineWithoutShare(p: PeopleRolesRowInput): strin
   return upper.join(", ");
 }
 
-const EM_DASH = "\u2014";
-
 function firstUsableStatus(raw: unknown): string | null {
-  const s = String(raw ?? "").trim();
-  if (!s || s === "-" || s === EM_DASH) return null;
+  const s = normalizeRawStatus(raw);
+  if (!s) return null;
   return s;
 }
 
@@ -109,7 +108,7 @@ function firstUsableStatus(raw: unknown): string | null {
  * SECTION: Unified director/shareholder display status priority
  * WHY: Keep one shared status order across portals and pages
  * INPUT: person-level screening + legacy AML/KYC + onboarding progress status
- * OUTPUT: highest-priority available status string, or em dash when empty
+ * OUTPUT: highest-priority available status string, or empty string when empty
  * WHERE USED: admin/issuer/investor director-shareholder views
  */
 export function getDisplayStatus(person: DisplayStatusPerson): string {
@@ -118,19 +117,19 @@ export function getDisplayStatus(person: DisplayStatusPerson): string {
     firstUsableStatus(person.directorAmlStatus) ??
     firstUsableStatus(person.directorKycStatus) ??
     firstUsableStatus(person.onboarding?.status) ??
-    EM_DASH
+    ""
   );
 }
 
 export function formatSharePercentageCell(p: { sharePercentage: number | null }): string {
   const v = p.sharePercentage;
   if (v === null || v === undefined || (typeof v === "number" && !Number.isFinite(v))) {
-    return EM_DASH;
+    return "";
   }
   if (typeof v === "number") {
     return Number.isInteger(v) ? `${v}%` : `${Number(v.toFixed(2))}%`;
   }
-  return EM_DASH;
+  return "";
 }
 
 export function shouldShowPeopleSendEmailButton(
@@ -222,7 +221,7 @@ function pickLegacyRowForPerson(
   const pool = typeMatch.length > 0 ? typeMatch : candidates;
   const score = (r: DirectorShareholderDisplayRow) =>
     (r.amlStatus?.trim() ? 4 : 0) +
-    (r.status && r.status !== "Not Started" ? 2 : 0) +
+    (normalizeRawStatus(r.status) ? 2 : 0) +
     (r.email?.trim() ? 1 : 0);
   const sorted = [...pool].sort((a, b) => score(b) - score(a));
   return sorted[0] ?? null;

@@ -5,6 +5,7 @@
  * OUTPUT: Internal status string (same as reg_tank_onboarding.status)
  * WHERE USED: apps/api RegTank handlers, packages/types CTOS display, issuer UI
  */
+import { normalizeRawStatus } from "./status-normalization";
 
 /** Same mapping as individual-onboarding-handler / handleWebhookUpdate for reg_tank_onboarding.status */
 export function mapRegtankIndividualLivenessRawToInternalStatus(status: string): string {
@@ -28,37 +29,9 @@ export function mapRegtankIndividualLivenessRawToInternalStatus(status: string):
   return internalStatus;
 }
 
-/** Known RegTank workflow tokens that map to in-progress KYC display (aligned with getDisplayKycStatus pending set). */
-const KNOWN_REGTANK_DISPLAY_PENDING = new Set([
-  "IN_PROGRESS",
-  "PENDING",
-  "PENDING_AML",
-  "FORM_FILLING",
-  "LIVENESS_PASSED",
-  "PENDING_APPROVAL",
-  "WAIT_FOR_APPROVAL",
-  /** Match getDisplayKycStatus pending set (director_kyc_status strings). */
-  "EMAIL_SENT",
-  "LIVENESS_STARTED",
-]);
-
-/** Human-readable label for profile / CTOS rows (aligned with org onboarding UX and getDisplayKycStatus). */
+/** Backward-compatible wrapper: now returns normalized raw status only. */
 export function mapRegtankStatusToDisplay(status: string | undefined | null): string {
-  const s = (status || "").trim().toUpperCase();
-  if (!s) {
-    return "Status unavailable";
-  }
-  if (s === "APPROVED") {
-    return "KYC Approved";
-  }
-  if (s === "REJECTED" || s === "FAILED") {
-    return "KYC Failed";
-  }
-  if (KNOWN_REGTANK_DISPLAY_PENDING.has(s)) {
-    return "KYC Pending";
-  }
-  console.warn("Unknown RegTank status:", status);
-  return "Status unavailable";
+  return normalizeRawStatus(status);
 }
 
 /**
@@ -91,18 +64,9 @@ export function getCtosPartySupplementAmlRawStatus(
   return fb.length ? fb.toUpperCase() : null;
 }
 
-/**
- * Human-readable AML label for UI surfaces.
- * Keeps AML wording explicit and never returns raw backend tokens.
- */
+/** Backward-compatible wrapper: now returns normalized raw status only. */
 export function getDisplayAmlStatus(raw?: string | null): string {
-  const s = (raw || "").trim().toUpperCase();
-
-  if (s === "APPROVED") return "AML Approved";
-  if (s === "REJECTED" || s === "FAILED") return "AML Failed";
-  if (s === "PENDING" || s === "IN_PROGRESS" || s === "UNRESOLVED") return "AML Pending";
-
-  return "Status unavailable";
+  return normalizeRawStatus(raw);
 }
 
 /** Read RegTank pipeline status from supplement JSON (`onboarding.status` or legacy `regtankStatus`). */
@@ -127,23 +91,31 @@ export function effectiveCtosRegtankStatusFromOnboardingJson(
   return null;
 }
 
-/** Badge surface for display labels from mapRegtankStatusToDisplay (matches admin KYC/AML palette). */
+/** Badge surface for normalized raw statuses. */
 export function regtankDisplayStatusBadgeClass(displayLabel: string | undefined): string {
   if (!displayLabel) return "bg-muted text-muted-foreground";
-  const s = displayLabel.toLowerCase();
-  if (s === "kyc approved") {
+  const s = normalizeRawStatus(displayLabel);
+  if (s === "APPROVED") {
     return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400";
   }
-  if (s === "kyc failed") {
+  if (s === "REJECTED" || s === "FAILED") {
     return "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400";
   }
-  if (s === "kyc pending") {
+  if (
+    s === "PENDING" ||
+    s === "IN_PROGRESS" ||
+    s === "PENDING_AML" ||
+    s === "FORM_FILLING" ||
+    s === "LIVENESS_PASSED" ||
+    s === "PENDING_APPROVAL" ||
+    s === "WAIT_FOR_APPROVAL" ||
+    s === "EMAIL_SENT" ||
+    s === "LIVENESS_STARTED" ||
+    s === "SENT"
+  ) {
     return "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400";
   }
-  if (s === "status unavailable") {
-    return "bg-muted text-muted-foreground dark:bg-muted/40";
-  }
-  if (s === "not started") {
+  if (s === "NOT_STARTED" || s === "STATUS_UNAVAILABLE") {
     return "bg-muted text-muted-foreground dark:bg-muted/40";
   }
   return "bg-muted text-muted-foreground";

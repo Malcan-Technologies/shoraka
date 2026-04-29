@@ -11,8 +11,8 @@ import {
   formatPeopleRolesLine,
   getCtosPartySupplementFlatRead,
   getDisplayStatus,
-  getDisplayKycStatus,
   normalizeDirectorShareholderIdKey,
+  normalizeRawStatus,
   regtankDisplayStatusBadgeClass,
   type ApplicationPersonRow,
   type DirectorShareholderDisplayRow,
@@ -43,16 +43,10 @@ function personToDisplayRow(
   const regtankStatus = flat.regtankStatus;
   const kycBlock = flat.kycBlock;
   const kycRawStatus = kycBlock ? String(kycBlock.rawStatus ?? "").trim() || null : null;
-  const kycStatus = getDisplayKycStatus({
-    requestId,
-    regtankStatus,
-    kycRawStatus,
-    rawStatus: null,
-  });
   const status = getDisplayStatus({
     screening: p.screening,
-    directorKycStatus: kycStatus,
-    onboarding: { status: regtankStatus },
+    directorKycStatus: kycRawStatus,
+    onboarding: { status: regtankStatus || requestId },
   });
   const rolesU = (p.roles ?? []).map((r) => r.toUpperCase());
   const isDirector = rolesU.includes("DIRECTOR");
@@ -92,7 +86,8 @@ export interface DirectorsShareholdersCardProps {
 
 function renderIndividualRow(row: DirectorShareholderDisplayRow) {
   const ic = row.idNumber?.trim() || "";
-  const kycBadge = regtankDisplayStatusBadgeClass(row.status);
+  const status = normalizeRawStatus(row.status);
+  const kycBadge = regtankDisplayStatusBadgeClass(status);
   return (
     <div
       key={row.id}
@@ -103,19 +98,21 @@ function renderIndividualRow(row: DirectorShareholderDisplayRow) {
           {row.name}
           {ic ? <span className="font-normal text-muted-foreground"> · IC {ic}</span> : null}
         </p>
-        <p className="text-xs text-muted-foreground mt-1">{row.email.trim() ? row.email : "—"}</p>
+        <p className="text-xs text-muted-foreground mt-1">{row.email.trim() ? row.email : ""}</p>
         <p className="text-xs text-muted-foreground mt-1">{row.role}</p>
         <div className="mt-1 flex flex-wrap flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-muted-foreground">KYC</span>
-            <Badge className={cn("text-xs font-medium", kycBadge)}>{row.status}</Badge>
+            {status ? <Badge className={cn("text-xs font-medium", kycBadge)}>{status}</Badge> : null}
           </div>
           {row.amlStatus?.trim() ? (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-muted-foreground">AML</span>
-              <Badge variant="outline" className="text-xs font-medium">
-                {row.amlStatus}
-              </Badge>
+              {normalizeRawStatus(row.amlStatus) ? (
+                <Badge variant="outline" className="text-xs font-medium">
+                  {normalizeRawStatus(row.amlStatus)}
+                </Badge>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -126,7 +123,8 @@ function renderIndividualRow(row: DirectorShareholderDisplayRow) {
 
 function renderCorporateRow(row: DirectorShareholderDisplayRow) {
   const ssm = row.registrationNumber?.trim() || "";
-  const kycBadge = regtankDisplayStatusBadgeClass(row.status);
+  const status = normalizeRawStatus(row.status);
+  const kycBadge = regtankDisplayStatusBadgeClass(status);
   return (
     <div
       key={row.id}
@@ -141,14 +139,16 @@ function renderCorporateRow(row: DirectorShareholderDisplayRow) {
         <div className="mt-1 flex flex-wrap flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-muted-foreground">KYC</span>
-            <Badge className={cn("text-xs font-medium", kycBadge)}>{row.status}</Badge>
+            {status ? <Badge className={cn("text-xs font-medium", kycBadge)}>{status}</Badge> : null}
           </div>
           {row.amlStatus?.trim() ? (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-muted-foreground">AML</span>
-              <Badge variant="outline" className="text-xs font-medium">
-                {row.amlStatus}
-              </Badge>
+              {normalizeRawStatus(row.amlStatus) ? (
+                <Badge variant="outline" className="text-xs font-medium">
+                  {normalizeRawStatus(row.amlStatus)}
+                </Badge>
+              ) : null}
             </div>
           ) : null}
         </div>

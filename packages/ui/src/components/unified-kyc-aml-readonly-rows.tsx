@@ -1,7 +1,7 @@
 "use client";
 
 import type { DirectorShareholderDisplayRow } from "@cashsouk/types";
-import { getDisplayAmlStatus, regtankDisplayStatusBadgeClass } from "@cashsouk/types";
+import { normalizeRawStatus, regtankDisplayStatusBadgeClass } from "@cashsouk/types";
 import { Badge } from "./badge";
 import { cn } from "../lib/utils";
 import {
@@ -18,26 +18,9 @@ export interface UnifiedKycAmlReadonlyRowsProps {
   isRefreshing?: boolean;
 }
 
-function normalizeStatusText(raw: string): string {
-  const t = raw.trim();
-  if (!t) return "STATUS_UNAVAILABLE";
-  const mapped: Record<string, string> = {
-    "KYC Approved": "APPROVED",
-    "KYC Pending": "PENDING",
-    "KYC Failed": "REJECTED",
-    "AML Approved": "APPROVED",
-    "AML Pending": "PENDING",
-    "AML Failed": "REJECTED",
-    "Not Started": "NOT_STARTED",
-    "Status unavailable": "STATUS_UNAVAILABLE",
-    Sent: "SENT",
-  };
-  if (mapped[t]) return mapped[t];
-  return t.toUpperCase().replace(/\s+/g, "_");
-}
-
 function kycBadge(row: DirectorShareholderDisplayRow) {
-  const label = normalizeStatusText(row.status);
+  const label = normalizeRawStatus(row.status);
+  if (!label) return null;
   const cls = regtankDisplayStatusBadgeClass(label);
   if (label === "APPROVED" || label === "REJECTED") {
     return (
@@ -110,24 +93,11 @@ function amlBadge(display: string) {
 }
 
 function amlCell(row: DirectorShareholderDisplayRow) {
-  const amlRaw = row.amlStatus?.trim() ?? "";
-  const regtankRaw = row.ctosRegtankStatus?.trim() ?? "";
-  const statusRaw = row.status?.trim() ?? "";
-
-  const fallbackFromStatus =
-    statusRaw &&
-    statusRaw !== "Not Started" &&
-    statusRaw !== "Status unavailable" &&
-    statusRaw !== "Sent"
-      ? statusRaw
-      : "";
-
-  const rawDisplay =
-    amlRaw ||
-    (regtankRaw ? getDisplayAmlStatus(regtankRaw) : "") ||
-    fallbackFromStatus ||
-    getDisplayAmlStatus("STATUS_UNAVAILABLE");
-  const display = normalizeStatusText(rawDisplay);
+  const display =
+    normalizeRawStatus(row.amlStatus) ||
+    normalizeRawStatus(row.ctosRegtankStatus) ||
+    normalizeRawStatus(row.status);
+  if (!display) return null;
   return amlBadge(display);
 }
 
