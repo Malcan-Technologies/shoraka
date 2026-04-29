@@ -141,7 +141,7 @@ async function listOrganizations(
             directorShareholderSubmitBlockedMessage:
               org.type === "COMPANY" &&
               issuerDirectorShareholderOnboardingPending(companyPartyById.get(org.id)?.people ?? [])
-                ? "Please submit onboarding for all directors/shareholders before submitting."
+                ? "Some directors or shareholders have not finished onboarding. Complete onboarding on your company profile before you submit an application."
                 : undefined,
           }),
           // Corporate director KYC status (for COMPANY type)

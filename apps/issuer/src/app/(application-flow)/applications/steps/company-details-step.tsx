@@ -667,13 +667,6 @@ export function CompanyDetailsStep({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center">
-            {visiblePeopleRows.length > 0 &&
-            !areDirectorShareholdersReadyForApplicationSubmit({ people: visiblePeopleRows }) ? (
-              <p className="text-[17px] leading-7 text-destructive col-span-2 border border-destructive/30 rounded-lg bg-destructive/5 px-3 py-2">
-                Submit onboarding for all directors and shareholders. Use Profile →
-                Directors and shareholders.
-              </p>
-            ) : null}
             {visiblePeopleRows.length === 0 ? (
               <p className="text-[17px] leading-7 text-muted-foreground col-span-2">
                 No directors or shareholders found

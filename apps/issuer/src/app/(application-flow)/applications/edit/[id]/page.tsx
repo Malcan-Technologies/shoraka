@@ -206,7 +206,7 @@ function EditApplicationPageBody() {
 
   const directorPartySubmitBlockedMessage =
     activeOrganization?.directorShareholderSubmitBlockedMessage ??
-    "Please submit onboarding for all directors/shareholders before submitting.";
+    "Some directors or shareholders have not finished onboarding. Complete onboarding on your company profile before you submit an application.";
 
   /** Handle application not found */
   React.useEffect(() => {
@@ -1603,6 +1603,8 @@ function EditApplicationPageBody() {
               visiblePeople={issuerVisiblePeopleForAlert}
               issuerOrganizationId={activeOrganization.id}
               enabled={activeOrganization.onboardingStatus === "COMPLETED"}
+              stickyTop
+              className="mb-2"
             />
           </div>
         ) : null}
@@ -1700,19 +1702,6 @@ function EditApplicationPageBody() {
           )}
         </div>
       </main>
-
-      {application &&
-      isDeclarationsFinalStep &&
-      !devPreviewAmendment &&
-      !directorPartySubmitReady &&
-      (application.status === "DRAFT" || application.status === "AMENDMENT_REQUESTED") ? (
-        <div
-          role="status"
-          className="border-t border-amber-500/30 bg-amber-500/10 px-4 py-3 text-center text-[15px] leading-7 text-foreground"
-        >
-          {directorPartySubmitBlockedMessage}
-        </div>
-      ) : null}
 
       {/* Bottom buttons — visible during shell; disabled until route is interactive */}
       {application ? (

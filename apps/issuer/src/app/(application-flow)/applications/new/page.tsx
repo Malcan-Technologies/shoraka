@@ -20,7 +20,6 @@ import { DirectorShareholderAlertCard } from "@/components/director-shareholder-
 import { ProductList } from "../components/product-list";
 import { ProgressIndicator } from "../components/progress-indicator";
 import { FinancingTypeSkeleton } from "../components/financing-type-skeleton";
-import { areDirectorShareholdersReadyForApplicationSubmit } from "@/lib/director-shareholder-onboarding-ui";
 import {
   MOCK_FINANCING_TYPE_PRODUCTS,
   USE_MOCK_FINANCING_TYPE_CATALOG,
@@ -46,11 +45,6 @@ export default function NewApplicationPage() {
     () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
     [activeOrganization?.people]
   );
-  const dsOnboardingPending =
-    !!activeOrganization &&
-    activeOrganization.type === "COMPANY" &&
-    visiblePeopleForDsAlert.length > 0 &&
-    !areDirectorShareholdersReadyForApplicationSubmit({ people: visiblePeopleForDsAlert });
   const { setTitle } = useHeader();
 
   React.useEffect(() => {
@@ -346,6 +340,15 @@ export default function NewApplicationPage() {
     <div className="flex flex-col h-full">
       {/* Main content */}
       <main className="flex-1 overflow-y-auto p-4">
+        {activeOrganization.type === "COMPANY" ? (
+          <DirectorShareholderAlertCard
+            visiblePeople={visiblePeopleForDsAlert}
+            issuerOrganizationId={activeOrganization.id}
+            enabled={activeOrganization.onboardingStatus === "COMPLETED"}
+            stickyTop
+            className="mb-4"
+          />
+        ) : null}
         <div className="max-w-7xl mx-auto w-full px-4 py-8">
           {/* Page Title */}
           <div className="mb-6">
@@ -356,14 +359,6 @@ export default function NewApplicationPage() {
               Browse and invest in verified financing opportunities from your dashboard
             </p>
           </div>
-
-          {activeOrganization.type === "COMPANY" ? (
-            <DirectorShareholderAlertCard
-              visiblePeople={visiblePeopleForDsAlert}
-              issuerOrganizationId={activeOrganization.id}
-              enabled={activeOrganization.onboardingStatus === "COMPLETED"}
-            />
-          ) : null}
 
           {/* Progress Indicator */}
           {workflowSteps.length > 0 && (
@@ -429,7 +424,6 @@ export default function NewApplicationPage() {
             onClick={handleContinue}
             disabled={
               USE_MOCK_FINANCING_TYPE_CATALOG ||
-              dsOnboardingPending ||
               products.length === 0 ||
               !selectedProductId ||
               !products.some((p: { id: string }) => p.id === selectedProductId) ||

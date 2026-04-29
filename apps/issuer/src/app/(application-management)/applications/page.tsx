@@ -57,6 +57,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import type { NormalizedApplication, NormalizedInvoice } from "./status";
 import { ScrollableInvoiceTable } from "./components/scrollable-invoice-table";
 import { areDirectorShareholdersReadyForApplicationSubmit } from "@/lib/director-shareholder-onboarding-ui";
+import { DirectorShareholderAlertCard } from "@/components/director-shareholder-alert-card";
 import {
   Dialog,
   DialogContent,
@@ -709,10 +710,6 @@ export default function ApplicationsPage() {
     visiblePeopleForDsGating.length > 0 &&
     !areDirectorShareholdersReadyForApplicationSubmit({ people: visiblePeopleForDsGating });
 
-  const directorSubmitBlocked = dsOnboardingPending;
-  const directorSubmitBlockedMessage =
-    activeOrganization?.directorShareholderSubmitBlockedMessage ??
-    "Please submit onboarding for all directors/shareholders before submitting.";
   const displayName = React.useMemo(() => {
     if (!activeOrganization) return "";
     if (activeOrganization.firstName && activeOrganization.lastName) {
@@ -724,11 +721,18 @@ export default function ApplicationsPage() {
     return activeOrganization.type === "PERSONAL" ? "Personal Account" : "Company Account";
   }, [activeOrganization]);
 
-  const directorAmlPendingForDashboard = dsOnboardingPending;
-
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-x-hidden p-4 pt-4">
       <div className="min-w-0 max-w-full p-2 md:p-4">
+      {activeOrganization?.type === "COMPANY" && dsOnboardingPending ? (
+        <DirectorShareholderAlertCard
+          visiblePeople={visiblePeopleForDsGating}
+          issuerOrganizationId={activeOrganization.id}
+          enabled={activeOrganization.onboardingStatus === "COMPLETED"}
+          stickyTop
+          className="mb-4"
+        />
+      ) : null}
       {isDev && (
         <Card
           className="fixed bottom-5 right-5 z-[9999] w-[200px] rounded-2xl shadow-lg border-2 border-amber-500/50"
@@ -773,37 +777,20 @@ export default function ApplicationsPage() {
             <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
               Welcome back, {displayName}!
             </h2>
-            {directorAmlPendingForDashboard ? (
-              <Badge variant="secondary" className="rounded-full text-xs font-semibold">
-                Pending Directors/Shareholders
-              </Badge>
-            ) : null}
           </div>
           <p className="text-[17px] leading-7 text-muted-foreground mt-1">
             Manage your financing applications from this dashboard.
           </p>
         </div>
-        {directorSubmitBlocked ? (
-          <Button
-            type="button"
-            disabled
-            title={directorSubmitBlockedMessage}
-            className="gap-2 h-11 rounded-xl font-semibold shrink-0 opacity-60"
-          >
+        <Button
+          asChild
+          className="gap-2 bg-primary text-primary-foreground shadow-brand hover:opacity-95 h-11 rounded-xl font-semibold shrink-0"
+        >
+          <Link href="/applications/new">
             <PlusIcon className="h-4 w-4" />
             Get Financed
-          </Button>
-        ) : (
-          <Button
-            asChild
-            className="gap-2 bg-primary text-primary-foreground shadow-brand hover:opacity-95 h-11 rounded-xl font-semibold shrink-0"
-          >
-            <Link href="/applications/new">
-              <PlusIcon className="h-4 w-4" />
-              Get Financed
-            </Link>
-          </Button>
-        )}
+          </Link>
+        </Button>
       </section>
 
       <Card className="min-w-0 max-w-full border-none bg-transparent shadow-none">

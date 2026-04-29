@@ -1,6 +1,6 @@
 /**
- * SECTION: Block issuer create/submit until AML screening is Approved for all CTOS people rows
- * WHY: Single derived gate from people[].screening (no stored workflow JSON)
+ * SECTION: Block issuer application submit until director/shareholder onboarding is ready
+ * WHY: Single derived gate from visible individuals’ onboarding.status
  * INPUT: Issuer org id
  * OUTPUT: throws AppError DIRECTOR_SHAREHOLDER_PENDING or returns void / readiness object
  * WHERE USED: ApplicationService, issuer org API fields
@@ -17,7 +17,7 @@ import { OrganizationService } from "../organization/service";
 import { buildAdminPeopleList } from "../admin/build-people-list";
 
 const DIRECTOR_SHAREHOLDER_PENDING_MESSAGE =
-  "Please submit onboarding for all directors/shareholders before submitting.";
+  "Some directors or shareholders have not finished onboarding. Complete onboarding on your company profile before you submit an application.";
 
 function peopleHavePendingOnboarding(visible: ApplicationPersonRow[]): boolean {
   const individuals = visible.filter((p) => p.entityType === "INDIVIDUAL");
