@@ -886,8 +886,7 @@ function resolveIndividualStatus(
   icKey: string | null,
   eod: string | null,
   directorKycStatus: Record<string, unknown> | null | undefined,
-  kycById: Map<string, KycByIdEntry>,
-  ceStatus: string | null
+  kycById: Map<string, KycByIdEntry>
 ): string {
   if (eod) {
     const st = findKycStatusForEod(directorKycStatus, eod);
@@ -897,21 +896,17 @@ function resolveIndividualStatus(
     const hit = kycById.get(icKey);
     if (hit?.status) return hit.status;
   }
-  if (ceStatus) return ceStatus;
   return "";
 }
 
 function resolveCompanyStatus(
   regKey: string | null,
-  kycById: Map<string, KycByIdEntry>,
-  corp: Record<string, unknown>
+  kycById: Map<string, KycByIdEntry>
 ): string {
   if (regKey) {
     const hit = kycById.get(regKey);
     if (hit?.status) return hit.status;
   }
-  const st = corp.approveStatus ?? corp.status;
-  if (st != null && String(st).trim() !== "") return String(st);
   return "";
 }
 
@@ -970,7 +965,6 @@ function buildOnboardingDisplayRows(
     icRaw: string | null;
     icKey: string | null;
     eod: string | null;
-    ceStatus: string | null;
     ownershipDisplay: string | null;
     isDirector: boolean;
     isShareholder: boolean;
@@ -1004,7 +998,6 @@ function buildOnboardingDisplayRows(
     if (patch.icRaw && !cur.icRaw) cur.icRaw = patch.icRaw;
     if (patch.icKey && !cur.icKey) cur.icKey = patch.icKey;
     if (patch.eod && !cur.eod) cur.eod = patch.eod;
-    if (patch.ceStatus && !cur.ceStatus) cur.ceStatus = patch.ceStatus;
     const po = patch.ownershipDisplay != null ? String(patch.ownershipDisplay).trim() : "";
     if (po && !cur.ownershipDisplay) cur.ownershipDisplay = patch.ownershipDisplay ?? null;
     if (patch.sharePctMax != null && Number.isFinite(patch.sharePctMax)) {
@@ -1024,7 +1017,6 @@ function buildOnboardingDisplayRows(
         icRaw: init.icRaw,
         icKey: init.icKey,
         eod: init.eod,
-        ceStatus: init.ceStatus,
         ownershipDisplay: init.ownershipDisplay,
         sharePctMax: init.sharePctMax,
         isDirector: init.isDirector,
@@ -1043,7 +1035,6 @@ function buildOnboardingDisplayRows(
     const icRaw = issuerIcOrSsmForCePersonRow(p, directorKycStatus);
     const icKey = normalizeDirectorShareholderIdKey(icRaw);
     const eod = String(p.eodRequestId ?? "").trim() || null;
-    const ceSt = (p.status ?? p.approveStatus) != null ? String(p.status ?? p.approveStatus) : null;
     const em = emailFromCePerson(p);
     const own = ownershipFromCePerson(p);
     const dirShare = percentOfSharesFromOnboardingCePerson(pr);
@@ -1054,7 +1045,6 @@ function buildOnboardingDisplayRows(
       icRaw,
       icKey,
       eod,
-      ceStatus: ceSt,
       ownershipDisplay: own,
       isDirector: true,
       isShareholder: false,
@@ -1070,7 +1060,6 @@ function buildOnboardingDisplayRows(
     const icRaw = issuerIcOrSsmForCePersonRow(p, directorKycStatus);
     const icKey = normalizeDirectorShareholderIdKey(icRaw);
     const eod = String(p.eodRequestId ?? "").trim() || null;
-    const ceSt = (p.status ?? p.approveStatus) != null ? String(p.status ?? p.approveStatus) : null;
     const em = emailFromCePerson(p);
     const own = ownershipFromCePerson(p);
     const existingKey = findExistingIndKey(icKey, eod);
@@ -1082,7 +1071,6 @@ function buildOnboardingDisplayRows(
         icRaw,
         icKey,
         eod,
-        ceStatus: ceSt,
         ownershipDisplay: own,
         sharePctMax: share,
         isShareholder: true,
@@ -1095,7 +1083,6 @@ function buildOnboardingDisplayRows(
         icRaw,
         icKey,
         eod,
-        ceStatus: ceSt,
         ownershipDisplay: own,
         isDirector: false,
         isShareholder: true,
@@ -1108,7 +1095,7 @@ function buildOnboardingDisplayRows(
 
   for (const key of indOrder) {
     const b = indBuckets.get(key)!;
-    const rawResolved = resolveIndividualStatus(b.icKey, b.eod, directorKycStatus, kycById, b.ceStatus);
+    const rawResolved = resolveIndividualStatus(b.icKey, b.eod, directorKycStatus, kycById);
     const unifiedBase = normalizeRawStatus(rawResolved);
     const emailFromKyc = b.icKey ? kycById.get(b.icKey)?.email ?? "" : "";
     const email = (b.email && b.email.trim()) || emailFromKyc;
@@ -1150,7 +1137,7 @@ function buildOnboardingDisplayRows(
     const regRaw = getCorpBusinessNumber(corp);
     const regKey = normalizeDirectorShareholderIdKey(regRaw);
     const id = `onb-corp-${regKey ?? corpIdx++}`;
-    const rawResolved = resolveCompanyStatus(regKey, kycById, corp);
+    const rawResolved = resolveCompanyStatus(regKey, kycById);
     const unifiedBase = normalizeRawStatus(rawResolved);
     const status = unifiedBase;
     const email = String((corp as Record<string, unknown>).email ?? "").trim();

@@ -29,7 +29,6 @@ import {
 } from "@cashsouk/types";
 import {
   type CorporateEntitiesShape,
-  getCorporateShareholderEntityRecord,
   getSupplementOnboardingJson,
   getSupplementPipelineStatus,
   getSupplementRequestId,
@@ -577,13 +576,6 @@ export function DirectorShareholdersUnifiedSection({
     const pipelineStatus = partySource ? getSupplementPipelineStatus(supJson) : "";
     const typeA =
       !!partySource && isPartyTypeA(person, partySource.directorKycStatus, partySource.corporateEntities);
-    const entityRec =
-      partySource && typeA
-        ? getCorporateShareholderEntityRecord(person.matchKey, partySource.corporateEntities?.corporateShareholders)
-        : null;
-    const entityLabel = String(
-      entityRec?.approveStatus ?? entityRec?.status ?? entityRec?.approve_status ?? ""
-    ).trim();
     const kycUi = ctosKycStatusUiFromRow(row);
     const supplementReady = partySource
       ? Boolean(getSupplementRequestId(supJson)) && isRegTankSubmitReadyStatus(pipelineStatus)
@@ -614,7 +606,7 @@ export function DirectorShareholdersUnifiedSection({
             {partySource && typeA ? (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-muted-foreground">KYB</span>
-                {renderStatusBadge(pipelineStatus || entityLabel)}
+                {renderStatusBadge(pipelineStatus)}
               </div>
             ) : partySource && !typeA ? (
               <div className="flex flex-wrap items-center gap-2">

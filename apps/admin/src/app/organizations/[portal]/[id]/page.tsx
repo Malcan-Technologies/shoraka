@@ -1540,10 +1540,10 @@ export default function OrganizationDetailPage() {
                                     (kycInfo?.shareholderEodRequestId
                                       ? amlLookup.byEod.get(kycInfo.shareholderEodRequestId)
                                       : undefined);
-                                  const amlFallback = String(amlInfo?.status ?? "").trim() || "—";
-                                  const kycFallback = kycInfo?.status || "—";
+                                  const amlFallback = String(amlInfo?.status ?? "").trim();
+                                  const kycFallback = kycInfo?.status || "";
                                   const onboardingStatus =
-                                    String(onboarding.status ?? onboarding.regtankStatus ?? "").trim() || "—";
+                                    String(onboarding.status ?? onboarding.regtankStatus ?? "").trim();
                                   const fallbackRequestId =
                                     String(
                                       onboarding.requestId ??
@@ -1595,9 +1595,9 @@ export default function OrganizationDetailPage() {
 
                                   const displayStatus = getDisplayStatus({
                                     screening: p.screening,
-                                    directorAmlStatus: amlFallback !== "—" ? amlFallback : null,
-                                    directorKycStatus: kycFallback !== "—" ? kycFallback : null,
-                                    onboarding: { status: onboardingStatus !== "—" ? onboardingStatus : null },
+                                    directorAmlStatus: amlFallback || null,
+                                    directorKycStatus: kycFallback || null,
+                                    onboarding: { status: onboardingStatus || null },
                                   });
                                   const regtankBase =
                                     resolveRegtankPortalBase(org.regtankPortalUrl) ||
@@ -1663,12 +1663,14 @@ export default function OrganizationDetailPage() {
                                       <TableCell>{formatRoleTitleCaseWithoutShare(p.roles ?? [])}</TableCell>
                                       <TableCell>{formatSharePercentageCell(p)}</TableCell>
                                       <TableCell>
-                                        <Badge
-                                          variant="outline"
-                                          className={`border-transparent text-[11px] font-normal ${regtankDisplayStatusBadgeClass(String(displayStatus))}`}
-                                        >
-                                          {displayStatus}
-                                        </Badge>
+                                        {displayStatus ? (
+                                          <Badge
+                                            variant="outline"
+                                            className={`border-transparent text-[11px] font-normal ${regtankDisplayStatusBadgeClass(String(displayStatus))}`}
+                                          >
+                                            {displayStatus}
+                                          </Badge>
+                                        ) : null}
                                       </TableCell>
                                       <TableCell>{riskLevel}</TableCell>
                                       <TableCell>
