@@ -103,7 +103,12 @@ function buildApplicationSidebarGroups(
     });
   }
 
-  return groups.sort((a, b) => a.productTitle.localeCompare(b.productTitle));
+  return groups.sort((a, b) => {
+    if (a.isInactive !== b.isInactive) {
+      return a.isInactive ? 1 : -1;
+    }
+    return a.productTitle.localeCompare(b.productTitle, undefined, { sensitivity: "base" });
+  });
 }
 
 const navActionsConfig = [
@@ -280,16 +285,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                                     title={
                                       g.isInactive
                                         ? `${g.productTitle} (Inactive)`
-                                        : g.productTitle
+                                        : `${g.productTitle} (Active)`
                                     }
                                     className="flex min-w-0 flex-col gap-0.5"
                                   >
                                     <span className="truncate text-sm leading-tight">{g.productTitle}</span>
-                                    {g.isInactive ? (
-                                      <span className="text-xs font-normal leading-none text-muted-foreground">
-                                        Inactive
-                                      </span>
-                                    ) : null}
+                                    <span className="text-xs font-normal leading-none text-muted-foreground">
+                                      {g.isInactive ? "Inactive" : "Active"}
+                                    </span>
                                   </Link>
                                 </SidebarMenuSubButton>
                               </SidebarMenuSubItem>
