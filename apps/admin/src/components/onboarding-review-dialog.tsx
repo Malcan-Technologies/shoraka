@@ -44,13 +44,7 @@ import {
   useRefreshCorporateAmlStatus,
 } from "@/hooks/use-onboarding-applications";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  normalizeDirectorShareholderIdKey,
-  type OnboardingApprovalStatus,
-  getDisplayStatus,
-  normalizeRawStatus,
-  regtankDisplayStatusBadgeClass,
-} from "@cashsouk/types";
+import { type OnboardingApprovalStatus, getDirectorShareholderSingleStatusPresentation } from "@cashsouk/types";
 import { cn } from "@/lib/utils";
 import {
   UserIcon,
@@ -77,90 +71,13 @@ type OnboardingPersonRow = PeopleRolesRowInput & {
   entityType: "INDIVIDUAL" | "CORPORATE";
   status: string;
   screening?: { status?: string | null } | null;
+  onboarding?: { status?: string | null } | null;
 };
 
-function PeopleKycStatusBadge({ status }: { status: string }) {
-  const label = normalizeRawStatus(status);
-  if (!label) return null;
-  const cls = regtankDisplayStatusBadgeClass(label);
-  if (label === "APPROVED" || label === "REJECTED") {
-    return (
-      <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
-        {label === "APPROVED" ? (
-          <CheckCircleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
-        ) : (
-          <XCircleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
-        )}
-        {label}
-      </Badge>
-    );
-  }
-  if (label === "PENDING" || label === "SENT") {
-    return (
-      <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
-        <ClockIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
-        {label}
-      </Badge>
-    );
-  }
-  return (
-    <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
-      <ClockIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
-      {label}
-    </Badge>
-  );
-}
-
-function PeopleAmlStatusBadge({ status }: { status: string }) {
-  const label = normalizeRawStatus(status);
-  if (!label) return null;
-  if (label === "APPROVED") {
-    return (
-      <Badge
-        variant="outline"
-        className="border-green-500/30 text-foreground bg-green-500/10 text-[11px] font-normal"
-      >
-        <CheckCircleIcon className="h-3 w-3 mr-1 text-green-600 shrink-0" aria-hidden />
-        {label}
-      </Badge>
-    );
-  }
-  if (label === "REJECTED") {
-    return (
-      <Badge variant="destructive" className="text-[11px] font-normal">
-        <XCircleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
-        {label}
-      </Badge>
-    );
-  }
-  if (label === "PENDING") {
-    return (
-      <Badge
-        variant="outline"
-        className="border-gray-400/30 text-foreground bg-gray-400/10 text-[11px] font-normal"
-      >
-        <ClockIcon className="h-3 w-3 mr-1 text-gray-500 shrink-0" aria-hidden />
-        {label}
-      </Badge>
-    );
-  }
-  return (
-    <Badge
-      variant="outline"
-      className="border-muted-foreground/40 text-foreground bg-muted/40 text-[11px] font-normal"
-    >
-      <ClockIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
-      {label}
-    </Badge>
-  );
-}
-
 function OnboardingPeopleReadonlyCards({
-  variant,
   rows,
   isRefreshing,
 }: {
-  variant: "kyc" | "aml";
   rows: OnboardingPersonRow[];
   isRefreshing: boolean;
 }) {
@@ -175,8 +92,10 @@ function OnboardingPeopleReadonlyCards({
         const rolesLine = formatPeopleRolesLine(p);
         const idLine =
           p.entityType === "CORPORATE" ? `SSM ${p.matchKey}` : `IC ${p.matchKey}`;
-        const statusText = normalizeRawStatus(p.status);
-        const hasStatus = statusText.length > 0;
+        const pr = getDirectorShareholderSingleStatusPresentation({
+          screening: p.screening,
+          onboarding: p.onboarding,
+        });
 
         return (
           <div
@@ -191,12 +110,10 @@ function OnboardingPeopleReadonlyCards({
               <p className="text-xs text-muted-foreground font-mono break-all">{idLine}</p>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2 shrink-0 sm:pt-0.5">
-              {hasStatus ? (
-                variant === "kyc" ? (
-                  <PeopleKycStatusBadge status={p.status} />
-                ) : (
-                  <PeopleAmlStatusBadge status={p.status} />
-                )
+              {pr ? (
+                <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", pr.badgeClassName)}>
+                  {pr.label}
+                </Badge>
               ) : null}
             </div>
           </div>
@@ -250,105 +167,6 @@ export function OnboardingReviewDialog({
   const isCompany = application?.type === "COMPANY";
   const peopleRows = application?.people ?? [];
   const visiblePeopleRows = React.useMemo(() => filterVisiblePeopleRows(peopleRows), [peopleRows]);
-  const visiblePeopleRowsWithKycStatus = React.useMemo(() => {
-    const directors =
-      application?.directorKycStatus && typeof application.directorKycStatus === "object"
-        ? ((application.directorKycStatus as { directors?: unknown[] }).directors ?? [])
-        : [];
-    const byIc = new Map<string, string>();
-    for (const row of directors) {
-      if (!row || typeof row !== "object" || Array.isArray(row)) continue;
-      const r = row as { governmentIdNumber?: unknown; kycStatus?: unknown };
-      const key = normalizeDirectorShareholderIdKey(String(r.governmentIdNumber ?? ""));
-      const kycStatus = typeof r.kycStatus === "string" ? r.kycStatus.trim() : "";
-      if (!key || !kycStatus) continue;
-      byIc.set(key, kycStatus);
-    }
-    return visiblePeopleRows.map((p) => {
-      const key = normalizeDirectorShareholderIdKey(p.matchKey);
-      const fallback = key ? byIc.get(key) : undefined;
-      const status = getDisplayStatus({
-        screening: p.screening,
-        directorKycStatus: fallback ?? null,
-        onboarding: { status: p.onboarding?.status ?? null },
-      });
-      return { ...p, status };
-    });
-  }, [application?.directorKycStatus, visiblePeopleRows]);
-  const visiblePeopleRowsWithAmlStatus = React.useMemo(() => {
-    const amlRoot =
-      application?.directorAmlStatus && typeof application.directorAmlStatus === "object"
-        ? (application.directorAmlStatus as { directors?: unknown[]; individualShareholders?: unknown[] })
-        : null;
-    const directors = amlRoot?.directors ?? [];
-    const individualShareholders = amlRoot?.individualShareholders ?? [];
-
-    const kycRows =
-      application?.directorKycStatus && typeof application.directorKycStatus === "object"
-        ? ((application.directorKycStatus as { directors?: unknown[] }).directors ?? [])
-        : [];
-
-    const govIdByKycId = new Map<string, string>();
-    const govIdByEod = new Map<string, string>();
-    for (const row of kycRows) {
-      if (!row || typeof row !== "object" || Array.isArray(row)) continue;
-      const r = row as { kycId?: unknown; eodRequestId?: unknown; governmentIdNumber?: unknown };
-      const govId = normalizeDirectorShareholderIdKey(String(r.governmentIdNumber ?? ""));
-      if (!govId) continue;
-      const kycId = String(r.kycId ?? "").trim();
-      const eod = String(r.eodRequestId ?? "").trim();
-      if (kycId) govIdByKycId.set(kycId, govId);
-      if (eod) govIdByEod.set(eod, govId);
-    }
-
-    const byIc = new Map<string, string>();
-    const collect = (rows: unknown[]) => {
-      for (const row of rows) {
-        if (!row || typeof row !== "object" || Array.isArray(row)) continue;
-        const r = row as {
-          governmentIdNumber?: unknown;
-          amlStatus?: unknown;
-          status?: unknown;
-          kycId?: unknown;
-          eodRequestId?: unknown;
-        };
-        const amlStatus =
-          (typeof r.amlStatus === "string" ? r.amlStatus : "") ||
-          (typeof r.status === "string" ? r.status : "");
-        const status = amlStatus.trim();
-        if (!status) continue;
-        const byGov = normalizeDirectorShareholderIdKey(String(r.governmentIdNumber ?? ""));
-        if (byGov) {
-          byIc.set(byGov, status);
-          continue;
-        }
-        const kycId = String(r.kycId ?? "").trim();
-        if (kycId && govIdByKycId.has(kycId)) {
-          byIc.set(govIdByKycId.get(kycId)!, status);
-          continue;
-        }
-        const eod = String(r.eodRequestId ?? "").trim();
-        if (eod && govIdByEod.has(eod)) {
-          byIc.set(govIdByEod.get(eod)!, status);
-        }
-      }
-    };
-    collect(directors);
-    collect(individualShareholders);
-
-    return visiblePeopleRows.map((p) => {
-      const key = normalizeDirectorShareholderIdKey(p.matchKey);
-      const fallback = key ? byIc.get(key) : undefined;
-      const status = getDisplayStatus({
-        screening: p.screening,
-        directorAmlStatus: fallback ?? null,
-        directorKycStatus: p.directorKycStatus ?? null,
-        onboarding: { status: p.onboarding?.status ?? null },
-      });
-      return { ...p, status };
-    });
-  }, [application?.directorAmlStatus, application?.directorKycStatus, visiblePeopleRows]);
-
   React.useEffect(() => {
     console.log("Onboarding dialog people[]:", peopleRows);
     console.log("Onboarding dialog visible people[]:", visiblePeopleRows);
@@ -641,8 +459,7 @@ export function OnboardingReviewDialog({
                       Note: Shareholders with less than 5% ownership are not displayed here.
                     </p>
                     <OnboardingPeopleReadonlyCards
-                      variant="kyc"
-                      rows={visiblePeopleRowsWithKycStatus}
+                      rows={visiblePeopleRows as OnboardingPersonRow[]}
                       isRefreshing={refreshCorporateMutation.isPending}
                     />
                   </div>
@@ -770,8 +587,7 @@ export function OnboardingReviewDialog({
                       Note: Shareholders with less than 5% ownership are not displayed here.
                     </p>
                     <OnboardingPeopleReadonlyCards
-                      variant="aml"
-                      rows={visiblePeopleRowsWithAmlStatus}
+                      rows={visiblePeopleRows as OnboardingPersonRow[]}
                       isRefreshing={refreshCorporateAmlMutation.isPending}
                     />
                   </div>

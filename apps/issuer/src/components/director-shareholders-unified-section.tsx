@@ -16,6 +16,7 @@ import {
   getCtosPartySupplementFlatRead,
   getCtosPartySupplementRequestId,
   getDirectorKycPartyRecord,
+  getDirectorShareholderSingleStatusPresentation,
   getDisplayStatus,
   getDisplayRoleLabel,
   isCtosIndividualKycEligibleRow,
@@ -107,10 +108,14 @@ function onboardingLinkSentForRow(row: DirectorShareholderDisplayRow): boolean {
   return row.ctosOnboardingLinkSent === true || row.status === "Sent";
 }
 
-/** `row.status` is always unified KYC display (CTOS or legacy). */
-function ctosKycStatusUiFromRow(row: DirectorShareholderDisplayRow): { display: string; badgeClass: string } {
-  const display = normalizeRawStatus(row.status);
-  return { display, badgeClass: regtankDisplayStatusBadgeClass(display) };
+function renderDirectorShareholderPriorityBadge(person: ApplicationPersonRow) {
+  const pr = getDirectorShareholderSingleStatusPresentation(person);
+  if (!pr) return null;
+  return (
+    <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", pr.badgeClassName)}>
+      {pr.label}
+    </Badge>
+  );
 }
 
 function renderStatusBadge(raw: string) {
@@ -421,7 +426,6 @@ export function DirectorShareholdersUnifiedSection({
       !!partySource && isPartyTypeA(person, partySource.directorKycStatus, partySource.corporateEntities);
     const legacyApprovalLocked = rowKycApproved(row) || onboardingApprovalLockActive(latestOnboarding);
     const approvalLocked = partySource ? supplementLocked : legacyApprovalLocked;
-    const kycUi = ctosKycStatusUiFromRow(row);
     const supplementReady = partySource
       ? Boolean(getSupplementRequestId(supJson)) && isRegTankSubmitReadyStatus(pipelineStatus)
       : false;
@@ -470,30 +474,12 @@ export function DirectorShareholdersUnifiedSection({
           ) : null}
           <p className="text-xs text-muted-foreground mt-1">{personRoleDisplayLabel(row)}</p>
           <div className="mt-1 flex flex-wrap flex-col gap-1">
-            {partySource && typeA ? (
-              <div className="flex flex-wrap items-center gap-2">
-                {renderStatusBadge(legacyKycLabel)}
-              </div>
-            ) : partySource && !typeA ? (
-              normalizeRawStatus(pipelineStatus) ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Status</span>
-                  {renderStatusBadge(pipelineStatus)}
-                </div>
-              ) : null
-            ) : (
-              <>
-                <div className="flex flex-wrap items-center gap-2">
-                  {renderStatusBadge(kycUi.display)}
-                </div>
-                {row.amlStatus?.trim() ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs text-muted-foreground">AML</span>
-                    {renderStatusBadge(row.amlStatus)}
-                  </div>
-                ) : null}
-              </>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              {partySource && typeA
+                ? renderDirectorShareholderPriorityBadge(person) ??
+                  (legacyKycLabel ? renderStatusBadge(legacyKycLabel) : null)
+                : renderDirectorShareholderPriorityBadge(person)}
+            </div>
           </div>
           {latestRequestId && !typeA ? (
             <p className="text-xs text-muted-foreground mt-1">Latest request ID: {latestRequestId}</p>
@@ -585,7 +571,6 @@ export function DirectorShareholdersUnifiedSection({
     const pipelineStatus = partySource ? getSupplementPipelineStatus(supJson) : "";
     const typeA =
       !!partySource && isPartyTypeA(person, partySource.directorKycStatus, partySource.corporateEntities);
-    const kycUi = ctosKycStatusUiFromRow(row);
     const supplementReady = partySource
       ? Boolean(getSupplementRequestId(supJson)) && isRegTankSubmitReadyStatus(pipelineStatus)
       : false;
@@ -619,25 +604,10 @@ export function DirectorShareholdersUnifiedSection({
                   {renderStatusBadge(pipelineStatus)}
                 </div>
               ) : null
-            ) : partySource && !typeA ? (
-              normalizeRawStatus(pipelineStatus) ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Status</span>
-                  {renderStatusBadge(pipelineStatus)}
-                </div>
-              ) : null
             ) : (
-              <>
-                <div className="flex flex-wrap items-center gap-2">
-                  {renderStatusBadge(kycUi.display)}
-                </div>
-                {row.amlStatus?.trim() ? (
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs text-muted-foreground">AML</span>
-                    {renderStatusBadge(row.amlStatus)}
-                  </div>
-                ) : null}
-              </>
+              <div className="flex flex-wrap items-center gap-2">
+                {renderDirectorShareholderPriorityBadge(person)}
+              </div>
             )}
           </div>
         </div>

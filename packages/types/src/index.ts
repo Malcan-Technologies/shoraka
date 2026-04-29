@@ -357,6 +357,7 @@ export * from "./resubmit-path-utils";
 export * from "./resubmit-meaningful-field-path";
 export * from "./application-people-display";
 export * from "./director-kyc-gov-id";
+export * from "./director-shareholder-single-status-display";
 export * from "./director-shareholder-display";
 export * from "./regtank-onboarding-status";
 export * from "./status-normalization";
