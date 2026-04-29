@@ -645,6 +645,10 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           const org = await this.organizationRepository.findInvestorOrganizationById(organizationId);
           if (org) {
             const previousStatus = org.onboarding_status;
+            const ssmRegistrationNumber =
+              corporateOnboardingData?.basicInfo?.ssmRegistrationNumber ||
+              org.registration_number ||
+              null;
             await prisma.investorOrganization.update({
               where: { id: organizationId },
               data: {
@@ -661,6 +665,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 corporate_required_documents: corporateRequiredDocuments as Prisma.InputJsonValue,
                 corporate_entities: corporateEntities as Prisma.InputJsonValue,
                 phone_number: corporateOnboardingData?.basicInfo?.phoneNumber ?? null,
+                registration_number: ssmRegistrationNumber,
               },
             });
 
@@ -702,6 +707,10 @@ export class CODWebhookHandler extends BaseWebhookHandler {
           const org = await this.organizationRepository.findIssuerOrganizationById(organizationId);
           if (org) {
             const previousStatus = org.onboarding_status;
+            const ssmRegistrationNumber =
+              corporateOnboardingData?.basicInfo?.ssmRegistrationNumber ||
+              org.registration_number ||
+              null;
             await prisma.issuerOrganization.update({
               where: { id: organizationId },
               data: {
@@ -718,6 +727,7 @@ export class CODWebhookHandler extends BaseWebhookHandler {
                 corporate_required_documents: corporateRequiredDocuments as Prisma.InputJsonValue,
                 corporate_entities: corporateEntities as Prisma.InputJsonValue,
                 phone_number: corporateOnboardingData?.basicInfo?.phoneNumber ?? null,
+                registration_number: ssmRegistrationNumber,
               },
             });
 

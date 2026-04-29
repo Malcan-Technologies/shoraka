@@ -25,6 +25,19 @@ import { runIssuerDirectorShareholderNotificationsAfterOrgCtosReportInsert } fro
 
 export type AdminOrgCtosPortal = "issuer" | "investor";
 
+function fallbackRegistrationNumberFromCorporateOnboardingData(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const basicInfo = (raw as { basicInfo?: unknown }).basicInfo;
+  if (!basicInfo || typeof basicInfo !== "object" || Array.isArray(basicInfo)) return null;
+  const ssmRegistrationNumber = (basicInfo as { ssmRegistrationNumber?: unknown }).ssmRegistrationNumber;
+  const ssmRegisterNumber = (basicInfo as { ssmRegisterNumber?: unknown }).ssmRegisterNumber;
+  const candidate =
+    (typeof ssmRegistrationNumber === "string" ? ssmRegistrationNumber : "") ||
+    (typeof ssmRegisterNumber === "string" ? ssmRegisterNumber : "");
+  const trimmed = candidate.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 const listSelect = {
   id: true,
   issuer_organization_id: true,
@@ -186,7 +199,15 @@ export async function fetchAndInsertCtosReport(
     throw new AppError(404, "NOT_FOUND", "Issuer organization not found");
   }
 
-  const innerXml = buildCtosEnquiryXml(cfg, org);
+  const regNoFallback = fallbackRegistrationNumberFromCorporateOnboardingData(
+    (org as { corporate_onboarding_data?: unknown }).corporate_onboarding_data ?? null
+  );
+  const enquiryOrg = {
+    ...org,
+    registration_number: (org.registration_number ?? "").trim() || regNoFallback,
+  };
+
+  const innerXml = buildCtosEnquiryXml(cfg, enquiryOrg);
   let rawXml: string;
   try {
     rawXml = await callCtosSoap(cfg, innerXml);
@@ -288,7 +309,14 @@ export async function fetchAndInsertCtosReportForAdminOrg(
   }
 
   const { enquiryOrg } = await loadOrgForAdminCtos(portal, organizationId);
-  const innerXml = buildCtosEnquiryXml(cfg, enquiryOrg);
+  const regNoFallback = fallbackRegistrationNumberFromCorporateOnboardingData(
+    (enquiryOrg as { corporate_onboarding_data?: unknown }).corporate_onboarding_data ?? null
+  );
+  const enquiryOrgWithFallback = {
+    ...enquiryOrg,
+    registration_number: (enquiryOrg.registration_number ?? "").trim() || regNoFallback,
+  };
+  const innerXml = buildCtosEnquiryXml(cfg, enquiryOrgWithFallback);
   let rawXml: string;
   try {
     rawXml = await callCtosSoap(cfg, innerXml);
