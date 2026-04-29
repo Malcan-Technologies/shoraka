@@ -19,8 +19,19 @@ import {
 import { requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { AMLSyncService } from "../regtank/aml-sync-service";
+import { buildAdminPeopleList } from "../admin/build-people-list";
+import { filterVisiblePeopleRows, isReadyOnboardingStatus } from "@cashsouk/types";
 
 const organizationService = new OrganizationService();
+
+function issuerDirectorShareholderOnboardingPending(people: ReturnType<typeof buildAdminPeopleList>): boolean {
+  const visible = filterVisiblePeopleRows(people);
+  const visibleIndividuals = visible.filter((p) => p.entityType === "INDIVIDUAL");
+  return (
+    visibleIndividuals.length > 0 &&
+    visibleIndividuals.some((p) => !isReadyOnboardingStatus(p.onboarding?.status ?? null))
+  );
+}
 
 /**
  * Get authenticated user ID from request
@@ -49,6 +60,37 @@ async function listOrganizations(
     const organizations = await organizationService.listOrganizations(userId, portalType);
 
     const hasPersonal = await organizationService.hasPersonalOrganization(userId, portalType);
+
+    const companyPartyById = new Map<
+      string,
+      {
+        people: ReturnType<typeof buildAdminPeopleList>;
+        latestOrganizationCtosCompanyJson: unknown | null;
+        ctosPartySupplements: { partyKey: string; onboardingJson: unknown }[];
+      }
+    >();
+    await Promise.all(
+      organizations
+        .filter((o) => o.type === "COMPANY")
+        .map(async (org) => {
+          const extras =
+            portalType === "investor"
+              ? await organizationService.getInvestorPartyListExtras(org.id)
+              : await organizationService.getIssuerPartyListExtras(org.id);
+          const people = buildAdminPeopleList({
+            ctos: extras.latestOrganizationCtosCompanyJson ?? null,
+            issuerDirectorKycStatus: (org as { director_kyc_status?: unknown }).director_kyc_status ?? null,
+            issuerDirectorAmlStatus: (org as { director_aml_status?: unknown }).director_aml_status ?? null,
+            ctosPartySupplements: extras.ctosPartySupplements,
+            corporateEntities: (org as { corporate_entities?: unknown }).corporate_entities ?? null,
+          });
+          companyPartyById.set(org.id, {
+            people,
+            latestOrganizationCtosCompanyJson: extras.latestOrganizationCtosCompanyJson,
+            ctosPartySupplements: extras.ctosPartySupplements,
+          });
+        })
+    );
 
     res.json({
       success: true,
@@ -92,6 +134,15 @@ async function listOrganizations(
           // Issuer-specific flags
           ...(portalType === "issuer" && {
             ssmChecked: (org as { ssm_checked?: boolean }).ssm_checked ?? false,
+            directorShareholderSubmitReady:
+              org.type !== "COMPANY"
+                ? true
+                : !issuerDirectorShareholderOnboardingPending(companyPartyById.get(org.id)?.people ?? []),
+            directorShareholderSubmitBlockedMessage:
+              org.type === "COMPANY" &&
+              issuerDirectorShareholderOnboardingPending(companyPartyById.get(org.id)?.people ?? [])
+                ? "Some directors or shareholders have not finished onboarding. Complete onboarding on your company profile before you submit an application."
+                : undefined,
           }),
           // Corporate director KYC status (for COMPANY type)
           ...(org.type === "COMPANY" && {
@@ -178,6 +229,7 @@ async function listOrganizations(
                   };
                 })
               : undefined,
+            ...(companyPartyById.get(org.id) ?? {}),
           }),
         })),
         hasPersonalOrganization: hasPersonal,
@@ -268,6 +320,21 @@ async function getOrganization(
       corporate_entities?: unknown;
     };
 
+    const peopleForSubmit =
+      portalType === "issuer" && organization.type === "COMPANY" && issuerPartyExtras
+        ? buildAdminPeopleList({
+            ctos: issuerPartyExtras.latestOrganizationCtosCompanyJson ?? null,
+            issuerDirectorKycStatus: org.director_kyc_status ?? null,
+            issuerDirectorAmlStatus: org.director_aml_status ?? null,
+            ctosPartySupplements: issuerPartyExtras.ctosPartySupplements,
+            corporateEntities: org.corporate_entities ?? null,
+          })
+        : [];
+    const issuerDsPending =
+      portalType === "issuer" && organization.type === "COMPANY"
+        ? issuerDirectorShareholderOnboardingPending(peopleForSubmit)
+        : false;
+
     res.json({
       success: true,
       data: {
@@ -332,6 +399,10 @@ async function getOrganization(
         // Issuer-specific flags
         ...(portalType === "issuer" && {
           ssmChecked: org.ssm_checked ?? false,
+          directorShareholderSubmitReady: !issuerDsPending,
+          directorShareholderSubmitBlockedMessage: issuerDsPending
+            ? "Please complete AML for all directors/shareholders before submitting."
+            : undefined,
           ...(issuerPartyExtras && {
             latestOrganizationCtosCompanyJson: issuerPartyExtras.latestOrganizationCtosCompanyJson,
             latestOrganizationCtosFinancialsJson: issuerPartyExtras.latestOrganizationCtosFinancialsJson,
@@ -452,6 +523,19 @@ async function getOrganization(
                 corporateShareholders?: Array<Record<string, unknown>>;
               })
             : undefined,
+          people: buildAdminPeopleList({
+            ctos:
+              portalType === "issuer"
+                ? (issuerPartyExtras?.latestOrganizationCtosCompanyJson ?? null)
+                : (investorPartyExtras?.latestOrganizationCtosCompanyJson ?? null),
+            issuerDirectorKycStatus: org.director_kyc_status ?? null,
+            issuerDirectorAmlStatus: org.director_aml_status ?? null,
+            ctosPartySupplements:
+              portalType === "issuer"
+                ? (issuerPartyExtras?.ctosPartySupplements ?? null)
+                : (investorPartyExtras?.ctosPartySupplements ?? null),
+            corporateEntities: org.corporate_entities ?? null,
+          }),
         }),
       },
     });

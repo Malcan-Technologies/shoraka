@@ -39,10 +39,16 @@ import { organizationInvitationTemplate } from "../../lib/email/templates";
 import { randomBytes } from "crypto";
 import {
   getDirectorShareholderDisplayRows,
+  getEffectiveCtosPartyOnboarding,
+  getEffectiveCtosPartyScreening,
   isCtosIndividualKycEligibleRow,
+  isCtosPartySupplementApprovalLocked,
   isLegacyCtosPartyKycApproved,
+  mergeCtosPartySupplementDocument,
   normalizeDirectorShareholderIdKey,
+  parseCtosPartySupplementRoot,
 } from "@cashsouk/types";
+import { buildAdminPeopleList } from "../admin/build-people-list";
 import { RegTankAPIClient } from "../regtank/api-client";
 import type { RegTankIndividualOnboardingRequest } from "../regtank/types";
 import { listLatestCtosSubjectReportsForAdminOrg } from "../ctos/ctos-report-service";
@@ -60,24 +66,8 @@ function splitForenameSurname(full: string): { forename: string; surname: string
   return { forename: parts[0], surname: parts.slice(1).join(" ") };
 }
 
-function parseCtosPartyOnboardingJson(v: unknown): Record<string, unknown> {
-  if (v && typeof v === "object" && !Array.isArray(v)) {
-    return v as Record<string, unknown>;
-  }
-  return {};
-}
-
-function onboardingApprovalLockActive(onboarding: Record<string, unknown>): boolean {
-  const regtankStatus = String(onboarding.regtankStatus ?? "").trim().toUpperCase();
-  const kycRawStatus =
-    onboarding.kyc && typeof onboarding.kyc === "object" && !Array.isArray(onboarding.kyc)
-      ? String((onboarding.kyc as Record<string, unknown>).rawStatus ?? "").trim().toUpperCase()
-      : "";
-  return regtankStatus === "APPROVED" || kycRawStatus === "APPROVED";
-}
-
-function assertOnboardingEmailMutable(onboarding: Record<string, unknown>): void {
-  if (!onboardingApprovalLockActive(onboarding)) return;
+function assertOnboardingEmailMutable(root: Record<string, unknown>): void {
+  if (!isCtosPartySupplementApprovalLocked(root)) return;
   throw new AppError(
     400,
     "KYC_ALREADY_APPROVED",
@@ -1686,25 +1676,41 @@ export class OrganizationService {
     }
     const email = input.email.trim();
     const existing = await findCtosPartySupplementForOrg(portalType, organizationId, partyKey);
-    const prev = parseCtosPartyOnboardingJson(existing?.onboarding_json);
-    assertOnboardingEmailMutable(prev);
-    const previousEmail = typeof prev.email === "string" ? prev.email.trim() : "";
+    const prevRoot = parseCtosPartySupplementRoot(existing?.onboarding_json);
+    assertOnboardingEmailMutable(prevRoot);
+    const prevOnb = getEffectiveCtosPartyOnboarding(prevRoot);
+    const previousEmail = typeof prevOnb.email === "string" ? prevOnb.email.trim() : "";
     const emailChanged = previousEmail.toLowerCase() !== email.toLowerCase();
-    const nextOnboarding: Record<string, unknown> = { ...prev, email };
+    const nextOnb: Record<string, unknown> = { ...prevOnb, email };
     if (emailChanged) {
-      nextOnboarding.sent = false;
-      nextOnboarding.regtankStatus = "PENDING";
-      nextOnboarding.updatedAt = new Date().toISOString();
-      delete nextOnboarding.requestId;
-      delete nextOnboarding.verifyLink;
-      delete nextOnboarding.kyc;
-      delete nextOnboarding.aml;
+      nextOnb.sent = false;
+      nextOnb.status = "PENDING";
+      nextOnb.updatedAt = new Date().toISOString();
+      delete nextOnb.requestId;
+      delete nextOnb.verifyLink;
+      delete nextOnb.regtankStatus;
     }
+    const mergedDoc = mergeCtosPartySupplementDocument(prevRoot, {
+      onboarding: nextOnb,
+      ...(emailChanged
+        ? {
+            screeningReset: true,
+            screening: {
+              provider: "ACURIS",
+              status: "PENDING",
+              requestId: "",
+              riskLevel: "",
+              riskScore: "",
+              updatedAt: new Date().toISOString(),
+            },
+          }
+        : {}),
+    });
     await upsertCtosPartySupplementOnboardingJson(
       portalType,
       organizationId,
       partyKey,
-      nextOnboarding as Prisma.InputJsonValue,
+      mergedDoc as Prisma.InputJsonValue,
       entitiesForParty.directorKycStatus
     );
     logger.info({ organizationId, partyKey, userId, portalType }, "CTOS party supplement email upserted");
@@ -1748,8 +1754,9 @@ export class OrganizationService {
     }
 
     const supplement = await findCtosPartySupplementForOrg(portalType, organizationId, pk);
-    const supOb = parseCtosPartyOnboardingJson(supplement?.onboarding_json);
-    assertOnboardingEmailMutable(supOb);
+    const prevRoot = parseCtosPartySupplementRoot(supplement?.onboarding_json);
+    assertOnboardingEmailMutable(prevRoot);
+    const supOb = getEffectiveCtosPartyOnboarding(prevRoot);
     const supplementEmail =
       supOb.email != null ? String(supOb.email).trim() : "";
     if (!supplementEmail) {
@@ -1817,9 +1824,11 @@ export class OrganizationService {
     let verifyLink = "";
     const now = new Date();
     const nowIso = now.toISOString();
+    /* Send throttling (disabled): uncomment to enforce again.
     const cooldownMs = 5 * 60 * 1000;
     const maxPerDay = 5;
-    const prevLastSentAt = typeof supOb.lastSentAt === "string" ? supOb.lastSentAt.trim() : "";
+    const prevLastSentAt =
+      typeof supOb.lastSentAt === "string" ? (supOb.lastSentAt as string).trim() : "";
     if (prevLastSentAt) {
       const lastMs = new Date(prevLastSentAt).getTime();
       if (Number.isFinite(lastMs) && now.getTime() - lastMs < cooldownMs) {
@@ -1831,7 +1840,7 @@ export class OrganizationService {
       }
     }
     const dailyCutoffMs = now.getTime() - 24 * 60 * 60 * 1000;
-    const recentSends = parseSendTimestamps(supOb).filter((ts) => {
+    const recentSends = parseSendTimestamps(getEffectiveCtosPartyOnboarding(prevRoot)).filter((ts) => {
       const ms = new Date(ts).getTime();
       return Number.isFinite(ms) && ms >= dailyCutoffMs;
     });
@@ -1842,9 +1851,12 @@ export class OrganizationService {
         "Daily send limit reached for this person. Please try again tomorrow."
       );
     }
+    */
+    const sendHistory = parseSendTimestamps(getEffectiveCtosPartyOnboarding(prevRoot));
     try {
       logger.info({ referenceId }, "RegTank director onboarding referenceId");
-      const existingRequestId = typeof supOb.requestId === "string" ? supOb.requestId.trim() : "";
+      const existingRequestId =
+        typeof supOb.requestId === "string" ? (supOb.requestId as string).trim() : "";
       const regTankResponse = existingRequestId
         ? await regTankApi.restartOnboarding(existingRequestId, {
             email: supplementEmail,
@@ -1869,34 +1881,37 @@ export class OrganizationService {
       );
     }
 
-    const prevKyc =
-      supOb.kyc && typeof supOb.kyc === "object" && !Array.isArray(supOb.kyc)
-        ? { ...(supOb.kyc as Record<string, unknown>) }
-        : {};
-    const prevAml =
-      supOb.aml && typeof supOb.aml === "object" && !Array.isArray(supOb.aml)
-        ? { ...(supOb.aml as Record<string, unknown>) }
-        : {};
-    const nextOnboarding = {
+    const prevScr = getEffectiveCtosPartyScreening(prevRoot);
+    const nextOnb: Record<string, unknown> = {
       ...supOb,
       email: supplementEmail,
       sent: true,
-      regtankStatus: "IN_PROGRESS",
+      status: "IN_PROGRESS",
       requestId,
       referenceId,
-      kyc: { ...prevKyc, rawStatus: "PENDING" },
-      aml: { ...prevAml, rawStatus: "PENDING" },
       ...(verifyLink ? { verifyLink } : {}),
       sentAt: nowIso,
       lastSentAt: nowIso,
-      sendTimestamps: [...recentSends, nowIso],
+      sendTimestamps: [...sendHistory, nowIso],
     };
-    delete (nextOnboarding as Record<string, unknown>).status;
+    delete nextOnb.regtankStatus;
+    const mergedSend = mergeCtosPartySupplementDocument(prevRoot, {
+      onboarding: nextOnb,
+      screening: {
+        ...prevScr,
+        provider: String(prevScr.provider || "ACURIS"),
+        requestId,
+        status: "PENDING",
+        riskLevel: "",
+        riskScore: "",
+        updatedAt: nowIso,
+      },
+    });
     await upsertCtosPartySupplementOnboardingJson(
       portalType,
       organizationId,
       pk,
-      nextOnboarding as Prisma.InputJsonValue,
+      mergedSend as Prisma.InputJsonValue,
       entities.directorKycStatus
     );
 
@@ -1931,6 +1946,275 @@ export class OrganizationService {
     return { requestId };
   }
 
+  /**
+   * Issuer org party data for admin flows (no membership check). Caller must enforce auth.
+   */
+  async getCorporateEntitiesPrivileged(organizationId: string): Promise<Awaited<ReturnType<OrganizationService["getCorporateEntities"]>>> {
+    const organization = await prisma.issuerOrganization.findUnique({
+      where: { id: organizationId },
+      select: { corporate_entities: true, director_kyc_status: true, director_aml_status: true },
+    });
+    const entities = (organization?.corporate_entities as Record<string, unknown>) || {};
+    const raw = organization?.director_kyc_status as Record<string, unknown> | null | undefined;
+    const directorKyc =
+      raw && typeof raw === "object" && Array.isArray(raw.directors)
+        ? (raw as Record<string, unknown>)
+        : null;
+    const amlRaw = organization?.director_aml_status as Record<string, unknown> | null | undefined;
+    const directorAmlStatus =
+      amlRaw && typeof amlRaw === "object" && !Array.isArray(amlRaw) ? amlRaw : null;
+    const base = {
+      directors: Array.isArray(entities.directors) ? (entities.directors as Record<string, unknown>[]) : [],
+      shareholders: Array.isArray(entities.shareholders)
+        ? (entities.shareholders as Record<string, unknown>[])
+        : [],
+      corporateShareholders: Array.isArray(entities.corporateShareholders)
+        ? (entities.corporateShareholders as Record<string, unknown>[])
+        : [],
+      directorKycStatus: directorKyc,
+      directorAmlStatus,
+    };
+    const extras = await this.getIssuerPartyListExtras(organizationId);
+    const people = buildAdminPeopleList({
+      ctos: extras.latestOrganizationCtosCompanyJson ?? null,
+      issuerDirectorKycStatus: organization?.director_kyc_status ?? null,
+      issuerDirectorAmlStatus: organization?.director_aml_status ?? null,
+      ctosPartySupplements: extras.ctosPartySupplements,
+      corporateEntities: organization?.corporate_entities ?? null,
+    });
+    return {
+      ...base,
+      people,
+      latestOrganizationCtosCompanyJson: extras.latestOrganizationCtosCompanyJson,
+      latestOrganizationCtosFinancialsJson: extras.latestOrganizationCtosFinancialsJson,
+      latestOrganizationCtosReportId: extras.latestOrganizationCtosReportId,
+      latestOrganizationCtosFetchedAt: extras.latestOrganizationCtosFetchedAt,
+      latestOrganizationCtosHasReportHtml: extras.latestOrganizationCtosHasReportHtml,
+      latestOrganizationCtosSubjectReports: extras.latestOrganizationCtosSubjectReports,
+      ctosPartySupplements: extras.ctosPartySupplements,
+    };
+  }
+
+  /**
+   * Admin-only: resend director/shareholder RegTank onboarding without issuer membership checks.
+   */
+  async sendDirectorCtosPartyOnboardingPrivileged(
+    organizationId: string,
+    input: SendDirectorOnboardingInput,
+    adminRemark: string
+  ): Promise<{ requestId: string }> {
+    const org = await prisma.issuerOrganization.findUnique({
+      where: { id: organizationId },
+      select: { type: true, onboarding_status: true },
+    });
+    if (!org) {
+      throw new AppError(404, "NOT_FOUND", "Issuer organization not found");
+    }
+    assertOrgOnboardingCompletedForCompanyPartyActions(org);
+
+    const pk = normalizeDirectorShareholderIdKey(input.partyKey);
+    if (!pk) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invalid party key");
+    }
+
+    const entities = await this.getCorporateEntitiesPrivileged(organizationId);
+    if (isLegacyCtosPartyKycApproved(pk, entities.directorKycStatus)) {
+      throw new AppError(
+        400,
+        "NOT_REQUIRED",
+        "This person already completed KYC on the company record."
+      );
+    }
+
+    const supplement = await findCtosPartySupplementForOrg("issuer", organizationId, pk);
+    const prevRoot = parseCtosPartySupplementRoot(supplement?.onboarding_json);
+    assertOnboardingEmailMutable(prevRoot);
+    const supOb = getEffectiveCtosPartyOnboarding(prevRoot);
+    const supplementEmail = supOb.email != null ? String(supOb.email).trim() : "";
+    if (!supplementEmail) {
+      throw new AppError(
+        400,
+        "EMAIL_REQUIRED",
+        "Save a party email for this person before sending onboarding"
+      );
+    }
+
+    const rows = getDirectorShareholderDisplayRows({
+      corporateEntities: entities,
+      directorKycStatus: (entities.directorKycStatus as Record<string, unknown> | null) ?? null,
+      directorAmlStatus: (entities as { directorAmlStatus?: unknown }).directorAmlStatus ?? null,
+      organizationCtosCompanyJson: entities.latestOrganizationCtosCompanyJson ?? null,
+      ctosPartySupplements: entities.ctosPartySupplements ?? null,
+      sentRowIds: null,
+    });
+    const target = rows.find(
+      (r) =>
+        r.type === "INDIVIDUAL" &&
+        (r.id === `ctos-${pk}` ||
+          normalizeDirectorShareholderIdKey(r.idNumber) === pk ||
+          normalizeDirectorShareholderIdKey(r.enquiryId) === pk)
+    );
+    if (!target) {
+      throw new AppError(404, "NOT_FOUND", "No CTOS individual party matches this key");
+    }
+    if (!isCtosIndividualKycEligibleRow(target)) {
+      throw new AppError(
+        400,
+        "NOT_ELIGIBLE",
+        "This party is not eligible for individual onboarding under CTOS rules"
+      );
+    }
+
+    const idGov = String(target.idNumber || target.enquiryId || "").trim();
+    if (!idGov) {
+      throw new AppError(400, "VALIDATION_ERROR", "Party has no government ID for onboarding");
+    }
+
+    const { forename, surname } = splitForenameSurname(target.name);
+    const formId = parseInt(process.env.REGTANK_ISSUER_PERSONAL_FORM_ID || "1015495", 10);
+    const referenceId = buildSafeReferenceId(organizationId, pk);
+    const onboardingRequest: RegTankIndividualOnboardingRequest = {
+      email: supplementEmail,
+      surname,
+      forename,
+      referenceId,
+      countryOfResidence: "MY",
+      nationality: "MY",
+      placeOfBirth: "MY",
+      idIssuingCountry: "MY",
+      gender: "UNSPECIFIED",
+      governmentIdNumber: idGov,
+      idType: "IDENTITY",
+      language: "EN",
+      bypassIdUpload: false,
+      skipFormPage: false,
+      formId,
+    };
+
+    const regTankApi = new RegTankAPIClient();
+    let requestId: string;
+    let verifyLink = "";
+    const now = new Date();
+    const nowIso = now.toISOString();
+    /* Send throttling (disabled): uncomment to enforce again.
+    const cooldownMs = 5 * 60 * 1000;
+    const maxPerDay = 5;
+    const prevLastSentAt =
+      typeof supOb.lastSentAt === "string" ? (supOb.lastSentAt as string).trim() : "";
+    if (prevLastSentAt) {
+      const lastMs = new Date(prevLastSentAt).getTime();
+      if (Number.isFinite(lastMs) && now.getTime() - lastMs < cooldownMs) {
+        throw new AppError(
+          429,
+          "RATE_LIMITED",
+          "Please wait 5 minutes before sending onboarding again."
+        );
+      }
+    }
+    const dailyCutoffMs = now.getTime() - 24 * 60 * 60 * 1000;
+    const recentSends = parseSendTimestamps(getEffectiveCtosPartyOnboarding(prevRoot)).filter((ts) => {
+      const ms = new Date(ts).getTime();
+      return Number.isFinite(ms) && ms >= dailyCutoffMs;
+    });
+    if (recentSends.length >= maxPerDay) {
+      throw new AppError(
+        429,
+        "RATE_LIMITED",
+        "Daily send limit reached for this person. Please try again tomorrow."
+      );
+    }
+    */
+    const sendHistory = parseSendTimestamps(getEffectiveCtosPartyOnboarding(prevRoot));
+    try {
+      logger.info({ referenceId }, "RegTank director onboarding referenceId (admin privileged)");
+      const existingRequestId =
+        typeof supOb.requestId === "string" ? (supOb.requestId as string).trim() : "";
+      const regTankResponse = existingRequestId
+        ? await regTankApi.restartOnboarding(existingRequestId, {
+            email: supplementEmail,
+            language: "EN",
+            idType: "IDENTITY",
+            skipFormPage: false,
+          })
+        : await regTankApi.createIndividualOnboarding(onboardingRequest);
+      requestId = regTankResponse.requestId;
+      verifyLink =
+        typeof regTankResponse.verifyLink === "string" ? regTankResponse.verifyLink.trim() : "";
+    } catch (e) {
+      logger.error(
+        { organizationId, partyKey: pk, error: e instanceof Error ? e.message : String(e) },
+        "RegTank director onboarding failed (admin privileged)"
+      );
+      if (e instanceof AppError) throw e;
+      throw new AppError(
+        502,
+        "REGTANK_ONBOARDING_FAILED",
+        e instanceof Error ? e.message : "RegTank onboarding request failed"
+      );
+    }
+
+    const prevScr = getEffectiveCtosPartyScreening(prevRoot);
+    const nextOnb: Record<string, unknown> = {
+      ...supOb,
+      email: supplementEmail,
+      sent: true,
+      status: "IN_PROGRESS",
+      directorMismatchAdminRemark: adminRemark.trim(),
+      requestId,
+      referenceId,
+      ...(verifyLink ? { verifyLink } : {}),
+      sentAt: nowIso,
+      lastSentAt: nowIso,
+      sendTimestamps: [...sendHistory, nowIso],
+    };
+    delete nextOnb.regtankStatus;
+    const mergedSend = mergeCtosPartySupplementDocument(prevRoot, {
+      onboarding: nextOnb,
+      screening: {
+        ...prevScr,
+        provider: String(prevScr.provider || "ACURIS"),
+        requestId,
+        status: "PENDING",
+        riskLevel: "",
+        riskScore: "",
+        updatedAt: nowIso,
+      },
+    });
+    await upsertCtosPartySupplementOnboardingJson(
+      "issuer",
+      organizationId,
+      pk,
+      mergedSend as Prisma.InputJsonValue,
+      entities.directorKycStatus
+    );
+
+    if (verifyLink) {
+      try {
+        await sendOnboardingEmail({ to: supplementEmail, verifyLink });
+        logger.info(
+          { organizationId, partyKey: pk, requestId },
+          "Director CTOS onboarding verify link sent via SES (admin privileged)"
+        );
+      } catch (sesErr) {
+        logger.error(
+          {
+            organizationId,
+            partyKey: pk,
+            error: sesErr instanceof Error ? sesErr.message : String(sesErr),
+          },
+          "SES failed after RegTank success; verifyLink is stored in onboarding_json"
+        );
+      }
+    } else {
+      logger.warn(
+        { organizationId, partyKey: pk, requestId },
+        "RegTank returned no verifyLink; skipped SES onboarding email"
+      );
+    }
+
+    return { requestId };
+  }
+
   async getCorporateEntities(
     userId: string,
     organizationId: string,
@@ -1939,6 +2223,7 @@ export class OrganizationService {
     directors: Array<Record<string, unknown>>;
     shareholders: Array<Record<string, unknown>>;
     corporateShareholders: Array<Record<string, unknown>>;
+    people?: import("@cashsouk/types").OnboardingApplicationResponse["people"];
     directorKycStatus?: Record<string, unknown> | null;
     latestOrganizationCtosCompanyJson?: unknown | null;
     latestOrganizationCtosFinancialsJson?: unknown | null;
@@ -1994,8 +2279,16 @@ export class OrganizationService {
     };
     if (portalType === "issuer") {
       const extras = await this.getIssuerPartyListExtras(organizationId);
+      const people = buildAdminPeopleList({
+        ctos: extras.latestOrganizationCtosCompanyJson ?? null,
+        issuerDirectorKycStatus: organization?.director_kyc_status ?? null,
+        issuerDirectorAmlStatus: organization?.director_aml_status ?? null,
+        ctosPartySupplements: extras.ctosPartySupplements,
+        corporateEntities: organization?.corporate_entities ?? null,
+      });
       return {
         ...base,
+        people,
         latestOrganizationCtosCompanyJson: extras.latestOrganizationCtosCompanyJson,
         latestOrganizationCtosFinancialsJson: extras.latestOrganizationCtosFinancialsJson,
         latestOrganizationCtosReportId: extras.latestOrganizationCtosReportId,
@@ -2007,8 +2300,16 @@ export class OrganizationService {
     }
     if (portalType === "investor") {
       const extras = await this.getInvestorPartyListExtras(organizationId);
+      const people = buildAdminPeopleList({
+        ctos: extras.latestOrganizationCtosCompanyJson ?? null,
+        issuerDirectorKycStatus: organization?.director_kyc_status ?? null,
+        issuerDirectorAmlStatus: organization?.director_aml_status ?? null,
+        ctosPartySupplements: extras.ctosPartySupplements,
+        corporateEntities: organization?.corporate_entities ?? null,
+      });
       return {
         ...base,
+        people,
         latestOrganizationCtosCompanyJson: extras.latestOrganizationCtosCompanyJson,
         latestOrganizationCtosFinancialsJson: extras.latestOrganizationCtosFinancialsJson,
         latestOrganizationCtosReportId: extras.latestOrganizationCtosReportId,

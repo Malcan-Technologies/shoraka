@@ -31,6 +31,11 @@ export type OrganizationWithMembers = (InvestorOrganization | IssuerOrganization
   ssm_checked?: boolean; // Only for issuer organizations
 };
 
+/** When transitioning to PENDING_APPROVAL via RegTank webhook, callers may clear company SSM flags for a fresh admin gate. */
+export type UpdateOrganizationOnboardingOptions = {
+  resetCompanySsmGateFromRegtankWebhook?: boolean;
+};
+
 export class OrganizationRepository {
   /**
    * Create an investor organization
@@ -300,12 +305,14 @@ export class OrganizationRepository {
    */
   async updateInvestorOrganizationOnboarding(
     id: string,
-    status: OnboardingStatus
+    status: OnboardingStatus,
+    options?: UpdateOrganizationOnboardingOptions
   ): Promise<InvestorOrganization> {
     const updateData: {
       onboarding_status: OnboardingStatus;
       onboarded_at: Date | null;
       onboarding_approved?: boolean;
+      ssm_approved?: boolean;
     } = {
       onboarding_status: status,
       onboarded_at: status === OnboardingStatus.COMPLETED ? new Date() : null,
@@ -314,6 +321,9 @@ export class OrganizationRepository {
     // Set onboarding_approved to true when status is PENDING_APPROVAL
     if (status === OnboardingStatus.PENDING_APPROVAL) {
       updateData.onboarding_approved = true;
+      if (options?.resetCompanySsmGateFromRegtankWebhook) {
+        updateData.ssm_approved = false;
+      }
     }
 
     return prisma.investorOrganization.update({
@@ -327,12 +337,14 @@ export class OrganizationRepository {
    */
   async updateIssuerOrganizationOnboarding(
     id: string,
-    status: OnboardingStatus
+    status: OnboardingStatus,
+    options?: UpdateOrganizationOnboardingOptions
   ): Promise<IssuerOrganization> {
     const updateData: {
       onboarding_status: OnboardingStatus;
       onboarded_at: Date | null;
       onboarding_approved?: boolean;
+      ssm_checked?: boolean;
     } = {
       onboarding_status: status,
       onboarded_at: status === OnboardingStatus.COMPLETED ? new Date() : null,
@@ -341,6 +353,9 @@ export class OrganizationRepository {
     // Set onboarding_approved to true when status is PENDING_APPROVAL
     if (status === OnboardingStatus.PENDING_APPROVAL) {
       updateData.onboarding_approved = true;
+      if (options?.resetCompanySsmGateFromRegtankWebhook) {
+        updateData.ssm_checked = false;
+      }
     }
 
     return prisma.issuerOrganization.update({

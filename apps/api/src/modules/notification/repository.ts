@@ -70,7 +70,12 @@ export class NotificationRepository {
 
     // If filter specifically asks for read/unread, use simple prisma query
     if (filters.read !== undefined) {
-      const where = { ...baseWhere, read_at: filters.read ? { not: null } : null };
+      const where = {
+        ...baseWhere,
+        ...(filters.read
+          ? { OR: [{ read_at: { not: null } }, { resolved_at: { not: null } }] }
+          : { read_at: null, resolved_at: null }),
+      };
       const [items, total] = await Promise.all([
         prisma.notification.findMany({
           where,
@@ -85,8 +90,11 @@ export class NotificationRepository {
     }
 
     // Default view: Unread first, then Read, both sorted by created_at desc
-    const unreadWhere = { ...baseWhere, read_at: null };
-    const readWhere = { ...baseWhere, read_at: { not: null } };
+    const unreadWhere = { ...baseWhere, read_at: null, resolved_at: null };
+    const readWhere = {
+      ...baseWhere,
+      OR: [{ read_at: { not: null } }, { resolved_at: { not: null } }],
+    };
 
     const [unreadCount, totalCount] = await Promise.all([
       prisma.notification.count({ where: unreadWhere }),
@@ -148,6 +156,7 @@ export class NotificationRepository {
         user_id: userId,
         send_to_platform: true,
         read_at: null,
+        resolved_at: null,
         ...(portalTarget && {
           notification_type: {
             portal_targets: { has: portalTarget },
@@ -176,7 +185,7 @@ export class NotificationRepository {
    */
   async markAllAsRead(userId: string): Promise<Prisma.BatchPayload> {
     return prisma.notification.updateMany({
-      where: { user_id: userId, read_at: null },
+      where: { user_id: userId, read_at: null, resolved_at: null },
       data: { read_at: new Date() },
     });
   }

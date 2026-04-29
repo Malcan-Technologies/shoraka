@@ -39,8 +39,15 @@ export function ApplicationsTableRow({
 
       {/* Applicant */}
       <TableCell className={applicationTableCellClass}>
-        <div className="font-medium truncate max-w-[200px]" title={application.issuerOrganizationName || ""}>
-          {application.issuerOrganizationName || "Unnamed Organization"}
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
+          <div className="font-medium truncate max-w-[200px]" title={application.issuerOrganizationName || ""}>
+            {application.issuerOrganizationName || "Unnamed Organization"}
+          </div>
+          {application.directorShareholderAmlPending ? (
+            <span className="shrink-0 inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:text-amber-100">
+              Pending Director/Shareholder AML
+            </span>
+          ) : null}
         </div>
       </TableCell>
 

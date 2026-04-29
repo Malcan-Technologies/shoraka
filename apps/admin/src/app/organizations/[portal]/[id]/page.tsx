@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,7 +32,6 @@ import { OrganizationIssuerCtosReportsCard } from "@/components/organization-iss
 import {
   useOrganizationDetail,
   useUpdateSophisticatedStatus,
-  useRefreshCorporateEntities,
 } from "@/hooks/use-organization-detail";
 import type { PortalType } from "@cashsouk/types";
 import { format } from "date-fns";
@@ -54,9 +54,120 @@ import {
   ShieldExclamationIcon,
   ExclamationTriangleIcon,
   ArrowLeftIcon,
-  ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  buildDirectorShareholderDisplayRowForEmailEligibility,
+  filterVisiblePeopleRows,
+  getDisplayStatus,
+  formatSharePercentageCell,
+  isDirectorShareholderEmailActionable,
+} from "@/lib/onboarding-people-display";
+import { DirectorShareholderNotifyButton } from "@/components/director-shareholder-notify-button";
+import {
+  getEffectiveCtosPartyOnboarding,
+  getEffectiveCtosPartyScreening,
+  normalizeDirectorShareholderIdKey,
+  regtankDisplayStatusBadgeClass,
+  toTitleCase,
+  type AdminCtosReportListItem,
+} from "@cashsouk/types";
+import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { formatApiErrorMessage } from "@/lib/format-api-error-message";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const REGTANK_PORTAL_BASE_URL =
+  typeof process !== "undefined" ? (process.env.NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL ?? "").trim() : "";
+
+function resolveRegtankPortalBase(raw: string | null | undefined): string {
+  const s = String(raw ?? "").trim();
+  if (!s) return "";
+  try {
+    const u = new URL(s);
+    return `${u.protocol}//${u.host}`;
+  } catch {
+    return s.replace(/\/+$/, "");
+  }
+}
+
+function regtankResultUrl(base: string, requestId: string, kind: "individual" | "company"): string | undefined {
+  const b = base.replace(/\/+$/, "");
+  const rid = String(requestId ?? "").trim();
+  if (!b || !rid || rid === "—") return undefined;
+  const enc = encodeURIComponent(rid);
+  return kind === "company" ? `${b}/app/screen-kyb/result/${enc}` : `${b}/app/screen-kyc/result/${enc}`;
+}
+
+/** Individual party onboarding (supplement / EOD): RegTank admin uses liveness, not screen-kyc result. */
+function regtankIndividualLivenessAdminUrl(base: string, requestId: string): string | undefined {
+  const b = base.replace(/\/+$/, "");
+  const rid = String(requestId ?? "").trim();
+  if (!b || !rid) return undefined;
+  return `${b}/app/liveness/${encodeURIComponent(rid)}?archived=false`;
+}
+
+/** Issuer corporate onboarding: open director/shareholder KYC in corporate flow (COD + EOD). */
+function regtankOnboardingCorporatePartyUrl(base: string, cod: string, eod: string): string | undefined {
+  const b = base.replace(/\/+$/, "");
+  const c = String(cod ?? "").trim();
+  const e = String(eod ?? "").trim();
+  if (!b || !c || !e) return undefined;
+  const cu = c.toUpperCase();
+  const eu = e.toUpperCase();
+  if (!cu.startsWith("COD") || !eu.startsWith("EOD")) return undefined;
+  return `${b}/app/onboardingCorporate/${encodeURIComponent(c)}/${encodeURIComponent(e)}`;
+}
+
+function firstEodId(...candidates: Array<string | null | undefined>): string {
+  for (const raw of candidates) {
+    const v = String(raw ?? "").trim();
+    if (v.toUpperCase().startsWith("EOD")) return v;
+  }
+  return "";
+}
+
+function comparableSubjectRef(raw: string | null | undefined): string {
+  return String(raw ?? "")
+    .trim()
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .toLowerCase();
+}
+
+/** Same as API `normalizeCtosSubjectRefKey` (ctos subject_ref in DB). */
+function ctosSubjectRefKey(raw: string | null | undefined): string {
+  return String(raw ?? "")
+    .trim()
+    .replace(/\s+/g, "")
+    .toLowerCase();
+}
+
+function ctosSubjectRefsMatch(a: string | null | undefined, b: string | null | undefined): boolean {
+  const ka = ctosSubjectRefKey(a);
+  const kb = ctosSubjectRefKey(b);
+  if (ka.length > 0 && kb.length > 0 && ka === kb) return true;
+  return comparableSubjectRef(a) === comparableSubjectRef(b);
+}
+
+function looksLikeRequestId(raw: string | null | undefined): boolean {
+  const v = String(raw ?? "").trim().toUpperCase();
+  return v.startsWith("EOD") || v.startsWith("COD");
+}
+
+type PendingCtosSubjectFetch = {
+  subjectRef: string;
+  subjectKind: "INDIVIDUAL" | "CORPORATE";
+  displayName: string;
+  idNumber?: string;
+  partyLabel: string;
+};
 
 function DetailRow({
   label,
@@ -406,13 +517,13 @@ function KycResponseDisplay({
           {data.status && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Status:</span>
-              <Badge className={kycAmlScreeningStatusBadgeClass(data.status)}>{data.status}</Badge>
+              <Badge className={kycAmlScreeningStatusBadgeClass(data.status)}>{toTitleCase(data.status)}</Badge>
             </div>
           )}
           {data.riskLevel && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Risk Level:</span>
-              <Badge className={kycAmlScreeningRiskLevelBadgeClass(data.riskLevel)}>{data.riskLevel}</Badge>
+              <Badge className={kycAmlScreeningRiskLevelBadgeClass(data.riskLevel)}>{toTitleCase(data.riskLevel)}</Badge>
             </div>
           )}
           {data.riskScore && (
@@ -582,404 +693,163 @@ function formatAddressDisplay(address?: {
   return parts.length > 0 ? parts.join(", ") : "—";
 }
 
-function CorporateEntitiesDisplay({
-  data,
-  onRefresh,
-  isRefreshing,
-}: {
-  data: Record<string, unknown>;
-  onRefresh?: () => void;
-  isRefreshing?: boolean;
-}) {
-  const directors = Array.isArray(data.directors) ? data.directors as Record<string, unknown>[] : [];
-  const shareholders = Array.isArray(data.shareholders) ? data.shareholders as Record<string, unknown>[] : [];
-  const corporateShareholders = Array.isArray(data.corporateShareholders) ? data.corporateShareholders as Record<string, unknown>[] : [];
-
-  if (directors.length === 0 && shareholders.length === 0 && corporateShareholders.length === 0) return null;
-
-  const renderPerson = (person: Record<string, unknown>, idx: number, isCorporate = false) => {
-    let name: string;
-    let email: string;
-    const status = String(person.status || person.approveStatus || "—");
-    const kycType = person.kycType ? String(person.kycType) : null;
-    const eodRequestId = person.eodRequestId ? String(person.eodRequestId) : null;
-    const corpOnboarding = person.corporateOnboardingRequest as Record<string, unknown> | undefined;
-    const codRequestId = isCorporate
-      ? (person.requestId ? String(person.requestId) : corpOnboarding?.requestId ? String(corpOnboarding.requestId) : null)
-      : null;
-    const docs = (person.documents ?? person.corporateDocumentInfo ?? person.documentInfo) as Record<string, unknown> | undefined;
-
-    if (isCorporate) {
-      const formContent = person.formContent as Record<string, unknown> | undefined;
-      const displayAreas = Array.isArray(formContent?.displayAreas) ? formContent.displayAreas : [];
-      const basicInfo = displayAreas.find(
-        (area: Record<string, unknown>) => area.displayArea === "Basic Information Setting"
-      ) as { content?: Array<{ fieldName?: string; fieldValue?: string }> } | undefined;
-      const content = Array.isArray(basicInfo?.content) ? basicInfo.content : [];
-      const businessNameField = content.find((f: { fieldName?: string }) => f.fieldName === "Business Name");
-      const shareField = content.find((f: { fieldName?: string }) => f.fieldName === "% of Shares");
-      const emailField =
-        content.find((f: { fieldName?: string }) => f.fieldName === "Email") ??
-        content.find((f: { fieldName?: string }) => f.fieldName === "Contact Email") ??
-        content.find((f: { fieldName?: string }) => f.fieldName === "Email Address" || f.fieldName === "Business Email");
-      name = String(
-        businessNameField?.fieldValue || person.companyName || person.businessName || "Unknown"
-      );
-      if (shareField?.fieldValue) {
-        name += ` (${shareField.fieldValue}%)`;
-      }
-      email = String(
-        emailField?.fieldValue || person.email || person.contactEmail || "—"
-      );
-    } else {
-      const info = person.personalInfo as Record<string, unknown> | undefined;
-      name = String(
-        info?.fullName || `${info?.firstName || ""} ${info?.lastName || ""}`.trim() || "Unknown"
-      );
-      email = String(info?.email || "—");
-    }
-
-    let icLabel: string | null = null;
-    if (!isCorporate) {
-      const info = person.personalInfo as Record<string, unknown> | undefined;
-      const fromField = info?.governmentIdNumber
-        ? String(info.governmentIdNumber).trim()
-        : null;
-      const formContent = info?.formContent as
-        | { content?: Array<{ fieldName?: string; fieldValue?: unknown }> }
-        | undefined;
-      const fromForm = formContent?.content?.find((f) => f.fieldName === "Government ID Number")
-        ?.fieldValue;
-      const fromFormStr =
-        fromForm != null && String(fromForm).trim() !== "" ? String(fromForm).trim() : null;
-      icLabel = fromField || fromFormStr;
-    }
-
-    const idLabel = isCorporate ? "COD" : "EOD";
-    const idValue = isCorporate ? codRequestId : eodRequestId;
-    const hasDetails = idValue || typeof docs?.frontDocumentUrl === "string" || typeof docs?.backDocumentUrl === "string";
-
-    return (
-      <div key={idx} className="py-2.5 first:pt-0 last:pb-0 border-b last:border-0">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-sm font-medium">
-              {name}
-              {icLabel && (
-                <span className="font-normal text-muted-foreground">
-                  {" "}
-                  · IC {icLabel}
-                </span>
-              )}
-            </p>
-            <p className="text-xs text-muted-foreground">{email}</p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Badge
-              variant="outline"
-              className={
-                status === "APPROVED" || status === "ID_UPLOADED" || status === "CHECKED"
-                  ? "border-emerald-500/30 text-foreground bg-emerald-500/10 text-[10px]"
-                  : "border-amber-500/30 text-foreground bg-amber-500/10 text-[10px]"
-              }
-            >
-              {status.replace(/_/g, " ")}
-            </Badge>
-            {kycType && (
-              <Badge variant="secondary" className="text-[10px]">
-                {kycType}
-              </Badge>
-            )}
-          </div>
-        </div>
-        {hasDetails && (
-          <div className="flex items-center gap-3 mt-1.5 text-[11px] text-muted-foreground">
-            {idValue && <span className="font-mono">{idLabel}: {idValue}</span>}
-            {typeof docs?.frontDocumentUrl === "string" && (
-              <a
-                href={docs.frontDocumentUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline inline-flex items-center gap-0.5"
-              >
-                <LinkIcon className="h-3 w-3" />
-                Front ID
-              </a>
-            )}
-            {typeof docs?.backDocumentUrl === "string" && (
-              <a
-                href={docs.backDocumentUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline inline-flex items-center gap-0.5"
-              >
-                <LinkIcon className="h-3 w-3" />
-                Back ID
-              </a>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  return (
-    <Card className="rounded-2xl">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <UsersIcon className="h-4 w-4" />
-            Corporate Entities
-          </CardTitle>
-          {onRefresh && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onRefresh}
-              disabled={isRefreshing}
-              className="gap-1.5 h-7"
-            >
-              <ArrowPathIcon
-                className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`}
-              />
-              Refresh
-            </Button>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        {directors.length > 0 && (
-          <div>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-              Directors ({directors.length})
-            </p>
-            <div className="divide-y">
-              {directors.map((p, i) => renderPerson(p, i, false))}
-            </div>
-          </div>
-        )}
-        {shareholders.length > 0 && (
-          <div>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-              Shareholders ({shareholders.length})
-            </p>
-            <div className="divide-y">
-              {shareholders.map((p, i) => renderPerson(p, i, false))}
-            </div>
-          </div>
-        )}
-        {corporateShareholders.length > 0 && (
-          <div>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-              Corporate Shareholders ({corporateShareholders.length})
-            </p>
-            <div className="divide-y">
-              {corporateShareholders.map((corp, idx) => renderPerson(corp, idx, true))}
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
+function getNestedValue(obj: unknown, path: string[]): unknown {
+  let cur: unknown = obj;
+  for (const key of path) {
+    if (!cur || typeof cur !== "object" || Array.isArray(cur)) return undefined;
+    cur = (cur as Record<string, unknown>)[key];
+  }
+  return cur;
 }
 
-function DirectorStatusDisplay({
-  data,
-  label,
-  icon: Icon,
-  statusKey,
-  filterFn,
-}: {
-  data: Record<string, unknown>;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  statusKey: "kycStatus" | "amlStatus";
-  filterFn?: (dir: Record<string, unknown>) => boolean;
-}) {
-  const directorsFromData = Array.isArray(data.directors) ? data.directors as Record<string, unknown>[] : [];
-  const individualShareholdersFromData = Array.isArray(data.individualShareholders)
-    ? data.individualShareholders as Record<string, unknown>[]
-    : [];
-  const allDirectors = [...directorsFromData, ...individualShareholdersFromData];
-  const deduplicatedMap = new Map<string, Record<string, unknown>>();
-  for (const dir of allDirectors) {
-    const email = String(dir.email || "").toLowerCase().trim();
-    const role = String(dir.role || "");
-    if (!email) continue;
-    const existing = deduplicatedMap.get(email);
-    if (!existing || role.includes("Shareholder")) {
-      deduplicatedMap.set(email, dir);
+function getFirstString(obj: unknown, paths: string[][]): string | null {
+  for (const p of paths) {
+    const v = getNestedValue(obj, p);
+    const s = typeof v === "string" ? v.trim() : "";
+    if (s) return s;
+  }
+  return null;
+}
+
+function formatRoleTitleCaseWithoutShare(roles: string[]): string {
+  const cleaned = roles
+    .map((r) => String(r || "").trim().toUpperCase())
+    .filter(Boolean)
+    .map((r) => r.replace(/^SHAREHOLDER$/, "Shareholder").replace(/^DIRECTOR$/, "Director"))
+    .map((r) => (r === "Shareholder" || r === "Director" ? r : r.toLowerCase().replace(/\b\w/g, (m) => m.toUpperCase())));
+  const uniq = [...new Set(cleaned)];
+  return uniq.length > 0 ? uniq.join(", ") : "—";
+}
+
+function extractFormFieldValue(formContent: unknown, fieldName: string): string {
+  if (!formContent || typeof formContent !== "object" || Array.isArray(formContent)) return "";
+  const root = formContent as Record<string, unknown>;
+  const areas = Array.isArray(root.displayAreas)
+    ? (root.displayAreas as Array<{ content?: unknown[] }>)
+    : [{ content: Array.isArray(root.content) ? root.content : [] }];
+  for (const area of areas) {
+    const rows = Array.isArray(area?.content) ? area.content : [];
+    for (const row of rows) {
+      if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+      const r = row as Record<string, unknown>;
+      if (String(r.fieldName ?? "").trim().toLowerCase() !== fieldName.trim().toLowerCase()) continue;
+      const val = String(r.fieldValue ?? "").trim();
+      if (val) return val;
     }
   }
-  const deduplicatedDirectors = Array.from(deduplicatedMap.values());
-  const directors = filterFn ? deduplicatedDirectors.filter(filterFn) : deduplicatedDirectors;
-  const lastSynced = data.lastSyncedAt ? String(data.lastSyncedAt) : null;
-
-  if (directors.length === 0) return null;
-
-  return (
-    <Card className="rounded-2xl">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <Icon className="h-4 w-4" />
-            {label}
-          </CardTitle>
-          {lastSynced && (
-            <span className="text-[10px] text-muted-foreground">
-              Synced {format(new Date(lastSynced), "MMM d, yyyy HH:mm")}
-            </span>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="divide-y">
-          {directors.map((dir, idx) => {
-            const name = String(dir.name || "Unknown");
-            const email = dir.email ? String(dir.email) : null;
-            const rawRole = dir.role ? String(dir.role) : null;
-            const role = rawRole
-              ? [...new Set(rawRole.split(",").map((s) => s.trim()).filter(Boolean))].join(", ")
-              : null;
-            const status = dir[statusKey] ? String(dir[statusKey]) : (dir.amlStatus ? String(dir.amlStatus) : null);
-            const kycId = dir.kycId ? String(dir.kycId) : null;
-            const eodId = dir.eodRequestId ? String(dir.eodRequestId) : null;
-            const governmentIdNumber = dir.governmentIdNumber
-              ? String(dir.governmentIdNumber)
-              : null;
-            const riskLevel = dir.amlRiskLevel ? String(dir.amlRiskLevel) : null;
-            const riskScore = dir.amlRiskScore ? String(dir.amlRiskScore) : null;
-
-            return (
-              <div key={idx} className="py-2.5 first:pt-0 last:pb-0">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">{name}</p>
-                    {email && <p className="text-xs text-muted-foreground">{email}</p>}
-                    {role && <p className="text-xs text-muted-foreground">{role}</p>}
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {status && (
-                      <Badge
-                        variant="outline"
-                        className={
-                          status === "APPROVED" || status === "Approved"
-                            ? "border-emerald-500/30 text-foreground bg-emerald-500/10 text-[10px]"
-                            : status === "REJECTED" || status === "Rejected"
-                              ? "border-red-500/30 text-foreground bg-red-500/10 text-[10px]"
-                              : "border-amber-500/30 text-foreground bg-amber-500/10 text-[10px]"
-                        }
-                      >
-                        {status}
-                      </Badge>
-                    )}
-                    {riskLevel && (
-                      <Badge variant="secondary" className="text-[10px]">
-                        {riskLevel}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground font-mono flex-wrap">
-                  {governmentIdNumber && <span>IC: {governmentIdNumber}</span>}
-                  {kycId && <span>KYC: {kycId}</span>}
-                  {eodId && <span>EOD: {eodId}</span>}
-                  {riskScore && <span>Score: {riskScore}</span>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
-  );
+  return "";
 }
 
-function BusinessShareholderStatusDisplay({
-  data,
-  label,
-  icon: Icon,
-}: {
-  data: Record<string, unknown>;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-}) {
-  const businessShareholders = Array.isArray(data.businessShareholders)
-    ? (data.businessShareholders as Record<string, unknown>[])
-    : [];
-  const lastSynced = data.lastSyncedAt ? String(data.lastSyncedAt) : null;
+type AmlInfo = { status: string; riskLevel: string; riskScore: string };
+type KycInfo = {
+  status: string;
+  governmentIdNumber: string;
+  eodRequestId: string;
+  shareholderEodRequestId: string;
+  kycId: string;
+};
+type CorporateEntityInfo = {
+  kycType: string;
+  eodRequestId: string;
+  requestId: string;
+  frontDocumentUrl: string;
+  backDocumentUrl: string;
+};
 
-  if (businessShareholders.length === 0) return null;
+type AmlLookup = {
+  byGov: Map<string, AmlInfo>;
+  byKycId: Map<string, AmlInfo>;
+  byEod: Map<string, AmlInfo>;
+};
 
-  return (
-    <Card className="rounded-2xl">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <Icon className="h-4 w-4" />
-            {label}
-          </CardTitle>
-          {lastSynced && (
-            <span className="text-[10px] text-muted-foreground">
-              Synced {format(new Date(lastSynced), "MMM d, yyyy HH:mm")}
-            </span>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="divide-y">
-          {businessShareholders.map((biz, idx) => {
-            const businessName = String(biz.businessName || "Unknown");
-            const sharePercentage = biz.sharePercentage ? `${biz.sharePercentage}%` : null;
-            const amlStatus = biz.amlStatus ? String(biz.amlStatus) : null;
-            const codRequestId = biz.codRequestId ? String(biz.codRequestId) : null;
-            const kybId = biz.kybId ? String(biz.kybId) : null;
-            const riskLevel = biz.amlRiskLevel ? String(biz.amlRiskLevel) : null;
-            const riskScore = biz.amlRiskScore ? String(biz.amlRiskScore) : null;
+function buildAmlLookup(source: unknown): AmlLookup {
+  const byGov = new Map<string, AmlInfo>();
+  const byKycId = new Map<string, AmlInfo>();
+  const byEod = new Map<string, AmlInfo>();
+  if (!source || typeof source !== "object" || Array.isArray(source)) return { byGov, byKycId, byEod };
+  const root = source as { directors?: unknown[]; individualShareholders?: unknown[] };
+  const rows = [...(root.directors ?? []), ...(root.individualShareholders ?? [])];
+  for (const row of rows) {
+    if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+    const r = row as Record<string, unknown>;
+    const status = String(r.amlStatus ?? r.status ?? "").trim();
+    const riskLevel = String(r.amlRiskLevel ?? "").trim();
+    const scoreRaw = r.amlRiskScore;
+    const riskScore =
+      scoreRaw === null || scoreRaw === undefined
+        ? ""
+        : String(typeof scoreRaw === "number" ? scoreRaw : scoreRaw).trim();
+    if (!status && !riskLevel && !riskScore) continue;
+    const info: AmlInfo = {
+      status: status || "",
+      riskLevel,
+      riskScore,
+    };
+    const gov = normalizeDirectorShareholderIdKey(String(r.governmentIdNumber ?? "")) ?? "";
+    if (gov) byGov.set(gov, info);
+    const kycId = String(r.kycId ?? "").trim();
+    if (kycId) byKycId.set(kycId, info);
+    const eod = String(r.eodRequestId ?? "").trim();
+    if (eod) byEod.set(eod, info);
+  }
+  return { byGov, byKycId, byEod };
+}
 
-            return (
-              <div key={idx} className="py-2.5 first:pt-0 last:pb-0">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">{businessName}</p>
-                    {sharePercentage && (
-                      <p className="text-xs text-muted-foreground">Shareholding: {sharePercentage}</p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {amlStatus && (
-                      <Badge
-                        variant="outline"
-                        className={
-                          amlStatus === "Approved"
-                            ? "border-emerald-500/30 text-foreground bg-emerald-500/10 text-[10px]"
-                            : amlStatus === "Rejected"
-                              ? "border-red-500/30 text-foreground bg-red-500/10 text-[10px]"
-                              : "border-amber-500/30 text-foreground bg-amber-500/10 text-[10px]"
-                        }
-                      >
-                        {amlStatus}
-                      </Badge>
-                    )}
-                    {riskLevel && (
-                      <Badge variant="secondary" className="text-[10px]">
-                        {riskLevel}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground font-mono">
-                  {codRequestId && <span>COD: {codRequestId}</span>}
-                  {kybId && <span>KYB: {kybId}</span>}
-                  {riskScore && <span>Score: {riskScore}</span>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
-  );
+function buildKycLookup(source: unknown): {
+  byGov: Map<string, KycInfo>;
+  byEod: Map<string, KycInfo>;
+  byKycId: Map<string, KycInfo>;
+} {
+  const byGov = new Map<string, KycInfo>();
+  const byEod = new Map<string, KycInfo>();
+  const byKycId = new Map<string, KycInfo>();
+  if (!source || typeof source !== "object" || Array.isArray(source)) return { byGov, byEod, byKycId };
+  const root = source as { directors?: unknown[]; individualShareholders?: unknown[] };
+  const rows = [...(root.directors ?? []), ...(root.individualShareholders ?? [])];
+  for (const row of rows) {
+    if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+    const r = row as Record<string, unknown>;
+    const gov = normalizeDirectorShareholderIdKey(String(r.governmentIdNumber ?? "")) ?? "";
+    const status = String(r.kycStatus ?? r.status ?? "").trim();
+    const info: KycInfo = {
+      status,
+      governmentIdNumber: gov,
+      eodRequestId: String(r.eodRequestId ?? "").trim(),
+      shareholderEodRequestId: String(r.shareholderEodRequestId ?? "").trim(),
+      kycId: String(r.kycId ?? "").trim(),
+    };
+    if (gov) byGov.set(gov, info);
+    if (info.eodRequestId) byEod.set(ctosSubjectRefKey(info.eodRequestId), info);
+    if (info.shareholderEodRequestId) byEod.set(ctosSubjectRefKey(info.shareholderEodRequestId), info);
+    if (info.kycId) byKycId.set(ctosSubjectRefKey(info.kycId), info);
+  }
+  return { byGov, byEod, byKycId };
+}
+
+function buildCorporateEntityByGovernmentId(source: unknown): Map<string, CorporateEntityInfo> {
+  const byGov = new Map<string, CorporateEntityInfo>();
+  if (!source || typeof source !== "object" || Array.isArray(source)) return byGov;
+  const root = source as { directors?: unknown[]; shareholders?: unknown[] };
+  const rows = [...(root.directors ?? []), ...(root.shareholders ?? [])];
+  for (const row of rows) {
+    if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+    const r = row as Record<string, unknown>;
+    const personalInfo = r.personalInfo as Record<string, unknown> | undefined;
+    const documents = r.documents as Record<string, unknown> | undefined;
+    const govRaw =
+      String(personalInfo?.governmentIdNumber ?? "").trim() ||
+      extractFormFieldValue(personalInfo?.formContent, "Government ID Number");
+    const gov = normalizeDirectorShareholderIdKey(govRaw);
+    if (!gov) continue;
+    byGov.set(gov, {
+      kycType: String(r.kycType ?? "").trim(),
+      eodRequestId: String(r.eodRequestId ?? "").trim(),
+      requestId: String(r.requestId ?? "").trim(),
+      frontDocumentUrl: String(documents?.frontDocumentUrl ?? "").trim(),
+      backDocumentUrl: String(documents?.backDocumentUrl ?? "").trim(),
+    });
+  }
+  return byGov;
 }
 
 function PageSkeleton() {
@@ -1006,9 +876,80 @@ export default function OrganizationDetailPage() {
   const organizationId = params.id as string;
 
   const { data: org, isLoading, error } = useOrganizationDetail(portal, organizationId);
-  const updateSophisticatedMutation = useUpdateSophisticatedStatus();
-  const refreshCorporateEntitiesMutation = useRefreshCorporateEntities();
+  const { getAccessToken } = useAuthToken();
+  const apiClient = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
+  const queryClient = useQueryClient();
 
+  const ctosReportsQuery = useQuery<AdminCtosReportListItem[]>({
+    queryKey: ["admin", "organization-ctos-reports-inline", portal, organizationId],
+    queryFn: async () => {
+      const res = await apiClient.listAdminOrganizationCtosSubjectReports(
+        portal as "issuer" | "investor",
+        organizationId
+      );
+      if (!res.success) throw new Error(formatApiErrorMessage(res.error));
+      return res.data;
+    },
+    enabled: Boolean(organizationId && (portal === "issuer" || portal === "investor")),
+  });
+
+  const [ctosFetchSubjectKey, setCtosFetchSubjectKey] = React.useState<string | null>(null);
+  const [pendingCtosSubjectFetch, setPendingCtosSubjectFetch] = React.useState<PendingCtosSubjectFetch | null>(null);
+
+  const fetchSubjectCtosMutation = useMutation({
+    mutationFn: async (input: {
+      subjectRef: string;
+      subjectKind: "INDIVIDUAL" | "CORPORATE";
+      displayName?: string;
+      idNumber?: string;
+    }) => {
+      const idNumber = String(input.idNumber ?? "").trim();
+      const displayName = String(input.displayName ?? "").trim();
+      const res = await apiClient.createAdminOrganizationCtosSubjectReport(
+        portal as "issuer" | "investor",
+        organizationId,
+        {
+          subjectRef: input.subjectRef,
+          subjectKind: input.subjectKind,
+          enquiryOverride: idNumber && displayName ? { displayName, idNumber } : undefined,
+        }
+      );
+      if (!res.success) throw new Error(formatApiErrorMessage(res.error));
+      return res.data;
+    },
+    onMutate: (input) => {
+      setCtosFetchSubjectKey(normalizeDirectorShareholderIdKey(input.subjectRef));
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["admin", "organization-ctos-reports-inline", portal, organizationId] });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "organization-ctos-reports", portal, organizationId] });
+      toast.success("CTOS subject report saved.");
+    },
+    onError: (e: Error) => {
+      toast.error(e.message || "CTOS subject request failed");
+    },
+    onSettled: () => {
+      setCtosFetchSubjectKey(null);
+    },
+  });
+  const notifyActionRequiredMutation = useMutation({
+    mutationFn: async (input: { partyKey: string }) => {
+      const res = await apiClient.notifyIssuerDirectorShareholderActionRequired(
+        organizationId,
+        input
+      );
+      if (!res.success) throw new Error(formatApiErrorMessage(res.error));
+      return res.data;
+    },
+    onSuccess: () => {
+      toast.success("Notify sent to issuer.");
+      void queryClient.invalidateQueries({ queryKey: ["admin", "organization-detail", portal, organizationId] });
+    },
+    onError: (e: Error) => {
+      toast.error(e.message || "Notify failed");
+    },
+  });
+  const updateSophisticatedMutation = useUpdateSophisticatedStatus();
   const [showSophisticatedDialog, setShowSophisticatedDialog] = React.useState(false);
   const [pendingSophisticatedStatus, setPendingSophisticatedStatus] = React.useState<boolean | null>(null);
   const [sophisticatedReason, setSophisticatedReason] = React.useState("");
@@ -1059,6 +1000,29 @@ export default function OrganizationDetailPage() {
       ? `${org.firstName} ${org.lastName}`
       : `${org.owner.firstName} ${org.owner.lastName}`;
   }, [org]);
+
+  const openSubjectReportHtml = React.useCallback(
+    async (reportId: string) => {
+      const token = await getAccessToken();
+      if (!token) {
+        toast.error("Not signed in");
+        return;
+      }
+      const url = `${API_URL}/v1/admin/organizations/${portal}/${encodeURIComponent(organizationId)}/ctos-reports/${reportId}/html`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        toast.error("Could not load report");
+        return;
+      }
+      const html = await res.text();
+      const w = window.open("", "_blank");
+      if (w) {
+        w.document.write(html);
+        w.document.close();
+      }
+    },
+    [getAccessToken, organizationId, portal]
+  );
 
   return (
     <>
@@ -1142,7 +1106,7 @@ export default function OrganizationDetailPage() {
                             ) : (
                               <Badge variant="secondary" className="text-xs">
                                 <ClockIcon className="h-3 w-3 mr-1" />
-                                {org.onboardingStatus}
+                                {toTitleCase(org.onboardingStatus)}
                               </Badge>
                             )}
                           </div>
@@ -1531,95 +1495,340 @@ export default function OrganizationDetailPage() {
                   </Card>
                 )}
 
-                {/* Corporate entities — Directors & Shareholders (COMPANY only) */}
-                {org.type === "COMPANY" && org.corporateEntities && (
-                  <CorporateEntitiesDisplay
-                    data={org.corporateEntities as Record<string, unknown>}
-                    onRefresh={() =>
-                      refreshCorporateEntitiesMutation.mutate(
-                        { organizationId: org.id, portal },
-                        {
-                          onSuccess: () => toast.success("Corporate entities refreshed"),
-                          onError: (err) =>
-                            toast.error(`Failed to refresh: ${err instanceof Error ? err.message : "Unknown error"}`),
+                {org.type === "COMPANY" && (
+                  <Card className="rounded-2xl">
+                    <CardHeader className="pb-3">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                          <UsersIcon className="h-4 w-4" />
+                          Directors and Shareholders
+                        </CardTitle>
+                        {null}
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      {(() => {
+                        const rows = filterVisiblePeopleRows(org.people ?? []);
+                        const supplementsByKey = new Map<string, Record<string, unknown>>();
+                        for (const row of org.ctosPartySupplements ?? []) {
+                          const key = normalizeDirectorShareholderIdKey(row.partyKey);
+                          if (!key) continue;
+                          const json =
+                            row.onboardingJson &&
+                            typeof row.onboardingJson === "object" &&
+                            !Array.isArray(row.onboardingJson)
+                              ? (row.onboardingJson as Record<string, unknown>)
+                              : {};
+                          supplementsByKey.set(key, json);
                         }
-                      )
-                    }
-                    isRefreshing={refreshCorporateEntitiesMutation.isPending}
-                  />
-                )}
+                        const amlLookup = buildAmlLookup(org.directorAmlStatus);
+                        const kycLookup = buildKycLookup(org.directorKycStatus);
+                        const entitiesByGov = buildCorporateEntityByGovernmentId(org.corporateEntities);
 
-                {/* Director & Shareholder KYC & AML Status (COMPANY only) */}
-                {org.type === "COMPANY" &&
-                  (org.directorKycStatus || org.directorAmlStatus) && (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {org.directorKycStatus && (
-                        <>
-                          <DirectorStatusDisplay
-                            data={org.directorKycStatus as Record<string, unknown>}
-                            label="Directors KYC Status"
-                            icon={ShieldCheckIcon}
-                            statusKey="kycStatus"
-                            filterFn={(dir) => {
-                              const role = String(dir.role || "");
-                              return !role.includes("Shareholder");
-                            }}
-                          />
-                          <DirectorStatusDisplay
-                            data={org.directorKycStatus as Record<string, unknown>}
-                            label="Individual Shareholders KYC Status"
-                            icon={ShieldCheckIcon}
-                            statusKey="kycStatus"
-                            filterFn={(dir) => {
-                              const role = String(dir.role || "");
-                              return role.includes("Shareholder");
-                            }}
-                          />
-                        </>
-                      )}
-                      {org.directorAmlStatus && (
-                        <>
-                          <DirectorStatusDisplay
-                            data={org.directorAmlStatus as Record<string, unknown>}
-                            label="Directors AML Status"
-                            icon={ShieldExclamationIcon}
-                            statusKey="amlStatus"
-                            filterFn={(dir) => {
-                              const role = String(dir.role || "");
-                              return !role.includes("Shareholder");
-                            }}
-                          />
-                          <DirectorStatusDisplay
-                            data={org.directorAmlStatus as Record<string, unknown>}
-                            label="Individual Shareholders AML Status"
-                            icon={ShieldExclamationIcon}
-                            statusKey="amlStatus"
-                            filterFn={(dir) => {
-                              const role = String(dir.role || "");
-                              return role.includes("Shareholder");
-                            }}
-                          />
-                          <BusinessShareholderStatusDisplay
-                            data={org.directorAmlStatus as Record<string, unknown>}
-                            label="Business Shareholders AML Status"
-                            icon={BuildingOffice2Icon}
-                          />
-                        </>
-                      )}
-                    </div>
-                  )}
+                        if (rows.length === 0) {
+                          return (
+                            <p className="text-sm text-muted-foreground py-4 text-center">
+                              No director or shareholder data.
+                            </p>
+                          );
+                        }
+                        return (
+                          <div className="overflow-x-auto">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Name</TableHead>
+                                  <TableHead>Roles</TableHead>
+                                  <TableHead>Share %</TableHead>
+                                  <TableHead>Status</TableHead>
+                                  <TableHead>Risk Level</TableHead>
+                                  <TableHead>Request ID</TableHead>
+                                  <TableHead>IC Front</TableHead>
+                                  <TableHead>IC Back</TableHead>
+                                  <TableHead>Timestamp</TableHead>
+                                  <TableHead>CTOS</TableHead>
+                                  <TableHead>Notify</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {rows.map((p) => {
+                                  const key = normalizeDirectorShareholderIdKey(p.matchKey);
+                                  const supplement = key ? supplementsByKey.get(key) ?? {} : {};
+                                  const displayRow = buildDirectorShareholderDisplayRowForEmailEligibility(p, supplement);
+                                  const notifyRowEnabled = isDirectorShareholderEmailActionable(p, {
+                                    displayRow,
+                                    latestOnboardingRoot: supplement,
+                                    partySourcePresent: true,
+                                    directorKycStatus: org.directorKycStatus,
+                                    corporateEntities: org.corporateEntities,
+                                    blockPartyOnboarding:
+                                      portal === "issuer" && String(org.onboardingStatus ?? "").trim() !== "COMPLETED",
+                                  });
+                                  const onboarding = getEffectiveCtosPartyOnboarding(supplement);
+                                  const screening = getEffectiveCtosPartyScreening(supplement);
+                                  const entity = key ? entitiesByGov.get(key) : undefined;
 
-                {/* Business AML Status (COMPANY only) */}
-                {org.type === "COMPANY" && org.businessAmlStatus && (
-                  <JsonDisplay
-                    data={org.businessAmlStatus as Record<string, unknown>}
-                    label={
-                      <span className="flex items-center gap-2">
-                        <ShieldExclamationIcon className="h-4 w-4" />
-                        Business AML Status
-                      </span>
-                    }
-                  />
+                                  const rowRefKey = ctosSubjectRefKey(p.matchKey);
+                                  const kycInfo =
+                                    (key ? kycLookup.byGov.get(key) : undefined) ||
+                                    kycLookup.byEod.get(rowRefKey) ||
+                                    kycLookup.byKycId.get(rowRefKey);
+                                  const amlInfo =
+                                    (key ? amlLookup.byGov.get(key) : undefined) ||
+                                    (kycInfo?.kycId ? amlLookup.byKycId.get(kycInfo.kycId) : undefined) ||
+                                    (kycInfo?.eodRequestId ? amlLookup.byEod.get(kycInfo.eodRequestId) : undefined) ||
+                                    (kycInfo?.shareholderEodRequestId
+                                      ? amlLookup.byEod.get(kycInfo.shareholderEodRequestId)
+                                      : undefined);
+                                  const amlFallback = String(amlInfo?.status ?? "").trim();
+                                  const kycFallback = kycInfo?.status || "";
+                                  const onboardingStatus =
+                                    String(onboarding.status ?? onboarding.regtankStatus ?? "").trim();
+                                  const fallbackRequestId =
+                                    String(
+                                      onboarding.requestId ??
+                                        onboarding.eodRequestId ??
+                                        kycInfo?.eodRequestId ??
+                                        entity?.eodRequestId ??
+                                        entity?.requestId ??
+                                        screening.requestId ??
+                                        ""
+                                    ).trim() ||
+                                    "—";
+                                  const eodForRegtankLink = firstEodId(
+                                    kycInfo?.eodRequestId,
+                                    kycInfo?.shareholderEodRequestId,
+                                    String(onboarding.eodRequestId ?? "").trim() || undefined,
+                                    fallbackRequestId !== "—" ? fallbackRequestId : undefined
+                                  );
+                                  const codForRegtankLink = String(org.codRequestId ?? "").trim();
+                                  const requestId =
+                                    eodForRegtankLink ||
+                                    String(kycInfo?.kycId ?? "").trim() ||
+                                    fallbackRequestId;
+                                  const icFront = entity?.frontDocumentUrl || getFirstString(supplement, [
+                                    ["identityDocument", "frontUrl"],
+                                    ["identityDocument", "frontImageUrl"],
+                                    ["documents", "idFrontUrl"],
+                                    ["documents", "identityFrontUrl"],
+                                    ["icFrontUrl"],
+                                    ["frontIcUrl"],
+                                    ["idFrontUrl"],
+                                    ["frontImageUrl"],
+                                  ]) || "—";
+                                  const icBack = entity?.backDocumentUrl || getFirstString(supplement, [
+                                    ["identityDocument", "backUrl"],
+                                    ["identityDocument", "backImageUrl"],
+                                    ["documents", "idBackUrl"],
+                                    ["documents", "identityBackUrl"],
+                                    ["icBackUrl"],
+                                    ["backIcUrl"],
+                                    ["idBackUrl"],
+                                    ["backImageUrl"],
+                                  ]) || "—";
+                                  const subjectIdNumber =
+                                    (p.entityType !== "CORPORATE" && kycInfo?.governmentIdNumber
+                                      ? kycInfo.governmentIdNumber
+                                      : "") ||
+                                    (!looksLikeRequestId(p.matchKey) ? String(p.matchKey ?? "").trim() : "") ||
+                                    "";
+
+                                  const displayStatus = getDisplayStatus({
+                                    screening: p.screening,
+                                    directorAmlStatus: amlFallback || null,
+                                    directorKycStatus: kycFallback || null,
+                                    onboarding: { status: onboardingStatus || null },
+                                  });
+                                  console.log("DS person", {
+                                    matchKey: p.matchKey,
+                                    screening: p.screening?.status,
+                                    aml: p.directorAmlStatus,
+                                    kyc: p.directorKycStatus,
+                                    onboarding: p.onboarding?.status,
+                                  });
+                                  const regtankBase =
+                                    resolveRegtankPortalBase(org.regtankPortalUrl) ||
+                                    resolveRegtankPortalBase(REGTANK_PORTAL_BASE_URL);
+                                  const regtankPathRequestId =
+                                    eodForRegtankLink ||
+                                    String(kycInfo?.kycId ?? "").trim() ||
+                                    (fallbackRequestId !== "—" ? fallbackRequestId : "");
+                                  const requestUrl =
+                                    regtankOnboardingCorporatePartyUrl(
+                                      regtankBase,
+                                      codForRegtankLink,
+                                      eodForRegtankLink
+                                    ) ??
+                                    (p.entityType === "CORPORATE" || requestId.toUpperCase().startsWith("COD")
+                                      ? regtankResultUrl(regtankBase, regtankPathRequestId, "company")
+                                      : regtankIndividualLivenessAdminUrl(regtankBase, regtankPathRequestId));
+                                  const subjectRefCandidates = [
+                                    p.matchKey,
+                                    requestId,
+                                    eodForRegtankLink,
+                                    fallbackRequestId,
+                                    kycInfo?.eodRequestId ?? "",
+                                    kycInfo?.shareholderEodRequestId ?? "",
+                                    entity?.eodRequestId ?? "",
+                                    entity?.requestId ?? "",
+                                  ].filter((v) => String(v ?? "").trim().length > 0);
+                                  const latestSubjectReport = (ctosReportsQuery.data ?? [])
+                                    .filter((r) => !!r.subject_ref)
+                                    .filter((r) =>
+                                      subjectRefCandidates.some((c) => ctosSubjectRefsMatch(c, r.subject_ref))
+                                    )
+                                    .sort((a, b) => new Date(b.fetched_at).getTime() - new Date(a.fetched_at).getTime())[0];
+                                  console.log("Admin org people row CTOS match:", {
+                                    matchKey: p.matchKey,
+                                    subject_ref_in_db: latestSubjectReport?.subject_ref,
+                                    report_id: latestSubjectReport?.id,
+                                    has_html: latestSubjectReport?.has_report_html,
+                                  });
+                                  const timestamp = latestSubjectReport?.fetched_at
+                                    ? format(new Date(latestSubjectReport.fetched_at), "PPpp")
+                                    : "—";
+                                  const riskLevel =
+                                    String(amlInfo?.riskLevel ?? "").trim() ||
+                                    String(amlInfo?.riskScore ?? "").trim() ||
+                                    String(screening.riskLevel ?? "").trim() ||
+                                    "—";
+                                  console.log("Admin org people row AML risk:", {
+                                    matchKey: p.matchKey,
+                                    kycId: kycInfo?.kycId,
+                                    amlRiskLevel: amlInfo?.riskLevel,
+                                    amlRiskScore: amlInfo?.riskScore,
+                                  });
+
+                                  return (
+                                    <TableRow key={p.matchKey}>
+                                      <TableCell className="font-medium">
+                                        <div>{p.name ?? "—"}</div>
+                                        <div className="font-mono text-xs text-muted-foreground mt-0.5">{p.matchKey}</div>
+                                      </TableCell>
+                                      <TableCell>{formatRoleTitleCaseWithoutShare(p.roles ?? [])}</TableCell>
+                                      <TableCell>{formatSharePercentageCell(p)}</TableCell>
+                                      <TableCell>
+                                        {displayStatus ? (
+                                          <Badge
+                                            variant="outline"
+                                            className={`border-transparent text-[11px] font-normal ${regtankDisplayStatusBadgeClass(String(displayStatus))}`}
+                                          >
+                                            {toTitleCase(displayStatus)}
+                                          </Badge>
+                                        ) : null}
+                                      </TableCell>
+                                      <TableCell>{riskLevel}</TableCell>
+                                      <TableCell>
+                                        {requestUrl ? (
+                                          <Button type="button" variant="outline" size="sm" asChild className="h-8 gap-1.5">
+                                            <a href={requestUrl} target="_blank" rel="noopener noreferrer">
+                                              {requestId}
+                                            </a>
+                                          </Button>
+                                        ) : (
+                                          <span className="font-mono text-xs text-muted-foreground">{requestId}</span>
+                                        )}
+                                      </TableCell>
+                                      <TableCell>
+                                        {icFront !== "—" && isUrl(icFront) ? (
+                                          <a
+                                            href={icFront}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-primary hover:underline"
+                                          >
+                                            View
+                                          </a>
+                                        ) : (
+                                          "—"
+                                        )}
+                                      </TableCell>
+                                      <TableCell>
+                                        {icBack !== "—" && isUrl(icBack) ? (
+                                          <a
+                                            href={icBack}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-primary hover:underline"
+                                          >
+                                            View
+                                          </a>
+                                        ) : (
+                                          "—"
+                                        )}
+                                      </TableCell>
+                                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{timestamp}</TableCell>
+                                      <TableCell>
+                                        <div className="flex items-center gap-2">
+                                          <Button
+                                            type="button"
+                                            variant="secondary"
+                                            size="sm"
+                                            className="h-8"
+                                            onClick={() => {
+                                              const subjectDisplayName = String(p.name ?? "").trim() || p.matchKey;
+                                              console.log("Open CTOS fetch confirm:", {
+                                                subjectRef: p.matchKey,
+                                                displayName: subjectDisplayName,
+                                                idNumber: subjectIdNumber || "(server resolve)",
+                                              });
+                                              setPendingCtosSubjectFetch({
+                                                subjectRef: p.matchKey,
+                                                subjectKind: p.entityType === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL",
+                                                displayName: subjectDisplayName,
+                                                idNumber: subjectIdNumber || undefined,
+                                                partyLabel: p.name?.trim() ? `${p.name} (${p.matchKey})` : p.matchKey,
+                                              });
+                                            }}
+                                            disabled={
+                                              fetchSubjectCtosMutation.isPending &&
+                                              ctosFetchSubjectKey === normalizeDirectorShareholderIdKey(p.matchKey)
+                                            }
+                                          >
+                                            {fetchSubjectCtosMutation.isPending &&
+                                            ctosFetchSubjectKey === normalizeDirectorShareholderIdKey(p.matchKey)
+                                              ? "Fetching..."
+                                              : "Fetch"}
+                                          </Button>
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8"
+                                            onClick={() => latestSubjectReport?.id && void openSubjectReportHtml(latestSubjectReport.id)}
+                                            disabled={!latestSubjectReport?.id}
+                                          >
+                                            View Last
+                                          </Button>
+                                        </div>
+                                      </TableCell>
+                                      <TableCell>
+                                        <div className="flex flex-col items-start gap-1">
+                                          <DirectorShareholderNotifyButton
+                                            rowActionable={notifyRowEnabled}
+                                            disabled={
+                                              portal !== "issuer" ||
+                                              notifyActionRequiredMutation.isPending ||
+                                              !notifyRowEnabled
+                                            }
+                                            onNotify={() =>
+                                              notifyActionRequiredMutation.mutate({
+                                                partyKey: p.matchKey,
+                                              })
+                                            }
+                                          />
+                                        </div>
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        );
+                      })()}
+                    </CardContent>
+                  </Card>
                 )}
 
                 {/* Corporate Required Documents (COMPANY only) */}
@@ -1733,6 +1942,51 @@ export default function OrganizationDetailPage() {
           </div>
         </div>
       </div>
+
+      <AlertDialog
+        open={pendingCtosSubjectFetch !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingCtosSubjectFetch(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Fetch CTOS subject report?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This requests a new CTOS report for{" "}
+              <span className="font-medium text-foreground">
+                {pendingCtosSubjectFetch?.partyLabel ?? "this party"}
+              </span>
+              . Charges or provider limits may apply. Continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              onClick={() => {
+                const payload = pendingCtosSubjectFetch;
+                if (!payload) return;
+                setPendingCtosSubjectFetch(null);
+                console.log("Confirm CTOS subject fetch:", {
+                  subjectRef: payload.subjectRef,
+                  displayName: payload.displayName,
+                  idNumber: payload.idNumber ?? "(server resolve)",
+                });
+                fetchSubjectCtosMutation.mutate({
+                  subjectRef: payload.subjectRef,
+                  subjectKind: payload.subjectKind,
+                  displayName: payload.displayName,
+                  idNumber: payload.idNumber,
+                });
+              }}
+              disabled={fetchSubjectCtosMutation.isPending}
+            >
+              {fetchSubjectCtosMutation.isPending ? "Fetching..." : "Fetch"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* AlertDialog for sophisticated investor status change */}
       <AlertDialog open={showSophisticatedDialog} onOpenChange={setShowSophisticatedDialog}>

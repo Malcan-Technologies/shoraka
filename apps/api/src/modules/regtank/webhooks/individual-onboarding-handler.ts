@@ -9,7 +9,11 @@ import { OnboardingStatus, Prisma, UserRole } from "@prisma/client";
 import { NotificationService } from "../../notification/service";
 import { NotificationTypeIds } from "../../notification/registry";
 import { prisma } from "../../../lib/prisma";
-import { mapRegtankIndividualLivenessRawToInternalStatus } from "@cashsouk/types";
+import {
+  mergeCtosPartySupplementDocument,
+  normalizeRawStatus,
+  parseCtosPartySupplementRoot,
+} from "@cashsouk/types";
 import { findCtosPartySupplementByOnboardingJsonMatch } from "../../organization/ctos-party-supplement-webhook-lookup";
 
 /**
@@ -39,6 +43,13 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
 
   protected async handle(payload: RegTankIndividualOnboardingWebhook): Promise<void> {
     const { requestId, status } = payload;
+    if (typeof status !== "string" || !status) {
+      logger.warn(
+        { requestId },
+        "[Individual Webhook] Missing status in webhook payload, skipping persistence safely"
+      );
+      return;
+    }
 
     // Find onboarding record
     const onboarding = await this.repository.findByRequestId(requestId);
@@ -56,23 +67,17 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
     // Append to history
     await this.repository.appendWebhookPayload(requestId, payload as Prisma.InputJsonValue);
 
-    // Status transition logic for regtank_onboarding table:
-    // IN_PROGRESS → PENDING_APPROVAL → PENDING_AML → COMPLETED/APPROVED
-    // Note: Final approval is done on our side, not in RegTank
     const statusUpper = status.toUpperCase();
-    const internalStatus = mapRegtankIndividualLivenessRawToInternalStatus(status);
+    const persistedRegtankStatus = normalizeRawStatus(status);
 
-    // Update database
     const updateData: {
       status: string;
       substatus?: string;
       completedAt?: Date;
     } = {
-      status: internalStatus,
+      status: persistedRegtankStatus,
     };
 
-    // Set completed_at only if REJECTED
-    // APPROVED from RegTank becomes PENDING_AML, completed_at set when status becomes COMPLETED
     if (statusUpper === "REJECTED") {
       updateData.completedAt = new Date();
     }
@@ -92,7 +97,8 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
             const previousStatus = orgExists.onboarding_status;
             await this.organizationRepository.updateInvestorOrganizationOnboarding(
               organizationId,
-              OnboardingStatus.PENDING_APPROVAL
+              OnboardingStatus.PENDING_APPROVAL,
+              { resetCompanySsmGateFromRegtankWebhook: true }
             );
 
             // Create onboarding log - FORM_FILLED when form is completed
@@ -135,7 +141,8 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
             const previousStatus = orgExists.onboarding_status;
             await this.organizationRepository.updateIssuerOrganizationOnboarding(
               organizationId,
-              OnboardingStatus.PENDING_APPROVAL
+              OnboardingStatus.PENDING_APPROVAL,
+              { resetCompanySsmGateFromRegtankWebhook: true }
             );
 
             // Create onboarding status updated log
@@ -195,7 +202,8 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
             const previousStatus = orgExists.onboarding_status;
             await this.organizationRepository.updateInvestorOrganizationOnboarding(
               organizationId,
-              OnboardingStatus.PENDING_APPROVAL
+              OnboardingStatus.PENDING_APPROVAL,
+              { resetCompanySsmGateFromRegtankWebhook: true }
             );
 
             // Create onboarding status updated log
@@ -238,7 +246,8 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
             const previousStatus = orgExists.onboarding_status;
             await this.organizationRepository.updateIssuerOrganizationOnboarding(
               organizationId,
-              OnboardingStatus.PENDING_APPROVAL
+              OnboardingStatus.PENDING_APPROVAL,
+              { resetCompanySsmGateFromRegtankWebhook: true }
             );
 
             // Create onboarding status updated log
@@ -441,36 +450,25 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
       return false;
     }
 
-    const statusUpper = status.toUpperCase();
-    const internalStatus = mapRegtankIndividualLivenessRawToInternalStatus(status);
-
-    const prev =
-      supplement.onboarding_json &&
-      typeof supplement.onboarding_json === "object" &&
-      !Array.isArray(supplement.onboarding_json)
-        ? { ...(supplement.onboarding_json as Record<string, unknown>) }
-        : {};
-    const prevRest = { ...prev };
-    delete prevRest.status;
-
-    const updated = {
-      ...prevRest,
-      regtankStatus: internalStatus,
-      updatedAt: new Date().toISOString(),
-    };
+    const prevRoot = parseCtosPartySupplementRoot(supplement.onboarding_json);
+    const now = new Date().toISOString();
+    const mergedBase = mergeCtosPartySupplementDocument(prevRoot, {
+      regtankPipelineStatus: normalizeRawStatus(status),
+      onboarding: { updatedAt: now },
+    });
 
     await prisma.ctosPartySupplement.update({
       where: { id: supplement.id },
       data: {
-        onboarding_json: updated as Prisma.InputJsonValue,
+        onboarding_json: mergedBase as Prisma.InputJsonValue,
       },
     });
 
     logger.info(
       {
         requestId,
-        status: internalStatus,
-        rawRegTankStatus: statusUpper,
+        status,
+        rawRegTankStatus: status.toUpperCase(),
         partyKey: supplement.party_key,
         issuerOrganizationId: supplement.issuer_organization_id,
         investorOrganizationId: supplement.investor_organization_id,

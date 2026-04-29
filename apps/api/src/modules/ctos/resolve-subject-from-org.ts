@@ -40,8 +40,19 @@ function formContentArray(p: Record<string, unknown>): Array<{ fieldName?: strin
   return Array.isArray(fc?.content) ? (fc.content as Array<{ fieldName?: string; fieldValue?: string }>) : [];
 }
 
+function getCtosPersonId(x: Record<string, unknown> | null | undefined): string | null {
+  const raw = x?.nic_brno || x?.ic_lcno || null;
+  if (!raw || typeof raw !== "string") return null;
+  const v = raw.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  return v.length ? v : null;
+}
+
 function govIdFromCorpPerson(p: Record<string, unknown>): string {
   const info = p.personalInfo as Record<string, unknown> | undefined;
+  const fromCtosInfo = info?.nic_brno || info?.ic_lcno ? getCtosPersonId(info) : null;
+  if (fromCtosInfo) return fromCtosInfo;
+  const fromCtos = p?.nic_brno || p?.ic_lcno ? getCtosPersonId(p) : null;
+  if (fromCtos) return fromCtos;
   const fromTop = norm(info?.governmentIdNumber);
   if (fromTop) return fromTop;
   for (const f of formContentArray(p)) {

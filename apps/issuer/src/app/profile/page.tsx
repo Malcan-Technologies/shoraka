@@ -31,6 +31,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
 import { useOrganizationMembers } from "../../hooks/use-organization-members";
 import { useOrganizationInvitations } from "../../hooks/use-organization-invitations";
+import { filterVisiblePeopleRows } from "@cashsouk/types";
+import { DirectorShareholderAlertCard } from "../../components/director-shareholder-alert-card";
 import { CorporateInfoCard } from "../../components/corporate-info-card";
 import { DirectorShareholdersUnifiedSection } from "../../components/director-shareholders-unified-section";
 import { InviteMemberDialog } from "../../components/invite-member-dialog";
@@ -384,6 +386,12 @@ export default function ProfilePage() {
     organizations,
     updateOrganizationProfile,
   } = useOrganization();
+
+  const visiblePeopleForDsAlert = React.useMemo(
+    () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
+    [activeOrganization?.people]
+  );
+
   const queryClient = useQueryClient();
   const apiClient = createApiClient(API_URL, getAccessToken);
 
@@ -427,10 +435,6 @@ export default function ProfilePage() {
     },
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
-
-  // Temporary debug: log current user (who is performing actions)
-  // eslint-disable-next-line no-console
-  console.log("DEBUG currentUser:", currentUser);
 
   // Check if current user is admin (owner or has ORGANIZATION_ADMIN role)
   const isCurrentUserAdmin = React.useMemo(() => {
@@ -544,6 +548,7 @@ export default function ProfilePage() {
         directorAmlStatus?: Record<string, unknown> | null;
         latestOrganizationCtosCompanyJson?: unknown | null;
         ctosPartySupplements?: { partyKey: string; onboardingJson?: unknown }[] | null;
+        people?: import("@cashsouk/types").ApplicationPersonRow[];
       }>(`/v1/organizations/issuer/${activeOrganization.id}`);
       if (!result.success) {
         throw new Error(result.error.message);
@@ -832,6 +837,14 @@ export default function ProfilePage() {
   )}
             </div>
           </div>
+
+          {!isPersonal ? (
+            <DirectorShareholderAlertCard
+              visiblePeople={visiblePeopleForDsAlert}
+              issuerOrganizationId={activeOrganization?.id}
+              enabled={activeOrganization?.onboardingStatus === "COMPLETED"}
+            />
+          ) : null}
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -1327,11 +1340,12 @@ export default function ProfilePage() {
                   <DirectorShareholdersUnifiedSection
                     organizationId={activeOrganization.id}
                     organizationOnboardingStatus={orgData.onboardingStatus}
-                    corporateEntities={orgData.corporateEntities ?? {}}
-                    directorKycStatus={orgData.directorKycStatus ?? null}
-                    directorAmlStatus={orgData.directorAmlStatus ?? null}
-                    organizationCtosCompanyJson={orgData.latestOrganizationCtosCompanyJson ?? null}
+                    people={orgData.people ?? []}
                     ctosPartySupplements={orgData.ctosPartySupplements ?? null}
+                    partySource={{
+                      directorKycStatus: orgData.directorKycStatus ?? null,
+                      corporateEntities: orgData.corporateEntities ?? null,
+                    }}
                     highlightActionRequiredRows
                     autoFocusFirstEmptyEmail={focusDirectors}
                   />

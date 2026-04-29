@@ -45,6 +45,7 @@ export interface PendingAmendmentItem {
 
 export type ReviewApplicationView = {
   id?: string;
+  people?: import("@cashsouk/types").ApplicationPersonRow[];
   created_at?: string;
   /** When present (e.g. live admin detail), used with workflow to filter review tabs. */
   visible_review_sections?: unknown;

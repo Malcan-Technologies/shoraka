@@ -60,19 +60,28 @@ import {
   getSectionForScopeKey,
   parseItemScopeKey,
   REVIEW_SECTION_ORDER,
-  getDirectorShareholderDisplayRows,
-  isCtosIndividualKycEligibleRow,
-  isLegacyCtosPartyKycApproved,
   getStepKeyFromStepId,
   isRegtankIso3166Code,
   normalizeDirectorShareholderIdKey,
+  peopleHasPendingDirectorShareholderAml,
+  buildDirectorShareholderDisplayRowForEmailEligibility,
+  filterVisiblePeopleRows,
+  isDirectorShareholderEmailActionable,
+  type ApplicationPersonRow,
+  type CorporateEntitiesShape,
   type SoukscoreRiskRating,
+  normalizeRawStatus,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
 import { AMLFetcherService } from "../regtank/aml-fetcher";
 import type { PortalType } from "../regtank/types";
 import { extractCorporateEntities } from "../regtank/helpers/extract-corporate-entities";
 import { extractGovernmentIdFromCorporateUserInfo } from "../regtank/helpers/extract-government-id";
+import { buildAdminPeopleList } from "./build-people-list";
+import {
+  notifyIssuerDirectorShareholderActionRequired,
+  notifyIssuerDirectorShareholderRejected,
+} from "../notification/director-shareholder-notifications";
 import { logApplicationActivity } from "../applications/logs/service";
 import { ActivityPortal } from "../applications/logs/types";
 
@@ -100,6 +109,38 @@ type ResubmitComparisonAmendmentRemark = {
 
 function isPlainObjectRecord(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+/**
+ * SECTION: AML helpers for director/shareholder financial gating
+ * WHY: Keep AML checks consistent and scoped to INDIVIDUAL rows only
+ * INPUT: Application people rows and application status
+ * OUTPUT: booleans for pending/all-approved/final checks
+ * WHERE USED: Admin application list badge + financial tab approval guard
+ */
+function isAmlApprovedPersonStatus(statusRaw: string | null | undefined): boolean {
+  const status = normalizeRawStatus(statusRaw);
+  return status === "APPROVED";
+}
+
+function getVisibleIndividualsForAml(people: ApplicationPersonRow[]): ApplicationPersonRow[] {
+  const visible = filterVisiblePeopleRows(people);
+  return visible.filter((person) => person.entityType === "INDIVIDUAL");
+}
+
+function hasPendingAmlForIndividuals(individuals: ApplicationPersonRow[]): boolean {
+  return individuals.some((person) => !isAmlApprovedPersonStatus(person.screening?.status));
+}
+
+function allAmlApprovedForIndividuals(individuals: ApplicationPersonRow[]): boolean {
+  return (
+    individuals.length > 0 &&
+    individuals.every((person) => isAmlApprovedPersonStatus(person.screening?.status))
+  );
+}
+
+function isFinalApplicationStatusForAmlGuard(status: string | null | undefined): boolean {
+  return status === "APPROVED" || status === "FUNDED" || status === "COMPLETED";
 }
 
 function guarantorNationalityIso2FromSourceData(sourceData: unknown): string | undefined {
@@ -1818,6 +1859,7 @@ export class AdminService {
     directorAmlStatus?: Record<string, unknown> | null;
     directorKycStatus?: Record<string, unknown> | null;
     businessAmlStatus?: Record<string, unknown> | null;
+    people?: import("@cashsouk/types").ApplicationPersonRow[];
   } | null> {
     const org = await this.repository.getOrganizationById(portal, id);
 
@@ -1834,12 +1876,25 @@ export class AdminService {
     let latestOrganizationCtosCompanyJson: Record<string, unknown> | null | undefined = undefined;
     let ctosPartySupplements: Array<{ partyKey: string; onboardingJson?: unknown }> | null | undefined =
       undefined;
+    let investorLatestCtosCompanyJson: Record<string, unknown> | null | undefined = undefined;
+    let investorCtosPartySupplements: Array<{ partyKey: string; onboardingJson?: unknown }> | null | undefined =
+      undefined;
     if (portal === "issuer") {
       const orgService = new OrganizationService();
       const extras = await orgService.getIssuerPartyListExtras(org.id);
       latestOrganizationCtosCompanyJson =
         (extras.latestOrganizationCtosCompanyJson as Record<string, unknown> | null) ?? null;
       ctosPartySupplements = extras.ctosPartySupplements.map((row) => ({
+        partyKey: row.partyKey,
+        onboardingJson: row.onboardingJson,
+      }));
+    }
+    if (portal === "investor" && org.type === "COMPANY") {
+      const orgService = new OrganizationService();
+      const extras = await orgService.getInvestorPartyListExtras(org.id);
+      investorLatestCtosCompanyJson =
+        (extras.latestOrganizationCtosCompanyJson as Record<string, unknown> | null) ?? null;
+      investorCtosPartySupplements = extras.ctosPartySupplements.map((row) => ({
         partyKey: row.partyKey,
         onboardingJson: row.onboardingJson,
       }));
@@ -1971,6 +2026,22 @@ export class AdminService {
       directorAmlStatus: org.type === "COMPANY" ? (org.director_aml_status as Record<string, unknown> | null) : undefined,
       directorKycStatus: org.type === "COMPANY" ? (org.director_kyc_status as Record<string, unknown> | null) : undefined,
       businessAmlStatus: org.type === "COMPANY" ? (org.business_aml_status as Record<string, unknown> | null) : undefined,
+      people:
+        org.type === "COMPANY"
+          ? buildAdminPeopleList({
+              ctos:
+                portal === "issuer"
+                  ? (latestOrganizationCtosCompanyJson ?? null)
+                  : (investorLatestCtosCompanyJson ?? null),
+              issuerDirectorKycStatus: org.director_kyc_status ?? null,
+              issuerDirectorAmlStatus: org.director_aml_status ?? null,
+              ctosPartySupplements:
+                portal === "issuer"
+                  ? (ctosPartySupplements ?? null)
+                  : (investorCtosPartySupplements ?? null),
+              corporateEntities: org.corporate_entities ?? null,
+            })
+          : undefined,
       members: org.members.map((m) => ({
         id: m.id,
         userId: m.user_id,
@@ -2011,6 +2082,151 @@ export class AdminService {
         }))
         : undefined,
     };
+  }
+
+  /**
+   * Admin-only: notify issuer and resend RegTank onboarding for one director/shareholder (stateless).
+   */
+  async rejectIssuerDirectorShareholderParty(
+    issuerOrganizationId: string,
+    input: { partyKey: string; remark: string }
+  ): Promise<{ requestId: string }> {
+    const org = await prisma.issuerOrganization.findUnique({
+      where: { id: issuerOrganizationId },
+      select: { owner_user_id: true, type: true },
+    });
+    if (!org || org.type !== "COMPANY") {
+      throw new AppError(404, "NOT_FOUND", "Issuer company organization not found");
+    }
+    if (!org.owner_user_id) {
+      throw new AppError(400, "VALIDATION_ERROR", "Organization has no owner");
+    }
+
+    const orgSvc = new OrganizationService();
+    const extras = await orgSvc.getIssuerPartyListExtras(issuerOrganizationId);
+    const fullOrg = await prisma.issuerOrganization.findUnique({
+      where: { id: issuerOrganizationId },
+      select: { corporate_entities: true, director_kyc_status: true, director_aml_status: true },
+    });
+    if (!fullOrg) {
+      throw new AppError(404, "NOT_FOUND", "Organization not found");
+    }
+
+    const people = buildAdminPeopleList({
+      ctos: extras.latestOrganizationCtosCompanyJson ?? null,
+      issuerDirectorKycStatus: fullOrg.director_kyc_status ?? null,
+      issuerDirectorAmlStatus: fullOrg.director_aml_status ?? null,
+      ctosPartySupplements: extras.ctosPartySupplements.map((s) => ({
+        party_key: s.partyKey,
+        onboarding_json: s.onboardingJson,
+      })),
+      corporateEntities: fullOrg.corporate_entities ?? null,
+    });
+    const visible = filterVisiblePeopleRows(people);
+    const want = normalizeDirectorShareholderIdKey(input.partyKey);
+    if (!want) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invalid party key");
+    }
+    const match = visible.find((p) => normalizeDirectorShareholderIdKey(p.matchKey) === want);
+    if (!match) {
+      throw new AppError(404, "NOT_FOUND", "Party not found among visible directors/shareholders");
+    }
+
+    const sendResult = await orgSvc.sendDirectorCtosPartyOnboardingPrivileged(
+      issuerOrganizationId,
+      { partyKey: input.partyKey },
+      input.remark
+    );
+
+    await notifyIssuerDirectorShareholderRejected({
+      issuerOrganizationId,
+      ownerUserId: org.owner_user_id,
+      partyKeyRaw: input.partyKey,
+      personName: match.name,
+    });
+
+    return sendResult;
+  }
+
+  async notifyIssuerDirectorShareholderActionRequired(
+    issuerOrganizationId: string,
+    input: { partyKey: string }
+  ): Promise<{ sent: true }> {
+    const org = await prisma.issuerOrganization.findUnique({
+      where: { id: issuerOrganizationId },
+      select: { owner_user_id: true, type: true },
+    });
+    if (!org || org.type !== "COMPANY") {
+      throw new AppError(404, "NOT_FOUND", "Issuer company organization not found");
+    }
+    if (!org.owner_user_id) {
+      throw new AppError(400, "VALIDATION_ERROR", "Organization has no owner");
+    }
+
+    const orgSvc = new OrganizationService();
+    const extras = await orgSvc.getIssuerPartyListExtras(issuerOrganizationId);
+    const fullOrg = await prisma.issuerOrganization.findUnique({
+      where: { id: issuerOrganizationId },
+      select: {
+        corporate_entities: true,
+        director_kyc_status: true,
+        director_aml_status: true,
+        onboarding_status: true,
+      },
+    });
+    if (!fullOrg) {
+      throw new AppError(404, "NOT_FOUND", "Organization not found");
+    }
+
+    const people = buildAdminPeopleList({
+      ctos: extras.latestOrganizationCtosCompanyJson ?? null,
+      issuerDirectorKycStatus: fullOrg.director_kyc_status ?? null,
+      issuerDirectorAmlStatus: fullOrg.director_aml_status ?? null,
+      ctosPartySupplements: extras.ctosPartySupplements.map((s) => ({
+        party_key: s.partyKey,
+        onboarding_json: s.onboardingJson,
+      })),
+      corporateEntities: fullOrg.corporate_entities ?? null,
+    });
+    const visible = filterVisiblePeopleRows(people);
+    const want = normalizeDirectorShareholderIdKey(input.partyKey);
+    if (!want) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invalid party key");
+    }
+    const match = visible.find((p) => normalizeDirectorShareholderIdKey(p.matchKey) === want);
+    if (!match) {
+      throw new AppError(404, "NOT_FOUND", "Party not found among visible directors/shareholders");
+    }
+
+    const supplementRecord = extras.ctosPartySupplements.find(
+      (s) => normalizeDirectorShareholderIdKey(s.partyKey) === want
+    );
+    const supplement =
+      supplementRecord?.onboardingJson &&
+      typeof supplementRecord.onboardingJson === "object" &&
+      !Array.isArray(supplementRecord.onboardingJson)
+        ? (supplementRecord.onboardingJson as Record<string, unknown>)
+        : {};
+    const displayRow = buildDirectorShareholderDisplayRowForEmailEligibility(match, supplement);
+    const emailActionable = isDirectorShareholderEmailActionable(match, {
+      displayRow,
+      latestOnboardingRoot: supplement,
+      partySourcePresent: true,
+      directorKycStatus: fullOrg.director_kyc_status,
+      corporateEntities: fullOrg.corporate_entities as CorporateEntitiesShape | null | undefined,
+      blockPartyOnboarding: fullOrg.onboarding_status !== OnboardingStatus.COMPLETED,
+    });
+    if (!emailActionable) {
+      throw new AppError(400, "VALIDATION_ERROR", "Not eligible for notify");
+    }
+
+    await notifyIssuerDirectorShareholderActionRequired({
+      issuerOrganizationId,
+      ownerUserId: org.owner_user_id,
+      partyKeyRaw: input.partyKey,
+      personName: match.name,
+    });
+    return { sent: true };
   }
 
   /**
@@ -2239,7 +2455,19 @@ export class AdminService {
     if (!refreshed) {
       return null;
     }
-    return this.mapToOnboardingApplicationResponse(refreshed);
+    const existingResponse = this.mapToOnboardingApplicationResponse(refreshed);
+    const mergedPeople = buildAdminPeopleList({
+      ctos: existingResponse.latestOrganizationCtosCompanyJson,
+      issuerDirectorKycStatus: refreshed.issuer_organization?.director_kyc_status ?? null,
+      issuerDirectorAmlStatus: refreshed.issuer_organization?.director_aml_status ?? null,
+      ctosPartySupplements: refreshed.issuer_organization?.ctos_party_supplements ?? null,
+      corporateEntities: existingResponse.corporateEntities ?? null,
+    });
+
+    return {
+      ...existingResponse,
+      people: mergedPeople,
+    };
   }
 
   /**
@@ -2659,6 +2887,27 @@ export class AdminService {
           }))
         : null;
 
+    const onboardingPeopleForAml =
+      record.organization_type === "COMPANY" && orgForCtos
+        ? buildAdminPeopleList({
+            ctos: latestOrganizationCtosCompanyJson,
+            issuerDirectorKycStatus: directorKycStatusRaw ?? null,
+            issuerDirectorAmlStatus: directorAmlStatusRaw ?? null,
+            ctosPartySupplements:
+              Array.isArray(ctosPartySupplementsRaw) && ctosPartySupplementsRaw.length > 0
+                ? ctosPartySupplementsRaw.map((s: { party_key: string; onboarding_json: unknown }) => ({
+                    party_key: s.party_key,
+                    onboarding_json: s.onboarding_json ?? null,
+                  }))
+                : null,
+            corporateEntities: corporateEntitiesRaw ?? null,
+          })
+        : [];
+    const directorShareholderAmlPending =
+      record.organization_type === "COMPANY"
+        ? peopleHasPendingDirectorShareholderAml(onboardingPeopleForAml)
+        : false;
+
     return {
       id: record.id,
       userId: record.user.user_id,
@@ -2694,6 +2943,7 @@ export class AdminService {
       corporateEntities,
       latestOrganizationCtosCompanyJson,
       ctosPartySupplements,
+      directorShareholderAmlPending,
     };
   }
 
@@ -4217,6 +4467,7 @@ export class AdminService {
       updatedAt: Date;
       productId: string | null;
       baseProductId: string | null;
+      directorShareholderAmlPending: boolean;
     }[];
     pagination: {
       page: number;
@@ -4228,8 +4479,54 @@ export class AdminService {
     const repository = new AdminRepository();
     const { applications, total } = await repository.getApplications(params);
 
+    const orgService = new OrganizationService();
+    const orgIds = [
+      ...new Set(
+        applications
+          .map((a) => a.issuerOrganizationId)
+          .filter((x): x is string => typeof x === "string" && x.length > 0)
+      ),
+    ];
+    const pendingByOrg = new Map<string, boolean>();
+    await Promise.all(
+      orgIds.map(async (oid) => {
+        const org = await prisma.issuerOrganization.findUnique({
+          where: { id: oid },
+          select: { corporate_entities: true, director_kyc_status: true, director_aml_status: true },
+        });
+        if (!org) {
+          pendingByOrg.set(oid, false);
+          return;
+        }
+        const extras = await orgService.getIssuerPartyListExtras(oid);
+        const people = buildAdminPeopleList({
+          ctos: extras.latestOrganizationCtosCompanyJson ?? null,
+          issuerDirectorKycStatus: org.director_kyc_status ?? null,
+          issuerDirectorAmlStatus: org.director_aml_status ?? null,
+          ctosPartySupplements: extras.ctosPartySupplements,
+          corporateEntities: org.corporate_entities ?? null,
+        });
+        const individuals = getVisibleIndividualsForAml(people);
+        const pending = individuals.length > 0 && hasPendingAmlForIndividuals(individuals);
+        pendingByOrg.set(oid, pending);
+      })
+    );
+
     return {
-      applications,
+      applications: applications.map(({ issuerOrganizationId, ...rest }) => {
+        if (isFinalApplicationStatusForAmlGuard(rest.status)) {
+          return {
+            ...rest,
+            directorShareholderAmlPending: false,
+          };
+        }
+        return {
+          ...rest,
+          directorShareholderAmlPending: issuerOrganizationId
+            ? pendingByOrg.get(issuerOrganizationId) ?? false
+            : false,
+        };
+      }),
       pagination: {
         page: params.page,
         pageSize: params.pageSize,
@@ -4454,8 +4751,23 @@ export class AdminService {
     const orderedVisibleSections = REVIEW_SECTION_ORDER.filter((section) =>
       sectionPolicy.visibleSections.has(section)
     );
+    const issuerOrgForPeople: Record<string, unknown> | null = isPlainObjectRecord(
+      applicationWithIssuerExtras.issuer_organization
+    )
+      ? (applicationWithIssuerExtras.issuer_organization as Record<string, unknown>)
+      : null;
+    const people = buildAdminPeopleList({
+      ctos: issuerOrgForPeople?.latest_organization_ctos_company_json ?? null,
+      issuerDirectorKycStatus: issuerOrgForPeople?.director_kyc_status ?? null,
+      issuerDirectorAmlStatus: issuerOrgForPeople?.director_aml_status ?? null,
+      ctosPartySupplements: Array.isArray(issuerOrgForPeople?.ctos_party_supplements)
+        ? issuerOrgForPeople.ctos_party_supplements
+        : null,
+      corporateEntities: issuerOrgForPeople?.corporate_entities ?? null,
+    });
     return {
       ...applicationWithIssuerExtras,
+      people,
       application_guarantors: this.mapApplicationGuarantorsForAdmin(
         applicationWithIssuerExtras.application_guarantors
       ),
@@ -4663,7 +4975,7 @@ export class AdminService {
     }
 
     if (status === ApplicationStatus.APPROVED) {
-      this.assertLatestCtosPartyKycApproved(application as any);
+      this.assertFinancialReviewDirectorShareholderAmlApproved(application as any);
       const reviews = (application.application_reviews ?? []) as { section: string; status: string }[];
       const sectionPolicy = await this.getReviewSectionPolicy(application);
       const reviewStatusBySection = new Map<string, string>();
@@ -4769,7 +5081,7 @@ export class AdminService {
     return "Terminal corrections must use a dedicated audited correction flow";
   }
 
-  private assertLatestCtosPartyKycApproved(application: {
+  private assertFinancialReviewDirectorShareholderAmlApproved(application: {
     issuer_organization?: {
       corporate_entities?: unknown;
       director_kyc_status?: unknown;
@@ -4784,59 +5096,22 @@ export class AdminService {
     const supplements = Array.isArray(issuerOrg.ctos_party_supplements)
       ? issuerOrg.ctos_party_supplements
       : [];
-    const onboardingByPartyKey = new Map<string, Record<string, unknown>>();
-    const supplementPartyKeys = new Set<string>();
-    for (const supplement of supplements) {
-      const key = normalizeDirectorShareholderIdKey(supplement.party_key);
-      if (!key) continue;
-      supplementPartyKeys.add(key);
-      const onboarding =
-        supplement.onboarding_json &&
-        typeof supplement.onboarding_json === "object" &&
-        !Array.isArray(supplement.onboarding_json)
-          ? (supplement.onboarding_json as Record<string, unknown>)
-          : {};
-      onboardingByPartyKey.set(key, onboarding);
-    }
-
-    const rows = getDirectorShareholderDisplayRows({
-      corporateEntities: issuerOrg.corporate_entities,
-      directorKycStatus: issuerOrg.director_kyc_status,
-      directorAmlStatus: issuerOrg.director_aml_status ?? null,
-      organizationCtosCompanyJson: issuerOrg.latest_organization_ctos_company_json ?? null,
+    const people = buildAdminPeopleList({
+      ctos: issuerOrg.latest_organization_ctos_company_json ?? null,
+      issuerDirectorKycStatus: issuerOrg.director_kyc_status ?? null,
+      issuerDirectorAmlStatus: issuerOrg.director_aml_status ?? null,
       ctosPartySupplements: supplements.map((supplement) => ({
-        partyKey: supplement.party_key,
-        onboardingJson: supplement.onboarding_json ?? null,
+        party_key: supplement.party_key,
+        onboarding_json: supplement.onboarding_json ?? null,
       })),
-      sentRowIds: null,
+      corporateEntities: issuerOrg.corporate_entities ?? null,
     });
-
-    const notReady: string[] = [];
-    for (const row of rows) {
-      if (!isCtosIndividualKycEligibleRow(row)) continue;
-      const partyKey = normalizeDirectorShareholderIdKey(
-        row.idNumber?.trim() || row.registrationNumber?.trim() || row.enquiryId?.trim() || ""
-      );
-      if (!partyKey) continue;
-      if (isLegacyCtosPartyKycApproved(partyKey, issuerOrg.director_kyc_status)) continue;
-      if (!supplementPartyKeys.has(partyKey)) continue;
-      const onboarding = onboardingByPartyKey.get(partyKey) ?? {};
-      const regtankStatus = String(onboarding.regtankStatus ?? "").trim().toUpperCase();
-      const kycRawStatus =
-        onboarding.kyc && typeof onboarding.kyc === "object" && !Array.isArray(onboarding.kyc)
-          ? String((onboarding.kyc as Record<string, unknown>).rawStatus ?? "").trim().toUpperCase()
-          : "";
-      const approved = regtankStatus === "APPROVED" || kycRawStatus === "APPROVED";
-      if (!approved) {
-        notReady.push(row.name || partyKey);
-      }
-    }
-
-    if (notReady.length > 0) {
+    const individuals = getVisibleIndividualsForAml(people);
+    if (!allAmlApprovedForIndividuals(individuals)) {
       throw new AppError(
         400,
-        "KYC_NOT_READY",
-        `Latest onboarding KYC is not approved for: ${notReady.join(", ")}`
+        "AML_NOT_READY",
+        "All directors/shareholders must complete AML before approval"
       );
     }
   }
@@ -5886,7 +6161,7 @@ export class AdminService {
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     if (section === "financial") {
-      this.assertLatestCtosPartyKycApproved(application as any);
+      this.assertFinancialReviewDirectorShareholderAmlApproved(application as any);
     }
     await this.ensureUnderReview(
       repository,

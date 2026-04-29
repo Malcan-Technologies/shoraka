@@ -1,4 +1,5 @@
 import { parseGuarantorsFromBusinessDetails } from "../guarantors/utils";
+import { mapRegTankKycScreeningStatusToAmlStatus } from "../regtank/helpers/regtank-kyc-screening-to-aml-status";
 
 type GuarantorType = "individual" | "company";
 
@@ -226,29 +227,12 @@ export function buildRegTankPortalUrl(adminPortalBaseUrl: string, requestId: str
 }
 
 export function mapScreeningStatusToAml(status: string | undefined): GuarantorAmlStatus {
-  if (!status) return "Pending";
-  const upper = status.toUpperCase();
-  if (upper === "APPROVED" || upper === "RISK ASSESSED") return "Approved";
-  if (upper === "REJECTED") return "Rejected";
-  if (upper === "UNRESOLVED" || upper === "NO_MATCH") return "Unresolved";
-  return "Pending";
+  return mapRegTankKycScreeningStatusToAmlStatus(status);
 }
 
 /** RegTank KYC/KYB screening status values (Acuris or Dow Jones; e.g. "No Match", "Approved") → DB enum */
 export function mapRegTankDjkycStatusToPrismaAmlStatus(status: string | undefined): GuarantorAmlStatus {
-  if (!status) return "Pending";
-  const compact = status.toUpperCase().replace(/\s+/g, "_");
-  if (compact === "APPROVED") return "Approved";
-  if (compact === "REJECTED") return "Rejected";
-  if (compact === "TERMINATED") return "Rejected";
-  if (
-    compact === "UNRESOLVED" ||
-    compact === "NO_MATCH" ||
-    compact === "POSITIVE_MATCH"
-  ) {
-    return "Unresolved";
-  }
-  return "Pending";
+  return mapRegTankKycScreeningStatusToAmlStatus(status);
 }
 
 export function mapRegTankDjkycMessageToPrisma(

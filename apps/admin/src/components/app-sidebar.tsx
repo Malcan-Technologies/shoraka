@@ -47,7 +47,18 @@ import { usePendingApprovalCount } from "@/hooks/use-pending-approval-count";
 import { useProducts } from "@/hooks/use-products";
 import { useAdminApplicationsForSidebar } from "@/hooks/use-admin-applications-for-sidebar";
 import { productName } from "@/app/settings/products/product-utils";
+import { cn } from "@/lib/utils";
 import type { ApplicationListItem, Product } from "@cashsouk/types";
+
+/** Matching pills under Applications → product: active (emerald) vs inactive (muted). */
+function applicationProductStatusBadgeClass(isInactive: boolean): string {
+  return cn(
+    "inline-flex w-fit shrink-0 items-center rounded-full border px-2 py-0.5 text-[10px] font-medium leading-none",
+    isInactive
+      ? "border-border/70 bg-muted/60 text-muted-foreground dark:border-border dark:bg-muted/40"
+      : "border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-100"
+  );
+}
 
 type ApplicationNavGroup = {
   baseKey: string;
@@ -103,7 +114,12 @@ function buildApplicationSidebarGroups(
     });
   }
 
-  return groups.sort((a, b) => a.productTitle.localeCompare(b.productTitle));
+  return groups.sort((a, b) => {
+    if (a.isInactive !== b.isInactive) {
+      return a.isInactive ? 1 : -1;
+    }
+    return a.productTitle.localeCompare(b.productTitle, undefined, { sensitivity: "base" });
+  });
 }
 
 const navActionsConfig = [
@@ -280,16 +296,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                                     title={
                                       g.isInactive
                                         ? `${g.productTitle} (Inactive)`
-                                        : g.productTitle
+                                        : `${g.productTitle} (Active)`
                                     }
                                     className="flex min-w-0 flex-col gap-0.5"
                                   >
                                     <span className="truncate text-sm leading-tight">{g.productTitle}</span>
-                                    {g.isInactive ? (
-                                      <span className="text-xs font-normal leading-none text-muted-foreground">
-                                        Inactive
-                                      </span>
-                                    ) : null}
+                                    <span
+                                      className={applicationProductStatusBadgeClass(g.isInactive)}
+                                      aria-label={g.isInactive ? "Inactive product" : "Active product"}
+                                    >
+                                      {g.isInactive ? "Inactive" : "Active"}
+                                    </span>
                                   </Link>
                                 </SidebarMenuSubButton>
                               </SidebarMenuSubItem>

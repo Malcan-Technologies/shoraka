@@ -9,41 +9,41 @@ datasource db {
 }
 
 model User {
-  user_id                       String                           @id @unique @db.VarChar(5)
-  first_name                    String
-  last_name                     String
-  phone                         String?
-  email                         String                           @unique
-  cognito_sub                   String                           @unique @db.VarChar(255)
-  cognito_username              String                           @db.VarChar(255)
-  investor_account              String[]                         @default([])
-  issuer_account                String[]                         @default([])
-  password_changed_at           DateTime?
-  created_at                    DateTime                         @default(now())
-  updated_at                    DateTime                         @updatedAt
-  email_verified                Boolean                          @default(false)
-  roles                         UserRole[]
-  access_logs                   AccessLog[]
-  sent_admin_invitations        AdminInvitation[]                @relation("SentAdminInvitations")
-  admin                         Admin?
-  document_logs                 DocumentLog[]
-  investments                   Investment[]
-  sent_investor_org_invitations InvestorOrganizationInvitation[] @relation("SentInvestorOrgInvitations")
-  investor_organizations        InvestorOrganization[]
-  sent_issuer_org_invitations   IssuerOrganizationInvitation[]   @relation("SentIssuerOrgInvitations")
-  issuer_organizations          IssuerOrganization[]
-  loans                         Loan[]
-  admin_notification_logs       NotificationLog[]                @relation("AdminNotificationLogs")
-  notifications                 Notification[]
-  onboarding_logs               OnboardingLog[]
-  organization_memberships      OrganizationMember[]
-  product_logs                  ProductLog[]
-  regtank_onboarding            RegTankOnboarding[]
-  triggered_application_guarantors ApplicationGuarantor[] @relation("ApplicationGuarantorTriggeredBy")
-  security_logs                 SecurityLog[]
-  notification_preferences      UserNotificationPreference[]
-  sessions                      UserSession[]
-  authored_review_remarks       ApplicationReviewRemark[]
+  user_id                          String                           @id @unique @db.VarChar(5)
+  first_name                       String
+  last_name                        String
+  phone                            String?
+  email                            String                           @unique
+  cognito_sub                      String                           @unique @db.VarChar(255)
+  cognito_username                 String                           @db.VarChar(255)
+  investor_account                 String[]                         @default([])
+  issuer_account                   String[]                         @default([])
+  password_changed_at              DateTime?
+  created_at                       DateTime                         @default(now())
+  updated_at                       DateTime                         @updatedAt
+  email_verified                   Boolean                          @default(false)
+  roles                            UserRole[]
+  access_logs                      AccessLog[]
+  sent_admin_invitations           AdminInvitation[]                @relation("SentAdminInvitations")
+  admin                            Admin?
+  document_logs                    DocumentLog[]
+  investments                      Investment[]
+  sent_investor_org_invitations    InvestorOrganizationInvitation[] @relation("SentInvestorOrgInvitations")
+  investor_organizations           InvestorOrganization[]
+  sent_issuer_org_invitations      IssuerOrganizationInvitation[]   @relation("SentIssuerOrgInvitations")
+  issuer_organizations             IssuerOrganization[]
+  loans                            Loan[]
+  admin_notification_logs          NotificationLog[]                @relation("AdminNotificationLogs")
+  notifications                    Notification[]
+  onboarding_logs                  OnboardingLog[]
+  organization_memberships         OrganizationMember[]
+  product_logs                     ProductLog[]
+  regtank_onboarding               RegTankOnboarding[]
+  triggered_application_guarantors ApplicationGuarantor[]           @relation("ApplicationGuarantorTriggeredBy")
+  security_logs                    SecurityLog[]
+  notification_preferences         UserNotificationPreference[]
+  sessions                         UserSession[]
+  authored_review_remarks          ApplicationReviewRemark[]
 
   @@index([cognito_sub])
   @@map("users")
@@ -319,7 +319,7 @@ model IssuerOrganization {
 }
 
 model CtosPartySupplement {
-  id                       String @id @default(cuid())
+  id                       String   @id @default(cuid())
   issuer_organization_id   String?
   investor_organization_id String?
   party_key                String
@@ -329,7 +329,7 @@ model CtosPartySupplement {
   updated_at               DateTime @updatedAt
 
   issuer_organization   IssuerOrganization?   @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
-  investor_organization   InvestorOrganization? @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
+  investor_organization InvestorOrganization? @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
 
   @@index([issuer_organization_id])
   @@index([investor_organization_id])
@@ -337,7 +337,7 @@ model CtosPartySupplement {
 }
 
 model CtosReport {
-  id                       String @id @default(cuid())
+  id                       String                @id @default(cuid())
   issuer_organization_id   String?
   investor_organization_id String?
   /// Null = company/org CTOS snapshot; non-null = RegTank subject (e.g. EOD or COD).
@@ -399,27 +399,27 @@ model Application {
 }
 
 model ApplicationGuarantor {
-  id                           String              @id @default(cuid())
-  application_id               String
-  client_guarantor_id          String
-  position                     Int                 @default(0)
-  source_data                  Json?
-  guarantor_type               GuarantorType
-  email                        String
-  name                         String?
-  ic_number                    String?
-  business_name                String?
-  ssm_number                   String?
-  aml_status                   GuarantorAmlStatus  @default(Pending)
-  aml_message_status           GuarantorAmlMessage @default(PENDING)
-  last_triggered_at            DateTime?
-  last_synced_at               DateTime?
-  triggered_by_admin_user_id   String?             @db.VarChar(5)
-  metadata                     Json?
-  created_at                   DateTime            @default(now())
-  updated_at                   DateTime            @updatedAt
-  application                  Application         @relation(fields: [application_id], references: [id], onDelete: Cascade)
-  triggered_by_admin           User?               @relation("ApplicationGuarantorTriggeredBy", fields: [triggered_by_admin_user_id], references: [user_id], onDelete: SetNull)
+  id                         String              @id @default(cuid())
+  application_id             String
+  client_guarantor_id        String
+  position                   Int                 @default(0)
+  source_data                Json?
+  guarantor_type             GuarantorType
+  email                      String
+  name                       String?
+  ic_number                  String?
+  business_name              String?
+  ssm_number                 String?
+  aml_status                 GuarantorAmlStatus  @default(Pending)
+  aml_message_status         GuarantorAmlMessage @default(PENDING)
+  last_triggered_at          DateTime?
+  last_synced_at             DateTime?
+  triggered_by_admin_user_id String?             @db.VarChar(5)
+  metadata                   Json?
+  created_at                 DateTime            @default(now())
+  updated_at                 DateTime            @updatedAt
+  application                Application         @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  triggered_by_admin         User?               @relation("ApplicationGuarantorTriggeredBy", fields: [triggered_by_admin_user_id], references: [user_id], onDelete: SetNull)
 
   @@unique([application_id, client_guarantor_id])
   @@index([application_id])
@@ -528,7 +528,7 @@ model Contract {
   /// SigningCloud offer-letter workflow (pending/signed metadata; no unsigned PDF stored)
   offer_signing          Json?
   /// SigningCloud contract number for webhook lookup (unique when set)
-  signing_sc_contractnum String?          @unique
+  signing_sc_contractnum String?            @unique
   applications           Application[]
   issuer_organization    IssuerOrganization @relation(fields: [issuer_organization_id], references: [id], onDelete: Cascade)
   invoices               Invoice[]
@@ -538,21 +538,21 @@ model Contract {
 }
 
 model Invoice {
-  id              String          @id @default(cuid())
-  contract_id     String?
-  application_id  String
-  details         Json
-  offer_details   Json?
-  created_at      DateTime        @default(now())
-  updated_at      DateTime        @updatedAt
-  status          InvoiceStatus   @default(DRAFT)
-  withdraw_reason WithdrawReason?
+  id                     String          @id @default(cuid())
+  contract_id            String?
+  application_id         String
+  details                Json
+  offer_details          Json?
+  created_at             DateTime        @default(now())
+  updated_at             DateTime        @updatedAt
+  status                 InvoiceStatus   @default(DRAFT)
+  withdraw_reason        WithdrawReason?
   /// SigningCloud offer-letter workflow (pending/signed metadata; no unsigned PDF stored)
   offer_signing          Json?
   /// SigningCloud contract number for webhook lookup (unique when set)
-  signing_sc_contractnum String?          @unique
-  application     Application     @relation(fields: [application_id], references: [id], onDelete: Cascade)
-  contract        Contract?       @relation(fields: [contract_id], references: [id])
+  signing_sc_contractnum String?         @unique
+  application            Application     @relation(fields: [application_id], references: [id], onDelete: Cascade)
+  contract               Contract?       @relation(fields: [contract_id], references: [id])
 
   @@index([contract_id])
   @@index([application_id])
@@ -834,6 +834,7 @@ model Notification {
   metadata             Json?
   created_at           DateTime             @default(now())
   expires_at           DateTime?
+  resolved_at          DateTime?
   send_to_email        Boolean              @default(false)
   send_to_platform     Boolean              @default(true)
   notification_type    NotificationType     @relation(fields: [notification_type_id], references: [id], onDelete: Cascade)
@@ -841,6 +842,7 @@ model Notification {
 
   @@index([user_id, created_at])
   @@index([user_id, read_at])
+  @@index([resolved_at])
   @@index([notification_type_id])
   @@index([expires_at])
   @@index([idempotency_key])

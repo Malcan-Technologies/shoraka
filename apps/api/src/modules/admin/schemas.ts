@@ -379,6 +379,22 @@ export const updatePendingAmendmentSchema = z.object({
   remark: z.string().min(1, "Remark is required"),
 });
 
+/** Admin-only: notify issuer + resend RegTank onboarding for one visible party (stateless). */
+export const rejectIssuerDirectorShareholderSchema = z.object({
+  partyKey: z.string().min(1).max(200),
+  remark: z.string().min(1).max(2000),
+});
+
+export type RejectIssuerDirectorShareholderInput = z.infer<typeof rejectIssuerDirectorShareholderSchema>;
+
+export const notifyIssuerDirectorShareholderActionRequiredSchema = z.object({
+  partyKey: z.string().min(1).max(200),
+});
+
+export type NotifyIssuerDirectorShareholderActionRequiredInput = z.infer<
+  typeof notifyIssuerDirectorShareholderActionRequiredSchema
+>;
+
 export const createCtosSubjectReportSchema = z.object({
   subjectRef: z.string().min(1).max(80),
   subjectKind: z.enum(["INDIVIDUAL", "CORPORATE"]),

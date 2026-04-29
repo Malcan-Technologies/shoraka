@@ -8,9 +8,11 @@
 
 import { governmentIdFromDirectorKycForEod } from "./director-kyc-gov-id";
 import {
-  effectiveCtosRegtankStatusFromOnboardingJson,
-  getDisplayAmlStatus,
-} from "./regtank-onboarding-status";
+  getEffectiveCtosPartyOnboarding,
+  getEffectiveCtosPartyScreening,
+} from "./ctos-party-supplement-json";
+import { effectiveCtosRegtankStatusFromOnboardingJson } from "./regtank-onboarding-status";
+import { normalizeRawStatus } from "./status-normalization";
 
 export type DirectorShareholderPartyType = "INDIVIDUAL" | "COMPANY";
 
@@ -24,7 +26,7 @@ export interface DirectorShareholderDisplayRow {
   /** Share ownership label, e.g. `10% ownership`, for application-flow layout. */
   ownershipDisplay: string | null;
   email: string;
-  /** Unified KYC label (`getDisplayKycStatus` / legacy mapper) or `"Sent"` when link-sent override applies. */
+  /** Raw status rendered with minimal normalization only. */
   status: string;
   canEnterEmail: boolean;
   canSendOnboarding: boolean;
@@ -35,7 +37,7 @@ export interface DirectorShareholderDisplayRow {
   ctosOnboardingLinkSent?: boolean;
   /** Raw internal RegTank status (reg_tank_onboarding semantics) when CTOS supplement exists. */
   ctosRegtankStatus?: string | null;
-  /** Human-readable AML label (`getDisplayAmlStatus`); set only when an AML source exists for the row. */
+  /** Raw AML status rendered with minimal normalization only. */
   amlStatus?: string | null;
   /**
    * CTOS-backed rows only: false when the party must not receive individual RegTank onboarding
@@ -66,115 +68,6 @@ export function getDisplayRoleLabel(row: {
   }
 
   return roles.join(", ");
-}
-
-export type UnifiedDisplayKycStatus =
-  | "KYC Approved"
-  | "KYC Pending"
-  | "Not Started"
-  | "KYC Failed"
-  | "Status unavailable";
-
-const KNOWN_PENDING_STATUSES = new Set([
-  "IN_PROGRESS",
-  "PENDING",
-  "PENDING_AML",
-  "FORM_FILLING",
-  "LIVENESS_PASSED",
-  "PENDING_APPROVAL",
-  "WAIT_FOR_APPROVAL",
-  /** Common director_kyc_status / RegTank in-progress values not listed above */
-  "EMAIL_SENT",
-  "LIVENESS_STARTED",
-  "ID_UPLOADED",
-  "CHECKED",
-]);
-
-function normalizeKycStatusToken(s: string | null | undefined): string {
-  return String(s ?? "")
-    .trim()
-    .toUpperCase();
-}
-
-export type UnifiedOnboardingState = "NOT_STARTED" | "IN_PROGRESS" | "SUBMITTED" | "APPROVED";
-
-/**
- * Canonical display label for KYC/onboarding state across portals.
- * - missing requestId -> Not Started
- * - REJECTED / FAILED (any of regtank / kyc / raw) -> KYC Failed
- * - APPROVED (any) -> KYC Approved
- * - known in-progress tokens (any) -> KYC Pending
- * - anything else -> Status unavailable (not treated as pending)
- */
-export function getDisplayKycStatus(input: {
-  requestId?: string | null;
-  regtankStatus?: string | null;
-  kycRawStatus?: string | null;
-  rawStatus?: string | null;
-}): UnifiedDisplayKycStatus {
-  const requestId = normalizeKycStatusToken(input.requestId);
-  if (!requestId) return "Not Started";
-
-  const rt = normalizeKycStatusToken(input.regtankStatus);
-  const kycRaw = normalizeKycStatusToken(input.kycRawStatus);
-  const raw = normalizeKycStatusToken(input.rawStatus);
-
-  const tokens = [rt, kycRaw, raw].filter((t) => t.length > 0);
-
-  if (tokens.some((t) => t === "REJECTED" || t === "FAILED")) {
-    return "KYC Failed";
-  }
-  if (tokens.some((t) => t === "APPROVED")) {
-    return "KYC Approved";
-  }
-  if (tokens.some((t) => KNOWN_PENDING_STATUSES.has(t))) {
-    return "KYC Pending";
-  }
-
-  if (tokens.length > 0) {
-    console.warn("Unknown KYC status:", {
-      regtankStatus: input.regtankStatus,
-      kycRawStatus: input.kycRawStatus,
-      rawStatus: input.rawStatus,
-    });
-  }
-  return "Status unavailable";
-}
-
-/** Maps legacy `director_kyc_status` / COD raw strings to the same labels as CTOS `getDisplayKycStatus`. */
-function legacyDirectorKycRawToUnifiedDisplay(raw: string): UnifiedDisplayKycStatus {
-  const t = normalizeKycStatusToken(raw);
-  if (!t) return "Not Started";
-  if (t === "NOT REQUESTED") return "Not Started";
-  if (t === "MISSING") return "Not Started";
-  if (t === "REJECTED" || t === "FAILED") return "KYC Failed";
-  if (t === "APPROVED") return "KYC Approved";
-  if (KNOWN_PENDING_STATUSES.has(t)) return "KYC Pending";
-  return getDisplayKycStatus({
-    requestId: "legacy",
-    regtankStatus: raw,
-    kycRawStatus: raw,
-    rawStatus: raw,
-  });
-}
-
-/**
- * Canonical onboarding state for latest onboarding only.
- */
-export function getOnboardingState(input: {
-  requestId?: string | null;
-  regtankStatus?: string | null;
-  kycRawStatus?: string | null;
-}): UnifiedOnboardingState {
-  const requestId = String(input.requestId ?? "").trim();
-  if (!requestId) return "NOT_STARTED";
-
-  const regtankStatus = String(input.regtankStatus ?? "").trim().toUpperCase();
-  const kycRawStatus = String(input.kycRawStatus ?? "").trim().toUpperCase();
-
-  if (regtankStatus === "APPROVED" || kycRawStatus === "APPROVED") return "APPROVED";
-  if (regtankStatus === "WAIT_FOR_APPROVAL" || regtankStatus === "PENDING_APPROVAL") return "SUBMITTED";
-  return "IN_PROGRESS";
 }
 
 /**
@@ -259,6 +152,20 @@ function findLegacyKycPersonByStrictId(
     if (normalizeStrictPartyId(String(s.governmentIdNumber ?? "")) === strictKey) return s;
   }
   return null;
+}
+
+/** Issuer UI: party appears on company `director_kyc_status` (director or individual shareholder row). */
+export function getDirectorKycPartyRecord(
+  partyKeyRaw: string | null | undefined,
+  directorKycStatus: unknown
+): Record<string, unknown> | null {
+  const strictKey = normalizeDirectorShareholderIdKey(partyKeyRaw);
+  if (!strictKey) return null;
+  const root =
+    directorKycStatus && typeof directorKycStatus === "object" && !Array.isArray(directorKycStatus)
+      ? (directorKycStatus as Record<string, unknown>)
+      : undefined;
+  return findLegacyKycPersonByStrictId(strictKey, root);
 }
 
 function collectDirectorAmlIndividualEntries(
@@ -979,8 +886,7 @@ function resolveIndividualStatus(
   icKey: string | null,
   eod: string | null,
   directorKycStatus: Record<string, unknown> | null | undefined,
-  kycById: Map<string, KycByIdEntry>,
-  ceStatus: string | null
+  kycById: Map<string, KycByIdEntry>
 ): string {
   if (eod) {
     const st = findKycStatusForEod(directorKycStatus, eod);
@@ -990,22 +896,18 @@ function resolveIndividualStatus(
     const hit = kycById.get(icKey);
     if (hit?.status) return hit.status;
   }
-  if (ceStatus) return ceStatus;
-  return "Not requested";
+  return "";
 }
 
 function resolveCompanyStatus(
   regKey: string | null,
-  kycById: Map<string, KycByIdEntry>,
-  corp: Record<string, unknown>
+  kycById: Map<string, KycByIdEntry>
 ): string {
   if (regKey) {
     const hit = kycById.get(regKey);
     if (hit?.status) return hit.status;
   }
-  const st = corp.approveStatus ?? corp.status;
-  if (st != null && String(st).trim() !== "") return String(st);
-  return "Not requested";
+  return "";
 }
 
 function getCorpBusinessNumber(corp: Record<string, unknown>): string | null {
@@ -1063,7 +965,6 @@ function buildOnboardingDisplayRows(
     icRaw: string | null;
     icKey: string | null;
     eod: string | null;
-    ceStatus: string | null;
     ownershipDisplay: string | null;
     isDirector: boolean;
     isShareholder: boolean;
@@ -1097,7 +998,6 @@ function buildOnboardingDisplayRows(
     if (patch.icRaw && !cur.icRaw) cur.icRaw = patch.icRaw;
     if (patch.icKey && !cur.icKey) cur.icKey = patch.icKey;
     if (patch.eod && !cur.eod) cur.eod = patch.eod;
-    if (patch.ceStatus && !cur.ceStatus) cur.ceStatus = patch.ceStatus;
     const po = patch.ownershipDisplay != null ? String(patch.ownershipDisplay).trim() : "";
     if (po && !cur.ownershipDisplay) cur.ownershipDisplay = patch.ownershipDisplay ?? null;
     if (patch.sharePctMax != null && Number.isFinite(patch.sharePctMax)) {
@@ -1117,7 +1017,6 @@ function buildOnboardingDisplayRows(
         icRaw: init.icRaw,
         icKey: init.icKey,
         eod: init.eod,
-        ceStatus: init.ceStatus,
         ownershipDisplay: init.ownershipDisplay,
         sharePctMax: init.sharePctMax,
         isDirector: init.isDirector,
@@ -1136,7 +1035,6 @@ function buildOnboardingDisplayRows(
     const icRaw = issuerIcOrSsmForCePersonRow(p, directorKycStatus);
     const icKey = normalizeDirectorShareholderIdKey(icRaw);
     const eod = String(p.eodRequestId ?? "").trim() || null;
-    const ceSt = (p.status ?? p.approveStatus) != null ? String(p.status ?? p.approveStatus) : null;
     const em = emailFromCePerson(p);
     const own = ownershipFromCePerson(p);
     const dirShare = percentOfSharesFromOnboardingCePerson(pr);
@@ -1147,7 +1045,6 @@ function buildOnboardingDisplayRows(
       icRaw,
       icKey,
       eod,
-      ceStatus: ceSt,
       ownershipDisplay: own,
       isDirector: true,
       isShareholder: false,
@@ -1163,7 +1060,6 @@ function buildOnboardingDisplayRows(
     const icRaw = issuerIcOrSsmForCePersonRow(p, directorKycStatus);
     const icKey = normalizeDirectorShareholderIdKey(icRaw);
     const eod = String(p.eodRequestId ?? "").trim() || null;
-    const ceSt = (p.status ?? p.approveStatus) != null ? String(p.status ?? p.approveStatus) : null;
     const em = emailFromCePerson(p);
     const own = ownershipFromCePerson(p);
     const existingKey = findExistingIndKey(icKey, eod);
@@ -1175,7 +1071,6 @@ function buildOnboardingDisplayRows(
         icRaw,
         icKey,
         eod,
-        ceStatus: ceSt,
         ownershipDisplay: own,
         sharePctMax: share,
         isShareholder: true,
@@ -1188,7 +1083,6 @@ function buildOnboardingDisplayRows(
         icRaw,
         icKey,
         eod,
-        ceStatus: ceSt,
         ownershipDisplay: own,
         isDirector: false,
         isShareholder: true,
@@ -1201,17 +1095,16 @@ function buildOnboardingDisplayRows(
 
   for (const key of indOrder) {
     const b = indBuckets.get(key)!;
-    const rawResolved = resolveIndividualStatus(b.icKey, b.eod, directorKycStatus, kycById, b.ceStatus);
-    const unifiedBase = legacyDirectorKycRawToUnifiedDisplay(rawResolved);
+    const rawResolved = resolveIndividualStatus(b.icKey, b.eod, directorKycStatus, kycById);
+    const unifiedBase = normalizeRawStatus(rawResolved);
     const emailFromKyc = b.icKey ? kycById.get(b.icKey)?.email ?? "" : "";
     const email = (b.email && b.email.trim()) || emailFromKyc;
     const id = `onb-ind-${key}`;
     const sent = Boolean(sentRowIds?.has(id));
-    const status = sent ? "Sent" : unifiedBase;
-    const canBase = !sent && (!email.trim() || unifiedBase === "Not Started");
+    const status = unifiedBase;
+    const canBase = !sent && (!email.trim() || !status);
     const amlRaw = findLegacyAmlRawForOnboardingRow(b.icKey, b.eod, directorKycStatus, directorAmlStatus);
-    const amlLine =
-      amlRaw != null && String(amlRaw).trim() !== "" ? getDisplayAmlStatus(amlRaw) : undefined;
+    const amlLine = normalizeRawStatus(amlRaw);
     const role =
       getDisplayRoleLabel({
         isDirector: b.isDirector,
@@ -1235,7 +1128,7 @@ function buildOnboardingDisplayRows(
       isDirector: b.isDirector,
       isShareholder: b.isShareholder,
       sharePercentage: b.sharePctMax,
-      amlStatus: amlLine,
+      amlStatus: amlLine || undefined,
     });
   }
 
@@ -1244,17 +1137,13 @@ function buildOnboardingDisplayRows(
     const regRaw = getCorpBusinessNumber(corp);
     const regKey = normalizeDirectorShareholderIdKey(regRaw);
     const id = `onb-corp-${regKey ?? corpIdx++}`;
-    const rawResolved = resolveCompanyStatus(regKey, kycById, corp);
-    const unifiedBase = legacyDirectorKycRawToUnifiedDisplay(rawResolved);
-    const sent = Boolean(sentRowIds?.has(id));
-    const status = sent ? "Sent" : unifiedBase;
+    const rawResolved = resolveCompanyStatus(regKey, kycById);
+    const unifiedBase = normalizeRawStatus(rawResolved);
+    const status = unifiedBase;
     const email = String((corp as Record<string, unknown>).email ?? "").trim();
     const corpOwn = ownershipFromCorpShareholder(corp);
     const corpAmlRaw = regKey ? amlByGov.get(regKey) : undefined;
-    const corpAmlLine =
-      corpAmlRaw != null && String(corpAmlRaw).trim() !== ""
-        ? getDisplayAmlStatus(corpAmlRaw)
-        : undefined;
+    const corpAmlLine = normalizeRawStatus(corpAmlRaw);
     rows.push({
       id,
       name: getCorpDisplayName(corp),
@@ -1269,7 +1158,7 @@ function buildOnboardingDisplayRows(
       canSendOnboarding: false,
       enquiryId: regRaw ? regRaw.trim() : null,
       subjectKind: "CORPORATE",
-      amlStatus: corpAmlLine,
+      amlStatus: corpAmlLine || undefined,
     });
   }
 
@@ -1286,16 +1175,13 @@ function ctosSupplementOnboardingFields(ob: Record<string, unknown>): {
   kycRaw: string;
   amlRaw: string;
 } {
-  const req = String(ob.requestId ?? "").trim();
-  const reg = String(ob.regtankStatus ?? "").trim();
-  const kycRaw =
-    ob.kyc && typeof ob.kyc === "object" && !Array.isArray(ob.kyc)
-      ? String((ob.kyc as Record<string, unknown>).rawStatus ?? "").trim()
-      : "";
-  const amlRaw =
-    ob.aml && typeof ob.aml === "object" && !Array.isArray(ob.aml)
-      ? String((ob.aml as Record<string, unknown>).rawStatus ?? "").trim()
-      : "";
+  const onb = getEffectiveCtosPartyOnboarding(ob);
+  const scr = getEffectiveCtosPartyScreening(ob);
+  const req = String(onb.requestId ?? "").trim();
+  const reg = String(onb.status ?? onb.regtankStatus ?? "").trim();
+  const screeningStatus = String(scr.status ?? "").trim();
+  const kycRaw = screeningStatus;
+  const amlRaw = screeningStatus;
   return { req, reg, kycRaw, amlRaw };
 }
 
@@ -1422,34 +1308,24 @@ function buildCtosBackedDisplayRows(
     const supFields = ctosSupplementOnboardingFields(ob);
     const hasValidSupplement = hasSupplementRow && ctosSupplementHasMeaningfulOnboarding(supFields);
 
-    let kycDisplay: UnifiedDisplayKycStatus = "Not Started";
+    let kycDisplay = "";
     let amlLine: string | null = null;
 
     const applyLegacyKycAml = (): void => {
-      const rawForUnified =
-        legacy.kycRaw != null && legacy.kycRaw.trim() !== ""
-          ? legacy.kycRaw
-          : "Not requested";
-      kycDisplay = legacyDirectorKycRawToUnifiedDisplay(rawForUnified);
-      amlLine =
-        legacy.amlRaw != null && legacy.amlRaw.trim() !== "" ? getDisplayAmlStatus(legacy.amlRaw) : null;
+      kycDisplay = normalizeRawStatus(legacy.kycRaw);
+      amlLine = normalizeRawStatus(legacy.amlRaw) || null;
     };
 
     if (hasLegacyData && !hasValidSupplement) {
       applyLegacyKycAml();
     } else if (hasValidSupplement) {
-      const { req, reg, kycRaw, amlRaw } = supFields;
-      kycDisplay = getDisplayKycStatus({
-        requestId: req || undefined,
-        regtankStatus: reg || undefined,
-        kycRawStatus: kycRaw || undefined,
-        rawStatus: kycRaw || undefined,
-      });
-      amlLine = amlRaw ? getDisplayAmlStatus(amlRaw) : null;
+      const { reg, kycRaw, amlRaw } = supFields;
+      kycDisplay = normalizeRawStatus(kycRaw || reg);
+      amlLine = normalizeRawStatus(amlRaw) || null;
     } else if (hasLegacyData) {
       applyLegacyKycAml();
     } else {
-      kycDisplay = "Not Started";
+      kycDisplay = "";
       amlLine = null;
     }
 
@@ -1462,7 +1338,7 @@ function buildCtosBackedDisplayRows(
       Boolean(sentRowIds?.has(stableId)) ||
       Boolean(idKeyNorm && supplementSentPartyKeys.has(idKeyNorm));
     const status = kycDisplay;
-    const canBase = !linkSent && (!email.trim() || kycDisplay === "Not Started");
+    const canBase = !linkSent && (!email.trim() || !status);
     const role =
       b.type === "COMPANY"
         ? "Corporate Shareholder"
@@ -1523,19 +1399,18 @@ function buildKycOnlyFallbackRows(
     const eod = String(d.eodRequestId ?? "").trim();
     const id = `kyc-only-${gKey ?? eod ?? `i${idx++}`}`;
     const stRaw = d.kycStatus != null ? String(d.kycStatus) : null;
-    const rawBase = stRaw && stRaw.trim() !== "" ? stRaw : "Not requested";
-    const unifiedBase = legacyDirectorKycRawToUnifiedDisplay(rawBase);
+    const rawBase = stRaw && stRaw.trim() !== "" ? stRaw : "";
+    const unifiedBase = normalizeRawStatus(rawBase);
     const emKyc = d.email != null ? String(d.email).trim() : "";
     const em = emKyc;
     const sent = Boolean(sentRowIds?.has(id));
-    const status = sent ? "Sent" : unifiedBase;
-    const canBase = !sent && (!em || unifiedBase === "Not Started");
+    const status = unifiedBase;
+    const canBase = !sent && (!em || !status);
     const kycIdRow = String(d.kycId ?? "").trim();
     const amlRaw = legacyAmlRawFromMatch(
       findLegacyAmlMatch({ kycId: kycIdRow || null, eodRequestId: eod || null }, directorAmlStatus)
     );
-    const amlLine =
-      amlRaw != null && String(amlRaw).trim() !== "" ? getDisplayAmlStatus(amlRaw) : undefined;
+    const amlLine = normalizeRawStatus(amlRaw);
     const ownK = ownershipFromKycRoleString(roleStr);
     const effectiveIsDirector = isDir || (!isDir && !isSh);
     const role =
@@ -1561,7 +1436,7 @@ function buildKycOnlyFallbackRows(
       isDirector: effectiveIsDirector,
       isShareholder: isSh,
       sharePercentage: sharePct,
-      amlStatus: amlLine,
+      amlStatus: amlLine || undefined,
     });
   }
   const kycSh = Array.isArray(directorKycStatus?.individualShareholders)
@@ -1581,20 +1456,19 @@ function buildKycOnlyFallbackRows(
     if (!isDirS && isShS && sharePctS < 5) continue;
 
     const stRaw = s.kycStatus != null ? String(s.kycStatus) : null;
-    const rawBase = stRaw && stRaw.trim() !== "" ? stRaw : "Not requested";
-    const unifiedBase = legacyDirectorKycRawToUnifiedDisplay(rawBase);
+    const rawBase = stRaw && stRaw.trim() !== "" ? stRaw : "";
+    const unifiedBase = normalizeRawStatus(rawBase);
     const emKycS = s.email != null ? String(s.email).trim() : "";
     const em = emKycS;
     const sent = Boolean(sentRowIds?.has(id));
-    const status = sent ? "Sent" : unifiedBase;
-    const canBase = !sent && (!em || unifiedBase === "Not Started");
+    const status = unifiedBase;
+    const canBase = !sent && (!em || !status);
     const kycIdS = String(s.kycId ?? "").trim();
     const eodS = String(s.eodRequestId ?? "").trim();
     const amlRawS = legacyAmlRawFromMatch(
       findLegacyAmlMatch({ kycId: kycIdS || null, eodRequestId: eodS || null }, directorAmlStatus)
     );
-    const amlLineS =
-      amlRawS != null && String(amlRawS).trim() !== "" ? getDisplayAmlStatus(amlRawS) : undefined;
+    const amlLineS = normalizeRawStatus(amlRawS);
     const ownS = ownershipFromKycRoleString(roleStrS);
     const effectiveDirS = isDirS || (!isDirS && !isShS);
     const role =
@@ -1620,7 +1494,7 @@ function buildKycOnlyFallbackRows(
       isDirector: effectiveDirS,
       isShareholder: isShS,
       sharePercentage: sharePctS,
-      amlStatus: amlLineS,
+      amlStatus: amlLineS || undefined,
     });
   }
   return rows;
