@@ -532,6 +532,7 @@ Definitions:
 Rules:
 
 - Admin can publish a note only after accepted source terms are frozen.
+- Note creation APIs must create notes only from approved invoices. Application-scoped creation should select an approved source invoice and must not fall back to creating an application-only note when no approved invoice exists.
 - Marketplace funding opens with a target and a close date.
 - `Publish` makes the note visible and investable in the investor marketplace. Use it only after source invoice, issuer, paymaster, target amount, profit rate, platform fee, service fee, risk disclosure, and listing summary have been reviewed.
 - `Unpublish` removes the note from the investor marketplace. It should be used only before investor commitments exist, or as an exceptional admin action if a listing needs to be withdrawn before funding opens.
@@ -556,6 +557,7 @@ Paymaster repayment assumption:
 - Paymaster means the existing customer/obligor from the source contract or invoice, not a newly-entered party.
 - Paymaster repays the invoice/contract financing obligation in full. This settlement amount equals the invoice face value.
 - Issuer-on-behalf-of-paymaster payments should settle the same invoice face value obligation, preserve the true payment source for audit, and be reviewed by admin before reconciliation.
+- Once settlement is posted and the note is marked settled, further payment recording, late-fee charging, settlement previews, approvals, and posting must be blocked at the API layer.
 - If investor funding is below 100%, the unfunded balance remains payable to the issuer because the issuer owns the receivable.
 - The residual balance, less applicable service fee and approved issuer-borne late charges, is returned to the issuer from the Repayment Pool. Platform fee has already been deducted at disbursement.
 - Admin should manually check whether payment is overdue before settlement. The system should calculate ta'widh and gharamah from the due date plus grace period and subtract all previously approved or posted late fees so the issuer is not double charged.

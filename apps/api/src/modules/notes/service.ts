@@ -123,6 +123,9 @@ function assertNoteReadyForServicing(note: {
       "Payment and settlement are available only after the note is funded and activated"
     );
   }
+  if (note.servicing_status === NoteServicingStatus.SETTLED) {
+    throw new AppError(409, "NOTE_ALREADY_SETTLED", "Payment and settlement are closed after settlement is posted");
+  }
 }
 
 function money(value: number): Prisma.Decimal {
@@ -356,133 +359,23 @@ export class NoteService {
 
     const selectedInvoice = input.sourceInvoiceId
       ? source.invoices.find((invoice) => invoice.id === input.sourceInvoiceId)
-      : source.invoices[0] ?? null;
+      : source.invoices.find((invoice) => invoice.status === InvoiceStatus.APPROVED) ?? null;
 
     if (input.sourceInvoiceId && !selectedInvoice) {
       throw new AppError(404, "INVOICE_NOT_FOUND", "Source invoice not found for application");
     }
 
-    if (selectedInvoice) {
-      return this.createFromInvoiceSource({
-        application: source,
-        invoice: selectedInvoice,
-        sourceContract: source.contract,
-        title: input.title,
-        actor,
-      });
+    if (!selectedInvoice) {
+      throw new AppError(409, "INVOICE_NOT_APPROVED", "Only approved invoices can become notes");
     }
 
-    const existing = await noteRepository.findBySource(applicationId, null);
-    if (existing) return mapNoteDetail(existing);
-
-    const invoiceDetails: Record<string, unknown> = {};
-    const invoiceOffer: Record<string, unknown> = {};
-    const contractDetails = asRecord(source.contract?.contract_details) ?? {};
-    const targetAmount =
-      resolveOfferedAmount(invoiceOffer) ||
-      resolveRequestedInvoiceAmount(invoiceDetails) ||
-      resolveApprovedFacilityForRefresh(source.contract?.status ?? "", contractDetails) ||
-      toNumber(contractDetails.financing) ||
-      toNumber(contractDetails.value);
-
-    if (targetAmount <= 0) {
-      throw new AppError(422, "NOTE_AMOUNT_UNRESOLVED", "Unable to resolve note target amount");
-    }
-
-    const reference = `NOTE-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${source.id
-      .slice(-6)
-      .toUpperCase()}`;
-
-    const note = await prisma.$transaction(async (tx) => {
-      const created = await tx.note.create({
-        data: {
-          source_application_id: source.id,
-          source_contract_id: source.contract_id,
-          source_invoice_id: null,
-          issuer_organization_id: source.issuer_organization_id,
-          title:
-            input.title ??
-            `Note for ${source.issuer_organization.name ?? source.issuer_organization.id}`,
-          note_reference: reference,
-          product_snapshot: json(source.financing_type),
-          issuer_snapshot: {
-            id: source.issuer_organization.id,
-            name: source.issuer_organization.name,
-            type: source.issuer_organization.type,
-          },
-          paymaster_snapshot: json(source.contract?.customer_details),
-          contract_snapshot: json(
-            source.contract
-              ? {
-                  id: source.contract.id,
-                  status: source.contract.status,
-                  contract_details: source.contract.contract_details,
-                  offer_details: source.contract.offer_details,
-                }
-              : null
-          ),
-          invoice_snapshot: json(null),
-          requested_amount: money(targetAmount),
-          target_amount: money(targetAmount),
-          profit_rate_percent:
-            resolveOfferedProfitRate(invoiceOffer) != null
-              ? money(resolveOfferedProfitRate(invoiceOffer) ?? 0)
-              : undefined,
-          service_fee_rate_percent: money(15),
-          maturity_date:
-            typeof invoiceDetails.maturity_date === "string"
-              ? dateFrom(invoiceDetails.maturity_date)
-              : null,
-          events: {
-            create: {
-              event_type: "NOTE_CREATED_FROM_APPLICATION",
-              actor_user_id: actor.userId,
-              actor_role: actor.role,
-              portal: actor.portal ?? "ADMIN",
-              ip_address: actor.ipAddress,
-              user_agent: actor.userAgent,
-              correlation_id: actor.correlationId,
-              metadata: { applicationId: source.id, invoiceId: null },
-            },
-          },
-          admin_actions: {
-            create: {
-              action_type: "CREATE_FROM_APPLICATION",
-              actor_user_id: actor.userId,
-              after_state: { status: NoteStatus.DRAFT },
-              ip_address: actor.ipAddress,
-              user_agent: actor.userAgent,
-              correlation_id: actor.correlationId,
-            },
-          },
-        },
-        include: noteInclude,
-      });
-
-      await tx.notePaymentSchedule.create({
-        data: {
-          note_id: created.id,
-          sequence: 1,
-          due_date: created.maturity_date ?? new Date(),
-          expected_principal: created.target_amount,
-          expected_profit: money(
-            created.profit_rate_percent
-              ? created.target_amount.toNumber() * (created.profit_rate_percent.toNumber() / 100)
-              : 0
-          ),
-          expected_total: money(
-            created.target_amount.toNumber() +
-              (created.profit_rate_percent
-                ? created.target_amount.toNumber() * (created.profit_rate_percent.toNumber() / 100)
-                : 0)
-          ),
-        },
-      });
-
-      return tx.note.findUniqueOrThrow({ where: { id: created.id }, include: noteInclude });
+    return this.createFromInvoiceSource({
+      application: source,
+      invoice: selectedInvoice,
+      sourceContract: source.contract,
+      title: input.title,
+      actor,
     });
-
-    return mapNoteDetail(note);
   }
 
   private async createFromInvoiceSource(params: {
@@ -516,6 +409,10 @@ export class NoteService {
     actor: ActorContext;
   }) {
     const { application, invoice, sourceContract, actor } = params;
+    if (invoice.status !== InvoiceStatus.APPROVED) {
+      throw new AppError(409, "INVOICE_NOT_APPROVED", "Only approved invoices can become notes");
+    }
+
     const existing = await noteRepository.findBySource(application.id, invoice.id);
     if (existing) return mapNoteDetail(existing);
 
