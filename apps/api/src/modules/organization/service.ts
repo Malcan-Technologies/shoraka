@@ -1976,7 +1976,7 @@ export class OrganizationService {
       ctos: extras.latestOrganizationCtosCompanyJson ?? null,
       issuerDirectorKycStatus: organization?.director_kyc_status ?? null,
       issuerDirectorAmlStatus: organization?.director_aml_status ?? null,
-      supplement: extras.ctosPartySupplements[0] ?? null,
+      ctosPartySupplements: extras.ctosPartySupplements,
       corporateEntities: organization?.corporate_entities ?? null,
     });
     return {
@@ -2277,7 +2277,7 @@ export class OrganizationService {
         ctos: extras.latestOrganizationCtosCompanyJson ?? null,
         issuerDirectorKycStatus: organization?.director_kyc_status ?? null,
         issuerDirectorAmlStatus: organization?.director_aml_status ?? null,
-        supplement: extras.ctosPartySupplements[0] ?? null,
+        ctosPartySupplements: extras.ctosPartySupplements,
         corporateEntities: organization?.corporate_entities ?? null,
       });
       return {
@@ -2298,7 +2298,7 @@ export class OrganizationService {
         ctos: extras.latestOrganizationCtosCompanyJson ?? null,
         issuerDirectorKycStatus: organization?.director_kyc_status ?? null,
         issuerDirectorAmlStatus: organization?.director_aml_status ?? null,
-        supplement: extras.ctosPartySupplements[0] ?? null,
+        ctosPartySupplements: extras.ctosPartySupplements,
         corporateEntities: organization?.corporate_entities ?? null,
       });
       return {

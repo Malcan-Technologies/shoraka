@@ -206,15 +206,12 @@ function EditApplicationPageBody() {
     if (people.length === 0) return true;
     return areDirectorShareholdersReadyForApplicationSubmit({
       people,
-      directorKycStatus: partyEntities.directorKycStatus ?? null,
-      corporateEntities: partyEntities,
-      ctosPartySupplements: partyEntities.ctosPartySupplements ?? null,
     });
   }, [activeOrganization, issuerOrgId, partyEntities]);
 
   const directorPartySubmitBlockedMessage =
     activeOrganization?.directorShareholderSubmitBlockedMessage ??
-    "Please complete onboarding for all required directors/shareholders before submitting.";
+    "Please complete AML for all directors/shareholders before submitting.";
 
   /** Handle application not found */
   React.useEffect(() => {

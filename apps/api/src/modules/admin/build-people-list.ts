@@ -1,17 +1,37 @@
 import type { OnboardingApplicationResponse } from "@cashsouk/types";
-import { normalizeDirectorShareholderIdKey } from "@cashsouk/types";
 import {
-  detectDirectorGaps,
-  extractCtosIndividuals,
-} from "../regtank/helpers/detect-director-gaps";
+  normalizeDirectorShareholderIdKey,
+  parseCtosPartySupplementRoot,
+  getEffectiveCtosPartyScreening,
+} from "@cashsouk/types";
+import { extractCtosIndividuals } from "../regtank/helpers/detect-director-gaps";
+
+type SupplementInput = {
+  party_key?: string;
+  partyKey?: string;
+  onboarding_json?: unknown;
+  onboardingJson?: unknown;
+};
+
+function screeningStatusFromSupplement(raw: unknown): string | null {
+  const root = parseCtosPartySupplementRoot(raw);
+  const scr = getEffectiveCtosPartyScreening(root);
+  const s = scr.status;
+  return typeof s === "string" && s.trim() ? s.trim() : null;
+}
 
 export function buildAdminPeopleList(params: {
   ctos: unknown;
   issuerDirectorKycStatus: unknown;
   issuerDirectorAmlStatus: unknown;
-  supplement: unknown;
+  /** Prefer {@link ctosPartySupplements} so every party row gets screening. */
+  supplement?: unknown | null;
+  ctosPartySupplements?: SupplementInput[] | null;
   corporateEntities: unknown;
 }): OnboardingApplicationResponse["people"] {
+  void params.corporateEntities;
+  void params.issuerDirectorKycStatus;
+
   const ctos = params.ctos;
   const ctosSafe =
     ctos && typeof ctos === "object"
@@ -27,24 +47,25 @@ export function buildAdminPeopleList(params: {
       : null;
   if (!ctosSafe) return [];
 
+  const supplements: SupplementInput[] =
+    Array.isArray(params.ctosPartySupplements) && params.ctosPartySupplements.length > 0
+      ? params.ctosPartySupplements
+      : params.supplement
+        ? [params.supplement as SupplementInput]
+        : [];
+
+  const screeningByPartyKey = new Map<string, { status: string | null }>();
+  for (const s of supplements) {
+    const pk = normalizeDirectorShareholderIdKey(String(s.party_key ?? s.partyKey ?? ""));
+    if (!pk) continue;
+    const raw = s.onboarding_json ?? s.onboardingJson;
+    const st = screeningStatusFromSupplement(raw);
+    screeningByPartyKey.set(pk, { status: st });
+  }
+
   const issuer = {
     director_kyc_status: params.issuerDirectorKycStatus ?? null,
     director_aml_status: params.issuerDirectorAmlStatus ?? null,
-  };
-  const gaps = detectDirectorGaps({
-    ctos: ctosSafe,
-    issuer,
-    supplement: params.supplement,
-  });
-  const gapMap = new Map<string, "NEW_REQUIRED" | "IN_PROGRESS" | "KYC_INCOMPLETE" | "AML_INCOMPLETE">();
-  gaps.amlIssues.forEach((x) => gapMap.set(x.matchKey, "AML_INCOMPLETE"));
-  gaps.kycIssues.forEach((x) => gapMap.set(x.matchKey, "KYC_INCOMPLETE"));
-  gaps.inProgress.forEach((x) => gapMap.set(x.matchKey, "IN_PROGRESS"));
-  gaps.newRequired.forEach((x) => gapMap.set(x.matchKey, "NEW_REQUIRED"));
-
-  const normalizeStatus = (value: unknown): string => {
-    if (typeof value !== "string" || !value.trim()) return "NONE";
-    return value.trim().replace(/_/g, " ").toUpperCase();
   };
   const businessShareholders = Array.isArray(
     (issuer.director_aml_status as { businessShareholders?: unknown } | null | undefined)
@@ -52,7 +73,7 @@ export function buildAdminPeopleList(params: {
   )
     ? ((issuer.director_aml_status as { businessShareholders?: unknown[] }).businessShareholders ?? [])
     : [];
-  const corporateStatusMap = new Map<string, string>();
+  const corporateRawAmlByKey = new Map<string, string>();
   for (const shareholder of businessShareholders) {
     if (!shareholder || typeof shareholder !== "object" || Array.isArray(shareholder)) continue;
     const row = shareholder as Record<string, unknown>;
@@ -67,7 +88,27 @@ export function buildAdminPeopleList(params: {
       )
     );
     if (!key) continue;
-    corporateStatusMap.set(key, normalizeStatus(row.amlStatus));
+    corporateRawAmlByKey.set(
+      key,
+      typeof row.amlStatus === "string" ? row.amlStatus.trim() : ""
+    );
+  }
+
+  const directorsAml = Array.isArray(
+    (issuer.director_aml_status as { directors?: unknown } | null | undefined)?.directors
+  )
+    ? ((issuer.director_aml_status as { directors?: unknown[] }).directors ?? [])
+    : [];
+  const individualSyncAmlByKey = new Map<string, string>();
+  for (const d of directorsAml) {
+    if (!d || typeof d !== "object" || Array.isArray(d)) continue;
+    const row = d as Record<string, unknown>;
+    const gov = normalizeDirectorShareholderIdKey(String(row.governmentIdNumber ?? row.ic_lcno ?? ""));
+    if (!gov) continue;
+    individualSyncAmlByKey.set(
+      gov,
+      typeof row.amlStatus === "string" ? row.amlStatus.trim() : ""
+    );
   }
 
   const ctosPeople = extractCtosIndividuals(ctosSafe);
@@ -80,8 +121,9 @@ export function buildAdminPeopleList(params: {
       entityType: "INDIVIDUAL" | "CORPORATE";
       roles: Array<"DIRECTOR" | "SHAREHOLDER">;
       sharePercentage: number | null;
-      status: string | null;
+      status: string;
       action: "SEND_EMAIL" | null;
+      screening: { status: string | null } | null;
     }
   >();
   for (const p of ctosPeople) {
@@ -98,8 +140,9 @@ export function buildAdminPeopleList(params: {
         entityType: p.entityType,
         roles: [role],
         sharePercentage: incomingSharePercentage,
-        status: null,
+        status: "",
         action: null,
+        screening: null,
       });
       continue;
     }
@@ -118,19 +161,31 @@ export function buildAdminPeopleList(params: {
       existing.name = p.name;
     }
   }
-  const people = Array.from(peopleMap.values()).map((person) => {
-    const rawStatus =
-      person.entityType === "CORPORATE"
-        ? corporateStatusMap.get(person.matchKey) ?? null
-        : gapMap.get(person.matchKey) ?? "APPROVED";
-    const status = normalizeStatus(rawStatus ?? null);
-    const action: "SEND_EMAIL" | null =
-      person.entityType === "INDIVIDUAL" && status === "NEW REQUIRED" ? "SEND_EMAIL" : null;
+
+  return Array.from(peopleMap.values()).map((person) => {
+    const key = normalizeDirectorShareholderIdKey(person.matchKey) ?? "";
+    let screening: { status: string | null } | null = null;
+    if (person.entityType === "CORPORATE") {
+      const fromSup = key ? screeningByPartyKey.get(key) : undefined;
+      const fromSync = key ? corporateRawAmlByKey.get(key) : undefined;
+      const st = (fromSup?.status != null && fromSup.status !== "" ? fromSup.status : null) ?? fromSync ?? null;
+      screening = { status: st };
+    } else {
+      const fromSup = key ? screeningByPartyKey.get(key) : undefined;
+      const fromSync = key ? individualSyncAmlByKey.get(key) : undefined;
+      const st =
+        (fromSup?.status != null && String(fromSup.status).trim() !== ""
+          ? String(fromSup.status).trim()
+          : null) ??
+        (fromSync && fromSync.trim() !== "" ? fromSync : null);
+      screening = { status: st };
+    }
+    const amlLabel = screening.status?.trim() || "—";
     return {
       ...person,
-      status,
-      action,
+      screening,
+      status: amlLabel,
+      action: null,
     };
   });
-  return people;
 }

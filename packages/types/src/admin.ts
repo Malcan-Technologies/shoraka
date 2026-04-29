@@ -739,15 +739,9 @@ export interface OnboardingApplicationResponse {
   /** Latest org-level CTOS `company_json` (subject_ref null); enables CTOS-backed unified KYC/AML in admin onboarding dialog. */
   latestOrganizationCtosCompanyJson?: unknown | null;
   ctosPartySupplements?: OnboardingApplicationCtosPartySupplement[] | null;
-  people?: Array<{
-    matchKey: string;
-    name: string | null;
-    entityType: "INDIVIDUAL" | "CORPORATE";
-    roles: string[];
-    sharePercentage: number | null;
-    status: string;
-    action: "SEND_EMAIL" | null;
-  }>;
+  people?: import("./application-people-display").ApplicationPersonRow[];
+  /** True when any CTOS party row lacks AML screening status Approved. */
+  directorShareholderAmlPending?: boolean;
 }
 
 export interface GetOnboardingApplicationsParams extends PaginationParams {
@@ -1047,6 +1041,8 @@ export interface ApplicationListItem {
   updatedAt: string;
   productId: string | null;
   baseProductId: string | null;
+  /** Derived from issuer org CTOS people + AML screening (not stored on application). */
+  directorShareholderAmlPending?: boolean;
 }
 
 export interface GetAdminApplicationsParams extends PaginationParams {

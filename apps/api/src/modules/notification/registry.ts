@@ -32,7 +32,6 @@ export const NotificationTypeIds = {
   APPLICATION_RESUBMITTED_CONFIRMATION: 'application_resubmitted_confirmation',
   APPLICATION_WITHDRAWN_CONFIRMATION: 'application_withdrawn_confirmation',
   APPLICATION_COMPLETED: 'application_completed',
-  DIRECTOR_SHAREHOLDER_UPDATE_REQUIRED: 'director_shareholder_update_required',
 } as const;
 
 export type NotificationTypeId = typeof NotificationTypeIds[keyof typeof NotificationTypeIds];
@@ -120,9 +119,6 @@ export interface NotificationPayloads {
     applicationId: string;
   };
   [NotificationTypeIds.APPLICATION_COMPLETED]: {
-    applicationId: string;
-  };
-  [NotificationTypeIds.DIRECTOR_SHAREHOLDER_UPDATE_REQUIRED]: {
     applicationId: string;
   };
 }
@@ -269,13 +265,6 @@ export const NOTIFICATION_TEMPLATES: {
   [NotificationTypeIds.APPLICATION_COMPLETED]: {
     title: 'Application Completed',
     message: (data) => `Your application ${getShortApplicationRef(data.applicationId)} has been completed successfully.`,
-    linkPath: (data) => `/applications/${data.applicationId}`,
-    portal: 'issuer',
-  },
-  [NotificationTypeIds.DIRECTOR_SHAREHOLDER_UPDATE_REQUIRED]: {
-    title: 'Update directors/shareholders',
-    message: () =>
-      'Please update directors/shareholders to match CTOS. Open your application to review required actions.',
     linkPath: (data) => `/applications/${data.applicationId}`,
     portal: 'issuer',
   },

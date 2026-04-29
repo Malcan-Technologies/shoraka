@@ -229,15 +229,4 @@ export const initialNotificationTypes = [
     enabled_platform: true,
     enabled_email: false,
   },
-  {
-    id: "director_shareholder_update_required",
-    name: "Directors / shareholders update required",
-    description: "Sent when CTOS no longer matches declared directors or shareholders for an application.",
-    category: NotificationCategory.SYSTEM,
-    portal_targets: ISSUER_ONLY,
-    default_priority: NotificationPriority.WARNING,
-    user_configurable: true,
-    enabled_platform: true,
-    enabled_email: true,
-  },
 ];

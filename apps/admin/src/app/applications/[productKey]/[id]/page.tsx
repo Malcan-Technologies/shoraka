@@ -69,6 +69,11 @@ import {
   XCircleIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency, useAuthToken, readInvoiceMaturityMonthsFromWorkflow } from "@cashsouk/config";
+import {
+  filterVisiblePeopleRows,
+  peopleHasPendingDirectorShareholderAml,
+  type ApplicationPersonRow,
+} from "@cashsouk/types";
 import { ApplicationStatusBadge } from "@/components/application-review";
 import JSZip from "jszip";
 
@@ -630,6 +635,14 @@ export default function DynamicApplicationDetailPage() {
                     </div>
                   </div>
                   <ApplicationStatusBadge status={app.status} size="lg" />
+                  {Array.isArray((app as { people?: unknown }).people) &&
+                  peopleHasPendingDirectorShareholderAml(
+                    filterVisiblePeopleRows((app as { people: ApplicationPersonRow[] }).people)
+                  ) ? (
+                    <Badge variant="secondary" className="rounded-full text-xs font-semibold">
+                      Pending Directors/Shareholders
+                    </Badge>
+                  ) : null}
                 </div>
                 {isReviewable ? (
                   <TooltipProvider>

@@ -44,7 +44,7 @@ export default function NewApplicationPage() {
     activeOrganization.directorShareholderSubmitReady === false;
   const directorSubmitBlockedMessage =
     activeOrganization?.directorShareholderSubmitBlockedMessage ??
-    "Please complete onboarding for all required directors/shareholders before submitting.";
+    "Please complete AML for all directors/shareholders before submitting.";
   const { setTitle } = useHeader();
 
   React.useEffect(() => {

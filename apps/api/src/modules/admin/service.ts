@@ -67,9 +67,7 @@ import {
   getStepKeyFromStepId,
   isRegtankIso3166Code,
   normalizeDirectorShareholderIdKey,
-  getDirectorShareholderWorkflowFromCompanyDetails,
-  mergeDirectorShareholderWorkflowIntoCompanyDetails,
-  type DirectorShareholderPersonWorkflow,
+  peopleHasPendingDirectorShareholderAml,
   type SoukscoreRiskRating,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
@@ -1999,10 +1997,10 @@ export class AdminService {
                   : (investorLatestCtosCompanyJson ?? null),
               issuerDirectorKycStatus: org.director_kyc_status ?? null,
               issuerDirectorAmlStatus: org.director_aml_status ?? null,
-              supplement:
+              ctosPartySupplements:
                 portal === "issuer"
-                  ? (ctosPartySupplements?.[0] ?? null)
-                  : (investorCtosPartySupplements?.[0] ?? null),
+                  ? (ctosPartySupplements ?? null)
+                  : (investorCtosPartySupplements ?? null),
               corporateEntities: org.corporate_entities ?? null,
             })
           : undefined,
@@ -2279,7 +2277,7 @@ export class AdminService {
       ctos: existingResponse.latestOrganizationCtosCompanyJson,
       issuerDirectorKycStatus: refreshed.issuer_organization?.director_kyc_status ?? null,
       issuerDirectorAmlStatus: refreshed.issuer_organization?.director_aml_status ?? null,
-      supplement: refreshed.issuer_organization?.ctos_party_supplements?.[0] ?? null,
+      ctosPartySupplements: refreshed.issuer_organization?.ctos_party_supplements ?? null,
       corporateEntities: existingResponse.corporateEntities ?? null,
     });
 
@@ -2706,6 +2704,27 @@ export class AdminService {
           }))
         : null;
 
+    const onboardingPeopleForAml =
+      record.organization_type === "COMPANY" && orgForCtos
+        ? buildAdminPeopleList({
+            ctos: latestOrganizationCtosCompanyJson,
+            issuerDirectorKycStatus: directorKycStatusRaw ?? null,
+            issuerDirectorAmlStatus: directorAmlStatusRaw ?? null,
+            ctosPartySupplements:
+              Array.isArray(ctosPartySupplementsRaw) && ctosPartySupplementsRaw.length > 0
+                ? ctosPartySupplementsRaw.map((s: { party_key: string; onboarding_json: unknown }) => ({
+                    party_key: s.party_key,
+                    onboarding_json: s.onboarding_json ?? null,
+                  }))
+                : null,
+            corporateEntities: corporateEntitiesRaw ?? null,
+          })
+        : [];
+    const directorShareholderAmlPending =
+      record.organization_type === "COMPANY"
+        ? peopleHasPendingDirectorShareholderAml(onboardingPeopleForAml)
+        : false;
+
     return {
       id: record.id,
       userId: record.user.user_id,
@@ -2741,6 +2760,7 @@ export class AdminService {
       corporateEntities,
       latestOrganizationCtosCompanyJson,
       ctosPartySupplements,
+      directorShareholderAmlPending,
     };
   }
 
@@ -4264,6 +4284,7 @@ export class AdminService {
       updatedAt: Date;
       productId: string | null;
       baseProductId: string | null;
+      directorShareholderAmlPending: boolean;
     }[];
     pagination: {
       page: number;
@@ -4275,8 +4296,44 @@ export class AdminService {
     const repository = new AdminRepository();
     const { applications, total } = await repository.getApplications(params);
 
+    const orgService = new OrganizationService();
+    const orgIds = [
+      ...new Set(
+        applications
+          .map((a) => a.issuerOrganizationId)
+          .filter((x): x is string => typeof x === "string" && x.length > 0)
+      ),
+    ];
+    const pendingByOrg = new Map<string, boolean>();
+    await Promise.all(
+      orgIds.map(async (oid) => {
+        const org = await prisma.issuerOrganization.findUnique({
+          where: { id: oid },
+          select: { corporate_entities: true, director_kyc_status: true, director_aml_status: true },
+        });
+        if (!org) {
+          pendingByOrg.set(oid, false);
+          return;
+        }
+        const extras = await orgService.getIssuerPartyListExtras(oid);
+        const people = buildAdminPeopleList({
+          ctos: extras.latestOrganizationCtosCompanyJson ?? null,
+          issuerDirectorKycStatus: org.director_kyc_status ?? null,
+          issuerDirectorAmlStatus: org.director_aml_status ?? null,
+          ctosPartySupplements: extras.ctosPartySupplements,
+          corporateEntities: org.corporate_entities ?? null,
+        });
+        pendingByOrg.set(oid, peopleHasPendingDirectorShareholderAml(people));
+      })
+    );
+
     return {
-      applications,
+      applications: applications.map(({ issuerOrganizationId, ...rest }) => ({
+        ...rest,
+        directorShareholderAmlPending: issuerOrganizationId
+          ? pendingByOrg.get(issuerOrganizationId) ?? false
+          : false,
+      })),
       pagination: {
         page: params.page,
         pageSize: params.pageSize,
@@ -4510,8 +4567,8 @@ export class AdminService {
       ctos: issuerOrgForPeople?.latest_organization_ctos_company_json ?? null,
       issuerDirectorKycStatus: issuerOrgForPeople?.director_kyc_status ?? null,
       issuerDirectorAmlStatus: issuerOrgForPeople?.director_aml_status ?? null,
-      supplement: Array.isArray(issuerOrgForPeople?.ctos_party_supplements)
-        ? issuerOrgForPeople.ctos_party_supplements[0]
+      ctosPartySupplements: Array.isArray(issuerOrgForPeople?.ctos_party_supplements)
+        ? issuerOrgForPeople.ctos_party_supplements
         : null,
       corporateEntities: issuerOrgForPeople?.corporate_entities ?? null,
     });
@@ -7229,79 +7286,5 @@ export class AdminService {
 
     logger.info({ applicationId, count: pending.length, reviewerUserId }, "Pending amendments submitted");
     return repository.getApplicationById(applicationId);
-  }
-
-  async patchApplicationDirectorShareholderReview(
-    applicationId: string,
-    body: { matchKey: string; action: "APPROVE" | "REJECT"; remark?: string }
-  ): Promise<{ ok: boolean }> {
-    const app = await prisma.application.findUnique({
-      where: { id: applicationId },
-      select: { company_details: true },
-    });
-    if (!app) {
-      throw new AppError(404, "NOT_FOUND", "Application not found");
-    }
-    const pk = normalizeDirectorShareholderIdKey(body.matchKey);
-    if (!pk) {
-      throw new AppError(400, "VALIDATION_ERROR", "Invalid match key");
-    }
-    const nowIso = new Date().toISOString();
-    const personPatch =
-      body.action === "APPROVE"
-        ? { matchKey: pk, status: "APPROVED" as const, updatedAt: nowIso }
-        : {
-            matchKey: pk,
-            status: "UNDER_REVIEW" as const,
-            remark: (body.remark ?? "").trim(),
-            updatedAt: nowIso,
-          };
-    const merged = mergeDirectorShareholderWorkflowIntoCompanyDetails(app.company_details, {
-      persons: { [pk]: personPatch },
-    });
-    const wf = getDirectorShareholderWorkflowFromCompanyDetails(merged);
-    const personList = Object.values(wf.persons ?? {}) as DirectorShareholderPersonWorkflow[];
-    const stillNeeds = personList.some((p) => p.status === "PENDING" || p.status === "UNDER_REVIEW");
-    const merged2 = mergeDirectorShareholderWorkflowIntoCompanyDetails(merged, {
-      directorShareholderPending: stillNeeds,
-    });
-    await prisma.application.update({
-      where: { id: applicationId },
-      data: { company_details: merged2 as object },
-    });
-    return { ok: true };
-  }
-
-  async notifyApplicationDirectorShareholderAgain(
-    applicationId: string,
-    body: { matchKey: string; remark: string }
-  ): Promise<{ ok: boolean; requestId: string }> {
-    const app = await prisma.application.findUnique({
-      where: { id: applicationId },
-      select: { issuer_organization_id: true, company_details: true },
-    });
-    if (!app) {
-      throw new AppError(404, "NOT_FOUND", "Application not found");
-    }
-    const pk = normalizeDirectorShareholderIdKey(body.matchKey);
-    if (!pk) {
-      throw new AppError(400, "VALIDATION_ERROR", "Invalid match key");
-    }
-    const wf = getDirectorShareholderWorkflowFromCompanyDetails(app.company_details);
-    const person = wf.persons?.[pk];
-    if (person?.status !== "UNDER_REVIEW") {
-      throw new AppError(
-        400,
-        "INVALID_STATE",
-        "Notify again is only allowed when person status is UNDER_REVIEW"
-      );
-    }
-    const organizationService = new OrganizationService();
-    const { requestId } = await organizationService.sendDirectorCtosPartyOnboardingPrivileged(
-      app.issuer_organization_id,
-      { partyKey: pk },
-      body.remark.trim()
-    );
-    return { ok: true, requestId };
   }
 }

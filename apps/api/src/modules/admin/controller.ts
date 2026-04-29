@@ -44,8 +44,6 @@ import {
   updatePendingAmendmentSchema,
   createCtosSubjectReportSchema,
   resubmitComparisonQuerySchema,
-  directorShareholderReviewSchema,
-  directorShareholderNotifyAgainSchema,
 } from "./schemas";
 import { prisma } from "../../lib/prisma";
 import {
@@ -61,10 +59,6 @@ import {
   getCtosReportByAdminOrg,
 } from "../ctos/ctos-report-service";
 import { renderCtosHtmlToPdfBuffer } from "../ctos/render-ctos-html-to-pdf";
-import {
-  recomputeDirectorShareholderWorkflowForApplication,
-  recomputeMismatchForIssuerOrganizationApplications,
-} from "../applications/director-shareholder-ctos-mismatch";
 
 const router = Router();
 const adminService = new AdminService();
@@ -2247,13 +2241,6 @@ router.post(
         }
       }
       const row = await fetchAndInsertCtosReportForAdminOrg(orgPortal, id, res.locals.correlationId);
-      if (orgPortal === "issuer") {
-        await recomputeMismatchForIssuerOrganizationApplications({
-          issuerOrganizationId: id,
-          ctosReportId: row.id,
-          ctosCompanyJson: row.company_json,
-        });
-      }
       res.status(201).json({
         success: true,
         data: ctosRowPublicSummary(row),
@@ -2362,12 +2349,6 @@ router.post(
         throw new AppError(404, "NOT_FOUND", "Application not found");
       }
       const row = await fetchAndInsertCtosReport(app.issuer_organization_id, res.locals.correlationId);
-      await recomputeDirectorShareholderWorkflowForApplication({
-        applicationId,
-        issuerOrganizationId: app.issuer_organization_id,
-        ctosReportId: row.id,
-        ctosCompanyJson: row.company_json,
-      });
       res.status(201).json({
         success: true,
         data: ctosRowPublicSummary(row),
@@ -2543,38 +2524,6 @@ router.post(
  *       200:
  *         description: Application status updated
  */
-router.patch(
-  "/applications/:id/director-shareholder-review",
-  requireRole(UserRole.ADMIN),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
-      const { id } = req.params;
-      const body = directorShareholderReviewSchema.parse(req.body ?? {});
-      const result = await adminService.patchApplicationDirectorShareholderReview(id, body);
-      res.json({ success: true, data: result, correlationId: res.locals.correlationId });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
-router.post(
-  "/applications/:id/director-shareholder-notify-again",
-  requireRole(UserRole.ADMIN),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      if (!req.user) throw new AppError(401, "UNAUTHORIZED", "Authentication required");
-      const { id } = req.params;
-      const body = directorShareholderNotifyAgainSchema.parse(req.body ?? {});
-      const result = await adminService.notifyApplicationDirectorShareholderAgain(id, body);
-      res.json({ success: true, data: result, correlationId: res.locals.correlationId });
-    } catch (error) {
-      next(error);
-    }
-  }
-);
-
 router.patch(
   "/applications/:id/status",
   requireRole(UserRole.ADMIN),

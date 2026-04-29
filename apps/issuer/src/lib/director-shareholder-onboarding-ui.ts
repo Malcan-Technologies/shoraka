@@ -4,8 +4,26 @@ import {
   getCtosPartySupplementRequestId,
   getDirectorKycPartyRecord,
   normalizeDirectorShareholderIdKey,
+  peopleHasPendingDirectorShareholderAml,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
+
+export function getSupplementPipelineStatus(onboarding: Record<string, unknown>): string {
+  return getCtosPartySupplementPipelineStatus(onboarding);
+}
+
+export function getSupplementRequestId(onboarding: Record<string, unknown>): string {
+  return getCtosPartySupplementRequestId(onboarding);
+}
+
+/** Submission allowed for this party when RegTank is waiting for ops approval or already approved. */
+export function isRegTankSubmitReadyStatus(statusRaw: string): boolean {
+  const u = statusRaw.toUpperCase().replace(/\s+/g, "_");
+  if (!u) return false;
+  if (u === "APPROVED") return true;
+  if (u === "WAITING_FOR_APPROVAL" || u === "WAIT_FOR_APPROVAL" || u === "PENDING_APPROVAL") return true;
+  return false;
+}
 
 export type CorporateEntitiesShape = {
   directors?: unknown[];
@@ -83,41 +101,18 @@ export function getSupplementOnboardingJson(
   return {};
 }
 
-/** Pipeline status from CTOS party supplement JSON only (not AML). */
-export function getSupplementPipelineStatus(onboarding: Record<string, unknown>): string {
-  return getCtosPartySupplementPipelineStatus(onboarding);
-}
-
-export function getSupplementRequestId(onboarding: Record<string, unknown>): string {
-  return getCtosPartySupplementRequestId(onboarding);
-}
-
-/**
- * Submission allowed for this party when RegTank is waiting for ops approval or already approved.
- * Blocks EMAIL_SENT, ID_UPLOADED, PENDING, etc.
- */
-export function isRegTankSubmitReadyStatus(statusRaw: string): boolean {
-  const u = statusRaw.toUpperCase().replace(/\s+/g, "_");
-  if (!u) return false;
-  if (u === "APPROVED") return true;
-  if (u === "WAITING_FOR_APPROVAL" || u === "WAIT_FOR_APPROVAL" || u === "PENDING_APPROVAL") return true;
-  return false;
-}
-
+/** True when every visible CTOS party row has AML screening Approved. */
 export function areDirectorShareholdersReadyForApplicationSubmit(params: {
   people: ApplicationPersonRow[];
-  directorKycStatus: unknown;
-  corporateEntities: CorporateEntitiesShape | null | undefined;
-  ctosPartySupplements: ReadonlyArray<{ partyKey: string; onboardingJson?: unknown }> | null | undefined;
+  directorKycStatus?: unknown;
+  corporateEntities?: CorporateEntitiesShape | null | undefined;
+  ctosPartySupplements?: ReadonlyArray<{ partyKey: string; onboardingJson?: unknown }> | null | undefined;
 }): boolean {
+  void params.directorKycStatus;
+  void params.corporateEntities;
+  void params.ctosPartySupplements;
   const visible = filterVisiblePeopleRows(params.people);
-  for (const p of visible) {
-    if (isPartyTypeA(p, params.directorKycStatus, params.corporateEntities)) continue;
-    const ob = getSupplementOnboardingJson(p.matchKey, params.ctosPartySupplements);
-    if (!getSupplementRequestId(ob)) return false;
-    if (!isRegTankSubmitReadyStatus(getSupplementPipelineStatus(ob))) return false;
-  }
-  return true;
+  return !peopleHasPendingDirectorShareholderAml(visible);
 }
 
 export function personNeedsProfileDirectorAction(
@@ -127,10 +122,6 @@ export function personNeedsProfileDirectorAction(
   ctosPartySupplements: ReadonlyArray<{ partyKey: string; onboardingJson?: unknown }> | null | undefined
 ): boolean {
   if (isPartyTypeA(p, directorKycStatus, corporateEntities)) return false;
-  if (p.entityType !== "INDIVIDUAL") {
-    const ob = getSupplementOnboardingJson(p.matchKey, ctosPartySupplements);
-    return !isRegTankSubmitReadyStatus(getSupplementPipelineStatus(ob)) || !getSupplementRequestId(ob);
-  }
-  const ob = getSupplementOnboardingJson(p.matchKey, ctosPartySupplements);
-  return !isRegTankSubmitReadyStatus(getSupplementPipelineStatus(ob)) || !getSupplementRequestId(ob);
+  void ctosPartySupplements;
+  return peopleHasPendingDirectorShareholderAml([p]);
 }

@@ -12,18 +12,15 @@
  */
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { useOrganization, createApiClient, useAuthToken } from "@cashsouk/config";
 import {
   filterVisiblePeopleRows,
   formatPeopleRolesLine,
   formatSharePercentageCell,
-  type ApplicationPersonRow,
+  isDirectorShareholderAmlScreeningApproved,
+  peopleHasPendingDirectorShareholderAml,
 } from "@cashsouk/types";
-import {
-  areDirectorShareholdersReadyForApplicationSubmit,
-  personNeedsProfileDirectorAction,
-} from "@/lib/director-shareholder-onboarding-ui";
+import { areDirectorShareholdersReadyForApplicationSubmit } from "@/lib/director-shareholder-onboarding-ui";
 import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
 import { useApplication } from "@/hooks/use-applications";
@@ -159,15 +156,6 @@ function isValidAddress(addr: Record<string, unknown> | null): boolean {
   return !!(line1 && city && postalCode && state && country);
 }
 
-function personNeedsCompleteOnProfile(
-  p: ApplicationPersonRow,
-  directorKycStatus: unknown,
-  corporateEntities: { directors?: unknown[]; shareholders?: unknown[]; corporateShareholders?: unknown[] } | null | undefined,
-  ctosPartySupplements: ReadonlyArray<{ partyKey: string; onboardingJson?: unknown }> | null | undefined
-): boolean {
-  return personNeedsProfileDirectorAction(p, directorKycStatus, corporateEntities, ctosPartySupplements);
-}
-
 const inputClassName = cn(formInputClassName, formInputDisabledClassName);
 const inputClassNameEditable = formInputClassName;
 const labelClassName = formLabelClassName;
@@ -221,8 +209,6 @@ export function CompanyDetailsStep({
   } = useCorporateInfo(organizationId);
   const { data: entitiesData, isLoading: isLoadingEntities } = useCorporateEntities(organizationId);
   const isLoadingData = isLoadingInfo || isLoadingEntities;
-  const router = useRouter();
-
   const visiblePeopleRows = React.useMemo(
     () => filterVisiblePeopleRows(entitiesData?.people ?? []),
     [entitiesData?.people]
@@ -232,11 +218,8 @@ export function CompanyDetailsStep({
     () =>
       areDirectorShareholdersReadyForApplicationSubmit({
         people: entitiesData?.people ?? [],
-        directorKycStatus: entitiesData?.directorKycStatus ?? null,
-        corporateEntities: entitiesData ?? null,
-        ctosPartySupplements: entitiesData?.ctosPartySupplements ?? null,
       }),
-    [entitiesData]
+    [entitiesData?.people]
   );
 
   /* ================================================================
@@ -683,10 +666,10 @@ export function CompanyDetailsStep({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center">
-            {visiblePeopleRows.length > 0 && !directorsPartySubmitReady ? (
+            {visiblePeopleRows.length > 0 && peopleHasPendingDirectorShareholderAml(visiblePeopleRows) ? (
               <p className="text-[17px] leading-7 text-destructive col-span-2 border border-destructive/30 rounded-lg bg-destructive/5 px-3 py-2">
-                You cannot continue until every new director or shareholder has onboarding sent and RegTank status is
-                waiting for approval (or approved). Finish this on Profile → Directors and shareholders.
+                Complete AML screening for all directors and shareholders (status must be Approved). Use Profile →
+                Directors and shareholders.
               </p>
             ) : null}
             {visiblePeopleRows.length === 0 ? (
@@ -695,20 +678,10 @@ export function CompanyDetailsStep({
               </p>
             ) : (
               visiblePeopleRows.map((p) => {
-                const st = String(p.status ?? "")
-                  .trim()
-                  .toUpperCase()
-                  .replace(/_/g, " ");
-                const statusVerified =
-                  st === "APPROVED" || st.includes("APPROVED") || st === "RISK ASSESSED";
-                const statusKind = p.entityType === "CORPORATE" ? "KYB" : "KYC";
+                const amlOk = isDirectorShareholderAmlScreeningApproved(p.screening);
+                const amlLabel = p.screening?.status?.trim() || "—";
                 const own = formatSharePercentageCell(p);
-                const showCompleteOnProfile = personNeedsCompleteOnProfile(
-                  p,
-                  entitiesData?.directorKycStatus ?? null,
-                  entitiesData ?? null,
-                  entitiesData?.ctosPartySupplements ?? null
-                );
+                const showCompleteOnProfile = !amlOk;
                 return (
                   <React.Fragment key={p.matchKey}>
                     <div className={labelClassName}>{formatPeopleRolesLine(p)}</div>
@@ -718,27 +691,22 @@ export function CompanyDetailsStep({
                         <div className="h-4 w-px bg-border" />
                         <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">{own}</div>
                         <div className="h-4 w-px bg-border" />
-                        {statusVerified ? (
-                          <div className="flex items-center gap-1.5 whitespace-nowrap">
-                            <CheckCircleIcon className="h-4 w-4 text-green-600" />
-                            <span className="text-[17px] leading-7 text-green-600">{statusKind}</span>
-                          </div>
-                        ) : (
-                          <div />
-                        )}
+                        <div className="flex flex-col gap-0.5 min-w-0">
+                          <span className="text-xs text-muted-foreground">AML</span>
+                          {amlOk ? (
+                            <div className="flex items-center gap-1.5 whitespace-nowrap">
+                              <CheckCircleIcon className="h-4 w-4 text-green-600 shrink-0" />
+                              <span className="text-[17px] leading-7 text-green-600 truncate">{amlLabel}</span>
+                            </div>
+                          ) : (
+                            <span className="text-[17px] leading-7 text-muted-foreground truncate">{amlLabel}</span>
+                          )}
+                        </div>
                       </div>
                       {showCompleteOnProfile ? (
-                        <div className="flex justify-end sm:justify-start">
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            className="rounded-xl"
-                            onClick={() => router.push("/profile?focus=directors")}
-                          >
-                            Complete on Profile
-                          </Button>
-                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Finish AML on Profile → Directors and shareholders.
+                        </p>
                       ) : null}
                     </div>
                   </React.Fragment>

@@ -6,7 +6,6 @@
  * WHERE USED: Admin application/org review, issuer/investor profile, company step
  */
 
-import { getCtosPartySupplementFlatRead } from "./ctos-party-supplement-json";
 import {
   getDirectorShareholderDisplayRows,
   normalizeDirectorShareholderIdKey,
@@ -20,8 +19,11 @@ export type ApplicationPersonRow = {
   entityType: "INDIVIDUAL" | "CORPORATE";
   roles: string[];
   sharePercentage: number | null;
+  /** Legacy display / gap label; prefer {@link ApplicationPersonRow.screening} for AML gating. */
   status: string;
   action?: "SEND_EMAIL" | null;
+  /** Flat AML screening snapshot (e.g. RegTank ACURIS `status`). Single source for submit/badge gating. */
+  screening?: { status?: string | null } | null;
 };
 
 export type PeopleRolesRowInput = {
@@ -89,64 +91,37 @@ export function formatSharePercentageCell(p: { sharePercentage: number | null })
 }
 
 export function shouldShowPeopleSendEmailButton(
-  p: Pick<ApplicationPersonRow, "entityType" | "status">,
-  portal: "issuer" | "investor" | "admin"
+  _p: Pick<ApplicationPersonRow, "entityType" | "status">,
+  _portal: "issuer" | "investor" | "admin"
 ): boolean {
-  if (portal !== "issuer") return false;
-  if (p.entityType !== "INDIVIDUAL") return false;
-  const s = String(p.status ?? "")
-    .trim()
-    .toUpperCase()
-    .replace(/_/g, " ");
-  return s === "NEW REQUIRED";
+  return false;
+}
+
+/** True when AML screening is cleared for director/shareholder submit (RegTank-style status). */
+export function isDirectorShareholderAmlScreeningApproved(
+  screening: { status?: string | null } | null | undefined
+): boolean {
+  const raw = String(screening?.status ?? "").trim();
+  if (!raw) return false;
+  if (raw === "Approved") return true;
+  return raw.toLowerCase() === "approved";
+}
+
+/** True when any listed party still needs AML approval (missing screening counts as not approved). */
+export function peopleHasPendingDirectorShareholderAml(
+  people: ReadonlyArray<Pick<ApplicationPersonRow, "screening"> | null | undefined> | null | undefined
+): boolean {
+  if (!people?.length) return false;
+  return people.some((p) => !p || !isDirectorShareholderAmlScreeningApproved(p.screening));
 }
 
 export function isFinancialReviewKycReadyForApprove(params: {
   people?: ApplicationPersonRow[] | null | undefined;
   ctosPartySupplements?: { party_key?: string; onboarding_json?: unknown }[] | null | undefined;
 }): boolean {
-  const issuerOrgSupplements = params.ctosPartySupplements;
-  if (!issuerOrgSupplements || !Array.isArray(issuerOrgSupplements)) return true;
-
-  const onboardingByPartyKey = new Map<string, Record<string, unknown>>();
-  const supplementPartyKeys = new Set<string>();
-
-  for (const supplement of issuerOrgSupplements) {
-    const key = normalizeDirectorShareholderIdKey(supplement.party_key ?? "");
-    if (!key) continue;
-    supplementPartyKeys.add(key);
-    const onboarding =
-      supplement.onboarding_json &&
-      typeof supplement.onboarding_json === "object" &&
-      !Array.isArray(supplement.onboarding_json)
-        ? (supplement.onboarding_json as Record<string, unknown>)
-        : {};
-    onboardingByPartyKey.set(key, onboarding);
-  }
-
+  void params.ctosPartySupplements;
   const visible = filterVisiblePeopleRows(params.people ?? []);
-
-  for (const p of visible) {
-    if (p.entityType !== "INDIVIDUAL") continue;
-    const partyKey = normalizeDirectorShareholderIdKey(p.matchKey?.trim() ?? "");
-    if (!partyKey) continue;
-    const st = String(p.status ?? "")
-      .trim()
-      .toUpperCase()
-      .replace(/_/g, " ");
-    if (st === "APPROVED") continue;
-    if (!supplementPartyKeys.has(partyKey)) continue;
-    const raw = onboardingByPartyKey.get(partyKey) ?? {};
-    const flat = getCtosPartySupplementFlatRead(raw);
-    const regtankStatus = String(flat.regtankStatus ?? "").trim().toUpperCase();
-    const kycRawStatus =
-      flat.kycBlock && typeof flat.kycBlock.rawStatus === "string"
-        ? String(flat.kycBlock.rawStatus).trim().toUpperCase()
-        : "";
-    const approved = regtankStatus === "APPROVED" || kycRawStatus === "APPROVED";
-    if (!approved) return false;
-  }
-  return true;
+  return !peopleHasPendingDirectorShareholderAml(visible);
 }
 
 function legacyRowMatchNormKeys(row: DirectorShareholderDisplayRow): string[] {

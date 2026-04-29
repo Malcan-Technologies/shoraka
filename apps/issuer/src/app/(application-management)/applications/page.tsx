@@ -23,6 +23,7 @@ import {
   getStatusPresentationByBadgeKey,
 } from "@cashsouk/config";
 import type { WithdrawReason } from "@cashsouk/types";
+import { peopleHasPendingDirectorShareholderAml } from "@cashsouk/types";
 import { useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -697,7 +698,7 @@ export default function ApplicationsPage() {
     activeOrganization.directorShareholderSubmitReady === false;
   const directorSubmitBlockedMessage =
     activeOrganization?.directorShareholderSubmitBlockedMessage ??
-    "Please complete onboarding for all required directors/shareholders before submitting.";
+    "Please complete AML for all directors/shareholders before submitting.";
   const displayName = React.useMemo(() => {
     if (!activeOrganization) return "";
     if (activeOrganization.firstName && activeOrganization.lastName) {
@@ -708,6 +709,11 @@ export default function ApplicationsPage() {
     }
     return activeOrganization.type === "PERSONAL" ? "Personal Account" : "Company Account";
   }, [activeOrganization]);
+
+  const directorAmlPendingForDashboard =
+    activeOrganization?.type === "COMPANY" &&
+    Array.isArray(activeOrganization.people) &&
+    peopleHasPendingDirectorShareholderAml(activeOrganization.people);
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-x-hidden p-4 pt-4">
@@ -752,9 +758,16 @@ export default function ApplicationsPage() {
 
       <section className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
-            Welcome back, {displayName}!
-          </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-2xl md:text-3xl font-bold tracking-tight">
+              Welcome back, {displayName}!
+            </h2>
+            {directorAmlPendingForDashboard ? (
+              <Badge variant="secondary" className="rounded-full text-xs font-semibold">
+                Pending Directors/Shareholders
+              </Badge>
+            ) : null}
+          </div>
           <p className="text-[17px] leading-7 text-muted-foreground mt-1">
             Manage your financing applications from this dashboard.
           </p>

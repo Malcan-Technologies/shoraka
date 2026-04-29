@@ -2124,6 +2124,7 @@ export class AdminRepository {
   async getApplications(params: GetAdminApplicationsQuery): Promise<{
     applications: {
       id: string;
+      issuerOrganizationId: string;
       issuerOrganizationName: string | null;
       financingTypeLabel: string;
       financingStructureLabel: string;
@@ -2190,6 +2191,7 @@ export class AdminRepository {
         include: {
           issuer_organization: {
             select: {
+              id: true,
               name: true,
             },
           },
@@ -2250,6 +2252,7 @@ export class AdminRepository {
 
       return {
         id: app.id,
+        issuerOrganizationId: app.issuer_organization.id,
         issuerOrganizationName: app.issuer_organization.name,
         financingTypeLabel: productLabel,
         financingStructureLabel,

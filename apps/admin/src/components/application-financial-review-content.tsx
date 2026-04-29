@@ -33,7 +33,6 @@ import {
   filterVisiblePeopleRows,
   formatPeopleRolesLine,
   formatSharePercentageCell,
-  shouldShowPeopleSendEmailButton,
 } from "@/lib/onboarding-people-display";
 import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
 import { reviewEmptyStateClass } from "@/components/application-review/review-section-styles";
@@ -47,22 +46,12 @@ import {
   getAdminFinancialSummaryUserColumnYears,
   getLatestThreeCtosYearSlots,
   normalizeFinancialStatementsQuestionnaire,
-  getDirectorShareholderWorkflowFromCompanyDetails,
-  workflowHasAnyPersonPendingOrUnderReview,
+  peopleHasPendingDirectorShareholderAml,
   type ApplicationPersonRow,
   type ColumnComputedMetrics,
   type FinancialStatementsInput,
   type FinancialStatementsQuestionnaire,
 } from "@cashsouk/types";
-import { useInvalidateApplicationDetail } from "@/hooks/use-application-detail";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { format, isValid, parse, parseISO } from "date-fns";
 import {
@@ -263,7 +252,6 @@ interface ApplicationFinancialReviewContentProps {
   applicationId: string;
   issuerOrganizationId: string | null;
   app: {
-    company_details?: unknown;
     people?: ApplicationPersonRow[];
     issuer_organization?: {
       latest_organization_ctos_company_json?: unknown | null;
@@ -290,121 +278,11 @@ export function ApplicationFinancialReviewContent({
 }: ApplicationFinancialReviewContentProps) {
   const issuerOrgId = issuerOrganizationId?.trim() ?? "";
   const { getAccessToken } = useAuthToken();
-  const invalidateApplicationDetail = useInvalidateApplicationDetail(applicationId);
   const createOrgCtos = useCreateIssuerOrganizationCtosReport(
     issuerOrgId || undefined,
     applicationId
   );
   const [orgCtosConfirmOpen, setOrgCtosConfirmOpen] = React.useState(false);
-  const [workflowDialogOpen, setWorkflowDialogOpen] = React.useState(false);
-  const [workflowDialogMode, setWorkflowDialogMode] = React.useState<"reject" | "notify">("reject");
-  const [workflowMatchKey, setWorkflowMatchKey] = React.useState("");
-  const [workflowRemark, setWorkflowRemark] = React.useState("");
-  const [workflowSubmitting, setWorkflowSubmitting] = React.useState(false);
-
-  const directorWorkflow = React.useMemo(
-    () => getDirectorShareholderWorkflowFromCompanyDetails(app.company_details ?? null),
-    [app.company_details]
-  );
-
-  const postDirectorWorkflow = React.useCallback(async () => {
-    const token = await getAccessToken();
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    };
-    const mk = workflowMatchKey.trim();
-    if (!mk) {
-      toast.error("Missing party key");
-      return;
-    }
-    setWorkflowSubmitting(true);
-    try {
-      if (workflowDialogMode === "notify") {
-        const remark = workflowRemark.trim();
-        if (!remark) {
-          toast.error("Remark is required");
-          setWorkflowSubmitting(false);
-          return;
-        }
-        const res = await fetch(
-          `${API_URL}/v1/admin/applications/${applicationId}/director-shareholder-notify-again`,
-          {
-            method: "POST",
-            headers,
-            body: JSON.stringify({ matchKey: mk, remark }),
-          }
-        );
-        const json = await res.json();
-        if (!json.success) {
-          throw new Error(json.error?.message ?? "Request failed");
-        }
-        toast.success("Onboarding notification sent");
-      } else {
-        const remark = workflowRemark.trim();
-        if (!remark) {
-          toast.error("Remark is required");
-          setWorkflowSubmitting(false);
-          return;
-        }
-        const res = await fetch(
-          `${API_URL}/v1/admin/applications/${applicationId}/director-shareholder-review`,
-          {
-            method: "PATCH",
-            headers,
-            body: JSON.stringify({ matchKey: mk, action: "REJECT", remark }),
-          }
-        );
-        const json = await res.json();
-        if (!json.success) {
-          throw new Error(json.error?.message ?? "Request failed");
-        }
-        toast.success("Person marked for issuer action");
-      }
-      setWorkflowDialogOpen(false);
-      setWorkflowRemark("");
-      invalidateApplicationDetail();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Request failed");
-    } finally {
-      setWorkflowSubmitting(false);
-    }
-  }, [
-    applicationId,
-    getAccessToken,
-    invalidateApplicationDetail,
-    workflowDialogMode,
-    workflowMatchKey,
-    workflowRemark,
-  ]);
-
-  const approveDirectorPerson = React.useCallback(
-    async (matchKey: string) => {
-      const token = await getAccessToken();
-      try {
-        const res = await fetch(
-          `${API_URL}/v1/admin/applications/${applicationId}/director-shareholder-review`,
-          {
-            method: "PATCH",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ matchKey, action: "APPROVE" }),
-          }
-        );
-        const json = await res.json();
-        if (!json.success) {
-          throw new Error(json.error?.message ?? "Request failed");
-        }
-        toast.success("Person approved for workflow");
-        invalidateApplicationDetail();
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Request failed");
-      }
-    },
-    [applicationId, getAccessToken, invalidateApplicationDetail]
-  );
 
   const { unauditedByYear, questionnaire: financialQuestionnaire } = React.useMemo(
     () => extractQuestionnaireAndUnaudited(app.financial_statements),
@@ -1019,112 +897,34 @@ export function ApplicationFinancialReviewContent({
 
       <ReviewFieldBlock title="Director and Shareholders">
         <div className="mb-3 flex flex-wrap gap-2">
-          {directorWorkflow.directorShareholderPending ? (
+          {peopleHasPendingDirectorShareholderAml(visiblePeopleRows) ? (
             <Badge variant="secondary" className="rounded-full">
               Pending Directors/Shareholders
-            </Badge>
-          ) : null}
-          {workflowHasAnyPersonPendingOrUnderReview(directorWorkflow) ? (
-            <Badge variant="outline" className="rounded-full">
-              Under Review
             </Badge>
           ) : null}
         </div>
         {visiblePeopleRows.length > 0 ? (
           <div className={applicationTableWrapperClass}>
             <div className="overflow-x-auto">
-            <Table className="min-w-[920px] text-[15px]">
+            <Table className="min-w-[640px] text-[15px]">
               <TableHeader className={applicationTableHeaderBgClass}>
                 <TableRow className="hover:bg-transparent border-b border-border">
                   <TableHead className={applicationTableHeaderClass}>Name</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>ID</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>Roles</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>Type</TableHead>
+                  <TableHead className={applicationTableHeaderClass}>Role</TableHead>
                   <TableHead className={applicationTableHeaderClass}>Share %</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>Status</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>Workflow</TableHead>
-                  <TableHead className={`${applicationTableHeaderClass} w-[220px]`}>Admin</TableHead>
-                  <TableHead className={`${applicationTableHeaderClass} w-[140px]`}>Action</TableHead>
+                  <TableHead className={applicationTableHeaderClass}>AML status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {visiblePeopleRows.map((p) => {
-                  const wfPerson = directorWorkflow.persons?.[p.matchKey];
-                  const wfLabel =
-                    wfPerson?.status === "UNDER_REVIEW"
-                      ? "Action required"
-                      : wfPerson?.status === "PENDING"
-                        ? "Pending"
-                        : wfPerson?.status === "APPROVED"
-                          ? "Approved"
-                          : "—";
+                  const aml = p.screening?.status?.trim() || "—";
                   return (
                     <TableRow key={p.matchKey} className={applicationTableRowClass}>
                       <TableCell className={`${applicationTableCellClass} font-medium`}>{p.name ?? "—"}</TableCell>
-                      <TableCell className={`${applicationTableCellClass} font-mono text-xs`}>{p.matchKey}</TableCell>
                       <TableCell className={applicationTableCellClass}>{formatPeopleRolesLine(p)}</TableCell>
-                      <TableCell className={applicationTableCellClass}>{p.entityType}</TableCell>
                       <TableCell className={applicationTableCellClass}>{formatSharePercentageCell(p)}</TableCell>
                       <TableCell className={applicationTableCellClass}>
-                        <span className="text-muted-foreground">{p.status}</span>
-                      </TableCell>
-                      <TableCell className={`${applicationTableCellClass} text-sm`}>
-                        <div className="flex flex-col gap-1">
-                          <span>{wfLabel}</span>
-                          {wfPerson?.status === "UNDER_REVIEW" && wfPerson.remark ? (
-                            <span className="text-xs text-muted-foreground">{wfPerson.remark}</span>
-                          ) : null}
-                        </div>
-                      </TableCell>
-                      <TableCell className={applicationTableCellClass}>
-                        <div className="flex flex-wrap gap-1">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-8 text-xs"
-                            onClick={() => void approveDirectorPerson(p.matchKey)}
-                          >
-                            Approve
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-8 text-xs"
-                            onClick={() => {
-                              setWorkflowDialogMode("reject");
-                              setWorkflowMatchKey(p.matchKey);
-                              setWorkflowRemark("");
-                              setWorkflowDialogOpen(true);
-                            }}
-                          >
-                            Reject
-                          </Button>
-                          {wfPerson?.status === "UNDER_REVIEW" ? (
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              size="sm"
-                              className="h-8 text-xs"
-                              onClick={() => {
-                                setWorkflowDialogMode("notify");
-                                setWorkflowMatchKey(p.matchKey);
-                                setWorkflowRemark("");
-                                setWorkflowDialogOpen(true);
-                              }}
-                            >
-                              Notify again
-                            </Button>
-                          ) : null}
-                        </div>
-                      </TableCell>
-                      <TableCell className={applicationTableCellClass}>
-                        {shouldShowPeopleSendEmailButton(p, "issuer") ? (
-                          <Button variant="secondary" size="sm" className={CTOS_ACTION_BUTTON_COMPACT_CLASSNAME}>
-                            Send Email
-                          </Button>
-                        ) : null}
+                        <span className="text-muted-foreground">{aml}</span>
                       </TableCell>
                     </TableRow>
                   );
@@ -1164,46 +964,6 @@ export function ApplicationFinancialReviewContent({
           </div>
         </div>
       </ReviewFieldBlock>
-
-      <Dialog open={workflowDialogOpen} onOpenChange={setWorkflowDialogOpen}>
-        <DialogContent className="rounded-xl sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {workflowDialogMode === "notify" ? "Notify issuer again" : "Reject / request issuer fix"}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2 py-2">
-            <p className="text-sm text-muted-foreground">
-              Party ID: <span className="font-mono text-foreground">{workflowMatchKey}</span>
-            </p>
-            <Textarea
-              value={workflowRemark}
-              onChange={(e) => setWorkflowRemark(e.target.value)}
-              placeholder="Remark (required)"
-              className="min-h-[100px] rounded-lg"
-            />
-          </div>
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button
-              type="button"
-              variant="outline"
-              className="rounded-lg"
-              disabled={workflowSubmitting}
-              onClick={() => setWorkflowDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              className="rounded-lg bg-primary text-primary-foreground"
-              disabled={workflowSubmitting}
-              onClick={() => void postDirectorWorkflow()}
-            >
-              {workflowSubmitting ? "Sending…" : workflowDialogMode === "notify" ? "Send" : "Save"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <AlertDialog open={orgCtosConfirmOpen} onOpenChange={setOrgCtosConfirmOpen}>
         <AlertDialogContent className="rounded-xl">

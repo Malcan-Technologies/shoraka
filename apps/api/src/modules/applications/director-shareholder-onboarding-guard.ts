@@ -1,31 +1,19 @@
 /**
- * SECTION: Block issuer create/submit until CTOS party onboarding reached wait-for-approval
- * WHY: Consistent org data before applications; no AML gate here
- * INPUT: Issuer org id + org JSON blobs + supplements
- * OUTPUT: throws AppError DIRECTOR_SHAREHOLDER_PENDING or returns void
- * WHERE USED: ApplicationService.createApplication, updateApplicationStatus, amendment resubmit
+ * SECTION: Block issuer create/submit until AML screening is Approved for all CTOS people rows
+ * WHY: Single derived gate from people[].screening (no stored workflow JSON)
+ * INPUT: Issuer org id
+ * OUTPUT: throws AppError DIRECTOR_SHAREHOLDER_PENDING or returns void / readiness object
+ * WHERE USED: ApplicationService, issuer org API fields
  */
 
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
-import {
-  getCtosPartySupplementPipelineStatus,
-  getCtosPartySupplementRequestId,
-  getDirectorShareholderDisplayRows,
-  isCtosIndividualKycEligibleRow,
-  isLegacyCtosPartyKycApproved,
-  normalizeDirectorShareholderIdKey,
-} from "@cashsouk/types";
+import { peopleHasPendingDirectorShareholderAml } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
+import { buildAdminPeopleList } from "../admin/build-people-list";
 
 const DIRECTOR_SHAREHOLDER_PENDING_MESSAGE =
-  "Please complete onboarding for all required directors/shareholders before submitting.";
-
-const WAIT_FOR_APPROVAL_STATUSES = new Set([
-  "WAITING_FOR_APPROVAL",
-  "WAIT_FOR_APPROVAL",
-  "PENDING_APPROVAL",
-]);
+  "Please complete AML for all directors/shareholders before submitting.";
 
 export async function getIssuerDirectorShareholderSubmitReadiness(issuerOrganizationId: string): Promise<{
   ready: boolean;
@@ -56,45 +44,15 @@ export async function assertIssuerOrgDirectorShareholderOnboardingReady(
   const organizationService = new OrganizationService();
   const extras = await organizationService.getIssuerPartyListExtras(issuerOrganizationId);
 
-  const supplementPartyKeys = new Set<string>();
-  const supplementByPartyKey = new Map<string, unknown>();
-  for (const s of extras.ctosPartySupplements) {
-    const key = normalizeDirectorShareholderIdKey(s.partyKey);
-    if (!key) continue;
-    supplementPartyKeys.add(key);
-    supplementByPartyKey.set(key, s.onboardingJson);
-  }
-
-  const rows = getDirectorShareholderDisplayRows({
-    corporateEntities: org.corporate_entities,
-    directorKycStatus: org.director_kyc_status,
-    directorAmlStatus: org.director_aml_status ?? null,
-    organizationCtosCompanyJson: extras.latestOrganizationCtosCompanyJson ?? null,
+  const people = buildAdminPeopleList({
+    ctos: extras.latestOrganizationCtosCompanyJson ?? null,
+    issuerDirectorKycStatus: org.director_kyc_status ?? null,
+    issuerDirectorAmlStatus: org.director_aml_status ?? null,
     ctosPartySupplements: extras.ctosPartySupplements,
-    sentRowIds: null,
+    corporateEntities: org.corporate_entities ?? null,
   });
 
-  for (const row of rows) {
-    if (!isCtosIndividualKycEligibleRow(row)) continue;
-    const partyKey = normalizeDirectorShareholderIdKey(
-      row.idNumber?.trim() || row.registrationNumber?.trim() || row.enquiryId?.trim() || ""
-    );
-    if (!partyKey) continue;
-    if (isLegacyCtosPartyKycApproved(partyKey, org.director_kyc_status)) continue;
-
-    if (!supplementPartyKeys.has(partyKey)) {
-      throw new AppError(400, "DIRECTOR_SHAREHOLDER_PENDING", DIRECTOR_SHAREHOLDER_PENDING_MESSAGE);
-    }
-
-    const onboardingRoot = supplementByPartyKey.get(partyKey);
-    const requestId = getCtosPartySupplementRequestId(onboardingRoot ?? {}).trim();
-    if (!requestId) {
-      throw new AppError(400, "DIRECTOR_SHAREHOLDER_PENDING", DIRECTOR_SHAREHOLDER_PENDING_MESSAGE);
-    }
-
-    const status = getCtosPartySupplementPipelineStatus(onboardingRoot ?? null).trim().toUpperCase();
-    if (!WAIT_FOR_APPROVAL_STATUSES.has(status)) {
-      throw new AppError(400, "DIRECTOR_SHAREHOLDER_PENDING", DIRECTOR_SHAREHOLDER_PENDING_MESSAGE);
-    }
+  if (peopleHasPendingDirectorShareholderAml(people)) {
+    throw new AppError(400, "DIRECTOR_SHAREHOLDER_PENDING", DIRECTOR_SHAREHOLDER_PENDING_MESSAGE);
   }
 }
