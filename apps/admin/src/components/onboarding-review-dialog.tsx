@@ -45,6 +45,7 @@ import {
 } from "@/hooks/use-onboarding-applications";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  normalizeDirectorShareholderIdKey,
   type OnboardingApprovalStatus,
   getDisplayAmlStatus,
   mapRegtankStatusToDisplay,
@@ -258,6 +259,30 @@ export function OnboardingReviewDialog({
   const isCompany = application?.type === "COMPANY";
   const peopleRows = application?.people ?? [];
   const visiblePeopleRows = React.useMemo(() => filterVisiblePeopleRows(peopleRows), [peopleRows]);
+  const visiblePeopleRowsWithKycStatus = React.useMemo(() => {
+    const directors =
+      application?.directorKycStatus && typeof application.directorKycStatus === "object"
+        ? ((application.directorKycStatus as { directors?: unknown[] }).directors ?? [])
+        : [];
+    const byIc = new Map<string, string>();
+    for (const row of directors) {
+      if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+      const r = row as { governmentIdNumber?: unknown; kycStatus?: unknown };
+      const key = normalizeDirectorShareholderIdKey(String(r.governmentIdNumber ?? ""));
+      const kycStatus = typeof r.kycStatus === "string" ? r.kycStatus.trim() : "";
+      if (!key || !kycStatus) continue;
+      byIc.set(key, kycStatus);
+    }
+    return visiblePeopleRows.map((p) => {
+      const rawStatus = String(p.status ?? "").trim();
+      const hasUsableStatus = rawStatus.length > 0 && rawStatus !== "-" && rawStatus !== "—";
+      if (hasUsableStatus) return p;
+      const key = normalizeDirectorShareholderIdKey(p.matchKey);
+      if (!key) return p;
+      const fallback = byIc.get(key);
+      return fallback ? { ...p, status: fallback } : p;
+    });
+  }, [application?.directorKycStatus, visiblePeopleRows]);
 
   React.useEffect(() => {
     console.log("Onboarding dialog people[]:", peopleRows);
@@ -552,7 +577,7 @@ export function OnboardingReviewDialog({
                     </p>
                     <OnboardingPeopleReadonlyCards
                       variant="kyc"
-                      rows={visiblePeopleRows}
+                      rows={visiblePeopleRowsWithKycStatus}
                       isRefreshing={refreshCorporateMutation.isPending}
                     />
                   </div>
