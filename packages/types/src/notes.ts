@@ -186,6 +186,22 @@ export interface NoteListing {
   riskDisclosure: Record<string, unknown> | null;
 }
 
+export interface MarketplaceNoteListing {
+  id: string;
+  noteId: string;
+  status: NoteListingStatus;
+  opensAt: string | null;
+  closesAt: string | null;
+  publishedAt: string | null;
+  visibility: string;
+  summary: string | null;
+  riskDisclosure: Record<string, unknown> | null;
+}
+
+export interface MarketplaceNoteDetail extends NoteListItem {
+  listing: MarketplaceNoteListing | null;
+}
+
 export interface NoteInvestment {
   id: string;
   noteId: string;

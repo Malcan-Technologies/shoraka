@@ -84,6 +84,7 @@ import type {
   CreateNoteInvestmentInput,
   EligibleNoteInvoicesResponse,
   GetAdminNotesParams,
+  MarketplaceNoteDetail,
   NoteDetail,
   NoteActionRequiredCountResponse,
   NoteEvent,
@@ -2140,15 +2141,15 @@ export class ApiClient {
     return this.get<NotesResponse>(`/v1/marketplace/notes?${queryParams.toString()}`);
   }
 
-  async getMarketplaceNote(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {
-    return this.get<NoteDetail>(`/v1/marketplace/notes/${id}`);
+  async getMarketplaceNote(id: string): Promise<ApiResponse<MarketplaceNoteDetail> | ApiError> {
+    return this.get<MarketplaceNoteDetail>(`/v1/marketplace/notes/${id}`);
   }
 
   async createMarketplaceNoteInvestment(
     id: string,
     data: CreateNoteInvestmentInput
-  ): Promise<ApiResponse<NoteDetail> | ApiError> {
-    return this.post<NoteDetail>(`/v1/marketplace/notes/${id}/investments`, data);
+  ): Promise<ApiResponse<MarketplaceNoteDetail> | ApiError> {
+    return this.post<MarketplaceNoteDetail>(`/v1/marketplace/notes/${id}/investments`, data);
   }
 
   async getInvestorInvestments(): Promise<ApiResponse<NotesResponse> | ApiError> {

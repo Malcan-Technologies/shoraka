@@ -24,7 +24,7 @@ import {
   resolveOfferedProfitRate,
   resolveRequestedInvoiceAmount,
 } from "../../lib/invoice-offer";
-import { mapLedgerEntry, mapNoteDetail, mapNoteListItem } from "./mapper";
+import { mapLedgerEntry, mapMarketplaceNoteDetail, mapNoteDetail, mapNoteListItem } from "./mapper";
 import { noteInclude, noteRepository } from "./repository";
 import { calculateLateCharge as calculateLateChargeValues, calculateSettlementWaterfall } from "./calculators";
 import type {
@@ -753,37 +753,64 @@ export class NoteService {
       throw new AppError(403, "INVESTOR_DEPOSIT_REQUIRED", "Minimum investor deposit is required before investing");
     }
 
-    const note = await noteRepository.findById(noteId);
+    const note = await prisma.note.findUnique({
+      where: { id: noteId },
+      select: {
+        status: true,
+        funding_status: true,
+        target_amount: true,
+      },
+    });
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
     if (note.status !== NoteStatus.PUBLISHED || note.funding_status !== NoteFundingStatus.OPEN) {
       throw new AppError(409, "NOTE_NOT_OPEN", "Note is not open for investment");
     }
 
     const target = toNumber(note.target_amount);
-    const alreadyFunded = note.investments
-      .filter(
-        (investment) =>
-          investment.status !== NoteInvestmentStatus.CANCELLED &&
-          investment.status !== NoteInvestmentStatus.RELEASED
-      )
-      .reduce((sum, investment) => sum + toNumber(investment.amount), 0);
-    if (alreadyFunded + input.amount > target) {
-      throw new AppError(422, "NOTE_OVERSUBSCRIBED", "Investment exceeds remaining note capacity");
-    }
+    const investmentAmount = money(input.amount);
+    const remainingCapacityFloor = money(target - input.amount);
 
     const updated = await prisma.$transaction(async (tx) => {
+      const capacityUpdate = await tx.note.updateMany({
+        where: {
+          id: noteId,
+          status: NoteStatus.PUBLISHED,
+          funding_status: NoteFundingStatus.OPEN,
+          funded_amount: { lte: remainingCapacityFloor },
+        },
+        data: { funded_amount: { increment: investmentAmount } },
+      });
+
+      if (capacityUpdate.count !== 1) {
+        const current = await tx.note.findUnique({
+          where: { id: noteId },
+          select: {
+            status: true,
+            funding_status: true,
+            funded_amount: true,
+            target_amount: true,
+          },
+        });
+        if (!current) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+        if (current.status !== NoteStatus.PUBLISHED || current.funding_status !== NoteFundingStatus.OPEN) {
+          throw new AppError(409, "NOTE_NOT_OPEN", "Note is not open for investment");
+        }
+        const remainingCapacity = Math.max(toNumber(current.target_amount) - toNumber(current.funded_amount), 0);
+        throw new AppError(
+          422,
+          "NOTE_OVERSUBSCRIBED",
+          `Investment exceeds remaining note capacity of ${remainingCapacity.toFixed(2)}`
+        );
+      }
+
       await tx.noteInvestment.create({
         data: {
           note_id: noteId,
           investor_organization_id: input.investorOrganizationId,
           investor_user_id: actor.userId,
-          amount: money(input.amount),
+          amount: investmentAmount,
           allocation_percent: money(target > 0 ? (input.amount / target) * 100 : 0),
         },
-      });
-      await tx.note.update({
-        where: { id: noteId },
-        data: { funded_amount: money(alreadyFunded + input.amount) },
       });
       await this.logEvent(tx, noteId, "INVESTMENT_COMMITTED", actor, {
         investorOrganizationId: input.investorOrganizationId,
@@ -792,7 +819,7 @@ export class NoteService {
       return tx.note.findUniqueOrThrow({ where: { id: noteId }, include: noteInclude });
     });
 
-    return mapNoteDetail(updated);
+    return mapMarketplaceNoteDetail(updated);
   }
 
   async closeFunding(id: string, actor: ActorContext) {
@@ -881,6 +908,19 @@ export class NoteService {
       listingStatus: NoteListingStatus.PUBLISHED,
       fundingStatus: NoteFundingStatus.OPEN,
     });
+  }
+
+  async getMarketplaceNoteDetail(id: string) {
+    const note = await noteRepository.findById(id);
+    if (
+      !note ||
+      note.status !== NoteStatus.PUBLISHED ||
+      note.listing_status !== NoteListingStatus.PUBLISHED ||
+      note.funding_status !== NoteFundingStatus.OPEN
+    ) {
+      throw new AppError(404, "NOTE_NOT_FOUND", "Published marketplace note not found");
+    }
+    return mapMarketplaceNoteDetail(note);
   }
 
   async listInvestorInvestments(userId: string) {

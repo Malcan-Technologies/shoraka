@@ -538,6 +538,7 @@ Rules:
 - `Close Funding` stops new marketplace commitments and locks investor allocations for activation. Use it when the note has reached the successful funding threshold, normally 80% or more, or when the listing window closes and admin accepts the achieved funding level.
 - `Fail Funding` ends the marketplace listing as unsuccessful. Use it when the note does not meet the minimum funding threshold and should not proceed to activation; committed investor funds must be released or refunded according to the payment rail model.
 - The admin UI should require an explicit confirmation dialog before `Publish`, `Unpublish`, `Close Funding`, or `Fail Funding`, because these actions change marketplace visibility or investor funding state.
+- Investor commitment creation must reserve note capacity atomically by incrementing `funded_amount` only while the note is still published, funding is open, and enough target capacity remains. Do not rely on a pre-read investment snapshot for oversubscription checks.
 - Funding is successful when confirmed investments reach at least 80% of the target.
 - Funding may continue until 100% if still within the listing window and admin policy allows.
 - Admin can close funding when it is at least 80%.
@@ -907,6 +908,8 @@ Investor APIs:
 - `GET /v1/investor/investments`
 - `GET /v1/investor/investments/:id`
 - `GET /v1/investor/portfolio`
+
+Marketplace note detail responses must use a marketplace-safe projection. They should include public listing and funding fields only, and must not expose admin-only snapshots, other investors' identifiers, payment records, settlement records, internal event metadata, or ledger details.
 
 All routes should use zod validation, response envelopes, correlation IDs, structured logs, and role/ownership checks consistent with existing backend rules.
 

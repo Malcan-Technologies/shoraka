@@ -327,7 +327,7 @@ marketplaceRouter.get("/notes", async (req: Request, res: Response, next: NextFu
 marketplaceRouter.get("/notes/:id", async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = idParamSchema.parse(req.params);
-    send(res, await noteService.getAdminNoteDetail(id));
+    send(res, await noteService.getMarketplaceNoteDetail(id));
   } catch (error) {
     next(error);
   }

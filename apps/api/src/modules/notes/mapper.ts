@@ -232,6 +232,25 @@ export function mapNoteDetail(note: NoteWithRelations) {
   };
 }
 
+export function mapMarketplaceNoteDetail(note: NoteWithRelations) {
+  return {
+    ...mapNoteListItem(note),
+    listing: note.listing
+      ? {
+          id: note.listing.id,
+          noteId: note.listing.note_id,
+          status: note.listing.status,
+          opensAt: iso(note.listing.opens_at),
+          closesAt: iso(note.listing.closes_at),
+          publishedAt: iso(note.listing.published_at),
+          visibility: note.listing.visibility,
+          summary: note.listing.summary,
+          riskDisclosure: asRecord(note.listing.risk_disclosure),
+        }
+      : null,
+  };
+}
+
 export function mapLedgerEntry(entry: Prisma.NoteLedgerEntryGetPayload<{
   include: { account: true };
 }>) {
