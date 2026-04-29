@@ -60,7 +60,12 @@ export class NotificationService {
     }
 
     // 2. Get Notification Type
-    const type = await this.repository.findTypeById(typeId);
+    let type = await this.repository.findTypeById(typeId);
+    if (!type) {
+      console.log("Notification type missing. Seeding notification types now.", { typeId });
+      await this.seedNotificationTypes();
+      type = await this.repository.findTypeById(typeId);
+    }
     if (!type) {
       throw new Error(`Notification type ${typeId} not found`);
     }

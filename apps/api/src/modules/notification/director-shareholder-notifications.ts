@@ -48,7 +48,7 @@ function computeVisiblePendingState(input: PeopleListInput): {
 } {
   const people = buildAdminPeopleList(input);
   const visible = filterVisiblePeopleRows(people);
-  const nowPending = peopleHasPendingDirectorShareholderAml(visible);
+  const nowPending = visible.length > 0 && peopleHasPendingDirectorShareholderAml(visible);
   return { people, visible, nowPending };
 }
 
@@ -98,8 +98,20 @@ export async function runIssuerDirectorShareholderNotificationsAfterOrgCtosRepor
     supplements,
   });
 
-  const { nowPending: wasPending } = computeVisiblePendingState(beforeInput);
+  const { visible: beforeVisible, nowPending: wasPending } = computeVisiblePendingState(beforeInput);
   const { people: afterPeople, visible: afterVisible, nowPending } = computeVisiblePendingState(afterInput);
+  const shouldTriggerOnPull = true;
+  console.log("DS mismatch check", {
+    issuerOrganizationId,
+    ownerUserId,
+    newCtosReportId,
+    beforeVisibleCount: beforeVisible.length,
+    afterVisibleCount: afterVisible.length,
+    wasPending,
+    nowPending,
+    shouldTriggerOnPull,
+    willTrigger: shouldTriggerOnPull,
+  });
 
   await resolveIssuerDirectorShareholderNotificationsIfCleared({
     issuerOrganizationId,
@@ -109,27 +121,17 @@ export async function runIssuerDirectorShareholderNotificationsAfterOrgCtosRepor
     nowPending,
   });
 
-  if (!wasPending && nowPending && afterVisible.length > 0) {
-    const active = await prisma.notification.findFirst({
-      where: {
-        user_id: ownerUserId,
-        notification_type_id: NotificationTypeIds.DIRECTOR_SHAREHOLDER_MISMATCH,
-        resolved_at: null,
-        metadata: {
-          path: ["issuerOrganizationId"],
-          equals: issuerOrganizationId,
-        },
-      },
-    });
-    if (active) {
-      return;
-    }
-
+  if (shouldTriggerOnPull) {
     const idempotencyKey = `ds_mismatch:${issuerOrganizationId}:${newCtosReportId}`;
     const dupKey = await prisma.notification.findUnique({
       where: { idempotency_key: idempotencyKey },
     });
     if (dupKey) {
+      console.log("DS mismatch skipped: duplicate idempotency key", {
+        issuerOrganizationId,
+        newCtosReportId,
+        idempotencyKey,
+      });
       return;
     }
 
@@ -144,6 +146,13 @@ export async function runIssuerDirectorShareholderNotificationsAfterOrgCtosRepor
       { issuerOrganizationId, newCtosReportId, ownerUserId },
       "Created director_shareholder_mismatch notification"
     );
+  } else {
+    console.log("DS mismatch skipped: temporary trigger disabled", {
+      issuerOrganizationId,
+      beforeWasPending: wasPending,
+      afterNowPending: nowPending,
+      afterVisibleCount: afterVisible.length,
+    });
   }
 }
 
@@ -191,10 +200,9 @@ async function resolveIssuerDirectorShareholderNotificationsIfCleared(params: {
   visible: ApplicationPersonRow[];
   nowPending: boolean;
 }): Promise<void> {
-  const { issuerOrganizationId, ownerUserId, people, visible, nowPending } = params;
+  const { issuerOrganizationId, ownerUserId, visible, nowPending } = params;
 
-  const shouldResolve =
-    (visible.length === 0 && people.length === 0) || (visible.length > 0 && !nowPending);
+  const shouldResolve = visible.length > 0 && !nowPending;
   if (!shouldResolve) {
     return;
   }
