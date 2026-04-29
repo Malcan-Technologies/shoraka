@@ -831,6 +831,20 @@ export function OnboardingReviewDialog({
               <div className="rounded-lg bg-muted/50 p-4 space-y-3">
                 <p className="text-sm font-medium">Approval Checklist:</p>
                 <div className="space-y-2">
+                  {isCompany && (
+                    <div className="flex items-center gap-2">
+                      {hasSsmApproval ? (
+                        <CheckCircleIcon className="h-5 w-5 text-emerald-600" />
+                      ) : (
+                        <XCircleIcon className="h-5 w-5 text-muted-foreground" />
+                      )}
+                      <span
+                        className={`text-sm ${hasSsmApproval ? "text-foreground" : "text-muted-foreground"}`}
+                      >
+                        CTOS Verified
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2">
                     {hasOnboardingApproval ? (
                       <CheckCircleIcon className="h-5 w-5 text-emerald-600" />
@@ -867,20 +881,6 @@ export function OnboardingReviewDialog({
                       Terms & Conditions Accepted
                     </span>
                   </div>
-                  {isCompany && (
-                    <div className="flex items-center gap-2">
-                      {hasSsmApproval ? (
-                        <CheckCircleIcon className="h-5 w-5 text-emerald-600" />
-                      ) : (
-                        <XCircleIcon className="h-5 w-5 text-muted-foreground" />
-                      )}
-                      <span
-                        className={`text-sm ${hasSsmApproval ? "text-foreground" : "text-muted-foreground"}`}
-                      >
-                        CTOS / SSM verified
-                      </span>
-                    </div>
-                  )}
                 </div>
               </div>
 
