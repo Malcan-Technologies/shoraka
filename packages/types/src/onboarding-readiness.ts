@@ -10,12 +10,5 @@ import { normalizeRawStatus } from "./status-normalization";
 export function isReadyOnboardingStatus(statusRaw: string | null | undefined): boolean {
   const s = normalizeRawStatus(statusRaw);
   if (!s) return false;
-  return (
-    s === "WAIT_FOR_APPROVAL" ||
-    s === "WAITING_FOR_APPROVAL" ||
-    s === "PENDING_APPROVAL" ||
-    s === "APPROVED" ||
-    s === "COMPLETED" ||
-    s === "REJECTED"
-  );
+  return s === "WAIT_FOR_APPROVAL" || s === "APPROVED";
 }

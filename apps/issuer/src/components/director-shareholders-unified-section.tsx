@@ -7,7 +7,6 @@ import {
   BuildingOffice2Icon,
   CheckCircleIcon,
   ClockIcon,
-  ExclamationTriangleIcon,
   XCircleIcon,
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
@@ -132,15 +131,6 @@ function renderStatusBadge(raw: string) {
     return (
       <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
         <XCircleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
-        {label}
-      </Badge>
-    );
-  }
-
-  if (label === "STATUS_UNAVAILABLE") {
-    return (
-      <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
-        <ExclamationTriangleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
         {label}
       </Badge>
     );

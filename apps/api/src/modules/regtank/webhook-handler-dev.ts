@@ -9,6 +9,7 @@ import { OnboardingStatus, UserRole, PrismaClient } from "@prisma/client";
 import { PortalType } from "./types";
 import { AuthRepository } from "../auth/repository";
 import { OrganizationRepository } from "../organization/repository";
+import { normalizeRawStatus } from "@cashsouk/types";
 
 /**
  * RegTank Dev Webhook Handler
@@ -277,30 +278,7 @@ export class RegTankDevWebhookHandler {
     const isLivenessCompleted =
       statusUpper === "LIVENESS_PASSED" || statusUpper === "WAIT_FOR_APPROVAL";
 
-    // Status transition logic for regtank_onboarding table:
-    // IN_PROGRESS → PENDING_APPROVAL → PENDING_AML → COMPLETED/APPROVED
-    // Note: Final approval is done on our side, not in RegTank
-
-    // Map RegTank status to our internal status
-    let internalStatus = statusUpper;
-
-    // Map form filling statuses (before liveness test)
-    if (
-      statusUpper === "PROCESSING" ||
-      statusUpper === "ID_UPLOADED" ||
-      statusUpper === "LIVENESS_STARTED"
-    ) {
-      internalStatus = "FORM_FILLING";
-    } else if (isLivenessCompleted) {
-      // When liveness completes, set to PENDING_APPROVAL
-      internalStatus = "PENDING_APPROVAL";
-    } else if (statusUpper === "APPROVED") {
-      // When RegTank approves, set status to PENDING_AML (not APPROVED)
-      // Final approval (COMPLETED) happens on our side after AML approval
-      internalStatus = "PENDING_AML";
-    } else if (statusUpper === "REJECTED") {
-      internalStatus = statusUpper;
-    }
+    const internalStatus = normalizeRawStatus(status);
 
     const updateData: {
       status: string;
@@ -314,8 +292,6 @@ export class RegTankDevWebhookHandler {
       updateData.substatus = substatus;
     }
 
-    // Set completed_at only if REJECTED
-    // APPROVED from RegTank becomes PENDING_AML, completed_at set when status becomes COMPLETED
     if (statusUpper === "REJECTED") {
       updateData.completed_at = new Date();
     }

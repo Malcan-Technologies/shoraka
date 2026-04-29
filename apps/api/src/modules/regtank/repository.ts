@@ -321,7 +321,18 @@ export class RegTankRepository {
         user_id: userId,
         portal_type: portalType,
         status: {
-          in: ["IN_PROGRESS", "FORM_FILLING", "LIVENESS_PASSED", "PENDING_APPROVAL"],
+          in: [
+            "PENDING",
+            "IN_PROGRESS",
+            "PROCESSING",
+            "ID_UPLOADED",
+            "LIVENESS_STARTED",
+            "LIVENESS_PASSED",
+            "WAIT_FOR_APPROVAL",
+            "EMAIL_SENT",
+            "FORM_FILLING",
+            "PENDING_APPROVAL",
+          ],
         },
         verify_link: {
           not: null,

@@ -16,7 +16,7 @@ import { OrganizationRepository } from "../organization/repository";
 import { AuthRepository } from "../auth/repository";
 import { getRegTankConfig } from "../../config/regtank";
 import { advanceOnboardingStatusFromFlags } from "../onboarding/utils/advance-onboarding-status";
-import { mapRegtankIndividualLivenessRawToInternalStatus } from "@cashsouk/types";
+import { normalizeRawStatus } from "@cashsouk/types";
 
 export class RegTankService {
   private repository: RegTankRepository;
@@ -130,10 +130,11 @@ export class RegTankService {
       portalType
     );
 
+    const rtStored = normalizeRawStatus(existingOnboarding?.status);
     const shouldResume =
       organization.onboarding_status !== OnboardingStatus.PENDING_APPROVAL &&
       existingOnboarding &&
-      !["LIVENESS_PASSED", "PENDING_APPROVAL", "APPROVED"].includes(existingOnboarding.status) &&
+      !["LIVENESS_PASSED", "WAIT_FOR_APPROVAL", "PENDING_APPROVAL", "APPROVED", "REJECTED"].includes(rtStored) &&
       existingOnboarding.verify_link !== null;
 
     if (shouldResume && existingOnboarding.verify_link) {
@@ -1409,11 +1410,7 @@ export class RegTankService {
     // Update status
     const statusUpper = status.toUpperCase();
 
-    // Status transition logic for regtank_onboarding table:
-    // IN_PROGRESS → PENDING_APPROVAL → PENDING_AML → COMPLETED/APPROVED
-    // Note: Final approval is done on our side, not in RegTank
-
-    const internalStatus = mapRegtankIndividualLivenessRawToInternalStatus(status);
+    const persistedRegtankStatus = normalizeRawStatus(status);
 
     // Detect when liveness test is completed (for organization status updates)
     const isLivenessCompleted =
@@ -1424,16 +1421,13 @@ export class RegTankService {
       substatus?: string;
       completedAt?: Date;
     } = {
-      status: internalStatus,
+      status: persistedRegtankStatus,
     };
 
     if (substatus) {
       updateData.substatus = substatus;
     }
 
-    // Set completed_at if status is REJECTED
-    // Note: APPROVED from RegTank becomes PENDING_AML, so we don't set completed_at yet
-    // completed_at will be set when status becomes COMPLETED after final approval
     if (statusUpper === "REJECTED") {
       updateData.completedAt = new Date();
     }
@@ -1445,13 +1439,10 @@ export class RegTankService {
       {
         requestId,
         regtankStatus: statusUpper,
-        internalStatus,
+        persistedRegtankStatus,
         organizationId: onboarding.investor_organization_id || onboarding.issuer_organization_id,
         portalType: onboarding.portal_type,
-        note:
-          internalStatus === "PENDING_AML"
-            ? "Status set to PENDING_AML (will remain until final approval)"
-            : `Status set to ${internalStatus}`,
+        note: `reg_tank_onboarding.status set to ${persistedRegtankStatus || "(empty)"}`,
       },
       "[RegTank Webhook] Updated regtank_onboarding.status"
     );
@@ -1517,8 +1508,6 @@ export class RegTankService {
       }
     }
 
-    // If approved by RegTank, fetch details and update organization to PENDING_AML
-    // RegTank onboarding status is now PENDING_AML (not APPROVED)
     if (statusUpper === "APPROVED" && organizationId) {
       const portalType = onboarding.portal_type as PortalType;
 
@@ -2018,7 +2007,7 @@ export class RegTankService {
 
     if (!onboarding) {
       return {
-        status: "NOT_STARTED",
+        status: "",
         createdAt: organization.created_at,
         updatedAt: organization.updated_at,
       };

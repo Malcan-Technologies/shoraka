@@ -17,6 +17,7 @@ import type { PortalType } from "../types";
 import { NotificationService } from "../../notification/service";
 import { NotificationTypeIds } from "../../notification/registry";
 import { advanceOnboardingStatusFromFlags } from "../../onboarding/utils/advance-onboarding-status";
+import { normalizeRawStatus } from "@cashsouk/types";
 
 /**
  * COD (Company Onboarding Data) Webhook Handler
@@ -69,40 +70,17 @@ export class CODWebhookHandler extends BaseWebhookHandler {
     // Append to history
     await this.repository.appendWebhookPayload(requestId, payload as Prisma.InputJsonValue);
 
-    // Status transition logic for corporate onboarding
-    // New flow: ONBOARDING_STARTED -> WAIT_FOR_APPROVAL -> PENDING_AML -> AML_APPROVED
     const statusUpper = status.toUpperCase();
-    let internalStatus = statusUpper;
+    const persistedRegtankStatus = normalizeRawStatus(status);
 
-    // Map URL_GENERATED to ONBOARDING_STARTED
-    if (statusUpper === "URL_GENERATED") {
-      internalStatus = "ONBOARDING_STARTED";
-    } else if (statusUpper === "WAIT_FOR_APPROVAL") {
-      internalStatus = "WAIT_FOR_APPROVAL";
-    } else if (statusUpper === "APPROVED") {
-      // When COD is approved, check if KYB exists
-      // If KYB exists, set to PENDING_AML, otherwise keep as APPROVED (will be updated when KYB webhook arrives)
-      if (kybId) {
-        internalStatus = "PENDING_AML";
-      } else {
-        // Keep as APPROVED for now, will transition to PENDING_AML when KYB webhook arrives
-        internalStatus = "APPROVED";
-      }
-    } else if (statusUpper === "REJECTED") {
-      internalStatus = "REJECTED";
-    }
-
-    // Update database
     const updateData: {
       status: string;
       substatus?: string;
       completedAt?: Date;
     } = {
-      status: internalStatus,
+      status: persistedRegtankStatus,
     };
 
-    // Set completed_at only for REJECTED or AML_APPROVED
-    // Note: APPROVED becomes PENDING_AML, so we don't set completed_at yet
     if (statusUpper === "REJECTED") {
       updateData.completedAt = new Date();
     }

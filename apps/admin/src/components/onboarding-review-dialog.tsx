@@ -63,7 +63,6 @@ import {
   ClockIcon,
   ArrowPathIcon,
   StarIcon,
-  ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
 import {
@@ -100,14 +99,6 @@ function PeopleKycStatusBadge({ status }: { status: string }) {
     return (
       <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
         <ClockIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
-        {label}
-      </Badge>
-    );
-  }
-  if (label === "STATUS_UNAVAILABLE") {
-    return (
-      <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
-        <ExclamationTriangleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
         {label}
       </Badge>
     );
@@ -158,7 +149,7 @@ function PeopleAmlStatusBadge({ status }: { status: string }) {
       variant="outline"
       className="border-muted-foreground/40 text-foreground bg-muted/40 text-[11px] font-normal"
     >
-      <ExclamationTriangleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
+      <ClockIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
       {label}
     </Badge>
   );

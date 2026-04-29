@@ -1,5 +1,6 @@
 import {
   normalizeDirectorShareholderIdKey,
+  normalizeRawStatus,
   parseCtosPartySupplementRoot,
   getEffectiveCtosPartyScreening,
   getEffectiveCtosPartyOnboarding,
@@ -18,8 +19,8 @@ type SupplementInput = {
 function screeningStatusFromSupplement(raw: unknown): string | null {
   const root = parseCtosPartySupplementRoot(raw);
   const scr = getEffectiveCtosPartyScreening(root);
-  const s = scr.status;
-  return typeof s === "string" && s.trim() ? s.trim() : null;
+  const n = normalizeRawStatus(scr.status);
+  return n || null;
 }
 
 export function buildAdminPeopleList(params: {
@@ -66,8 +67,8 @@ export function buildAdminPeopleList(params: {
     screeningByPartyKey.set(pk, { status: st });
     const root = parseCtosPartySupplementRoot(raw);
     const onboarding = getEffectiveCtosPartyOnboarding(root);
-    const onboardingStatus = String(onboarding.status ?? onboarding.regtankStatus ?? "").trim() || null;
-    onboardingByPartyKey.set(pk, { status: onboardingStatus });
+    const onboardingNorm = normalizeRawStatus(onboarding.status ?? onboarding.regtankStatus);
+    onboardingByPartyKey.set(pk, { status: onboardingNorm || null });
     const flatEm = getCtosPartySupplementFlatRead(raw).email.trim();
     if (flatEm) userEmailByPartyKey.set(pk, flatEm);
   }
@@ -220,11 +221,9 @@ export function buildAdminPeopleList(params: {
   return Array.from(peopleMap.values()).map((person) => {
     const key = normalizeDirectorShareholderIdKey(person.matchKey) ?? "";
     const fromSup = key ? screeningByPartyKey.get(key) : undefined;
-    const screeningStatus = fromSup?.status != null && String(fromSup.status).trim() !== ""
-      ? String(fromSup.status).trim()
-      : null;
-    const screening: { status: string | null } = { status: screeningStatus };
-    const amlLabel = screening.status?.trim() || "";
+    const screeningNorm = normalizeRawStatus(fromSup?.status);
+    const screening: { status: string | null } = { status: screeningNorm || null };
+    const amlLabel = screeningNorm;
     const rawAmlSync =
       person.entityType === "CORPORATE"
         ? key
@@ -242,10 +241,12 @@ export function buildAdminPeopleList(params: {
             );
           })();
     const directorAmlStatus =
-      rawAmlSync != null && String(rawAmlSync).trim() !== "" ? String(rawAmlSync).trim() : null;
+      rawAmlSync != null && String(rawAmlSync).trim() !== ""
+        ? normalizeRawStatus(String(rawAmlSync).trim()) || null
+        : null;
     const kycRefs = key ? individualKycRefByGov.get(key) : undefined;
     const directorKycStatus = kycRefs?.kycStatus?.trim()
-      ? kycRefs.kycStatus.trim()
+      ? normalizeRawStatus(kycRefs.kycStatus.trim()) || null
       : null;
     const onboardingStatus = key ? onboardingByPartyKey.get(key)?.status ?? null : null;
 
@@ -267,13 +268,19 @@ export function buildAdminPeopleList(params: {
 
     const email = userEmail ?? kycEmail ?? amlEmail ?? "";
 
+    console.log("RAW STATUS", {
+      matchKey: person.matchKey,
+      onboarding: onboardingStatus ?? "",
+      screening: screeningNorm,
+    });
+
     return {
       ...person,
       screening,
       directorAmlStatus,
       directorKycStatus,
       onboarding: { status: onboardingStatus },
-      status: amlLabel,
+      status: amlLabel || "",
       action: null,
       userEmail,
       kycEmail,

@@ -10,8 +10,8 @@ import { NotificationService } from "../../notification/service";
 import { NotificationTypeIds } from "../../notification/registry";
 import { prisma } from "../../../lib/prisma";
 import {
-  mapRegtankIndividualLivenessRawToInternalStatus,
   mergeCtosPartySupplementDocument,
+  normalizeRawStatus,
   parseCtosPartySupplementRoot,
 } from "@cashsouk/types";
 import { findCtosPartySupplementByOnboardingJsonMatch } from "../../organization/ctos-party-supplement-webhook-lookup";
@@ -67,23 +67,17 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
     // Append to history
     await this.repository.appendWebhookPayload(requestId, payload as Prisma.InputJsonValue);
 
-    // Status transition logic for regtank_onboarding table:
-    // IN_PROGRESS → PENDING_APPROVAL → PENDING_AML → COMPLETED/APPROVED
-    // Note: Final approval is done on our side, not in RegTank
     const statusUpper = status.toUpperCase();
-    const internalStatus = mapRegtankIndividualLivenessRawToInternalStatus(status);
+    const persistedRegtankStatus = normalizeRawStatus(status);
 
-    // Update database
     const updateData: {
       status: string;
       substatus?: string;
       completedAt?: Date;
     } = {
-      status: internalStatus,
+      status: persistedRegtankStatus,
     };
 
-    // Set completed_at only if REJECTED
-    // APPROVED from RegTank becomes PENDING_AML, completed_at set when status becomes COMPLETED
     if (statusUpper === "REJECTED") {
       updateData.completedAt = new Date();
     }
@@ -456,12 +450,10 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
       return false;
     }
 
-    const statusUpper = status.toUpperCase();
-
     const prevRoot = parseCtosPartySupplementRoot(supplement.onboarding_json);
     const now = new Date().toISOString();
     const mergedBase = mergeCtosPartySupplementDocument(prevRoot, {
-      regtankPipelineStatus: status,
+      regtankPipelineStatus: normalizeRawStatus(status),
       onboarding: { updatedAt: now },
     });
 
@@ -476,7 +468,7 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
       {
         requestId,
         status,
-        rawRegTankStatus: statusUpper,
+        rawRegTankStatus: status.toUpperCase(),
         partyKey: supplement.party_key,
         issuerOrganizationId: supplement.issuer_organization_id,
         investorOrganizationId: supplement.investor_organization_id,

@@ -6,6 +6,8 @@
  * WHERE USED: API webhooks, organization service, issuer/investor UI, types helpers
  */
 
+import { normalizeRawStatus } from "./status-normalization";
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -163,8 +165,8 @@ export function isCtosPartySupplementApprovalLocked(root: unknown): boolean {
   const r = parseCtosPartySupplementRoot(root);
   const onb = getEffectiveCtosPartyOnboarding(r);
   const scr = getEffectiveCtosPartyScreening(r);
-  const regtankStatus = String(onb.status ?? onb.regtankStatus ?? "").trim().toUpperCase();
-  const screeningRaw = String(scr.status ?? "").trim().toUpperCase();
+  const regtankStatus = normalizeRawStatus(onb.status ?? onb.regtankStatus);
+  const screeningRaw = normalizeRawStatus(scr.status);
   return regtankStatus === "APPROVED" || screeningRaw === "APPROVED";
 }
 
@@ -192,7 +194,7 @@ export function mergeCtosPartySupplementDocument(
 
   const onboarding: Record<string, unknown> = { ...effOnb, ...(patch.onboarding ?? {}) };
   if (patch.regtankPipelineStatus !== undefined) {
-    onboarding.status = patch.regtankPipelineStatus;
+    onboarding.status = normalizeRawStatus(patch.regtankPipelineStatus);
   }
   delete onboarding.regtankStatus;
 
@@ -228,7 +230,7 @@ export function mergeCtosPartySupplementDocument(
 export function getCtosPartySupplementPipelineStatus(root: unknown): string {
   const r = parseCtosPartySupplementRoot(root);
   const onb = getEffectiveCtosPartyOnboarding(r);
-  return String(onb.status ?? onb.regtankStatus ?? "").trim();
+  return normalizeRawStatus(onb.status ?? onb.regtankStatus);
 }
 
 export function getCtosPartySupplementRequestId(root: unknown): string {
