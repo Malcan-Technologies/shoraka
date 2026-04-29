@@ -475,7 +475,9 @@ export function DirectorShareholdersUnifiedSection({
               </span>
             ) : null}
           </p>
-          {!typeA ? <p className="text-xs text-muted-foreground mt-1">{em.trim() ? em : ""}</p> : null}
+          {em.trim() ? (
+            <p className="text-xs text-muted-foreground mt-1 break-all">{em}</p>
+          ) : null}
           <p className="text-xs text-muted-foreground mt-1">{personRoleDisplayLabel(row)}</p>
           <div className="mt-1 flex flex-wrap flex-col gap-1">
             {partySource && typeA ? (
