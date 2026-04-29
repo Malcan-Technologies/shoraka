@@ -538,7 +538,7 @@ Rules:
 - `Publish` makes the note visible and investable in the investor marketplace. Use it only after source invoice, issuer, paymaster, target amount, profit rate, platform fee, service fee, risk disclosure, and listing summary have been reviewed.
 - `Unpublish` removes the note from the investor marketplace. It should be used only before investor commitments exist, or as an exceptional admin action if a listing needs to be withdrawn before funding opens.
 - `Close Funding` stops new marketplace commitments and locks investor allocations for activation. Use it when the note has reached the successful funding threshold, normally 80% or more, or when the listing window closes and admin accepts the achieved funding level.
-- `Fail Funding` ends the marketplace listing as unsuccessful. Use it when the note does not meet the minimum funding threshold and should not proceed to activation; committed investor funds must be released or refunded according to the payment rail model.
+- `Fail Funding` ends an open marketplace listing as unsuccessful. Use it only while funding is still open and the note does not meet the minimum funding threshold; committed investor funds must be released or refunded according to the payment rail model.
 - The admin UI should require an explicit confirmation dialog before `Publish`, `Unpublish`, `Close Funding`, or `Fail Funding`, because these actions change marketplace visibility or investor funding state.
 - Investor commitment creation must reserve note capacity atomically by incrementing `funded_amount` only while the note is still published, funding is open, and enough target capacity remains. Do not rely on a pre-read investment snapshot for oversubscription checks.
 - Funding is successful when confirmed investments reach at least 80% of the target.
@@ -913,6 +913,7 @@ Investor APIs:
 - `GET /v1/investor/portfolio`
 
 Marketplace note detail responses must use a marketplace-safe projection. They should include public listing and funding fields only, and must not expose admin-only snapshots, other investors' identifiers, payment records, settlement records, internal event metadata, or ledger details.
+Investor portfolio totals must aggregate by accessible investor organizations, not only by the user who originally created each investment.
 
 All routes should use zod validation, response envelopes, correlation IDs, structured logs, and role/ownership checks consistent with existing backend rules.
 

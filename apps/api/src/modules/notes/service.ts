@@ -769,6 +769,9 @@ export class NoteService {
     const now = new Date();
     const note = await noteRepository.findById(id);
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    if (note.status !== NoteStatus.PUBLISHED || note.funding_status !== NoteFundingStatus.OPEN) {
+      throw new AppError(409, "NOTE_FUNDING_NOT_OPEN", "Only notes with open funding can be failed");
+    }
     const updated = await prisma.$transaction(async (tx) => {
       await tx.noteInvestment.updateMany({
         where: { note_id: id, status: NoteInvestmentStatus.COMMITTED },
@@ -856,9 +859,14 @@ export class NoteService {
   }
 
   async getInvestorPortfolio(userId: string) {
+    const orgs = await prisma.investorOrganization.findMany({
+      where: { OR: [{ owner_user_id: userId }, { members: { some: { user_id: userId } } }] },
+      select: { id: true },
+    });
+    const orgIds = orgs.map((org) => org.id);
     const investments = await prisma.noteInvestment.findMany({
       where: {
-        investor_user_id: userId,
+        investor_organization_id: { in: orgIds },
         status: { in: [NoteInvestmentStatus.COMMITTED, NoteInvestmentStatus.CONFIRMED, NoteInvestmentStatus.SETTLED] },
       },
     });
@@ -1409,6 +1417,9 @@ export class NoteService {
   }
 
   async markWithdrawalSubmitted(id: string, actor: ActorContext) {
+    const existing = await prisma.withdrawalInstruction.findUnique({ where: { id } });
+    if (!existing) throw new AppError(404, "WITHDRAWAL_NOT_FOUND", "Withdrawal not found");
+
     const withdrawal = await prisma.withdrawalInstruction.update({
       where: { id },
       data: {
