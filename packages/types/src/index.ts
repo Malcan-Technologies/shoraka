@@ -359,3 +359,4 @@ export * from "./director-kyc-gov-id";
 export * from "./director-shareholder-display";
 export * from "./regtank-onboarding-status";
 export * from "./regtank-iso3166-countries";
+export * from "./notes";

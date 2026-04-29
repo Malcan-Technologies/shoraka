@@ -1,14 +1,14 @@
 # Note Lifecycle Management Plan
 
-This document proposes the future note lifecycle from the point where a completed issuer application becomes an investable note. It covers marketplace listing, investor funding, admin controls, repayments, late payments, partial and advance payments, issuer residual returns, ledger requirements, and implementation phases.
+This document proposes the future note lifecycle from the point where an approved source invoice becomes an investable note. It covers marketplace listing, investor funding, admin controls, repayments, late payments, partial and advance payments, issuer residual returns, ledger requirements, and implementation phases.
 
 ## Scope
 
-The note lifecycle starts after issuer application completion.
+The note lifecycle starts after issuer origination produces approved invoices. A contract can have multiple invoices, and each approved invoice can become its own note.
 
 In scope:
 
-- Creating notes from accepted application/contract/invoice offers.
+- Creating one note per approved invoice, using the related application and contract as source context.
 - Admin note review, publication, marketplace controls, funding controls, servicing controls, and exception handling.
 - Investor marketplace listing and investment commitments.
 - Successful funding threshold at 80% or more of target funding.
@@ -33,33 +33,42 @@ Out of scope for the first implementation pass unless explicitly added:
 
 ## Current Codebase Findings
 
-Current state:
+Current implementation state:
 
-- Admin sidebar already includes `Notes` at `/notes` in `apps/admin/src/components/app-sidebar.tsx`.
-- There is no `apps/admin/src/app/notes/page.tsx`.
-- Admin sidebar also includes `Investments` at `/investments`, but that page is also missing.
-- Investor dashboard links to `/investments`, but `apps/investor/src/app` has no investments or marketplace route.
-- Notification `NEW_PRODUCT_ALERT` links to `/investments/:productId`, but that route does not exist.
-- Active origination data lives in `Application`, `Contract`, and `Invoice`.
-- `Loan` and `Investment` models exist in Prisma but are not wired into active `/v1` routes.
+- Admin notes registry exists at `apps/admin/src/app/notes/page.tsx`.
+- The registry now uses one consolidated table for approved invoices ready for note creation and existing notes. Approved invoices that already have notes are not duplicated as separate ready-invoice rows.
+- Admin note detail exists at `apps/admin/src/app/notes/[id]/page.tsx` with source context, commercial terms, servicing lifecycle controls, ledger, and audit timeline.
+- Issuer note list and detail pages exist under `apps/issuer/src/app/notes`.
+- Investor marketplace and investment pages exist under `apps/investor/src/app/investments`.
+- Active origination data still lives in `Application`, `Contract`, and `Invoice`.
 - Paymaster/obligor data is already captured in the origination flow, primarily as `Contract.customer_details`; admin UI also labels this counterparty as Paymaster.
-- There is no `Note`, `NoteInvestment`, `Repayment`, `Payment`, `Settlement`, ledger table, or normalized `Paymaster` table.
+- The note lifecycle now has first-class Prisma models for notes, listings, investments, payments, settlements, ledger accounts, ledger entries, note events, note admin actions, platform finance settings, and withdrawal instructions.
+- The five bucket balances are visible in the admin portal at `/finance/buckets`, backed by `NoteLedgerAccount` and `NoteLedgerEntry`.
+- `Loan` and `Investment` models still exist in Prisma but are legacy/disconnected from the active note lifecycle.
 
 Key files:
 
 - `apps/admin/src/components/app-sidebar.tsx`
-- `apps/admin/src/app/contracts/page.tsx`
-- `apps/admin/src/contracts/hooks/use-contracts.ts`
+- `apps/admin/src/app/notes/page.tsx`
+- `apps/admin/src/app/notes/[id]/page.tsx`
+- `apps/admin/src/app/finance/buckets/page.tsx`
+- `apps/admin/src/notes/components/settlement-panel.tsx`
+- `apps/admin/src/notes/components/notes-table.tsx`
+- `apps/admin/src/notes/components/notes-table-row.tsx`
 - `apps/api/prisma/schema.prisma`
 - `apps/api/src/routes.ts`
-- `apps/api/src/modules/admin/controller.ts`
-- `apps/api/src/modules/admin/service.ts`
+- `apps/api/src/modules/notes/controller.ts`
+- `apps/api/src/modules/notes/service.ts`
+- `apps/api/src/modules/notes/mapper.ts`
 - `apps/api/src/modules/applications/lifecycle.ts`
 - `apps/api/src/lib/contract-facility.ts`
 - `apps/api/src/lib/invoice-offer.ts`
 - `packages/config/src/api-client.ts`
-- `packages/types/src/index.ts`
-- `apps/investor/src/app/page.tsx`
+- `packages/types/src/notes.ts`
+- `apps/issuer/src/app/notes/page.tsx`
+- `apps/issuer/src/app/notes/[id]/page.tsx`
+- `apps/investor/src/app/investments/page.tsx`
+- `apps/investor/src/app/investments/[id]/page.tsx`
 - `apps/investor/src/components/account-overview-card.tsx`
 - `apps/api/src/modules/notification/registry.ts`
 
@@ -87,7 +96,7 @@ Notes are financing instruments:
 - Late/default handling.
 - Ledger and reporting.
 
-The note creation process should copy accepted commercial terms from application/contract/invoice records into immutable note fields. The note may reference source rows, but its financial ledger should not depend on mutable JSON payloads from the application flow.
+The note creation process should copy accepted commercial terms from the approved invoice into immutable note fields. The note should also reference and snapshot the parent application and related contract because those records carry issuer, product, paymaster/customer, and offer context. The financial ledger should not depend on mutable JSON payloads from the application flow after the note is created.
 
 ## Paymaster Source Data
 
@@ -104,7 +113,7 @@ Current implementation notes:
 
 Future note implementation should therefore:
 
-- Read paymaster data from the completed source application, contract, and invoice context.
+- Read paymaster data from the source contract and invoice context.
 - Snapshot the paymaster fields onto the note at creation time for auditability.
 - Optionally normalize the paymaster into a dedicated counterparty table for concentration limits, reporting, and future reuse.
 - Avoid making paymaster creation a separate manual admin step unless the source data is incomplete.
@@ -139,8 +148,10 @@ Proposed money movement:
 
 Implementation implication:
 
-- These pools/accounts should map to ledger accounts in `NoteAccount` and immutable postings in `NoteLedgerEntry`.
+- These pools/accounts should map to ledger accounts in `NoteLedgerAccount` and immutable postings in `NoteLedgerEntry`.
 - The UI can show note status, but finance operations should be driven by balanced ledger movements between pools/accounts.
+- Admin can review current platform bucket balances in `/finance/buckets`. This page rolls up credits, debits, net balances, entry counts, and last movement for the five buckets.
+- Recording a verified repayment receipt posts an idempotent receipt entry into the Repayment Pool. Posting settlement then debits the Repayment Pool for each payout and credits the destination buckets.
 - Late payment servicing must keep ta'widh and gharamah separate from platform operating income.
 - Late fees are borne by the issuer, but they are deducted from the repayment proceeds before the issuer residual is returned.
 - If the paymaster repayment exceeds what is needed for investor principal, investor profit, service fee, and approved late charges, the remaining balance is payable back to the issuer as the unfunded residual.
@@ -194,11 +205,12 @@ Paymaster-related admin data should show:
 
 ### Admin
 
-Admin owns the operational lifecycle across origination, listing, funding close, servicing, reconciliation, and exceptions. Admin creates or validates the note from accepted issuer terms, publishes it to the marketplace, monitors funding, closes funding at or above 80%, activates the note, records paymaster repayments, calculates fees and late charges, approves reconciliation, posts ledger entries, settles investors, and handles refunds/withdrawals/exceptions.
+Admin owns the operational lifecycle across origination, listing, funding close, servicing, reconciliation, and exceptions. Admin reviews approved invoices one by one, turns each eligible invoice into a note, validates the source snapshots, publishes it to the marketplace, monitors funding, closes funding at or above 80%, activates the note, records paymaster repayments, calculates fees and late charges, approves reconciliation, posts ledger entries, settles investors, and handles refunds/withdrawals/exceptions.
 
 Admin controls should cover:
 
-- note creation from completed applications,
+- note creation from approved invoices,
+- consolidated registry view for ready invoices and existing notes,
 - source data validation and snapshot,
 - platform fee review at disbursement,
 - customer-specific service fee review,
@@ -211,6 +223,8 @@ Admin controls should cover:
 - ta'widh and gharamah split approval,
 - service fee and platform fee posting,
 - investor settlement,
+- settlement payout summary across Repayment Pool, Investor Pool, Operating Account, Ta'widh Account, Gharamah Account, and issuer residual,
+- platform bucket balance monitoring,
 - issuer residual payable workflow,
 - withdrawal PDF letter generation for trustee submission,
 - audit trail and ledger export.
@@ -219,7 +233,8 @@ Admin controls should cover:
 
 ```mermaid
 flowchart TD
-  completedApplication["Completed issuer application"] --> createNote["Create note from accepted terms"]
+  approvedInvoice["Approved invoice"] --> createNote["Create note from invoice terms"]
+  contractContext["Related contract and paymaster context"] --> createNote
   createNote --> adminDraft["Admin validates note draft"]
   adminDraft --> publishListing["Publish marketplace listing"]
   publishListing --> fundingOpen["Investor funding open"]
@@ -377,8 +392,8 @@ Ledger:
   - store amount as `numeric(18,6)`.
   - include debit/credit account, counterparty, source event, and idempotency key.
 
-- `NoteAccount`
-  - logical accounts such as investor payable, platform fee income, service fee income, issuer residual payable, ta'widh compensation, and gharamah charity.
+- `NoteLedgerAccount`
+  - logical accounts for the five platform buckets: Investor Pool, Repayment Pool, Operating Account, Ta'widh Account, and Gharamah Account.
 
 - `PlatformFinanceSetting`
   - global settings for grace period, ta'widh default/cap, gharamah default/cap, arrears threshold, and manual default marking controls.
@@ -402,6 +417,81 @@ Audit:
 
 - `NoteAdminAction`
   - admin action log with actor, reason, before/after values, correlation ID, and approval state.
+
+## Implemented Schema Reference
+
+The current implementation adds these Prisma models in `apps/api/prisma/schema.prisma`. Money columns use `numeric(18,6)` and rate/percentage columns use bounded decimal precision.
+
+### Core Note Tables
+
+- `Note`
+  - Source linkage: `source_application_id`, `source_contract_id`, `source_invoice_id`, `issuer_organization_id`.
+  - State fields: `status`, `listing_status`, `funding_status`, `servicing_status`.
+  - Human/reference fields: `title`, `note_reference`.
+  - Immutable snapshots: `product_snapshot`, `issuer_snapshot`, `paymaster_snapshot`, `contract_snapshot`, `invoice_snapshot`.
+  - Money/rate fields: `requested_amount`, `target_amount`, `funded_amount`, `minimum_funding_percent`, `profit_rate_percent`, `platform_fee_rate_percent`, `service_fee_rate_percent`.
+  - Servicing settings copied to the note: `grace_period_days`, `arrears_threshold_days`, `tawidh_rate_cap_percent`, `gharamah_rate_cap_percent`.
+  - Lifecycle timestamps: `published_at`, `funding_closed_at`, `activated_at`, `repaid_at`, `arrears_started_at`, `default_marked_at`.
+  - Default metadata: `default_marked_by_admin_user_id`, `default_reason`, `metadata`.
+- `NoteListing`
+  - `note_id`, `status`, `opens_at`, `closes_at`, `published_at`, `unpublished_at`, `visibility`, `summary`, `risk_disclosure`.
+- `NoteInvestment`
+  - `note_id`, `investor_organization_id`, `investor_user_id`, `status`, `amount`, `allocation_percent`, `committed_at`, `confirmed_at`, `released_at`, `metadata`.
+
+### Payment and Settlement Tables
+
+- `NotePaymentSchedule`
+  - `note_id`, `status`, `sequence`, `due_date`.
+  - Expected amounts: `expected_principal`, `expected_profit`, `expected_total`.
+  - Paid amounts: `paid_principal`, `paid_profit`, `paid_total`.
+- `NotePayment`
+  - `note_id`, `schedule_id`, `source`, `status`, `receipt_amount`, `receipt_date`.
+  - Reconciliation fields: `received_into_account_code`, `evidence_s3_key`, `reference`, `recorded_by_user_id`, `reconciled_by_user_id`, `reconciled_at`, `metadata`.
+- `NoteSettlement`
+  - `note_id`, `payment_id`, `status`, `settlement_type`, `gross_receipt_amount`.
+  - Waterfall amounts: `investor_principal`, `investor_profit_gross`, `service_fee_amount`, `investor_profit_net`, `tawidh_amount`, `gharamah_amount`, `issuer_residual_amount`, `unapplied_amount`.
+  - Control fields: `preview_snapshot`, `approved_by_user_id`, `approved_at`, `posted_at`, `idempotency_key`.
+
+### Five Bucket Ledger Tables
+
+The five buckets are stored as rows in `NoteLedgerAccount` and referenced by `NoteLedgerEntry.account_id`.
+
+- `NoteLedgerAccount`
+  - `code`, `name`, `type`, `currency`, `is_system`.
+  - Seeded system account codes:
+    - `INVESTOR_POOL`
+    - `REPAYMENT_POOL`
+    - `OPERATING_ACCOUNT`
+    - `TAWIDH_ACCOUNT`
+    - `GHARAMAH_ACCOUNT`
+- `NoteLedgerEntry`
+  - Linkage: `note_id`, `account_id`, `settlement_id`, `payment_id`, `withdrawal_id`.
+  - Posting fields: `direction`, `amount`, `currency`, `description`, `posted_at`.
+  - Idempotency/audit: `idempotency_key`, `metadata`, `created_at`.
+
+Bucket semantics:
+
+- `INVESTOR_POOL` holds investor deposits, committed funding, investor repayments, and withdrawal outflows.
+- `REPAYMENT_POOL` receives paymaster repayments and issuer-on-behalf repayments before settlement.
+- `OPERATING_ACCOUNT` receives issuer application fees, platform fees, and service fees.
+- `TAWIDH_ACCOUNT` receives the Syariah ta'widh compensation component.
+- `GHARAMAH_ACCOUNT` receives the Syariah gharamah penalty/charity component.
+
+### Settings, Withdrawals, and Audit Tables
+
+- `PlatformFinanceSetting`
+  - `key`, `grace_period_days`, `arrears_threshold_days`.
+  - Caps/defaults: `tawidh_rate_cap_percent`, `gharamah_rate_cap_percent`, `default_tawidh_rate_percent`, `default_gharamah_rate_percent`.
+  - Letter templates: `withdrawal_letter_template`, `arrears_letter_template`, `default_letter_template`.
+  - Audit/config: `updated_by_user_id`, `metadata`, timestamps.
+- `WithdrawalInstruction`
+  - Linkage: `note_id`, `investor_organization_id`, `issuer_organization_id`.
+  - Request/submission fields: `requested_by_user_id`, `submitted_by_user_id`, `status`, `withdrawal_type`, `amount`, `currency`.
+  - Trustee letter fields: `beneficiary_snapshot`, `letter_s3_key`, `generated_at`, `submitted_to_trustee_at`, `metadata`.
+- `NoteEvent`
+  - `note_id`, `event_type`, `actor_user_id`, `actor_role`, `portal`, `ip_address`, `user_agent`, `correlation_id`, `metadata`, `created_at`.
+- `NoteAdminAction`
+  - `note_id`, `action_type`, `actor_user_id`, `reason`, `before_state`, `after_state`, `ip_address`, `user_agent`, `correlation_id`, `created_at`.
 
 ## Monetary Rules
 
@@ -435,6 +525,7 @@ Definitions:
 - `invoice_face_value` - paymaster obligation amount for the invoice or accepted receivable.
 - `funding_target_amount` - amount opened to investors.
 - `funded_amount` - confirmed investor capital.
+- `settlement_amount` - invoice face value payable into the Repayment Pool by the paymaster, or by the issuer when paying on behalf of the paymaster.
 - `funded_percent = funded_amount / funding_target_amount * 100`.
 - `min_successful_funding_percent = 80`.
 
@@ -442,6 +533,11 @@ Rules:
 
 - Admin can publish a note only after accepted source terms are frozen.
 - Marketplace funding opens with a target and a close date.
+- `Publish` makes the note visible and investable in the investor marketplace. Use it only after source invoice, issuer, paymaster, target amount, profit rate, platform fee, service fee, risk disclosure, and listing summary have been reviewed.
+- `Unpublish` removes the note from the investor marketplace. It should be used only before investor commitments exist, or as an exceptional admin action if a listing needs to be withdrawn before funding opens.
+- `Close Funding` stops new marketplace commitments and locks investor allocations for activation. Use it when the note has reached the successful funding threshold, normally 80% or more, or when the listing window closes and admin accepts the achieved funding level.
+- `Fail Funding` ends the marketplace listing as unsuccessful. Use it when the note does not meet the minimum funding threshold and should not proceed to activation; committed investor funds must be released or refunded according to the payment rail model.
+- The admin UI should require an explicit confirmation dialog before `Publish`, `Unpublish`, `Close Funding`, or `Fail Funding`, because these actions change marketplace visibility or investor funding state.
 - Funding is successful when confirmed investments reach at least 80% of the target.
 - Funding may continue until 100% if still within the listing window and admin policy allows.
 - Admin can close funding when it is at least 80%.
@@ -450,17 +546,18 @@ Rules:
 - If funding fails, confirmed investor funds must be refunded or released according to the payment rail model.
 - If a note is funded below 100%, only the funded portion is disbursed from the Investor Pool to the issuer at note activation.
 - Platform fee is deducted at disbursement from the funded amount before the issuer receives net proceeds.
-- When the paymaster later repays the full invoice/contract amount, the Repayment Pool must return the unfunded residual balance to the issuer after investor settlement, service fee, and any approved late charges.
+- When the paymaster later repays, the settlement amount is the invoice face value, not the funded/disbursed amount. The Repayment Pool must return the unfunded residual balance to the issuer after investor settlement, service fee, and any approved late charges.
 
 ## Paymaster Repayment and Issuer Residual Logic
 
 Paymaster repayment assumption:
 
 - Paymaster means the existing customer/obligor from the source contract or invoice, not a newly-entered party.
-- Paymaster repays the invoice/contract financing obligation in full, unless the issuer pays on behalf of the paymaster.
-- Issuer-on-behalf-of-paymaster payments should settle the same note obligation but must preserve the true payment source for audit, reconciliation, and reporting.
+- Paymaster repays the invoice/contract financing obligation in full. This settlement amount equals the invoice face value.
+- Issuer-on-behalf-of-paymaster payments should settle the same invoice face value obligation, preserve the true payment source for audit, and be reviewed by admin before reconciliation.
 - If investor funding is below 100%, the unfunded balance remains payable to the issuer because the issuer owns the receivable.
 - The residual balance, less applicable service fee and approved issuer-borne late charges, is returned to the issuer from the Repayment Pool. Platform fee has already been deducted at disbursement.
+- Admin should manually check whether payment is overdue before settlement. The system should calculate ta'widh and gharamah from the due date plus grace period and subtract all previously approved or posted late fees so the issuer is not double charged.
 
 Proposed settlement waterfall:
 
@@ -714,7 +811,7 @@ Recommended detail page sections:
 
 Admin actions:
 
-- Create note from completed application.
+- Review approved invoices and turn each eligible invoice into one note.
 - Edit draft note terms before publishing.
 - Validate source data and freeze source snapshot.
 - Publish listing.
@@ -775,7 +872,9 @@ Admin APIs:
 
 - `GET /v1/admin/notes`
 - `GET /v1/admin/notes/:id`
-- `POST /v1/admin/notes/from-application/:applicationId`
+- `GET /v1/admin/notes/source-invoices`
+- `POST /v1/admin/notes/from-invoice/:invoiceId`
+- `POST /v1/admin/notes/from-application/:applicationId` for legacy or contract-only flows.
 - `PATCH /v1/admin/notes/:id/draft`
 - `POST /v1/admin/notes/:id/publish`
 - `POST /v1/admin/notes/:id/unpublish`
@@ -893,7 +992,7 @@ Implementation should keep grace period, ta'widh/gharamah defaults, caps, roundi
 - Add note domain types and Prisma models.
 - Add migrations with numeric money columns.
 - Add backend note module with admin list/detail/read APIs.
-- Add note creation from completed application.
+- Add approved-invoice source listing and one-note-per-invoice creation.
 - Add immutable source snapshot fields.
 - Add basic note event log.
 - Add global platform finance settings with audited defaults for 7-day grace period, ta'widh cap up to 1% p.a., gharamah cap up to 9% p.a., and 14-day arrears threshold after grace.
@@ -904,7 +1003,7 @@ Implementation should keep grace period, ta'widh/gharamah defaults, caps, roundi
 - Create `/notes` admin page.
 - Add list filters, summary cards, and note table.
 - Add note detail page or modal.
-- Add draft validation, publish controls, and source application context.
+- Add draft validation, publish controls, and source invoice/application/contract context.
 - Add admin global settings controls for grace period, ta'widh/gharamah defaults and caps, arrears threshold, and manual default marking rules.
 - Add per-note platform fee controls capped at 3% for disbursement.
 - Add per-customer/note service fee controls capped at the standard 15% of investor profit.
@@ -946,7 +1045,7 @@ Implementation should keep grace period, ta'widh/gharamah defaults, caps, roundi
 - Add service tests for state transitions.
 - Add integration tests for note creation, funding close, payment posting, and settlement.
 - Add Playwright smoke tests for admin notes and investor marketplace.
-- Add seed scenarios for completed application to note, 80% funded note, 100% funded note, partial payment, advance payment, late payment, and refund.
+- Add seed scenarios for approved invoice to note, 80% funded note, 100% funded note, partial payment, advance payment, late payment, and refund.
 
 ## Testing Strategy
 
@@ -965,8 +1064,8 @@ Backend unit tests:
 
 Backend integration tests:
 
-- Create note from completed application.
-- Reject note creation from ineligible application.
+- Create note from approved invoice.
+- Reject note creation from ineligible invoice.
 - Publish listing.
 - Invest in note.
 - Close funding at 80%.
@@ -1009,7 +1108,7 @@ These should be resolved before implementation begins:
 The safest first slice is admin-visible note creation and review without investor money movement:
 
 1. Create normalized note tables and source snapshots.
-2. Create notes from completed applications.
+2. List approved invoices and create one note per invoice.
 3. Build admin `/notes` list and detail.
 4. Validate immutable terms and publish readiness.
 5. Add read-only marketplace listing API from published notes.

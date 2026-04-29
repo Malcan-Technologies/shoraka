@@ -1,0 +1,1754 @@
+import PDFDocument from "pdfkit";
+import {
+  ApplicationStatus,
+  InvoiceStatus,
+  NoteFundingStatus,
+  NoteInvestmentStatus,
+  NoteLedgerDirection,
+  NoteListingStatus,
+  NotePaymentStatus,
+  NoteServicingStatus,
+  NoteSettlementStatus,
+  NoteSettlementType,
+  NoteStatus,
+  Prisma,
+  UserRole,
+  WithdrawalStatus,
+} from "@prisma/client";
+import { AppError } from "../../lib/http/error-handler";
+import { prisma } from "../../lib/prisma";
+import { putS3ObjectBuffer } from "../../lib/s3/client";
+import { resolveApprovedFacilityForRefresh } from "../../lib/contract-facility";
+import {
+  resolveOfferedAmount,
+  resolveOfferedProfitRate,
+  resolveRequestedInvoiceAmount,
+} from "../../lib/invoice-offer";
+import { mapLedgerEntry, mapNoteDetail, mapNoteListItem } from "./mapper";
+import { noteInclude, noteRepository } from "./repository";
+import { calculateLateCharge as calculateLateChargeValues, calculateSettlementWaterfall } from "./calculators";
+import type {
+  createInvestmentSchema,
+  createNoteFromApplicationSchema,
+  createWithdrawalSchema,
+  getNotesQuerySchema,
+  lateChargeSchema,
+  overdueLateChargeSchema,
+  paymentReviewSchema,
+  recordPaymentSchema,
+  settlementPreviewSchema,
+  updateNoteDraftSchema,
+  updatePlatformFinanceSettingsSchema,
+} from "./schemas";
+import type { z } from "zod";
+
+type ActorContext = {
+  userId: string;
+  role?: UserRole | string;
+  portal?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  correlationId?: string;
+};
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function toNumber(value: unknown): number {
+  if (value instanceof Prisma.Decimal) return value.toNumber();
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value.replace(/,/g, ""));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function resolveNoteSettlementAmount(note: {
+  invoice_snapshot?: Prisma.JsonValue | null;
+  requested_amount?: Prisma.Decimal | number | string | null;
+}) {
+  const invoiceSnapshot = asRecord(note.invoice_snapshot);
+  const details = asRecord(invoiceSnapshot?.details);
+  const offerDetails = asRecord(invoiceSnapshot?.offer_details);
+  return (
+    toNumber(details?.value) ||
+    toNumber(details?.invoice_value) ||
+    toNumber(details?.invoiceAmount) ||
+    toNumber(offerDetails?.invoice_value) ||
+    toNumber(note.requested_amount)
+  );
+}
+
+function resolveIssuerPaymentPurpose(input: { metadata?: Record<string, unknown> | null }) {
+  const metadata = asRecord(input.metadata);
+  return metadata?.paymentPurpose === "LATE_FEES" ? "LATE_FEES" : "SETTLEMENT";
+}
+
+function resolveRiskRating(value: unknown) {
+  return value === "A" || value === "B" || value === "C" ? value : null;
+}
+
+function assertSettlementAmountComplete(
+  settlement: {
+    gross_receipt_amount: Prisma.Decimal | number | string;
+    note: {
+      invoice_snapshot?: Prisma.JsonValue | null;
+      requested_amount?: Prisma.Decimal | number | string | null;
+    };
+  }
+) {
+  const settlementAmount = resolveNoteSettlementAmount(settlement.note);
+  const grossReceiptAmount = toNumber(settlement.gross_receipt_amount);
+  if (settlementAmount > 0 && grossReceiptAmount + 0.005 < settlementAmount) {
+    throw new AppError(
+      422,
+      "INCOMPLETE_SETTLEMENT_AMOUNT",
+      "Settlement cannot be approved or posted until the full invoice settlement amount has been received"
+    );
+  }
+}
+
+function assertNoteReadyForServicing(note: {
+  funding_status: NoteFundingStatus;
+  servicing_status: NoteServicingStatus;
+}) {
+  if (note.funding_status !== NoteFundingStatus.FUNDED || note.servicing_status === NoteServicingStatus.NOT_STARTED) {
+    throw new AppError(
+      409,
+      "NOTE_SERVICING_NOT_OPEN",
+      "Payment and settlement are available only after the note is funded and activated"
+    );
+  }
+}
+
+function money(value: number): Prisma.Decimal {
+  return new Prisma.Decimal(value.toFixed(6));
+}
+
+function json(value: unknown): Prisma.InputJsonValue | undefined {
+  if (value == null) return undefined;
+  return value as Prisma.InputJsonValue;
+}
+
+function dateFrom(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+async function renderPdfBuffer(title: string, rows: Array<[string, string]>): Promise<Buffer> {
+  const doc = new PDFDocument({ margin: 48 });
+  const chunks: Buffer[] = [];
+  doc.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+  const done = new Promise<Buffer>((resolve) => {
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+  });
+  doc.fontSize(18).text(title, { underline: true });
+  doc.moveDown();
+  for (const [label, value] of rows) {
+    doc.fontSize(10).fillColor("#666").text(label);
+    doc.fontSize(12).fillColor("#111").text(value || "-");
+    doc.moveDown(0.5);
+  }
+  doc.end();
+  return done;
+}
+
+export class NoteService {
+  async listAdminNotes(params: z.infer<typeof getNotesQuerySchema>) {
+    const { notes, totalCount } = await noteRepository.list(params);
+    return {
+      notes: notes.map(mapNoteListItem),
+      pagination: {
+        page: params.page,
+        pageSize: params.pageSize,
+        totalCount,
+        totalPages: Math.ceil(totalCount / params.pageSize),
+      },
+    };
+  }
+
+  async getAdminNoteDetail(id: string) {
+    const note = await noteRepository.findById(id);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    return mapNoteDetail(note);
+  }
+
+  async listSourceInvoicesForNotes() {
+    const invoices = await prisma.invoice.findMany({
+      where: { status: InvoiceStatus.APPROVED },
+      include: {
+        application: {
+          include: {
+            issuer_organization: true,
+            contract: true,
+          },
+        },
+        contract: true,
+      },
+      orderBy: { updated_at: "desc" },
+    });
+    const invoiceIds = invoices.map((invoice) => invoice.id);
+    const notes = await prisma.note.findMany({
+      where: { source_invoice_id: { in: invoiceIds } },
+      select: {
+        id: true,
+        source_invoice_id: true,
+        note_reference: true,
+        status: true,
+      },
+    });
+    const notesByInvoiceId = new Map(notes.map((note) => [note.source_invoice_id, note]));
+
+    return {
+      invoices: invoices.map((invoice) => {
+        const details = asRecord(invoice.details) ?? {};
+        const offer = asRecord(invoice.offer_details) ?? {};
+        const sourceContract = invoice.contract ?? invoice.application.contract;
+        const paymaster = asRecord(sourceContract?.customer_details);
+        const note = notesByInvoiceId.get(invoice.id) ?? null;
+        return {
+          invoiceId: invoice.id,
+          applicationId: invoice.application_id,
+          contractId: invoice.contract_id ?? invoice.application.contract_id,
+          issuerOrganizationId: invoice.application.issuer_organization_id,
+          issuerName: invoice.application.issuer_organization.name,
+          paymasterName: this.resolvePaymasterName(paymaster),
+          invoiceNumber: typeof details.number === "string" ? details.number : null,
+          invoiceAmount: resolveRequestedInvoiceAmount(details),
+          offeredAmount: resolveOfferedAmount(offer) || null,
+          profitRatePercent: resolveOfferedProfitRate(offer),
+          riskRating: resolveRiskRating(offer.risk_rating),
+          maturityDate:
+            typeof details.maturity_date === "string"
+              ? dateFrom(details.maturity_date)?.toISOString() ?? null
+              : null,
+          invoiceStatus: invoice.status,
+          applicationStatus: invoice.application.status,
+          noteId: note?.id ?? null,
+          noteReference: note?.note_reference ?? null,
+          noteStatus: note?.status ?? null,
+        };
+      }),
+    };
+  }
+
+  async getActionRequiredCount() {
+    const approvedInvoices = await prisma.invoice.findMany({
+      where: { status: InvoiceStatus.APPROVED },
+      select: { id: true },
+    });
+    const approvedInvoiceIds = approvedInvoices.map((invoice) => invoice.id);
+    const notesForApprovedInvoices = approvedInvoiceIds.length
+      ? await prisma.note.findMany({
+          where: { source_invoice_id: { in: approvedInvoiceIds } },
+          select: { source_invoice_id: true },
+        })
+      : [];
+    const notedInvoiceIds = new Set(notesForApprovedInvoices.map((note) => note.source_invoice_id).filter(Boolean));
+    const readyInvoices = approvedInvoiceIds.filter((invoiceId) => !notedInvoiceIds.has(invoiceId)).length;
+
+    const [draftNotes, fundingCandidates, activationReady, pendingIssuerPayments] = await Promise.all([
+      prisma.note.count({
+        where: {
+          status: NoteStatus.DRAFT,
+        },
+      }),
+      prisma.note.findMany({
+        where: {
+          status: NoteStatus.PUBLISHED,
+          funding_status: NoteFundingStatus.OPEN,
+        },
+        select: {
+          funded_amount: true,
+          target_amount: true,
+          minimum_funding_percent: true,
+        },
+      }),
+      prisma.note.count({
+        where: {
+          funding_status: NoteFundingStatus.FUNDED,
+          servicing_status: NoteServicingStatus.NOT_STARTED,
+        },
+      }),
+      prisma.notePayment.count({
+        where: {
+          source: "ISSUER_ON_BEHALF",
+          status: NotePaymentStatus.PENDING,
+        },
+      }),
+    ]);
+
+    const fundingReady = fundingCandidates.filter((note) => {
+      const targetAmount = toNumber(note.target_amount);
+      if (targetAmount <= 0) return false;
+      const fundingPercent = (toNumber(note.funded_amount) / targetAmount) * 100;
+      return fundingPercent + 0.005 >= toNumber(note.minimum_funding_percent);
+    }).length;
+
+    const breakdown = {
+      readyInvoices,
+      draftNotes,
+      fundingReady,
+      activationReady,
+      pendingIssuerPayments,
+    };
+
+    return {
+      count: Object.values(breakdown).reduce((sum, value) => sum + value, 0),
+      breakdown,
+    };
+  }
+
+  async createFromInvoice(
+    invoiceId: string,
+    input: z.infer<typeof createNoteFromApplicationSchema>,
+    actor: ActorContext
+  ) {
+    const invoice = await prisma.invoice.findUnique({
+      where: { id: invoiceId },
+      include: {
+        application: {
+          include: {
+            issuer_organization: true,
+            contract: true,
+          },
+        },
+        contract: true,
+      },
+    });
+    if (!invoice) throw new AppError(404, "INVOICE_NOT_FOUND", "Invoice not found");
+    if (invoice.status !== InvoiceStatus.APPROVED) {
+      throw new AppError(409, "INVOICE_NOT_APPROVED", "Only approved invoices can become notes");
+    }
+
+    return this.createFromInvoiceSource({
+      application: invoice.application,
+      invoice,
+      sourceContract: invoice.contract ?? invoice.application.contract,
+      title: input.title,
+      actor,
+    });
+  }
+
+  async createFromApplication(
+    applicationId: string,
+    input: z.infer<typeof createNoteFromApplicationSchema>,
+    actor: ActorContext
+  ) {
+    const source = await prisma.application.findUnique({
+      where: { id: applicationId },
+      include: {
+        issuer_organization: true,
+        contract: true,
+        invoices: { orderBy: { created_at: "asc" } },
+      },
+    });
+
+    if (!source) throw new AppError(404, "APPLICATION_NOT_FOUND", "Application not found");
+    if (source.status !== ApplicationStatus.COMPLETED) {
+      throw new AppError(409, "APPLICATION_NOT_COMPLETED", "Only completed applications can become notes");
+    }
+
+    const selectedInvoice = input.sourceInvoiceId
+      ? source.invoices.find((invoice) => invoice.id === input.sourceInvoiceId)
+      : source.invoices[0] ?? null;
+
+    if (input.sourceInvoiceId && !selectedInvoice) {
+      throw new AppError(404, "INVOICE_NOT_FOUND", "Source invoice not found for application");
+    }
+
+    if (selectedInvoice) {
+      return this.createFromInvoiceSource({
+        application: source,
+        invoice: selectedInvoice,
+        sourceContract: source.contract,
+        title: input.title,
+        actor,
+      });
+    }
+
+    const existing = await noteRepository.findBySource(applicationId, null);
+    if (existing) return mapNoteDetail(existing);
+
+    const invoiceDetails: Record<string, unknown> = {};
+    const invoiceOffer: Record<string, unknown> = {};
+    const contractDetails = asRecord(source.contract?.contract_details) ?? {};
+    const targetAmount =
+      resolveOfferedAmount(invoiceOffer) ||
+      resolveRequestedInvoiceAmount(invoiceDetails) ||
+      resolveApprovedFacilityForRefresh(source.contract?.status ?? "", contractDetails) ||
+      toNumber(contractDetails.financing) ||
+      toNumber(contractDetails.value);
+
+    if (targetAmount <= 0) {
+      throw new AppError(422, "NOTE_AMOUNT_UNRESOLVED", "Unable to resolve note target amount");
+    }
+
+    const reference = `NOTE-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${source.id
+      .slice(-6)
+      .toUpperCase()}`;
+
+    const note = await prisma.$transaction(async (tx) => {
+      const created = await tx.note.create({
+        data: {
+          source_application_id: source.id,
+          source_contract_id: source.contract_id,
+          source_invoice_id: null,
+          issuer_organization_id: source.issuer_organization_id,
+          title:
+            input.title ??
+            `Note for ${source.issuer_organization.name ?? source.issuer_organization.id}`,
+          note_reference: reference,
+          product_snapshot: json(source.financing_type),
+          issuer_snapshot: {
+            id: source.issuer_organization.id,
+            name: source.issuer_organization.name,
+            type: source.issuer_organization.type,
+          },
+          paymaster_snapshot: json(source.contract?.customer_details),
+          contract_snapshot: json(
+            source.contract
+              ? {
+                  id: source.contract.id,
+                  status: source.contract.status,
+                  contract_details: source.contract.contract_details,
+                  offer_details: source.contract.offer_details,
+                }
+              : null
+          ),
+          invoice_snapshot: json(null),
+          requested_amount: money(targetAmount),
+          target_amount: money(targetAmount),
+          profit_rate_percent:
+            resolveOfferedProfitRate(invoiceOffer) != null
+              ? money(resolveOfferedProfitRate(invoiceOffer) ?? 0)
+              : undefined,
+          service_fee_rate_percent: money(15),
+          maturity_date:
+            typeof invoiceDetails.maturity_date === "string"
+              ? dateFrom(invoiceDetails.maturity_date)
+              : null,
+          events: {
+            create: {
+              event_type: "NOTE_CREATED_FROM_APPLICATION",
+              actor_user_id: actor.userId,
+              actor_role: actor.role,
+              portal: actor.portal ?? "ADMIN",
+              ip_address: actor.ipAddress,
+              user_agent: actor.userAgent,
+              correlation_id: actor.correlationId,
+              metadata: { applicationId: source.id, invoiceId: null },
+            },
+          },
+          admin_actions: {
+            create: {
+              action_type: "CREATE_FROM_APPLICATION",
+              actor_user_id: actor.userId,
+              after_state: { status: NoteStatus.DRAFT },
+              ip_address: actor.ipAddress,
+              user_agent: actor.userAgent,
+              correlation_id: actor.correlationId,
+            },
+          },
+        },
+        include: noteInclude,
+      });
+
+      await tx.notePaymentSchedule.create({
+        data: {
+          note_id: created.id,
+          sequence: 1,
+          due_date: created.maturity_date ?? new Date(),
+          expected_principal: created.target_amount,
+          expected_profit: money(
+            created.profit_rate_percent
+              ? created.target_amount.toNumber() * (created.profit_rate_percent.toNumber() / 100)
+              : 0
+          ),
+          expected_total: money(
+            created.target_amount.toNumber() +
+              (created.profit_rate_percent
+                ? created.target_amount.toNumber() * (created.profit_rate_percent.toNumber() / 100)
+                : 0)
+          ),
+        },
+      });
+
+      return tx.note.findUniqueOrThrow({ where: { id: created.id }, include: noteInclude });
+    });
+
+    return mapNoteDetail(note);
+  }
+
+  private async createFromInvoiceSource(params: {
+    application: {
+      id: string;
+      issuer_organization_id: string;
+      contract_id: string | null;
+      financing_type: Prisma.JsonValue | null;
+      issuer_organization: {
+        id: string;
+        name: string | null;
+        type: string;
+      };
+    };
+    invoice: {
+      id: string;
+      application_id: string;
+      contract_id: string | null;
+      details: Prisma.JsonValue;
+      offer_details: Prisma.JsonValue | null;
+      status: InvoiceStatus;
+    };
+    sourceContract: {
+      id: string;
+      status: string;
+      contract_details: Prisma.JsonValue | null;
+      offer_details: Prisma.JsonValue | null;
+      customer_details: Prisma.JsonValue | null;
+    } | null;
+    title?: string;
+    actor: ActorContext;
+  }) {
+    const { application, invoice, sourceContract, actor } = params;
+    const existing = await noteRepository.findBySource(application.id, invoice.id);
+    if (existing) return mapNoteDetail(existing);
+
+    const invoiceDetails = asRecord(invoice.details) ?? {};
+    const invoiceOffer = asRecord(invoice.offer_details) ?? {};
+    const contractDetails = asRecord(sourceContract?.contract_details) ?? {};
+    const invoiceFaceValue = resolveRequestedInvoiceAmount(invoiceDetails);
+    const targetAmount =
+      resolveOfferedAmount(invoiceOffer) ||
+      invoiceFaceValue ||
+      resolveApprovedFacilityForRefresh(sourceContract?.status ?? "", contractDetails) ||
+      toNumber(contractDetails.financing) ||
+      toNumber(contractDetails.value);
+
+    if (targetAmount <= 0) {
+      throw new AppError(422, "NOTE_AMOUNT_UNRESOLVED", "Unable to resolve note target amount");
+    }
+
+    const invoiceNumber = typeof invoiceDetails.number === "string" ? invoiceDetails.number : invoice.id.slice(-8);
+    const reference = `NOTE-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${invoice.id
+      .slice(-8)
+      .toUpperCase()}`;
+
+    const note = await prisma.$transaction(async (tx) => {
+      const created = await tx.note.create({
+        data: {
+          source_application_id: application.id,
+          source_contract_id: invoice.contract_id ?? application.contract_id,
+          source_invoice_id: invoice.id,
+          issuer_organization_id: application.issuer_organization_id,
+          title:
+            params.title ??
+            `Note for invoice ${invoiceNumber} - ${application.issuer_organization.name ?? application.issuer_organization.id}`,
+          note_reference: reference,
+          product_snapshot: json(application.financing_type),
+          issuer_snapshot: {
+            id: application.issuer_organization.id,
+            name: application.issuer_organization.name,
+            type: application.issuer_organization.type,
+          },
+          paymaster_snapshot: json(sourceContract?.customer_details),
+          contract_snapshot: json(
+            sourceContract
+              ? {
+                  id: sourceContract.id,
+                  status: sourceContract.status,
+                  contract_details: sourceContract.contract_details,
+                  offer_details: sourceContract.offer_details,
+                }
+              : null
+          ),
+          invoice_snapshot: {
+            id: invoice.id,
+            status: invoice.status,
+            details: invoice.details,
+            offer_details: invoice.offer_details,
+          },
+          requested_amount: money(invoiceFaceValue || targetAmount),
+          target_amount: money(targetAmount),
+          profit_rate_percent:
+            resolveOfferedProfitRate(invoiceOffer) != null
+              ? money(resolveOfferedProfitRate(invoiceOffer) ?? 0)
+              : undefined,
+          service_fee_rate_percent: money(15),
+          maturity_date:
+            typeof invoiceDetails.maturity_date === "string"
+              ? dateFrom(invoiceDetails.maturity_date)
+              : null,
+          events: {
+            create: {
+              event_type: "NOTE_CREATED_FROM_INVOICE",
+              actor_user_id: actor.userId,
+              actor_role: actor.role,
+              portal: actor.portal ?? "ADMIN",
+              ip_address: actor.ipAddress,
+              user_agent: actor.userAgent,
+              correlation_id: actor.correlationId,
+              metadata: { applicationId: application.id, invoiceId: invoice.id },
+            },
+          },
+          admin_actions: {
+            create: {
+              action_type: "CREATE_FROM_INVOICE",
+              actor_user_id: actor.userId,
+              after_state: { status: NoteStatus.DRAFT, invoiceId: invoice.id },
+              ip_address: actor.ipAddress,
+              user_agent: actor.userAgent,
+              correlation_id: actor.correlationId,
+            },
+          },
+        },
+        include: noteInclude,
+      });
+
+      await tx.notePaymentSchedule.create({
+        data: {
+          note_id: created.id,
+          sequence: 1,
+          due_date: created.maturity_date ?? new Date(),
+          expected_principal: created.target_amount,
+          expected_profit: money(
+            created.profit_rate_percent
+              ? created.target_amount.toNumber() * (created.profit_rate_percent.toNumber() / 100)
+              : 0
+          ),
+          expected_total: money(
+            created.target_amount.toNumber() +
+              (created.profit_rate_percent
+                ? created.target_amount.toNumber() * (created.profit_rate_percent.toNumber() / 100)
+                : 0)
+          ),
+        },
+      });
+
+      return tx.note.findUniqueOrThrow({ where: { id: created.id }, include: noteInclude });
+    });
+
+    return mapNoteDetail(note);
+  }
+
+  async updateDraft(id: string, input: z.infer<typeof updateNoteDraftSchema>, actor: ActorContext) {
+    const note = await noteRepository.findById(id);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    if (note.status !== NoteStatus.DRAFT && note.status !== NoteStatus.PUBLISHED) {
+      throw new AppError(409, "NOTE_NOT_EDITABLE", "Only draft or published notes can be edited");
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.note.update({
+        where: { id },
+        data: {
+          title: input.title,
+          target_amount: input.targetAmount != null ? money(input.targetAmount) : undefined,
+          maturity_date: input.maturityDate !== undefined ? dateFrom(input.maturityDate) : undefined,
+          platform_fee_rate_percent:
+            input.platformFeeRatePercent != null ? money(input.platformFeeRatePercent) : undefined,
+          service_fee_rate_percent:
+            input.serviceFeeRatePercent != null ? money(input.serviceFeeRatePercent) : undefined,
+          service_fee_customer_scope: input.serviceFeeCustomerScope,
+          profit_rate_percent:
+            input.profitRatePercent !== undefined && input.profitRatePercent !== null
+              ? money(input.profitRatePercent)
+              : input.profitRatePercent === null
+                ? null
+                : undefined,
+          listing: input.summary !== undefined
+            ? {
+                upsert: {
+                  create: { summary: input.summary },
+                  update: { summary: input.summary },
+                },
+              }
+            : undefined,
+        },
+        include: noteInclude,
+      });
+      await this.logAdminAction(tx, id, "UPDATE_DRAFT", actor, mapNoteListItem(note), mapNoteListItem(result));
+      return result;
+    });
+
+    return mapNoteDetail(updated);
+  }
+
+  async publish(id: string, actor: ActorContext) {
+    const note = await noteRepository.findById(id);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    if (toNumber(note.platform_fee_rate_percent) > 3 || toNumber(note.service_fee_rate_percent) > 15) {
+      throw new AppError(422, "NOTE_FEE_CAP_EXCEEDED", "Configured fees exceed allowed caps");
+    }
+    const now = new Date();
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.note.update({
+        where: { id },
+        data: {
+          status: NoteStatus.PUBLISHED,
+          listing_status: NoteListingStatus.PUBLISHED,
+          funding_status: NoteFundingStatus.OPEN,
+          published_at: now,
+          listing: {
+            upsert: {
+              create: { status: NoteListingStatus.PUBLISHED, published_at: now },
+              update: { status: NoteListingStatus.PUBLISHED, published_at: now, unpublished_at: null },
+            },
+          },
+        },
+        include: noteInclude,
+      });
+      await this.logAdminAction(tx, id, "PUBLISH", actor, mapNoteListItem(note), mapNoteListItem(result));
+      return result;
+    });
+    return mapNoteDetail(updated);
+  }
+
+  async unpublish(id: string, actor: ActorContext) {
+    const note = await noteRepository.findById(id);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    if (note.investments.length > 0) {
+      throw new AppError(409, "NOTE_HAS_COMMITMENTS", "Cannot unpublish notes with investor commitments");
+    }
+    const now = new Date();
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.note.update({
+        where: { id },
+        data: {
+          status: NoteStatus.DRAFT,
+          listing_status: NoteListingStatus.UNPUBLISHED,
+          funding_status: NoteFundingStatus.NOT_OPEN,
+          listing: {
+            upsert: {
+              create: { status: NoteListingStatus.UNPUBLISHED, unpublished_at: now },
+              update: { status: NoteListingStatus.UNPUBLISHED, unpublished_at: now },
+            },
+          },
+        },
+        include: noteInclude,
+      });
+      await this.logAdminAction(tx, id, "UNPUBLISH", actor, mapNoteListItem(note), mapNoteListItem(result));
+      return result;
+    });
+    return mapNoteDetail(updated);
+  }
+
+  async createInvestment(noteId: string, input: z.infer<typeof createInvestmentSchema>, actor: ActorContext) {
+    const investorOrg = await prisma.investorOrganization.findFirst({
+      where: {
+        id: input.investorOrganizationId,
+        OR: [
+          { owner_user_id: actor.userId },
+          { members: { some: { user_id: actor.userId } } },
+        ],
+      },
+    });
+    if (!investorOrg) throw new AppError(403, "INVESTOR_ORG_FORBIDDEN", "Investor organization not accessible");
+    if (!investorOrg.deposit_received) {
+      throw new AppError(403, "INVESTOR_DEPOSIT_REQUIRED", "Minimum investor deposit is required before investing");
+    }
+
+    const note = await noteRepository.findById(noteId);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    if (note.status !== NoteStatus.PUBLISHED || note.funding_status !== NoteFundingStatus.OPEN) {
+      throw new AppError(409, "NOTE_NOT_OPEN", "Note is not open for investment");
+    }
+
+    const target = toNumber(note.target_amount);
+    const alreadyFunded = note.investments
+      .filter(
+        (investment) =>
+          investment.status !== NoteInvestmentStatus.CANCELLED &&
+          investment.status !== NoteInvestmentStatus.RELEASED
+      )
+      .reduce((sum, investment) => sum + toNumber(investment.amount), 0);
+    if (alreadyFunded + input.amount > target) {
+      throw new AppError(422, "NOTE_OVERSUBSCRIBED", "Investment exceeds remaining note capacity");
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.noteInvestment.create({
+        data: {
+          note_id: noteId,
+          investor_organization_id: input.investorOrganizationId,
+          investor_user_id: actor.userId,
+          amount: money(input.amount),
+          allocation_percent: money(target > 0 ? (input.amount / target) * 100 : 0),
+        },
+      });
+      await tx.note.update({
+        where: { id: noteId },
+        data: { funded_amount: money(alreadyFunded + input.amount) },
+      });
+      await this.logEvent(tx, noteId, "INVESTMENT_COMMITTED", actor, {
+        investorOrganizationId: input.investorOrganizationId,
+        amount: input.amount,
+      });
+      return tx.note.findUniqueOrThrow({ where: { id: noteId }, include: noteInclude });
+    });
+
+    return mapNoteDetail(updated);
+  }
+
+  async closeFunding(id: string, actor: ActorContext) {
+    const note = await noteRepository.findById(id);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    const fundingPercent = toNumber(note.target_amount) > 0
+      ? (toNumber(note.funded_amount) / toNumber(note.target_amount)) * 100
+      : 0;
+    if (fundingPercent < toNumber(note.minimum_funding_percent)) {
+      throw new AppError(409, "NOTE_MINIMUM_FUNDING_NOT_MET", "Minimum funding threshold has not been met");
+    }
+    const now = new Date();
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.noteInvestment.updateMany({
+        where: { note_id: id, status: NoteInvestmentStatus.COMMITTED },
+        data: { status: NoteInvestmentStatus.CONFIRMED, confirmed_at: now },
+      });
+      const result = await tx.note.update({
+        where: { id },
+        data: {
+          status: NoteStatus.FUNDING,
+          funding_status: NoteFundingStatus.FUNDED,
+          listing_status: NoteListingStatus.CLOSED,
+          funding_closed_at: now,
+        },
+        include: noteInclude,
+      });
+      await this.logAdminAction(tx, id, "CLOSE_FUNDING", actor, mapNoteListItem(note), mapNoteListItem(result));
+      return result;
+    });
+    return mapNoteDetail(updated);
+  }
+
+  async failFunding(id: string, actor: ActorContext) {
+    const now = new Date();
+    const note = await noteRepository.findById(id);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.noteInvestment.updateMany({
+        where: { note_id: id, status: NoteInvestmentStatus.COMMITTED },
+        data: { status: NoteInvestmentStatus.RELEASED, released_at: now },
+      });
+      const result = await tx.note.update({
+        where: { id },
+        data: {
+          status: NoteStatus.FAILED_FUNDING,
+          funding_status: NoteFundingStatus.FAILED,
+          listing_status: NoteListingStatus.CLOSED,
+        },
+        include: noteInclude,
+      });
+      await this.logAdminAction(tx, id, "FAIL_FUNDING", actor, mapNoteListItem(note), mapNoteListItem(result));
+      return result;
+    });
+    return mapNoteDetail(updated);
+  }
+
+  async activate(id: string, actor: ActorContext) {
+    const note = await noteRepository.findById(id);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    if (note.funding_status !== NoteFundingStatus.FUNDED) {
+      throw new AppError(409, "NOTE_NOT_FUNDED", "Only funded notes can be activated");
+    }
+    const now = new Date();
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.note.update({
+        where: { id },
+        data: {
+          status: NoteStatus.ACTIVE,
+          servicing_status: NoteServicingStatus.CURRENT,
+          activated_at: now,
+        },
+        include: noteInclude,
+      });
+      await this.postDisbursementLedger(tx, result, actor);
+      await this.logAdminAction(tx, id, "ACTIVATE", actor, mapNoteListItem(note), mapNoteListItem(result));
+      return result;
+    });
+    return mapNoteDetail(updated);
+  }
+
+  async listMarketplace(params: z.infer<typeof getNotesQuerySchema>) {
+    return this.listAdminNotes({
+      ...params,
+      status: NoteStatus.PUBLISHED,
+      listingStatus: NoteListingStatus.PUBLISHED,
+      fundingStatus: NoteFundingStatus.OPEN,
+    });
+  }
+
+  async listInvestorInvestments(userId: string) {
+    const orgs = await prisma.investorOrganization.findMany({
+      where: { OR: [{ owner_user_id: userId }, { members: { some: { user_id: userId } } }] },
+      select: { id: true },
+    });
+    const orgIds = orgs.map((org) => org.id);
+    const notes = await prisma.note.findMany({
+      where: { investments: { some: { investor_organization_id: { in: orgIds } } } },
+      include: noteInclude,
+      orderBy: { updated_at: "desc" },
+    });
+    return {
+      notes: notes.map(mapNoteListItem),
+      pagination: { page: 1, pageSize: notes.length || 1, totalCount: notes.length, totalPages: 1 },
+    };
+  }
+
+  async getInvestorPortfolio(userId: string) {
+    const investments = await prisma.noteInvestment.findMany({
+      where: {
+        investor_user_id: userId,
+        status: { in: [NoteInvestmentStatus.COMMITTED, NoteInvestmentStatus.CONFIRMED, NoteInvestmentStatus.SETTLED] },
+      },
+    });
+    const committed = investments.reduce((sum, investment) => sum + toNumber(investment.amount), 0);
+    return {
+      totalInvestment: committed,
+      portfolioTotal: committed,
+      availableBalance: 0,
+      investmentCount: investments.length,
+    };
+  }
+
+  async listIssuerNotes(userId: string) {
+    const orgs = await prisma.issuerOrganization.findMany({
+      where: { OR: [{ owner_user_id: userId }, { members: { some: { user_id: userId } } }] },
+      select: { id: true },
+    });
+    const orgIds = orgs.map((org) => org.id);
+    const notes = await prisma.note.findMany({
+      where: { issuer_organization_id: { in: orgIds } },
+      include: noteInclude,
+      orderBy: { updated_at: "desc" },
+    });
+    return {
+      notes: notes.map(mapNoteListItem),
+      pagination: { page: 1, pageSize: notes.length || 1, totalCount: notes.length, totalPages: 1 },
+    };
+  }
+
+  async getIssuerNote(id: string, userId: string) {
+    const note = await noteRepository.findById(id);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    const allowed = await prisma.issuerOrganization.findFirst({
+      where: {
+        id: note.issuer_organization_id,
+        OR: [{ owner_user_id: userId }, { members: { some: { user_id: userId } } }],
+      },
+    });
+    if (!allowed) throw new AppError(403, "ISSUER_NOTE_FORBIDDEN", "Issuer note is not accessible");
+    return mapNoteDetail(note);
+  }
+
+  getPaymentInstructions(id: string) {
+    return {
+      noteId: id,
+      bankName: process.env.REPAYMENT_BANK_NAME ?? "Trustee Bank",
+      accountName: process.env.REPAYMENT_ACCOUNT_NAME ?? "CashSouk Repayment Pool",
+      accountNumber: process.env.REPAYMENT_ACCOUNT_NUMBER ?? "Pending configuration",
+      referenceFormat: `NOTE-${id.slice(-8).toUpperCase()}`,
+    };
+  }
+
+  async recordPayment(id: string, input: z.infer<typeof recordPaymentSchema>, actor: ActorContext) {
+    const note = await noteRepository.findById(id);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    assertNoteReadyForServicing(note);
+    const requiresAdminReview = input.source === "ISSUER_ON_BEHALF" && actor.portal === "ISSUER";
+    const paymentPurpose = resolveIssuerPaymentPurpose(input);
+    if (requiresAdminReview) {
+      if (paymentPurpose === "LATE_FEES") {
+        throw new AppError(
+          422,
+          "ISSUER_LATE_FEE_PAYMENT_NOT_ALLOWED",
+          "Late fees are deducted from repayment proceeds and cannot be paid separately by the issuer"
+        );
+      } else {
+        const settlementAmount = resolveNoteSettlementAmount(note);
+        if (settlementAmount <= 0) {
+          throw new AppError(409, "NOTE_AMOUNT_UNRESOLVED", "Payment cannot be submitted before the invoice amount is resolved");
+        }
+        if (Math.abs(input.receiptAmount - settlementAmount) > 0.005) {
+          throw new AppError(
+            422,
+            "INVALID_SETTLEMENT_AMOUNT",
+            "Issuer payment must match the invoice settlement amount"
+          );
+        }
+      }
+    }
+    const status = requiresAdminReview ? NotePaymentStatus.PENDING : NotePaymentStatus.RECEIVED;
+    const eventType = requiresAdminReview ? "ISSUER_PAYMENT_SUBMITTED" : "PAYMENT_RECEIVED";
+    const paymentMetadata = input.metadata ?? (requiresAdminReview ? { paymentPurpose } : undefined);
+    const updated = await prisma.$transaction(async (tx) => {
+      const payment = await tx.notePayment.create({
+        data: {
+          note_id: id,
+          schedule_id: input.scheduleId ?? null,
+          source: input.source,
+          status,
+          receipt_amount: money(input.receiptAmount),
+          receipt_date: new Date(input.receiptDate),
+          evidence_s3_key: input.evidenceS3Key ?? null,
+          reference: input.reference ?? null,
+          recorded_by_user_id: actor.userId,
+          metadata: json(paymentMetadata),
+        },
+      });
+      if (status === NotePaymentStatus.RECEIVED) {
+        await this.postPaymentReceiptLedger(tx, payment, actor);
+      }
+      await this.logEvent(tx, id, eventType, actor, json({ ...input, metadata: paymentMetadata }));
+      return tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
+    });
+    return mapNoteDetail(updated);
+  }
+
+  async approvePayment(id: string, paymentId: string, actor: ActorContext) {
+    const payment = await prisma.notePayment.findUnique({ where: { id: paymentId }, include: { note: true } });
+    if (!payment || payment.note_id !== id) {
+      throw new AppError(404, "PAYMENT_NOT_FOUND", "Payment not found");
+    }
+    assertNoteReadyForServicing(payment.note);
+    if (payment.status !== NotePaymentStatus.PENDING) {
+      throw new AppError(409, "PAYMENT_NOT_PENDING", "Only pending payments can be approved");
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedPayment = await tx.notePayment.update({
+        where: { id: paymentId },
+        data: {
+          status: NotePaymentStatus.RECEIVED,
+          reconciled_by_user_id: actor.userId,
+          reconciled_at: new Date(),
+        },
+      });
+      await this.postPaymentReceiptLedger(tx, updatedPayment, actor);
+      await this.logEvent(tx, id, "PAYMENT_APPROVED", actor, { paymentId });
+      return tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
+    });
+    return mapNoteDetail(updated);
+  }
+
+  async rejectPayment(id: string, paymentId: string, input: z.infer<typeof paymentReviewSchema>, actor: ActorContext) {
+    const payment = await prisma.notePayment.findUnique({ where: { id: paymentId } });
+    if (!payment || payment.note_id !== id) {
+      throw new AppError(404, "PAYMENT_NOT_FOUND", "Payment not found");
+    }
+    if (payment.status !== NotePaymentStatus.PENDING) {
+      throw new AppError(409, "PAYMENT_NOT_PENDING", "Only pending payments can be rejected");
+    }
+
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.notePayment.update({
+        where: { id: paymentId },
+        data: {
+          status: NotePaymentStatus.VOID,
+          reconciled_by_user_id: actor.userId,
+          reconciled_at: new Date(),
+          metadata: {
+            ...(asRecord(payment.metadata) ?? {}),
+            rejectionReason: input.reason ?? null,
+          },
+        },
+      });
+      await this.logEvent(tx, id, "PAYMENT_REJECTED", actor, { paymentId, reason: input.reason ?? null });
+      return tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
+    });
+    return mapNoteDetail(updated);
+  }
+
+  async previewSettlement(id: string, input: z.infer<typeof settlementPreviewSchema>, actor: ActorContext) {
+    const note = await noteRepository.findById(id);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    assertNoteReadyForServicing(note);
+    const lockedSettlement = note.settlements.find(
+      (settlement) =>
+        settlement.status === NoteSettlementStatus.APPROVED ||
+        settlement.status === NoteSettlementStatus.POSTED
+    );
+    if (lockedSettlement) {
+      throw new AppError(
+        409,
+        "SETTLEMENT_LOCKED",
+        "Settlement has already been approved or posted and cannot be previewed again"
+      );
+    }
+    const payment = input.paymentId
+      ? note.payments.find((candidate) => candidate.id === input.paymentId)
+      : note.payments.find(
+          (candidate) =>
+            candidate.status === NotePaymentStatus.RECEIVED ||
+            candidate.status === NotePaymentStatus.RECONCILED ||
+            candidate.status === NotePaymentStatus.PARTIAL
+        ) ?? null;
+    const grossReceipt = input.receiptAmount ?? (payment ? toNumber(payment.receipt_amount) : 0);
+    if (grossReceipt <= 0) throw new AppError(422, "SETTLEMENT_RECEIPT_REQUIRED", "Receipt amount is required");
+
+    const waterfall = calculateSettlementWaterfall({
+      grossReceiptAmount: grossReceipt,
+      fundedPrincipal: toNumber(note.funded_amount),
+      profitRatePercent: toNumber(note.profit_rate_percent),
+      serviceFeeRatePercent: toNumber(note.service_fee_rate_percent),
+      tawidhAmount: input.tawidhAmount ?? 0,
+      gharamahAmount: input.gharamahAmount ?? 0,
+    });
+
+    const snapshot = {
+      ...waterfall,
+      allocations: note.investments.map((investment) => {
+        const ratio = waterfall.investorPrincipal > 0 ? toNumber(investment.amount) / waterfall.investorPrincipal : 0;
+        return {
+          investmentId: investment.id,
+          investorOrganizationId: investment.investor_organization_id,
+          principal: toNumber(investment.amount),
+          profitNet: waterfall.investorProfitNet * ratio,
+        };
+      }),
+    };
+
+    const settlement = await prisma.noteSettlement.create({
+      data: {
+        note_id: id,
+        payment_id: payment?.id ?? null,
+        gross_receipt_amount: money(grossReceipt),
+        investor_principal: money(waterfall.investorPrincipal),
+        investor_profit_gross: money(waterfall.investorProfitGross),
+        service_fee_amount: money(waterfall.serviceFeeAmount),
+        investor_profit_net: money(waterfall.investorProfitNet),
+        tawidh_amount: money(waterfall.tawidhAmount),
+        gharamah_amount: money(waterfall.gharamahAmount),
+        issuer_residual_amount: money(waterfall.issuerResidualAmount),
+        unapplied_amount: money(waterfall.unappliedAmount),
+        settlement_type:
+          waterfall.tawidhAmount > 0 || waterfall.gharamahAmount > 0 ? NoteSettlementType.LATE : NoteSettlementType.STANDARD,
+        preview_snapshot: snapshot,
+      },
+    });
+    await prisma.noteEvent.create({
+      data: {
+        note_id: id,
+        event_type: "SETTLEMENT_PREVIEWED",
+        actor_user_id: actor.userId,
+        actor_role: actor.role,
+        portal: actor.portal,
+        correlation_id: actor.correlationId,
+        metadata: { settlementId: settlement.id, ...snapshot },
+      },
+    });
+    return { settlementId: settlement.id, ...snapshot };
+  }
+
+  async approveSettlement(id: string, settlementId: string, actor: ActorContext) {
+    const settlement = await prisma.noteSettlement.findUnique({
+      where: { id: settlementId },
+      include: { note: true },
+    });
+    if (!settlement || settlement.note_id !== id) {
+      throw new AppError(404, "SETTLEMENT_NOT_FOUND", "Settlement not found");
+    }
+    assertNoteReadyForServicing(settlement.note);
+    if (settlement.status !== NoteSettlementStatus.PREVIEW) {
+      throw new AppError(409, "SETTLEMENT_NOT_PREVIEW", "Only preview settlements can be approved");
+    }
+    assertSettlementAmountComplete(settlement);
+
+    await prisma.noteSettlement.update({
+      where: { id: settlementId },
+      data: {
+        status: NoteSettlementStatus.APPROVED,
+        approved_by_user_id: actor.userId,
+        approved_at: new Date(),
+      },
+    });
+    await this.logEvent(prisma, id, "SETTLEMENT_APPROVED", actor, { settlementId });
+    return this.getAdminNoteDetail(id);
+  }
+
+  async postSettlement(id: string, settlementId: string, actor: ActorContext) {
+    const settlement = await prisma.noteSettlement.findUnique({
+      where: { id: settlementId },
+      include: { note: true },
+    });
+    if (!settlement || settlement.note_id !== id) {
+      throw new AppError(404, "SETTLEMENT_NOT_FOUND", "Settlement not found");
+    }
+    assertNoteReadyForServicing(settlement.note);
+    if (settlement.status !== NoteSettlementStatus.APPROVED) {
+      throw new AppError(409, "SETTLEMENT_NOT_APPROVED", "Settlement must be approved before posting");
+    }
+    assertSettlementAmountComplete(settlement);
+
+    await prisma.$transaction(async (tx) => {
+      await this.postSettlementLedger(tx, settlement, actor);
+      await tx.noteSettlement.update({
+        where: { id: settlementId },
+        data: {
+          status: NoteSettlementStatus.POSTED,
+          posted_at: new Date(),
+          idempotency_key: `settlement:${settlementId}`,
+        },
+      });
+      await tx.note.update({
+        where: { id },
+        data: {
+          status: NoteStatus.REPAID,
+          servicing_status: NoteServicingStatus.SETTLED,
+          repaid_at: new Date(),
+        },
+      });
+      await this.logEvent(tx, id, "SETTLEMENT_POSTED", actor, { settlementId });
+    });
+    return this.getAdminNoteDetail(id);
+  }
+
+  async calculateLateCharge(input: z.infer<typeof lateChargeSchema>) {
+    const settings = await this.getPlatformFinanceSettings();
+    return calculateLateChargeValues({
+      receiptAmount: input.receiptAmount,
+      dueDate: new Date(input.dueDate),
+      receiptDate: new Date(input.receiptDate),
+      gracePeriodDays: settings.gracePeriodDays,
+      tawidhRateCapPercent: settings.tawidhRateCapPercent,
+      gharamahRateCapPercent: settings.gharamahRateCapPercent,
+      tawidhAmount: input.tawidhAmount,
+      gharamahAmount: input.gharamahAmount,
+    });
+  }
+
+  async checkOverdueLateCharge(id: string, input: z.infer<typeof overdueLateChargeSchema>) {
+    const note = await noteRepository.findById(id);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    assertNoteReadyForServicing(note);
+
+    const schedule = note.payment_schedules[0] ?? null;
+    const dueDate = schedule?.due_date ?? note.maturity_date;
+    const checkDate = input.receiptDate ? new Date(input.receiptDate) : new Date();
+    const receiptAmount = input.receiptAmount ?? resolveNoteSettlementAmount(note);
+
+    if (!dueDate) {
+      return {
+        overdue: false,
+        dueDate: null,
+        checkDate: checkDate.toISOString(),
+        gracePeriodDays: note.grace_period_days,
+        daysLate: 0,
+        receiptAmount,
+        totalTawidhCap: 0,
+        totalGharamahCap: 0,
+        appliedTawidhAmount: 0,
+        appliedGharamahAmount: 0,
+        remainingTawidhAmount: 0,
+        remainingGharamahAmount: 0,
+        suggestedTawidhAmount: 0,
+        suggestedGharamahAmount: 0,
+        message: "No due date is available for this note.",
+      };
+    }
+
+    const total = calculateLateChargeValues({
+      receiptAmount,
+      dueDate,
+      receiptDate: checkDate,
+      gracePeriodDays: note.grace_period_days,
+      tawidhRateCapPercent: toNumber(note.tawidh_rate_cap_percent),
+      gharamahRateCapPercent: toNumber(note.gharamah_rate_cap_percent),
+    });
+
+    const appliedSettlements = note.settlements.filter(
+      (settlement) =>
+        settlement.status === NoteSettlementStatus.APPROVED ||
+        settlement.status === NoteSettlementStatus.POSTED
+    );
+    const appliedTawidhAmount = appliedSettlements.reduce(
+      (sum, settlement) => sum + toNumber(settlement.tawidh_amount),
+      0
+    );
+    const appliedGharamahAmount = appliedSettlements.reduce(
+      (sum, settlement) => sum + toNumber(settlement.gharamah_amount),
+      0
+    );
+    const remainingTawidhAmount = Math.max(0, total.tawidhCap - appliedTawidhAmount);
+    const remainingGharamahAmount = Math.max(0, total.gharamahCap - appliedGharamahAmount);
+    const overdue = total.daysLate > 0;
+
+    return {
+      overdue,
+      dueDate: dueDate.toISOString(),
+      checkDate: checkDate.toISOString(),
+      gracePeriodDays: note.grace_period_days,
+      daysLate: total.daysLate,
+      receiptAmount,
+      totalTawidhCap: total.tawidhCap,
+      totalGharamahCap: total.gharamahCap,
+      appliedTawidhAmount,
+      appliedGharamahAmount,
+      remainingTawidhAmount,
+      remainingGharamahAmount,
+      suggestedTawidhAmount: overdue ? remainingTawidhAmount : 0,
+      suggestedGharamahAmount: overdue ? remainingGharamahAmount : 0,
+      message: !overdue
+        ? "Payment is not overdue after the grace period."
+        : remainingTawidhAmount <= 0 && remainingGharamahAmount <= 0
+          ? "This payment is overdue, but all allowable late fees have already been applied."
+          : "Payment is overdue. Suggested late fees exclude previously approved or posted late fees.",
+    };
+  }
+
+  async applyOverdueLateCharge(
+    id: string,
+    input: z.infer<typeof overdueLateChargeSchema>,
+    actor: ActorContext
+  ) {
+    const result = await this.checkOverdueLateCharge(id, input);
+    await this.logEvent(prisma, id, "OVERDUE_LATE_CHARGE_CHECKED", actor, result);
+    return result;
+  }
+
+  async approveLateCharge(id: string, input: z.infer<typeof lateChargeSchema>, actor: ActorContext) {
+    const result = await this.calculateLateCharge(input);
+    await this.logEvent(prisma, id, "LATE_CHARGE_APPROVED", actor, result);
+    return result;
+  }
+
+  async generateNoteLetter(id: string, type: "arrears" | "default", actor: ActorContext) {
+    const note = await noteRepository.findById(id);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    const title = type === "arrears" ? "Arrears Warning Letter" : "Default Notice Letter";
+    const buffer = await renderPdfBuffer(title, [
+      ["Note reference", note.note_reference],
+      ["Issuer", mapNoteListItem(note).issuerName ?? "-"],
+      ["Paymaster", mapNoteListItem(note).paymasterName ?? "-"],
+      ["Outstanding funded amount", toNumber(note.funded_amount).toFixed(2)],
+      ["Generated at", new Date().toISOString()],
+    ]);
+    const key = `note-letters/${id}/${type}-${Date.now()}.pdf`;
+    await putS3ObjectBuffer({ key, body: buffer, contentType: "application/pdf" });
+    await this.logEvent(prisma, id, `${type.toUpperCase()}_LETTER_GENERATED`, actor, { s3Key: key });
+    return { s3Key: key };
+  }
+
+  async markDefault(id: string, reason: string, actor: ActorContext) {
+    const note = await noteRepository.findById(id);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    if (
+      note.servicing_status !== NoteServicingStatus.ARREARS &&
+      note.servicing_status !== NoteServicingStatus.LATE
+    ) {
+      throw new AppError(409, "NOTE_NOT_IN_ARREARS", "Default can only be marked while note is late or in arrears");
+    }
+    const updated = await noteRepository.updateState(id, {
+      status: NoteStatus.DEFAULTED,
+      servicing_status: NoteServicingStatus.DEFAULTED,
+      default_marked_at: new Date(),
+      default_marked_by_admin_user_id: actor.userId,
+      default_reason: reason,
+    });
+    await this.logEvent(prisma, id, "NOTE_DEFAULT_MARKED", actor, { reason });
+    return mapNoteDetail(updated);
+  }
+
+  async getPlatformFinanceSettings() {
+    const settings = await prisma.platformFinanceSetting.upsert({
+      where: { key: "DEFAULT" },
+      update: {},
+      create: { key: "DEFAULT" },
+    });
+    return {
+      id: settings.id,
+      key: settings.key,
+      gracePeriodDays: settings.grace_period_days,
+      arrearsThresholdDays: settings.arrears_threshold_days,
+      tawidhRateCapPercent: toNumber(settings.tawidh_rate_cap_percent),
+      gharamahRateCapPercent: toNumber(settings.gharamah_rate_cap_percent),
+      defaultTawidhRatePercent: toNumber(settings.default_tawidh_rate_percent),
+      defaultGharamahRatePercent: toNumber(settings.default_gharamah_rate_percent),
+      withdrawalLetterTemplate: settings.withdrawal_letter_template,
+      arrearsLetterTemplate: settings.arrears_letter_template,
+      defaultLetterTemplate: settings.default_letter_template,
+      updatedByUserId: settings.updated_by_user_id,
+      updatedAt: settings.updated_at.toISOString(),
+    };
+  }
+
+  async updatePlatformFinanceSettings(
+    input: z.infer<typeof updatePlatformFinanceSettingsSchema>,
+    actor: ActorContext
+  ) {
+    await prisma.platformFinanceSetting.upsert({
+      where: { key: "DEFAULT" },
+      create: {
+        key: "DEFAULT",
+        grace_period_days: input.gracePeriodDays,
+        arrears_threshold_days: input.arrearsThresholdDays,
+        tawidh_rate_cap_percent: input.tawidhRateCapPercent != null ? money(input.tawidhRateCapPercent) : undefined,
+        gharamah_rate_cap_percent: input.gharamahRateCapPercent != null ? money(input.gharamahRateCapPercent) : undefined,
+        default_tawidh_rate_percent: input.defaultTawidhRatePercent != null ? money(input.defaultTawidhRatePercent) : undefined,
+        default_gharamah_rate_percent: input.defaultGharamahRatePercent != null ? money(input.defaultGharamahRatePercent) : undefined,
+        withdrawal_letter_template: input.withdrawalLetterTemplate,
+        arrears_letter_template: input.arrearsLetterTemplate,
+        default_letter_template: input.defaultLetterTemplate,
+        updated_by_user_id: actor.userId,
+      },
+      update: {
+        grace_period_days: input.gracePeriodDays,
+        arrears_threshold_days: input.arrearsThresholdDays,
+        tawidh_rate_cap_percent: input.tawidhRateCapPercent != null ? money(input.tawidhRateCapPercent) : undefined,
+        gharamah_rate_cap_percent: input.gharamahRateCapPercent != null ? money(input.gharamahRateCapPercent) : undefined,
+        default_tawidh_rate_percent: input.defaultTawidhRatePercent != null ? money(input.defaultTawidhRatePercent) : undefined,
+        default_gharamah_rate_percent: input.defaultGharamahRatePercent != null ? money(input.defaultGharamahRatePercent) : undefined,
+        withdrawal_letter_template: input.withdrawalLetterTemplate,
+        arrears_letter_template: input.arrearsLetterTemplate,
+        default_letter_template: input.defaultLetterTemplate,
+        updated_by_user_id: actor.userId,
+      },
+    });
+    return this.getPlatformFinanceSettings();
+  }
+
+  async createWithdrawal(input: z.infer<typeof createWithdrawalSchema>, actor: ActorContext) {
+    const withdrawal = await prisma.withdrawalInstruction.create({
+      data: {
+        note_id: input.noteId ?? null,
+        investor_organization_id: input.investorOrganizationId ?? null,
+        issuer_organization_id: input.issuerOrganizationId ?? null,
+        requested_by_user_id: actor.userId,
+        withdrawal_type: input.withdrawalType,
+        amount: money(input.amount),
+        beneficiary_snapshot: input.beneficiarySnapshot as Prisma.InputJsonValue,
+      },
+    });
+    return this.mapWithdrawal(withdrawal);
+  }
+
+  async generateWithdrawalLetter(id: string, actor: ActorContext) {
+    const withdrawal = await prisma.withdrawalInstruction.findUnique({ where: { id } });
+    if (!withdrawal) throw new AppError(404, "WITHDRAWAL_NOT_FOUND", "Withdrawal instruction not found");
+    const buffer = await renderPdfBuffer("Trustee Withdrawal Instruction", [
+      ["Withdrawal ID", withdrawal.id],
+      ["Type", withdrawal.withdrawal_type],
+      ["Amount", `${withdrawal.currency} ${toNumber(withdrawal.amount).toFixed(2)}`],
+      ["Requested by", withdrawal.requested_by_user_id],
+      ["Generated at", new Date().toISOString()],
+    ]);
+    const key = `withdrawal-letters/${id}/${Date.now()}.pdf`;
+    await putS3ObjectBuffer({ key, body: buffer, contentType: "application/pdf" });
+    const updated = await prisma.withdrawalInstruction.update({
+      where: { id },
+      data: {
+        status: WithdrawalStatus.LETTER_GENERATED,
+        letter_s3_key: key,
+        generated_at: new Date(),
+      },
+    });
+    if (withdrawal.note_id) {
+      await this.logEvent(prisma, withdrawal.note_id, "WITHDRAWAL_LETTER_GENERATED", actor, { withdrawalId: id, s3Key: key });
+    }
+    return this.mapWithdrawal(updated);
+  }
+
+  async markWithdrawalSubmitted(id: string, actor: ActorContext) {
+    const withdrawal = await prisma.withdrawalInstruction.update({
+      where: { id },
+      data: {
+        status: WithdrawalStatus.SUBMITTED_TO_TRUSTEE,
+        submitted_by_user_id: actor.userId,
+        submitted_to_trustee_at: new Date(),
+      },
+    });
+    if (withdrawal.note_id) {
+      await this.logEvent(prisma, withdrawal.note_id, "WITHDRAWAL_SUBMITTED_TO_TRUSTEE", actor, { withdrawalId: id });
+    }
+    return this.mapWithdrawal(withdrawal);
+  }
+
+  async listLedger(id: string) {
+    const entries = await prisma.noteLedgerEntry.findMany({
+      where: { note_id: id },
+      include: { account: true },
+      orderBy: { posted_at: "desc" },
+    });
+    return entries.map(mapLedgerEntry);
+  }
+
+  async listLedgerBucketBalances() {
+    const accounts = await prisma.noteLedgerAccount.findMany({
+      include: { ledger_entries: true },
+      orderBy: { name: "asc" },
+    });
+    const bucketOrder = ["INVESTOR_POOL", "REPAYMENT_POOL", "OPERATING_ACCOUNT", "TAWIDH_ACCOUNT", "GHARAMAH_ACCOUNT"];
+    const buckets = accounts
+      .filter((account) => bucketOrder.includes(account.code))
+      .sort((a, b) => bucketOrder.indexOf(a.code) - bucketOrder.indexOf(b.code))
+      .map((account) => {
+        const debitTotal = account.ledger_entries
+          .filter((entry) => entry.direction === NoteLedgerDirection.DEBIT)
+          .reduce((sum, entry) => sum + toNumber(entry.amount), 0);
+        const creditTotal = account.ledger_entries
+          .filter((entry) => entry.direction === NoteLedgerDirection.CREDIT)
+          .reduce((sum, entry) => sum + toNumber(entry.amount), 0);
+        const lastPostedAt = account.ledger_entries.reduce<Date | null>((latest, entry) => {
+          if (!latest || entry.posted_at > latest) return entry.posted_at;
+          return latest;
+        }, null);
+
+        return {
+          accountCode: account.code,
+          accountName: account.name,
+          accountType: account.type,
+          currency: account.currency,
+          debitTotal,
+          creditTotal,
+          balance: creditTotal - debitTotal,
+          entryCount: account.ledger_entries.length,
+          lastPostedAt: lastPostedAt?.toISOString() ?? null,
+        };
+      });
+
+    return {
+      buckets,
+      totals: {
+        debitTotal: buckets.reduce((sum, bucket) => sum + bucket.debitTotal, 0),
+        creditTotal: buckets.reduce((sum, bucket) => sum + bucket.creditTotal, 0),
+        balance: buckets.reduce((sum, bucket) => sum + bucket.balance, 0),
+      },
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  async listEvents(id: string) {
+    const note = await noteRepository.findById(id);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    return mapNoteDetail(note).events;
+  }
+
+  private mapWithdrawal(withdrawal: {
+    id: string;
+    note_id: string | null;
+    investor_organization_id: string | null;
+    issuer_organization_id: string | null;
+    requested_by_user_id: string;
+    submitted_by_user_id: string | null;
+    status: WithdrawalStatus;
+    withdrawal_type: string;
+    amount: Prisma.Decimal;
+    currency: string;
+    beneficiary_snapshot: Prisma.JsonValue;
+    letter_s3_key: string | null;
+    generated_at: Date | null;
+    submitted_to_trustee_at: Date | null;
+    created_at: Date;
+  }) {
+    return {
+      id: withdrawal.id,
+      noteId: withdrawal.note_id,
+      investorOrganizationId: withdrawal.investor_organization_id,
+      issuerOrganizationId: withdrawal.issuer_organization_id,
+      requestedByUserId: withdrawal.requested_by_user_id,
+      submittedByUserId: withdrawal.submitted_by_user_id,
+      status: withdrawal.status,
+      withdrawalType: withdrawal.withdrawal_type,
+      amount: toNumber(withdrawal.amount),
+      currency: withdrawal.currency,
+      beneficiarySnapshot: asRecord(withdrawal.beneficiary_snapshot) ?? {},
+      letterS3Key: withdrawal.letter_s3_key,
+      generatedAt: withdrawal.generated_at?.toISOString() ?? null,
+      submittedToTrusteeAt: withdrawal.submitted_to_trustee_at?.toISOString() ?? null,
+      createdAt: withdrawal.created_at.toISOString(),
+    };
+  }
+
+  private resolvePaymasterName(paymaster: Record<string, unknown> | null): string | null {
+    const name = paymaster?.name ?? paymaster?.company_name ?? paymaster?.business_name;
+    return typeof name === "string" ? name : null;
+  }
+
+  private async logEvent(
+    tx: Prisma.TransactionClient | typeof prisma,
+    noteId: string,
+    eventType: string,
+    actor: ActorContext,
+    metadata?: Prisma.InputJsonValue
+  ) {
+    await tx.noteEvent.create({
+      data: {
+        note_id: noteId,
+        event_type: eventType,
+        actor_user_id: actor.userId,
+        actor_role: actor.role,
+        portal: actor.portal,
+        ip_address: actor.ipAddress,
+        user_agent: actor.userAgent,
+        correlation_id: actor.correlationId,
+        metadata,
+      },
+    });
+  }
+
+  private async logAdminAction(
+    tx: Prisma.TransactionClient,
+    noteId: string,
+    actionType: string,
+    actor: ActorContext,
+    beforeState?: Prisma.InputJsonValue,
+    afterState?: Prisma.InputJsonValue
+  ) {
+    await tx.noteAdminAction.create({
+      data: {
+        note_id: noteId,
+        action_type: actionType,
+        actor_user_id: actor.userId,
+        before_state: beforeState,
+        after_state: afterState,
+        ip_address: actor.ipAddress,
+        user_agent: actor.userAgent,
+        correlation_id: actor.correlationId,
+      },
+    });
+    await this.logEvent(tx, noteId, actionType, actor, { beforeState, afterState });
+  }
+
+  private async getLedgerAccountId(tx: Prisma.TransactionClient, code: string) {
+    const account = await tx.noteLedgerAccount.findUnique({ where: { code } });
+    if (!account) throw new AppError(500, "LEDGER_ACCOUNT_MISSING", `Missing ledger account ${code}`);
+    return account.id;
+  }
+
+  private async postDisbursementLedger(
+    tx: Prisma.TransactionClient,
+    note: Awaited<ReturnType<typeof prisma.note.findUniqueOrThrow>>,
+    actor: ActorContext
+  ) {
+    const investorPoolId = await this.getLedgerAccountId(tx, "INVESTOR_POOL");
+    const operatingId = await this.getLedgerAccountId(tx, "OPERATING_ACCOUNT");
+    const fundedAmount = toNumber(note.funded_amount);
+    const platformFee = fundedAmount * (toNumber(note.platform_fee_rate_percent) / 100);
+    const netDisbursement = fundedAmount - platformFee;
+    const entries = [
+      {
+        account_id: investorPoolId,
+        direction: NoteLedgerDirection.DEBIT,
+        amount: money(netDisbursement),
+        description: "Net note disbursement to issuer",
+      },
+      {
+        account_id: operatingId,
+        direction: NoteLedgerDirection.CREDIT,
+        amount: money(platformFee),
+        description: "Platform fee deducted at disbursement",
+      },
+    ].filter((entry) => toNumber(entry.amount) > 0);
+
+    for (const [index, entry] of entries.entries()) {
+      await tx.noteLedgerEntry.create({
+        data: {
+          note_id: note.id,
+          ...entry,
+          idempotency_key: `note:${note.id}:activate:${index}`,
+          metadata: { actorUserId: actor.userId },
+        },
+      });
+    }
+  }
+
+  private async postPaymentReceiptLedger(
+    tx: Prisma.TransactionClient,
+    payment: {
+      id: string;
+      note_id: string;
+      receipt_amount: unknown;
+      source: string;
+      reference: string | null;
+    },
+    actor: ActorContext
+  ) {
+    const repaymentPoolId = await this.getLedgerAccountId(tx, "REPAYMENT_POOL");
+    const amount = toNumber(payment.receipt_amount);
+    if (amount <= 0) return;
+
+    await tx.noteLedgerEntry.upsert({
+      where: { idempotency_key: `payment:${payment.id}:receipt` },
+      update: {},
+      create: {
+        note_id: payment.note_id,
+        account_id: repaymentPoolId,
+        payment_id: payment.id,
+        direction: NoteLedgerDirection.CREDIT,
+        amount: money(amount),
+        description: "Repayment receipt recorded",
+        idempotency_key: `payment:${payment.id}:receipt`,
+        metadata: {
+          actorUserId: actor.userId,
+          source: payment.source,
+          reference: payment.reference,
+        },
+      },
+    });
+  }
+
+  private async postSettlementLedger(
+    tx: Prisma.TransactionClient,
+    settlement: Awaited<ReturnType<typeof prisma.noteSettlement.findUnique>>,
+    actor: ActorContext
+  ) {
+    if (!settlement) return;
+    const investorPoolId = await this.getLedgerAccountId(tx, "INVESTOR_POOL");
+    const repaymentPoolId = await this.getLedgerAccountId(tx, "REPAYMENT_POOL");
+    const operatingId = await this.getLedgerAccountId(tx, "OPERATING_ACCOUNT");
+    const tawidhId = await this.getLedgerAccountId(tx, "TAWIDH_ACCOUNT");
+    const gharamahId = await this.getLedgerAccountId(tx, "GHARAMAH_ACCOUNT");
+    const receiptAlreadyPosted = settlement.payment_id
+      ? await tx.noteLedgerEntry.findUnique({
+          where: { idempotency_key: `payment:${settlement.payment_id}:receipt` },
+        })
+      : null;
+    const entries: Array<[string, string, NoteLedgerDirection, Prisma.Decimal | number | string, string]> = [];
+    if (!receiptAlreadyPosted) {
+      entries.push([
+        "repayment-receipt",
+        repaymentPoolId,
+        NoteLedgerDirection.CREDIT,
+        settlement.gross_receipt_amount,
+        "Repayment receipt",
+      ]);
+    }
+    entries.push(
+      ["repayment-to-investor-principal", repaymentPoolId, NoteLedgerDirection.DEBIT, settlement.investor_principal, "Investor principal paid from repayment pool"],
+      ["repayment-to-investor-profit", repaymentPoolId, NoteLedgerDirection.DEBIT, settlement.investor_profit_net, "Investor net profit paid from repayment pool"],
+      ["repayment-to-service-fee", repaymentPoolId, NoteLedgerDirection.DEBIT, settlement.service_fee_amount, "Service fee paid from repayment pool"],
+      ["repayment-to-tawidh", repaymentPoolId, NoteLedgerDirection.DEBIT, settlement.tawidh_amount, "Ta'widh paid from repayment pool"],
+      ["repayment-to-gharamah", repaymentPoolId, NoteLedgerDirection.DEBIT, settlement.gharamah_amount, "Gharamah paid from repayment pool"],
+      ["repayment-to-issuer-residual", repaymentPoolId, NoteLedgerDirection.DEBIT, settlement.issuer_residual_amount, "Issuer residual paid from repayment pool"],
+      ["investor-principal", investorPoolId, NoteLedgerDirection.CREDIT, settlement.investor_principal, "Investor principal returned"],
+      ["investor-profit", investorPoolId, NoteLedgerDirection.CREDIT, settlement.investor_profit_net, "Investor net profit returned"],
+      ["service-fee", operatingId, NoteLedgerDirection.CREDIT, settlement.service_fee_amount, "Service fee from investor profit"],
+      ["tawidh", tawidhId, NoteLedgerDirection.CREDIT, settlement.tawidh_amount, "Ta'widh late charge"],
+      ["gharamah", gharamahId, NoteLedgerDirection.CREDIT, settlement.gharamah_amount, "Gharamah late charge"]
+    );
+
+    for (const [key, accountId, direction, amount, description] of entries) {
+      if (toNumber(amount) <= 0) continue;
+      await tx.noteLedgerEntry.create({
+        data: {
+          note_id: settlement.note_id,
+          account_id: accountId,
+          settlement_id: settlement.id,
+          payment_id: settlement.payment_id,
+          direction,
+          amount,
+          description,
+          idempotency_key: `settlement:${settlement.id}:${key}`,
+          metadata: { actorUserId: actor.userId },
+        },
+      });
+    }
+  }
+}
+
+export const noteService = new NoteService();

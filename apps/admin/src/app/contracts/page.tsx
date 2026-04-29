@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
@@ -17,6 +18,7 @@ const DEFAULT_STATUS_FILTERS = ["SUBMITTED", "OFFER_SENT", "AMENDMENT_REQUESTED"
 
 export default function ContractsPage() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
 
   const [searchQuery, setSearchQuery] = React.useState("");
   const [statusFilters, setStatusFilters] = React.useState<string[]>(DEFAULT_STATUS_FILTERS);
@@ -62,6 +64,13 @@ export default function ContractsPage() {
   React.useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, statusFilters]);
+
+  React.useEffect(() => {
+    const contractId = searchParams.get("contractId");
+    if (!contractId) return;
+    setSelectedContractId(contractId);
+    setIsDetailModalOpen(true);
+  }, [searchParams]);
 
   const contracts = data?.contracts || [];
   const totalContracts = data?.pagination.totalCount || 0;

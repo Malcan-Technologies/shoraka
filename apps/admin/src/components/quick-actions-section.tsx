@@ -3,8 +3,9 @@
 import * as React from "react";
 import { QuickActionCard } from "./quick-action-card";
 import { Button } from "./ui/button";
-import { ClipboardDocumentCheckIcon, ArrowPathIcon } from "@heroicons/react/24/outline";
+import { ClipboardDocumentCheckIcon, ArrowPathIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
 import { usePendingApprovalCount } from "@/hooks/use-pending-approval-count";
+import { useNoteActionRequiredCount } from "@/notes/hooks/use-notes";
 
 interface QuickActionsSectionProps {
   loading?: boolean;
@@ -19,7 +20,9 @@ export function QuickActionsSection({
 }: QuickActionsSectionProps) {
   // Fetch real pending approval count from API
   const { data: pendingCountData, isLoading: isPendingCountLoading } = usePendingApprovalCount();
+  const { data: noteActionCountData, isLoading: isNoteActionCountLoading } = useNoteActionRequiredCount();
   const pendingOnboardingCount = pendingCountData?.count ?? 0;
+  const noteActionCount = noteActionCountData?.count ?? 0;
 
   return (
     <section className="space-y-4">
@@ -58,7 +61,22 @@ export function QuickActionsSection({
           }
           loading={loading || isPendingCountLoading}
         />
-        {/* Additional quick actions can be added here in the future */}
+        <QuickActionCard
+          title="Note Actions"
+          description="Create, publish, close funding, activate, or review note payments"
+          count={noteActionCount}
+          countLabel="actions"
+          href="/notes"
+          icon={DocumentTextIcon}
+          variant={
+            noteActionCount > 5
+              ? "urgent"
+              : noteActionCount > 0
+                ? "warning"
+                : "default"
+          }
+          loading={loading || isNoteActionCountLoading}
+        />
       </div>
     </section>
   );

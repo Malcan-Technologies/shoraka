@@ -32,6 +32,16 @@ export const NotificationTypeIds = {
   APPLICATION_RESUBMITTED_CONFIRMATION: 'application_resubmitted_confirmation',
   APPLICATION_WITHDRAWN_CONFIRMATION: 'application_withdrawn_confirmation',
   APPLICATION_COMPLETED: 'application_completed',
+
+  // Note lifecycle
+  NOTE_PUBLISHED: 'note_published',
+  NOTE_FUNDING_SUCCEEDED: 'note_funding_succeeded',
+  NOTE_FUNDING_FAILED: 'note_funding_failed',
+  NOTE_PAYMENT_RECEIVED: 'note_payment_received',
+  NOTE_SETTLEMENT_POSTED: 'note_settlement_posted',
+  NOTE_ARREARS: 'note_arrears',
+  NOTE_DEFAULTED: 'note_defaulted',
+  WITHDRAWAL_SUBMITTED_TO_TRUSTEE: 'withdrawal_submitted_to_trustee',
 } as const;
 
 export type NotificationTypeId = typeof NotificationTypeIds[keyof typeof NotificationTypeIds];
@@ -120,6 +130,37 @@ export interface NotificationPayloads {
   };
   [NotificationTypeIds.APPLICATION_COMPLETED]: {
     applicationId: string;
+  };
+  [NotificationTypeIds.NOTE_PUBLISHED]: {
+    noteId: string;
+    noteTitle: string;
+  };
+  [NotificationTypeIds.NOTE_FUNDING_SUCCEEDED]: {
+    noteId: string;
+    noteTitle: string;
+  };
+  [NotificationTypeIds.NOTE_FUNDING_FAILED]: {
+    noteId: string;
+    noteTitle: string;
+  };
+  [NotificationTypeIds.NOTE_PAYMENT_RECEIVED]: {
+    noteId: string;
+    noteTitle: string;
+  };
+  [NotificationTypeIds.NOTE_SETTLEMENT_POSTED]: {
+    noteId: string;
+    noteTitle: string;
+  };
+  [NotificationTypeIds.NOTE_ARREARS]: {
+    noteId: string;
+    noteTitle: string;
+  };
+  [NotificationTypeIds.NOTE_DEFAULTED]: {
+    noteId: string;
+    noteTitle: string;
+  };
+  [NotificationTypeIds.WITHDRAWAL_SUBMITTED_TO_TRUSTEE]: {
+    withdrawalId: string;
   };
 }
 
@@ -267,6 +308,53 @@ export const NOTIFICATION_TEMPLATES: {
     message: (data) => `Your application ${getShortApplicationRef(data.applicationId)} has been completed successfully.`,
     linkPath: (data) => `/applications/${data.applicationId}`,
     portal: 'issuer',
+  },
+  [NotificationTypeIds.NOTE_PUBLISHED]: {
+    title: 'New Investment Note Available',
+    message: (data) => `A new note "${data.noteTitle}" is available in the marketplace.`,
+    linkPath: (data) => `/investments/${data.noteId}`,
+    portal: 'investor',
+  },
+  [NotificationTypeIds.NOTE_FUNDING_SUCCEEDED]: {
+    title: 'Note Funding Completed',
+    message: (data) => `Funding for "${data.noteTitle}" has reached the required threshold.`,
+    linkPath: (data) => `/investments/${data.noteId}`,
+    portal: 'investor',
+  },
+  [NotificationTypeIds.NOTE_FUNDING_FAILED]: {
+    title: 'Note Funding Did Not Complete',
+    message: (data) => `Funding for "${data.noteTitle}" did not reach the required threshold.`,
+    linkPath: (data) => `/investments/${data.noteId}`,
+    portal: 'investor',
+  },
+  [NotificationTypeIds.NOTE_PAYMENT_RECEIVED]: {
+    title: 'Repayment Received',
+    message: (data) => `A repayment was recorded for "${data.noteTitle}".`,
+    linkPath: (data) => `/investments/${data.noteId}`,
+    portal: 'investor',
+  },
+  [NotificationTypeIds.NOTE_SETTLEMENT_POSTED]: {
+    title: 'Settlement Posted',
+    message: (data) => `Settlement has been posted for "${data.noteTitle}".`,
+    linkPath: (data) => `/investments/${data.noteId}`,
+    portal: 'investor',
+  },
+  [NotificationTypeIds.NOTE_ARREARS]: {
+    title: 'Note in Arrears',
+    message: (data) => `"${data.noteTitle}" has moved into arrears.`,
+    linkPath: (data) => `/notes/${data.noteId}`,
+    portal: 'issuer',
+  },
+  [NotificationTypeIds.NOTE_DEFAULTED]: {
+    title: 'Note Marked as Default',
+    message: (data) => `"${data.noteTitle}" has been marked as default.`,
+    linkPath: (data) => `/notes/${data.noteId}`,
+    portal: 'issuer',
+  },
+  [NotificationTypeIds.WITHDRAWAL_SUBMITTED_TO_TRUSTEE]: {
+    title: 'Withdrawal Submitted to Trustee',
+    message: (data) => `Withdrawal instruction ${data.withdrawalId} has been submitted to the trustee.`,
+    linkPath: () => `/account`,
   },
 };
 

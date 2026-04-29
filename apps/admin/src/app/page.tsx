@@ -8,6 +8,7 @@ import { useDashboardStats } from "../hooks/use-dashboard-stats";
 import { QuickActionsSection } from "../components/quick-actions-section";
 import { OperationsSection } from "../components/operations-section";
 import { PlatformSection } from "../components/platform-section";
+import { BucketBalancesOverview } from "../components/bucket-balances-overview";
 import { ArrowPathIcon } from "@heroicons/react/24/outline";
 
 export default function AdminHomePage() {
@@ -31,6 +32,16 @@ export default function AdminHomePage() {
             onRefresh={() => refetch()}
             isRefreshing={isFetching}
           />
+
+          <section className="space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Finance</h2>
+              <p className="text-sm text-muted-foreground">
+                Current balances across platform money buckets
+              </p>
+            </div>
+            <BucketBalancesOverview />
+          </section>
 
           {/* Operations Section */}
           <section className="space-y-4">

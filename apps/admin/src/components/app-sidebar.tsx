@@ -20,6 +20,7 @@ import {
   DocumentDuplicateIcon,
   CubeIcon,
   QuestionMarkCircleIcon,
+  BanknotesIcon,
 } from "@heroicons/react/24/outline";
 
 import { NavUser } from "@/components/nav-user";
@@ -46,6 +47,7 @@ import { ChevronRight } from "lucide-react";
 import { usePendingApprovalCount } from "@/hooks/use-pending-approval-count";
 import { useProducts } from "@/hooks/use-products";
 import { useAdminApplicationsForSidebar } from "@/hooks/use-admin-applications-for-sidebar";
+import { useNoteActionRequiredCount } from "@/notes/hooks/use-notes";
 import { productName } from "@/app/settings/products/product-utils";
 import type { ApplicationListItem, Product } from "@cashsouk/types";
 
@@ -106,7 +108,7 @@ function buildApplicationSidebarGroups(
   return groups.sort((a, b) => a.productTitle.localeCompare(b.productTitle));
 }
 
-const navActionsConfig = [
+const navLifecycleConfig = [
   {
     title: "Onboarding Approval",
     url: "/onboarding-approval",
@@ -117,6 +119,22 @@ const navActionsConfig = [
     title: "Applications",
     url: "#",
     icon: DocumentCheckIcon,
+  },
+  {
+    title: "Contracts",
+    url: "/contracts",
+    icon: DocumentDuplicateIcon,
+  },
+  {
+    title: "Notes",
+    url: "/notes",
+    icon: DocumentTextIcon,
+    badgeKey: "noteActions" as const,
+  },
+  {
+    title: "Investments",
+    url: "/investments",
+    icon: ArrowTrendingUpIcon,
   },
 ] as const;
 
@@ -132,24 +150,14 @@ const navPlatform = [
     icon: BuildingOffice2Icon,
   },
   {
-    title: "Notes",
-    url: "/notes",
-    icon: DocumentTextIcon,
-  },
-  {
-    title: "Investments",
-    url: "/investments",
-    icon: ArrowTrendingUpIcon,
+    title: "Bucket Balances",
+    url: "/finance/buckets",
+    icon: BanknotesIcon,
   },
   {
     title: "Documents",
     url: "/documents",
     icon: FolderOpenIcon,
-  },
-  {
-    title: "Contracts",
-    url: "/contracts",
-    icon: DocumentDuplicateIcon,
   },
   {
     title: "Help",
@@ -165,6 +173,7 @@ const navPlatform = [
       { title: "Security", url: "/settings/security" },
       { title: "Notifications", url: "/settings/notifications" },
       { title: "Products", url: "/settings/products" },
+      { title: "Platform Finance", url: "/settings/platform-finance" },
       { title: "Roles", url: "/settings/roles" },
     ],
   },
@@ -180,16 +189,18 @@ const navAudit = [
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const { data: pendingCountData } = usePendingApprovalCount();
+  const { data: noteActionCountData } = useNoteActionRequiredCount();
   const { data: productsData } = useProducts({ page: 1, pageSize: 100, includeDeleted: true });
   const { data: applicationsForSidebar = [] } = useAdminApplicationsForSidebar();
 
   // Build badges dynamically
   const badges: Record<string, number> = {
     onboardingApproval: pendingCountData?.count || 0,
+    noteActions: noteActionCountData?.count || 0,
   };
 
-  const dynamicNavActions = React.useMemo(() => {
-    return navActionsConfig.map((item) => {
+  const dynamicNavLifecycle = React.useMemo(() => {
+    return navLifecycleConfig.map((item) => {
       if (item.title === "Applications") {
         return {
           ...item,
@@ -239,10 +250,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel>Actions</SidebarGroupLabel>
+          <SidebarGroupLabel>Lifecycle</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {dynamicNavActions.map((item) => {
+              {dynamicNavLifecycle.map((item) => {
                 const Icon = item.icon;
                 const badgeCount =
                   "badgeKey" in item && item.badgeKey ? badges[item.badgeKey] : 0;

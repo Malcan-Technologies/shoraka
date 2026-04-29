@@ -178,6 +178,29 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     className="opacity-50 cursor-not-allowed"
                   >
                     <DocumentTextIcon className="h-4 w-4" />
+                    <span>Notes</span>
+                  </SidebarMenuButton>
+                ) : (
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === "/notes" || pathname.startsWith("/notes/")}
+                    tooltip="Notes"
+                  >
+                    <Link href="/notes">
+                      <DocumentTextIcon className="h-4 w-4" />
+                      <span>Notes</span>
+                    </Link>
+                  </SidebarMenuButton>
+                )}
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                {isDisabled ? (
+                  <SidebarMenuButton
+                    disabled
+                    tooltip="Complete onboarding to access"
+                    className="opacity-50 cursor-not-allowed"
+                  >
+                    <DocumentTextIcon className="h-4 w-4" />
                     <span>Application</span>
                   </SidebarMenuButton>
                 ) : (

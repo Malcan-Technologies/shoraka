@@ -641,14 +641,37 @@ jobs:
             .family = "default-admin-cashsouk-544e" |
             .containerDefinitions[0].image = $IMAGE
           ')
-          aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} > /dev/null
+          TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json "$NEW_TASK_DEF" \
+            --region ${{ env.AWS_REGION }} \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
 
           aws ecs update-service \
             --cluster default \
             --service admin-cashsouk-544e \
-            --task-definition default-admin-cashsouk-544e \
+            --task-definition "$TASK_DEF_ARN" \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
+
+          aws ecs wait services-stable \
+            --cluster default \
+            --services admin-cashsouk-544e \
+            --region ${{ env.AWS_REGION }}
+
+          RUNNING_TASK_DEF=$(aws ecs describe-services \
+            --cluster default \
+            --services admin-cashsouk-544e \
+            --region ${{ env.AWS_REGION }} \
+            --query 'services[0].deployments[?status==`PRIMARY`].taskDefinition | [0]' \
+            --output text)
+
+          if [ "$RUNNING_TASK_DEF" != "$TASK_DEF_ARN" ]; then
+            echo "Admin deployment did not promote the expected task definition"
+            echo "Expected: $TASK_DEF_ARN"
+            echo "Running:  $RUNNING_TASK_DEF"
+            exit 1
+          fi
 
           echo "Admin deployed successfully"
 

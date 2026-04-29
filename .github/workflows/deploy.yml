@@ -54,13 +54,13 @@ jobs:
           if echo "$CHANGED" | grep -qE '^apps/landing/|^packages/|^docker/landing\.Dockerfile'; then
             landing=true
           fi
-          if echo "$CHANGED" | grep -qE '^apps/investor/|^packages/|^docker/portal-investor\.Dockerfile'; then
+          if echo "$CHANGED" | grep -qE '^apps/investor/|^packages/|^docs/help/|^docker/portal-investor\.Dockerfile'; then
             investor=true
           fi
-          if echo "$CHANGED" | grep -qE '^apps/issuer/|^packages/|^docker/portal-issuer\.Dockerfile'; then
+          if echo "$CHANGED" | grep -qE '^apps/issuer/|^packages/|^docs/help/|^docker/portal-issuer\.Dockerfile'; then
             issuer=true
           fi
-          if echo "$CHANGED" | grep -qE '^apps/admin/|^packages/|^docker/portal-admin\.Dockerfile'; then
+          if echo "$CHANGED" | grep -qE '^apps/admin/|^packages/|^docs/help/|^docker/portal-admin\.Dockerfile'; then
             admin=true
           fi
 
@@ -453,14 +453,37 @@ jobs:
             .family = "default-admin-cashsouk-544e" |
             .containerDefinitions[0].image = $IMAGE
           ')
-          aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} > /dev/null
+          TASK_DEF_ARN=$(aws ecs register-task-definition \
+            --cli-input-json "$NEW_TASK_DEF" \
+            --region ${{ env.AWS_REGION }} \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
 
           aws ecs update-service \
             --cluster default \
             --service admin-cashsouk-544e \
-            --task-definition default-admin-cashsouk-544e \
+            --task-definition "$TASK_DEF_ARN" \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
+
+          aws ecs wait services-stable \
+            --cluster default \
+            --services admin-cashsouk-544e \
+            --region ${{ env.AWS_REGION }}
+
+          RUNNING_TASK_DEF=$(aws ecs describe-services \
+            --cluster default \
+            --services admin-cashsouk-544e \
+            --region ${{ env.AWS_REGION }} \
+            --query 'services[0].deployments[?status==`PRIMARY`].taskDefinition | [0]' \
+            --output text)
+
+          if [ "$RUNNING_TASK_DEF" != "$TASK_DEF_ARN" ]; then
+            echo "Admin deployment did not promote the expected task definition"
+            echo "Expected: $TASK_DEF_ARN"
+            echo "Running:  $RUNNING_TASK_DEF"
+            exit 1
+          fi
 
           echo "Admin deployed successfully"
 
@@ -468,7 +491,8 @@ jobs:
   # 4. Summary (waits for all parallel deploys)
   # ──────────────────────────────────────────────
   summary:
-    needs: [detect-changes, deploy-api, deploy-landing, deploy-investor, deploy-issuer, deploy-admin]
+    needs:
+      [detect-changes, deploy-api, deploy-landing, deploy-investor, deploy-issuer, deploy-admin]
     if: always() && needs.detect-changes.result == 'success'
     runs-on: ubuntu-latest
     steps:
