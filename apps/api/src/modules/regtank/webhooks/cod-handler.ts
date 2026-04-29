@@ -654,9 +654,12 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               data: {
                 onboarding_status: waitForApprovalOrgStatus,
                 onboarding_approved: false,
-                ...(waitForApprovalOrgStatus === OnboardingStatus.PENDING_APPROVAL && {
+                ...(waitForApprovalOrgStatus === OnboardingStatus.PENDING_APPROVAL ||
+                waitForApprovalOrgStatus === OnboardingStatus.PENDING_SSM_REVIEW
+                  ? {
                   ssm_approved: false,
-                }),
+                }
+                  : {}),
                 director_kyc_status: directorKycStatus as Prisma.InputJsonValue,
                 bank_account_details: bankingDetails as Prisma.InputJsonValue,
                 wealth_declaration: transactionInfo as Prisma.InputJsonValue,
@@ -716,9 +719,12 @@ export class CODWebhookHandler extends BaseWebhookHandler {
               data: {
                 onboarding_status: waitForApprovalOrgStatus,
                 onboarding_approved: false,
-                ...(waitForApprovalOrgStatus === OnboardingStatus.PENDING_APPROVAL && {
+                ...(waitForApprovalOrgStatus === OnboardingStatus.PENDING_APPROVAL ||
+                waitForApprovalOrgStatus === OnboardingStatus.PENDING_SSM_REVIEW
+                  ? {
                   ssm_checked: false,
-                }),
+                }
+                  : {}),
                 director_kyc_status: directorKycStatus as Prisma.InputJsonValue,
                 bank_account_details: bankingDetails as Prisma.InputJsonValue,
                 wealth_declaration: transactionInfo as Prisma.InputJsonValue,
