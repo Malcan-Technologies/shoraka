@@ -121,6 +121,25 @@ function assertSettlementAmountComplete(
   }
 }
 
+async function assertRepaymentReceiptLedgerComplete(noteId: string, requiredAmount: number) {
+  const receiptEntries = await prisma.noteLedgerEntry.findMany({
+    where: {
+      note_id: noteId,
+      direction: NoteLedgerDirection.CREDIT,
+      account: { code: "REPAYMENT_POOL" },
+    },
+    select: { amount: true },
+  });
+  const receivedAmount = receiptEntries.reduce((sum, entry) => sum + toNumber(entry.amount), 0);
+  if (requiredAmount > 0 && receivedAmount + 0.005 < requiredAmount) {
+    throw new AppError(
+      422,
+      "INCOMPLETE_REPAYMENT_RECEIPT",
+      "Settlement cannot be approved or posted until the full settlement amount has been received into the Repayment Pool"
+    );
+  }
+}
+
 function assertNoteReadyForServicing(note: {
   funding_status: NoteFundingStatus;
   servicing_status: NoteServicingStatus;
@@ -150,6 +169,12 @@ function dateFrom(value: string | null | undefined): Date | null {
   if (!value) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function daysBetweenCalendarDates(from: Date, to: Date) {
+  const fromStart = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  const toStart = new Date(to.getFullYear(), to.getMonth(), to.getDate());
+  return Math.floor((toStart.getTime() - fromStart.getTime()) / 86_400_000);
 }
 
 async function renderPdfBuffer(title: string, rows: Array<[string, string]>): Promise<Buffer> {
@@ -366,9 +391,22 @@ export class NoteService {
       throw new AppError(409, "APPLICATION_NOT_COMPLETED", "Only completed applications can become notes");
     }
 
-    const selectedInvoice = input.sourceInvoiceId
+    let selectedInvoice = input.sourceInvoiceId
       ? source.invoices.find((invoice) => invoice.id === input.sourceInvoiceId)
-      : source.invoices.find((invoice) => invoice.status === InvoiceStatus.APPROVED) ?? null;
+      : null;
+
+    if (!input.sourceInvoiceId) {
+      const approvedInvoices = source.invoices.filter((invoice) => invoice.status === InvoiceStatus.APPROVED);
+      const existingNotes = approvedInvoices.length
+        ? await prisma.note.findMany({
+            where: { source_invoice_id: { in: approvedInvoices.map((invoice) => invoice.id) } },
+            select: { source_invoice_id: true },
+          })
+        : [];
+      const notedInvoiceIds = new Set(existingNotes.map((note) => note.source_invoice_id).filter(Boolean));
+      selectedInvoice =
+        approvedInvoices.find((invoice) => !notedInvoiceIds.has(invoice.id)) ?? approvedInvoices[0] ?? null;
+    }
 
     if (input.sourceInvoiceId && !selectedInvoice) {
       throw new AppError(404, "INVOICE_NOT_FOUND", "Source invoice not found for application");
@@ -551,8 +589,8 @@ export class NoteService {
   async updateDraft(id: string, input: z.infer<typeof updateNoteDraftSchema>, actor: ActorContext) {
     const note = await noteRepository.findById(id);
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
-    if (note.status !== NoteStatus.DRAFT && note.status !== NoteStatus.PUBLISHED) {
-      throw new AppError(409, "NOTE_NOT_EDITABLE", "Only draft or published notes can be edited");
+    if (note.status !== NoteStatus.DRAFT || note.funding_status !== NoteFundingStatus.NOT_OPEN) {
+      throw new AppError(409, "NOTE_NOT_EDITABLE", "Only pre-funding draft notes can be edited");
     }
 
     const updated = await prisma.$transaction(async (tx) => {
@@ -594,18 +632,42 @@ export class NoteService {
   async publish(id: string, actor: ActorContext) {
     const note = await noteRepository.findById(id);
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    if (
+      note.status !== NoteStatus.DRAFT ||
+      note.funding_status !== NoteFundingStatus.NOT_OPEN ||
+      !(new Set<NoteListingStatus>([
+        NoteListingStatus.NOT_LISTED,
+        NoteListingStatus.DRAFT,
+        NoteListingStatus.UNPUBLISHED,
+      ])).has(note.listing_status)
+    ) {
+      throw new AppError(409, "NOTE_NOT_PUBLISHABLE", "Only draft or unpublished notes can be published");
+    }
     if (toNumber(note.platform_fee_rate_percent) > 3 || toNumber(note.service_fee_rate_percent) > 15) {
       throw new AppError(422, "NOTE_FEE_CAP_EXCEEDED", "Configured fees exceed allowed caps");
     }
     const now = new Date();
     const updated = await prisma.$transaction(async (tx) => {
-      const result = await tx.note.update({
-        where: { id },
+      const stateUpdate = await tx.note.updateMany({
+        where: {
+          id,
+          status: NoteStatus.DRAFT,
+          funding_status: NoteFundingStatus.NOT_OPEN,
+          listing_status: { in: [NoteListingStatus.NOT_LISTED, NoteListingStatus.DRAFT, NoteListingStatus.UNPUBLISHED] },
+        },
         data: {
           status: NoteStatus.PUBLISHED,
           listing_status: NoteListingStatus.PUBLISHED,
           funding_status: NoteFundingStatus.OPEN,
           published_at: now,
+        },
+      });
+      if (stateUpdate.count !== 1) {
+        throw new AppError(409, "NOTE_NOT_PUBLISHABLE", "Only draft or unpublished notes can be published");
+      }
+      const result = await tx.note.update({
+        where: { id },
+        data: {
           listing: {
             upsert: {
               create: { status: NoteListingStatus.PUBLISHED, published_at: now },
@@ -737,6 +799,9 @@ export class NoteService {
   async closeFunding(id: string, actor: ActorContext) {
     const note = await noteRepository.findById(id);
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+    if (note.status !== NoteStatus.PUBLISHED || note.funding_status !== NoteFundingStatus.OPEN) {
+      throw new AppError(409, "NOTE_FUNDING_NOT_OPEN", "Only notes with open funding can be closed");
+    }
     const fundingPercent = toNumber(note.target_amount) > 0
       ? (toNumber(note.funded_amount) / toNumber(note.target_amount)) * 100
       : 0;
@@ -745,20 +810,23 @@ export class NoteService {
     }
     const now = new Date();
     const updated = await prisma.$transaction(async (tx) => {
-      await tx.noteInvestment.updateMany({
-        where: { note_id: id, status: NoteInvestmentStatus.COMMITTED },
-        data: { status: NoteInvestmentStatus.CONFIRMED, confirmed_at: now },
-      });
-      const result = await tx.note.update({
-        where: { id },
+      const stateUpdate = await tx.note.updateMany({
+        where: { id, status: NoteStatus.PUBLISHED, funding_status: NoteFundingStatus.OPEN },
         data: {
           status: NoteStatus.FUNDING,
           funding_status: NoteFundingStatus.FUNDED,
           listing_status: NoteListingStatus.CLOSED,
           funding_closed_at: now,
         },
-        include: noteInclude,
       });
+      if (stateUpdate.count !== 1) {
+        throw new AppError(409, "NOTE_FUNDING_NOT_OPEN", "Only notes with open funding can be closed");
+      }
+      await tx.noteInvestment.updateMany({
+        where: { note_id: id, status: NoteInvestmentStatus.COMMITTED },
+        data: { status: NoteInvestmentStatus.CONFIRMED, confirmed_at: now },
+      });
+      const result = await tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
       await this.logAdminAction(tx, id, "CLOSE_FUNDING", actor, mapNoteListItem(note), mapNoteListItem(result));
       return result;
     });
@@ -772,20 +840,36 @@ export class NoteService {
     if (note.status !== NoteStatus.PUBLISHED || note.funding_status !== NoteFundingStatus.OPEN) {
       throw new AppError(409, "NOTE_FUNDING_NOT_OPEN", "Only notes with open funding can be failed");
     }
+    const targetAmount = toNumber(note.target_amount);
+    const minimumFundingAmount = targetAmount * (toNumber(note.minimum_funding_percent) / 100);
+    const fundingPercent = targetAmount > 0
+      ? (toNumber(note.funded_amount) / targetAmount) * 100
+      : 0;
+    if (fundingPercent + 0.005 >= toNumber(note.minimum_funding_percent)) {
+      throw new AppError(409, "NOTE_MINIMUM_FUNDING_MET", "Notes that meet the minimum funding threshold should be closed, not failed");
+    }
     const updated = await prisma.$transaction(async (tx) => {
-      await tx.noteInvestment.updateMany({
-        where: { note_id: id, status: NoteInvestmentStatus.COMMITTED },
-        data: { status: NoteInvestmentStatus.RELEASED, released_at: now },
-      });
-      const result = await tx.note.update({
-        where: { id },
+      const stateUpdate = await tx.note.updateMany({
+        where: {
+          id,
+          status: NoteStatus.PUBLISHED,
+          funding_status: NoteFundingStatus.OPEN,
+          funded_amount: { lt: money(minimumFundingAmount) },
+        },
         data: {
           status: NoteStatus.FAILED_FUNDING,
           funding_status: NoteFundingStatus.FAILED,
           listing_status: NoteListingStatus.CLOSED,
         },
-        include: noteInclude,
       });
+      if (stateUpdate.count !== 1) {
+        throw new AppError(409, "NOTE_FUNDING_NOT_OPEN", "Only notes with open funding can be failed");
+      }
+      await tx.noteInvestment.updateMany({
+        where: { note_id: id, status: NoteInvestmentStatus.COMMITTED },
+        data: { status: NoteInvestmentStatus.RELEASED, released_at: now },
+      });
+      const result = await tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
       await this.logAdminAction(tx, id, "FAIL_FUNDING", actor, mapNoteListItem(note), mapNoteListItem(result));
       return result;
     });
@@ -803,15 +887,18 @@ export class NoteService {
     }
     const now = new Date();
     const updated = await prisma.$transaction(async (tx) => {
-      const result = await tx.note.update({
-        where: { id },
+      const stateUpdate = await tx.note.updateMany({
+        where: { id, funding_status: NoteFundingStatus.FUNDED, servicing_status: NoteServicingStatus.NOT_STARTED },
         data: {
           status: NoteStatus.ACTIVE,
           servicing_status: NoteServicingStatus.CURRENT,
           activated_at: now,
         },
-        include: noteInclude,
       });
+      if (stateUpdate.count !== 1) {
+        throw new AppError(409, "NOTE_ALREADY_ACTIVATED", "Note has already been activated");
+      }
+      const result = await tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
       await this.postDisbursementLedger(tx, result, actor);
       await this.logAdminAction(tx, id, "ACTIVATE", actor, mapNoteListItem(note), mapNoteListItem(result));
       return result;
@@ -1121,6 +1208,7 @@ export class NoteService {
       throw new AppError(409, "SETTLEMENT_NOT_PREVIEW", "Only preview settlements can be approved");
     }
     assertSettlementAmountComplete(settlement);
+    await assertRepaymentReceiptLedgerComplete(settlement.note_id, resolveNoteSettlementAmount(settlement.note));
 
     await prisma.noteSettlement.update({
       where: { id: settlementId },
@@ -1147,6 +1235,7 @@ export class NoteService {
       throw new AppError(409, "SETTLEMENT_NOT_APPROVED", "Settlement must be approved before posting");
     }
     assertSettlementAmountComplete(settlement);
+    await assertRepaymentReceiptLedgerComplete(settlement.note_id, resolveNoteSettlementAmount(settlement.note));
 
     await prisma.$transaction(async (tx) => {
       await this.postSettlementLedger(tx, settlement, actor);
@@ -1270,6 +1359,24 @@ export class NoteService {
     actor: ActorContext
   ) {
     const result = await this.checkOverdueLateCharge(id, input);
+    if (result.overdue && result.dueDate) {
+      const note = await noteRepository.findById(id);
+      if (note) {
+        const dueDate = new Date(result.dueDate);
+        const checkDate = new Date(result.checkDate);
+        const daysPastDue = Math.max(0, daysBetweenCalendarDates(dueDate, checkDate));
+        const daysAfterGrace = Math.max(0, daysPastDue - note.grace_period_days);
+        const isArrears = daysAfterGrace >= note.arrears_threshold_days;
+        const nextServicingStatus = isArrears ? NoteServicingStatus.ARREARS : NoteServicingStatus.LATE;
+        if (note.servicing_status !== nextServicingStatus) {
+          await noteRepository.updateState(id, {
+            status: isArrears ? NoteStatus.ARREARS : note.status,
+            servicing_status: nextServicingStatus,
+            arrears_started_at: isArrears && !note.arrears_started_at ? new Date() : undefined,
+          });
+        }
+      }
+    }
     await this.logEvent(prisma, id, "OVERDUE_LATE_CHARGE_CHECKED", actor, result);
     return result;
   }
@@ -1300,11 +1407,8 @@ export class NoteService {
   async markDefault(id: string, reason: string, actor: ActorContext) {
     const note = await noteRepository.findById(id);
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
-    if (
-      note.servicing_status !== NoteServicingStatus.ARREARS &&
-      note.servicing_status !== NoteServicingStatus.LATE
-    ) {
-      throw new AppError(409, "NOTE_NOT_IN_ARREARS", "Default can only be marked while note is late or in arrears");
+    if (note.servicing_status !== NoteServicingStatus.ARREARS) {
+      throw new AppError(409, "NOTE_NOT_IN_ARREARS", "Default can only be marked while note is in arrears");
     }
     const updated = await noteRepository.updateState(id, {
       status: NoteStatus.DEFAULTED,
@@ -1595,13 +1699,12 @@ export class NoteService {
     const operatingId = await this.getLedgerAccountId(tx, "OPERATING_ACCOUNT");
     const fundedAmount = toNumber(note.funded_amount);
     const platformFee = fundedAmount * (toNumber(note.platform_fee_rate_percent) / 100);
-    const netDisbursement = fundedAmount - platformFee;
     const entries = [
       {
         account_id: investorPoolId,
         direction: NoteLedgerDirection.DEBIT,
-        amount: money(netDisbursement),
-        description: "Net note disbursement to issuer",
+        amount: money(fundedAmount),
+        description: "Funded note disbursement from investor pool",
       },
       {
         account_id: operatingId,

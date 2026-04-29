@@ -112,7 +112,10 @@ export function usePublishNote() {
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: notesKeys.all }),
+    onSuccess: (note) => {
+      queryClient.invalidateQueries({ queryKey: notesKeys.all });
+      queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
+    },
   });
 }
 
@@ -125,7 +128,10 @@ export function useUnpublishNote() {
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: notesKeys.all }),
+    onSuccess: (note) => {
+      queryClient.invalidateQueries({ queryKey: notesKeys.all });
+      queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
+    },
   });
 }
 
@@ -143,7 +149,10 @@ function useNoteAction(action: "close" | "fail" | "activate") {
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: notesKeys.all }),
+    onSuccess: (note) => {
+      queryClient.invalidateQueries({ queryKey: notesKeys.all });
+      queryClient.invalidateQueries({ queryKey: notesKeys.detail(note.id) });
+    },
   });
 }
 

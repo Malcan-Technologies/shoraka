@@ -1,4 +1,4 @@
-import { PrismaClient, ApplicationStatus, NoteStatus } from "@prisma/client";
+import { PrismaClient, ApplicationStatus, InvoiceStatus, NoteStatus } from "@prisma/client";
 import { resolveOfferedAmount, resolveOfferedProfitRate, resolveRequestedInvoiceAmount } from "../src/lib/invoice-offer";
 
 const prisma = new PrismaClient();
@@ -24,7 +24,7 @@ async function main() {
     include: {
       issuer_organization: true,
       contract: true,
-      invoices: { orderBy: { created_at: "asc" } },
+    invoices: { where: { status: InvoiceStatus.APPROVED }, orderBy: { created_at: "asc" } },
     },
     orderBy: { updated_at: "desc" },
   });
@@ -34,7 +34,16 @@ async function main() {
     return;
   }
 
-  const invoice = source.invoices[0] ?? null;
+  const notes = await prisma.note.findMany({
+    where: { source_invoice_id: { in: source.invoices.map((invoice) => invoice.id) } },
+    select: { source_invoice_id: true },
+  });
+  const notedInvoiceIds = new Set(notes.map((note) => note.source_invoice_id).filter(Boolean));
+  const invoice = source.invoices.find((candidate) => !notedInvoiceIds.has(candidate.id)) ?? null;
+  if (!invoice) {
+    console.log("No approved invoice without a note found. Skipping note scenario seed.");
+    return;
+  }
   const invoiceDetails = asRecord(invoice?.details) ?? {};
   const invoiceOffer = asRecord(invoice?.offer_details) ?? {};
   const contractDetails = asRecord(source.contract?.contract_details) ?? {};

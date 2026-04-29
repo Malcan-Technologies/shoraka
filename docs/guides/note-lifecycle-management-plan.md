@@ -515,7 +515,8 @@ Global settings:
 - Gharamah should be manually set by admin at receipt time and capped at 9% per annum.
 - Late fees should be calculated and applied only when repayment funds are received. Do not accrue or post late fees through a daily cron job.
 - Arrears threshold should be configurable in the admin portal, defaulting to 14 days after the grace period. With the default 7-day grace period, arrears starts 21 days after the missed payment date.
-- Default should not be automatic. Admin can manually mark the note as default any time after it is already in arrears.
+- The manual overdue check should update servicing state to `LATE` after the grace period and `ARREARS` after the arrears threshold.
+- Default should not be automatic. Admin can manually mark the note as default only after it is already in arrears.
 - Every setting change should be audited with before/after values, actor, timestamp, IP address, user agent, and correlation ID.
 
 ## Funding Rules
@@ -532,12 +533,13 @@ Definitions:
 Rules:
 
 - Admin can publish a note only after accepted source terms are frozen.
-- Note creation APIs must create notes only from approved invoices. Application-scoped creation should select an approved source invoice and must not fall back to creating an application-only note when no approved invoice exists.
+- Draft commercial terms can be edited only before marketplace funding opens. Once published, source and commercial terms should remain frozen unless the note is unpublished before any investor commitment.
+- Note creation APIs must create notes only from approved invoices. Application-scoped creation should select the first approved invoice without a note, and must not fall back to creating an application-only note when no approved invoice exists.
 - `Note.source_invoice_id` must be unique when present, so concurrent creation requests cannot create multiple notes for the same approved invoice.
 - Marketplace funding opens with a target and a close date.
-- `Publish` makes the note visible and investable in the investor marketplace. Use it only after source invoice, issuer, paymaster, target amount, profit rate, platform fee, service fee, risk disclosure, and listing summary have been reviewed.
+- `Publish` makes a draft or unpublished note visible and investable in the investor marketplace. Use it only after source invoice, issuer, paymaster, target amount, profit rate, platform fee, service fee, risk disclosure, and listing summary have been reviewed.
 - `Unpublish` removes the note from the investor marketplace. It should be used only before investor commitments exist, or as an exceptional admin action if a listing needs to be withdrawn before funding opens.
-- `Close Funding` stops new marketplace commitments and locks investor allocations for activation. Use it when the note has reached the successful funding threshold, normally 80% or more, or when the listing window closes and admin accepts the achieved funding level.
+- `Close Funding` stops new marketplace commitments and locks investor allocations for activation. Use it only while marketplace funding is still open and the note has reached the successful funding threshold, normally 80% or more, or when the listing window closes and admin accepts the achieved funding level.
 - `Fail Funding` ends an open marketplace listing as unsuccessful. Use it only while funding is still open and the note does not meet the minimum funding threshold; committed investor funds must be released or refunded according to the payment rail model.
 - The admin UI should require an explicit confirmation dialog before `Publish`, `Unpublish`, `Close Funding`, or `Fail Funding`, because these actions change marketplace visibility or investor funding state.
 - Investor commitment creation must reserve note capacity atomically by incrementing `funded_amount` only while the note is still published, funding is open, and enough target capacity remains. Do not rely on a pre-read investment snapshot for oversubscription checks.
@@ -549,6 +551,7 @@ Rules:
 - If funding fails, confirmed investor funds must be refunded or released according to the payment rail model.
 - If a note is funded below 100%, only the funded portion is disbursed from the Investor Pool to the issuer at note activation.
 - Platform fee is deducted at disbursement from the funded amount before the issuer receives net proceeds.
+- Activation debits the full funded amount from the Investor Pool and credits the platform fee portion to the Operating Account; the net remainder leaves the platform buckets as issuer disbursement.
 - When the paymaster later repays, the settlement amount is the invoice face value, not the funded/disbursed amount. The Repayment Pool must return the unfunded residual balance to the issuer after investor settlement, service fee, and any approved late charges.
 
 ## Paymaster Repayment and Issuer Residual Logic
@@ -559,6 +562,7 @@ Paymaster repayment assumption:
 - Paymaster repays the invoice/contract financing obligation in full. This settlement amount equals the invoice face value.
 - Issuer-on-behalf-of-paymaster payments should settle the same invoice face value obligation, preserve the true payment source for audit, and be reviewed by admin before reconciliation.
 - Once settlement is posted and the note is marked settled, further payment recording, late-fee charging, settlement previews, approvals, and posting must be blocked at the API layer.
+- Settlement approval and posting require the full invoice settlement amount to have been recorded into the Repayment Pool; a preview amount alone is not sufficient.
 - If investor funding is below 100%, the unfunded balance remains payable to the issuer because the issuer owns the receivable.
 - The residual balance, less applicable service fee and approved issuer-borne late charges, is returned to the issuer from the Repayment Pool. Platform fee has already been deducted at disbursement.
 - Admin should manually check whether payment is overdue before settlement. The system should calculate ta'widh and gharamah from the due date plus grace period and subtract all previously approved or posted late fees so the issuer is not double charged.

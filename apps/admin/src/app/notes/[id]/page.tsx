@@ -191,6 +191,25 @@ export default function NoteDetailPage() {
   const confirmCopy = pendingAction ? noteActionCopy[pendingAction] : null;
   const confirmPending =
     publishNote.isPending || unpublishNote.isPending || closeFunding.isPending || failFunding.isPending;
+  const publishableListingStatuses = ["NOT_LISTED", "DRAFT", "UNPUBLISHED"];
+  const canPublish =
+    note?.status === "DRAFT" &&
+    note.fundingStatus === "NOT_OPEN" &&
+    publishableListingStatuses.includes(note.listingStatus);
+  const canUnpublish =
+    note?.status === "PUBLISHED" &&
+    note.listingStatus === "PUBLISHED" &&
+    note.fundingStatus === "OPEN" &&
+    note.investments.length === 0;
+  const isFundingOpen = note?.status === "PUBLISHED" && note.fundingStatus === "OPEN";
+  const meetsMinimumFunding =
+    note != null && note.fundingPercent + 0.005 >= note.minimumFundingPercent;
+  const canCloseFunding = Boolean(isFundingOpen && meetsMinimumFunding);
+  const canFailFunding = Boolean(isFundingOpen && !meetsMinimumFunding);
+  const canActivate =
+    note?.status === "FUNDING" &&
+    note.fundingStatus === "FUNDED" &&
+    note.servicingStatus === "NOT_STARTED";
 
   return (
     <>
@@ -313,7 +332,7 @@ export default function NoteDetailPage() {
                 <Button
                   size="sm"
                   onClick={handlePublish}
-                  disabled={publishNote.isPending || note.status === "PUBLISHED"}
+                  disabled={publishNote.isPending || !canPublish}
                 >
                   Publish
                 </Button>
@@ -321,7 +340,7 @@ export default function NoteDetailPage() {
                   size="sm"
                   variant="outline"
                   onClick={handleUnpublish}
-                  disabled={unpublishNote.isPending || note.investments.length > 0}
+                  disabled={unpublishNote.isPending || !canUnpublish}
                 >
                   Unpublish
                 </Button>
@@ -329,7 +348,7 @@ export default function NoteDetailPage() {
                   size="sm"
                   variant="outline"
                   onClick={() => setPendingAction("closeFunding")}
-                  disabled={closeFunding.isPending || note.fundingStatus !== "OPEN"}
+                  disabled={closeFunding.isPending || !canCloseFunding}
                 >
                   Close Funding
                 </Button>
@@ -337,7 +356,7 @@ export default function NoteDetailPage() {
                   size="sm"
                   variant="outline"
                   onClick={() => setPendingAction("failFunding")}
-                  disabled={failFunding.isPending || note.fundingStatus !== "OPEN"}
+                  disabled={failFunding.isPending || !canFailFunding}
                 >
                   Fail Funding
                 </Button>
@@ -347,7 +366,7 @@ export default function NoteDetailPage() {
                   onClick={() =>
                     handleAction("Note activated", () => activateNote.mutateAsync(note.id))
                   }
-                  disabled={activateNote.isPending || note.fundingStatus !== "FUNDED"}
+                  disabled={activateNote.isPending || !canActivate}
                 >
                   Activate
                 </Button>
