@@ -387,6 +387,14 @@ export const rejectIssuerDirectorShareholderSchema = z.object({
 
 export type RejectIssuerDirectorShareholderInput = z.infer<typeof rejectIssuerDirectorShareholderSchema>;
 
+export const notifyIssuerDirectorShareholderActionRequiredSchema = z.object({
+  partyKey: z.string().min(1).max(200),
+});
+
+export type NotifyIssuerDirectorShareholderActionRequiredInput = z.infer<
+  typeof notifyIssuerDirectorShareholderActionRequiredSchema
+>;
+
 export const createCtosSubjectReportSchema = z.object({
   subjectRef: z.string().min(1).max(80),
   subjectKind: z.enum(["INDIVIDUAL", "CORPORATE"]),

@@ -136,6 +136,22 @@ export function formatSharePercentageCell(p: { sharePercentage: number | null })
   return "";
 }
 
+/**
+ * SECTION: Director/shareholder notify eligibility
+ * WHY: Notify action should appear only for actionable individual parties
+ * INPUT: A single people row
+ * OUTPUT: True when row is eligible for notify action
+ * WHERE USED: Admin application/org director-shareholder tables
+ */
+export function isNotifyEligible(p: ApplicationPersonRow): boolean {
+  if (p.entityType !== "INDIVIDUAL") return false;
+  const roles = (p.roles ?? []).map((r) => String(r).toUpperCase());
+  const isDirector = roles.includes("DIRECTOR");
+  const isShareholder = roles.includes("SHAREHOLDER");
+  const share = Number(p.sharePercentage ?? 0);
+  return isDirector || (isShareholder && share >= 5);
+}
+
 export function shouldShowPeopleSendEmailButton(
   _p: Pick<ApplicationPersonRow, "entityType" | "status">,
   _portal: "issuer" | "investor" | "admin"

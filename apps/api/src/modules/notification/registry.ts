@@ -37,6 +37,8 @@ export const NotificationTypeIds = {
   DIRECTOR_SHAREHOLDER_MISMATCH: 'director_shareholder_mismatch',
   /** Issuer: admin asked party to correct and resubmit (event only). */
   DIRECTOR_SHAREHOLDER_REJECTED: 'director_shareholder_rejected',
+  /** Issuer: admin requests onboarding action for one eligible party. */
+  DIRECTOR_SHAREHOLDER_ACTION_REQUIRED: 'director_shareholder_action_required',
 } as const;
 
 export type NotificationTypeId = typeof NotificationTypeIds[keyof typeof NotificationTypeIds];
@@ -133,6 +135,12 @@ export interface NotificationPayloads {
     issuerOrganizationId: string;
     partyKey: string;
     personName?: string;
+  };
+  [NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED]: {
+    issuerOrganizationId: string;
+    partyKey: string;
+    personName?: string;
+    link: string;
   };
 }
 
@@ -295,6 +303,15 @@ export const NOTIFICATION_TEMPLATES: {
       return `This individual${who} requires correction. Please review and resubmit their details.`;
     },
     linkPath: () => '/profile',
+    portal: 'issuer',
+  },
+  [NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED]: {
+    title: 'Action Required: Complete Director/Shareholder Onboarding',
+    message: (data) => {
+      const who = data.personName?.trim() ? ` for ${data.personName.trim()}` : "";
+      return `Please complete onboarding${who}.`;
+    },
+    linkPath: (data) => data.link || '/profile',
     portal: 'issuer',
   },
 };

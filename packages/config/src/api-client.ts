@@ -476,6 +476,16 @@ export class ApiClient {
     );
   }
 
+  async notifyIssuerDirectorShareholderActionRequired(
+    issuerOrganizationId: string,
+    body: { partyKey: string }
+  ): Promise<ApiResponse<{ sent: true }> | ApiError> {
+    return this.post<{ sent: true }>(
+      `/v1/admin/organizations/issuer/${encodeURIComponent(issuerOrganizationId)}/director-shareholders/notify-action-required`,
+      body
+    );
+  }
+
   async updateAdminApplicationStatus(
     id: string,
     status: string

@@ -261,3 +261,31 @@ export async function notifyIssuerDirectorShareholderRejected(params: {
     }
   );
 }
+
+export async function notifyIssuerDirectorShareholderActionRequired(params: {
+  issuerOrganizationId: string;
+  ownerUserId: string;
+  partyKeyRaw: string;
+  personName?: string | null;
+}): Promise<void> {
+  const pk = normalizeDirectorShareholderIdKey(params.partyKeyRaw);
+  if (!pk || !params.ownerUserId?.trim()) {
+    logger.warn(
+      { issuerOrganizationId: params.issuerOrganizationId },
+      "DS action-required notification skipped: invalid key"
+    );
+    return;
+  }
+
+  const notificationService = new NotificationService();
+  await notificationService.sendTyped(
+    params.ownerUserId,
+    NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED,
+    {
+      issuerOrganizationId: params.issuerOrganizationId,
+      partyKey: pk,
+      personName: params.personName ?? undefined,
+      link: "/profile",
+    }
+  );
+}

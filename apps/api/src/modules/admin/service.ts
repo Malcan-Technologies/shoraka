@@ -77,7 +77,10 @@ import type { PortalType } from "../regtank/types";
 import { extractCorporateEntities } from "../regtank/helpers/extract-corporate-entities";
 import { extractGovernmentIdFromCorporateUserInfo } from "../regtank/helpers/extract-government-id";
 import { buildAdminPeopleList } from "./build-people-list";
-import { notifyIssuerDirectorShareholderRejected } from "../notification/director-shareholder-notifications";
+import {
+  notifyIssuerDirectorShareholderActionRequired,
+  notifyIssuerDirectorShareholderRejected,
+} from "../notification/director-shareholder-notifications";
 import { logApplicationActivity } from "../applications/logs/service";
 import { ActivityPortal } from "../applications/logs/types";
 
@@ -2110,6 +2113,60 @@ export class AdminService {
     });
 
     return sendResult;
+  }
+
+  async notifyIssuerDirectorShareholderActionRequired(
+    issuerOrganizationId: string,
+    input: { partyKey: string }
+  ): Promise<{ sent: true }> {
+    const org = await prisma.issuerOrganization.findUnique({
+      where: { id: issuerOrganizationId },
+      select: { owner_user_id: true, type: true },
+    });
+    if (!org || org.type !== "COMPANY") {
+      throw new AppError(404, "NOT_FOUND", "Issuer company organization not found");
+    }
+    if (!org.owner_user_id) {
+      throw new AppError(400, "VALIDATION_ERROR", "Organization has no owner");
+    }
+
+    const orgSvc = new OrganizationService();
+    const extras = await orgSvc.getIssuerPartyListExtras(issuerOrganizationId);
+    const fullOrg = await prisma.issuerOrganization.findUnique({
+      where: { id: issuerOrganizationId },
+      select: { corporate_entities: true, director_kyc_status: true, director_aml_status: true },
+    });
+    if (!fullOrg) {
+      throw new AppError(404, "NOT_FOUND", "Organization not found");
+    }
+
+    const people = buildAdminPeopleList({
+      ctos: extras.latestOrganizationCtosCompanyJson ?? null,
+      issuerDirectorKycStatus: fullOrg.director_kyc_status ?? null,
+      issuerDirectorAmlStatus: fullOrg.director_aml_status ?? null,
+      ctosPartySupplements: extras.ctosPartySupplements.map((s) => ({
+        party_key: s.partyKey,
+        onboarding_json: s.onboardingJson,
+      })),
+      corporateEntities: fullOrg.corporate_entities ?? null,
+    });
+    const visible = filterVisiblePeopleRows(people);
+    const want = normalizeDirectorShareholderIdKey(input.partyKey);
+    if (!want) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invalid party key");
+    }
+    const match = visible.find((p) => normalizeDirectorShareholderIdKey(p.matchKey) === want);
+    if (!match) {
+      throw new AppError(404, "NOT_FOUND", "Party not found among visible directors/shareholders");
+    }
+
+    await notifyIssuerDirectorShareholderActionRequired({
+      issuerOrganizationId,
+      ownerUserId: org.owner_user_id,
+      partyKeyRaw: input.partyKey,
+      personName: match.name,
+    });
+    return { sent: true };
   }
 
   /**

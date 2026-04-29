@@ -34,6 +34,7 @@ import {
   filterVisiblePeopleRows,
   formatPeopleRolesLineWithoutShare,
   formatSharePercentageCell,
+  isNotifyEligible,
 } from "@/lib/onboarding-people-display";
 import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
 import { reviewEmptyStateClass } from "@/components/application-review/review-section-styles";
@@ -58,6 +59,7 @@ import { format, isValid, parse, parseISO } from "date-fns";
 import {
   useCreateIssuerOrganizationCtosReport,
   useCreateIssuerOrganizationCtosSubjectReport,
+  useNotifyIssuerDirectorShareholderActionRequired,
   useRejectIssuerDirectorShareholder,
 } from "@/hooks/use-admin-issuer-organization-ctos-mutations";
 import { CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
@@ -332,6 +334,10 @@ export function ApplicationFinancialReviewContent({
     applicationId
   );
   const createSubjectReport = useCreateIssuerOrganizationCtosSubjectReport(
+    issuerOrgId || undefined,
+    applicationId
+  );
+  const notifyActionRequired = useNotifyIssuerDirectorShareholderActionRequired(
     issuerOrgId || undefined,
     applicationId
   );
@@ -966,6 +972,7 @@ export function ApplicationFinancialReviewContent({
                   <TableHead className={applicationTableHeaderClass}>KYC / KYB</TableHead>
                   <TableHead className={applicationTableHeaderClass}>Last report</TableHead>
                   <TableHead className={`${applicationTableHeaderClass} text-right`}>Fetch report</TableHead>
+                  <TableHead className={`${applicationTableHeaderClass} text-right`}>Notify</TableHead>
                   <TableHead className={`${applicationTableHeaderClass} text-right`}>Reject</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1027,6 +1034,31 @@ export function ApplicationFinancialReviewContent({
                         >
                           Fetch report
                         </Button>
+                      </TableCell>
+                      <TableCell className={`${applicationTableCellClass} text-right`}>
+                        {isNotifyEligible(p) ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 rounded-lg text-xs"
+                            disabled={!issuerOrgId || notifyActionRequired.isPending}
+                            onClick={() => {
+                              notifyActionRequired.mutate(
+                                { partyKey: p.matchKey },
+                                {
+                                  onSuccess: () => toast.success("Notify sent to issuer."),
+                                  onError: (err: unknown) =>
+                                    toast.error(err instanceof Error ? err.message : "Notify failed"),
+                                }
+                              );
+                            }}
+                          >
+                            Notify
+                          </Button>
+                        ) : (
+                          <span className="text-muted-foreground">{"\u2014"}</span>
+                        )}
                       </TableCell>
                       <TableCell className={`${applicationTableCellClass} text-right`}>
                         {p.entityType === "INDIVIDUAL" &&

@@ -68,6 +68,7 @@ import {
   filterVisiblePeopleRows,
   getDisplayStatus,
   formatSharePercentageCell,
+  isNotifyEligible,
 } from "@/lib/onboarding-people-display";
 import {
   getEffectiveCtosPartyOnboarding,
@@ -920,6 +921,22 @@ export default function OrganizationDetailPage() {
       setCtosFetchSubjectKey(null);
     },
   });
+  const notifyActionRequiredMutation = useMutation({
+    mutationFn: async (input: { partyKey: string }) => {
+      const res = await apiClient.notifyIssuerDirectorShareholderActionRequired(
+        organizationId,
+        input
+      );
+      if (!res.success) throw new Error(formatApiErrorMessage(res.error));
+      return res.data;
+    },
+    onSuccess: () => {
+      toast.success("Notify sent to issuer.");
+    },
+    onError: (e: Error) => {
+      toast.error(e.message || "Notify failed");
+    },
+  });
   const updateSophisticatedMutation = useUpdateSophisticatedStatus();
   const [showSophisticatedDialog, setShowSophisticatedDialog] = React.useState(false);
   const [pendingSophisticatedStatus, setPendingSophisticatedStatus] = React.useState<boolean | null>(null);
@@ -1518,6 +1535,7 @@ export default function OrganizationDetailPage() {
                                   <TableHead>IC Back</TableHead>
                                   <TableHead>Timestamp</TableHead>
                                   <TableHead>CTOS</TableHead>
+                                  <TableHead>Notify</TableHead>
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
@@ -1763,6 +1781,29 @@ export default function OrganizationDetailPage() {
                                             View Last
                                           </Button>
                                         </div>
+                                      </TableCell>
+                                      <TableCell>
+                                        {isNotifyEligible(p) ? (
+                                          <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8"
+                                            disabled={
+                                              portal !== "issuer" ||
+                                              notifyActionRequiredMutation.isPending
+                                            }
+                                            onClick={() => {
+                                              notifyActionRequiredMutation.mutate({
+                                                partyKey: p.matchKey,
+                                              });
+                                            }}
+                                          >
+                                            Notify
+                                          </Button>
+                                        ) : (
+                                          <span className="text-muted-foreground">—</span>
+                                        )}
                                       </TableCell>
                                     </TableRow>
                                   );

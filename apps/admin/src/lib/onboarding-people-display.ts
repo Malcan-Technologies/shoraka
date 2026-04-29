@@ -8,6 +8,7 @@ export {
   formatPeopleRolesLineWithoutShare,
   formatSharePercentageCell,
   getDisplayStatus,
+  isNotifyEligible,
   isDirectorShareholderAmlScreeningApproved,
   shouldShowPeopleSendEmailButton,
   isFinancialReviewKycReadyForApprove,
