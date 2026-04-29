@@ -1602,6 +1602,7 @@ function EditApplicationPageBody() {
             <DirectorShareholderAlertCard
               visiblePeople={issuerVisiblePeopleForAlert}
               issuerOrganizationId={activeOrganization.id}
+              enabled={activeOrganization.onboardingStatus === "COMPLETED"}
             />
           </div>
         ) : null}

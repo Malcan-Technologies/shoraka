@@ -179,6 +179,7 @@ function IssuerDashboardContent() {
             <DirectorShareholderAlertCard
               visiblePeople={visiblePeopleForDsAlert}
               issuerOrganizationId={activeOrganization.id}
+              enabled={activeOrganization.onboardingStatus === "COMPLETED"}
             />
           ) : null}
           {/* Onboarding Status Section - shown when not all steps are complete */}

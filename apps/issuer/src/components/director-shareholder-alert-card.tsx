@@ -13,9 +13,11 @@ type Props = {
   visiblePeople: ApplicationPersonRow[];
   /** When set, shows a short line if there is an unresolved admin reject notification for this org. */
   issuerOrganizationId?: string | null;
+  /** When false, keep the card hidden (e.g. during onboarding). */
+  enabled?: boolean;
 };
 
-export function DirectorShareholderAlertCard({ visiblePeople, issuerOrganizationId }: Props) {
+export function DirectorShareholderAlertCard({ visiblePeople, issuerOrganizationId, enabled = true }: Props) {
   const router = useRouter();
   const isEmpty = visiblePeople.length === 0;
 
@@ -35,6 +37,7 @@ export function DirectorShareholderAlertCard({ visiblePeople, issuerOrganization
     });
   }, [notifications, issuerOrganizationId]);
 
+  if (!enabled) return null;
   if (!isEmpty && !hasPending) return null;
 
   return (

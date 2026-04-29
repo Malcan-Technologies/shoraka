@@ -360,6 +360,7 @@ export default function NewApplicationPage() {
             <DirectorShareholderAlertCard
               visiblePeople={visiblePeopleForDsAlert}
               issuerOrganizationId={activeOrganization.id}
+              enabled={activeOrganization.onboardingStatus === "COMPLETED"}
             />
           ) : null}
 
