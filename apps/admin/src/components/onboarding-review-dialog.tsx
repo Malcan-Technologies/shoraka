@@ -183,6 +183,8 @@ function OnboardingPeopleReadonlyCards({
         const rolesLine = formatPeopleRolesLine(p);
         const idLine =
           p.entityType === "CORPORATE" ? `SSM ${p.matchKey}` : `IC ${p.matchKey}`;
+        const statusText = String(p.status ?? "").trim();
+        const hasStatus = statusText.length > 0 && statusText !== "-" && statusText !== "—";
 
         return (
           <div
@@ -197,11 +199,13 @@ function OnboardingPeopleReadonlyCards({
               <p className="text-xs text-muted-foreground font-mono break-all">{idLine}</p>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2 shrink-0 sm:pt-0.5">
-              {variant === "kyc" ? (
-                <PeopleKycStatusBadge status={p.status} />
-              ) : (
-                <PeopleAmlStatusBadge status={p.status} />
-              )}
+              {hasStatus ? (
+                variant === "kyc" ? (
+                  <PeopleKycStatusBadge status={p.status} />
+                ) : (
+                  <PeopleAmlStatusBadge status={p.status} />
+                )
+              ) : null}
             </div>
           </div>
         );
