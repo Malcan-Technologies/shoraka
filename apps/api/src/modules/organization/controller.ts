@@ -36,7 +36,8 @@ function isReadyStatus(statusRaw: unknown): boolean {
 
 function issuerDirectorShareholderOnboardingPending(people: ReturnType<typeof buildAdminPeopleList>): boolean {
   const visible = filterVisiblePeopleRows(people);
-  return visible.length > 0 && visible.some((p) => !isReadyStatus(p.onboarding?.status));
+  const visibleIndividuals = visible.filter((p) => p.entityType === "INDIVIDUAL");
+  return visibleIndividuals.length > 0 && visibleIndividuals.some((p) => !isReadyStatus(p.onboarding?.status));
 }
 
 /**

@@ -40,6 +40,18 @@ export function hasStartedOnboarding(p: Pick<ApplicationPersonRow, "onboarding">
   return Boolean(normalizeRawStatus(p.onboarding?.status));
 }
 
+/**
+ * SECTION: Visible onboarding rows
+ * WHY: Onboarding gating only applies to individual people
+ * INPUT: Visible people list
+ * OUTPUT: Individual-only people list
+ * WHERE USED: Banner/proceed checks in issuer UI
+ */
+function getVisibleIndividualPeople(people: ApplicationPersonRow[]): ApplicationPersonRow[] {
+  const visible = filterVisiblePeopleRows(people);
+  return visible.filter((p) => p.entityType === "INDIVIDUAL");
+}
+
 export type CorporateEntitiesShape = {
   directors?: unknown[];
   shareholders?: unknown[];
@@ -126,7 +138,7 @@ export function areDirectorShareholdersReadyForApplicationSubmit(params: {
   void params.directorKycStatus;
   void params.corporateEntities;
   void params.ctosPartySupplements;
-  const visible = filterVisiblePeopleRows(params.people);
+  const visible = getVisibleIndividualPeople(params.people);
   if (visible.length === 0) return true;
   return visible.every((p) => isReadyOnboardingStatus(p.onboarding?.status));
 }
@@ -137,6 +149,7 @@ export function personNeedsProfileDirectorAction(
   corporateEntities: CorporateEntitiesShape | null | undefined,
   ctosPartySupplements: ReadonlyArray<{ partyKey: string; onboardingJson?: unknown }> | null | undefined
 ): boolean {
+  if (p.entityType !== "INDIVIDUAL") return false;
   if (isPartyTypeA(p, directorKycStatus, corporateEntities)) return false;
   void ctosPartySupplements;
   return !isReadyOnboardingStatus(p.onboarding?.status);

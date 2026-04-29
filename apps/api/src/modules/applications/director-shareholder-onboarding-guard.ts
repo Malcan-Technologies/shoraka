@@ -26,7 +26,9 @@ function isReadyStatus(statusRaw: unknown): boolean {
 }
 
 function peopleHavePendingOnboarding(visible: ApplicationPersonRow[]): boolean {
-  return visible.some((p) => !isReadyStatus(p.onboarding?.status));
+  const individuals = visible.filter((p) => p.entityType === "INDIVIDUAL");
+  if (individuals.length === 0) return false;
+  return individuals.some((p) => !isReadyStatus(p.onboarding?.status));
 }
 
 export async function getIssuerDirectorShareholderSubmitReadiness(issuerOrganizationId: string): Promise<{
@@ -67,10 +69,11 @@ export async function assertIssuerOrgDirectorShareholderOnboardingReady(
   });
 
   const visible = filterVisiblePeopleRows(people);
-  if (visible.length === 0) {
+  const visibleIndividuals = visible.filter((p) => p.entityType === "INDIVIDUAL");
+  if (visibleIndividuals.length === 0) {
     return;
   }
-  if (peopleHavePendingOnboarding(visible)) {
+  if (peopleHavePendingOnboarding(visibleIndividuals)) {
     throw new AppError(400, "DIRECTOR_SHAREHOLDER_PENDING", DIRECTOR_SHAREHOLDER_PENDING_MESSAGE);
   }
 }

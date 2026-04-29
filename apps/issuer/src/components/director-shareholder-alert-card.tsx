@@ -23,15 +23,19 @@ type Props = {
 
 export function DirectorShareholderAlertCard({ visiblePeople, issuerOrganizationId, enabled = true }: Props) {
   const router = useRouter();
-  const isEmpty = visiblePeople.length === 0;
+  const visibleIndividualPeople = React.useMemo(
+    () => visiblePeople.filter((p) => p.entityType === "INDIVIDUAL"),
+    [visiblePeople]
+  );
+  const isEmpty = visibleIndividualPeople.length === 0;
 
-  const hasPending = visiblePeople.some((p) => !isReadyOnboardingStatus(p.onboarding?.status));
+  const hasPending = visibleIndividualPeople.some((p) => !isReadyOnboardingStatus(p.onboarding?.status));
   console.log("Director/Shareholder onboarding banner check:", {
     issuerOrganizationId,
     enabled,
-    visibleCount: visiblePeople.length,
+    visibleCount: visibleIndividualPeople.length,
     hasPending,
-    rows: visiblePeople.map((p) => ({
+    rows: visibleIndividualPeople.map((p) => ({
       matchKey: p.matchKey,
       name: p.name,
       onboardingStatus: p.onboarding?.status ?? null,

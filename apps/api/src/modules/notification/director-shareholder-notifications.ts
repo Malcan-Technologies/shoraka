@@ -64,7 +64,7 @@ function computeVisiblePeopleState(input: PeopleListInput): {
   visible: ApplicationPersonRow[];
 } {
   const people = buildAdminPeopleList(input);
-  const visible = filterVisiblePeopleRows(people);
+  const visible = filterVisiblePeopleRows(people).filter((p) => p.entityType === "INDIVIDUAL");
   return { people, visible };
 }
 
@@ -215,7 +215,7 @@ async function resolveIssuerDirectorShareholderNotificationsIfCleared(params: {
 }): Promise<void> {
   const { issuerOrganizationId, ownerUserId, visible } = params;
   const noOneNeedsOnboarding = visible.every((p) => isReadyOnboardingStatus(p.onboarding?.status));
-  const shouldResolve = noOneNeedsOnboarding;
+  const shouldResolve = visible.length > 0 && noOneNeedsOnboarding;
   if (!shouldResolve) {
     return;
   }
