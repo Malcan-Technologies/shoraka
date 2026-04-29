@@ -30,7 +30,6 @@ export function buildAdminPeopleList(params: {
   corporateEntities: unknown;
 }): ApplicationPersonRow[] {
   void params.corporateEntities;
-  void params.issuerDirectorKycStatus;
 
   const ctos = params.ctos;
   const ctosSafe =
@@ -94,21 +93,51 @@ export function buildAdminPeopleList(params: {
     );
   }
 
-  const directorsAml = Array.isArray(
-    (issuer.director_aml_status as { directors?: unknown } | null | undefined)?.directors
-  )
-    ? ((issuer.director_aml_status as { directors?: unknown[] }).directors ?? [])
-    : [];
-  const individualSyncAmlByKey = new Map<string, string>();
-  for (const d of directorsAml) {
-    if (!d || typeof d !== "object" || Array.isArray(d)) continue;
-    const row = d as Record<string, unknown>;
-    const gov = normalizeDirectorShareholderIdKey(String(row.governmentIdNumber ?? row.ic_lcno ?? ""));
+  const directorKycRoot =
+    issuer.director_kyc_status && typeof issuer.director_kyc_status === "object" && !Array.isArray(issuer.director_kyc_status)
+      ? (issuer.director_kyc_status as { directors?: unknown[]; individualShareholders?: unknown[] })
+      : {};
+  const individualKycRows = [
+    ...(Array.isArray(directorKycRoot.directors) ? directorKycRoot.directors : []),
+    ...(Array.isArray(directorKycRoot.individualShareholders) ? directorKycRoot.individualShareholders : []),
+  ];
+  const individualKycRefByGov = new Map<
+    string,
+    { kycId: string; eodRequestId: string; shareholderEodRequestId: string }
+  >();
+  for (const row of individualKycRows) {
+    if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+    const r = row as Record<string, unknown>;
+    const gov = normalizeDirectorShareholderIdKey(String(r.governmentIdNumber ?? r.ic_lcno ?? ""));
     if (!gov) continue;
-    individualSyncAmlByKey.set(
-      gov,
-      typeof row.amlStatus === "string" ? row.amlStatus.trim() : ""
-    );
+    individualKycRefByGov.set(gov, {
+      kycId: String(r.kycId ?? "").trim(),
+      eodRequestId: String(r.eodRequestId ?? "").trim(),
+      shareholderEodRequestId: String(r.shareholderEodRequestId ?? "").trim(),
+    });
+  }
+
+  const directorAmlRoot =
+    issuer.director_aml_status && typeof issuer.director_aml_status === "object" && !Array.isArray(issuer.director_aml_status)
+      ? (issuer.director_aml_status as { directors?: unknown[]; individualShareholders?: unknown[] })
+      : {};
+  const individualAmlRows = [
+    ...(Array.isArray(directorAmlRoot.directors) ? directorAmlRoot.directors : []),
+    ...(Array.isArray(directorAmlRoot.individualShareholders) ? directorAmlRoot.individualShareholders : []),
+  ];
+  const individualSyncAmlByGov = new Map<string, string>();
+  const individualSyncAmlByKycId = new Map<string, string>();
+  const individualSyncAmlByEod = new Map<string, string>();
+  for (const row of individualAmlRows) {
+    if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+    const r = row as Record<string, unknown>;
+    const amlStatus = typeof r.amlStatus === "string" ? r.amlStatus.trim() : "";
+    const gov = normalizeDirectorShareholderIdKey(String(r.governmentIdNumber ?? r.ic_lcno ?? ""));
+    if (gov) individualSyncAmlByGov.set(gov, amlStatus);
+    const kycId = String(r.kycId ?? "").trim();
+    if (kycId) individualSyncAmlByKycId.set(kycId, amlStatus);
+    const eod = String(r.eodRequestId ?? "").trim();
+    if (eod) individualSyncAmlByEod.set(eod, amlStatus);
   }
 
   const ctosPeople = extractCtosIndividuals(ctosSafe);
@@ -172,7 +201,14 @@ export function buildAdminPeopleList(params: {
       screening = { status: st };
     } else {
       const fromSup = key ? screeningByPartyKey.get(key) : undefined;
-      const fromSync = key ? individualSyncAmlByKey.get(key) : undefined;
+      const kycRefs = key ? individualKycRefByGov.get(key) : undefined;
+      const fromSync =
+        (key ? individualSyncAmlByGov.get(key) : undefined) ||
+        (kycRefs?.kycId ? individualSyncAmlByKycId.get(kycRefs.kycId) : undefined) ||
+        (kycRefs?.eodRequestId ? individualSyncAmlByEod.get(kycRefs.eodRequestId) : undefined) ||
+        (kycRefs?.shareholderEodRequestId
+          ? individualSyncAmlByEod.get(kycRefs.shareholderEodRequestId)
+          : undefined);
       const st =
         (fromSup?.status != null && String(fromSup.status).trim() !== ""
           ? String(fromSup.status).trim()
@@ -181,9 +217,28 @@ export function buildAdminPeopleList(params: {
       screening = { status: st };
     }
     const amlLabel = screening.status?.trim() || "—";
+    const rawAmlSync =
+      person.entityType === "CORPORATE"
+        ? key
+          ? corporateRawAmlByKey.get(key)
+          : undefined
+        : (() => {
+            const kycRefs = key ? individualKycRefByGov.get(key) : undefined;
+            return (
+              (key ? individualSyncAmlByGov.get(key) : undefined) ||
+              (kycRefs?.kycId ? individualSyncAmlByKycId.get(kycRefs.kycId) : undefined) ||
+              (kycRefs?.eodRequestId ? individualSyncAmlByEod.get(kycRefs.eodRequestId) : undefined) ||
+              (kycRefs?.shareholderEodRequestId
+                ? individualSyncAmlByEod.get(kycRefs.shareholderEodRequestId)
+                : undefined)
+            );
+          })();
+    const directorAmlStatus =
+      rawAmlSync != null && String(rawAmlSync).trim() !== "" ? String(rawAmlSync).trim() : null;
     return {
       ...person,
       screening,
+      directorAmlStatus,
       status: amlLabel,
       action: null,
     };

@@ -2,7 +2,11 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { peopleHasPendingDirectorShareholderAml, type ApplicationPersonRow } from "@cashsouk/types";
+import {
+  isDirectorShareholderAmlScreeningApproved,
+  peopleHasPendingDirectorShareholderAml,
+  type ApplicationPersonRow,
+} from "@cashsouk/types";
 import { useNotifications } from "@cashsouk/config";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -22,6 +26,22 @@ export function DirectorShareholderAlertCard({ visiblePeople, issuerOrganization
   const isEmpty = visiblePeople.length === 0;
 
   const hasPending = peopleHasPendingDirectorShareholderAml(visiblePeople);
+  console.log("Director/Shareholder AML banner check:", {
+    issuerOrganizationId,
+    enabled,
+    visibleCount: visiblePeople.length,
+    hasPending,
+    rows: visiblePeople.map((p) => ({
+      matchKey: p.matchKey,
+      name: p.name,
+      screeningStatus: p.screening?.status ?? null,
+      directorAmlStatus: p.directorAmlStatus ?? null,
+      isApproved: isDirectorShareholderAmlScreeningApproved({
+        screening: p.screening,
+        directorAmlStatus: p.directorAmlStatus,
+      }),
+    })),
+  });
 
   const { notifications } = useNotifications({ limit: 30 });
   const showRejectLine = React.useMemo(() => {

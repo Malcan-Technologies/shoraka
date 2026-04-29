@@ -140,25 +140,37 @@ export function shouldShowPeopleSendEmailButton(
   return false;
 }
 
-/** True when AML screening is cleared (RegTank / ACURIS `status`); whitespace and NBSP normalized. */
-export function isDirectorShareholderAmlScreeningApproved(
-  screening: { status?: string | null } | null | undefined
-): boolean {
-  const s = String(screening?.status ?? "")
+/** True when AML value is approved for AML decision checks. */
+function isAmlApprovedValue(raw: unknown): boolean {
+  const compact = String(raw ?? "")
     .replace(/\u00a0/g, " ")
-    .replace(/\s+/g, " ")
     .trim()
-    .toUpperCase();
-  return s === "APPROVED";
+    .toUpperCase()
+    .replace(/[\s_]+/g, "_");
+  return compact === "APPROVED";
 }
 
-function isApprovedStatusText(raw: unknown): boolean {
-  const s = String(raw ?? "")
-    .replace(/\u00a0/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toUpperCase();
-  return s === "APPROVED" || s === "AML APPROVED";
+/** True when AML is cleared using priority: screening.status -> directorAmlStatus. */
+export function isDirectorShareholderAmlScreeningApproved(
+  source:
+    | { status?: string | null }
+    | { screening?: { status?: string | null } | null; directorAmlStatus?: string | null }
+    | null
+    | undefined
+): boolean {
+  const hasNestedScreening =
+    !!source &&
+    typeof source === "object" &&
+    "screening" in source;
+  const screeningStatus = hasNestedScreening
+    ? (source as { screening?: { status?: string | null } | null }).screening?.status
+    : (source as { status?: string | null } | null | undefined)?.status;
+  if (isAmlApprovedValue(screeningStatus)) return true;
+  if (hasNestedScreening) {
+    const legacy = (source as { directorAmlStatus?: string | null }).directorAmlStatus;
+    if (isAmlApprovedValue(legacy)) return true;
+  }
+  return false;
 }
 
 /**
@@ -171,14 +183,7 @@ export function peopleHasPendingDirectorShareholderAml(
   > | null
 ): boolean {
   if (!people || people.length === 0) return true;
-  return people.some((p) => {
-    if (isDirectorShareholderAmlScreeningApproved(p?.screening)) return false;
-    const hasScreeningValue = String(p?.screening?.status ?? "").trim().length > 0;
-    if (hasScreeningValue) return true;
-    if (isApprovedStatusText(p?.directorAmlStatus)) return false;
-    if (isApprovedStatusText(p?.status)) return false;
-    return true;
-  });
+  return people.some((p) => !isDirectorShareholderAmlScreeningApproved(p));
 }
 
 export function isFinancialReviewKycReadyForApprove(params: {
