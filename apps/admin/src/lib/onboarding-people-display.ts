@@ -5,7 +5,9 @@
 export {
   filterVisiblePeopleRows,
   formatPeopleRolesLine,
+  formatPeopleRolesLineWithoutShare,
   formatSharePercentageCell,
+  isDirectorShareholderAmlScreeningApproved,
   shouldShowPeopleSendEmailButton,
   isFinancialReviewKycReadyForApprove,
   type ApplicationPersonRow,

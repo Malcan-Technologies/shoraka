@@ -43,6 +43,7 @@ export function useCreateIssuerOrganizationCtosSubjectReport(
     mutationFn: async (body: {
       subjectRef: string;
       subjectKind: "INDIVIDUAL" | "CORPORATE";
+      /** Sends IC / SSM to CTOS when org JSON keys might not match `subjectRef` alone. */
       enquiryOverride?: { displayName: string; idNumber: string };
     }) => {
       const response = await apiClient.createAdminOrganizationCtosSubjectReport(

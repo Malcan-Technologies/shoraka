@@ -31,7 +31,7 @@ import {
 import { cn } from "@/lib/utils";
 import {
   filterVisiblePeopleRows,
-  formatPeopleRolesLine,
+  formatPeopleRolesLineWithoutShare,
   formatSharePercentageCell,
 } from "@/lib/onboarding-people-display";
 import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
@@ -45,8 +45,8 @@ import {
   formatFinancialFyPeriodDisplay,
   getAdminFinancialSummaryUserColumnYears,
   getLatestThreeCtosYearSlots,
+  isDirectorShareholderAmlScreeningApproved,
   normalizeFinancialStatementsQuestionnaire,
-  peopleHasPendingDirectorShareholderAml,
   type ApplicationPersonRow,
   type ColumnComputedMetrics,
   type FinancialStatementsInput,
@@ -56,6 +56,7 @@ import { toast } from "sonner";
 import { format, isValid, parse, parseISO } from "date-fns";
 import {
   useCreateIssuerOrganizationCtosReport,
+  useCreateIssuerOrganizationCtosSubjectReport,
 } from "@/hooks/use-admin-issuer-organization-ctos-mutations";
 import { CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
 
@@ -99,6 +100,52 @@ function formatFinancialDateDisplay(raw: string | null | undefined): string {
     /* ignore */
   }
   return s;
+}
+
+function formatPeopleRolesDisplayCapitalized(p: { roles: string[]; sharePercentage: number | null }): string {
+  return formatPeopleRolesLineWithoutShare(p)
+    .replace(/\bDIRECTOR\b/g, "Director")
+    .replace(/\bSHAREHOLDER\b/g, "Shareholder");
+}
+
+/** Align persisted `subject_ref` with `people[].matchKey` (IC / BRN, mixed formatting). */
+function ctosSubjectRefComparable(s: string | null | undefined): string {
+  return String(s ?? "")
+    .trim()
+    .replace(/[^a-zA-Z0-9]/g, "")
+    .toLowerCase();
+}
+
+/** AML screening cleared → green KYC (individual) or KYB (corporate); else em dash in UI. */
+function directorShareholderKycKybBadgeLabel(p: ApplicationPersonRow): "KYC" | "KYB" | null {
+  if (!isDirectorShareholderAmlScreeningApproved(p.screening)) return null;
+  return p.entityType === "CORPORATE" ? "KYB" : "KYC";
+}
+
+function latestSubjectReportForMatchKey(
+  matchKey: string,
+  reports: Array<{ subject_ref: string | null; fetched_at: string }> | null | undefined
+): { fetched_at: string } | null {
+  const want = ctosSubjectRefComparable(matchKey);
+  if (!want || !reports?.length) return null;
+  let best: { fetched_at: string } | null = null;
+  let bestMs = 0;
+  for (const r of reports) {
+    const ref = ctosSubjectRefComparable(r.subject_ref);
+    if (ref !== want) continue;
+    const ms = Date.parse(r.fetched_at);
+    if (!Number.isFinite(ms) || ms <= bestMs) continue;
+    bestMs = ms;
+    best = { fetched_at: r.fetched_at };
+  }
+  return best;
+}
+
+function formatSubjectReportTimestamp(iso: string | null | undefined): string {
+  if (iso == null || String(iso).trim() === "") return "\u2014";
+  const d = parseISO(String(iso).trim());
+  if (!isValid(d)) return "\u2014";
+  return format(d, "d MMM yyyy, HH:mm");
 }
 
 function financialSummaryColumnShellClass(
@@ -282,6 +329,10 @@ export function ApplicationFinancialReviewContent({
     issuerOrgId || undefined,
     applicationId
   );
+  const createSubjectReport = useCreateIssuerOrganizationCtosSubjectReport(
+    issuerOrgId || undefined,
+    applicationId
+  );
   const [orgCtosConfirmOpen, setOrgCtosConfirmOpen] = React.useState(false);
 
   const { unauditedByYear, questionnaire: financialQuestionnaire } = React.useMemo(
@@ -292,6 +343,7 @@ export function ApplicationFinancialReviewContent({
 
   const peopleRows = React.useMemo(() => app.people ?? [], [app.people]);
   const visiblePeopleRows = React.useMemo(() => filterVisiblePeopleRows(peopleRows), [peopleRows]);
+  const orgSubjectReports = app.issuer_organization?.latest_organization_ctos_subject_reports;
 
   const financialRows: CtosFinRow[] = React.useMemo(() => {
     const raw = app.issuer_organization?.latest_organization_ctos_financials_json;
@@ -896,35 +948,78 @@ export function ApplicationFinancialReviewContent({
       </ReviewFieldBlock>
 
       <ReviewFieldBlock title="Director and Shareholders">
-        <div className="mb-3 flex flex-wrap gap-2">
-          {peopleHasPendingDirectorShareholderAml(visiblePeopleRows) ? (
-            <Badge variant="secondary" className="rounded-full">
-              Pending Directors/Shareholders
-            </Badge>
-          ) : null}
-        </div>
         {visiblePeopleRows.length > 0 ? (
           <div className={applicationTableWrapperClass}>
             <div className="overflow-x-auto">
-            <Table className="min-w-[640px] text-[15px]">
+            <Table className="min-w-[960px] text-[15px]">
               <TableHeader className={applicationTableHeaderBgClass}>
                 <TableRow className="hover:bg-transparent border-b border-border">
                   <TableHead className={applicationTableHeaderClass}>Name</TableHead>
                   <TableHead className={applicationTableHeaderClass}>Role</TableHead>
                   <TableHead className={applicationTableHeaderClass}>Share %</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>AML status</TableHead>
+                  <TableHead className={applicationTableHeaderClass}>KYC / KYB</TableHead>
+                  <TableHead className={applicationTableHeaderClass}>Last report</TableHead>
+                  <TableHead className={`${applicationTableHeaderClass} text-right`}>Fetch report</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {visiblePeopleRows.map((p) => {
-                  const aml = p.screening?.status?.trim() || "—";
+                  const lastReport = latestSubjectReportForMatchKey(p.matchKey, orgSubjectReports);
+                  const lastReportLabel = formatSubjectReportTimestamp(lastReport?.fetched_at);
+                  const kycKybLabel = directorShareholderKycKybBadgeLabel(p);
+                  const displayNameForCtos =
+                    p.name?.trim() ||
+                    (p.entityType === "CORPORATE" ? "Corporate party" : "Individual");
+                  const ctosIdNormalized = p.matchKey.replace(/[^a-zA-Z0-9]/g, "");
                   return (
                     <TableRow key={p.matchKey} className={applicationTableRowClass}>
-                      <TableCell className={`${applicationTableCellClass} font-medium`}>{p.name ?? "—"}</TableCell>
-                      <TableCell className={applicationTableCellClass}>{formatPeopleRolesLine(p)}</TableCell>
+                      <TableCell className={`${applicationTableCellClass} font-medium`}>{p.name ?? "\u2014"}</TableCell>
+                      <TableCell className={applicationTableCellClass}>
+                        {formatPeopleRolesDisplayCapitalized(p)}
+                      </TableCell>
                       <TableCell className={applicationTableCellClass}>{formatSharePercentageCell(p)}</TableCell>
                       <TableCell className={applicationTableCellClass}>
-                        <span className="text-muted-foreground">{aml}</span>
+                        {kycKybLabel ? (
+                          <Badge
+                            className="rounded-md border-transparent bg-emerald-600 text-white shadow-none hover:bg-emerald-600"
+                          >
+                            {kycKybLabel}
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">{"\u2014"}</span>
+                        )}
+                      </TableCell>
+                      <TableCell className={applicationTableCellClass}>
+                        <span className="text-muted-foreground">{lastReportLabel}</span>
+                      </TableCell>
+                      <TableCell className={`${applicationTableCellClass} text-right`}>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 rounded-lg text-xs"
+                          disabled={!issuerOrgId || createSubjectReport.isPending}
+                          onClick={() => {
+                            console.log("Fetch CTOS subject report:", p.matchKey, p.entityType);
+                            createSubjectReport.mutate(
+                              {
+                                subjectRef: ctosIdNormalized || p.matchKey,
+                                subjectKind: p.entityType === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL",
+                                enquiryOverride: {
+                                  displayName: displayNameForCtos,
+                                  idNumber: ctosIdNormalized || p.matchKey,
+                                },
+                              },
+                              {
+                                onSuccess: () => toast.success("Subject report updated"),
+                                onError: (err: unknown) =>
+                                  toast.error(err instanceof Error ? err.message : "Request failed"),
+                              }
+                            );
+                          }}
+                        >
+                          Fetch report
+                        </Button>
                       </TableCell>
                     </TableRow>
                   );

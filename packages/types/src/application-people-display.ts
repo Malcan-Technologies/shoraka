@@ -77,6 +77,17 @@ export function formatPeopleRolesLine(p: PeopleRolesRowInput): string {
   return upper.join(", ");
 }
 
+/** Role labels only (no ownership %); use when share % is shown in its own column. */
+export function formatPeopleRolesLineWithoutShare(p: PeopleRolesRowInput): string {
+  const upper = p.roles.map((r) => r.toUpperCase());
+  const hasDirector = upper.includes("DIRECTOR");
+  const hasShareholder = upper.includes("SHAREHOLDER");
+  if (hasDirector && hasShareholder) return "DIRECTOR, SHAREHOLDER";
+  if (hasShareholder && !hasDirector) return "SHAREHOLDER";
+  if (hasDirector) return "DIRECTOR";
+  return upper.join(", ");
+}
+
 const EM_DASH = "\u2014";
 
 export function formatSharePercentageCell(p: { sharePercentage: number | null }): string {
@@ -97,22 +108,27 @@ export function shouldShowPeopleSendEmailButton(
   return false;
 }
 
-/** True when AML screening is cleared for director/shareholder submit (RegTank-style status). */
+/** True when AML screening is cleared (RegTank / ACURIS `status`); whitespace and NBSP normalized. */
 export function isDirectorShareholderAmlScreeningApproved(
   screening: { status?: string | null } | null | undefined
 ): boolean {
-  const raw = String(screening?.status ?? "").trim();
-  if (!raw) return false;
-  if (raw === "Approved") return true;
-  return raw.toLowerCase() === "approved";
+  const s = String(screening?.status ?? "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+  return s === "APPROVED";
 }
 
-/** True when any listed party still needs AML approval (missing screening counts as not approved). */
+/**
+ * True when director/shareholder AML is not fully cleared.
+ * `null`, `undefined`, or empty `people` counts as pending (same as no parties / no data yet).
+ */
 export function peopleHasPendingDirectorShareholderAml(
-  people: ReadonlyArray<Pick<ApplicationPersonRow, "screening"> | null | undefined> | null | undefined
+  people?: ReadonlyArray<Pick<ApplicationPersonRow, "screening"> | null | undefined> | null
 ): boolean {
-  if (!people?.length) return false;
-  return people.some((p) => !p || !isDirectorShareholderAmlScreeningApproved(p.screening));
+  if (!people || people.length === 0) return true;
+  return people.some((p) => !isDirectorShareholderAmlScreeningApproved(p?.screening));
 }
 
 export function isFinancialReviewKycReadyForApprove(params: {
