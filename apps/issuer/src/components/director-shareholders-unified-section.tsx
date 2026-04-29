@@ -288,7 +288,6 @@ export function DirectorShareholdersUnifiedSection({
   const commitSend = async () => {
     if (!confirmRow) return;
     if (blockPartyOnboarding) {
-      toast.error("Complete company onboarding first");
       setConfirmRow(null);
       return;
     }
@@ -488,13 +487,7 @@ export function DirectorShareholdersUnifiedSection({
             </p>
           ) : null}
         </div>
-        {!typeA && kycEligible && blockPartyOnboarding ? (
-          <div className="flex w-full shrink-0 flex-col items-end gap-1 sm:w-auto">
-            <p className="text-right text-xs text-muted-foreground max-w-xs">
-              Complete company onboarding first
-            </p>
-          </div>
-        ) : !typeA && approvalLocked && !showEmailControls ? (
+        {!typeA && kycEligible && blockPartyOnboarding ? null : !typeA && approvalLocked && !showEmailControls ? (
           <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
             <CheckCircleIcon className="h-5 w-5 shrink-0 text-primary" aria-hidden />
             <span className="text-sm font-medium text-foreground">KYC approved</span>
@@ -672,14 +665,6 @@ export function DirectorShareholdersUnifiedSection({
         </div>
       </div>
       <div className="p-6 space-y-6">
-        {blockPartyOnboarding ? (
-          <p
-            className="rounded-lg border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground"
-            role="status"
-          >
-            Complete company onboarding first
-          </p>
-        ) : null}
         {emptyAll ? (
           <p className="text-sm text-muted-foreground text-center py-8">No directors or shareholders listed.</p>
         ) : (
