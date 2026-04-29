@@ -99,6 +99,7 @@ import { getS3ObjectBuffer } from "../../lib/s3/client";
 import { computeSupportingDocumentsSectionStatus } from "../applications/supporting-documents-section-status";
 import { computeInvoiceDetailsSectionStatus } from "../applications/invoice-details-section-status";
 import { assertMaturityForSendInvoiceOffer } from "../products/validate-financial-config";
+const DIRECTOR_SHAREHOLDER_NOTIFY_COOLDOWN_MS = 5 * 60 * 1000;
 type ResubmitComparisonAmendmentRemark = {
   scope: string;
   scope_key: string;
@@ -1867,6 +1868,14 @@ export class AdminService {
         onboardingJson: row.onboardingJson,
       }));
     }
+    let actionRequiredLastNotifiedByParty = new Map<string, string>();
+    const ownerUserId = org.owner?.user_id ?? "";
+    if (portal === "issuer" && org.type === "COMPANY" && ownerUserId) {
+      actionRequiredLastNotifiedByParty = await this.getActionRequiredLastNotifiedMap(
+        org.id,
+        ownerUserId
+      );
+    }
 
     return {
       id: org.id,
@@ -2008,6 +2017,12 @@ export class AdminService {
                   ? (ctosPartySupplements ?? null)
                   : (investorCtosPartySupplements ?? null),
               corporateEntities: org.corporate_entities ?? null,
+            }).map((p) => {
+              const k = normalizeDirectorShareholderIdKey(p.matchKey);
+              return {
+                ...p,
+                lastNotifiedAt: k ? actionRequiredLastNotifiedByParty.get(k) ?? null : null,
+              };
             })
           : undefined,
       members: org.members.map((m) => ({
@@ -2164,6 +2179,18 @@ export class AdminService {
       throw new AppError(400, "VALIDATION_ERROR", "Not eligible for notify");
     }
 
+    const lastNotifiedAt = await this.getLastActionRequiredNotifiedAt(
+      issuerOrganizationId,
+      org.owner_user_id,
+      want
+    );
+    if (
+      lastNotifiedAt &&
+      Date.now() - lastNotifiedAt.getTime() < DIRECTOR_SHAREHOLDER_NOTIFY_COOLDOWN_MS
+    ) {
+      throw new AppError(400, "VALIDATION_ERROR", "Recently notified. Please wait.");
+    }
+
     await notifyIssuerDirectorShareholderActionRequired({
       issuerOrganizationId,
       ownerUserId: org.owner_user_id,
@@ -2171,6 +2198,65 @@ export class AdminService {
       personName: match.name,
     });
     return { sent: true };
+  }
+
+  private async getLastActionRequiredNotifiedAt(
+    issuerOrganizationId: string,
+    ownerUserId: string,
+    partyKey: string
+  ): Promise<Date | null> {
+    const row = await prisma.notification.findFirst({
+      where: {
+        user_id: ownerUserId,
+        notification_type_id: NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED,
+        AND: [
+          {
+            metadata: {
+              path: ["issuerOrganizationId"],
+              equals: issuerOrganizationId,
+            },
+          },
+          {
+            metadata: {
+              path: ["partyKey"],
+              equals: partyKey,
+            },
+          },
+        ],
+      },
+      orderBy: { created_at: "desc" },
+      select: { created_at: true },
+    });
+    return row?.created_at ?? null;
+  }
+
+  private async getActionRequiredLastNotifiedMap(
+    issuerOrganizationId: string,
+    ownerUserId: string
+  ): Promise<Map<string, string>> {
+    const rows = await prisma.notification.findMany({
+      where: {
+        user_id: ownerUserId,
+        notification_type_id: NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED,
+        metadata: {
+          path: ["issuerOrganizationId"],
+          equals: issuerOrganizationId,
+        },
+      },
+      orderBy: { created_at: "desc" },
+      select: { created_at: true, metadata: true },
+    });
+    const out = new Map<string, string>();
+    for (const row of rows) {
+      const meta =
+        row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+          ? (row.metadata as Record<string, unknown>)
+          : null;
+      const partyKey = normalizeDirectorShareholderIdKey(String(meta?.partyKey ?? ""));
+      if (!partyKey || out.has(partyKey)) continue;
+      out.set(partyKey, row.created_at.toISOString());
+    }
+    return out;
   }
 
   /**
@@ -4699,9 +4785,24 @@ export class AdminService {
         : null,
       corporateEntities: issuerOrgForPeople?.corporate_entities ?? null,
     });
+    const issuerOwnerUserId =
+      typeof issuerOrgForPeople?.owner_user_id === "string"
+        ? (issuerOrgForPeople.owner_user_id as string)
+        : "";
+    const lastNotifiedByParty =
+      issuerOrgId && issuerOwnerUserId
+        ? await this.getActionRequiredLastNotifiedMap(issuerOrgId, issuerOwnerUserId)
+        : new Map<string, string>();
+    const peopleWithLastNotified = people.map((p) => {
+      const k = normalizeDirectorShareholderIdKey(p.matchKey);
+      return {
+        ...p,
+        lastNotifiedAt: k ? lastNotifiedByParty.get(k) ?? null : null,
+      };
+    });
     return {
       ...applicationWithIssuerExtras,
-      people,
+      people: peopleWithLastNotified,
       application_guarantors: this.mapApplicationGuarantorsForAdmin(
         applicationWithIssuerExtras.application_guarantors
       ),

@@ -28,6 +28,8 @@ export type ApplicationPersonRow = {
   directorKycStatus?: string | null;
   /** Optional onboarding pipeline snapshot from CTOS party supplement. */
   onboarding?: { status?: string | null } | null;
+  /** Optional admin signal: latest action-required notify timestamp (ISO). */
+  lastNotifiedAt?: string | null;
   action?: "SEND_EMAIL" | null;
   /** Flat AML screening snapshot (e.g. RegTank ACURIS `status`). Single source for submit/badge gating. */
   screening?: { status?: string | null } | null;

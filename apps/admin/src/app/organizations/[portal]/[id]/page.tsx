@@ -34,7 +34,7 @@ import {
   useUpdateSophisticatedStatus,
 } from "@/hooks/use-organization-detail";
 import type { PortalType } from "@cashsouk/types";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import {
   UserIcon,
   BuildingOffice2Icon,
@@ -81,6 +81,7 @@ import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { formatApiErrorMessage } from "@/lib/format-api-error-message";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const NOTIFY_COOLDOWN_MS = 5 * 60 * 1000;
 const REGTANK_PORTAL_BASE_URL =
   typeof process !== "undefined" ? (process.env.NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL ?? "").trim() : "";
 
@@ -932,6 +933,7 @@ export default function OrganizationDetailPage() {
     },
     onSuccess: () => {
       toast.success("Notify sent to issuer.");
+      void queryClient.invalidateQueries({ queryKey: ["admin", "organization-detail", portal, organizationId] });
     },
     onError: (e: Error) => {
       toast.error(e.message || "Notify failed");
@@ -1672,6 +1674,15 @@ export default function OrganizationDetailPage() {
                                     String(amlInfo?.riskScore ?? "").trim() ||
                                     String(screening.riskLevel ?? "").trim() ||
                                     "—";
+                                  const lastNotifiedAt = p.lastNotifiedAt ? new Date(p.lastNotifiedAt) : null;
+                                  const isInCooldown =
+                                    !!lastNotifiedAt &&
+                                    !Number.isNaN(lastNotifiedAt.getTime()) &&
+                                    Date.now() - lastNotifiedAt.getTime() < NOTIFY_COOLDOWN_MS;
+                                  const lastNotifiedLabel =
+                                    lastNotifiedAt && !Number.isNaN(lastNotifiedAt.getTime())
+                                      ? formatDistanceToNow(lastNotifiedAt, { addSuffix: true })
+                                      : null;
                                   console.log("Admin org people row AML risk:", {
                                     matchKey: p.matchKey,
                                     kycId: kycInfo?.kycId,
@@ -1783,19 +1794,27 @@ export default function OrganizationDetailPage() {
                                         </div>
                                       </TableCell>
                                       <TableCell>
-                                        <span title={requiresOnboardingEmail(p) ? undefined : "No onboarding required"}>
+                                        <div className="flex flex-col items-start gap-1">
                                           <Button
                                             type="button"
                                             variant="outline"
                                             size="sm"
                                             className="h-8"
+                                            title={
+                                              !requiresOnboardingEmail(p)
+                                                ? "No onboarding required"
+                                                : isInCooldown
+                                                  ? "Recently notified. Please wait."
+                                                  : undefined
+                                            }
                                             disabled={
                                               portal !== "issuer" ||
                                               notifyActionRequiredMutation.isPending ||
-                                              !requiresOnboardingEmail(p)
+                                              !requiresOnboardingEmail(p) ||
+                                              isInCooldown
                                             }
                                             onClick={() => {
-                                              if (!requiresOnboardingEmail(p)) return;
+                                              if (!requiresOnboardingEmail(p) || isInCooldown) return;
                                               notifyActionRequiredMutation.mutate({
                                                 partyKey: p.matchKey,
                                               });
@@ -1803,7 +1822,12 @@ export default function OrganizationDetailPage() {
                                           >
                                             Notify
                                           </Button>
-                                        </span>
+                                          {lastNotifiedLabel ? (
+                                            <span className="text-[11px] text-muted-foreground">
+                                              Last notified: {lastNotifiedLabel}
+                                            </span>
+                                          ) : null}
+                                        </div>
                                       </TableCell>
                                     </TableRow>
                                   );

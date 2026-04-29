@@ -55,7 +55,7 @@ import {
   type FinancialStatementsQuestionnaire,
 } from "@cashsouk/types";
 import { toast } from "sonner";
-import { format, isValid, parse, parseISO } from "date-fns";
+import { format, formatDistanceToNow, isValid, parse, parseISO } from "date-fns";
 import {
   useCreateIssuerOrganizationCtosReport,
   useCreateIssuerOrganizationCtosSubjectReport,
@@ -65,6 +65,7 @@ import {
 import { CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+const NOTIFY_COOLDOWN_MS = 5 * 60 * 1000;
 
 /** Year row placeholder when no year (em dash). */
 const HEADER_PLACEHOLDER = "\u2014";
@@ -985,6 +986,15 @@ export function ApplicationFinancialReviewContent({
                     p.name?.trim() ||
                     (p.entityType === "CORPORATE" ? "Corporate party" : "Individual");
                   const ctosIdNormalized = p.matchKey.replace(/[^a-zA-Z0-9]/g, "");
+                  const lastNotifiedAt = p.lastNotifiedAt ? new Date(p.lastNotifiedAt) : null;
+                  const isInCooldown =
+                    !!lastNotifiedAt &&
+                    !Number.isNaN(lastNotifiedAt.getTime()) &&
+                    Date.now() - lastNotifiedAt.getTime() < NOTIFY_COOLDOWN_MS;
+                  const lastNotifiedLabel =
+                    lastNotifiedAt && !Number.isNaN(lastNotifiedAt.getTime())
+                      ? formatDistanceToNow(lastNotifiedAt, { addSuffix: true })
+                      : null;
                   return (
                     <TableRow key={p.matchKey} className={applicationTableRowClass}>
                       <TableCell className={`${applicationTableCellClass} font-medium`}>{p.name ?? "\u2014"}</TableCell>
@@ -1036,15 +1046,27 @@ export function ApplicationFinancialReviewContent({
                         </Button>
                       </TableCell>
                       <TableCell className={`${applicationTableCellClass} text-right`}>
-                        <span title={requiresOnboardingEmail(p) ? undefined : "No onboarding required"}>
+                        <div className="flex flex-col items-end gap-1">
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
                             className="h-8 rounded-lg text-xs"
-                            disabled={!issuerOrgId || notifyActionRequired.isPending || !requiresOnboardingEmail(p)}
+                            title={
+                              !requiresOnboardingEmail(p)
+                                ? "No onboarding required"
+                                : isInCooldown
+                                  ? "Recently notified. Please wait."
+                                  : undefined
+                            }
+                            disabled={
+                              !issuerOrgId ||
+                              notifyActionRequired.isPending ||
+                              !requiresOnboardingEmail(p) ||
+                              isInCooldown
+                            }
                             onClick={() => {
-                              if (!requiresOnboardingEmail(p)) return;
+                              if (!requiresOnboardingEmail(p) || isInCooldown) return;
                               notifyActionRequired.mutate(
                                 { partyKey: p.matchKey },
                                 {
@@ -1057,7 +1079,12 @@ export function ApplicationFinancialReviewContent({
                           >
                             Notify
                           </Button>
-                        </span>
+                          {lastNotifiedLabel ? (
+                            <span className="text-[11px] text-muted-foreground">
+                              Last notified: {lastNotifiedLabel}
+                            </span>
+                          ) : null}
+                        </div>
                       </TableCell>
                       <TableCell className={`${applicationTableCellClass} text-right`}>
                         {p.entityType === "INDIVIDUAL" &&
