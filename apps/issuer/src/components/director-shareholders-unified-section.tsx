@@ -476,10 +476,12 @@ export function DirectorShareholdersUnifiedSection({
                 {renderStatusBadge(legacyKycLabel)}
               </div>
             ) : partySource && !typeA ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-muted-foreground">Status</span>
-                {renderStatusBadge(pipelineStatus)}
-              </div>
+              normalizeRawStatus(pipelineStatus) ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Status</span>
+                  {renderStatusBadge(pipelineStatus)}
+                </div>
+              ) : null
             ) : (
               <>
                 <div className="flex flex-wrap items-center gap-2">
@@ -612,15 +614,19 @@ export function DirectorShareholdersUnifiedSection({
           </p>
           <div className="mt-1 flex flex-wrap flex-col gap-1">
             {partySource && typeA ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-muted-foreground">KYB</span>
-                {renderStatusBadge(pipelineStatus)}
-              </div>
+              normalizeRawStatus(pipelineStatus) ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-muted-foreground">KYB</span>
+                  {renderStatusBadge(pipelineStatus)}
+                </div>
+              ) : null
             ) : partySource && !typeA ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-muted-foreground">Status</span>
-                {renderStatusBadge(pipelineStatus)}
-              </div>
+              normalizeRawStatus(pipelineStatus) ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Status</span>
+                  {renderStatusBadge(pipelineStatus)}
+                </div>
+              ) : null
             ) : (
               <>
                 <div className="flex flex-wrap items-center gap-2">
