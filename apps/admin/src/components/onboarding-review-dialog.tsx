@@ -283,6 +283,77 @@ export function OnboardingReviewDialog({
       return fallback ? { ...p, status: fallback } : p;
     });
   }, [application?.directorKycStatus, visiblePeopleRows]);
+  const visiblePeopleRowsWithAmlStatus = React.useMemo(() => {
+    const amlRoot =
+      application?.directorAmlStatus && typeof application.directorAmlStatus === "object"
+        ? (application.directorAmlStatus as { directors?: unknown[]; individualShareholders?: unknown[] })
+        : null;
+    const directors = amlRoot?.directors ?? [];
+    const individualShareholders = amlRoot?.individualShareholders ?? [];
+
+    const kycRows =
+      application?.directorKycStatus && typeof application.directorKycStatus === "object"
+        ? ((application.directorKycStatus as { directors?: unknown[] }).directors ?? [])
+        : [];
+
+    const govIdByKycId = new Map<string, string>();
+    const govIdByEod = new Map<string, string>();
+    for (const row of kycRows) {
+      if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+      const r = row as { kycId?: unknown; eodRequestId?: unknown; governmentIdNumber?: unknown };
+      const govId = normalizeDirectorShareholderIdKey(String(r.governmentIdNumber ?? ""));
+      if (!govId) continue;
+      const kycId = String(r.kycId ?? "").trim();
+      const eod = String(r.eodRequestId ?? "").trim();
+      if (kycId) govIdByKycId.set(kycId, govId);
+      if (eod) govIdByEod.set(eod, govId);
+    }
+
+    const byIc = new Map<string, string>();
+    const collect = (rows: unknown[]) => {
+      for (const row of rows) {
+        if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+        const r = row as {
+          governmentIdNumber?: unknown;
+          amlStatus?: unknown;
+          status?: unknown;
+          kycId?: unknown;
+          eodRequestId?: unknown;
+        };
+        const amlStatus =
+          (typeof r.amlStatus === "string" ? r.amlStatus : "") ||
+          (typeof r.status === "string" ? r.status : "");
+        const status = amlStatus.trim();
+        if (!status) continue;
+        const byGov = normalizeDirectorShareholderIdKey(String(r.governmentIdNumber ?? ""));
+        if (byGov) {
+          byIc.set(byGov, status);
+          continue;
+        }
+        const kycId = String(r.kycId ?? "").trim();
+        if (kycId && govIdByKycId.has(kycId)) {
+          byIc.set(govIdByKycId.get(kycId)!, status);
+          continue;
+        }
+        const eod = String(r.eodRequestId ?? "").trim();
+        if (eod && govIdByEod.has(eod)) {
+          byIc.set(govIdByEod.get(eod)!, status);
+        }
+      }
+    };
+    collect(directors);
+    collect(individualShareholders);
+
+    return visiblePeopleRows.map((p) => {
+      const rawStatus = String(p.status ?? "").trim();
+      const hasUsableStatus = rawStatus.length > 0 && rawStatus !== "-" && rawStatus !== "—";
+      if (hasUsableStatus) return p;
+      const key = normalizeDirectorShareholderIdKey(p.matchKey);
+      if (!key) return p;
+      const fallback = byIc.get(key);
+      return fallback ? { ...p, status: fallback } : p;
+    });
+  }, [application?.directorAmlStatus, application?.directorKycStatus, visiblePeopleRows]);
 
   React.useEffect(() => {
     console.log("Onboarding dialog people[]:", peopleRows);
@@ -706,7 +777,7 @@ export function OnboardingReviewDialog({
                     </p>
                     <OnboardingPeopleReadonlyCards
                       variant="aml"
-                      rows={visiblePeopleRows}
+                      rows={visiblePeopleRowsWithAmlStatus}
                       isRefreshing={refreshCorporateAmlMutation.isPending}
                     />
                   </div>
