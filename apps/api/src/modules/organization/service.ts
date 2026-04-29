@@ -1824,6 +1824,7 @@ export class OrganizationService {
     let verifyLink = "";
     const now = new Date();
     const nowIso = now.toISOString();
+    /* Send throttling (disabled): uncomment to enforce again.
     const cooldownMs = 5 * 60 * 1000;
     const maxPerDay = 5;
     const prevLastSentAt =
@@ -1850,6 +1851,8 @@ export class OrganizationService {
         "Daily send limit reached for this person. Please try again tomorrow."
       );
     }
+    */
+    const sendHistory = parseSendTimestamps(getEffectiveCtosPartyOnboarding(prevRoot));
     try {
       logger.info({ referenceId }, "RegTank director onboarding referenceId");
       const existingRequestId =
@@ -1889,7 +1892,7 @@ export class OrganizationService {
       ...(verifyLink ? { verifyLink } : {}),
       sentAt: nowIso,
       lastSentAt: nowIso,
-      sendTimestamps: [...recentSends, nowIso],
+      sendTimestamps: [...sendHistory, nowIso],
     };
     delete nextOnb.regtankStatus;
     const mergedSend = mergeCtosPartySupplementDocument(prevRoot, {
@@ -2093,6 +2096,7 @@ export class OrganizationService {
     let verifyLink = "";
     const now = new Date();
     const nowIso = now.toISOString();
+    /* Send throttling (disabled): uncomment to enforce again.
     const cooldownMs = 5 * 60 * 1000;
     const maxPerDay = 5;
     const prevLastSentAt =
@@ -2119,6 +2123,8 @@ export class OrganizationService {
         "Daily send limit reached for this person. Please try again tomorrow."
       );
     }
+    */
+    const sendHistory = parseSendTimestamps(getEffectiveCtosPartyOnboarding(prevRoot));
     try {
       logger.info({ referenceId }, "RegTank director onboarding referenceId (admin privileged)");
       const existingRequestId =
@@ -2159,7 +2165,7 @@ export class OrganizationService {
       ...(verifyLink ? { verifyLink } : {}),
       sentAt: nowIso,
       lastSentAt: nowIso,
-      sendTimestamps: [...recentSends, nowIso],
+      sendTimestamps: [...sendHistory, nowIso],
     };
     delete nextOnb.regtankStatus;
     const mergedSend = mergeCtosPartySupplementDocument(prevRoot, {
