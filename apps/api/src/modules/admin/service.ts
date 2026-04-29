@@ -67,6 +67,9 @@ import {
   getStepKeyFromStepId,
   isRegtankIso3166Code,
   normalizeDirectorShareholderIdKey,
+  getDirectorShareholderWorkflowFromCompanyDetails,
+  mergeDirectorShareholderWorkflowIntoCompanyDetails,
+  type DirectorShareholderPersonWorkflow,
   type SoukscoreRiskRating,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
@@ -7226,5 +7229,79 @@ export class AdminService {
 
     logger.info({ applicationId, count: pending.length, reviewerUserId }, "Pending amendments submitted");
     return repository.getApplicationById(applicationId);
+  }
+
+  async patchApplicationDirectorShareholderReview(
+    applicationId: string,
+    body: { matchKey: string; action: "APPROVE" | "REJECT"; remark?: string }
+  ): Promise<{ ok: boolean }> {
+    const app = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: { company_details: true },
+    });
+    if (!app) {
+      throw new AppError(404, "NOT_FOUND", "Application not found");
+    }
+    const pk = normalizeDirectorShareholderIdKey(body.matchKey);
+    if (!pk) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invalid match key");
+    }
+    const nowIso = new Date().toISOString();
+    const personPatch =
+      body.action === "APPROVE"
+        ? { matchKey: pk, status: "APPROVED" as const, updatedAt: nowIso }
+        : {
+            matchKey: pk,
+            status: "UNDER_REVIEW" as const,
+            remark: (body.remark ?? "").trim(),
+            updatedAt: nowIso,
+          };
+    const merged = mergeDirectorShareholderWorkflowIntoCompanyDetails(app.company_details, {
+      persons: { [pk]: personPatch },
+    });
+    const wf = getDirectorShareholderWorkflowFromCompanyDetails(merged);
+    const personList = Object.values(wf.persons ?? {}) as DirectorShareholderPersonWorkflow[];
+    const stillNeeds = personList.some((p) => p.status === "PENDING" || p.status === "UNDER_REVIEW");
+    const merged2 = mergeDirectorShareholderWorkflowIntoCompanyDetails(merged, {
+      directorShareholderPending: stillNeeds,
+    });
+    await prisma.application.update({
+      where: { id: applicationId },
+      data: { company_details: merged2 as object },
+    });
+    return { ok: true };
+  }
+
+  async notifyApplicationDirectorShareholderAgain(
+    applicationId: string,
+    body: { matchKey: string; remark: string }
+  ): Promise<{ ok: boolean; requestId: string }> {
+    const app = await prisma.application.findUnique({
+      where: { id: applicationId },
+      select: { issuer_organization_id: true, company_details: true },
+    });
+    if (!app) {
+      throw new AppError(404, "NOT_FOUND", "Application not found");
+    }
+    const pk = normalizeDirectorShareholderIdKey(body.matchKey);
+    if (!pk) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invalid match key");
+    }
+    const wf = getDirectorShareholderWorkflowFromCompanyDetails(app.company_details);
+    const person = wf.persons?.[pk];
+    if (person?.status !== "UNDER_REVIEW") {
+      throw new AppError(
+        400,
+        "INVALID_STATE",
+        "Notify again is only allowed when person status is UNDER_REVIEW"
+      );
+    }
+    const organizationService = new OrganizationService();
+    const { requestId } = await organizationService.sendDirectorCtosPartyOnboardingPrivileged(
+      app.issuer_organization_id,
+      { partyKey: pk },
+      body.remark.trim()
+    );
+    return { ok: true, requestId };
   }
 }

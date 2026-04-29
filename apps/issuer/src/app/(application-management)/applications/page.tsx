@@ -692,6 +692,12 @@ export default function ApplicationsPage() {
   const isDev = process.env.NODE_ENV === "development";
 
   const { activeOrganization } = useOrganization();
+  const directorSubmitBlocked =
+    activeOrganization?.type === "COMPANY" &&
+    activeOrganization.directorShareholderSubmitReady === false;
+  const directorSubmitBlockedMessage =
+    activeOrganization?.directorShareholderSubmitBlockedMessage ??
+    "Please complete onboarding for all required directors/shareholders before submitting.";
   const displayName = React.useMemo(() => {
     if (!activeOrganization) return "";
     if (activeOrganization.firstName && activeOrganization.lastName) {
@@ -753,12 +759,27 @@ export default function ApplicationsPage() {
             Manage your financing applications from this dashboard.
           </p>
         </div>
-        <Button asChild className="gap-2 bg-primary text-primary-foreground shadow-brand hover:opacity-95 h-11 rounded-xl font-semibold shrink-0">
-          <Link href="/applications/new">
+        {directorSubmitBlocked ? (
+          <Button
+            type="button"
+            disabled
+            title={directorSubmitBlockedMessage}
+            className="gap-2 h-11 rounded-xl font-semibold shrink-0 opacity-60"
+          >
             <PlusIcon className="h-4 w-4" />
             Get Financed
-          </Link>
-        </Button>
+          </Button>
+        ) : (
+          <Button
+            asChild
+            className="gap-2 bg-primary text-primary-foreground shadow-brand hover:opacity-95 h-11 rounded-xl font-semibold shrink-0"
+          >
+            <Link href="/applications/new">
+              <PlusIcon className="h-4 w-4" />
+              Get Financed
+            </Link>
+          </Button>
+        )}
       </section>
 
       <Card className="min-w-0 max-w-full border-none bg-transparent shadow-none">

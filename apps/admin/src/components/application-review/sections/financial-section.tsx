@@ -9,6 +9,7 @@ import { ApplicationFinancialReviewComparison } from "@/components/application-f
 import { isFinancialReviewKycReadyForApprove, type ApplicationPersonRow } from "@cashsouk/types";
 
 export type FinancialSectionAppSlice = {
+  company_details?: unknown;
   people?: ApplicationPersonRow[];
   issuer_organization?: {
     id?: string;

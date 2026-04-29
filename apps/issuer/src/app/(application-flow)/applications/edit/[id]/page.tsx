@@ -27,7 +27,7 @@
 
 import * as React from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
-import { useAuthToken } from "@cashsouk/config";
+import { useAuthToken, useOrganization } from "@cashsouk/config";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -191,8 +191,15 @@ function EditApplicationPageBody() {
   const { data: approvedContracts = [] } = useApprovedContracts(issuerOrgId);
 
   const { data: partyEntities } = useCorporateEntities(issuerOrgId || undefined);
+  const { activeOrganization } = useOrganization();
 
   const directorPartySubmitReady = React.useMemo(() => {
+    if (
+      activeOrganization?.type === "COMPANY" &&
+      typeof activeOrganization.directorShareholderSubmitReady === "boolean"
+    ) {
+      return activeOrganization.directorShareholderSubmitReady;
+    }
     if (!issuerOrgId) return true;
     if (!partyEntities) return false;
     const people = partyEntities.people ?? [];
@@ -203,7 +210,11 @@ function EditApplicationPageBody() {
       corporateEntities: partyEntities,
       ctosPartySupplements: partyEntities.ctosPartySupplements ?? null,
     });
-  }, [issuerOrgId, partyEntities]);
+  }, [activeOrganization, issuerOrgId, partyEntities]);
+
+  const directorPartySubmitBlockedMessage =
+    activeOrganization?.directorShareholderSubmitBlockedMessage ??
+    "Please complete onboarding for all required directors/shareholders before submitting.";
 
   /** Handle application not found */
   React.useEffect(() => {
@@ -1091,9 +1102,7 @@ function EditApplicationPageBody() {
       return;
     }
     if (!devPreviewAmendment && !directorPartySubmitReady) {
-      toast.error(
-        "Director onboarding is not ready to submit. Each new party must have onboarding sent and RegTank status waiting for approval (or approved)."
-      );
+      toast.error(directorPartySubmitBlockedMessage);
       isSubmittingRef.current = false;
       setIsSubmittingApplication(false);
       return;
@@ -1690,6 +1699,19 @@ function EditApplicationPageBody() {
           )}
         </div>
       </main>
+
+      {application &&
+      isDeclarationsFinalStep &&
+      !devPreviewAmendment &&
+      !directorPartySubmitReady &&
+      (application.status === "DRAFT" || application.status === "AMENDMENT_REQUESTED") ? (
+        <div
+          role="status"
+          className="border-t border-amber-500/30 bg-amber-500/10 px-4 py-3 text-center text-[15px] leading-7 text-foreground"
+        >
+          {directorPartySubmitBlockedMessage}
+        </div>
+      ) : null}
 
       {/* Bottom buttons — visible during shell; disabled until route is interactive */}
       {application ? (

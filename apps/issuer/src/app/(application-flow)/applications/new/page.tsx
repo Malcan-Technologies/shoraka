@@ -39,6 +39,12 @@ import {
 export default function NewApplicationPage() {
   const router = useRouter();
   const { activeOrganization, isLoading: isOrgLoading } = useOrganization();
+  const directorSubmitBlocked =
+    activeOrganization?.type === "COMPANY" &&
+    activeOrganization.directorShareholderSubmitReady === false;
+  const directorSubmitBlockedMessage =
+    activeOrganization?.directorShareholderSubmitBlockedMessage ??
+    "Please complete onboarding for all required directors/shareholders before submitting.";
   const { setTitle } = useHeader();
 
   React.useEffect(() => {
@@ -360,6 +366,14 @@ export default function NewApplicationPage() {
 
         {/* Product List */}
         <div className="max-w-7xl mx-auto w-full px-4 pt-6">
+          {directorSubmitBlocked ? (
+            <div
+              role="status"
+              className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-[15px] leading-7 text-foreground"
+            >
+              {directorSubmitBlockedMessage}
+            </div>
+          ) : null}
           {USE_MOCK_FINANCING_TYPE_CATALOG ? (
             <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100">
               <p className="font-semibold">Development: mock product catalog</p>
@@ -409,6 +423,7 @@ export default function NewApplicationPage() {
             onClick={handleContinue}
             disabled={
               USE_MOCK_FINANCING_TYPE_CATALOG ||
+              directorSubmitBlocked ||
               products.length === 0 ||
               !selectedProductId ||
               !products.some((p: { id: string }) => p.id === selectedProductId) ||

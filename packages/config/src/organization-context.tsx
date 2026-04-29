@@ -86,6 +86,9 @@ export interface Organization {
   isSophisticatedInvestor?: boolean;
   // Issuer-specific flags
   ssmChecked?: boolean;
+  /** Company org: false when required director/shareholder CTOS onboarding is not at wait-for-approval. */
+  directorShareholderSubmitReady?: boolean;
+  directorShareholderSubmitBlockedMessage?: string;
   // Corporate director KYC status (only for COMPANY type)
   directorKycStatus?: {
     corpIndvDirectorCount: number;

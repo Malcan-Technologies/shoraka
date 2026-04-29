@@ -398,3 +398,24 @@ export const resubmitComparisonQuerySchema = z.object({
 });
 
 export type ResubmitComparisonQuery = z.infer<typeof resubmitComparisonQuerySchema>;
+
+export const directorShareholderReviewSchema = z
+  .object({
+    matchKey: z.string().min(1).max(80),
+    action: z.enum(["APPROVE", "REJECT"]),
+    remark: z.string().max(4000).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.action === "REJECT" && (!data.remark || !data.remark.trim())) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "remark is required when rejecting",
+        path: ["remark"],
+      });
+    }
+  });
+
+export const directorShareholderNotifyAgainSchema = z.object({
+  matchKey: z.string().min(1).max(80),
+  remark: z.string().min(1).max(4000),
+});

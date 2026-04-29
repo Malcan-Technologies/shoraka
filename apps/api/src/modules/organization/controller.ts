@@ -20,6 +20,7 @@ import { requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { AMLSyncService } from "../regtank/aml-sync-service";
 import { buildAdminPeopleList } from "../admin/build-people-list";
+import { getIssuerDirectorShareholderSubmitReadiness } from "../applications/director-shareholder-onboarding-guard";
 
 const organizationService = new OrganizationService();
 
@@ -82,6 +83,18 @@ async function listOrganizations(
         })
     );
 
+    const issuerSubmitByOrgId = new Map<string, { ready: boolean; message?: string }>();
+    if (portalType === "issuer") {
+      await Promise.all(
+        organizations
+          .filter((o) => o.type === "COMPANY")
+          .map(async (org) => {
+            const r = await getIssuerDirectorShareholderSubmitReadiness(org.id);
+            issuerSubmitByOrgId.set(org.id, r);
+          })
+      );
+    }
+
     res.json({
       success: true,
       data: {
@@ -124,6 +137,10 @@ async function listOrganizations(
           // Issuer-specific flags
           ...(portalType === "issuer" && {
             ssmChecked: (org as { ssm_checked?: boolean }).ssm_checked ?? false,
+            directorShareholderSubmitReady:
+              org.type !== "COMPANY" ? true : (issuerSubmitByOrgId.get(org.id)?.ready ?? true),
+            directorShareholderSubmitBlockedMessage:
+              org.type === "COMPANY" ? issuerSubmitByOrgId.get(org.id)?.message : undefined,
           }),
           // Corporate director KYC status (for COMPANY type)
           ...(org.type === "COMPANY" && {
@@ -276,6 +293,11 @@ async function getOrganization(
     const investorPartyExtras =
       portalType === "investor" ? await organizationService.getInvestorPartyListExtras(organization.id) : null;
 
+    const issuerDsSubmitReadiness =
+      portalType === "issuer" && organization.type === "COMPANY"
+        ? await getIssuerDirectorShareholderSubmitReadiness(organization.id)
+        : { ready: true as const, message: undefined as string | undefined };
+
     // Cast to access all fields from the organization
     const org = organization as {
       first_name?: string | null;
@@ -365,6 +387,8 @@ async function getOrganization(
         // Issuer-specific flags
         ...(portalType === "issuer" && {
           ssmChecked: org.ssm_checked ?? false,
+          directorShareholderSubmitReady: issuerDsSubmitReadiness.ready,
+          directorShareholderSubmitBlockedMessage: issuerDsSubmitReadiness.message,
           ...(issuerPartyExtras && {
             latestOrganizationCtosCompanyJson: issuerPartyExtras.latestOrganizationCtosCompanyJson,
             latestOrganizationCtosFinancialsJson: issuerPartyExtras.latestOrganizationCtosFinancialsJson,

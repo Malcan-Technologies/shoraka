@@ -100,7 +100,7 @@ export function isRegTankSubmitReadyStatus(statusRaw: string): boolean {
   const u = statusRaw.toUpperCase().replace(/\s+/g, "_");
   if (!u) return false;
   if (u === "APPROVED") return true;
-  if (u === "WAITING_FOR_APPROVAL" || u === "WAIT_FOR_APPROVAL") return true;
+  if (u === "WAITING_FOR_APPROVAL" || u === "WAIT_FOR_APPROVAL" || u === "PENDING_APPROVAL") return true;
   return false;
 }
 

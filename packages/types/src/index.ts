@@ -358,6 +358,7 @@ export * from "./resubmit-meaningful-field-path";
 export * from "./application-people-display";
 export * from "./director-kyc-gov-id";
 export * from "./director-shareholder-display";
+export * from "./director-shareholder-workflow";
 export * from "./regtank-onboarding-status";
 export * from "./ctos-party-supplement-json";
 export * from "./regtank-iso3166-countries";
