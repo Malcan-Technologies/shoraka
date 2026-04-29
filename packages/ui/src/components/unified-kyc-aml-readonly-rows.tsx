@@ -118,7 +118,23 @@ function amlBadge(display: string) {
 }
 
 function amlCell(row: DirectorShareholderDisplayRow) {
-  const rawDisplay = row.amlStatus?.trim() ? row.amlStatus : getDisplayAmlStatus("STATUS_UNAVAILABLE");
+  const amlRaw = row.amlStatus?.trim() ?? "";
+  const regtankRaw = row.ctosRegtankStatus?.trim() ?? "";
+  const statusRaw = row.status?.trim() ?? "";
+
+  const fallbackFromStatus =
+    statusRaw &&
+    statusRaw !== "Not Started" &&
+    statusRaw !== "Status unavailable" &&
+    statusRaw !== "Sent"
+      ? statusRaw
+      : "";
+
+  const rawDisplay =
+    amlRaw ||
+    (regtankRaw ? getDisplayAmlStatus(regtankRaw) : "") ||
+    fallbackFromStatus ||
+    getDisplayAmlStatus("STATUS_UNAVAILABLE");
   const display = normalizeStatusText(rawDisplay);
   return amlBadge(display);
 }
