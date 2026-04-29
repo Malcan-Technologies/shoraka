@@ -69,6 +69,7 @@ import {
   normalizeDirectorShareholderIdKey,
   peopleHasPendingDirectorShareholderAml,
   filterVisiblePeopleRows,
+  isNotifyEligible,
   type SoukscoreRiskRating,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
@@ -2158,6 +2159,9 @@ export class AdminService {
     const match = visible.find((p) => normalizeDirectorShareholderIdKey(p.matchKey) === want);
     if (!match) {
       throw new AppError(404, "NOT_FOUND", "Party not found among visible directors/shareholders");
+    }
+    if (!isNotifyEligible(match)) {
+      throw new AppError(400, "VALIDATION_ERROR", "Not eligible for notify");
     }
 
     await notifyIssuerDirectorShareholderActionRequired({
