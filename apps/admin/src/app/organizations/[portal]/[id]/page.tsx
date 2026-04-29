@@ -742,7 +742,6 @@ type CorporateEntityInfo = {
   requestId: string;
   frontDocumentUrl: string;
   backDocumentUrl: string;
-  status: string;
 };
 
 type AmlLookup = {
@@ -836,7 +835,6 @@ function buildCorporateEntityByGovernmentId(source: unknown): Map<string, Corpor
       requestId: String(r.requestId ?? "").trim(),
       frontDocumentUrl: String(documents?.frontDocumentUrl ?? "").trim(),
       backDocumentUrl: String(documents?.backDocumentUrl ?? "").trim(),
-      status: String(r.status ?? r.approveStatus ?? "").trim(),
     });
   }
   return byGov;
@@ -1543,7 +1541,7 @@ export default function OrganizationDetailPage() {
                                       ? amlLookup.byEod.get(kycInfo.shareholderEodRequestId)
                                       : undefined);
                                   const amlFallback = String(amlInfo?.status ?? "").trim() || "—";
-                                  const kycFallback = kycInfo?.status || entity?.status || "—";
+                                  const kycFallback = kycInfo?.status || "—";
                                   const onboardingStatus =
                                     String(onboarding.status ?? onboarding.regtankStatus ?? "").trim() || "—";
                                   const fallbackRequestId =
