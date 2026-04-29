@@ -65,9 +65,15 @@ import {
 } from "@/components/ui/table";
 import {
   filterVisiblePeopleRows,
+  getDisplayStatus,
   formatPeopleRolesLine,
   formatSharePercentageCell,
 } from "@/lib/onboarding-people-display";
+import {
+  getEffectiveCtosPartyOnboarding,
+  getEffectiveCtosPartyScreening,
+  normalizeDirectorShareholderIdKey,
+} from "@cashsouk/types";
 
 function DetailRow({
   label,
@@ -591,6 +597,50 @@ function formatAddressDisplay(address?: {
     address.country,
   ].filter((part) => part && part.trim() !== "");
   return parts.length > 0 ? parts.join(", ") : "—";
+}
+
+function getNestedValue(obj: unknown, path: string[]): unknown {
+  let cur: unknown = obj;
+  for (const key of path) {
+    if (!cur || typeof cur !== "object" || Array.isArray(cur)) return undefined;
+    cur = (cur as Record<string, unknown>)[key];
+  }
+  return cur;
+}
+
+function getFirstString(obj: unknown, paths: string[][]): string | null {
+  for (const p of paths) {
+    const v = getNestedValue(obj, p);
+    const s = typeof v === "string" ? v.trim() : "";
+    if (s) return s;
+  }
+  return null;
+}
+
+function buildStatusByGovernmentId(
+  source: unknown,
+  statusKeys: string[]
+): Map<string, string> {
+  const byGov = new Map<string, string>();
+  if (!source || typeof source !== "object" || Array.isArray(source)) return byGov;
+  const root = source as { directors?: unknown[]; individualShareholders?: unknown[] };
+  const rows = [...(root.directors ?? []), ...(root.individualShareholders ?? [])];
+  for (const row of rows) {
+    if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+    const r = row as Record<string, unknown>;
+    const gov = normalizeDirectorShareholderIdKey(String(r.governmentIdNumber ?? ""));
+    if (!gov) continue;
+    let status = "";
+    for (const key of statusKeys) {
+      const raw = r[key];
+      if (typeof raw === "string" && raw.trim()) {
+        status = raw.trim();
+        break;
+      }
+    }
+    if (status) byGov.set(gov, status);
+  }
+  return byGov;
 }
 
 function PageSkeleton() {
@@ -1151,6 +1201,21 @@ export default function OrganizationDetailPage() {
                     <CardContent>
                       {(() => {
                         const rows = filterVisiblePeopleRows(org.people ?? []);
+                        const supplementsByKey = new Map<string, Record<string, unknown>>();
+                        for (const row of org.ctosPartySupplements ?? []) {
+                          const key = normalizeDirectorShareholderIdKey(row.partyKey);
+                          if (!key) continue;
+                          const json =
+                            row.onboardingJson &&
+                            typeof row.onboardingJson === "object" &&
+                            !Array.isArray(row.onboardingJson)
+                              ? (row.onboardingJson as Record<string, unknown>)
+                              : {};
+                          supplementsByKey.set(key, json);
+                        }
+                        const amlByGov = buildStatusByGovernmentId(org.directorAmlStatus, ["amlStatus", "status"]);
+                        const kycByGov = buildStatusByGovernmentId(org.directorKycStatus, ["kycStatus", "status"]);
+
                         if (rows.length === 0) {
                           return (
                             <p className="text-sm text-muted-foreground py-4 text-center">
@@ -1169,21 +1234,115 @@ export default function OrganizationDetailPage() {
                                   <TableHead>Type</TableHead>
                                   <TableHead>Share %</TableHead>
                                   <TableHead>Status</TableHead>
+                                  <TableHead>Screening</TableHead>
+                                  <TableHead>AML</TableHead>
+                                  <TableHead>KYC</TableHead>
+                                  <TableHead>Onboarding</TableHead>
+                                  <TableHead>Request ID</TableHead>
+                                  <TableHead>Acuris Risk</TableHead>
+                                  <TableHead>IC Front</TableHead>
+                                  <TableHead>IC Back</TableHead>
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
-                                {rows.map((p) => (
-                                  <TableRow key={p.matchKey}>
-                                    <TableCell className="font-medium">{p.name ?? "—"}</TableCell>
-                                    <TableCell className="font-mono text-xs">{p.matchKey}</TableCell>
-                                    <TableCell>{formatPeopleRolesLine(p)}</TableCell>
-                                    <TableCell>{p.entityType}</TableCell>
-                                    <TableCell>{formatSharePercentageCell(p)}</TableCell>
-                                    <TableCell>
-                                      <span className="text-muted-foreground">{p.status}</span>
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
+                                {rows.map((p) => {
+                                  const key = normalizeDirectorShareholderIdKey(p.matchKey);
+                                  const supplement = key ? supplementsByKey.get(key) ?? {} : {};
+                                  const onboarding = getEffectiveCtosPartyOnboarding(supplement);
+                                  const screening = getEffectiveCtosPartyScreening(supplement);
+
+                                  const screeningStatus = String(p.screening?.status ?? "").trim() || "—";
+                                  const amlFallback = key ? amlByGov.get(key) ?? "—" : "—";
+                                  const kycFallback = key ? kycByGov.get(key) ?? "—" : "—";
+                                  const onboardingStatus =
+                                    String(onboarding.status ?? onboarding.regtankStatus ?? "").trim() || "—";
+                                  const requestId =
+                                    String(onboarding.requestId ?? onboarding.eodRequestId ?? screening.requestId ?? "").trim() ||
+                                    "—";
+                                  const riskLevel = String(screening.riskLevel ?? "").trim();
+                                  const riskScore = String(screening.riskScore ?? "").trim();
+                                  const acurisRisk =
+                                    riskLevel || riskScore
+                                      ? [riskLevel ? `Level: ${riskLevel}` : "", riskScore ? `Score: ${riskScore}` : ""]
+                                          .filter(Boolean)
+                                          .join(" · ")
+                                      : "—";
+
+                                  const icFront =
+                                    getFirstString(supplement, [
+                                      ["identityDocument", "frontUrl"],
+                                      ["identityDocument", "frontImageUrl"],
+                                      ["documents", "idFrontUrl"],
+                                      ["documents", "identityFrontUrl"],
+                                      ["icFrontUrl"],
+                                      ["frontIcUrl"],
+                                      ["idFrontUrl"],
+                                      ["frontImageUrl"],
+                                    ]) ?? "—";
+                                  const icBack =
+                                    getFirstString(supplement, [
+                                      ["identityDocument", "backUrl"],
+                                      ["identityDocument", "backImageUrl"],
+                                      ["documents", "idBackUrl"],
+                                      ["documents", "identityBackUrl"],
+                                      ["icBackUrl"],
+                                      ["backIcUrl"],
+                                      ["idBackUrl"],
+                                      ["backImageUrl"],
+                                    ]) ?? "—";
+
+                                  const displayStatus = getDisplayStatus({
+                                    screening: p.screening,
+                                    directorAmlStatus: amlFallback !== "—" ? amlFallback : null,
+                                    directorKycStatus: kycFallback !== "—" ? kycFallback : null,
+                                    onboarding: { status: onboardingStatus !== "—" ? onboardingStatus : null },
+                                  });
+
+                                  return (
+                                    <TableRow key={p.matchKey}>
+                                      <TableCell className="font-medium">{p.name ?? "—"}</TableCell>
+                                      <TableCell className="font-mono text-xs">{p.matchKey}</TableCell>
+                                      <TableCell>{formatPeopleRolesLine(p)}</TableCell>
+                                      <TableCell>{p.entityType}</TableCell>
+                                      <TableCell>{formatSharePercentageCell(p)}</TableCell>
+                                      <TableCell>{displayStatus}</TableCell>
+                                      <TableCell>{screeningStatus}</TableCell>
+                                      <TableCell>{amlFallback}</TableCell>
+                                      <TableCell>{kycFallback}</TableCell>
+                                      <TableCell>{onboardingStatus}</TableCell>
+                                      <TableCell className="font-mono text-xs">{requestId}</TableCell>
+                                      <TableCell>{acurisRisk}</TableCell>
+                                      <TableCell>
+                                        {icFront !== "—" && isUrl(icFront) ? (
+                                          <a
+                                            href={icFront}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-primary hover:underline"
+                                          >
+                                            View
+                                          </a>
+                                        ) : (
+                                          "—"
+                                        )}
+                                      </TableCell>
+                                      <TableCell>
+                                        {icBack !== "—" && isUrl(icBack) ? (
+                                          <a
+                                            href={icBack}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-primary hover:underline"
+                                          >
+                                            View
+                                          </a>
+                                        ) : (
+                                          "—"
+                                        )}
+                                      </TableCell>
+                                    </TableRow>
+                                  );
+                                })}
                               </TableBody>
                             </Table>
                           </div>
@@ -1191,19 +1350,6 @@ export default function OrganizationDetailPage() {
                       })()}
                     </CardContent>
                   </Card>
-                )}
-
-                {/* Business AML Status (COMPANY only) */}
-                {org.type === "COMPANY" && org.businessAmlStatus && (
-                  <JsonDisplay
-                    data={org.businessAmlStatus as Record<string, unknown>}
-                    label={
-                      <span className="flex items-center gap-2">
-                        <ShieldExclamationIcon className="h-4 w-4" />
-                        Business AML Status
-                      </span>
-                    }
-                  />
                 )}
 
                 {/* Corporate Required Documents (COMPANY only) */}
