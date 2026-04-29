@@ -1,8 +1,8 @@
 /**
  * SECTION: CTOS supplement normalized status updates
- * WHY: Keep screening.kyc / screening.aml normalized blocks aligned with issuer shape
+ * WHY: Single `screening.normalized` blob aligned with issuer shape
  * INPUT: onboarding_json + raw webhook status + match identifiers
- * OUTPUT: merged document with `screening` only (legacy kyc/aml stripped)
+ * OUTPUT: merged document; `screening` stays flat except optional `normalized`
  * WHERE USED: RegTank CTOS supplement webhook handlers
  */
 import { getEffectiveCtosPartyScreening } from "@cashsouk/types";
@@ -134,42 +134,24 @@ export function updateCtosSupplementNormalizedStatus(params: {
 
   const next = { ...onboardingJson };
   const eff = getEffectiveCtosPartyScreening(next);
-  let kycBlock = { ...eff.kyc };
-  let amlBlock = { ...eff.aml };
+  const { normalized: _n, ...flatRest } = eff;
 
-  const existingKyc = asObject(kycBlock);
-  if (existingKyc) {
-    const existingKycNormalized = asObject(existingKyc.normalized);
-    if (existingKycNormalized) {
-      const kycResult = updateKycNormalized(existingKycNormalized, status, now, identifiers);
-      if (kycResult.changed) {
-        kycBlock = {
-          ...existingKyc,
-          normalized: kycResult.normalized,
-        };
-      }
-    }
+  let norm: JsonObject = asObject(eff.normalized) ? { ...(eff.normalized as JsonObject) } : {};
+
+  const kycResult = updateKycNormalized(norm, status, now, identifiers);
+  if (kycResult.changed) norm = kycResult.normalized;
+
+  const amlResult = updateAmlNormalized(norm, status, now, identifiers);
+  if (amlResult.changed) norm = amlResult.normalized;
+
+  const hasNorm = Object.keys(norm).length > 0;
+
+  const screeningOut: JsonObject = { ...flatRest };
+  if (hasNorm) {
+    screeningOut.normalized = norm;
   }
+  next.screening = screeningOut;
 
-  const existingAml = asObject(amlBlock);
-  if (existingAml) {
-    const existingAmlNormalized = asObject(existingAml.normalized);
-    if (existingAmlNormalized) {
-      const amlResult = updateAmlNormalized(existingAmlNormalized, status, now, identifiers);
-      if (amlResult.changed) {
-        amlBlock = {
-          ...existingAml,
-          normalized: amlResult.normalized,
-        };
-      }
-    }
-  }
-
-  next.screening = {
-    provider: eff.provider,
-    kyc: kycBlock,
-    aml: amlBlock,
-  };
   delete next.kyc;
   delete next.aml;
 

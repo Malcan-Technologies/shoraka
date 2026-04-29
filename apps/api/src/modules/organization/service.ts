@@ -1692,7 +1692,19 @@ export class OrganizationService {
     }
     const mergedDoc = mergeCtosPartySupplementDocument(prevRoot, {
       onboarding: nextOnb,
-      ...(emailChanged ? { screening: { kyc: {}, aml: {} } } : {}),
+      ...(emailChanged
+        ? {
+            screeningReset: true,
+            screening: {
+              provider: "ACURIS",
+              status: "PENDING",
+              requestId: "",
+              riskLevel: "",
+              riskScore: "",
+              updatedAt: new Date().toISOString(),
+            },
+          }
+        : {}),
     });
     await upsertCtosPartySupplementOnboardingJson(
       portalType,
@@ -1867,8 +1879,6 @@ export class OrganizationService {
     }
 
     const prevScr = getEffectiveCtosPartyScreening(prevRoot);
-    const prevKyc = { ...prevScr.kyc };
-    const prevAml = { ...prevScr.aml };
     const nextOnb: Record<string, unknown> = {
       ...supOb,
       email: supplementEmail,
@@ -1885,8 +1895,13 @@ export class OrganizationService {
     const mergedSend = mergeCtosPartySupplementDocument(prevRoot, {
       onboarding: nextOnb,
       screening: {
-        kyc: { ...prevKyc, rawStatus: "PENDING" },
-        aml: { ...prevAml, rawStatus: "PENDING" },
+        ...prevScr,
+        provider: String(prevScr.provider || "ACURIS"),
+        requestId,
+        status: "PENDING",
+        riskLevel: "",
+        riskScore: "",
+        updatedAt: nowIso,
       },
     });
     await upsertCtosPartySupplementOnboardingJson(

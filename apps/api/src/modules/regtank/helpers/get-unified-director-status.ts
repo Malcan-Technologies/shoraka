@@ -29,11 +29,18 @@ export function getUnifiedKyc(source: unknown): UnknownRecord | null {
   const screening = isObject(onboardingJson.screening)
     ? (onboardingJson.screening as UnknownRecord)
     : null;
-  const kyc = (screening?.kyc ?? onboardingJson.kyc) as unknown;
-  if (!isObject(kyc)) return null;
+  const flatNorm = screening?.normalized;
+  if (isObject(flatNorm)) return flatNorm as UnknownRecord;
 
-  const normalized = (kyc as UnknownRecord).normalized;
-  if (isObject(normalized)) return normalized;
+  const nestedKyc =
+    screening && isObject((screening as { kyc?: unknown }).kyc)
+      ? ((screening as { kyc: UnknownRecord }).kyc as UnknownRecord)
+      : null;
+  const legacyKyc = nestedKyc ?? onboardingJson.kyc;
+  if (isObject(legacyKyc)) {
+    const normalized = (legacyKyc as UnknownRecord).normalized;
+    if (isObject(normalized)) return normalized as UnknownRecord;
+  }
 
   return null;
 }
@@ -56,11 +63,18 @@ export function getUnifiedAml(source: unknown): UnknownRecord | null {
   const screening = isObject(onboardingJson.screening)
     ? (onboardingJson.screening as UnknownRecord)
     : null;
-  const aml = (screening?.aml ?? onboardingJson.aml) as unknown;
-  if (!isObject(aml)) return null;
+  const flatNorm = screening?.normalized;
+  if (isObject(flatNorm)) return flatNorm as UnknownRecord;
 
-  const normalized = (aml as UnknownRecord).normalized;
-  if (isObject(normalized)) return normalized;
+  const nestedAml =
+    screening && isObject((screening as { aml?: unknown }).aml)
+      ? ((screening as { aml: UnknownRecord }).aml as UnknownRecord)
+      : null;
+  const legacyAml = nestedAml ?? onboardingJson.aml;
+  if (isObject(legacyAml)) {
+    const normalized = (legacyAml as UnknownRecord).normalized;
+    if (isObject(normalized)) return normalized as UnknownRecord;
+  }
 
   return null;
 }

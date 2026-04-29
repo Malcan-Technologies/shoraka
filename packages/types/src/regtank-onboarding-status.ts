@@ -77,6 +77,9 @@ export function getCtosPartySupplementAmlRawStatus(
   const screening = ob.screening && typeof ob.screening === "object" && !Array.isArray(ob.screening)
     ? (ob.screening as Record<string, unknown>)
     : null;
+  if (screening && typeof screening.status === "string" && screening.status.trim()) {
+    return screening.status.trim().toUpperCase();
+  }
   const aml = screening?.aml ?? ob.aml;
   if (aml && typeof aml === "object" && !Array.isArray(aml)) {
     const raw = (aml as Record<string, unknown>).rawStatus;

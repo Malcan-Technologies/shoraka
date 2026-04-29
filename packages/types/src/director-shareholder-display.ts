@@ -1308,14 +1308,9 @@ function ctosSupplementOnboardingFields(ob: Record<string, unknown>): {
   const scr = getEffectiveCtosPartyScreening(ob);
   const req = String(onb.requestId ?? "").trim();
   const reg = String(onb.status ?? onb.regtankStatus ?? "").trim();
-  const kycRaw =
-    scr.kyc && typeof scr.kyc === "object" && !Array.isArray(scr.kyc)
-      ? String((scr.kyc as Record<string, unknown>).rawStatus ?? "").trim()
-      : "";
-  const amlRaw =
-    scr.aml && typeof scr.aml === "object" && !Array.isArray(scr.aml)
-      ? String((scr.aml as Record<string, unknown>).rawStatus ?? "").trim()
-      : "";
+  const screeningStatus = String(scr.status ?? "").trim();
+  const kycRaw = screeningStatus;
+  const amlRaw = screeningStatus;
   return { req, reg, kycRaw, amlRaw };
 }
 

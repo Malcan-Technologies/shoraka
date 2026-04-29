@@ -193,7 +193,6 @@ export function extractCtosIndividuals(ctos: unknown): CtosIndividual[] {
     );
   }
 
-  console.log("CTOS people extracted:", individuals);
   return individuals;
 }
 
@@ -240,10 +239,16 @@ export function detectDirectorGaps({ ctos, issuer, supplement }: GapInput): Dete
   const screening = isObject(supplementOnboardingJson?.screening)
     ? (supplementOnboardingJson.screening as UnknownRecord)
     : null;
-  const kycNode = screening?.kyc ?? supplementOnboardingJson?.kyc;
-  const supplementKyc = isObject(kycNode)
-    ? ((kycNode as UnknownRecord).normalized as UnknownRecord | null) ?? null
+  const fromFlatNorm = isObject(screening?.normalized) ? (screening.normalized as UnknownRecord) : null;
+  const nestedKyc = screening && isObject((screening as { kyc?: unknown }).kyc)
+    ? ((screening as { kyc: UnknownRecord }).kyc as UnknownRecord)
     : null;
+  const nestedNorm = isObject(nestedKyc?.normalized) ? (nestedKyc.normalized as UnknownRecord) : null;
+  const legacyKyc = isObject(supplementOnboardingJson?.kyc)
+    ? (supplementOnboardingJson.kyc as UnknownRecord)
+    : null;
+  const legacyNorm = isObject(legacyKyc?.normalized) ? (legacyKyc.normalized as UnknownRecord) : null;
+  const supplementKyc = fromFlatNorm ?? nestedNorm ?? legacyNorm;
 
   const ctosIndividuals = extractCtosIndividuals(ctos);
   const issuerMap = buildKycMap(issuerKyc);

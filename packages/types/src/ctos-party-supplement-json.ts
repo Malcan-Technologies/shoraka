@@ -1,8 +1,8 @@
 /**
  * SECTION: CTOS party supplement `onboarding_json` shape
- * WHY: Split RegTank onboarding vs ACURIS screening; keep legacy reads working
+ * WHY: `onboarding` = RegTank link flow; `screening` = single ACURIS blob (+ optional `normalized`)
  * INPUT: Raw Prisma Json for `ctos_party_supplements.onboarding_json`
- * OUTPUT: Effective onboarding/screening views + merged persist document
+ * OUTPUT: Effective onboarding + flat screening + merged persist document
  * WHERE USED: API webhooks, organization service, issuer/investor UI, types helpers
  */
 
@@ -64,60 +64,85 @@ export function getEffectiveCtosPartyOnboarding(root: Record<string, unknown>): 
   };
 }
 
+function asObject(value: unknown): Record<string, unknown> | null {
+  return isObject(value) ? (value as Record<string, unknown>) : null;
+}
+
+/** Legacy top-level `kyc` + `aml` → one flat screening (aml wins on duplicate keys). */
+function flatScreeningFromLegacyKycAml(
+  kyc: Record<string, unknown>,
+  aml: Record<string, unknown>
+): Record<string, unknown> {
+  const merged = { ...kyc, ...aml };
+  const provider = String(merged.provider ?? "ACURIS").trim() || "ACURIS";
+  const requestId = String(merged.requestId ?? "").trim();
+  const amlRaw = typeof aml.rawStatus === "string" ? aml.rawStatus.trim() : "";
+  const kycRaw = typeof kyc.rawStatus === "string" ? kyc.rawStatus.trim() : "";
+  const status = amlRaw || kycRaw || String(merged.status ?? "").trim();
+  const nk = asObject(kyc.normalized);
+  const na = asObject(aml.normalized);
+  let normalized: Record<string, unknown> | undefined;
+  if (nk && na) normalized = { ...nk, ...na };
+  else if (na) normalized = { ...na };
+  else if (nk) normalized = { ...nk };
+  const out: Record<string, unknown> = {
+    provider,
+    requestId,
+    status,
+    riskLevel: String(merged.riskLevel ?? ""),
+    riskScore: String(merged.riskScore ?? ""),
+    updatedAt: String(merged.updatedAt ?? ""),
+  };
+  if (merged.messageStatus !== undefined && merged.messageStatus !== null) {
+    out.messageStatus = merged.messageStatus;
+  }
+  if (typeof merged.referenceId === "string" && merged.referenceId.trim()) {
+    out.referenceId = merged.referenceId.trim();
+  }
+  if (typeof aml.possibleMatchCount === "number") out.possibleMatchCount = aml.possibleMatchCount;
+  if (typeof aml.blacklistedMatchCount === "number") out.blacklistedMatchCount = aml.blacklistedMatchCount;
+  if (normalized) out.normalized = normalized;
+  return out;
+}
+
+/**
+ * Single flat ACURIS screening (+ optional `normalized` for issuer-shaped sync).
+ * Legacy: merges top-level `aml` over `kyc`, or nested `screening.kyc` / `screening.aml`.
+ */
+export function getEffectiveCtosPartyScreening(root: Record<string, unknown>): Record<string, unknown> {
+  const nested = root.screening;
+  if (isObject(nested)) {
+    const kycChild = asObject(nested.kyc);
+    const amlChild = asObject(nested.aml);
+    if (kycChild || amlChild) {
+      const flatFromChildren = flatScreeningFromLegacyKycAml(kycChild ?? {}, amlChild ?? {});
+      const { kyc: _k, aml: _a, ...rest } = nested as Record<string, unknown>;
+      return { ...flatFromChildren, ...rest };
+    }
+    return { ...nested };
+  }
+  const kyc = asObject(root.kyc) ?? {};
+  const aml = asObject(root.aml) ?? {};
+  if (Object.keys(kyc).length === 0 && Object.keys(aml).length === 0) return {};
+  return flatScreeningFromLegacyKycAml(kyc, aml);
+}
+
 /** True when RegTank KYC is already approved (email must not change). */
 export function isCtosPartySupplementApprovalLocked(root: unknown): boolean {
   const r = parseCtosPartySupplementRoot(root);
   const onb = getEffectiveCtosPartyOnboarding(r);
   const scr = getEffectiveCtosPartyScreening(r);
   const regtankStatus = String(onb.status ?? onb.regtankStatus ?? "").trim().toUpperCase();
-  const kycRaw =
-    scr.kyc && typeof scr.kyc === "object" && !Array.isArray(scr.kyc)
-      ? String((scr.kyc as Record<string, unknown>).rawStatus ?? "").trim().toUpperCase()
-      : "";
-  return regtankStatus === "APPROVED" || kycRaw === "APPROVED";
-}
-
-function screeningProviderFromBlocks(
-  kyc: Record<string, unknown>,
-  aml: Record<string, unknown>
-): string {
-  const pk = kyc.provider;
-  const pa = aml.provider;
-  if (typeof pk === "string" && pk.trim()) return pk.trim();
-  if (typeof pa === "string" && pa.trim()) return pa.trim();
-  return "ACURIS";
-}
-
-/**
- * Effective screening: nested `screening` (kyc + aml ACURIS payloads) or legacy top-level `kyc` / `aml`.
- */
-export function getEffectiveCtosPartyScreening(root: Record<string, unknown>): {
-  provider: string;
-  kyc: Record<string, unknown>;
-  aml: Record<string, unknown>;
-} {
-  const nested = root.screening;
-  if (isObject(nested)) {
-    const kyc = isObject(nested.kyc) ? { ...(nested.kyc as Record<string, unknown>) } : {};
-    const aml = isObject(nested.aml) ? { ...(nested.aml as Record<string, unknown>) } : {};
-    const provider =
-      typeof nested.provider === "string" && nested.provider.trim()
-        ? nested.provider.trim()
-        : screeningProviderFromBlocks(kyc, aml);
-    return { provider, kyc, aml };
-  }
-  const kyc = isObject(root.kyc) ? { ...(root.kyc as Record<string, unknown>) } : {};
-  const aml = isObject(root.aml) ? { ...(root.aml as Record<string, unknown>) } : {};
-  return {
-    provider: screeningProviderFromBlocks(kyc, aml),
-    kyc,
-    aml,
-  };
+  const screeningRaw = String(scr.status ?? "").trim().toUpperCase();
+  return regtankStatus === "APPROVED" || screeningRaw === "APPROVED";
 }
 
 export type CtosPartySupplementMergePatch = {
   onboarding?: Record<string, unknown>;
-  screening?: { kyc?: Record<string, unknown>; aml?: Record<string, unknown> };
+  /** Flat ACURIS fields (+ optional `normalized`). Shallow-merged over previous screening. */
+  screening?: Record<string, unknown> | null;
+  /** When true, `screening` replaces screening entirely (no merge with prior). */
+  screeningReset?: boolean;
   /** Sets `onboarding.status` (RegTank pipeline; replaces legacy `regtankStatus`). */
   regtankPipelineStatus?: string;
 };
@@ -140,13 +165,17 @@ export function mergeCtosPartySupplementDocument(
   }
   delete onboarding.regtankStatus;
 
-  const kyc = { ...effScr.kyc, ...(patch.screening?.kyc ?? {}) };
-  const aml = { ...effScr.aml, ...(patch.screening?.aml ?? {}) };
-  const screening = {
-    provider: effScr.provider || screeningProviderFromBlocks(kyc, aml),
-    kyc,
-    aml,
-  };
+  let screening: Record<string, unknown>;
+  if (patch.screeningReset && patch.screening && isObject(patch.screening)) {
+    screening = { ...patch.screening };
+  } else {
+    screening = {
+      ...effScr,
+      ...(patch.screening ?? {}),
+    };
+  }
+  delete screening.kyc;
+  delete screening.aml;
 
   const extras: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(prev)) {
@@ -174,7 +203,7 @@ export function getCtosPartySupplementRequestId(root: unknown): string {
   return String(onb.requestId ?? onb.eodRequestId ?? "").trim();
 }
 
-/** Flat read for UI rows that still expect one blob per party. */
+/** Flat read for UI rows that still expect kyc/aml-shaped blocks for display helpers. */
 export function getCtosPartySupplementFlatRead(root: unknown): {
   email: string;
   requestId: string;
@@ -189,14 +218,18 @@ export function getCtosPartySupplementFlatRead(root: unknown): {
   const requestId = String(onb.requestId ?? "").trim();
   const verifyLink = String(onb.verifyLink ?? "").trim();
   const st = String(onb.status ?? onb.regtankStatus ?? "").trim();
-  const kycKeys = Object.keys(scr.kyc);
-  const amlKeys = Object.keys(scr.aml);
+  const screeningStatus = String(scr.status ?? "").trim();
+  const hasScreeningPayload = Object.keys(scr).some(
+    (k) => k !== "normalized" && scr[k] !== undefined && scr[k] !== null && String(scr[k]).trim() !== ""
+  );
+  const synthetic =
+    screeningStatus || hasScreeningPayload ? { rawStatus: screeningStatus || undefined } : null;
   return {
     email: String(onb.email ?? "").trim(),
     requestId,
     verifyLink,
     regtankStatus: st || null,
-    kycBlock: kycKeys.length ? scr.kyc : null,
-    amlBlock: amlKeys.length ? scr.aml : null,
+    kycBlock: synthetic,
+    amlBlock: synthetic,
   };
 }

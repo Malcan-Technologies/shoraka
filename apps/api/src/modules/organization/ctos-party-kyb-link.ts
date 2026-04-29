@@ -172,14 +172,12 @@ export async function linkCtosPartyToKyb(input: LinkCtosPartyToKybInput): Promis
 
   const root = parseCtosPartySupplementRoot(onboardingJson);
   const scr = getEffectiveCtosPartyScreening(root);
-  const kycOb =
-    scr.kyc && typeof scr.kyc === "object" && !Array.isArray(scr.kyc) ? (scr.kyc as Record<string, unknown>) : null;
   const kycId =
-    kycOb && typeof kycOb.requestId === "string" && kycOb.requestId.trim() ? kycOb.requestId.trim() : "";
+    typeof scr.requestId === "string" && scr.requestId.trim() ? scr.requestId.trim() : "";
   if (!kycId) {
     logger.error(
       { organizationId, partyKey },
-      "CTOS KYB link skipped: missing KYC requestId on screening.kyc"
+      "CTOS KYB link skipped: missing KYC requestId on screening.requestId"
     );
     return;
   }

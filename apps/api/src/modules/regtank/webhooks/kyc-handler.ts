@@ -894,20 +894,40 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
       return true;
     }
 
-    const effScr = getEffectiveCtosPartyScreening(prevRoot);
-    const amlBlock = { ...effScr.aml, ...this.buildCtosPartySupplementAmlBlock(payload) };
-    const prevKyc = { ...effScr.kyc };
+    const prevScr = getEffectiveCtosPartyScreening(prevRoot);
+    const amlPiece = this.buildCtosPartySupplementAmlBlock(payload) as Record<string, unknown>;
+    const statusStr = String(
+      (typeof amlPiece.rawStatus === "string" ? amlPiece.rawStatus : "") ||
+        (typeof kycBlock.rawStatus === "string" ? kycBlock.rawStatus : "") ||
+        regtankStatus ||
+        ""
+    ).trim();
+    const screeningPatch: Record<string, unknown> = {
+      ...prevScr,
+      provider: String(kycBlock.provider ?? prevScr.provider ?? "ACURIS"),
+      requestId: String(kycBlock.requestId ?? prevScr.requestId ?? ""),
+      status: statusStr,
+      riskLevel: String(amlPiece.riskLevel ?? kycBlock.riskLevel ?? prevScr.riskLevel ?? ""),
+      riskScore: String(amlPiece.riskScore ?? kycBlock.riskScore ?? prevScr.riskScore ?? ""),
+      updatedAt: now,
+      messageStatus: amlPiece.messageStatus ?? kycBlock.messageStatus ?? prevScr.messageStatus,
+    };
+    if (typeof amlPiece.referenceId === "string" && amlPiece.referenceId.trim()) {
+      screeningPatch.referenceId = amlPiece.referenceId.trim();
+    }
+    if (typeof amlPiece.possibleMatchCount === "number") {
+      screeningPatch.possibleMatchCount = amlPiece.possibleMatchCount;
+    }
+    if (typeof amlPiece.blacklistedMatchCount === "number") {
+      screeningPatch.blacklistedMatchCount = amlPiece.blacklistedMatchCount;
+    }
+    delete screeningPatch.kyc;
+    delete screeningPatch.aml;
 
     const mergedBase = mergeCtosPartySupplementDocument(prevRoot, {
       regtankPipelineStatus: regtankStatus,
       onboarding: { updatedAt: now },
-      screening: {
-        kyc: {
-          ...prevKyc,
-          ...kycBlock,
-        },
-        aml: amlBlock,
-      },
+      screening: screeningPatch,
     });
     const normalizedUpdated = updateCtosSupplementNormalizedStatus({
       onboardingJson: mergedBase,
@@ -932,7 +952,7 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
         referenceId,
         provider: this.kycProviderLabel(),
         status,
-        amlRawStatus: amlBlock.rawStatus,
+        amlRawStatus: screeningPatch.status,
         partyKey: supplement.party_key,
         issuerOrganizationId: supplement.issuer_organization_id,
         investorOrganizationId: supplement.investor_organization_id,
