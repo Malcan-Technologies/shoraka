@@ -21,6 +21,8 @@ export type ApplicationPersonRow = {
   sharePercentage: number | null;
   /** Legacy display / gap label; prefer {@link ApplicationPersonRow.screening} for AML gating. */
   status: string;
+  /** Optional per-person AML fallback label (e.g. from director_aml_status). */
+  directorAmlStatus?: string | null;
   action?: "SEND_EMAIL" | null;
   /** Flat AML screening snapshot (e.g. RegTank ACURIS `status`). Single source for submit/badge gating. */
   screening?: { status?: string | null } | null;
@@ -150,15 +152,33 @@ export function isDirectorShareholderAmlScreeningApproved(
   return s === "APPROVED";
 }
 
+function isApprovedStatusText(raw: unknown): boolean {
+  const s = String(raw ?? "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+  return s === "APPROVED" || s === "AML APPROVED";
+}
+
 /**
  * True when director/shareholder AML is not fully cleared.
  * `null`, `undefined`, or empty `people` counts as pending (same as no parties / no data yet).
  */
 export function peopleHasPendingDirectorShareholderAml(
-  people?: ReadonlyArray<Pick<ApplicationPersonRow, "screening"> | null | undefined> | null
+  people?: ReadonlyArray<
+    Pick<ApplicationPersonRow, "screening" | "directorAmlStatus" | "status"> | null | undefined
+  > | null
 ): boolean {
   if (!people || people.length === 0) return true;
-  return people.some((p) => !isDirectorShareholderAmlScreeningApproved(p?.screening));
+  return people.some((p) => {
+    if (isDirectorShareholderAmlScreeningApproved(p?.screening)) return false;
+    const hasScreeningValue = String(p?.screening?.status ?? "").trim().length > 0;
+    if (hasScreeningValue) return true;
+    if (isApprovedStatusText(p?.directorAmlStatus)) return false;
+    if (isApprovedStatusText(p?.status)) return false;
+    return true;
+  });
 }
 
 export function isFinancialReviewKycReadyForApprove(params: {
