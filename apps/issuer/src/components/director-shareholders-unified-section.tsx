@@ -70,10 +70,22 @@ export interface DirectorShareholdersUnifiedSectionProps {
 
 type AugmentedRow = DirectorShareholderDisplayRow & { __person: ApplicationPersonRow };
 
-function humanizePipelineStatus(s: string): string {
-  const t = s.trim();
-  if (!t) return "Not started";
-  return t.replace(/_/g, " ");
+function normalizeStatusText(raw: string): string {
+  const t = raw.trim();
+  if (!t) return "NOT_STARTED";
+  const mapped: Record<string, string> = {
+    "KYC Approved": "APPROVED",
+    "KYC Pending": "PENDING",
+    "KYC Failed": "REJECTED",
+    "AML Approved": "APPROVED",
+    "AML Pending": "PENDING",
+    "AML Failed": "REJECTED",
+    "Not Started": "NOT_STARTED",
+    "Status unavailable": "STATUS_UNAVAILABLE",
+    Sent: "SENT",
+  };
+  if (mapped[t]) return mapped[t];
+  return t.toUpperCase().replace(/\s+/g, "_");
 }
 
 function roleLower(r: DirectorShareholderDisplayRow): string {
@@ -111,7 +123,8 @@ function onboardingLinkSentForRow(row: DirectorShareholderDisplayRow): boolean {
 
 /** `row.status` is always unified KYC display (CTOS or legacy). */
 function ctosKycStatusUiFromRow(row: DirectorShareholderDisplayRow): { display: string; badgeClass: string } {
-  return { display: row.status, badgeClass: regtankDisplayStatusBadgeClass(row.status) };
+  const display = normalizeStatusText(row.status);
+  return { display, badgeClass: regtankDisplayStatusBadgeClass(display) };
 }
 
 function partyKeyRawForRow(row: DirectorShareholderDisplayRow): string {
@@ -124,12 +137,12 @@ function partyKeyRawForRow(row: DirectorShareholderDisplayRow): string {
 }
 
 function rowKycApproved(row: DirectorShareholderDisplayRow): boolean {
-  return row.status === "KYC Approved";
+  return normalizeStatusText(row.status) === "APPROVED";
 }
 
 function rowNeedsProfileAction(row: DirectorShareholderDisplayRow, emailDisplay: string): boolean {
   if (rowKycApproved(row)) return false;
-  return !emailDisplay.trim() || row.status === "Not Started";
+  return !emailDisplay.trim() || normalizeStatusText(row.status) === "NOT_STARTED";
 }
 
 function onboardingApprovalLockActive(onboardingJson: unknown): boolean {
@@ -137,7 +150,7 @@ function onboardingApprovalLockActive(onboardingJson: unknown): boolean {
 }
 
 function isRowComplete(row: DirectorShareholderDisplayRow, persistedEmail: string): boolean {
-  return Boolean(persistedEmail?.trim()) && row.status !== "Not Started";
+  return Boolean(persistedEmail?.trim()) && normalizeStatusText(row.status) !== "NOT_STARTED";
 }
 
 /** Persisted save complete, or local preview after confirm (no API) when row shows sent + email. */
@@ -151,7 +164,7 @@ function isRowCompleteForUi(
   return (
     sentIds.has(row.id) &&
     Boolean(displayEmailStr.trim()) &&
-    row.status !== "Not Started"
+    normalizeStatusText(row.status) !== "NOT_STARTED"
   );
 }
 
@@ -405,13 +418,7 @@ export function DirectorShareholdersUnifiedSection({
 
     const legacyKycRec =
       partySource && typeA ? getDirectorKycPartyRecord(person.matchKey, partySource.directorKycStatus) : null;
-    const legacyKycApproved =
-      String(legacyKycRec?.kycStatus ?? "")
-        .trim()
-        .toUpperCase() === "APPROVED";
-    const legacyKycLabel = legacyKycApproved
-      ? "KYC Approved"
-      : humanizePipelineStatus(String(legacyKycRec?.kycStatus ?? "Pending"));
+    const legacyKycLabel = normalizeStatusText(String(legacyKycRec?.kycStatus ?? "PENDING"));
 
     return (
       <div
@@ -442,7 +449,7 @@ export function DirectorShareholdersUnifiedSection({
                 <Badge
                   className={cn(
                     "text-xs font-medium",
-                    regtankDisplayStatusBadgeClass(legacyKycApproved ? "KYC Approved" : legacyKycLabel)
+                    regtankDisplayStatusBadgeClass(legacyKycLabel)
                   )}
                 >
                   {legacyKycLabel}
@@ -458,7 +465,7 @@ export function DirectorShareholdersUnifiedSection({
                     isRegTankSubmitReadyStatus(pipelineStatus) ? "border-primary/40 text-primary" : ""
                   )}
                 >
-                  {humanizePipelineStatus(pipelineStatus)}
+                  {normalizeStatusText(pipelineStatus)}
                 </Badge>
               </div>
             ) : (
@@ -575,8 +582,6 @@ export function DirectorShareholdersUnifiedSection({
     const entityLabel = String(
       entityRec?.approveStatus ?? entityRec?.status ?? entityRec?.approve_status ?? ""
     ).trim();
-    const kybApproved =
-      getSupplementPipelineStatus(supJson).toUpperCase().replace(/\s+/g, "_") === "APPROVED";
     const kycUi = ctosKycStatusUiFromRow(row);
     const supplementReady = partySource
       ? Boolean(getSupplementRequestId(supJson)) && isRegTankSubmitReadyStatus(pipelineStatus)
@@ -610,19 +615,19 @@ export function DirectorShareholdersUnifiedSection({
                 <Badge
                   className={cn(
                     "text-xs font-medium",
-                    kybApproved
-                      ? regtankDisplayStatusBadgeClass("KYC Approved")
+                    normalizeStatusText(pipelineStatus || entityLabel || "PENDING") === "APPROVED"
+                      ? regtankDisplayStatusBadgeClass("APPROVED")
                       : "border border-muted-foreground/40 bg-transparent text-foreground"
                   )}
                 >
-                  {kybApproved ? "KYB Approved" : humanizePipelineStatus(pipelineStatus || entityLabel || "Pending")}
+                  {normalizeStatusText(pipelineStatus || entityLabel || "PENDING")}
                 </Badge>
               </div>
             ) : partySource && !typeA ? (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-muted-foreground">Status</span>
                 <Badge variant="outline" className="text-xs font-medium">
-                  {humanizePipelineStatus(pipelineStatus)}
+                  {normalizeStatusText(pipelineStatus)}
                 </Badge>
               </div>
             ) : (

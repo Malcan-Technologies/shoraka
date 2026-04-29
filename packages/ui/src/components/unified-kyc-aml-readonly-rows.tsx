@@ -18,13 +18,31 @@ export interface UnifiedKycAmlReadonlyRowsProps {
   isRefreshing?: boolean;
 }
 
+function normalizeStatusText(raw: string): string {
+  const t = raw.trim();
+  if (!t) return "STATUS_UNAVAILABLE";
+  const mapped: Record<string, string> = {
+    "KYC Approved": "APPROVED",
+    "KYC Pending": "PENDING",
+    "KYC Failed": "REJECTED",
+    "AML Approved": "APPROVED",
+    "AML Pending": "PENDING",
+    "AML Failed": "REJECTED",
+    "Not Started": "NOT_STARTED",
+    "Status unavailable": "STATUS_UNAVAILABLE",
+    Sent: "SENT",
+  };
+  if (mapped[t]) return mapped[t];
+  return t.toUpperCase().replace(/\s+/g, "_");
+}
+
 function kycBadge(row: DirectorShareholderDisplayRow) {
-  const label = row.status;
+  const label = normalizeStatusText(row.status);
   const cls = regtankDisplayStatusBadgeClass(label);
-  if (label === "KYC Approved" || label === "KYC Failed") {
+  if (label === "APPROVED" || label === "REJECTED") {
     return (
       <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
-        {label === "KYC Approved" ? (
+        {label === "APPROVED" ? (
           <CheckCircleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
         ) : (
           <XCircleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
@@ -33,7 +51,7 @@ function kycBadge(row: DirectorShareholderDisplayRow) {
       </Badge>
     );
   }
-  if (label === "KYC Pending" || label === "Sent") {
+  if (label === "PENDING" || label === "SENT") {
     return (
       <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
         <ClockIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
@@ -41,7 +59,7 @@ function kycBadge(row: DirectorShareholderDisplayRow) {
       </Badge>
     );
   }
-  if (label === "Status unavailable") {
+  if (label === "STATUS_UNAVAILABLE") {
     return (
       <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
         <ExclamationTriangleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
@@ -58,7 +76,7 @@ function kycBadge(row: DirectorShareholderDisplayRow) {
 }
 
 function amlBadge(display: string) {
-  if (display === "AML Approved") {
+  if (display === "APPROVED") {
     return (
       <Badge
         variant="outline"
@@ -69,7 +87,7 @@ function amlBadge(display: string) {
       </Badge>
     );
   }
-  if (display === "AML Failed") {
+  if (display === "REJECTED") {
     return (
       <Badge variant="destructive" className="text-[11px] font-normal">
         <XCircleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
@@ -77,7 +95,7 @@ function amlBadge(display: string) {
       </Badge>
     );
   }
-  if (display === "AML Pending") {
+  if (display === "PENDING") {
     return (
       <Badge
         variant="outline"
@@ -100,9 +118,8 @@ function amlBadge(display: string) {
 }
 
 function amlCell(row: DirectorShareholderDisplayRow) {
-  const display = row.amlStatus?.trim()
-    ? row.amlStatus
-    : getDisplayAmlStatus("PENDING");
+  const rawDisplay = row.amlStatus?.trim() ? row.amlStatus : getDisplayAmlStatus("STATUS_UNAVAILABLE");
+  const display = normalizeStatusText(rawDisplay);
   return amlBadge(display);
 }
 
