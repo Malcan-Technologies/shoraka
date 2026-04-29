@@ -32,6 +32,11 @@ export const NotificationTypeIds = {
   APPLICATION_RESUBMITTED_CONFIRMATION: 'application_resubmitted_confirmation',
   APPLICATION_WITHDRAWN_CONFIRMATION: 'application_withdrawn_confirmation',
   APPLICATION_COMPLETED: 'application_completed',
+
+  /** Issuer: CTOS/AML snapshot shows director/shareholder verification needed (event only). */
+  DIRECTOR_SHAREHOLDER_MISMATCH: 'director_shareholder_mismatch',
+  /** Issuer: admin asked party to correct and resubmit (event only). */
+  DIRECTOR_SHAREHOLDER_REJECTED: 'director_shareholder_rejected',
 } as const;
 
 export type NotificationTypeId = typeof NotificationTypeIds[keyof typeof NotificationTypeIds];
@@ -120,6 +125,14 @@ export interface NotificationPayloads {
   };
   [NotificationTypeIds.APPLICATION_COMPLETED]: {
     applicationId: string;
+  };
+  [NotificationTypeIds.DIRECTOR_SHAREHOLDER_MISMATCH]: {
+    issuerOrganizationId: string;
+  };
+  [NotificationTypeIds.DIRECTOR_SHAREHOLDER_REJECTED]: {
+    issuerOrganizationId: string;
+    partyKey: string;
+    personName?: string;
   };
 }
 
@@ -266,6 +279,22 @@ export const NOTIFICATION_TEMPLATES: {
     title: 'Application Completed',
     message: (data) => `Your application ${getShortApplicationRef(data.applicationId)} has been completed successfully.`,
     linkPath: (data) => `/applications/${data.applicationId}`,
+    portal: 'issuer',
+  },
+  [NotificationTypeIds.DIRECTOR_SHAREHOLDER_MISMATCH]: {
+    title: 'Directors/Shareholders Update Required',
+    message: () =>
+      'We found differences in your directors/shareholders. Please review and complete verification.',
+    linkPath: () => '/profile',
+    portal: 'issuer',
+  },
+  [NotificationTypeIds.DIRECTOR_SHAREHOLDER_REJECTED]: {
+    title: 'Action Required: Director/Shareholder Update',
+    message: (data) => {
+      const who = data.personName?.trim() ? ` (${data.personName.trim()})` : '';
+      return `This individual${who} requires correction. Please review and resubmit their details.`;
+    },
+    linkPath: () => '/profile',
     portal: 'issuer',
   },
 };

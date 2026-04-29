@@ -23,7 +23,7 @@ import {
   getStatusPresentationByBadgeKey,
 } from "@cashsouk/config";
 import type { WithdrawReason } from "@cashsouk/types";
-import { peopleHasPendingDirectorShareholderAml } from "@cashsouk/types";
+import { filterVisiblePeopleRows, peopleHasPendingDirectorShareholderAml } from "@cashsouk/types";
 import { useAuthToken } from "@cashsouk/config";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -693,9 +693,17 @@ export default function ApplicationsPage() {
   const isDev = process.env.NODE_ENV === "development";
 
   const { activeOrganization } = useOrganization();
-  const directorSubmitBlocked =
+
+  const visiblePeopleForDsGating = React.useMemo(
+    () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
+    [activeOrganization?.people]
+  );
+  const dsAmlPending =
     activeOrganization?.type === "COMPANY" &&
-    activeOrganization.directorShareholderSubmitReady === false;
+    visiblePeopleForDsGating.length > 0 &&
+    peopleHasPendingDirectorShareholderAml(visiblePeopleForDsGating);
+
+  const directorSubmitBlocked = dsAmlPending;
   const directorSubmitBlockedMessage =
     activeOrganization?.directorShareholderSubmitBlockedMessage ??
     "Please complete AML for all directors/shareholders before submitting.";
@@ -710,10 +718,7 @@ export default function ApplicationsPage() {
     return activeOrganization.type === "PERSONAL" ? "Personal Account" : "Company Account";
   }, [activeOrganization]);
 
-  const directorAmlPendingForDashboard =
-    activeOrganization?.type === "COMPANY" &&
-    Array.isArray(activeOrganization.people) &&
-    peopleHasPendingDirectorShareholderAml(activeOrganization.people);
+  const directorAmlPendingForDashboard = dsAmlPending;
 
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-x-hidden p-4 pt-4">

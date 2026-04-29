@@ -569,6 +569,14 @@ export class AMLSyncService {
         where: { id: organizationId },
         data: { director_aml_status: directorAmlStatus as Prisma.InputJsonValue },
       });
+      try {
+        const { runIssuerDirectorShareholderNotificationResolutionFromDb } = await import(
+          "../notification/director-shareholder-notifications"
+        );
+        await runIssuerDirectorShareholderNotificationResolutionFromDb(organizationId);
+      } catch {
+        /* non-blocking */
+      }
     }
   }
 

@@ -466,6 +466,16 @@ export class ApiClient {
     );
   }
 
+  async rejectIssuerDirectorShareholder(
+    issuerOrganizationId: string,
+    body: { partyKey: string; remark: string }
+  ): Promise<ApiResponse<{ requestId: string }> | ApiError> {
+    return this.post<{ requestId: string }>(
+      `/v1/admin/organizations/issuer/${encodeURIComponent(issuerOrganizationId)}/director-shareholders/reject`,
+      body
+    );
+  }
+
   async updateAdminApplicationStatus(
     id: string,
     status: string

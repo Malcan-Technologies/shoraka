@@ -1,8 +1,8 @@
-import type { OnboardingApplicationResponse } from "@cashsouk/types";
 import {
   normalizeDirectorShareholderIdKey,
   parseCtosPartySupplementRoot,
   getEffectiveCtosPartyScreening,
+  type ApplicationPersonRow,
 } from "@cashsouk/types";
 import { extractCtosIndividuals } from "../regtank/helpers/detect-director-gaps";
 
@@ -28,7 +28,7 @@ export function buildAdminPeopleList(params: {
   supplement?: unknown | null;
   ctosPartySupplements?: SupplementInput[] | null;
   corporateEntities: unknown;
-}): OnboardingApplicationResponse["people"] {
+}): ApplicationPersonRow[] {
   void params.corporateEntities;
   void params.issuerDirectorKycStatus;
 

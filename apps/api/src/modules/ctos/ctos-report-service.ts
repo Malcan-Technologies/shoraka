@@ -20,6 +20,8 @@ import {
   resolveCtosSubjectFromOrgJson,
   type CtosSubjectKind,
 } from "./resolve-subject-from-org";
+import { OrganizationService } from "../organization/service";
+import { runIssuerDirectorShareholderNotificationsAfterOrgCtosReportInsert } from "../notification/director-shareholder-notifications";
 
 export type AdminOrgCtosPortal = "issuer" | "investor";
 
@@ -209,6 +211,18 @@ export async function fetchAndInsertCtosReport(
 
   const fetchedAt = new Date();
 
+  const orgSvc = new OrganizationService();
+  const beforeExtras = await orgSvc.getIssuerPartyListExtras(issuerOrganizationId);
+  const orgForPeople = await prisma.issuerOrganization.findUnique({
+    where: { id: issuerOrganizationId },
+    select: {
+      owner_user_id: true,
+      corporate_entities: true,
+      director_kyc_status: true,
+      director_aml_status: true,
+    },
+  });
+
   const row = await prisma.ctosReport.create({
     data: {
       issuer_organization_id: issuerOrganizationId,
@@ -229,6 +243,30 @@ export async function fetchAndInsertCtosReport(
       financials_json: parsed.financials_json as unknown as Prisma.InputJsonValue,
     },
   });
+
+  if (orgForPeople?.owner_user_id) {
+    try {
+      await runIssuerDirectorShareholderNotificationsAfterOrgCtosReportInsert({
+        issuerOrganizationId,
+        ownerUserId: orgForPeople.owner_user_id,
+        beforeCompanyJson: beforeExtras.latestOrganizationCtosCompanyJson ?? null,
+        afterCompanyJson: row.company_json,
+        newCtosReportId: row.id,
+        corporateEntities: orgForPeople.corporate_entities ?? null,
+        directorKycStatus: orgForPeople.director_kyc_status ?? null,
+        directorAmlStatus: orgForPeople.director_aml_status ?? null,
+        supplements: beforeExtras.ctosPartySupplements,
+      });
+    } catch (e) {
+      logger.warn(
+        {
+          issuerOrganizationId,
+          err: e instanceof Error ? e.message : String(e),
+        },
+        "Director/shareholder notification hook after CTOS org report failed (non-blocking)"
+      );
+    }
+  }
 
   console.log("Inserted CTOS report row:", row.id, "for issuer org:", issuerOrganizationId);
   console.log("CTOS FINAL OUTPUT TO UI (persisted report row):", {
@@ -279,6 +317,28 @@ export async function fetchAndInsertCtosReportForAdminOrg(
   }
 
   const fetchedAt = new Date();
+
+  let beforeExtras: Awaited<ReturnType<OrganizationService["getIssuerPartyListExtras"]>> | null = null;
+  let orgForPeople: {
+    owner_user_id: string;
+    corporate_entities: Prisma.JsonValue;
+    director_kyc_status: Prisma.JsonValue;
+    director_aml_status: Prisma.JsonValue;
+  } | null = null;
+  if (portal === "issuer") {
+    const orgSvc = new OrganizationService();
+    beforeExtras = await orgSvc.getIssuerPartyListExtras(organizationId);
+    orgForPeople = await prisma.issuerOrganization.findUnique({
+      where: { id: organizationId },
+      select: {
+        owner_user_id: true,
+        corporate_entities: true,
+        director_kyc_status: true,
+        director_aml_status: true,
+      },
+    });
+  }
+
   const row = await prisma.ctosReport.create({
     data: {
       ...orgFkCreate(portal, organizationId),
@@ -298,6 +358,35 @@ export async function fetchAndInsertCtosReportForAdminOrg(
       financials_json: parsed.financials_json as unknown as Prisma.InputJsonValue,
     },
   });
+
+  if (
+    portal === "issuer" &&
+    beforeExtras &&
+    orgForPeople?.owner_user_id
+  ) {
+    try {
+      await runIssuerDirectorShareholderNotificationsAfterOrgCtosReportInsert({
+        issuerOrganizationId: organizationId,
+        ownerUserId: orgForPeople.owner_user_id,
+        beforeCompanyJson: beforeExtras.latestOrganizationCtosCompanyJson ?? null,
+        afterCompanyJson: row.company_json,
+        newCtosReportId: row.id,
+        corporateEntities: orgForPeople.corporate_entities ?? null,
+        directorKycStatus: orgForPeople.director_kyc_status ?? null,
+        directorAmlStatus: orgForPeople.director_aml_status ?? null,
+        supplements: beforeExtras.ctosPartySupplements,
+      });
+    } catch (e) {
+      logger.warn(
+        {
+          portal,
+          organizationId,
+          err: e instanceof Error ? e.message : String(e),
+        },
+        "Director/shareholder notification hook after admin CTOS org report failed (non-blocking)"
+      );
+    }
+  }
 
   console.log("Inserted CTOS report row:", row.id, "portal:", portal, "org:", organizationId);
   console.log("CTOS FINAL OUTPUT TO UI (persisted report row):", {

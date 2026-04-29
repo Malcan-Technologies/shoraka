@@ -8,14 +8,15 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useIssuerProducts } from "@/hooks/use-products";
 import { useCreateApplication } from "@/hooks/use-applications";
-import { useOrganization } from "@cashsouk/config";
+import { filterVisiblePeopleRows, peopleHasPendingDirectorShareholderAml } from "@cashsouk/types";
+import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
 import { toast } from "sonner";
-import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { useNavigationGuard } from "@/hooks/use-navigation-guard2";
 import { useIssuerUnsavedNavigation } from "@/contexts/issuer-unsaved-navigation-context";
 import { UnsavedChangesModal } from "@/components/unsaved-changes-modal";
 import { VersionMismatchModal } from "@/components/VersionMismatchModal";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DirectorShareholderAlertCard } from "@/components/director-shareholder-alert-card";
 import { ProductList } from "../components/product-list";
 import { ProgressIndicator } from "../components/progress-indicator";
 import { FinancingTypeSkeleton } from "../components/financing-type-skeleton";
@@ -39,12 +40,16 @@ import {
 export default function NewApplicationPage() {
   const router = useRouter();
   const { activeOrganization, isLoading: isOrgLoading } = useOrganization();
-  const directorSubmitBlocked =
-    activeOrganization?.type === "COMPANY" &&
-    activeOrganization.directorShareholderSubmitReady === false;
-  const directorSubmitBlockedMessage =
-    activeOrganization?.directorShareholderSubmitBlockedMessage ??
-    "Please complete AML for all directors/shareholders before submitting.";
+
+  const visiblePeopleForDsAlert = React.useMemo(
+    () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
+    [activeOrganization?.people]
+  );
+  const dsAmlPending =
+    !!activeOrganization &&
+    activeOrganization.type === "COMPANY" &&
+    visiblePeopleForDsAlert.length > 0 &&
+    peopleHasPendingDirectorShareholderAml(visiblePeopleForDsAlert);
   const { setTitle } = useHeader();
 
   React.useEffect(() => {
@@ -351,6 +356,13 @@ export default function NewApplicationPage() {
             </p>
           </div>
 
+          {activeOrganization.type === "COMPANY" ? (
+            <DirectorShareholderAlertCard
+              visiblePeople={visiblePeopleForDsAlert}
+              issuerOrganizationId={activeOrganization.id}
+            />
+          ) : null}
+
           {/* Progress Indicator */}
           {workflowSteps.length > 0 && (
             <ProgressIndicator
@@ -366,14 +378,6 @@ export default function NewApplicationPage() {
 
         {/* Product List */}
         <div className="max-w-7xl mx-auto w-full px-4 pt-6">
-          {directorSubmitBlocked ? (
-            <div
-              role="status"
-              className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-[15px] leading-7 text-foreground"
-            >
-              {directorSubmitBlockedMessage}
-            </div>
-          ) : null}
           {USE_MOCK_FINANCING_TYPE_CATALOG ? (
             <div className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100">
               <p className="font-semibold">Development: mock product catalog</p>
@@ -423,7 +427,7 @@ export default function NewApplicationPage() {
             onClick={handleContinue}
             disabled={
               USE_MOCK_FINANCING_TYPE_CATALOG ||
-              directorSubmitBlocked ||
+              dsAmlPending ||
               products.length === 0 ||
               !selectedProductId ||
               !products.some((p: { id: string }) => p.id === selectedProductId) ||

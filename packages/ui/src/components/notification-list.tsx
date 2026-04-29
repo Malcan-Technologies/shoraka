@@ -6,6 +6,7 @@ import { format } from "date-fns";
 interface NotificationItem {
   id: string;
   read_at?: string | null;
+  resolved_at?: string | null;
   link_path?: string | null;
   priority?: string;
   created_at?: string;
@@ -97,7 +98,7 @@ export function NotificationList() {
         <div className="grid gap-3">
             {notifications.map((n) => {
               const notification = n as unknown as NotificationItem;
-              const isUnread = !notification.read_at;
+              const isUnread = !notification.read_at && !notification.resolved_at;
               const isWarning = notification.priority === "WARNING";
               const isCritical = notification.priority === "CRITICAL";
 

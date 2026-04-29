@@ -834,6 +834,7 @@ model Notification {
   metadata             Json?
   created_at           DateTime             @default(now())
   expires_at           DateTime?
+  resolved_at          DateTime?
   send_to_email        Boolean              @default(false)
   send_to_platform     Boolean              @default(true)
   notification_type    NotificationType     @relation(fields: [notification_type_id], references: [id], onDelete: Cascade)

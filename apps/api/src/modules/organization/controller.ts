@@ -20,9 +20,14 @@ import { requireAuth } from "../../lib/auth/middleware";
 import { AppError } from "../../lib/http/error-handler";
 import { AMLSyncService } from "../regtank/aml-sync-service";
 import { buildAdminPeopleList } from "../admin/build-people-list";
-import { peopleHasPendingDirectorShareholderAml } from "@cashsouk/types";
+import { filterVisiblePeopleRows, peopleHasPendingDirectorShareholderAml } from "@cashsouk/types";
 
 const organizationService = new OrganizationService();
+
+function issuerDirectorShareholderAmlPending(people: ReturnType<typeof buildAdminPeopleList>): boolean {
+  const visible = filterVisiblePeopleRows(people);
+  return visible.length > 0 && peopleHasPendingDirectorShareholderAml(visible);
+}
 
 /**
  * Get authenticated user ID from request
@@ -128,10 +133,10 @@ async function listOrganizations(
             directorShareholderSubmitReady:
               org.type !== "COMPANY"
                 ? true
-                : !peopleHasPendingDirectorShareholderAml(companyPartyById.get(org.id)?.people ?? []),
+                : !issuerDirectorShareholderAmlPending(companyPartyById.get(org.id)?.people ?? []),
             directorShareholderSubmitBlockedMessage:
               org.type === "COMPANY" &&
-              peopleHasPendingDirectorShareholderAml(companyPartyById.get(org.id)?.people ?? [])
+              issuerDirectorShareholderAmlPending(companyPartyById.get(org.id)?.people ?? [])
                 ? "Please complete AML for all directors/shareholders before submitting."
                 : undefined,
           }),
@@ -323,7 +328,7 @@ async function getOrganization(
         : [];
     const issuerDsPending =
       portalType === "issuer" && organization.type === "COMPANY"
-        ? peopleHasPendingDirectorShareholderAml(peopleForSubmit)
+        ? issuerDirectorShareholderAmlPending(peopleForSubmit)
         : false;
 
     res.json({

@@ -46,17 +46,18 @@ import {
   useResubmitApplication,
 } from "@/hooks/use-applications";
 import { useApprovedContracts } from "@/hooks/use-contracts";
-import { useCorporateEntities } from "@/hooks/use-corporate-entities";
-import { areDirectorShareholdersReadyForApplicationSubmit } from "@/lib/director-shareholder-onboarding-ui";
 import { useProducts } from "@/hooks/use-products";
 import { toast } from "sonner";
 import {
+  filterVisiblePeopleRows,
   getStepKeyFromStepId,
+  peopleHasPendingDirectorShareholderAml,
   APPLICATION_STEP_KEYS_WITH_UI,
   STEP_KEY_DISPLAY,
   enforceDeclarationsLastAndDropReview,
   type ApplicationStepKey,
 } from "@cashsouk/types";
+import { DirectorShareholderAlertCard } from "@/components/director-shareholder-alert-card";
 import { ProgressIndicator } from "../../components/progress-indicator";
 import {
   ApplicationFlowBlockedBackdrop,
@@ -190,24 +191,18 @@ function EditApplicationPageBody() {
 
   const { data: approvedContracts = [] } = useApprovedContracts(issuerOrgId);
 
-  const { data: partyEntities } = useCorporateEntities(issuerOrgId || undefined);
   const { activeOrganization } = useOrganization();
 
+  const issuerVisiblePeopleForAlert = React.useMemo(
+    () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
+    [activeOrganization?.people]
+  );
+
   const directorPartySubmitReady = React.useMemo(() => {
-    if (
-      activeOrganization?.type === "COMPANY" &&
-      typeof activeOrganization.directorShareholderSubmitReady === "boolean"
-    ) {
-      return activeOrganization.directorShareholderSubmitReady;
-    }
-    if (!issuerOrgId) return true;
-    if (!partyEntities) return false;
-    const people = partyEntities.people ?? [];
-    if (people.length === 0) return true;
-    return areDirectorShareholdersReadyForApplicationSubmit({
-      people,
-    });
-  }, [activeOrganization, issuerOrgId, partyEntities]);
+    if (activeOrganization?.type !== "COMPANY") return true;
+    if (issuerVisiblePeopleForAlert.length === 0) return true;
+    return !peopleHasPendingDirectorShareholderAml(issuerVisiblePeopleForAlert);
+  }, [activeOrganization?.type, issuerVisiblePeopleForAlert]);
 
   const directorPartySubmitBlockedMessage =
     activeOrganization?.directorShareholderSubmitBlockedMessage ??
@@ -1602,6 +1597,14 @@ function EditApplicationPageBody() {
     <div className="flex flex-col h-full">
       {/* Main content */}
       <main className="flex-1 overflow-y-auto p-3 sm:p-4">
+        {activeOrganization?.type === "COMPANY" ? (
+          <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 pt-2 sm:pt-3">
+            <DirectorShareholderAlertCard
+              visiblePeople={issuerVisiblePeopleForAlert}
+              issuerOrganizationId={activeOrganization.id}
+            />
+          </div>
+        ) : null}
         <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 py-4 sm:py-8">
           {useWizardContentShell ? (
             <ApplicationFlowBlockedBackdrop>

@@ -229,4 +229,27 @@ export const initialNotificationTypes = [
     enabled_platform: true,
     enabled_email: false,
   },
+  {
+    id: "director_shareholder_mismatch",
+    name: "Directors/Shareholders Update Required",
+    description:
+      "Sent when your organization must complete director or shareholder verification (AML-driven).",
+    category: NotificationCategory.SYSTEM,
+    portal_targets: ISSUER_ONLY,
+    default_priority: NotificationPriority.WARNING,
+    user_configurable: false,
+    enabled_platform: true,
+    enabled_email: true,
+  },
+  {
+    id: "director_shareholder_rejected",
+    name: "Director/Shareholder Correction Required",
+    description: "Sent when an administrator requests corrections for a director or shareholder.",
+    category: NotificationCategory.SYSTEM,
+    portal_targets: ISSUER_ONLY,
+    default_priority: NotificationPriority.WARNING,
+    user_configurable: false,
+    enabled_platform: true,
+    enabled_email: true,
+  },
 ];

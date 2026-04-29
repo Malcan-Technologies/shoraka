@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -57,6 +58,7 @@ import { format, isValid, parse, parseISO } from "date-fns";
 import {
   useCreateIssuerOrganizationCtosReport,
   useCreateIssuerOrganizationCtosSubjectReport,
+  useRejectIssuerDirectorShareholder,
 } from "@/hooks/use-admin-issuer-organization-ctos-mutations";
 import { CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
 
@@ -333,7 +335,11 @@ export function ApplicationFinancialReviewContent({
     issuerOrgId || undefined,
     applicationId
   );
+  const rejectParty = useRejectIssuerDirectorShareholder(issuerOrgId || undefined, applicationId);
   const [orgCtosConfirmOpen, setOrgCtosConfirmOpen] = React.useState(false);
+  const [rejectDialogOpen, setRejectDialogOpen] = React.useState(false);
+  const [rejectTarget, setRejectTarget] = React.useState<ApplicationPersonRow | null>(null);
+  const [rejectRemark, setRejectRemark] = React.useState("");
 
   const { unauditedByYear, questionnaire: financialQuestionnaire } = React.useMemo(
     () => extractQuestionnaireAndUnaudited(app.financial_statements),
@@ -951,7 +957,7 @@ export function ApplicationFinancialReviewContent({
         {visiblePeopleRows.length > 0 ? (
           <div className={applicationTableWrapperClass}>
             <div className="overflow-x-auto">
-            <Table className="min-w-[960px] text-[15px]">
+            <Table className="min-w-[1080px] text-[15px]">
               <TableHeader className={applicationTableHeaderBgClass}>
                 <TableRow className="hover:bg-transparent border-b border-border">
                   <TableHead className={applicationTableHeaderClass}>Name</TableHead>
@@ -960,6 +966,7 @@ export function ApplicationFinancialReviewContent({
                   <TableHead className={applicationTableHeaderClass}>KYC / KYB</TableHead>
                   <TableHead className={applicationTableHeaderClass}>Last report</TableHead>
                   <TableHead className={`${applicationTableHeaderClass} text-right`}>Fetch report</TableHead>
+                  <TableHead className={`${applicationTableHeaderClass} text-right`}>Reject</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1021,6 +1028,28 @@ export function ApplicationFinancialReviewContent({
                           Fetch report
                         </Button>
                       </TableCell>
+                      <TableCell className={`${applicationTableCellClass} text-right`}>
+                        {p.entityType === "INDIVIDUAL" &&
+                        p.matchKey?.trim() &&
+                        !isDirectorShareholderAmlScreeningApproved(p.screening) ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 rounded-lg border-destructive/50 text-xs text-destructive hover:bg-destructive/10"
+                            disabled={!issuerOrgId || rejectParty.isPending}
+                            onClick={() => {
+                              setRejectTarget(p);
+                              setRejectRemark("");
+                              setRejectDialogOpen(true);
+                            }}
+                          >
+                            Reject
+                          </Button>
+                        ) : (
+                          <span className="text-muted-foreground">{"\u2014"}</span>
+                        )}
+                      </TableCell>
                     </TableRow>
                   );
                 })}
@@ -1079,6 +1108,76 @@ export function ApplicationFinancialReviewContent({
             >
               {createOrgCtos.isPending ? CTOS_UI.fetching : CTOS_CONFIRM.primaryAction}
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={rejectDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && rejectParty.isPending) return;
+          setRejectDialogOpen(open);
+          if (!open) {
+            setRejectTarget(null);
+            setRejectRemark("");
+          }
+        }}
+      >
+        <AlertDialogContent className="rounded-xl max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reject director or shareholder</AlertDialogTitle>
+            <AlertDialogDescription>
+              The issuer gets a notification. RegTank onboarding is resent for this party. Add an internal
+              remark (required).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {rejectTarget ? (
+            <div className="space-y-2 py-2">
+              <p className="text-sm text-foreground">
+                <span className="text-muted-foreground">Party: </span>
+                {rejectTarget.name?.trim() || rejectTarget.matchKey}
+              </p>
+              <Textarea
+                value={rejectRemark}
+                onChange={(e) => setRejectRemark(e.target.value)}
+                placeholder="Remark for audit trail (required)"
+                className="min-h-[100px] rounded-lg text-[15px] leading-7"
+                maxLength={2000}
+                disabled={rejectParty.isPending}
+              />
+            </div>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-lg" disabled={rejectParty.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              className="rounded-lg"
+              disabled={
+                rejectParty.isPending || !rejectTarget || rejectRemark.trim().length === 0
+              }
+              onClick={() => {
+                if (!rejectTarget) return;
+                console.log("Reject director/shareholder party:", rejectTarget.matchKey);
+                rejectParty.mutate(
+                  { partyKey: rejectTarget.matchKey, remark: rejectRemark.trim() },
+                  {
+                    onSuccess: () => {
+                      toast.success("Party rejected; issuer notified.");
+                      setRejectDialogOpen(false);
+                      setRejectTarget(null);
+                      setRejectRemark("");
+                    },
+                    onError: (err: unknown) =>
+                      toast.error(err instanceof Error ? err.message : "Reject failed"),
+                  }
+                );
+              }}
+            >
+              {rejectParty.isPending ? "Sending…" : "Confirm reject"}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

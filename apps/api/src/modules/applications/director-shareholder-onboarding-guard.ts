@@ -8,7 +8,7 @@
 
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
-import { peopleHasPendingDirectorShareholderAml } from "@cashsouk/types";
+import { filterVisiblePeopleRows, peopleHasPendingDirectorShareholderAml } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
 import { buildAdminPeopleList } from "../admin/build-people-list";
 
@@ -52,7 +52,11 @@ export async function assertIssuerOrgDirectorShareholderOnboardingReady(
     corporateEntities: org.corporate_entities ?? null,
   });
 
-  if (peopleHasPendingDirectorShareholderAml(people)) {
+  const visible = filterVisiblePeopleRows(people);
+  if (visible.length === 0) {
+    return;
+  }
+  if (peopleHasPendingDirectorShareholderAml(visible)) {
     throw new AppError(400, "DIRECTOR_SHAREHOLDER_PENDING", DIRECTOR_SHAREHOLDER_PENDING_MESSAGE);
   }
 }

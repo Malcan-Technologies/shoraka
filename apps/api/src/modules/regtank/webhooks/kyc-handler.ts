@@ -934,6 +934,17 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
       data: { onboarding_json: mergedBase as Prisma.InputJsonValue },
     });
 
+    if (supplement.issuer_organization_id) {
+      try {
+        const { runIssuerDirectorShareholderNotificationResolutionFromDb } = await import(
+          "../../notification/director-shareholder-notifications"
+        );
+        await runIssuerDirectorShareholderNotificationResolutionFromDb(supplement.issuer_organization_id);
+      } catch {
+        /* non-blocking */
+      }
+    }
+
     logger.info(
       {
         requestId,
