@@ -65,10 +65,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  buildDirectorShareholderDisplayRowForEmailEligibility,
   filterVisiblePeopleRows,
   getDisplayStatus,
   formatSharePercentageCell,
-  isDirectorShareholderNotifyRowEnabled,
+  isDirectorShareholderEmailActionable,
 } from "@/lib/onboarding-people-display";
 import { DirectorShareholderNotifyButton } from "@/components/director-shareholder-notify-button";
 import {
@@ -1523,10 +1524,6 @@ export default function OrganizationDetailPage() {
                         const amlLookup = buildAmlLookup(org.directorAmlStatus);
                         const kycLookup = buildKycLookup(org.directorKycStatus);
                         const entitiesByGov = buildCorporateEntityByGovernmentId(org.corporateEntities);
-                        const notifyCtx = {
-                          directorKycStatus: org.directorKycStatus,
-                          corporateEntities: org.corporateEntities,
-                        };
 
                         if (rows.length === 0) {
                           return (
@@ -1556,8 +1553,17 @@ export default function OrganizationDetailPage() {
                               <TableBody>
                                 {rows.map((p) => {
                                   const key = normalizeDirectorShareholderIdKey(p.matchKey);
-                                  const notifyRowEnabled = isDirectorShareholderNotifyRowEnabled(p, notifyCtx);
                                   const supplement = key ? supplementsByKey.get(key) ?? {} : {};
+                                  const displayRow = buildDirectorShareholderDisplayRowForEmailEligibility(p, supplement);
+                                  const notifyRowEnabled = isDirectorShareholderEmailActionable(p, {
+                                    displayRow,
+                                    latestOnboardingRoot: supplement,
+                                    partySourcePresent: true,
+                                    directorKycStatus: org.directorKycStatus,
+                                    corporateEntities: org.corporateEntities,
+                                    blockPartyOnboarding:
+                                      portal === "issuer" && String(org.onboardingStatus ?? "").trim() !== "COMPLETED",
+                                  });
                                   const onboarding = getEffectiveCtosPartyOnboarding(supplement);
                                   const screening = getEffectiveCtosPartyScreening(supplement);
                                   const entity = key ? entitiesByGov.get(key) : undefined;

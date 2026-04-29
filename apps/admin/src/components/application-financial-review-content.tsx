@@ -31,10 +31,11 @@ import {
 } from "@/components/application-review/application-table-styles";
 import { cn } from "@/lib/utils";
 import {
+  buildDirectorShareholderDisplayRowForEmailEligibility,
   filterVisiblePeopleRows,
   formatPeopleRolesLineWithoutShare,
   formatSharePercentageCell,
-  isDirectorShareholderNotifyRowEnabled,
+  isDirectorShareholderEmailActionable,
 } from "@/lib/onboarding-people-display";
 import { DirectorShareholderNotifyButton } from "@/components/director-shareholder-notify-button";
 import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
@@ -49,8 +50,10 @@ import {
   getAdminFinancialSummaryUserColumnYears,
   getLatestThreeCtosYearSlots,
   isDirectorShareholderAmlScreeningApproved,
+  normalizeDirectorShareholderIdKey,
   normalizeFinancialStatementsQuestionnaire,
   type ApplicationPersonRow,
+  type CorporateEntitiesShape,
   type ColumnComputedMetrics,
   type FinancialStatementsInput,
   type FinancialStatementsQuestionnaire,
@@ -358,13 +361,18 @@ export function ApplicationFinancialReviewContent({
 
   const peopleRows = React.useMemo(() => app.people ?? [], [app.people]);
   const visiblePeopleRows = React.useMemo(() => filterVisiblePeopleRows(peopleRows), [peopleRows]);
-  const notifyCtx = React.useMemo(
-    () => ({
-      directorKycStatus: app.issuer_organization?.director_kyc_status,
-      corporateEntities: app.issuer_organization?.corporate_entities,
-    }),
-    [app.issuer_organization?.director_kyc_status, app.issuer_organization?.corporate_entities]
-  );
+  const supplementsByPartyKey = React.useMemo(() => {
+    const m = new Map<string, Record<string, unknown>>();
+    for (const row of app.issuer_organization?.ctos_party_supplements ?? []) {
+      const pk = normalizeDirectorShareholderIdKey(String(row.party_key ?? ""));
+      if (!pk) continue;
+      const raw = row.onboarding_json;
+      const json =
+        raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+      m.set(pk, json);
+    }
+    return m;
+  }, [app.issuer_organization?.ctos_party_supplements]);
   const orgSubjectReports = app.issuer_organization?.latest_organization_ctos_subject_reports;
 
   const financialRows: CtosFinRow[] = React.useMemo(() => {
@@ -988,7 +996,20 @@ export function ApplicationFinancialReviewContent({
               </TableHeader>
               <TableBody>
                 {visiblePeopleRows.map((p) => {
-                  const notifyRowEnabled = isDirectorShareholderNotifyRowEnabled(p, notifyCtx);
+                  const pk = normalizeDirectorShareholderIdKey(p.matchKey);
+                  const supplement = pk ? supplementsByPartyKey.get(pk) ?? {} : {};
+                  const displayRow = buildDirectorShareholderDisplayRowForEmailEligibility(p, supplement);
+                  const notifyRowEnabled = isDirectorShareholderEmailActionable(p, {
+                    displayRow,
+                    latestOnboardingRoot: supplement,
+                    partySourcePresent: true,
+                    directorKycStatus: app.issuer_organization?.director_kyc_status,
+                    corporateEntities: app.issuer_organization?.corporate_entities as
+                      | CorporateEntitiesShape
+                      | null
+                      | undefined,
+                    blockPartyOnboarding: false,
+                  });
                   const lastReport = latestSubjectReportForMatchKey(p.matchKey, orgSubjectReports);
                   const lastReportLabel = formatSubjectReportTimestamp(lastReport?.fetched_at);
                   const kycKybLabel = directorShareholderKycKybBadgeLabel(p);

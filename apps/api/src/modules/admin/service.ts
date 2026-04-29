@@ -64,9 +64,11 @@ import {
   isRegtankIso3166Code,
   normalizeDirectorShareholderIdKey,
   peopleHasPendingDirectorShareholderAml,
+  buildDirectorShareholderDisplayRowForEmailEligibility,
   filterVisiblePeopleRows,
-  requiresOnboardingEmail,
+  isDirectorShareholderEmailActionable,
   type ApplicationPersonRow,
+  type CorporateEntitiesShape,
   type SoukscoreRiskRating,
   normalizeRawStatus,
 } from "@cashsouk/types";
@@ -2165,7 +2167,12 @@ export class AdminService {
     const extras = await orgSvc.getIssuerPartyListExtras(issuerOrganizationId);
     const fullOrg = await prisma.issuerOrganization.findUnique({
       where: { id: issuerOrganizationId },
-      select: { corporate_entities: true, director_kyc_status: true, director_aml_status: true },
+      select: {
+        corporate_entities: true,
+        director_kyc_status: true,
+        director_aml_status: true,
+        onboarding_status: true,
+      },
     });
     if (!fullOrg) {
       throw new AppError(404, "NOT_FOUND", "Organization not found");
@@ -2190,7 +2197,26 @@ export class AdminService {
     if (!match) {
       throw new AppError(404, "NOT_FOUND", "Party not found among visible directors/shareholders");
     }
-    if (!requiresOnboardingEmail(match)) {
+
+    const supplementRecord = extras.ctosPartySupplements.find(
+      (s) => normalizeDirectorShareholderIdKey(s.partyKey) === want
+    );
+    const supplement =
+      supplementRecord?.onboardingJson &&
+      typeof supplementRecord.onboardingJson === "object" &&
+      !Array.isArray(supplementRecord.onboardingJson)
+        ? (supplementRecord.onboardingJson as Record<string, unknown>)
+        : {};
+    const displayRow = buildDirectorShareholderDisplayRowForEmailEligibility(match, supplement);
+    const emailActionable = isDirectorShareholderEmailActionable(match, {
+      displayRow,
+      latestOnboardingRoot: supplement,
+      partySourcePresent: true,
+      directorKycStatus: fullOrg.director_kyc_status,
+      corporateEntities: fullOrg.corporate_entities as CorporateEntitiesShape | null | undefined,
+      blockPartyOnboarding: fullOrg.onboarding_status !== OnboardingStatus.COMPLETED,
+    });
+    if (!emailActionable) {
       throw new AppError(400, "VALIDATION_ERROR", "Not eligible for notify");
     }
 

@@ -11,16 +11,16 @@ import {
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 import {
+  buildDirectorShareholderDisplayRowForEmailEligibility,
   filterVisiblePeopleRows,
-  formatPeopleRolesLine,
   getCtosPartySupplementFlatRead,
   getCtosPartySupplementRequestId,
   getDirectorKycPartyRecord,
   getDirectorShareholderSingleStatusPresentation,
-  getDisplayStatus,
   getDisplayRoleLabel,
   isCtosIndividualKycEligibleRow,
   isCtosPartySupplementApprovalLocked,
+  isDirectorShareholderEmailActionable,
   normalizeDirectorShareholderIdKey,
   normalizeDirectorShareholderPartyEmail,
   normalizeRawStatus,
@@ -170,10 +170,6 @@ function rowNeedsProfileAction(row: DirectorShareholderDisplayRow, emailDisplay:
   return !emailDisplay.trim() || !normalizeRawStatus(row.status);
 }
 
-function onboardingApprovalLockActive(onboardingJson: unknown): boolean {
-  return isCtosPartySupplementApprovalLocked(onboardingJson);
-}
-
 function isRowComplete(row: DirectorShareholderDisplayRow, persistedEmail: string): boolean {
   return Boolean(persistedEmail?.trim()) && Boolean(normalizeRawStatus(row.status));
 }
@@ -191,53 +187,6 @@ function isRowCompleteForUi(
     Boolean(displayEmailStr.trim()) &&
     Boolean(normalizeRawStatus(row.status))
   );
-}
-
-function personToDisplayRow(
-  p: ApplicationPersonRow,
-  onboardingByPartyKey: Map<string, Record<string, unknown>>
-): DirectorShareholderDisplayRow {
-  const pk = normalizeDirectorShareholderIdKey(p.matchKey);
-  const sup = pk ? onboardingByPartyKey.get(pk) ?? {} : {};
-  const flat = getCtosPartySupplementFlatRead(sup);
-  const regtankStatus = flat.regtankStatus;
-  const kycBlock = flat.kycBlock;
-  const kycRawStatus = kycBlock ? String(kycBlock.rawStatus ?? "").trim() || null : null;
-  const status = getDisplayStatus({
-    screening: p.screening,
-    directorAmlStatus: p.directorAmlStatus ?? null,
-    directorKycStatus: p.directorKycStatus ?? kycRawStatus,
-    onboarding: { status: p.onboarding?.status ?? regtankStatus ?? null },
-  });
-  const rolesU = (p.roles ?? []).map((r) => r.toUpperCase());
-  const isDirector = rolesU.includes("DIRECTOR");
-  const isShareholder = rolesU.includes("SHAREHOLDER");
-  const sharePct = p.sharePercentage;
-  const ownershipDisplay =
-    sharePct != null && Number.isFinite(sharePct) ? `${sharePct}% ownership` : null;
-  const email = String(p.email ?? "").trim() || flat.email.trim();
-  const draftEligible =
-    p.entityType === "INDIVIDUAL" &&
-    (isDirector || (isShareholder && (sharePct ?? 0) >= 5));
-  return {
-    id: p.matchKey,
-    name: p.name ?? "",
-    role: formatPeopleRolesLine(p),
-    type: p.entityType === "CORPORATE" ? "COMPANY" : "INDIVIDUAL",
-    idNumber: p.entityType === "INDIVIDUAL" ? p.matchKey : null,
-    registrationNumber: p.entityType === "CORPORATE" ? p.matchKey : null,
-    ownershipDisplay,
-    email,
-    status,
-    canEnterEmail: true,
-    canSendOnboarding: true,
-    enquiryId: null,
-    subjectKind: p.entityType === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL",
-    ctosIndividualKycEligible: draftEligible,
-    isDirector,
-    isShareholder,
-    sharePercentage: sharePct,
-  };
 }
 
 export function DirectorShareholdersUnifiedSection({
@@ -281,14 +230,32 @@ export function DirectorShareholdersUnifiedSection({
 
   const rows = React.useMemo(
     () =>
-      filterVisiblePeopleRows(people).map(
-        (p) =>
-          ({
-            ...personToDisplayRow(p, onboardingByPartyKey),
-            __person: p,
-          }) as AugmentedRow
-      ),
+      filterVisiblePeopleRows(people).map((p) => {
+        const pk = normalizeDirectorShareholderIdKey(p.matchKey);
+        const sup = pk ? onboardingByPartyKey.get(pk) ?? {} : {};
+        return {
+          ...buildDirectorShareholderDisplayRowForEmailEligibility(p, sup),
+          __person: p,
+        } as AugmentedRow;
+      }),
     [people, onboardingByPartyKey, sentRowIds]
+  );
+
+  const isEmailActionableForRow = React.useCallback(
+    (row: AugmentedRow) => {
+      const person = row.__person;
+      const partyKeyNorm = normalizeDirectorShareholderIdKey(partyKeyRawForRow(row));
+      const latestOnboarding = partyKeyNorm ? onboardingByPartyKey.get(partyKeyNorm) : undefined;
+      return isDirectorShareholderEmailActionable(person, {
+        displayRow: row,
+        latestOnboardingRoot: latestOnboarding ?? {},
+        partySourcePresent: Boolean(partySource),
+        directorKycStatus: partySource?.directorKycStatus ?? null,
+        corporateEntities: partySource?.corporateEntities ?? null,
+        blockPartyOnboarding,
+      });
+    },
+    [blockPartyOnboarding, onboardingByPartyKey, partySource]
   );
 
   React.useEffect(() => {
@@ -320,25 +287,8 @@ export function DirectorShareholdersUnifiedSection({
 
   const commitSend = async () => {
     if (!confirmRow) return;
-    if (blockPartyOnboarding) {
-      setConfirmRow(null);
-      return;
-    }
-    if (!isCtosIndividualKycEligibleRow(confirmRow)) {
-      toast.error("Individual onboarding is not required for this party.");
-      setConfirmRow(null);
-      return;
-    }
-    if (
-      partySource &&
-      isPartyTypeA(confirmRow.__person, partySource.directorKycStatus, partySource.corporateEntities)
-    ) {
-      toast.error("This party already has a company KYC/KYB record.");
-      setConfirmRow(null);
-      return;
-    }
-    if (!partySource && rowKycApproved(confirmRow)) {
-      toast.error("This person already completed KYC on the company record.");
+    if (!isEmailActionableForRow(confirmRow)) {
+      toast.error("Onboarding email not required");
       setConfirmRow(null);
       return;
     }
@@ -424,10 +374,11 @@ export function DirectorShareholdersUnifiedSection({
         ? getSupplementOnboardingJson(person.matchKey, ctosPartySupplements)
         : (latestOnboarding as Record<string, unknown>) ?? {};
     const pipelineStatus = partySource ? getSupplementPipelineStatus(supJson) : "";
-    const supplementLocked = onboardingApprovalLockActive(latestOnboarding);
+    const supplementLocked = isCtosPartySupplementApprovalLocked(latestOnboarding);
     const typeA =
       !!partySource && isPartyTypeA(person, partySource.directorKycStatus, partySource.corporateEntities);
-    const legacyApprovalLocked = rowKycApproved(row) || onboardingApprovalLockActive(latestOnboarding);
+    const legacyApprovalLocked =
+      rowKycApproved(row) || isCtosPartySupplementApprovalLocked(latestOnboarding);
     const approvalLocked = partySource ? supplementLocked : legacyApprovalLocked;
     const supplementReady = partySource
       ? Boolean(getSupplementRequestId(supJson)) && isRegTankSubmitReadyStatus(pipelineStatus)
@@ -436,9 +387,7 @@ export function DirectorShareholdersUnifiedSection({
       ? supplementReady || (sentRowIds.has(row.id) && Boolean(em.trim()))
       : isRowCompleteForUi(row, persistedEmail, em, sentRowIds);
     const kycEligible = isCtosIndividualKycEligibleRow(row);
-    const showEmailControls = partySource
-      ? requiresOnboardingEmail(person) && !typeA && kycEligible && !supplementLocked && !blockPartyOnboarding
-      : requiresOnboardingEmail(person) && kycEligible && !approvalLocked && !blockPartyOnboarding;
+    const showEmailControls = isEmailActionableForRow(row);
     const needsAction = partySource
       ? !typeA && kycEligible && !supplementReady && !blockPartyOnboarding
       : kycEligible && rowNeedsProfileAction(row, em) && !linkSent;

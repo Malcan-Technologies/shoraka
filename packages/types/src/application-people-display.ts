@@ -8,10 +8,15 @@
 
 import {
   getDirectorShareholderDisplayRows,
+  isCtosIndividualKycEligibleRow,
   normalizeDirectorShareholderIdKey,
   type DirectorShareholderDisplayRow,
   type GetDirectorShareholderDisplayRowsInput,
 } from "./director-shareholder-display";
+import {
+  getCtosPartySupplementFlatRead,
+  isCtosPartySupplementApprovalLocked,
+} from "./ctos-party-supplement-json";
 import { isPartyTypeA, type CorporateEntitiesShape } from "./director-shareholder-party-type-a";
 import { normalizeRawStatus } from "./status-normalization";
 
@@ -154,11 +159,11 @@ export function formatSharePercentageCell(p: { sharePercentage: number | null })
 }
 
 /**
- * SECTION: Director/shareholder notify eligibility
- * WHY: Notify action should appear only for actionable individual parties
+ * SECTION: Director/shareholder onboarding-email role gate
+ * WHY: Individual director or ≥5% shareholder may receive CTOS party onboarding email
  * INPUT: A single people row
- * OUTPUT: True when row is eligible for notify action
- * WHERE USED: Admin application/org director-shareholder tables
+ * OUTPUT: True when role/share rules allow onboarding email for this party
+ * WHERE USED: {@link isDirectorShareholderEmailActionable}, issuer and admin UIs
  */
 export function requiresOnboardingEmail(p: ApplicationPersonRow): boolean {
   if (p.entityType !== "INDIVIDUAL") return false;
@@ -169,21 +174,92 @@ export function requiresOnboardingEmail(p: ApplicationPersonRow): boolean {
   return isDirector || (isShareholder && share >= 5);
 }
 
-export type DirectorShareholderNotifyAdminContext = {
+/**
+ * Build the display row used for {@link isCtosIndividualKycEligibleRow} and lock checks
+ * (same shape as issuer `personToDisplayRow`).
+ */
+export function buildDirectorShareholderDisplayRowForEmailEligibility(
+  p: ApplicationPersonRow,
+  supplementOnboarding: Record<string, unknown> | null | undefined
+): DirectorShareholderDisplayRow {
+  const sup =
+    supplementOnboarding && typeof supplementOnboarding === "object" && !Array.isArray(supplementOnboarding)
+      ? supplementOnboarding
+      : {};
+  const flat = getCtosPartySupplementFlatRead(sup);
+  const regtankStatus = flat.regtankStatus;
+  const kycBlock = flat.kycBlock;
+  const kycRawStatus = kycBlock ? String(kycBlock.rawStatus ?? "").trim() || null : null;
+  const status = getDisplayStatus({
+    screening: p.screening,
+    directorAmlStatus: p.directorAmlStatus ?? null,
+    directorKycStatus: p.directorKycStatus ?? kycRawStatus,
+    onboarding: { status: p.onboarding?.status ?? regtankStatus ?? null },
+  });
+  const rolesU = (p.roles ?? []).map((r) => r.toUpperCase());
+  const isDirector = rolesU.includes("DIRECTOR");
+  const isShareholder = rolesU.includes("SHAREHOLDER");
+  const sharePct = p.sharePercentage;
+  const ownershipDisplay =
+    sharePct != null && Number.isFinite(sharePct) ? `${sharePct}% ownership` : null;
+  const email = String(p.email ?? "").trim() || flat.email.trim();
+  const draftEligible =
+    p.entityType === "INDIVIDUAL" && (isDirector || (isShareholder && (sharePct ?? 0) >= 5));
+  return {
+    id: p.matchKey,
+    name: p.name ?? "",
+    role: formatPeopleRolesLine(p),
+    type: p.entityType === "CORPORATE" ? "COMPANY" : "INDIVIDUAL",
+    idNumber: p.entityType === "INDIVIDUAL" ? p.matchKey : null,
+    registrationNumber: p.entityType === "CORPORATE" ? p.matchKey : null,
+    ownershipDisplay,
+    email,
+    status,
+    canEnterEmail: true,
+    canSendOnboarding: true,
+    enquiryId: null,
+    subjectKind: p.entityType === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL",
+    ctosIndividualKycEligible: draftEligible,
+    isDirector,
+    isShareholder,
+    sharePercentage: sharePct,
+  };
+}
+
+export type DirectorShareholderEmailActionableContext = {
+  displayRow: DirectorShareholderDisplayRow;
+  latestOnboardingRoot: unknown;
+  /** Issuer profile: true when TYPE A/B supplement path is active. */
+  partySourcePresent: boolean;
   directorKycStatus: unknown;
-  corporateEntities: unknown;
+  corporateEntities: CorporateEntitiesShape | null | undefined;
+  /** Issuer: blocks when org id is set and onboarding is not COMPLETED. */
+  blockPartyOnboarding: boolean;
 };
 
+function directorShareholderDisplayRowKycApproved(row: DirectorShareholderDisplayRow): boolean {
+  return normalizeRawStatus(row.status) === "APPROVED";
+}
+
 /**
- * Admin “Notify” matches issuer onboarding-email scope: {@link requiresOnboardingEmail}
- * plus Type A (legacy KYC row or corporate shareholder on KYB list).
+ * Single gate for issuer email controls and admin Notify: role rules, Type A, CTOS row eligibility,
+ * org onboarding gate, and supplement / legacy KYC approval locks.
  */
-export function isDirectorShareholderNotifyRowEnabled(
-  p: ApplicationPersonRow,
-  ctx: DirectorShareholderNotifyAdminContext
+export function isDirectorShareholderEmailActionable(
+  person: ApplicationPersonRow,
+  ctx: DirectorShareholderEmailActionableContext
 ): boolean {
-  if (!requiresOnboardingEmail(p)) return false;
-  if (isPartyTypeA(p, ctx.directorKycStatus, ctx.corporateEntities as CorporateEntitiesShape | null | undefined)) {
+  if (!requiresOnboardingEmail(person)) return false;
+  if (ctx.partySourcePresent && isPartyTypeA(person, ctx.directorKycStatus, ctx.corporateEntities)) {
+    return false;
+  }
+  if (!isCtosIndividualKycEligibleRow(ctx.displayRow)) return false;
+  if (ctx.blockPartyOnboarding) return false;
+
+  const supplementLocked = isCtosPartySupplementApprovalLocked(ctx.latestOnboardingRoot);
+  if (ctx.partySourcePresent) {
+    if (supplementLocked) return false;
+  } else if (directorShareholderDisplayRowKycApproved(ctx.displayRow) || supplementLocked) {
     return false;
   }
   return true;

@@ -3,13 +3,14 @@
  * Canonical definitions live in `@cashsouk/types` (application-people-display).
  */
 export {
+  buildDirectorShareholderDisplayRowForEmailEligibility,
   filterVisiblePeopleRows,
   formatPeopleRolesLine,
   formatPeopleRolesLineWithoutShare,
   formatSharePercentageCell,
   getDisplayStatus,
   requiresOnboardingEmail,
-  isDirectorShareholderNotifyRowEnabled,
+  isDirectorShareholderEmailActionable,
   isNotifyEligible,
   isDirectorShareholderAmlScreeningApproved,
   shouldShowPeopleSendEmailButton,
