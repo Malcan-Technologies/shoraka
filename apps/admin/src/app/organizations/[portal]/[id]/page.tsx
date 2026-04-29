@@ -105,6 +105,14 @@ function regtankResultUrl(base: string, requestId: string, kind: "individual" | 
   return kind === "company" ? `${b}/app/screen-kyb/result/${enc}` : `${b}/app/screen-kyc/result/${enc}`;
 }
 
+/** Individual party onboarding (supplement / EOD): RegTank admin uses liveness, not screen-kyc result. */
+function regtankIndividualLivenessAdminUrl(base: string, requestId: string): string | undefined {
+  const b = base.replace(/\/+$/, "");
+  const rid = String(requestId ?? "").trim();
+  if (!b || !rid) return undefined;
+  return `${b}/app/liveness/${encodeURIComponent(rid)}?archived=false`;
+}
+
 /** Issuer corporate onboarding: open director/shareholder KYC in corporate flow (COD + EOD). */
 function regtankOnboardingCorporatePartyUrl(base: string, cod: string, eod: string): string | undefined {
   const b = base.replace(/\/+$/, "");
@@ -1635,21 +1643,19 @@ export default function OrganizationDetailPage() {
                                   const regtankBase =
                                     resolveRegtankPortalBase(org.regtankPortalUrl) ||
                                     resolveRegtankPortalBase(REGTANK_PORTAL_BASE_URL);
+                                  const regtankPathRequestId =
+                                    eodForRegtankLink ||
+                                    String(kycInfo?.kycId ?? "").trim() ||
+                                    (fallbackRequestId !== "—" ? fallbackRequestId : "");
                                   const requestUrl =
                                     regtankOnboardingCorporatePartyUrl(
                                       regtankBase,
                                       codForRegtankLink,
                                       eodForRegtankLink
                                     ) ??
-                                    regtankResultUrl(
-                                      regtankBase,
-                                      eodForRegtankLink ||
-                                        String(kycInfo?.kycId ?? "").trim() ||
-                                        (fallbackRequestId !== "—" ? fallbackRequestId : ""),
-                                      p.entityType === "CORPORATE" || requestId.toUpperCase().startsWith("COD")
-                                        ? "company"
-                                        : "individual"
-                                    );
+                                    (p.entityType === "CORPORATE" || requestId.toUpperCase().startsWith("COD")
+                                      ? regtankResultUrl(regtankBase, regtankPathRequestId, "company")
+                                      : regtankIndividualLivenessAdminUrl(regtankBase, regtankPathRequestId));
                                   const subjectRefCandidates = [
                                     p.matchKey,
                                     requestId,
