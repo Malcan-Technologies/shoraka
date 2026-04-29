@@ -56,21 +56,19 @@ import type {
   OnboardingStatusEnum,
 } from "@cashsouk/types";
 import {
-  getCtosPartySupplementFlatRead,
   getSectionForPendingAmendment,
   getSectionForScopeKey,
   parseItemScopeKey,
   REVIEW_SECTION_ORDER,
-  getDirectorShareholderDisplayRows,
-  isCtosIndividualKycEligibleRow,
-  isLegacyCtosPartyKycApproved,
   getStepKeyFromStepId,
   isRegtankIso3166Code,
   normalizeDirectorShareholderIdKey,
   peopleHasPendingDirectorShareholderAml,
   filterVisiblePeopleRows,
   requiresOnboardingEmail,
+  type ApplicationPersonRow,
   type SoukscoreRiskRating,
+  normalizeRawStatus,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
 import { AMLFetcherService } from "../regtank/aml-fetcher";
@@ -109,6 +107,38 @@ type ResubmitComparisonAmendmentRemark = {
 
 function isPlainObjectRecord(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+/**
+ * SECTION: AML helpers for director/shareholder financial gating
+ * WHY: Keep AML checks consistent and scoped to INDIVIDUAL rows only
+ * INPUT: Application people rows and application status
+ * OUTPUT: booleans for pending/all-approved/final checks
+ * WHERE USED: Admin application list badge + financial tab approval guard
+ */
+function isAmlApprovedPersonStatus(statusRaw: string | null | undefined): boolean {
+  const status = normalizeRawStatus(statusRaw);
+  return status === "APPROVED";
+}
+
+function getVisibleIndividualsForAml(people: ApplicationPersonRow[]): ApplicationPersonRow[] {
+  const visible = filterVisiblePeopleRows(people);
+  return visible.filter((person) => person.entityType === "INDIVIDUAL");
+}
+
+function hasPendingAmlForIndividuals(individuals: ApplicationPersonRow[]): boolean {
+  return individuals.some((person) => !isAmlApprovedPersonStatus(person.screening?.status));
+}
+
+function allAmlApprovedForIndividuals(individuals: ApplicationPersonRow[]): boolean {
+  return (
+    individuals.length > 0 &&
+    individuals.every((person) => isAmlApprovedPersonStatus(person.screening?.status))
+  );
+}
+
+function isFinalApplicationStatusForAmlGuard(status: string | null | undefined): boolean {
+  return status === "APPROVED" || status === "FUNDED" || status === "COMPLETED";
 }
 
 function guarantorNationalityIso2FromSourceData(sourceData: unknown): string | undefined {
@@ -4450,17 +4480,27 @@ export class AdminService {
           ctosPartySupplements: extras.ctosPartySupplements,
           corporateEntities: org.corporate_entities ?? null,
         });
-        pendingByOrg.set(oid, peopleHasPendingDirectorShareholderAml(people));
+        const individuals = getVisibleIndividualsForAml(people);
+        const pending = individuals.length > 0 && hasPendingAmlForIndividuals(individuals);
+        pendingByOrg.set(oid, pending);
       })
     );
 
     return {
-      applications: applications.map(({ issuerOrganizationId, ...rest }) => ({
-        ...rest,
-        directorShareholderAmlPending: issuerOrganizationId
-          ? pendingByOrg.get(issuerOrganizationId) ?? false
-          : false,
-      })),
+      applications: applications.map(({ issuerOrganizationId, ...rest }) => {
+        if (isFinalApplicationStatusForAmlGuard(rest.status)) {
+          return {
+            ...rest,
+            directorShareholderAmlPending: false,
+          };
+        }
+        return {
+          ...rest,
+          directorShareholderAmlPending: issuerOrganizationId
+            ? pendingByOrg.get(issuerOrganizationId) ?? false
+            : false,
+        };
+      }),
       pagination: {
         page: params.page,
         pageSize: params.pageSize,
@@ -4909,7 +4949,7 @@ export class AdminService {
     }
 
     if (status === ApplicationStatus.APPROVED) {
-      this.assertLatestCtosPartyKycApproved(application as any);
+      this.assertFinancialReviewDirectorShareholderAmlApproved(application as any);
       const reviews = (application.application_reviews ?? []) as { section: string; status: string }[];
       const sectionPolicy = await this.getReviewSectionPolicy(application);
       const reviewStatusBySection = new Map<string, string>();
@@ -5015,7 +5055,7 @@ export class AdminService {
     return "Terminal corrections must use a dedicated audited correction flow";
   }
 
-  private assertLatestCtosPartyKycApproved(application: {
+  private assertFinancialReviewDirectorShareholderAmlApproved(application: {
     issuer_organization?: {
       corporate_entities?: unknown;
       director_kyc_status?: unknown;
@@ -5030,60 +5070,22 @@ export class AdminService {
     const supplements = Array.isArray(issuerOrg.ctos_party_supplements)
       ? issuerOrg.ctos_party_supplements
       : [];
-    const onboardingByPartyKey = new Map<string, Record<string, unknown>>();
-    const supplementPartyKeys = new Set<string>();
-    for (const supplement of supplements) {
-      const key = normalizeDirectorShareholderIdKey(supplement.party_key);
-      if (!key) continue;
-      supplementPartyKeys.add(key);
-      const onboarding =
-        supplement.onboarding_json &&
-        typeof supplement.onboarding_json === "object" &&
-        !Array.isArray(supplement.onboarding_json)
-          ? (supplement.onboarding_json as Record<string, unknown>)
-          : {};
-      onboardingByPartyKey.set(key, onboarding);
-    }
-
-    const rows = getDirectorShareholderDisplayRows({
-      corporateEntities: issuerOrg.corporate_entities,
-      directorKycStatus: issuerOrg.director_kyc_status,
-      directorAmlStatus: issuerOrg.director_aml_status ?? null,
-      organizationCtosCompanyJson: issuerOrg.latest_organization_ctos_company_json ?? null,
+    const people = buildAdminPeopleList({
+      ctos: issuerOrg.latest_organization_ctos_company_json ?? null,
+      issuerDirectorKycStatus: issuerOrg.director_kyc_status ?? null,
+      issuerDirectorAmlStatus: issuerOrg.director_aml_status ?? null,
       ctosPartySupplements: supplements.map((supplement) => ({
-        partyKey: supplement.party_key,
-        onboardingJson: supplement.onboarding_json ?? null,
+        party_key: supplement.party_key,
+        onboarding_json: supplement.onboarding_json ?? null,
       })),
-      sentRowIds: null,
+      corporateEntities: issuerOrg.corporate_entities ?? null,
     });
-
-    const notReady: string[] = [];
-    for (const row of rows) {
-      if (!isCtosIndividualKycEligibleRow(row)) continue;
-      const partyKey = normalizeDirectorShareholderIdKey(
-        row.idNumber?.trim() || row.registrationNumber?.trim() || row.enquiryId?.trim() || ""
-      );
-      if (!partyKey) continue;
-      if (isLegacyCtosPartyKycApproved(partyKey, issuerOrg.director_kyc_status)) continue;
-      if (!supplementPartyKeys.has(partyKey)) continue;
-      const onboarding = onboardingByPartyKey.get(partyKey) ?? {};
-      const flat = getCtosPartySupplementFlatRead(onboarding);
-      const regtankStatus = String(flat.regtankStatus ?? "").trim().toUpperCase();
-      const kycRawStatus =
-        flat.kycBlock && typeof flat.kycBlock.rawStatus === "string"
-          ? String(flat.kycBlock.rawStatus).trim().toUpperCase()
-          : "";
-      const approved = regtankStatus === "APPROVED" || kycRawStatus === "APPROVED";
-      if (!approved) {
-        notReady.push(row.name || partyKey);
-      }
-    }
-
-    if (notReady.length > 0) {
+    const individuals = getVisibleIndividualsForAml(people);
+    if (!allAmlApprovedForIndividuals(individuals)) {
       throw new AppError(
         400,
-        "KYC_NOT_READY",
-        `Latest onboarding KYC is not approved for: ${notReady.join(", ")}`
+        "AML_NOT_READY",
+        "All directors/shareholders must complete AML before approval"
       );
     }
   }
@@ -6133,7 +6135,7 @@ export class AdminService {
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     if (section === "financial") {
-      this.assertLatestCtosPartyKycApproved(application as any);
+      this.assertFinancialReviewDirectorShareholderAmlApproved(application as any);
     }
     await this.ensureUnderReview(
       repository,

@@ -199,6 +199,11 @@ function ApplicationCard({
                     : undefined
                 }
               />
+              {application.directorShareholderAmlPending ? (
+                <Badge variant="secondary" className="rounded-full text-xs font-semibold">
+                  Pending Director/Shareholder AML
+                </Badge>
+              ) : null}
             </div>
             <div className="flex items-center gap-2">
               {/* Make Amendments: only for Action Required (AMENDMENT_REQUESTED). Links to /edit amendment flow. */}

@@ -6,6 +6,7 @@
 import { ApplicationRepository } from "./repository";
 import { ProductRepository } from "../products/repository";
 import { OrganizationRepository } from "../organization/repository";
+import { OrganizationService } from "../organization/service";
 import { ContractRepository } from "../contracts/repository";
 import {
   CreateApplicationInput,
@@ -51,6 +52,9 @@ import {
   getIssuerFinancialTabYears,
   issuerUnauditedPlddForFyEndYear,
   getStepKeyFromStepId,
+  filterVisiblePeopleRows,
+  type ApplicationPersonRow,
+  normalizeRawStatus,
 } from "@cashsouk/types";
 import { computeApplicationStatus } from "./lifecycle";
 import * as crypto from "crypto";
@@ -77,6 +81,7 @@ import {
   parseGuarantorsFromBusinessDetails,
 } from "../guarantors/utils";
 import { assertIssuerOrgDirectorShareholderOnboardingReady } from "./director-shareholder-onboarding-guard";
+import { buildAdminPeopleList } from "../admin/build-people-list";
 
 /**
  * Return URL after manual signing. Prefer SIGNINGCLOUD_ISSUER_RETURN_URL (full URL to applications page);
@@ -142,6 +147,26 @@ function financialToNum(v: unknown): number {
   if (typeof v === "number" && !Number.isNaN(v)) return v;
   const n = Number(String(v).replace(/,/g, ""));
   return Number.isNaN(n) ? 0 : n;
+}
+
+/**
+ * SECTION: AML helpers for issuer application list badge
+ * WHY: Keep AML badge logic aligned with screening.status and final-status skip
+ * INPUT: Application people rows + application status
+ * OUTPUT: pending AML boolean per application
+ * WHERE USED: listByOrganization()
+ */
+function isAmlApproved(person: ApplicationPersonRow): boolean {
+  return normalizeRawStatus(person.screening?.status) === "APPROVED";
+}
+
+function hasPendingAmlForIndividuals(people: ApplicationPersonRow[]): boolean {
+  const individuals = filterVisiblePeopleRows(people).filter((person) => person.entityType === "INDIVIDUAL");
+  return individuals.length > 0 && individuals.some((person) => !isAmlApproved(person));
+}
+
+function isFinalApplicationStatus(status: string | null | undefined): boolean {
+  return status === "APPROVED" || status === "FUNDED" || status === "COMPLETED";
 }
 
 /** Business rules for v2 per-year financial blocks (no bsdd). */
@@ -555,7 +580,32 @@ export class ApplicationService {
       throw new AppError(403, "FORBIDDEN", "You do not have access to this organization");
     }
 
-    return this.repository.listByOrganization(organizationId);
+    const applications = await this.repository.listByOrganization(organizationId);
+
+    const org = await prisma.issuerOrganization.findUnique({
+      where: { id: organizationId },
+      select: { corporate_entities: true, director_kyc_status: true, director_aml_status: true },
+    });
+    let directorShareholderAmlPending = false;
+    if (org) {
+      const organizationService = new OrganizationService();
+      const extras = await organizationService.getIssuerPartyListExtras(organizationId);
+      const people = buildAdminPeopleList({
+        ctos: extras.latestOrganizationCtosCompanyJson ?? null,
+        issuerDirectorKycStatus: org.director_kyc_status ?? null,
+        issuerDirectorAmlStatus: org.director_aml_status ?? null,
+        ctosPartySupplements: extras.ctosPartySupplements,
+        corporateEntities: org.corporate_entities ?? null,
+      });
+      directorShareholderAmlPending = hasPendingAmlForIndividuals(people);
+    }
+
+    return applications.map((application) => ({
+      ...application,
+      directorShareholderAmlPending: isFinalApplicationStatus(application.status)
+        ? false
+        : directorShareholderAmlPending,
+    }));
   }
 
   /**

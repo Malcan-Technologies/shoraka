@@ -71,7 +71,7 @@ import {
 import { formatCurrency, useAuthToken, readInvoiceMaturityMonthsFromWorkflow } from "@cashsouk/config";
 import {
   filterVisiblePeopleRows,
-  peopleHasPendingDirectorShareholderAml,
+  normalizeRawStatus,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
 import { ApplicationStatusBadge } from "@/components/application-review";
@@ -179,6 +179,8 @@ export default function DynamicApplicationDetailPage() {
     "AMENDMENT_REQUESTED",
   ];
   const isReviewable = !!app && REVIEWABLE_STATUSES.includes(app.status);
+  const isFinalApplicationForAmlGate =
+    app?.status === "APPROVED" || app?.status === "FUNDED" || app?.status === "COMPLETED";
   const { getAccessToken } = useAuthToken();
   const { viewDocumentPending, handleViewDocument, handleDownloadDocument } =
     useAdminS3DocumentViewDownload();
@@ -635,12 +637,21 @@ export default function DynamicApplicationDetailPage() {
                     </div>
                   </div>
                   <ApplicationStatusBadge status={app.status} size="lg" />
-                  {Array.isArray((app as { people?: unknown }).people) &&
-                  peopleHasPendingDirectorShareholderAml(
-                    filterVisiblePeopleRows((app as { people: ApplicationPersonRow[] }).people)
-                  ) ? (
+                  {!isFinalApplicationForAmlGate &&
+                  Array.isArray((app as { people?: unknown }).people) &&
+                  (() => {
+                    const visibleIndividuals = filterVisiblePeopleRows(
+                      (app as { people: ApplicationPersonRow[] }).people
+                    ).filter((person) => person.entityType === "INDIVIDUAL");
+                    return (
+                      visibleIndividuals.length > 0 &&
+                      visibleIndividuals.some(
+                        (person) => normalizeRawStatus(person.screening?.status) !== "APPROVED"
+                      )
+                    );
+                  })() ? (
                     <Badge variant="secondary" className="rounded-full text-xs font-semibold">
-                      Pending Directors/Shareholders
+                      Pending Director/Shareholder AML
                     </Badge>
                   ) : null}
                 </div>

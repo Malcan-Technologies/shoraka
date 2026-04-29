@@ -6,7 +6,13 @@
  * WHERE USED: admin routes (org + application for issuer)
  */
 
-import { Prisma, type CtosReport, type InvestorOrganization, type IssuerOrganization } from "@prisma/client";
+import {
+  Prisma,
+  ReviewStepStatus,
+  type CtosReport,
+  type InvestorOrganization,
+  type IssuerOrganization,
+} from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
 import { AppError } from "../../lib/http/error-handler";
@@ -22,8 +28,94 @@ import {
 } from "./resolve-subject-from-org";
 import { OrganizationService } from "../organization/service";
 import { runIssuerDirectorShareholderNotificationsAfterOrgCtosReportInsert } from "../notification/director-shareholder-notifications";
+import { buildAdminPeopleList } from "../admin/build-people-list";
+import { filterVisiblePeopleRows, normalizeRawStatus, type ApplicationPersonRow } from "@cashsouk/types";
+import { logApplicationActivity } from "../applications/logs/service";
+import { ActivityPortal, ApplicationLogEventType } from "../applications/logs/types";
 
 export type AdminOrgCtosPortal = "issuer" | "investor";
+
+/**
+ * SECTION: AML status helpers for CTOS-triggered financial review reset
+ * WHY: Keep reset condition aligned to screening.status only
+ * INPUT: Application person rows + application status
+ * OUTPUT: booleans for pending/all-approved/final checks
+ * WHERE USED: CTOS org report insert hooks
+ */
+function isAmlApprovedFromScreening(person: ApplicationPersonRow): boolean {
+  return normalizeRawStatus(person.screening?.status) === "APPROVED";
+}
+
+function visibleIndividualsForAml(people: ApplicationPersonRow[]): ApplicationPersonRow[] {
+  return filterVisiblePeopleRows(people).filter((person) => person.entityType === "INDIVIDUAL");
+}
+
+function hasPendingAmlIndividuals(individuals: ApplicationPersonRow[]): boolean {
+  return individuals.some((person) => !isAmlApprovedFromScreening(person));
+}
+
+function isFinalApplicationStatus(status: string | null | undefined): boolean {
+  return status === "APPROVED" || status === "FUNDED" || status === "COMPLETED";
+}
+
+async function resetFinancialReviewAfterCtosUpdateIfNeeded(params: {
+  issuerOrganizationId: string;
+  corporateEntities: Prisma.JsonValue;
+  directorKycStatus: Prisma.JsonValue;
+  directorAmlStatus: Prisma.JsonValue;
+  ctosCompanyJson: Prisma.JsonValue;
+  ctosPartySupplements: { partyKey: string; onboardingJson: unknown }[];
+}): Promise<void> {
+  const people = buildAdminPeopleList({
+    ctos: params.ctosCompanyJson ?? null,
+    issuerDirectorKycStatus: params.directorKycStatus ?? null,
+    issuerDirectorAmlStatus: params.directorAmlStatus ?? null,
+    ctosPartySupplements: params.ctosPartySupplements,
+    corporateEntities: params.corporateEntities ?? null,
+  });
+  const individuals = visibleIndividualsForAml(people);
+  const nowHasPending = hasPendingAmlIndividuals(individuals);
+  if (!nowHasPending) return;
+
+  const applicationsToReset = await prisma.applicationReview.findMany({
+    where: {
+      section: "financial",
+      status: ReviewStepStatus.APPROVED,
+      application: {
+        issuer_organization_id: params.issuerOrganizationId,
+        status: { notIn: ["APPROVED", "COMPLETED"] },
+      },
+    },
+    select: { application_id: true, application: { select: { status: true } } },
+  });
+  const rowsToReset = applicationsToReset.filter(
+    (row) => !isFinalApplicationStatus(row.application?.status ?? null)
+  );
+  if (rowsToReset.length === 0) return;
+
+  await prisma.$transaction(async (tx) => {
+    for (const row of rowsToReset) {
+      await tx.applicationReview.update({
+        where: {
+          application_id_section: { application_id: row.application_id, section: "financial" },
+        },
+        data: {
+          status: ReviewStepStatus.PENDING,
+          reviewer_user_id: null,
+          reviewed_at: null,
+        },
+      });
+      await logApplicationActivity({
+        userId: "system",
+        applicationId: row.application_id,
+        eventType: ApplicationLogEventType.SECTION_REVIEWED_PENDING,
+        portal: ActivityPortal.ADMIN,
+        remark: "Reset due to CTOS update / AML pending",
+        metadata: { scope: "section", scope_key: "financial", old_status: "APPROVED", new_status: "PENDING" },
+      });
+    }
+  });
+}
 
 function fallbackRegistrationNumberFromCorporateOnboardingData(raw: unknown): string | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
@@ -289,6 +381,17 @@ export async function fetchAndInsertCtosReport(
     }
   }
 
+  if (orgForPeople) {
+    await resetFinancialReviewAfterCtosUpdateIfNeeded({
+      issuerOrganizationId,
+      corporateEntities: orgForPeople.corporate_entities ?? null,
+      directorKycStatus: orgForPeople.director_kyc_status ?? null,
+      directorAmlStatus: orgForPeople.director_aml_status ?? null,
+      ctosCompanyJson: row.company_json,
+      ctosPartySupplements: beforeExtras.ctosPartySupplements,
+    });
+  }
+
   console.log("Inserted CTOS report row:", row.id, "for issuer org:", issuerOrganizationId);
   console.log("CTOS FINAL OUTPUT TO UI (persisted report row):", {
     id: row.id,
@@ -414,6 +517,17 @@ export async function fetchAndInsertCtosReportForAdminOrg(
         "Director/shareholder notification hook after admin CTOS org report failed (non-blocking)"
       );
     }
+  }
+
+  if (portal === "issuer" && orgForPeople && beforeExtras) {
+    await resetFinancialReviewAfterCtosUpdateIfNeeded({
+      issuerOrganizationId: organizationId,
+      corporateEntities: orgForPeople.corporate_entities ?? null,
+      directorKycStatus: orgForPeople.director_kyc_status ?? null,
+      directorAmlStatus: orgForPeople.director_aml_status ?? null,
+      ctosCompanyJson: row.company_json,
+      ctosPartySupplements: beforeExtras.ctosPartySupplements,
+    });
   }
 
   console.log("Inserted CTOS report row:", row.id, "portal:", portal, "org:", organizationId);
