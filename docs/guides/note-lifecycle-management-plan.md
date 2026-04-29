@@ -533,6 +533,7 @@ Rules:
 
 - Admin can publish a note only after accepted source terms are frozen.
 - Note creation APIs must create notes only from approved invoices. Application-scoped creation should select an approved source invoice and must not fall back to creating an application-only note when no approved invoice exists.
+- `Note.source_invoice_id` must be unique when present, so concurrent creation requests cannot create multiple notes for the same approved invoice.
 - Marketplace funding opens with a target and a close date.
 - `Publish` makes the note visible and investable in the investor marketplace. Use it only after source invoice, issuer, paymaster, target amount, profit rate, platform fee, service fee, risk disclosure, and listing summary have been reviewed.
 - `Unpublish` removes the note from the investor marketplace. It should be used only before investor commitments exist, or as an exceptional admin action if a listing needs to be withdrawn before funding opens.

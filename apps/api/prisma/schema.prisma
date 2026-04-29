@@ -564,7 +564,7 @@ model Note {
   id                          String     @id @default(cuid())
   source_application_id       String
   source_contract_id          String?
-  source_invoice_id           String?
+  source_invoice_id           String?    @unique
   issuer_organization_id      String
   status                      NoteStatus @default(DRAFT)
   listing_status              NoteListingStatus @default(NOT_LISTED)
@@ -612,7 +612,6 @@ model Note {
 
   @@index([source_application_id])
   @@index([source_contract_id])
-  @@index([source_invoice_id])
   @@index([issuer_organization_id])
   @@index([status])
   @@index([listing_status])

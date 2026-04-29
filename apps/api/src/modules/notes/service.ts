@@ -92,6 +92,15 @@ function resolveRiskRating(value: unknown) {
   return value === "A" || value === "B" || value === "C" ? value : null;
 }
 
+function isUniqueConstraintError(error: unknown, target: string): boolean {
+  if (!error || typeof error !== "object" || !("code" in error) || error.code !== "P2002") {
+    return false;
+  }
+  const meta = "meta" in error && error.meta && typeof error.meta === "object" ? error.meta : null;
+  const constraint = meta && "target" in meta ? meta.target : null;
+  return Array.isArray(constraint) ? constraint.includes(target) : constraint === target;
+}
+
 function assertSettlementAmountComplete(
   settlement: {
     gross_receipt_amount: Prisma.Decimal | number | string;
@@ -528,6 +537,12 @@ export class NoteService {
       });
 
       return tx.note.findUniqueOrThrow({ where: { id: created.id }, include: noteInclude });
+    }).catch(async (error: unknown) => {
+      if (isUniqueConstraintError(error, "source_invoice_id")) {
+        const existingAfterRace = await noteRepository.findBySource(application.id, invoice.id);
+        if (existingAfterRace) return existingAfterRace;
+      }
+      throw error;
     });
 
     return mapNoteDetail(note);
@@ -779,6 +794,9 @@ export class NoteService {
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
     if (note.funding_status !== NoteFundingStatus.FUNDED) {
       throw new AppError(409, "NOTE_NOT_FUNDED", "Only funded notes can be activated");
+    }
+    if (note.status === NoteStatus.ACTIVE || note.servicing_status !== NoteServicingStatus.NOT_STARTED) {
+      throw new AppError(409, "NOTE_ALREADY_ACTIVATED", "Note has already been activated");
     }
     const now = new Date();
     const updated = await prisma.$transaction(async (tx) => {
