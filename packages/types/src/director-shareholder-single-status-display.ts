@@ -7,6 +7,7 @@
  */
 
 import { normalizeRawStatus } from "./status-normalization";
+import { regtankDisplayStatusBadgeClass } from "./regtank-onboarding-status";
 
 export type AmlStatusGroup = "NOT_STARTED" | "IN_PROGRESS" | "UNDER_REVIEW" | "APPROVED" | "REJECTED";
 
@@ -90,64 +91,27 @@ export function getKycGroup(statusRaw: string): KycStatusGroup {
   return "IN_PROGRESS";
 }
 
-const AML_GROUP_LABEL: Record<AmlStatusGroup, string> = {
-  NOT_STARTED: "AML: Not Started",
-  IN_PROGRESS: "AML: In Progress",
-  UNDER_REVIEW: "AML: Under Review",
-  APPROVED: "AML: Approved",
-  REJECTED: "AML: Rejected",
+/** Single-line badge text: no AML/KYC prefix, ALL CAPS, spaces between words. */
+const GROUP_DISPLAY_LABEL: Record<AmlStatusGroup | KycStatusGroup, string> = {
+  NOT_STARTED: "NOT STARTED",
+  IN_PROGRESS: "IN PROGRESS",
+  UNDER_REVIEW: "UNDER REVIEW",
+  PENDING_REVIEW: "PENDING REVIEW",
+  APPROVED: "APPROVED",
+  REJECTED: "REJECTED",
+  EXPIRED: "EXPIRED",
 };
 
-const KYC_GROUP_LABEL: Record<KycStatusGroup, string> = {
-  NOT_STARTED: "KYC: Not Started",
-  IN_PROGRESS: "KYC: In Progress",
-  PENDING_REVIEW: "KYC: Pending Review",
-  APPROVED: "KYC: Approved",
-  REJECTED: "KYC: Rejected",
-  EXPIRED: "KYC: Expired",
-};
-
-const GREEN =
-  "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 border-transparent";
-const RED = "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 border-transparent";
-const AMBER = "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border-transparent";
-const BLUE = "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 border-transparent";
-const MUTED = "bg-muted text-muted-foreground border-transparent dark:bg-muted/40";
-const EXPIRED_GRAY =
-  "bg-zinc-200 text-zinc-800 dark:bg-zinc-800 dark:text-zinc-200 border-transparent";
-
-function badgeClassForAmlGroup(g: AmlStatusGroup): string {
-  switch (g) {
-    case "APPROVED":
-      return GREEN;
-    case "REJECTED":
-      return RED;
-    case "UNDER_REVIEW":
-      return AMBER;
-    case "IN_PROGRESS":
-      return BLUE;
-    case "NOT_STARTED":
-    default:
-      return MUTED;
-  }
+function displayLabelForGroup(group: AmlStatusGroup | KycStatusGroup): string {
+  return GROUP_DISPLAY_LABEL[group].toUpperCase();
 }
 
-function badgeClassForKycGroup(g: KycStatusGroup): string {
-  switch (g) {
-    case "APPROVED":
-      return GREEN;
-    case "REJECTED":
-      return RED;
-    case "PENDING_REVIEW":
-      return AMBER;
-    case "IN_PROGRESS":
-      return BLUE;
-    case "EXPIRED":
-      return EXPIRED_GRAY;
-    case "NOT_STARTED":
-    default:
-      return MUTED;
-  }
+/** Reuse shared RegTank badge colors (same helper as raw status badges). */
+function badgeClassForStatusGroup(group: AmlStatusGroup | KycStatusGroup): string {
+  if (group === "APPROVED") return regtankDisplayStatusBadgeClass("APPROVED");
+  if (group === "REJECTED") return regtankDisplayStatusBadgeClass("REJECTED");
+  if (group === "NOT_STARTED") return regtankDisplayStatusBadgeClass("");
+  return regtankDisplayStatusBadgeClass("WAIT_FOR_APPROVAL");
 }
 
 export type DirectorShareholderSingleStatusInput = {
@@ -170,8 +134,8 @@ export function getDirectorShareholderSingleStatusPresentation(
     return {
       source: "AML",
       group,
-      label: AML_GROUP_LABEL[group],
-      badgeClassName: badgeClassForAmlGroup(group),
+      label: displayLabelForGroup(group),
+      badgeClassName: badgeClassForStatusGroup(group),
     };
   }
   if (kycRaw) {
@@ -179,8 +143,8 @@ export function getDirectorShareholderSingleStatusPresentation(
     return {
       source: "KYC",
       group,
-      label: KYC_GROUP_LABEL[group],
-      badgeClassName: badgeClassForKycGroup(group),
+      label: displayLabelForGroup(group),
+      badgeClassName: badgeClassForStatusGroup(group),
     };
   }
   return null;
