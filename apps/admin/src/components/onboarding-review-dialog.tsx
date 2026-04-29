@@ -300,7 +300,6 @@ export function OnboardingReviewDialog({
         toast.success("CTOS Verification approved", {
           description: data.message,
         });
-        onOpenChange(false);
       },
       onError: (error) => {
         toast.error("Failed to approve CTOS Verification", {
