@@ -6,6 +6,9 @@ import {
   UserIcon,
   BuildingOffice2Icon,
   CheckCircleIcon,
+  ClockIcon,
+  ExclamationTriangleIcon,
+  XCircleIcon,
   ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 import {
@@ -125,6 +128,45 @@ function onboardingLinkSentForRow(row: DirectorShareholderDisplayRow): boolean {
 function ctosKycStatusUiFromRow(row: DirectorShareholderDisplayRow): { display: string; badgeClass: string } {
   const display = normalizeStatusText(row.status);
   return { display, badgeClass: regtankDisplayStatusBadgeClass(display) };
+}
+
+function renderStatusBadge(raw: string) {
+  const label = normalizeStatusText(raw);
+  const cls = regtankDisplayStatusBadgeClass(label);
+
+  if (label === "APPROVED") {
+    return (
+      <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
+        <CheckCircleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
+        {label}
+      </Badge>
+    );
+  }
+
+  if (label === "REJECTED") {
+    return (
+      <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
+        <XCircleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
+        {label}
+      </Badge>
+    );
+  }
+
+  if (label === "STATUS_UNAVAILABLE") {
+    return (
+      <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
+        <ExclamationTriangleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
+        {label}
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
+      <ClockIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
+      {label}
+    </Badge>
+  );
 }
 
 function partyKeyRawForRow(row: DirectorShareholderDisplayRow): string {
@@ -445,41 +487,22 @@ export function DirectorShareholdersUnifiedSection({
           <div className="mt-1 flex flex-wrap flex-col gap-1">
             {partySource && typeA ? (
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-muted-foreground">KYC</span>
-                <Badge
-                  className={cn(
-                    "text-xs font-medium",
-                    regtankDisplayStatusBadgeClass(legacyKycLabel)
-                  )}
-                >
-                  {legacyKycLabel}
-                </Badge>
+                {renderStatusBadge(legacyKycLabel)}
               </div>
             ) : partySource && !typeA ? (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-muted-foreground">Status</span>
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    "text-xs font-medium",
-                    isRegTankSubmitReadyStatus(pipelineStatus) ? "border-primary/40 text-primary" : ""
-                  )}
-                >
-                  {normalizeStatusText(pipelineStatus)}
-                </Badge>
+                {renderStatusBadge(pipelineStatus)}
               </div>
             ) : (
               <>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-muted-foreground">KYC</span>
-                  <Badge className={cn("text-xs font-medium", kycUi.badgeClass)}>{kycUi.display}</Badge>
+                  {renderStatusBadge(kycUi.display)}
                 </div>
                 {row.amlStatus?.trim() ? (
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-xs text-muted-foreground">AML</span>
-                    <Badge variant="outline" className="text-xs font-medium">
-                      {row.amlStatus}
-                    </Badge>
+                    {renderStatusBadge(row.amlStatus)}
                   </div>
                 ) : null}
               </>
@@ -612,36 +635,22 @@ export function DirectorShareholdersUnifiedSection({
             {partySource && typeA ? (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-muted-foreground">KYB</span>
-                <Badge
-                  className={cn(
-                    "text-xs font-medium",
-                    normalizeStatusText(pipelineStatus || entityLabel || "PENDING") === "APPROVED"
-                      ? regtankDisplayStatusBadgeClass("APPROVED")
-                      : "border border-muted-foreground/40 bg-transparent text-foreground"
-                  )}
-                >
-                  {normalizeStatusText(pipelineStatus || entityLabel || "PENDING")}
-                </Badge>
+                {renderStatusBadge(pipelineStatus || entityLabel || "PENDING")}
               </div>
             ) : partySource && !typeA ? (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-muted-foreground">Status</span>
-                <Badge variant="outline" className="text-xs font-medium">
-                  {normalizeStatusText(pipelineStatus)}
-                </Badge>
+                {renderStatusBadge(pipelineStatus)}
               </div>
             ) : (
               <>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-muted-foreground">KYC</span>
-                  <Badge className={cn("text-xs font-medium", kycUi.badgeClass)}>{kycUi.display}</Badge>
+                  {renderStatusBadge(kycUi.display)}
                 </div>
                 {row.amlStatus?.trim() ? (
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-xs text-muted-foreground">AML</span>
-                    <Badge variant="outline" className="text-xs font-medium">
-                      {row.amlStatus}
-                    </Badge>
+                    {renderStatusBadge(row.amlStatus)}
                   </div>
                 ) : null}
               </>

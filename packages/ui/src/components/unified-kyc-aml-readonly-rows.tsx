@@ -76,20 +76,18 @@ function kycBadge(row: DirectorShareholderDisplayRow) {
 }
 
 function amlBadge(display: string) {
+  const cls = regtankDisplayStatusBadgeClass(display);
   if (display === "APPROVED") {
     return (
-      <Badge
-        variant="outline"
-        className="border-green-500/30 text-foreground bg-green-500/10 text-[11px] font-normal"
-      >
-        <CheckCircleIcon className="h-3 w-3 mr-1 text-green-600 shrink-0" aria-hidden />
+      <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
+        <CheckCircleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
         {display}
       </Badge>
     );
   }
   if (display === "REJECTED") {
     return (
-      <Badge variant="destructive" className="text-[11px] font-normal">
+      <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
         <XCircleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
         {display}
       </Badge>
@@ -97,20 +95,14 @@ function amlBadge(display: string) {
   }
   if (display === "PENDING") {
     return (
-      <Badge
-        variant="outline"
-        className="border-gray-400/30 text-foreground bg-gray-400/10 text-[11px] font-normal"
-      >
-        <ClockIcon className="h-3 w-3 mr-1 text-gray-500 shrink-0" aria-hidden />
+      <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
+        <ClockIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
         {display}
       </Badge>
     );
   }
   return (
-    <Badge
-      variant="outline"
-      className="border-muted-foreground/40 text-foreground bg-muted/40 text-[11px] font-normal"
-    >
+    <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", cls)}>
       <ExclamationTriangleIcon className="h-3 w-3 mr-1 shrink-0" aria-hidden />
       {display}
     </Badge>
