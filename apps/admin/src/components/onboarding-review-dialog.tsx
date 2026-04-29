@@ -547,6 +547,9 @@ export function OnboardingReviewDialog({
                         </TooltipContent>
                       </Tooltip>
                     </div>
+                    <p className="text-xs text-muted-foreground">
+                      Note: Shareholders with less than 5% ownership are not displayed here.
+                    </p>
                     <OnboardingPeopleReadonlyCards
                       variant="kyc"
                       rows={visiblePeopleRows}
@@ -673,6 +676,9 @@ export function OnboardingReviewDialog({
                         </TooltipContent>
                       </Tooltip>
                     </div>
+                    <p className="text-xs text-muted-foreground">
+                      Note: Shareholders with less than 5% ownership are not displayed here.
+                    </p>
                     <OnboardingPeopleReadonlyCards
                       variant="aml"
                       rows={visiblePeopleRows}
