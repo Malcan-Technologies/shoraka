@@ -13,7 +13,10 @@ import { registerRoutes } from "../routes";
 import { createSessionMiddleware } from "./session";
 import { initializeOpenIdClient } from "../lib/openid-client";
 import { hydrateVerifier } from "../lib/auth/cognito-jwt-verifier";
-import { regTankWebhookRouter } from "../modules/regtank/webhook-controller";
+import {
+  regTankRootWebhookAliasRouter,
+  regTankWebhookRouter,
+} from "../modules/regtank/webhook-controller";
 import { signingCloudWebhookRouter } from "../modules/signingcloud/webhook-controller";
 
 function parseAllowedOrigins(): string[] {
@@ -77,6 +80,7 @@ export async function createApp(): Promise<Application> {
   );
 
   // Register webhook routes BEFORE express.json() so we can capture raw body for signature verification
+  app.use(regTankRootWebhookAliasRouter);
   app.use("/v1/webhooks", regTankWebhookRouter);
   app.use("/v1/webhooks/signingcloud", signingCloudWebhookRouter);
   // Alias: some envs use /api/v1/... (Next-style); SigningCloud callUrl must match a mounted path

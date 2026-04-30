@@ -13,11 +13,9 @@ import { maybeAdvanceOrgAfterAmlScreeningCleared } from "./org-aml-milestone";
 import { linkCtosPartyToKyb } from "../../organization/ctos-party-kyb-link";
 import { findCtosPartySupplementByOnboardingJsonMatch } from "../../organization/ctos-party-supplement-webhook-lookup";
 import {
-  getEffectiveCtosPartyOnboarding,
-  getEffectiveCtosPartyScreening,
   getCtosPartySupplementPipelineStatus,
   mergeCtosPartySupplementDocument,
-  parseCtosPartySupplementRoot,
+  parseCtosPartySupplement,
 } from "@cashsouk/types";
 import { mapRegTankKycScreeningStatusToAmlStatus } from "../helpers/regtank-kyc-screening-to-aml-status";
 
@@ -774,13 +772,14 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
   }
 
   /**
-   * Persist AML screening snapshot on CTOS party supplements (isolated from director_aml_status).
-   * Payload may expose amlStatus / screeningResult; otherwise messageStatus / status are used.
+   * Issuer CTOS party individual onboarding: no reg_tank_onboarding row; match supplement by onboarding_json.requestId or referenceId.
+   * When webhook `referenceId` uses `buildSafeReferenceId(orgId, partyKey)`, lookup is scoped to that org so another org cannot match the same ids.
    */
-  private buildCtosPartySupplementAmlBlock(payload: RegTankKYCWebhook): Record<string, unknown> {
+  private async tryHandleCtosPartyKycFromWebhook(payload: RegTankKYCWebhook): Promise<boolean> {
     const {
       requestId,
       referenceId,
+      onboardingId,
       status,
       riskLevel,
       riskScore,
@@ -788,6 +787,47 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
       possibleMatchCount,
       blacklistedMatchCount,
     } = payload;
+
+    const supplement = await findCtosPartySupplementByOnboardingJsonMatch(onboardingId, referenceId);
+    if (!supplement) {
+      return false;
+    }
+
+    const prevRoot = supplement.onboarding_json;
+    const prev = parseCtosPartySupplement(prevRoot);
+
+    const rawStatus = typeof status === "string" ? status : "";
+    if (!rawStatus) {
+      logger.warn(
+        {
+          requestId,
+          onboardingId,
+          referenceId,
+          partyKey: supplement.party_key,
+        },
+        "CTOS party KYC webhook missing status, skipping supplement persistence safely"
+      );
+      return true;
+    }
+    const now = new Date().toISOString();
+
+    const latestRequestId = prev.requestId.trim();
+    const webhookOnboardingId = typeof onboardingId === "string" ? onboardingId.trim() : "";
+    if (latestRequestId && webhookOnboardingId && latestRequestId !== webhookOnboardingId) {
+      logger.info(
+        {
+          latestRequestId,
+          webhookOnboardingId,
+          requestId,
+          partyKey: supplement.party_key,
+          issuerOrganizationId: supplement.issuer_organization_id,
+          investorOrganizationId: supplement.investor_organization_id,
+        },
+        "Ignored stale CTOS party KYC webhook for non-latest onboarding requestId"
+      );
+      return true;
+    }
+
     const ext = payload as Record<string, unknown>;
     const firstStringField = (keys: string[]): string => {
       for (const k of keys) {
@@ -806,126 +846,30 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
     ]);
     const msg = typeof messageStatus === "string" ? messageStatus.trim() : "";
     const st = typeof status === "string" ? status : "";
-    const rawStatus = st || explicitAml || msg || "PENDING";
+    const screeningStatusRaw = (st || explicitAml || msg).trim();
 
-    const aml: Record<string, unknown> = {
+    const screeningPatch: Record<string, unknown> = {
       provider: this.kycProviderLabel(),
       requestId,
-      rawStatus,
-      riskLevel: riskLevel ?? "",
-      riskScore: riskScore ?? "",
-      updatedAt: new Date().toISOString(),
-    };
-    if (typeof referenceId === "string" && referenceId.trim()) {
-      aml.referenceId = referenceId.trim();
-    }
-    if (msg) {
-      aml.messageStatus = messageStatus;
-    }
-    if (typeof possibleMatchCount === "number") {
-      aml.possibleMatchCount = possibleMatchCount;
-    }
-    if (typeof blacklistedMatchCount === "number") {
-      aml.blacklistedMatchCount = blacklistedMatchCount;
-    }
-    return aml;
-  }
-
-  /**
-   * Issuer CTOS party individual onboarding: no reg_tank_onboarding row; match supplement by onboarding_json.requestId or referenceId.
-   * When webhook `referenceId` uses `buildSafeReferenceId(orgId, partyKey)`, lookup is scoped to that org so another org cannot match the same ids.
-   */
-  private async tryHandleCtosPartyKycFromWebhook(payload: RegTankKYCWebhook): Promise<boolean> {
-    const { requestId, referenceId, onboardingId, status, riskLevel, riskScore, messageStatus } =
-      payload;
-
-    const supplement = await findCtosPartySupplementByOnboardingJsonMatch(onboardingId, referenceId);
-    if (!supplement) {
-      return false;
-    }
-
-    const prevRoot = parseCtosPartySupplementRoot(supplement.onboarding_json);
-
-    const rawStatus = typeof status === "string" ? status : "";
-    if (!rawStatus) {
-      logger.warn(
-        {
-          requestId,
-          onboardingId,
-          referenceId,
-          partyKey: supplement.party_key,
-        },
-        "CTOS party KYC webhook missing status, skipping supplement persistence safely"
-      );
-      return true;
-    }
-    const regtankStatus = rawStatus;
-
-    const now = new Date().toISOString();
-    const kycBlock: Record<string, unknown> = {
-      provider: this.kycProviderLabel(),
-      requestId,
-      rawStatus,
-      riskLevel: riskLevel ?? "",
-      riskScore: riskScore ?? "",
+      status: screeningStatusRaw,
+      riskLevel: riskLevel != null ? String(riskLevel) : null,
+      riskScore: riskScore ?? null,
       updatedAt: now,
-      lastPayload: {},
     };
     if (messageStatus !== undefined && messageStatus !== null && `${messageStatus}`.length > 0) {
-      kycBlock.messageStatus = messageStatus;
+      screeningPatch.messageStatus = messageStatus;
     }
-
-    const prevOnb = getEffectiveCtosPartyOnboarding(prevRoot);
-    const latestRequestId = typeof prevOnb.requestId === "string" ? prevOnb.requestId.trim() : "";
-    const webhookOnboardingId = typeof onboardingId === "string" ? onboardingId.trim() : "";
-    if (latestRequestId && webhookOnboardingId && latestRequestId !== webhookOnboardingId) {
-      logger.info(
-        {
-          latestRequestId,
-          webhookOnboardingId,
-          requestId,
-          partyKey: supplement.party_key,
-          issuerOrganizationId: supplement.issuer_organization_id,
-          investorOrganizationId: supplement.investor_organization_id,
-        },
-        "Ignored stale CTOS party KYC webhook for non-latest onboarding requestId"
-      );
-      return true;
+    if (typeof referenceId === "string" && referenceId.trim()) {
+      screeningPatch.referenceId = referenceId.trim();
     }
-
-    const prevScr = getEffectiveCtosPartyScreening(prevRoot);
-    const amlPiece = this.buildCtosPartySupplementAmlBlock(payload) as Record<string, unknown>;
-    const statusStr = String(
-      (typeof amlPiece.rawStatus === "string" ? amlPiece.rawStatus : "") ||
-        (typeof kycBlock.rawStatus === "string" ? kycBlock.rawStatus : "") ||
-        regtankStatus ||
-        ""
-    ).trim();
-    const screeningPatch: Record<string, unknown> = {
-      ...prevScr,
-      provider: String(kycBlock.provider ?? prevScr.provider ?? "ACURIS"),
-      requestId: String(kycBlock.requestId ?? prevScr.requestId ?? ""),
-      status: statusStr,
-      riskLevel: String(amlPiece.riskLevel ?? kycBlock.riskLevel ?? prevScr.riskLevel ?? ""),
-      riskScore: String(amlPiece.riskScore ?? kycBlock.riskScore ?? prevScr.riskScore ?? ""),
-      updatedAt: now,
-      messageStatus: amlPiece.messageStatus ?? kycBlock.messageStatus ?? prevScr.messageStatus,
-    };
-    if (typeof amlPiece.referenceId === "string" && amlPiece.referenceId.trim()) {
-      screeningPatch.referenceId = amlPiece.referenceId.trim();
+    if (typeof possibleMatchCount === "number") {
+      screeningPatch.possibleMatchCount = possibleMatchCount;
     }
-    if (typeof amlPiece.possibleMatchCount === "number") {
-      screeningPatch.possibleMatchCount = amlPiece.possibleMatchCount;
+    if (typeof blacklistedMatchCount === "number") {
+      screeningPatch.blacklistedMatchCount = blacklistedMatchCount;
     }
-    if (typeof amlPiece.blacklistedMatchCount === "number") {
-      screeningPatch.blacklistedMatchCount = amlPiece.blacklistedMatchCount;
-    }
-    delete screeningPatch.kyc;
-    delete screeningPatch.aml;
 
     const mergedBase = mergeCtosPartySupplementDocument(prevRoot, {
-      regtankPipelineStatus: regtankStatus,
-      onboarding: { updatedAt: now },
       screening: screeningPatch,
     });
 

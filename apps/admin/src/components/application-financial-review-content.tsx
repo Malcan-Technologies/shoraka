@@ -42,6 +42,7 @@ import {
   getAdminFinancialSummaryUserColumnYears,
   getLatestThreeCtosYearSlots,
   normalizeFinancialStatementsQuestionnaire,
+  normalizeDirectorShareholderIdKey,
   type ApplicationPersonRow,
   type ColumnComputedMetrics,
   type FinancialStatementsInput,
@@ -288,6 +289,7 @@ export function ApplicationFinancialReviewContent({
     applicationId
   );
   const [orgCtosConfirmOpen, setOrgCtosConfirmOpen] = React.useState(false);
+  const [subjectCtosFetchKey, setSubjectCtosFetchKey] = React.useState<string | null>(null);
 
   const { unauditedByYear, questionnaire: financialQuestionnaire } = React.useMemo(
     () => extractQuestionnaireAndUnaudited(app.financial_statements),
@@ -902,25 +904,35 @@ export function ApplicationFinancialReviewContent({
           people={app.people ?? []}
           portal="issuer"
           organizationId={issuerOrgId}
+          subjectCtosReports={app.issuer_organization?.latest_organization_ctos_subject_reports ?? null}
           ctosFetchPending={createSubjectReport.isPending}
-          ctosFetchPendingKey={null}
+          ctosFetchPendingKey={subjectCtosFetchKey}
           notifyPending={notifyActionRequired.isPending}
-          onFetchSubjectCtos={(person) =>
+          onFetchSubjectCtos={(person) => {
+            const idKey = normalizeDirectorShareholderIdKey(person.matchKey);
+            if (!idKey) {
+              toast.error("Missing IC / SSM. Cannot fetch CTOS report.");
+              return;
+            }
+            const displayName = person.name?.trim();
+            if (!displayName) {
+              toast.error("Missing name. Cannot fetch CTOS report.");
+              return;
+            }
+            setSubjectCtosFetchKey(idKey);
             createSubjectReport.mutate(
               {
-                subjectRef: String(person.matchKey ?? ""),
+                subjectRef: idKey,
                 subjectKind: person.entityType === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL",
-                enquiryOverride:
-                  person.name && person.matchKey
-                    ? { displayName: person.name, idNumber: String(person.matchKey) }
-                    : undefined,
+                enquiryOverride: { displayName, idNumber: idKey },
               },
               {
+                onSettled: () => setSubjectCtosFetchKey(null),
                 onSuccess: () => toast.success("Subject report updated"),
                 onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "Request failed"),
               }
-            )
-          }
+            );
+          }}
           onNotify={(person) =>
             notifyActionRequired.mutate(
               { partyKey: person.matchKey },

@@ -23,10 +23,33 @@ export function useCreateIssuerOrganizationCtosReport(
       }
       return response.data;
     },
-    onSuccess: () => {
-      if (applicationDetailId) {
-        void queryClient.invalidateQueries({ queryKey: applicationsKeys.detail(applicationDetailId) });
+    onSuccess: async () => {
+      if (organizationId) {
+        void queryClient.invalidateQueries({
+          queryKey: ["admin", "organization-ctos-reports", "issuer", organizationId],
+        });
+        void queryClient.invalidateQueries({
+          queryKey: ["admin", "organization-ctos-reports-inline", "issuer", organizationId],
+        });
       }
+      const refetches: Array<Promise<unknown>> = [];
+      if (applicationDetailId) {
+        refetches.push(
+          queryClient.refetchQueries({
+            queryKey: applicationsKeys.detail(applicationDetailId),
+            type: "all",
+          })
+        );
+      }
+      if (organizationId) {
+        refetches.push(
+          queryClient.refetchQueries({
+            queryKey: ["admin", "organization-detail", "issuer", organizationId],
+            type: "all",
+          })
+        );
+      }
+      await Promise.all(refetches);
     },
   });
 }
@@ -56,10 +79,25 @@ export function useCreateIssuerOrganizationCtosSubjectReport(
       }
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      const refetches: Array<Promise<unknown>> = [];
       if (applicationDetailId) {
-        void queryClient.invalidateQueries({ queryKey: applicationsKeys.detail(applicationDetailId) });
+        refetches.push(
+          queryClient.refetchQueries({
+            queryKey: applicationsKeys.detail(applicationDetailId),
+            type: "all",
+          })
+        );
       }
+      if (organizationId) {
+        refetches.push(
+          queryClient.refetchQueries({
+            queryKey: ["admin", "organization-detail", "issuer", organizationId],
+            type: "all",
+          })
+        );
+      }
+      await Promise.all(refetches);
     },
   });
 }

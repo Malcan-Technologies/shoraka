@@ -229,6 +229,19 @@ const devSuffixRoutes: ReadonlyArray<{
   { suffix: "/kyt", handler: kytHandler, label: "KYT (dev URL)" },
 ];
 
+const regTankWebhookRawJson = express.raw({ type: "application/json" });
+
+/**
+ * RegTank appends these suffixes to the configured webhook base URL alone (e.g. `https://api.example.com`
+ * → POST `/liveness`). Mount at app root so that layout still works; canonical paths remain under `/v1/webhooks/regtank/*`.
+ */
+const regTankRootWebhookAliasRouter = Router();
+for (const { suffix, handler, label } of devSuffixRoutes) {
+  regTankRootWebhookAliasRouter.post(suffix, regTankWebhookRawJson, async (req: Request, res: Response) => {
+    await handleWebhookRoute(req, res, handler, `${label} (root alias)`);
+  });
+}
+
 /**
  * Dev webhook endpoints — only in non-production or when ENABLE_REGTANK_DEV_WEBHOOK=true
  */
@@ -299,12 +312,10 @@ if (process.env.NODE_ENV !== "production" || process.env.ENABLE_REGTANK_DEV_WEBH
     }
   }
 
-  const devWebhookRaw = express.raw({ type: "application/json" });
-
-  router.post("/regtank/dev", devWebhookRaw, handleRegTankDevWebhookRoute);
+  router.post("/regtank/dev", regTankWebhookRawJson, handleRegTankDevWebhookRoute);
 
   for (const { suffix, handler, label } of devSuffixRoutes) {
-    router.post(`/regtank/dev${suffix}`, devWebhookRaw, async (req, res) => {
+    router.post(`/regtank/dev${suffix}`, regTankWebhookRawJson, async (req, res) => {
       await handleWebhookRoute(req, res, handler, label);
     });
   }
@@ -318,4 +329,4 @@ if (process.env.NODE_ENV !== "production" || process.env.ENABLE_REGTANK_DEV_WEBH
   );
 }
 
-export { router as regTankWebhookRouter };
+export { router as regTankWebhookRouter, regTankRootWebhookAliasRouter };

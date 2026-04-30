@@ -2030,7 +2030,8 @@ export function BusinessDetailsStep({
           </div>
 
           <Label className={labelTextareaClassName}>
-            Upload any relevant supporting documents for this section
+            Upload any relevant supporting documents for this section{" "}
+            <span className="text-muted-foreground">(optional)</span>
           </Label>
           <div className="min-w-0 space-y-3">
             {whyRaisingFunds.supportingDocuments.length > 0 ? (

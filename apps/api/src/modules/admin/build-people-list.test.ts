@@ -80,7 +80,7 @@ describe("buildUnifiedPeople", () => {
     expect(shareholderOnlyLow).toBeUndefined();
   });
 
-  it("uses DB values when DB match exists", () => {
+  it("uses supplement only when a ctos_party_supplements row exists for the matchKey (ignores issuer KYC/AML)", () => {
     const rows = buildUnifiedPeople({
       ctos: {
         directors: [
@@ -98,6 +98,7 @@ describe("buildUnifiedPeople", () => {
           {
             governmentIdNumber: "660404104444",
             kycStatus: "PENDING",
+            kycId: "KY999",
             email: "db-kyc@example.com",
           },
         ],
@@ -107,6 +108,8 @@ describe("buildUnifiedPeople", () => {
           {
             governmentIdNumber: "660404104444",
             amlStatus: "REJECTED",
+            amlRiskLevel: "High",
+            amlRiskScore: 99,
             email: "db-aml@example.com",
           },
         ],
@@ -115,8 +118,17 @@ describe("buildUnifiedPeople", () => {
         {
           party_key: "660404104444",
           onboarding_json: {
-            onboarding: { status: "APPROVED", email: "supplement@example.com" },
-            screening: { status: "APPROVED" },
+            requestId: "LD80084",
+            status: "WAIT_FOR_APPROVAL",
+            email: "supplement@example.com",
+            verifyLink: "https://verify.example/v",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+            screening: {
+              requestId: "AMLREQ1",
+              status: "PENDING",
+              riskLevel: "Low",
+              riskScore: 3,
+            },
           },
         },
       ],
@@ -124,9 +136,95 @@ describe("buildUnifiedPeople", () => {
     });
 
     expect(rows).toHaveLength(1);
+    expect(rows[0]?.requestId).toBe("AMLREQ1");
+    expect(rows[0]?.requestIdType).toBe("SCREENING");
+    expect(rows[0]?.onboarding?.status).toBe("WAIT_FOR_APPROVAL");
+    expect(rows[0]?.onboarding?.verifyLink).toBe("https://verify.example/v");
+    expect(rows[0]?.screening?.status).toBe("PENDING");
+    expect(rows[0]?.screening?.riskLevel).toBe("Low");
+    expect(rows[0]?.screening?.riskScore).toBe(3);
+    expect(rows[0]?.screening?.id).toBe("AMLREQ1");
+    expect(rows[0]?.email).toBe("supplement@example.com");
+  });
+
+  it("uses top-level supplement requestId when screening has no requestId", () => {
+    const rows = buildUnifiedPeople({
+      ctos: {
+        directors: [
+          {
+            party_type: "I",
+            nic_brno: "770707-10-7777",
+            name: "Pre Aml",
+            position: "Director",
+          },
+        ],
+        shareholders: [],
+      },
+      issuerDirectorKycStatus: {
+        directors: [{ governmentIdNumber: "770707107777", kycId: "KY_SHOULD_NOT_APPEAR", kycStatus: "APPROVED" }],
+      },
+      issuerDirectorAmlStatus: { directors: [{ governmentIdNumber: "770707107777", amlStatus: "APPROVED" }] },
+      ctosPartySupplements: [
+        {
+          party_key: "770707107777",
+          onboarding_json: {
+            requestId: "LD80084-R07",
+            status: "IN_PROGRESS",
+            screening: null,
+          },
+        },
+      ],
+      corporateEntities: null,
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.requestId).toBe("LD80084-R07");
+    expect(rows[0]?.requestIdType).toBe("ONBOARDING");
+  });
+
+  it("uses issuer KYC/AML when no supplement row exists for the matchKey", () => {
+    const rows = buildUnifiedPeople({
+      ctos: {
+        directors: [
+          {
+            party_type: "I",
+            nic_brno: "660404-10-4444",
+            name: "Issuer Only",
+            position: "Director",
+          },
+        ],
+        shareholders: [],
+      },
+      issuerDirectorKycStatus: {
+        directors: [
+          {
+            governmentIdNumber: "660404104444",
+            kycStatus: "PENDING",
+            kycId: "KY1",
+            email: "db-kyc@example.com",
+          },
+        ],
+      },
+      issuerDirectorAmlStatus: {
+        directors: [
+          {
+            governmentIdNumber: "660404104444",
+            amlStatus: "REJECTED",
+            amlRiskLevel: "Med",
+            amlRiskScore: 1,
+            email: "db-aml@example.com",
+          },
+        ],
+      },
+      ctosPartySupplements: null,
+      corporateEntities: null,
+    });
+
+    expect(rows).toHaveLength(1);
     expect(rows[0]?.onboarding?.status).toBe("PENDING");
     expect(rows[0]?.screening?.status).toBe("REJECTED");
-    expect(rows[0]?.email).toBe("db-kyc@example.com");
+    expect(rows[0]?.requestId).toBe("KY1");
+    expect(rows[0]?.screening?.riskLevel).toBe("Med");
+    expect(rows[0]?.screening?.riskScore).toBe(1);
   });
 
   it("treats unmatched person as NEW_PERSON with null status and email", () => {

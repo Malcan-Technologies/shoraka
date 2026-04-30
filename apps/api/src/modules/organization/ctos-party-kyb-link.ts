@@ -1,9 +1,8 @@
 import { Prisma } from "@prisma/client";
 import {
   getCtosPartySupplementPipelineStatus,
-  getEffectiveCtosPartyScreening,
   normalizeDirectorShareholderIdKey,
-  parseCtosPartySupplementRoot,
+  parseCtosPartySupplement,
   sanitizeCtosPartySupplementOnboardingJsonForPersist,
 } from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
@@ -171,10 +170,8 @@ export async function linkCtosPartyToKyb(input: LinkCtosPartyToKybInput): Promis
   const { organizationId, partyKey, onboardingJson } = input;
   if (getCtosPartySupplementPipelineStatus(onboardingJson).toUpperCase() !== "APPROVED") return;
 
-  const root = parseCtosPartySupplementRoot(onboardingJson);
-  const scr = getEffectiveCtosPartyScreening(root);
-  const kycId =
-    typeof scr.requestId === "string" && scr.requestId.trim() ? scr.requestId.trim() : "";
+  const scr = parseCtosPartySupplement(onboardingJson).screening;
+  const kycId = scr?.requestId?.trim() ?? "";
   if (!kycId) {
     logger.error(
       { organizationId, partyKey },

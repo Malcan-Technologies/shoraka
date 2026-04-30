@@ -1,13 +1,11 @@
 import {
   normalizeDirectorShareholderIdKey,
   normalizeRawStatus,
-  parseCtosPartySupplementRoot,
-  getEffectiveCtosPartyScreening,
-  getEffectiveCtosPartyOnboarding,
-  getCtosPartySupplementFlatRead,
+  parseCtosPartySupplement,
   extractBusinessNumber,
   extractGovernmentId,
   type ApplicationPersonRow,
+  type CtosPartySupplement,
 } from "@cashsouk/types";
 import { getDirectorShareholderDisplayRows } from "@cashsouk/types";
 import { extractCtosIndividuals } from "../regtank/helpers/detect-director-gaps";
@@ -289,34 +287,102 @@ function enrichPersonFromIssuerMaps(params: {
   };
 }
 
-function buildSupplementOverrideMaps(supplements: SupplementInput[] | null | undefined): {
-  onboardingByKey: Map<string, string | null>;
-  screeningByKey: Map<string, string | null>;
-  emailByKey: Map<string, string | null>;
-} {
-  const onboardingByKey = new Map<string, string | null>();
-  const screeningByKey = new Map<string, string | null>();
-  const emailByKey = new Map<string, string | null>();
+type SupplementParsed = { sup: CtosPartySupplement; raw: unknown };
+
+function buildSupplementMapByMatchKey(supplements: SupplementInput[] | null | undefined): Map<string, SupplementParsed> {
+  const m = new Map<string, SupplementParsed>();
   for (const s of supplements ?? []) {
     const key = normalizeDirectorShareholderIdKey(String(s.partyKey ?? s.party_key ?? ""));
     if (!key) continue;
     const raw = s.onboardingJson ?? s.onboarding_json;
-    const root = parseCtosPartySupplementRoot(raw);
-    const onboarding = getEffectiveCtosPartyOnboarding(root);
-    const screening = getEffectiveCtosPartyScreening(root);
-    const flat = getCtosPartySupplementFlatRead(raw);
-    onboardingByKey.set(key, normalizeRawStatus(onboarding.status ?? onboarding.regtankStatus) || null);
-    screeningByKey.set(key, normalizeRawStatus(screening.status) || null);
-    emailByKey.set(key, flat.email.trim() || null);
+    m.set(key, { sup: parseCtosPartySupplement(raw), raw });
   }
-  return { onboardingByKey, screeningByKey, emailByKey };
+  return m;
 }
 
-function normalizeUnifiedPeopleRows(
-  rows: ApplicationPersonRow[],
-  supplements: SupplementInput[] | null | undefined
-): ApplicationPersonRow[] {
-  const { onboardingByKey, screeningByKey, emailByKey } = buildSupplementOverrideMaps(supplements);
+function topLevelOnboardingRequestIdFromSupplementRaw(raw: unknown): string {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "";
+  const r = raw as Record<string, unknown>;
+  return String(r.requestId ?? "").trim();
+}
+
+function requestIdFromSupplementParsed(sup: CtosPartySupplement, raw: unknown): {
+  requestId: string | null;
+  requestIdType: "SCREENING" | "ONBOARDING" | null;
+} {
+  const screeningId = String(sup.screening?.requestId ?? "").trim();
+  const onboardingId = topLevelOnboardingRequestIdFromSupplementRaw(raw);
+  if (screeningId) {
+    return { requestId: screeningId, requestIdType: "SCREENING" };
+  }
+  if (onboardingId) {
+    return { requestId: onboardingId, requestIdType: "ONBOARDING" };
+  }
+  return { requestId: null, requestIdType: null };
+}
+
+function screeningFromSupplementParsed(sc: CtosPartySupplement["screening"]): ApplicationPersonRow["screening"] {
+  if (!sc) return null;
+  const statusRaw = String(sc.status ?? "").trim();
+  const statusNorm = statusRaw ? normalizeRawStatus(statusRaw) || statusRaw : null;
+  const rid = String(sc.requestId ?? "").trim();
+  if (!statusNorm && !rid && sc.riskLevel == null && sc.riskScore == null) return null;
+  return {
+    status: statusNorm,
+    id: rid || null,
+    riskLevel: sc.riskLevel ?? null,
+    riskScore: sc.riskScore ?? null,
+  };
+}
+
+function personRowFromSupplement(params: {
+  matchKey: string;
+  name: string | null;
+  entityType: "INDIVIDUAL" | "CORPORATE";
+  roles: Array<"DIRECTOR" | "SHAREHOLDER"> | string[];
+  sharePercentage: number | null;
+  sup: CtosPartySupplement;
+  supplementRaw: unknown;
+  icFrontUrl?: string | null;
+  icBackUrl?: string | null;
+}): ApplicationPersonRow {
+  const screening = screeningFromSupplementParsed(params.sup.screening);
+  const onboardingStatusRaw = String(params.sup.status ?? "").trim();
+  const onboardingStatus = onboardingStatusRaw
+    ? normalizeRawStatus(onboardingStatusRaw) || onboardingStatusRaw
+    : null;
+  const email = (params.sup.email ?? "").trim();
+  const topStatus =
+    screening?.status && String(screening.status).trim()
+      ? normalizeRawStatus(String(screening.status)) || String(screening.status)
+      : onboardingStatus
+        ? normalizeRawStatus(onboardingStatus) || onboardingStatus
+        : "";
+  const { requestId, requestIdType } = requestIdFromSupplementParsed(params.sup, params.supplementRaw);
+  return {
+    matchKey: params.matchKey,
+    name: params.name,
+    entityType: params.entityType,
+    roles: [...params.roles],
+    sharePercentage: params.sharePercentage,
+    status: topStatus,
+    action: null,
+    screening,
+    onboarding: {
+      status: onboardingStatus,
+      id: params.sup.referenceId?.trim() || null,
+      verifyLink: params.sup.verifyLink ?? null,
+      updatedAt: params.sup.updatedAt ?? null,
+    },
+    requestId,
+    requestIdType,
+    icFrontUrl: params.icFrontUrl ?? null,
+    icBackUrl: params.icBackUrl ?? null,
+    email,
+  };
+}
+
+function normalizeUnifiedPeopleRows(rows: ApplicationPersonRow[]): ApplicationPersonRow[] {
   const merged = new Map<string, ApplicationPersonRow>();
   for (const row of rows) {
     const key = normalizeDirectorShareholderIdKey(row.matchKey);
@@ -342,6 +408,7 @@ function normalizeUnifiedPeopleRows(
       screening: { ...(existing.screening ?? {}), ...(row.screening ?? {}) },
       onboarding: { ...(existing.onboarding ?? {}), ...(row.onboarding ?? {}) },
       requestId: existing.requestId ?? row.requestId ?? null,
+      requestIdType: existing.requestIdType ?? row.requestIdType ?? null,
       icFrontUrl: existing.icFrontUrl ?? row.icFrontUrl ?? null,
       icBackUrl: existing.icBackUrl ?? row.icBackUrl ?? null,
       email: String(existing.email ?? row.email ?? "").trim(),
@@ -353,18 +420,12 @@ function normalizeUnifiedPeopleRows(
     const roleSet = new Set<string>((row.roles ?? []).map((r) => String(r).toUpperCase()));
     const share = typeof row.sharePercentage === "number" ? row.sharePercentage : null;
     if (roleSet.has("SHAREHOLDER") && (share == null || share < 5)) roleSet.delete("SHAREHOLDER");
-    const onboardingStatus = onboardingByKey.has(key) ? onboardingByKey.get(key) ?? null : normalizeRawStatus(row.onboarding?.status) || null;
-    const screeningStatus = screeningByKey.has(key) ? screeningByKey.get(key) ?? null : normalizeRawStatus(row.screening?.status) || null;
-    const email = emailByKey.has(key)
-      ? emailByKey.get(key) ?? null
-      : String(row.email ?? row.userEmail ?? row.kycEmail ?? row.amlEmail ?? "").trim() || null;
+    const email = String(row.email ?? "").trim() || "";
     return {
       ...row,
       matchKey: key,
       roles: Array.from(roleSet),
-      onboarding: { ...row.onboarding, status: onboardingStatus },
-      screening: { ...row.screening, status: screeningStatus },
-      email: email ?? "",
+      email,
       userEmail: undefined,
       kycEmail: undefined,
       amlEmail: undefined,
@@ -373,13 +434,6 @@ function normalizeUnifiedPeopleRows(
     };
   });
   return out;
-}
-
-function screeningStatusFromSupplement(raw: unknown): string | null {
-  const root = parseCtosPartySupplementRoot(raw);
-  const scr = getEffectiveCtosPartyScreening(root);
-  const n = normalizeRawStatus(scr.status);
-  return n || null;
 }
 
 /**
@@ -422,6 +476,7 @@ function buildPeopleFromUserDeclaredData(params: {
   const issuerMaps = buildIssuerDirectorMaps(params.issuerDirectorKycStatus, params.issuerDirectorAmlStatus);
   const cePartyRefs = buildCePartyRefs(params.corporateEntities);
   const icDocsByMatchKey = buildIcDocumentUrlsByMatchKey(params.corporateEntities);
+  const supplementByKey = buildSupplementMapByMatchKey(params.ctosPartySupplements);
 
   const baseRows = displayRows.map((r) => {
     // Admin UI expects matchKey to be the IC government id (INDIVIDUAL) or SSM number (CORPORATE).
@@ -437,13 +492,29 @@ function buildPeopleFromUserDeclaredData(params: {
     if (r.isShareholder && sharePct != null && sharePct >= 5) roles.push("SHAREHOLDER");
 
     const entityType = (r.type === "INDIVIDUAL" ? "INDIVIDUAL" : "CORPORATE") as "INDIVIDUAL" | "CORPORATE";
+    const icUrls = entityType === "INDIVIDUAL" ? icDocsByMatchKey.get(key) : undefined;
+
+    if (key && supplementByKey.has(key)) {
+      const bundle = supplementByKey.get(key)!;
+      return personRowFromSupplement({
+        matchKey,
+        name: r.name ?? null,
+        entityType,
+        roles,
+        sharePercentage: typeof r.sharePercentage === "number" ? r.sharePercentage : null,
+        sup: bundle.sup,
+        supplementRaw: bundle.raw,
+        icFrontUrl: icUrls?.front ?? null,
+        icBackUrl: icUrls?.back ?? null,
+      });
+    }
+
     const enriched = enrichPersonFromIssuerMaps({
       entityType,
       matchKey,
       ce: cePartyRefs.get(key),
       maps: issuerMaps,
     });
-    const icUrls = entityType === "INDIVIDUAL" ? icDocsByMatchKey.get(key) : undefined;
 
     return {
       matchKey,
@@ -467,7 +538,7 @@ function buildPeopleFromUserDeclaredData(params: {
     };
   });
 
-  const finalPeople = normalizeUnifiedPeopleRows(baseRows, params.ctosPartySupplements ?? null);
+  const finalPeople = normalizeUnifiedPeopleRows(baseRows);
   // console.log(
   //   "[FINAL PEOPLE]",
   //   finalPeople.map((r) => ({
@@ -534,22 +605,7 @@ export function buildUnifiedPeople(params: {
         ? [params.supplement as SupplementInput]
         : [];
 
-  const screeningByPartyKey = new Map<string, { status: string | null }>();
-  const onboardingByPartyKey = new Map<string, { status: string | null }>();
-  const userEmailByPartyKey = new Map<string, string>();
-  for (const s of supplements) {
-    const pk = normalizeDirectorShareholderIdKey(String(s.party_key ?? s.partyKey ?? ""));
-    if (!pk) continue;
-    const raw = s.onboarding_json ?? s.onboardingJson;
-    const st = screeningStatusFromSupplement(raw);
-    screeningByPartyKey.set(pk, { status: st });
-    const root = parseCtosPartySupplementRoot(raw);
-    const onboarding = getEffectiveCtosPartyOnboarding(root);
-    const onboardingNorm = normalizeRawStatus(onboarding.status ?? onboarding.regtankStatus);
-    onboardingByPartyKey.set(pk, { status: onboardingNorm || null });
-    const flatEm = getCtosPartySupplementFlatRead(raw).email.trim();
-    if (flatEm) userEmailByPartyKey.set(pk, flatEm);
-  }
+  const supplementByKey = buildSupplementMapByMatchKey(supplements);
 
   const issuer = {
     director_kyc_status: params.issuerDirectorKycStatus ?? null,
@@ -666,6 +722,23 @@ export function buildUnifiedPeople(params: {
 
   const rawRows = Array.from(peopleMap.values()).map((person) => {
     const key = normalizeDirectorShareholderIdKey(person.matchKey) ?? "";
+    const icUrls = person.entityType === "INDIVIDUAL" ? icDocsByMatchKey.get(key) : undefined;
+
+    if (key && supplementByKey.has(key)) {
+      const bundle = supplementByKey.get(key)!;
+      return personRowFromSupplement({
+        matchKey: person.matchKey,
+        name: person.name,
+        entityType: person.entityType,
+        roles: person.roles,
+        sharePercentage: person.sharePercentage,
+        sup: bundle.sup,
+        supplementRaw: bundle.raw,
+        icFrontUrl: icUrls?.front ?? null,
+        icBackUrl: icUrls?.back ?? null,
+      });
+    }
+
     const kycRefs = key ? individualKycRefByGov.get(key) : undefined;
     const amlRow =
       person.entityType === "CORPORATE"
@@ -676,16 +749,7 @@ export function buildUnifiedPeople(params: {
           ? issuerMaps.amlByGov.get(key)
           : undefined;
     const hasDbMatch = Boolean(key && (kycRefs || amlSanitizedStatus(amlRow)));
-    const hasSupplementMatch =
-      Boolean(key) &&
-      (onboardingByPartyKey.has(key) || screeningByPartyKey.has(key) || userEmailByPartyKey.has(key));
-    const source: "EXISTING" | "ONBOARDING" | "NEW_PERSON" = hasDbMatch
-      ? "EXISTING"
-      : hasSupplementMatch
-        ? "ONBOARDING"
-        : "NEW_PERSON";
 
-    let userEmail: string | null = null;
     let kycEmail: string | null = null;
     let amlEmail: string | null = null;
 
@@ -696,50 +760,21 @@ export function buildUnifiedPeople(params: {
       maps: issuerMaps,
     });
 
-    let onboardingFinal = enriched.onboarding;
-    let screeningFinal = enriched.screening;
+    const screeningFinal = enriched.screening;
+    const onboardingFinal = enriched.onboarding;
 
-    if (source === "ONBOARDING") {
-      onboardingFinal = {
-        ...enriched.onboarding,
-        status: onboardingByPartyKey.get(key)?.status ?? null,
-      };
-      screeningFinal = {
-        ...enriched.screening,
-        status: normalizeRawStatus(screeningByPartyKey.get(key)?.status) || null,
-      };
-      const supEmail = userEmailByPartyKey.get(key);
-      userEmail = supEmail?.trim() ? supEmail.trim() : null;
-    } else if (source === "EXISTING") {
-      if (person.entityType === "INDIVIDUAL") {
-        kycEmail = kycRefs?.email?.trim() ? kycRefs.email.trim() : null;
-        const amlByIc = key ? individualAmlEmailByGov.get(key) : undefined;
-        if (amlByIc?.trim()) {
-          amlEmail = amlByIc.trim();
-        } else if (kycRefs?.kycId) {
-          const amlByKyc = individualAmlEmailByKycId.get(kycRefs.kycId);
-          if (amlByKyc?.trim()) amlEmail = amlByKyc.trim();
-        }
+    if (hasDbMatch && person.entityType === "INDIVIDUAL") {
+      kycEmail = kycRefs?.email?.trim() ? kycRefs.email.trim() : null;
+      const amlByIc = key ? individualAmlEmailByGov.get(key) : undefined;
+      if (amlByIc?.trim()) {
+        amlEmail = amlByIc.trim();
+      } else if (kycRefs?.kycId) {
+        const amlByKyc = individualAmlEmailByKycId.get(kycRefs.kycId);
+        if (amlByKyc?.trim()) amlEmail = amlByKyc.trim();
       }
     }
 
-    const email =
-      source === "ONBOARDING"
-        ? userEmail ?? ""
-        : source === "EXISTING"
-          ? kycEmail ?? amlEmail ?? ""
-          : "";
-
-    // console.log("[PERSON LINK]", {
-    //   name: person.name,
-    //   matchKey: person.matchKey,
-    //   source,
-    //   requestId: enriched.requestId,
-    //   screening: screeningFinal,
-    //   onboarding: onboardingFinal,
-    // });
-
-    const icUrls = person.entityType === "INDIVIDUAL" ? icDocsByMatchKey.get(key) : undefined;
+    const email = hasDbMatch ? kycEmail ?? amlEmail ?? "" : "";
 
     return {
       ...person,
@@ -752,13 +787,13 @@ export function buildUnifiedPeople(params: {
       icBackUrl: icUrls?.back ?? null,
       status: screeningFinal?.status ? normalizeRawStatus(screeningFinal.status) || "" : enriched.status || "",
       action: null,
-      userEmail,
+      userEmail: null,
       kycEmail,
       amlEmail,
       email,
     };
   });
-  return normalizeUnifiedPeopleRows(rawRows, null);
+  return normalizeUnifiedPeopleRows(rawRows);
 }
 
 export function buildAdminPeopleList(params: {

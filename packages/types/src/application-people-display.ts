@@ -24,16 +24,8 @@ export type ApplicationPersonRow = {
   /**
    * SOURCE OF TRUTH (CRITICAL)
    *
-   * - All Director/Shareholder UI must use `people` only
-   * - Do NOT read:
-   *   - CTOS supplement (onboarding_json)
-   *   - director_kyc_status / director_aml_status
-   * - Do NOT recompute:
-   *   - onboarding status
-   *   - screening status
-   *   - email
-   *
-   * Backend is responsible for full enrichment.
+   * - Director/Shareholder UI reads **`people` only** for row-level onboarding, screening, email, and `requestId`.
+   * - Backend chooses **supplement-only** vs **issuer-only** per `matchKey` (`build-people-list.ts`); the UI must not merge raw JSON or issuer blobs into these fields.
    */
   matchKey: string;
   name: string | null;
@@ -58,10 +50,15 @@ export type ApplicationPersonRow = {
   /** Optional per-person KYC fallback (e.g. from director_kyc_status). */
   directorKycStatus?: string | null;
   /**
-   * Onboarding (KYC individual or KYB corporate) snapshot from issuer RegTank payloads.
-   * `id` is KYC/KYB request id when known (fallback for {@link ApplicationPersonRow.requestId}).
+   * Onboarding snapshot: from `ctos_party_supplements` when a row exists for this `matchKey`, else from issuer KYC/KYB JSON.
+   * `id` is reference id (supplement) or KYC/KYB id (issuer). `verifyLink` / `updatedAt` are supplement-only when present.
    */
-  onboarding?: { status?: string | null; id?: string | null } | null;
+  onboarding?: {
+    status?: string | null;
+    id?: string | null;
+    verifyLink?: string | null;
+    updatedAt?: string | null;
+  } | null;
   action?: "SEND_EMAIL" | null;
   /**
    * AML screening snapshot (e.g. RegTank ACURIS). `status` drives badges with KYC priority rules in UI helpers.
@@ -74,10 +71,11 @@ export type ApplicationPersonRow = {
     riskScore?: string | number | null;
   } | null;
   /**
-   * Primary RegTank request id for admin (priority: KYC/KYB id, then EOD/COD).
-   * Used with {@link getRegtankLink} for RegTank client portal deep links.
+   * Best RegTank id for links: with supplement, `screening.requestId` then top-level onboarding `requestId`; else issuer KYC/KYB then EOD/COD.
    */
   requestId?: string | null;
+  /** Set when row is built from `ctos_party_supplements`: which id won for {@link ApplicationPersonRow.requestId}. */
+  requestIdType?: "SCREENING" | "ONBOARDING" | null;
   /** IC front image URL from issuer `corporate_entities` (director/shareholder `documents`). */
   icFrontUrl?: string | null;
   /** IC back image URL from issuer `corporate_entities` (director/shareholder `documents`). */
@@ -229,6 +227,15 @@ export function formatPeopleRolesLineTitleCase(p: PeopleRolesRowInput): string {
 }
 
 /**
+ * {@link formatPeopleRolesLineWithoutShare} in title case (Director, Shareholder).
+ * WHERE USED: Issuer application company-details when share % is shown in a separate column.
+ */
+export function formatPeopleRolesLineTitleCaseWithoutShare(p: PeopleRolesRowInput): string {
+  const line = formatPeopleRolesLineWithoutShare(p);
+  return line.replace(/\bDIRECTOR\b/g, "Director").replace(/\bSHAREHOLDER\b/g, "Shareholder");
+}
+
+/**
  * Second-line identity for cards: `IC {matchKey}` or `SSM {matchKey}` (admin shows `matchKey` under name).
  * WHERE USED: Issuer/investor profile cards so IC and SSM sit in the same slot as each other and as email.
  */
@@ -271,6 +278,13 @@ export function formatSharePercentageCell(p: { sharePercentage: number | null })
     return Number.isInteger(v) ? `${v}%` : `${Number(v.toFixed(2))}%`;
   }
   return "";
+}
+
+/** Share cell with ownership label, e.g. `50% ownership`. Empty when no numeric share. */
+export function formatShareOwnershipCell(p: { sharePercentage: number | null }): string {
+  const pct = formatSharePercentageCell(p);
+  if (!pct) return "";
+  return `${pct} ownership`;
 }
 
 /**

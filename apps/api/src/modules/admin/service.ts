@@ -1877,6 +1877,12 @@ export class AdminService {
     corporateEntities?: Record<string, unknown> | null;
     latestOrganizationCtosCompanyJson?: Record<string, unknown> | null;
     ctosPartySupplements?: Array<{ partyKey: string; onboardingJson?: unknown }> | null;
+    latestOrganizationCtosSubjectReports?: Array<{
+      id: string;
+      subject_ref: string | null;
+      fetched_at: string;
+      has_report_html: boolean;
+    }>;
     corporateRequiredDocuments?: Record<string, unknown>[] | null;
     directorAmlStatus?: Record<string, unknown> | null;
     directorKycStatus?: Record<string, unknown> | null;
@@ -1901,6 +1907,14 @@ export class AdminService {
     let investorLatestCtosCompanyJson: Record<string, unknown> | null | undefined = undefined;
     let investorCtosPartySupplements: Array<{ partyKey: string; onboardingJson?: unknown }> | null | undefined =
       undefined;
+    let latestOrganizationCtosSubjectReports:
+      | Array<{
+          id: string;
+          subject_ref: string | null;
+          fetched_at: string;
+          has_report_html: boolean;
+        }>
+      | undefined = undefined;
     if (portal === "issuer") {
       const orgService = new OrganizationService();
       const extras = await orgService.getIssuerPartyListExtras(org.id);
@@ -1910,6 +1924,9 @@ export class AdminService {
         partyKey: row.partyKey,
         onboardingJson: row.onboardingJson,
       }));
+      if (org.type === "COMPANY") {
+        latestOrganizationCtosSubjectReports = extras.latestOrganizationCtosSubjectReports;
+      }
     }
     if (portal === "investor" && org.type === "COMPANY") {
       const orgService = new OrganizationService();
@@ -1920,6 +1937,7 @@ export class AdminService {
         partyKey: row.partyKey,
         onboardingJson: row.onboardingJson,
       }));
+      latestOrganizationCtosSubjectReports = extras.latestOrganizationCtosSubjectReports;
     }
 
     return {
@@ -2044,6 +2062,8 @@ export class AdminService {
           : undefined,
       ctosPartySupplements:
         org.type === "COMPANY" && portal === "issuer" ? ctosPartySupplements ?? [] : undefined,
+      latestOrganizationCtosSubjectReports:
+        org.type === "COMPANY" ? latestOrganizationCtosSubjectReports ?? [] : undefined,
       corporateRequiredDocuments: org.type === "COMPANY" ? (org.corporate_required_documents as Record<string, unknown>[] | null) : undefined,
       directorAmlStatus: org.type === "COMPANY" ? (org.director_aml_status as Record<string, unknown> | null) : undefined,
       directorKycStatus: org.type === "COMPANY" ? (org.director_kyc_status as Record<string, unknown> | null) : undefined,

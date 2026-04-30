@@ -12,7 +12,6 @@ import { prisma } from "../../../lib/prisma";
 import {
   mergeCtosPartySupplementDocument,
   normalizeRawStatus,
-  parseCtosPartySupplementRoot,
 } from "@cashsouk/types";
 import { findCtosPartySupplementByOnboardingJsonMatch } from "../../organization/ctos-party-supplement-webhook-lookup";
 
@@ -450,11 +449,9 @@ export class IndividualOnboardingWebhookHandler extends BaseWebhookHandler {
       return false;
     }
 
-    const prevRoot = parseCtosPartySupplementRoot(supplement.onboarding_json);
-    const now = new Date().toISOString();
+    const prevRoot = supplement.onboarding_json;
     const mergedBase = mergeCtosPartySupplementDocument(prevRoot, {
       regtankPipelineStatus: normalizeRawStatus(status),
-      onboarding: { updatedAt: now },
     });
 
     await prisma.ctosPartySupplement.update({

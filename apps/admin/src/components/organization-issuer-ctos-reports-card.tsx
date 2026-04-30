@@ -89,8 +89,15 @@ export function OrganizationIssuerCtosReportsCard({
       }
       return res.data;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "organization-ctos-reports", portal, organizationId] });
+      void queryClient.invalidateQueries({
+        queryKey: ["admin", "organization-ctos-reports-inline", portal, organizationId],
+      });
+      await queryClient.refetchQueries({
+        queryKey: ["admin", "organization-detail", portal, organizationId],
+        type: "all",
+      });
       toast.success("CTOS report saved.");
     },
     onError: (e: Error) => {
