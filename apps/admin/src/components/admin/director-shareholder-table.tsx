@@ -32,9 +32,11 @@ import {
 import {
   // getDirectorShareholderStatusTooltip,
   getDirectorShareholderSingleStatusPresentation,
+  getRegtankLink,
   normalizeDirectorShareholderIdKey,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
+import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 
 type PendingCtosSubjectFetch = {
   subjectRef: string;
@@ -88,7 +90,7 @@ export function DirectorShareholderTable({
               <TableHead>Share %</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Risk Level</TableHead>
-              <TableHead>Request ID</TableHead>
+              <TableHead>RegTank</TableHead>
               <TableHead>IC Front</TableHead>
               <TableHead>IC Back</TableHead>
               <TableHead>Timestamp</TableHead>
@@ -150,14 +152,65 @@ export function DirectorShareholderTable({
                       </>
                     ) : null}
                   </TableCell>
-                  <TableCell>—</TableCell>
-                  <TableCell>
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {normalizedSubjectRef || p.matchKey}
-                    </span>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {p.screening?.riskLevel != null && String(p.screening.riskLevel).trim()
+                      ? String(p.screening.riskLevel).trim()
+                      : p.screening?.riskScore != null && String(p.screening.riskScore).trim()
+                        ? String(p.screening.riskScore)
+                        : "—"}
                   </TableCell>
-                  <TableCell>—</TableCell>
-                  <TableCell>—</TableCell>
+                  <TableCell>
+                    {(() => {
+                      const rid = String(p.requestId ?? "").trim();
+                      const link = getRegtankLink(p);
+                      const fallback = normalizedSubjectRef || p.matchKey;
+                      const displayId = rid || fallback;
+                      if (link) {
+                        return (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 gap-1.5 rounded-full border-border bg-background px-3 text-sm font-medium text-foreground shadow-sm hover:bg-muted/60 hover:text-foreground [&_svg]:text-foreground shrink-0"
+                            title={rid ? `RegTank: ${rid}` : undefined}
+                            onClick={() => window.open(link, "_blank", "noopener,noreferrer")}
+                          >
+                            <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            View
+                          </Button>
+                        );
+                      }
+                      return <span className="font-mono text-[11px] text-muted-foreground break-all">{displayId}</span>;
+                    })()}
+                  </TableCell>
+                  <TableCell>
+                    {p.icFrontUrl ? (
+                      <a
+                        href={p.icFrontUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-primary underline underline-offset-4 hover:underline"
+                      >
+                        View Front
+                      </a>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {p.icBackUrl ? (
+                      <a
+                        href={p.icBackUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-primary underline underline-offset-4 hover:underline"
+                      >
+                        View Back
+                      </a>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
                   <TableCell className="text-xs text-muted-foreground whitespace-nowrap">—</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -264,6 +317,9 @@ function mergePeopleRowsByMatchKey(rows: ApplicationPersonRow[]): ApplicationPer
       name: prev.name ?? row.name ?? null,
       onboarding: prev.onboarding ?? row.onboarding ?? null,
       screening: prev.screening ?? row.screening ?? null,
+      requestId: prev.requestId ?? row.requestId ?? null,
+      icFrontUrl: prev.icFrontUrl ?? row.icFrontUrl ?? null,
+      icBackUrl: prev.icBackUrl ?? row.icBackUrl ?? null,
       email: prev.email ?? row.email ?? "",
     });
   }

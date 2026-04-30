@@ -57,18 +57,99 @@ export type ApplicationPersonRow = {
   directorAmlStatus?: string | null;
   /** Optional per-person KYC fallback (e.g. from director_kyc_status). */
   directorKycStatus?: string | null;
-  /** Optional onboarding pipeline snapshot from CTOS party supplement. */
-  onboarding?: { status?: string | null } | null;
+  /**
+   * Onboarding (KYC individual or KYB corporate) snapshot from issuer RegTank payloads.
+   * `id` is KYC/KYB request id when known (fallback for {@link ApplicationPersonRow.requestId}).
+   */
+  onboarding?: { status?: string | null; id?: string | null } | null;
   action?: "SEND_EMAIL" | null;
-  /** Flat AML screening snapshot (e.g. RegTank ACURIS `status`). Single source for submit/badge gating. */
-  screening?: { status?: string | null } | null;
+  /**
+   * AML screening snapshot (e.g. RegTank ACURIS). `status` drives badges with KYC priority rules in UI helpers.
+   * `id` is AML/COD-linked request id when present.
+   */
+  screening?: {
+    status?: string | null;
+    id?: string | null;
+    riskLevel?: string | null;
+    riskScore?: string | number | null;
+  } | null;
+  /**
+   * Primary RegTank request id for admin (priority: KYC/KYB id, then EOD/COD).
+   * Used with {@link getRegtankLink} for RegTank client portal deep links.
+   */
+  requestId?: string | null;
+  /** IC front image URL from issuer `corporate_entities` (director/shareholder `documents`). */
+  icFrontUrl?: string | null;
+  /** IC back image URL from issuer `corporate_entities` (director/shareholder `documents`). */
+  icBackUrl?: string | null;
 };
 
+/**
+ * RegTank onboarding-proxy origin (no trailing slash). File downloads / legacy proxy paths.
+ */
+export function getRegtankOnboardingProxyBaseUrl(): string {
+  const fromEnv =
+    typeof process !== "undefined" && typeof process.env.NEXT_PUBLIC_REGTANK_ONBOARDING_PROXY_URL === "string"
+      ? process.env.NEXT_PUBLIC_REGTANK_ONBOARDING_PROXY_URL.trim()
+      : "";
+  const raw = fromEnv || "https://shoraka-trial-onboarding-proxy.regtank.com";
+  return raw.replace(/\/+$/, "");
+}
+
+/**
+ * RegTank **client** portal origin (no trailing slash), same as API `adminPortalUrl` / admin `NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL`.
+ */
+export function getRegtankClientPortalBaseUrl(): string {
+  const fromEnv =
+    typeof process !== "undefined" && typeof process.env.NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL === "string"
+      ? process.env.NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL.trim()
+      : "";
+  const raw = fromEnv || "https://shoraka-trial.regtank.com";
+  return raw.replace(/\/+$/, "");
+}
+
+function kybScreeningHasRisk(screening: ApplicationPersonRow["screening"]): boolean {
+  const rl = String(screening?.riskLevel ?? "").trim();
+  if (rl) return true;
+  const rs = screening?.riskScore;
+  if (rs == null) return false;
+  const s = String(rs).trim();
+  return s.length > 0;
+}
+
+/**
+ * Deep link into RegTank **client** portal for this row’s primary `requestId` (admin opens in new tab).
+ * Mirrors `buildRegTankPortalUrl` (API) and onboarding application `regtankPortalUrl` / KYC-KYB paths.
+ */
+export function getRegtankLink(
+  person: Pick<ApplicationPersonRow, "requestId" | "entityType" | "screening">
+): string | null {
+  const id = String(person.requestId ?? "").trim();
+  if (!id) return null;
+  const base = getRegtankClientPortalBaseUrl();
+  const enc = encodeURIComponent(id);
+
+  if (id.startsWith("KYC")) {
+    return `${base}/app/screen-kyc/result/${enc}/scoring`;
+  }
+  if (id.startsWith("KYB")) {
+    const suffix = kybScreeningHasRisk(person.screening) ? "/riskAssessment" : "";
+    return `${base}/app/screen-kyb/result/${enc}${suffix}`;
+  }
+  if (id.startsWith("COD")) {
+    return `${base}/app/onboardingCorporate/${enc}?archived=false`;
+  }
+  if (id.startsWith("LD") || id.startsWith("EOD")) {
+    return `${base}/app/liveness/${enc}?archived=false`;
+  }
+  return null;
+}
+
 export type DisplayStatusPerson = {
-  screening?: { status?: string | null } | null;
+  screening?: { status?: string | null; riskLevel?: string | null; riskScore?: string | number | null } | null;
   directorAmlStatus?: string | null;
   directorKycStatus?: string | null;
-  onboarding?: { status?: string | null } | null;
+  onboarding?: { status?: string | null; id?: string | null } | null;
 };
 
 export type PeopleRolesRowInput = {
