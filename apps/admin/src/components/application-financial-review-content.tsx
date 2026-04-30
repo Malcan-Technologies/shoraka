@@ -35,7 +35,6 @@ import {
   filterVisiblePeopleRows,
   formatPeopleRolesLineWithoutShare,
   formatSharePercentageCell,
-  isDirectorShareholderEmailActionable,
 } from "@/lib/onboarding-people-display";
 import { DirectorShareholderNotifyButton } from "@/components/director-shareholder-notify-button";
 import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
@@ -53,7 +52,6 @@ import {
   normalizeDirectorShareholderIdKey,
   normalizeFinancialStatementsQuestionnaire,
   type ApplicationPersonRow,
-  type CorporateEntitiesShape,
   type ColumnComputedMetrics,
   type FinancialStatementsInput,
   type FinancialStatementsQuestionnaire,
@@ -1038,17 +1036,7 @@ export function ApplicationFinancialReviewContent({
                   const pk = normalizeDirectorShareholderIdKey(p.matchKey);
                   const supplement = pk ? supplementsByPartyKey.get(pk) ?? {} : {};
                   const displayRow = buildDirectorShareholderDisplayRowForEmailEligibility(p, supplement);
-                  const notifyRowEnabled = isDirectorShareholderEmailActionable(p, {
-                    displayRow,
-                    latestOnboardingRoot: supplement,
-                    partySourcePresent: true,
-                    directorKycStatus: app.issuer_organization?.director_kyc_status,
-                    corporateEntities: app.issuer_organization?.corporate_entities as
-                      | CorporateEntitiesShape
-                      | null
-                      | undefined,
-                    blockPartyOnboarding: false,
-                  });
+                  const canNotify = displayRow.canSendOnboarding === true;
                   const lastReport = latestSubjectReportForMatchKey(p.matchKey, orgSubjectReports);
                   const lastReportLabel = formatSubjectReportTimestamp(lastReport?.fetched_at);
                   const kycKybLabel = directorShareholderKycKybBadgeLabel(p);
@@ -1120,25 +1108,22 @@ export function ApplicationFinancialReviewContent({
                       </TableCell>
                       <TableCell className={`${applicationTableCellClass} text-right`}>
                         <div className="flex flex-col items-end gap-1">
-                          <DirectorShareholderNotifyButton
-                            rowActionable={notifyRowEnabled}
-                            className="h-8 rounded-lg text-xs"
-                            disabled={
-                              !issuerOrgId ||
-                              notifyActionRequired.isPending ||
-                              !notifyRowEnabled
-                            }
-                            onNotify={() =>
-                              notifyActionRequired.mutate(
-                                { partyKey: p.matchKey },
-                                {
-                                  onSuccess: () => toast.success("Notify sent to issuer."),
-                                  onError: (err: unknown) =>
-                                    toast.error(err instanceof Error ? err.message : "Notify failed"),
-                                }
-                              )
-                            }
-                          />
+                          {issuerOrgId && !notifyActionRequired.isPending && canNotify ? (
+                            <DirectorShareholderNotifyButton
+                              rowActionable={true}
+                              className="h-8 rounded-lg text-xs"
+                              disabled={false}
+                              onNotify={() =>
+                                notifyActionRequired.mutate(
+                                  { partyKey: p.matchKey },
+                                  {
+                                    onSuccess: () => toast.success("Notify sent to issuer."),
+                                    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "Notify failed"),
+                                  }
+                                )
+                              }
+                            />
+                          ) : null}
                         </div>
                       </TableCell>
                       <TableCell className={`${applicationTableCellClass} text-right`}>
