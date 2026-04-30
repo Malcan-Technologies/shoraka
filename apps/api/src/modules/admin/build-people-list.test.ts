@@ -136,7 +136,8 @@ describe("buildUnifiedPeople", () => {
     });
 
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.requestId).toBe("LD80084");
+    expect(rows[0]?.requestId).toBe("AMLREQ1");
+    expect(rows[0]?.requestIdType).toBe("SCREENING");
     expect(rows[0]?.onboarding?.status).toBe("WAIT_FOR_APPROVAL");
     expect(rows[0]?.onboarding?.verifyLink).toBe("https://verify.example/v");
     expect(rows[0]?.screening?.status).toBe("PENDING");
@@ -144,6 +145,40 @@ describe("buildUnifiedPeople", () => {
     expect(rows[0]?.screening?.riskScore).toBe(3);
     expect(rows[0]?.screening?.id).toBe("AMLREQ1");
     expect(rows[0]?.email).toBe("supplement@example.com");
+  });
+
+  it("uses top-level supplement requestId when screening has no requestId", () => {
+    const rows = buildUnifiedPeople({
+      ctos: {
+        directors: [
+          {
+            party_type: "I",
+            nic_brno: "770707-10-7777",
+            name: "Pre Aml",
+            position: "Director",
+          },
+        ],
+        shareholders: [],
+      },
+      issuerDirectorKycStatus: {
+        directors: [{ governmentIdNumber: "770707107777", kycId: "KY_SHOULD_NOT_APPEAR", kycStatus: "APPROVED" }],
+      },
+      issuerDirectorAmlStatus: { directors: [{ governmentIdNumber: "770707107777", amlStatus: "APPROVED" }] },
+      ctosPartySupplements: [
+        {
+          party_key: "770707107777",
+          onboarding_json: {
+            requestId: "LD80084-R07",
+            status: "IN_PROGRESS",
+            screening: null,
+          },
+        },
+      ],
+      corporateEntities: null,
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.requestId).toBe("LD80084-R07");
+    expect(rows[0]?.requestIdType).toBe("ONBOARDING");
   });
 
   it("uses issuer KYC/AML when no supplement row exists for the matchKey", () => {

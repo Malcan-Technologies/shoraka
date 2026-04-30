@@ -287,15 +287,38 @@ function enrichPersonFromIssuerMaps(params: {
   };
 }
 
-function buildSupplementMapByMatchKey(supplements: SupplementInput[] | null | undefined): Map<string, CtosPartySupplement> {
-  const m = new Map<string, CtosPartySupplement>();
+type SupplementParsed = { sup: CtosPartySupplement; raw: unknown };
+
+function buildSupplementMapByMatchKey(supplements: SupplementInput[] | null | undefined): Map<string, SupplementParsed> {
+  const m = new Map<string, SupplementParsed>();
   for (const s of supplements ?? []) {
     const key = normalizeDirectorShareholderIdKey(String(s.partyKey ?? s.party_key ?? ""));
     if (!key) continue;
     const raw = s.onboardingJson ?? s.onboarding_json;
-    m.set(key, parseCtosPartySupplement(raw));
+    m.set(key, { sup: parseCtosPartySupplement(raw), raw });
   }
   return m;
+}
+
+function topLevelOnboardingRequestIdFromSupplementRaw(raw: unknown): string {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "";
+  const r = raw as Record<string, unknown>;
+  return String(r.requestId ?? "").trim();
+}
+
+function requestIdFromSupplementParsed(sup: CtosPartySupplement, raw: unknown): {
+  requestId: string | null;
+  requestIdType: "SCREENING" | "ONBOARDING" | null;
+} {
+  const screeningId = String(sup.screening?.requestId ?? "").trim();
+  const onboardingId = topLevelOnboardingRequestIdFromSupplementRaw(raw);
+  if (screeningId) {
+    return { requestId: screeningId, requestIdType: "SCREENING" };
+  }
+  if (onboardingId) {
+    return { requestId: onboardingId, requestIdType: "ONBOARDING" };
+  }
+  return { requestId: null, requestIdType: null };
 }
 
 function screeningFromSupplementParsed(sc: CtosPartySupplement["screening"]): ApplicationPersonRow["screening"] {
@@ -319,6 +342,7 @@ function personRowFromSupplement(params: {
   roles: Array<"DIRECTOR" | "SHAREHOLDER"> | string[];
   sharePercentage: number | null;
   sup: CtosPartySupplement;
+  supplementRaw: unknown;
   icFrontUrl?: string | null;
   icBackUrl?: string | null;
 }): ApplicationPersonRow {
@@ -334,7 +358,7 @@ function personRowFromSupplement(params: {
       : onboardingStatus
         ? normalizeRawStatus(onboardingStatus) || onboardingStatus
         : "";
-  const req = String(params.sup.requestId ?? "").trim();
+  const { requestId, requestIdType } = requestIdFromSupplementParsed(params.sup, params.supplementRaw);
   return {
     matchKey: params.matchKey,
     name: params.name,
@@ -350,7 +374,8 @@ function personRowFromSupplement(params: {
       verifyLink: params.sup.verifyLink ?? null,
       updatedAt: params.sup.updatedAt ?? null,
     },
-    requestId: req || null,
+    requestId,
+    requestIdType,
     icFrontUrl: params.icFrontUrl ?? null,
     icBackUrl: params.icBackUrl ?? null,
     email,
@@ -383,6 +408,7 @@ function normalizeUnifiedPeopleRows(rows: ApplicationPersonRow[]): ApplicationPe
       screening: { ...(existing.screening ?? {}), ...(row.screening ?? {}) },
       onboarding: { ...(existing.onboarding ?? {}), ...(row.onboarding ?? {}) },
       requestId: existing.requestId ?? row.requestId ?? null,
+      requestIdType: existing.requestIdType ?? row.requestIdType ?? null,
       icFrontUrl: existing.icFrontUrl ?? row.icFrontUrl ?? null,
       icBackUrl: existing.icBackUrl ?? row.icBackUrl ?? null,
       email: String(existing.email ?? row.email ?? "").trim(),
@@ -469,13 +495,15 @@ function buildPeopleFromUserDeclaredData(params: {
     const icUrls = entityType === "INDIVIDUAL" ? icDocsByMatchKey.get(key) : undefined;
 
     if (key && supplementByKey.has(key)) {
+      const bundle = supplementByKey.get(key)!;
       return personRowFromSupplement({
         matchKey,
         name: r.name ?? null,
         entityType,
         roles,
         sharePercentage: typeof r.sharePercentage === "number" ? r.sharePercentage : null,
-        sup: supplementByKey.get(key)!,
+        sup: bundle.sup,
+        supplementRaw: bundle.raw,
         icFrontUrl: icUrls?.front ?? null,
         icBackUrl: icUrls?.back ?? null,
       });
@@ -697,13 +725,15 @@ export function buildUnifiedPeople(params: {
     const icUrls = person.entityType === "INDIVIDUAL" ? icDocsByMatchKey.get(key) : undefined;
 
     if (key && supplementByKey.has(key)) {
+      const bundle = supplementByKey.get(key)!;
       return personRowFromSupplement({
         matchKey: person.matchKey,
         name: person.name,
         entityType: person.entityType,
         roles: person.roles,
         sharePercentage: person.sharePercentage,
-        sup: supplementByKey.get(key)!,
+        sup: bundle.sup,
+        supplementRaw: bundle.raw,
         icFrontUrl: icUrls?.front ?? null,
         icBackUrl: icUrls?.back ?? null,
       });

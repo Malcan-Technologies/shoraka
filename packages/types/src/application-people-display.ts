@@ -71,9 +71,11 @@ export type ApplicationPersonRow = {
     riskScore?: string | number | null;
   } | null;
   /**
-   * Primary RegTank request id: from supplement when a `ctos_party_supplements` row exists for this party, else KYC/KYB id then EOD/COD from issuer JSON.
+   * Best RegTank id for links: with supplement, `screening.requestId` then top-level onboarding `requestId`; else issuer KYC/KYB then EOD/COD.
    */
   requestId?: string | null;
+  /** Set when row is built from `ctos_party_supplements`: which id won for {@link ApplicationPersonRow.requestId}. */
+  requestIdType?: "SCREENING" | "ONBOARDING" | null;
   /** IC front image URL from issuer `corporate_entities` (director/shareholder `documents`). */
   icFrontUrl?: string | null;
   /** IC back image URL from issuer `corporate_entities` (director/shareholder `documents`). */
