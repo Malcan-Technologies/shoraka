@@ -7,6 +7,7 @@ import {
   getCtosPartySupplementFlatRead,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
+import { getDirectorShareholderDisplayRows } from "@cashsouk/types";
 import { extractCtosIndividuals } from "../regtank/helpers/detect-director-gaps";
 
 type SupplementInput = {
@@ -21,6 +22,76 @@ function screeningStatusFromSupplement(raw: unknown): string | null {
   const scr = getEffectiveCtosPartyScreening(root);
   const n = normalizeRawStatus(scr.status);
   return n || null;
+}
+
+/**
+ * SECTION: Build people from user-declared issuer data
+ * WHY: CTOS can be missing; Admin UI still needs a non-empty director/shareholder list.
+ * INPUT: issuer corporate_entities + director_kyc_status + director_aml_status (+ optional supplements)
+ * OUTPUT: ApplicationPersonRow[] ready for Admin list/banner rendering
+ * WHERE USED: apps/api admin buildAdminPeopleList when CTOS is unavailable
+ */
+function buildPeopleFromUserDeclaredData(params: {
+  corporateEntities: unknown;
+  issuerDirectorKycStatus: unknown;
+  issuerDirectorAmlStatus: unknown;
+  ctosPartySupplements?: SupplementInput[] | null;
+}): ApplicationPersonRow[] {
+  const mappedCtosPartySupplements: Array<{ partyKey: string; onboardingJson?: unknown }> | null =
+    Array.isArray(params.ctosPartySupplements) && params.ctosPartySupplements.length > 0
+      ? params.ctosPartySupplements
+          .map((s) => {
+            const partyKey = String(s.partyKey ?? s.party_key ?? "").trim();
+            if (!partyKey) return null;
+            const onboardingJson = s.onboardingJson ?? s.onboarding_json;
+            if (onboardingJson === undefined) {
+              return { partyKey };
+            }
+            return { partyKey, onboardingJson: onboardingJson as unknown };
+          })
+          .filter((x): x is { partyKey: string; onboardingJson?: unknown } => x !== null)
+      : null;
+
+  const displayRows = getDirectorShareholderDisplayRows({
+    corporateEntities: params.corporateEntities,
+    directorKycStatus: params.issuerDirectorKycStatus,
+    directorAmlStatus: params.issuerDirectorAmlStatus,
+    organizationCtosCompanyJson: null,
+    ctosPartySupplements: mappedCtosPartySupplements ?? null,
+    sentRowIds: null,
+  });
+
+  return displayRows.map((r) => {
+    const matchKey = (r.idNumber ?? r.registrationNumber ?? r.enquiryId ?? r.id) as
+      | string
+      | null
+      | undefined;
+
+    const roles: Array<"DIRECTOR" | "SHAREHOLDER"> = [];
+    if (r.isDirector) roles.push("DIRECTOR");
+
+    // Preserve rule: <5% shareholders should not get the SHAREHOLDER role.
+    const sharePct = typeof r.sharePercentage === "number" ? r.sharePercentage : null;
+    if (r.isShareholder && sharePct != null && sharePct >= 5) roles.push("SHAREHOLDER");
+
+    return {
+      matchKey: matchKey ?? r.id,
+      name: r.name ?? null,
+      entityType: r.type === "INDIVIDUAL" ? "INDIVIDUAL" : "CORPORATE",
+      roles,
+      sharePercentage: typeof r.sharePercentage === "number" ? r.sharePercentage : null,
+      status: r.status ?? "",
+      action: null,
+      screening: { status: r.amlStatus ? normalizeRawStatus(r.amlStatus) : null },
+      onboarding: { status: r.status ? normalizeRawStatus(r.status) : null },
+      userEmail: null,
+      kycEmail: r.email ?? null,
+      amlEmail: null,
+      email: r.email ?? "",
+      directorAmlStatus: r.amlStatus ? normalizeRawStatus(r.amlStatus) : null,
+      directorKycStatus: r.status ? normalizeRawStatus(r.status) : null,
+    };
+  });
 }
 
 export function buildAdminPeopleList(params: {
@@ -47,7 +118,16 @@ export function buildAdminPeopleList(params: {
             : [],
         }
       : null;
-  if (!ctosSafe) return [];
+  if (!ctosSafe) {
+    const organization = {
+      corporateEntities: params.corporateEntities,
+      issuerDirectorKycStatus: params.issuerDirectorKycStatus,
+      issuerDirectorAmlStatus: params.issuerDirectorAmlStatus,
+      ctosPartySupplements: params.ctosPartySupplements ?? null,
+    };
+
+    return buildPeopleFromUserDeclaredData(organization);
+  }
 
   const supplements: SupplementInput[] =
     Array.isArray(params.ctosPartySupplements) && params.ctosPartySupplements.length > 0
