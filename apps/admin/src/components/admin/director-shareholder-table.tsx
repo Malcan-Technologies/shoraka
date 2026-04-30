@@ -36,6 +36,7 @@ import {
   normalizeDirectorShareholderIdKey,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
+import { ArrowTopRightOnSquareIcon } from "@heroicons/react/24/outline";
 
 type PendingCtosSubjectFetch = {
   subjectRef: string;
@@ -163,18 +164,23 @@ export function DirectorShareholderTable({
                       const rid = String(p.requestId ?? "").trim();
                       const link = getRegtankLink(p);
                       const fallback = normalizedSubjectRef || p.matchKey;
-                      if (link && rid) {
+                      const displayId = rid || fallback;
+                      if (link) {
                         return (
-                          <Button asChild variant="link" className="h-auto p-0 font-mono text-xs underline">
-                            <a href={link} target="_blank" rel="noopener noreferrer">
-                              {rid}
-                            </a>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 gap-1.5 rounded-full px-3 text-sm font-medium text-primary border-border shrink-0"
+                            title={rid ? `RegTank: ${rid}` : undefined}
+                            onClick={() => window.open(link, "_blank", "noopener,noreferrer")}
+                          >
+                            <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            View
                           </Button>
                         );
                       }
-                      return (
-                        <span className="font-mono text-xs text-muted-foreground">{rid || fallback}</span>
-                      );
+                      return <span className="font-mono text-[11px] text-muted-foreground break-all">{displayId}</span>;
                     })()}
                   </TableCell>
                   <TableCell>

@@ -75,7 +75,7 @@ export type ApplicationPersonRow = {
   } | null;
   /**
    * Primary RegTank request id for admin (priority: KYC/KYB id, then EOD/COD).
-   * Used with {@link getRegtankLink} for onboarding-proxy deep links.
+   * Used with {@link getRegtankLink} for RegTank client portal deep links.
    */
   requestId?: string | null;
   /** IC front image URL from issuer `corporate_entities` (director/shareholder `documents`). */
@@ -85,7 +85,7 @@ export type ApplicationPersonRow = {
 };
 
 /**
- * RegTank onboarding-proxy origin (no trailing slash). Admin: set `NEXT_PUBLIC_REGTANK_ONBOARDING_PROXY_URL`.
+ * RegTank onboarding-proxy origin (no trailing slash). File downloads / legacy proxy paths.
  */
 export function getRegtankOnboardingProxyBaseUrl(): string {
   const fromEnv =
@@ -97,15 +97,52 @@ export function getRegtankOnboardingProxyBaseUrl(): string {
 }
 
 /**
- * Deep link into RegTank onboarding-proxy for this party’s primary `requestId` (new tab).
- * Path: `individual/{id}` vs `corporate/{id}` from {@link ApplicationPersonRow.entityType}.
+ * RegTank **client** portal origin (no trailing slash), same as API `adminPortalUrl` / admin `NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL`.
  */
-export function getRegtankLink(person: Pick<ApplicationPersonRow, "requestId" | "entityType">): string | null {
+export function getRegtankClientPortalBaseUrl(): string {
+  const fromEnv =
+    typeof process !== "undefined" && typeof process.env.NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL === "string"
+      ? process.env.NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL.trim()
+      : "";
+  const raw = fromEnv || "https://shoraka-trial.regtank.com";
+  return raw.replace(/\/+$/, "");
+}
+
+function kybScreeningHasRisk(screening: ApplicationPersonRow["screening"]): boolean {
+  const rl = String(screening?.riskLevel ?? "").trim();
+  if (rl) return true;
+  const rs = screening?.riskScore;
+  if (rs == null) return false;
+  const s = String(rs).trim();
+  return s.length > 0;
+}
+
+/**
+ * Deep link into RegTank **client** portal for this row’s primary `requestId` (admin opens in new tab).
+ * Mirrors `buildRegTankPortalUrl` (API) and onboarding application `regtankPortalUrl` / KYC-KYB paths.
+ */
+export function getRegtankLink(
+  person: Pick<ApplicationPersonRow, "requestId" | "entityType" | "screening">
+): string | null {
   const id = String(person.requestId ?? "").trim();
   if (!id) return null;
-  const base = getRegtankOnboardingProxyBaseUrl();
-  const seg = person.entityType === "CORPORATE" ? "corporate" : "individual";
-  return `${base}/${seg}/${encodeURIComponent(id)}`;
+  const base = getRegtankClientPortalBaseUrl();
+  const enc = encodeURIComponent(id);
+
+  if (id.startsWith("KYC")) {
+    return `${base}/app/screen-kyc/result/${enc}/scoring`;
+  }
+  if (id.startsWith("KYB")) {
+    const suffix = kybScreeningHasRisk(person.screening) ? "/riskAssessment" : "";
+    return `${base}/app/screen-kyb/result/${enc}${suffix}`;
+  }
+  if (id.startsWith("COD")) {
+    return `${base}/app/onboardingCorporate/${enc}?archived=false`;
+  }
+  if (id.startsWith("LD") || id.startsWith("EOD")) {
+    return `${base}/app/liveness/${enc}?archived=false`;
+  }
+  return null;
 }
 
 export type DisplayStatusPerson = {
