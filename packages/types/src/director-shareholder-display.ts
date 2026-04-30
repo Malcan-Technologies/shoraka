@@ -650,6 +650,23 @@ function ownershipFromCorpShareholder(corp: Record<string, unknown>): string | n
   return null;
 }
 
+/** Parsed numeric % of shares from corporate KYB form (displayAreas). */
+function percentOfSharesFromCorpShareholder(corp: Record<string, unknown>): number {
+  const formContent = corp.formContent as Record<string, unknown> | undefined;
+  const displayAreas = Array.isArray(formContent?.displayAreas) ? formContent.displayAreas : [];
+  for (const area of displayAreas) {
+    if (!area || typeof area !== "object" || Array.isArray(area)) continue;
+    const content = Array.isArray((area as Record<string, unknown>).content)
+      ? ((area as Record<string, unknown>).content as Array<{ fieldName?: string; fieldValue?: string }>)
+      : [];
+    const shareField = content.find((f) => f.fieldName === "% of Shares");
+    if (shareField?.fieldValue == null || String(shareField.fieldValue).trim() === "") continue;
+    const n = Number.parseFloat(String(shareField.fieldValue).trim().replace(/[%\s,]/g, ""));
+    if (Number.isFinite(n)) return n;
+  }
+  return 0;
+}
+
 function ownershipFromCtosDirectorRow(r: CtosOrgDirectorRow): string | null {
   if (r.equity_percentage != null && !Number.isNaN(Number(r.equity_percentage))) {
     return `${r.equity_percentage}% ownership`;
@@ -1071,39 +1088,24 @@ function buildOnboardingDisplayRows(
 
   for (const corp of corpShareholders) {
     const c = corp as Record<string, unknown>;
-    const businessNumber = extractBusinessNumber(c.formContent);
     const regRaw = getCorpBusinessNumber(corp);
     const regKey = normalizeDirectorShareholderIdKey(regRaw);
-    const corpName = String(c.companyName ?? c.businessName ?? "").trim() || getCorpDisplayName(corp);
+    if (!regKey) continue;
 
-    let sharePctForDebug = 0;
-    const formContent = c.formContent as Record<string, unknown> | undefined;
-    const displayAreas = Array.isArray(formContent?.displayAreas) ? formContent.displayAreas : [];
-    for (const area of displayAreas) {
-      if (!area || typeof area !== "object" || Array.isArray(area)) continue;
-      const content = Array.isArray((area as Record<string, unknown>).content)
-        ? ((area as Record<string, unknown>).content as Array<{ fieldName?: string; fieldValue?: string }>)
-        : [];
-      const shareField = content.find((f) => f.fieldName === "% of Shares");
-      if (shareField?.fieldValue != null && String(shareField.fieldValue).trim() !== "") {
-        const n = Number.parseFloat(String(shareField.fieldValue).trim().replace(/[%\s,]/g, ""));
-        if (Number.isFinite(n)) {
-          sharePctForDebug = n;
-          break;
-        }
-      }
-    }
+    const share = percentOfSharesFromCorpShareholder(c);
+    const isSh = share >= 5;
+    const roleLabel =
+      getDisplayRoleLabel({
+        isDirector: false,
+        isShareholder: isSh,
+        sharePercentage: share,
+      }) || "Corporate Shareholder";
 
-    console.log("[CORP EXTRACT]", { name: corpName, businessNumber });
-    console.log("[CORP MATCHKEY]", { name: corpName, matchKey: regKey });
-    if (!regKey) {
-      console.log("[CORP DROPPED - NO KEY]", corpName);
-      continue;
-    }
-    console.log("[CORP SHARE CHECK]", {
-      name: corpName,
-      share: sharePctForDebug,
-      passes: sharePctForDebug >= 5,
+    console.log("[CORP BUILD]", {
+      name: String(c.companyName ?? c.businessName ?? "").trim() || getCorpDisplayName(corp),
+      share,
+      roles: isSh ? ["SHAREHOLDER"] : [],
+      matchKey: regKey,
     });
 
     const id = `onb-corp-${regKey}`;
@@ -1114,11 +1116,11 @@ function buildOnboardingDisplayRows(
     const corpOwn = ownershipFromCorpShareholder(corp);
     const corpAmlRaw = amlByGov.get(regKey);
     const corpAmlLine = normalizeRawStatus(corpAmlRaw);
-    const row = {
+    rows.push({
       id,
       name: getCorpDisplayName(corp),
-      role: "Corporate Shareholder",
-      type: "COMPANY" as const,
+      role: roleLabel,
+      type: "COMPANY",
       idNumber: null,
       registrationNumber: regRaw,
       ownershipDisplay: corpOwn,
@@ -1127,15 +1129,11 @@ function buildOnboardingDisplayRows(
       canEnterEmail: false,
       canSendOnboarding: false,
       enquiryId: regRaw ? regRaw.trim() : null,
-      subjectKind: "CORPORATE" as const,
+      subjectKind: "CORPORATE",
       amlStatus: corpAmlLine || undefined,
-    };
-    rows.push(row);
-    console.log("[CORP ADDED]", {
-      name: row.name,
-      matchKey: regKey,
-      type: row.type,
-      registrationNumber: row.registrationNumber,
+      isDirector: false,
+      isShareholder: isSh,
+      sharePercentage: share,
     });
   }
 
