@@ -910,17 +910,41 @@ function resolveCompanyStatus(
   return "";
 }
 
-function getCorpBusinessNumber(corp: Record<string, unknown>): string | null {
-  const formContent = corp.formContent as Record<string, unknown> | undefined;
-  const displayAreas = Array.isArray(formContent?.displayAreas) ? formContent.displayAreas : [];
-  for (const area of displayAreas) {
-    const content = Array.isArray((area as Record<string, unknown>)?.content)
-      ? ((area as Record<string, unknown>).content as Array<{ fieldName?: string; fieldValue?: string }>)
+/**
+ * SECTION: Extract corporate SSM / business registration from RegTank form JSON
+ * WHY: KYB stores SSM under formContent.displayAreas[].content[] ("Business Number"), not always top-level registrationNumber
+ * INPUT: corporate_entities.corporateShareholders[].formContent
+ * OUTPUT: trimmed non-empty string or null (whitespace-only and missing treated as null)
+ * WHERE USED: {@link getCorpBusinessNumber}, corporate shareholder matchKey in people pipeline
+ */
+export function extractBusinessNumber(formContent: unknown): string | null {
+  if (!formContent || typeof formContent !== "object" || Array.isArray(formContent)) return null;
+  const fc = formContent as Record<string, unknown>;
+  const areas = Array.isArray(fc.displayAreas) ? fc.displayAreas : [];
+  for (const area of areas) {
+    if (!area || typeof area !== "object" || Array.isArray(area)) continue;
+    const fields = Array.isArray((area as Record<string, unknown>).content)
+      ? ((area as Record<string, unknown>).content as unknown[])
       : [];
-    const numField = content.find((f) => f.fieldName === "Business Number");
-    if (numField?.fieldValue) return String(numField.fieldValue).trim();
+    for (const f of fields) {
+      if (!f || typeof f !== "object" || Array.isArray(f)) continue;
+      const rec = f as Record<string, unknown>;
+      const name = String(rec.fieldName ?? "")
+        .trim()
+        .toLowerCase();
+      if (name === "business number") {
+        const val = String(rec.fieldValue ?? "").trim();
+        if (val) return val;
+      }
+    }
   }
   return null;
+}
+
+function getCorpBusinessNumber(corp: Record<string, unknown>): string | null {
+  const topReg = String(corp.registrationNumber ?? "").trim();
+  if (topReg) return topReg;
+  return extractBusinessNumber(corp.formContent);
 }
 
 function getCorpDisplayName(corp: Record<string, unknown>): string {

@@ -163,4 +163,67 @@ describe("buildUnifiedPeople", () => {
     expect(rows[0]?.screening?.status).toBeNull();
     expect(rows[0]?.email).toBe("");
   });
+
+  it("sets corporate matchKey from Business Number in formContent.displayAreas (case-insensitive)", () => {
+    const rows = buildUnifiedPeople({
+      ctos: null,
+      issuerDirectorKycStatus: { directors: [] },
+      issuerDirectorAmlStatus: { directors: [], businessShareholders: [] },
+      ctosPartySupplements: null,
+      corporateEntities: {
+        directors: [],
+        shareholders: [],
+        corporateShareholders: [
+          {
+            companyName: "Petronas Sdn Bhd",
+            formContent: {
+              displayAreas: [
+                {
+                  displayArea: "Basic Information Setting",
+                  content: [
+                    { fieldName: "Business Name", fieldType: "text", fieldValue: "Petronas Sdn Bhd" },
+                    { fieldName: "BUSINESS NUMBER", fieldType: "text", fieldValue: "123123123123" },
+                    { fieldName: "% of Shares", fieldType: "number", fieldValue: "10" },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    const corp = rows.find((r) => r.entityType === "CORPORATE");
+    expect(corp).toBeDefined();
+    expect(corp?.matchKey).toBe("123123123123");
+  });
+
+  it("prefers top-level registrationNumber on corporate shareholder when present", () => {
+    const rows = buildUnifiedPeople({
+      ctos: null,
+      issuerDirectorKycStatus: { directors: [] },
+      issuerDirectorAmlStatus: { directors: [], businessShareholders: [] },
+      ctosPartySupplements: null,
+      corporateEntities: {
+        directors: [],
+        shareholders: [],
+        corporateShareholders: [
+          {
+            companyName: "Acme Sdn Bhd",
+            registrationNumber: "SSM999888",
+            formContent: {
+              displayAreas: [
+                {
+                  content: [{ fieldName: "Business Number", fieldValue: "111" }],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    const corp = rows.find((r) => r.entityType === "CORPORATE");
+    expect(corp?.matchKey).toBe("SSM999888");
+  });
 });
