@@ -8,6 +8,7 @@ import {
   filterVisiblePeopleRows,
   getDirectorShareholderSingleStatusPresentation,
   getDisplayRoleLabel,
+  normalizeDirectorShareholderIdKey,
   normalizeDirectorShareholderPartyEmail,
   type ApplicationPersonRow,
   type DirectorShareholderDisplayRow,
@@ -30,6 +31,7 @@ export interface DirectorShareholdersUnifiedSectionProps {
   className?: string;
   highlightActionRequiredRows?: boolean;
   autoFocusFirstEmptyEmail?: boolean;
+  focusedMatchKey?: string | null;
 }
 
 type AugmentedRow = DirectorShareholderDisplayRow & { __person: ApplicationPersonRow };
@@ -62,6 +64,7 @@ export function DirectorShareholdersUnifiedSection({
   className,
   highlightActionRequiredRows = true,
   autoFocusFirstEmptyEmail = false,
+  focusedMatchKey = null,
 }: DirectorShareholdersUnifiedSectionProps) {
   const { getAccessToken } = useAuthToken();
   const queryClient = useQueryClient();
@@ -94,6 +97,21 @@ export function DirectorShareholdersUnifiedSection({
     }, 450);
     return () => window.clearTimeout(t);
   }, [autoFocusFirstEmptyEmail, rows]);
+
+  React.useEffect(() => {
+    const norm = normalizeDirectorShareholderIdKey(focusedMatchKey ?? "");
+    if (!norm) return;
+    const el = document.querySelector<HTMLElement>(`[data-person-key="${norm}"]`);
+    if (!el) return;
+    const t = window.setTimeout(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-2", "ring-primary", "ring-offset-2");
+      window.setTimeout(() => {
+        el.classList.remove("ring-2", "ring-primary", "ring-offset-2");
+      }, 1800);
+    }, 220);
+    return () => window.clearTimeout(t);
+  }, [focusedMatchKey, rows]);
 
   const displayEmail = React.useCallback((row: AugmentedRow) => draftEmails[row.id] ?? row.email ?? "", [draftEmails]);
 
@@ -167,6 +185,7 @@ export function DirectorShareholdersUnifiedSection({
     return (
       <div
         key={row.id}
+        data-person-key={normalizeDirectorShareholderIdKey(row.__person.matchKey) ?? undefined}
         data-action-required={showActionCue ? "true" : undefined}
         className="flex flex-col gap-3 p-4 rounded-lg border border-border bg-muted/30 sm:flex-row sm:items-start sm:justify-between"
       >

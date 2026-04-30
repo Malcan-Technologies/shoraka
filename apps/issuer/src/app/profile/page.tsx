@@ -557,6 +557,7 @@ export default function ProfilePage() {
 
   const searchParams = useSearchParams();
   const focusDirectors = searchParams.get("focus") === "directors";
+  const focusedPersonKey = searchParams.get("person");
   const directorsSectionRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -1339,6 +1340,7 @@ export default function ProfilePage() {
                     people={orgData.people ?? []}
                     highlightActionRequiredRows
                     autoFocusFirstEmptyEmail={focusDirectors}
+                    focusedMatchKey={focusedPersonKey}
                   />
                 </div>
               )}

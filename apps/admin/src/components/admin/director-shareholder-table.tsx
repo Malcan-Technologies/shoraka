@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DirectorShareholderNotifyButton } from "@/components/director-shareholder-notify-button";
 import {
   AlertDialog,
@@ -26,13 +27,11 @@ import {
   canEnterEmailForDirectorShareholder,
   filterVisiblePeopleRows,
   formatSharePercentageCell,
-  getDisplayStatus,
   formatPeopleRolesLineWithoutShare,
 } from "@/lib/onboarding-people-display";
 import {
+  getDirectorShareholderSingleStatusPresentation,
   normalizeDirectorShareholderIdKey,
-  regtankDisplayStatusBadgeClass,
-  toTitleCase,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
 
@@ -99,7 +98,7 @@ export function DirectorShareholderTable({
           <TableBody>
             {rows.map((p) => {
               const canNotify = canEnterEmailForDirectorShareholder(p);
-              const status = getDisplayStatus({
+              const statusPresentation = getDirectorShareholderSingleStatusPresentation({
                 screening: p.screening,
                 onboarding: p.onboarding,
               });
@@ -122,13 +121,22 @@ export function DirectorShareholderTable({
                   <TableCell>{formatRoleTitleCaseWithoutShare(p)}</TableCell>
                   <TableCell>{shareDisplay}</TableCell>
                   <TableCell>
-                    {status ? (
-                      <Badge
-                        variant="outline"
-                        className={`border-transparent text-[11px] font-normal ${regtankDisplayStatusBadgeClass(String(status))}`}
-                      >
-                        {toTitleCase(status)}
-                      </Badge>
+                    {statusPresentation ? (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge
+                              variant="outline"
+                              className={`border-transparent text-[11px] font-normal ${statusPresentation.badgeClassName}`}
+                            >
+                              {statusPresentation.label}
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{getStatusTooltip(statusPresentation.label)}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     ) : null}
                   </TableCell>
                   <TableCell>—</TableCell>
@@ -222,6 +230,25 @@ export function DirectorShareholderTable({
       </AlertDialog>
     </>
   );
+}
+
+function getStatusTooltip(label: string): string {
+  switch (label) {
+    case "Approved":
+    case "Completed":
+      return "KYC and AML completed";
+    case "In Progress":
+    case "Pending Review":
+    case "Under Review":
+      return "Submitted, pending approval";
+    case "Rejected":
+    case "Action Required":
+      return "Not started or rejected - action required";
+    case "Not Started":
+      return "Onboarding not started";
+    default:
+      return "";
+  }
 }
 
 function mergePeopleRowsByMatchKey(rows: ApplicationPersonRow[]): ApplicationPersonRow[] {

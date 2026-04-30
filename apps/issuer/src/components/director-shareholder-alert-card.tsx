@@ -19,7 +19,7 @@ type Props = {
   /** Pin to top of scroll container so copy stays visible while scrolling. */
   stickyTop?: boolean;
   className?: string;
-  onGoToProfile?: () => void;
+  onGoToProfile?: (matchKey?: string) => void;
 };
 
 export function DirectorShareholderAlertCard({
@@ -35,7 +35,13 @@ export function DirectorShareholderAlertCard({
     () => visiblePeople.filter((p) => p.entityType === "INDIVIDUAL"),
     [visiblePeople]
   );
-  const hasPending = visibleIndividualPeople.some((p) => canEnterEmailForDirectorShareholder(p));
+  const notReadyPeople = React.useMemo(
+    () => visibleIndividualPeople.filter((p) => canEnterEmailForDirectorShareholder(p)),
+    [visibleIndividualPeople]
+  );
+  const hasPending = notReadyPeople.length > 0;
+  const completedCount = visibleIndividualPeople.length - notReadyPeople.length;
+  const firstNotReady = notReadyPeople[0];
 
   const { notifications } = useNotifications({ limit: 30 });
   const showRejectLine = React.useMemo(() => {
@@ -79,26 +85,49 @@ export function DirectorShareholderAlertCard({
               Some directors or shareholders have not finished onboarding. Complete onboarding on your
               company profile before you submit an application.
             </p>
+            {visibleIndividualPeople.length > 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {completedCount} of {visibleIndividualPeople.length} directors/shareholders completed
+              </p>
+            ) : null}
             {showRejectLine ? (
               <p className="text-[17px] leading-7 font-medium text-primary">
                 Some individuals require correction.
               </p>
             ) : null}
           </div>
-          <Button
-            type="button"
-            variant="action"
-            className="h-10 shrink-0 rounded-full px-5 text-sm font-semibold sm:self-center"
-            onClick={() => {
-              if (onGoToProfile) {
-                onGoToProfile();
-                return;
-              }
-              router.push("/profile");
-            }}
-          >
-            Go to Profile
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-10 shrink-0 rounded-full px-5 text-sm font-semibold sm:self-center"
+              onClick={() => {
+                if (onGoToProfile) {
+                  onGoToProfile();
+                  return;
+                }
+                router.push("/profile");
+              }}
+            >
+              Go to Profile
+            </Button>
+            <Button
+              type="button"
+              variant="action"
+              className="h-10 shrink-0 rounded-full px-5 text-sm font-semibold sm:self-center"
+              onClick={() => {
+                const matchKey = firstNotReady?.matchKey;
+                if (onGoToProfile) {
+                  onGoToProfile(matchKey);
+                  return;
+                }
+                const personQuery = matchKey ? `&person=${encodeURIComponent(matchKey)}` : "";
+                router.push(`/profile?focus=directors${personQuery}`);
+              }}
+            >
+              Fix now
+            </Button>
+          </div>
         </div>
       </AlertDescription>
     </Alert>
