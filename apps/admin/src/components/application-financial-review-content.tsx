@@ -262,9 +262,6 @@ interface ApplicationFinancialReviewContentProps {
         fetched_at: string;
         has_report_html: boolean;
       }> | null;
-      ctos_party_supplements?: { party_key: string; onboarding_json?: unknown }[] | null;
-      director_kyc_status?: unknown;
-      director_aml_status?: unknown;
       corporate_entities?: unknown;
     } | null;
     financial_statements?: unknown;

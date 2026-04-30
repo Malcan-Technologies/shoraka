@@ -21,6 +21,20 @@ import { isPartyTypeA, type CorporateEntitiesShape } from "./director-shareholde
 import { normalizeRawStatus } from "./status-normalization";
 
 export type ApplicationPersonRow = {
+  /**
+   * SOURCE OF TRUTH (CRITICAL)
+   *
+   * - All Director/Shareholder UI must use `people` only
+   * - Do NOT read:
+   *   - CTOS supplement (onboarding_json)
+   *   - director_kyc_status / director_aml_status
+   * - Do NOT recompute:
+   *   - onboarding status
+   *   - screening status
+   *   - email
+   *
+   * Backend is responsible for full enrichment.
+   */
   matchKey: string;
   name: string | null;
   entityType: "INDIVIDUAL" | "CORPORATE";
