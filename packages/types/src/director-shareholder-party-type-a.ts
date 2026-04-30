@@ -6,7 +6,11 @@
  * WHERE USED: Issuer director-shareholder UI, admin Notify column
  */
 
-import { getDirectorKycPartyRecord, normalizeDirectorShareholderIdKey } from "./director-shareholder-display";
+import {
+  extractBusinessNumber,
+  getDirectorKycPartyRecord,
+  normalizeDirectorShareholderIdKey,
+} from "./director-shareholder-display";
 
 export type CorporateEntitiesShape = {
   directors?: unknown[];
@@ -20,18 +24,8 @@ export type PartyTypeARowInput = {
 };
 
 function corpKeysFromRecord(rec: Record<string, unknown>): string[] {
-  const raw =
-    rec.businessNumber ??
-    rec.registrationNumber ??
-    rec.brn_ssm ??
-    rec.ssmRegisterNumber ??
-    rec.ssmRegistrationNumber ??
-    rec.companyRegistrationNumber ??
-    rec.additional_registration_no ??
-    rec.ic_lcno ??
-    rec.nic_brno ??
-    "";
-  const n = normalizeDirectorShareholderIdKey(String(raw));
+  const fromForm = extractBusinessNumber(rec.formContent);
+  const n = normalizeDirectorShareholderIdKey(fromForm ?? "");
   return n ? [n] : [];
 }
 

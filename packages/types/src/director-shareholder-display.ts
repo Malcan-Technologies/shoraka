@@ -912,10 +912,10 @@ function resolveCompanyStatus(
 
 /**
  * SECTION: Extract corporate SSM / business registration from RegTank form JSON
- * WHY: KYB stores SSM under formContent.displayAreas[].content[] ("Business Number"), not always top-level registrationNumber
+ * WHY: KYB stores SSM only under formContent.displayAreas[].content[] ("Business Number") for corporate shareholders
  * INPUT: corporate_entities.corporateShareholders[].formContent
  * OUTPUT: trimmed non-empty string or null (whitespace-only and missing treated as null)
- * WHERE USED: {@link getCorpBusinessNumber}, corporate shareholder matchKey in people pipeline
+ * WHERE USED: corporate shareholder matchKey in people pipeline; Type A party lookup
  */
 export function extractBusinessNumber(formContent: unknown): string | null {
   if (!formContent || typeof formContent !== "object" || Array.isArray(formContent)) return null;
@@ -942,8 +942,6 @@ export function extractBusinessNumber(formContent: unknown): string | null {
 }
 
 function getCorpBusinessNumber(corp: Record<string, unknown>): string | null {
-  const topReg = String(corp.registrationNumber ?? "").trim();
-  if (topReg) return topReg;
   return extractBusinessNumber(corp.formContent);
 }
 
@@ -1156,17 +1154,17 @@ function buildOnboardingDisplayRows(
     });
   }
 
-  let corpIdx = 0;
   for (const corp of corpShareholders) {
     const regRaw = getCorpBusinessNumber(corp);
     const regKey = normalizeDirectorShareholderIdKey(regRaw);
-    const id = `onb-corp-${regKey ?? corpIdx++}`;
+    if (!regKey) continue;
+    const id = `onb-corp-${regKey}`;
     const rawResolved = resolveCompanyStatus(regKey, kycById);
     const unifiedBase = normalizeRawStatus(rawResolved);
     const status = unifiedBase;
     const email = String((corp as Record<string, unknown>).email ?? "").trim();
     const corpOwn = ownershipFromCorpShareholder(corp);
-    const corpAmlRaw = regKey ? amlByGov.get(regKey) : undefined;
+    const corpAmlRaw = amlByGov.get(regKey);
     const corpAmlLine = normalizeRawStatus(corpAmlRaw);
     rows.push({
       id,

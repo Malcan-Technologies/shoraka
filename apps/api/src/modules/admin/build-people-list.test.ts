@@ -182,7 +182,7 @@ describe("buildUnifiedPeople", () => {
                   displayArea: "Basic Information Setting",
                   content: [
                     { fieldName: "Business Name", fieldType: "text", fieldValue: "Petronas Sdn Bhd" },
-                    { fieldName: "BUSINESS NUMBER", fieldType: "text", fieldValue: "123123123123" },
+                    { fieldName: "BUSINESS NUMBER", fieldType: "text", fieldValue: "123123123" },
                     { fieldName: "% of Shares", fieldType: "number", fieldValue: "10" },
                   ],
                 },
@@ -195,10 +195,10 @@ describe("buildUnifiedPeople", () => {
 
     const corp = rows.find((r) => r.entityType === "CORPORATE");
     expect(corp).toBeDefined();
-    expect(corp?.matchKey).toBe("123123123123");
+    expect(corp?.matchKey).toBe("123123123");
   });
 
-  it("prefers top-level registrationNumber on corporate shareholder when present", () => {
+  it("omits corporate shareholder from people when Business Number in form is empty", () => {
     const rows = buildUnifiedPeople({
       ctos: null,
       issuerDirectorKycStatus: { directors: [] },
@@ -209,12 +209,15 @@ describe("buildUnifiedPeople", () => {
         shareholders: [],
         corporateShareholders: [
           {
-            companyName: "Acme Sdn Bhd",
-            registrationNumber: "SSM999888",
+            companyName: "Ghost Corp",
+            registrationNumber: "IGNORED_TOP_LEVEL",
             formContent: {
               displayAreas: [
                 {
-                  content: [{ fieldName: "Business Number", fieldValue: "111" }],
+                  content: [
+                    { fieldName: "Business Name", fieldValue: "Ghost" },
+                    { fieldName: "Business Number", fieldValue: "" },
+                  ],
                 },
               ],
             },
@@ -223,7 +226,6 @@ describe("buildUnifiedPeople", () => {
       },
     });
 
-    const corp = rows.find((r) => r.entityType === "CORPORATE");
-    expect(corp?.matchKey).toBe("SSM999888");
+    expect(rows.filter((r) => r.entityType === "CORPORATE")).toHaveLength(0);
   });
 });
