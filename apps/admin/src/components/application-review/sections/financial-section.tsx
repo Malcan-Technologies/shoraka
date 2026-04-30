@@ -9,6 +9,7 @@ import { ApplicationFinancialReviewComparison } from "@/components/application-f
 import {
   isDirectorShareholderAmlScreeningApproved,
   isReadyOnboardingStatus,
+  normalizeRawStatus,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
 
@@ -95,8 +96,42 @@ export function FinancialSection({
     return !isOnboardingDoneAll || !isAmlDoneAll;
   })();
 
-  const bannerMessage = "Complete all director/shareholder onboarding and AML to proceed.";
-  const bannerTooltip = "Cannot approve until all director/shareholder KYC and AML are approved.";
+  const bannerMessage = (() => {
+    const people = app.people ?? [];
+    const individuals = people.filter((p) => p.entityType === "INDIVIDUAL");
+
+    const onboardingPendingCount = individuals.filter((p) => {
+      const onboardingStatus = normalizeRawStatus(p.onboarding?.status);
+      return onboardingStatus !== "APPROVED" && onboardingStatus !== "WAIT_FOR_APPROVAL";
+    }).length;
+
+    const amlPendingCount = individuals.filter((p) => {
+      const amlStatus = normalizeRawStatus(p.screening?.status);
+      return amlStatus !== "APPROVED";
+    }).length;
+
+    const onboardingLabel =
+      onboardingPendingCount === 1
+        ? "director/shareholder onboarding pending"
+        : "director/shareholder onboarding pending";
+
+    const amlLabel =
+      amlPendingCount === 1 ? "director/shareholder under AML review" : "director/shareholder under AML review";
+
+    if (onboardingPendingCount > 0 && amlPendingCount > 0) {
+      return `${onboardingPendingCount} ${onboardingLabel}, ${amlPendingCount} under AML review.`;
+    }
+    if (onboardingPendingCount > 0) {
+      return `${onboardingPendingCount} ${onboardingLabel}.`;
+    }
+    if (amlPendingCount > 0) {
+      return `${amlPendingCount} ${amlLabel}.`;
+    }
+
+    return "Complete all director/shareholder onboarding and AML to proceed.";
+  })();
+
+  const bannerTooltip = bannerMessage;
 
   if (sectionComparison) {
     return (
