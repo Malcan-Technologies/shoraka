@@ -100,6 +100,9 @@ export function FinancialSection({
     const people = app.people ?? [];
     const individuals = people.filter((p) => p.entityType === "INDIVIDUAL");
 
+    const isOnboardingDoneAll = people.every((p) => isReadyOnboardingStatus(p.onboarding?.status));
+    const isAmlDoneAll = people.every((p) => isDirectorShareholderAmlScreeningApproved(p.screening));
+
     const onboardingPendingCount = individuals.filter((p) => {
       const onboardingStatus = normalizeRawStatus(p.onboarding?.status);
       return onboardingStatus !== "APPROVED" && onboardingStatus !== "WAIT_FOR_APPROVAL";
@@ -128,7 +131,16 @@ export function FinancialSection({
       return `${amlPendingCount} ${amlLabel}.`;
     }
 
-    return "Complete all director/shareholder onboarding and AML to proceed.";
+    // Counts can be 0 when `app.people` contains non-individual rows.
+    // Pick a context message based on the same KYC/AML pending flags.
+    if (!isOnboardingDoneAll) {
+      return "Some directors/shareholders have not completed onboarding.";
+    }
+    if (!isAmlDoneAll) {
+      return "Director/shareholder AML screening is in progress.";
+    }
+
+    return "Some directors/shareholders have not completed onboarding.";
   })();
 
   const bannerTooltip = bannerMessage;
