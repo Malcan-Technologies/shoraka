@@ -560,6 +560,325 @@ model Invoice {
   @@map("invoices")
 }
 
+model Note {
+  id                          String     @id @default(cuid())
+  source_application_id       String
+  source_contract_id          String?
+  source_invoice_id           String?    @unique
+  issuer_organization_id      String
+  status                      NoteStatus @default(DRAFT)
+  listing_status              NoteListingStatus @default(NOT_LISTED)
+  funding_status              NoteFundingStatus @default(NOT_OPEN)
+  servicing_status            NoteServicingStatus @default(NOT_STARTED)
+  title                       String
+  note_reference              String     @unique
+  product_snapshot            Json?
+  issuer_snapshot             Json
+  paymaster_snapshot          Json?
+  contract_snapshot           Json?
+  invoice_snapshot            Json?
+  requested_amount            Decimal    @db.Decimal(18, 6)
+  target_amount               Decimal    @db.Decimal(18, 6)
+  funded_amount               Decimal    @default(0) @db.Decimal(18, 6)
+  minimum_funding_percent     Decimal    @default(80) @db.Decimal(5, 2)
+  profit_rate_percent         Decimal?   @db.Decimal(7, 4)
+  platform_fee_rate_percent   Decimal    @default(0) @db.Decimal(5, 2)
+  service_fee_rate_percent    Decimal    @default(0) @db.Decimal(5, 2)
+  service_fee_customer_scope  String?
+  maturity_date               DateTime?
+  grace_period_days           Int        @default(7)
+  arrears_threshold_days      Int        @default(14)
+  tawidh_rate_cap_percent     Decimal    @default(1) @db.Decimal(5, 2)
+  gharamah_rate_cap_percent   Decimal    @default(9) @db.Decimal(5, 2)
+  published_at                DateTime?
+  funding_closed_at           DateTime?
+  activated_at                DateTime?
+  repaid_at                   DateTime?
+  arrears_started_at          DateTime?
+  default_marked_at           DateTime?
+  default_marked_by_admin_user_id String?
+  default_reason              String?
+  metadata                    Json?
+  created_at                  DateTime   @default(now())
+  updated_at                  DateTime   @updatedAt
+  listing                     NoteListing?
+  investments                 NoteInvestment[]
+  payment_schedules           NotePaymentSchedule[]
+  payments                    NotePayment[]
+  settlements                 NoteSettlement[]
+  ledger_entries              NoteLedgerEntry[]
+  events                      NoteEvent[]
+  admin_actions               NoteAdminAction[]
+
+  @@index([source_application_id])
+  @@index([source_contract_id])
+  @@index([issuer_organization_id])
+  @@index([status])
+  @@index([listing_status])
+  @@index([funding_status])
+  @@index([servicing_status])
+  @@index([maturity_date])
+  @@map("notes")
+}
+
+model NoteListing {
+  id              String            @id @default(cuid())
+  note_id         String            @unique
+  status          NoteListingStatus @default(DRAFT)
+  opens_at        DateTime?
+  closes_at       DateTime?
+  published_at    DateTime?
+  unpublished_at  DateTime?
+  visibility      String            @default("INVESTOR_MARKETPLACE")
+  summary         String?
+  risk_disclosure Json?
+  created_at      DateTime          @default(now())
+  updated_at      DateTime          @updatedAt
+  note            Note              @relation(fields: [note_id], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([opens_at])
+  @@index([closes_at])
+  @@map("note_listings")
+}
+
+model NoteInvestment {
+  id                       String               @id @default(cuid())
+  note_id                  String
+  investor_organization_id String
+  investor_user_id         String
+  status                   NoteInvestmentStatus @default(COMMITTED)
+  amount                   Decimal              @db.Decimal(18, 6)
+  allocation_percent       Decimal              @default(0) @db.Decimal(9, 6)
+  committed_at             DateTime             @default(now())
+  confirmed_at             DateTime?
+  released_at              DateTime?
+  metadata                 Json?
+  created_at               DateTime             @default(now())
+  updated_at               DateTime             @updatedAt
+  note                     Note                 @relation(fields: [note_id], references: [id], onDelete: Cascade)
+
+  @@index([note_id])
+  @@index([investor_organization_id])
+  @@index([investor_user_id])
+  @@index([status])
+  @@map("note_investments")
+}
+
+model NotePaymentSchedule {
+  id                  String                @id @default(cuid())
+  note_id             String
+  status              NotePaymentStatus     @default(PENDING)
+  sequence            Int
+  due_date            DateTime
+  expected_principal  Decimal               @default(0) @db.Decimal(18, 6)
+  expected_profit     Decimal               @default(0) @db.Decimal(18, 6)
+  expected_total      Decimal               @default(0) @db.Decimal(18, 6)
+  paid_principal      Decimal               @default(0) @db.Decimal(18, 6)
+  paid_profit         Decimal               @default(0) @db.Decimal(18, 6)
+  paid_total          Decimal               @default(0) @db.Decimal(18, 6)
+  metadata            Json?
+  created_at          DateTime              @default(now())
+  updated_at          DateTime              @updatedAt
+  note                Note                  @relation(fields: [note_id], references: [id], onDelete: Cascade)
+
+  @@unique([note_id, sequence])
+  @@index([note_id])
+  @@index([status])
+  @@index([due_date])
+  @@map("note_payment_schedules")
+}
+
+model NotePayment {
+  id                         String              @id @default(cuid())
+  note_id                    String
+  schedule_id                String?
+  source                     NotePaymentSource
+  status                     NotePaymentStatus   @default(PENDING)
+  receipt_amount             Decimal             @db.Decimal(18, 6)
+  receipt_date               DateTime
+  received_into_account_code String               @default("REPAYMENT_POOL")
+  evidence_s3_key            String?
+  reference                  String?
+  recorded_by_user_id        String?
+  reconciled_by_user_id      String?
+  reconciled_at              DateTime?
+  metadata                   Json?
+  created_at                 DateTime            @default(now())
+  updated_at                 DateTime            @updatedAt
+  note                       Note                @relation(fields: [note_id], references: [id], onDelete: Cascade)
+
+  @@index([note_id])
+  @@index([schedule_id])
+  @@index([source])
+  @@index([status])
+  @@index([receipt_date])
+  @@map("note_payments")
+}
+
+model NoteSettlement {
+  id                      String                @id @default(cuid())
+  note_id                 String
+  payment_id              String?
+  status                  NoteSettlementStatus  @default(PREVIEW)
+  settlement_type         NoteSettlementType    @default(STANDARD)
+  gross_receipt_amount    Decimal               @default(0) @db.Decimal(18, 6)
+  investor_principal      Decimal               @default(0) @db.Decimal(18, 6)
+  investor_profit_gross   Decimal               @default(0) @db.Decimal(18, 6)
+  service_fee_amount      Decimal               @default(0) @db.Decimal(18, 6)
+  investor_profit_net     Decimal               @default(0) @db.Decimal(18, 6)
+  tawidh_amount           Decimal               @default(0) @db.Decimal(18, 6)
+  gharamah_amount         Decimal               @default(0) @db.Decimal(18, 6)
+  issuer_residual_amount  Decimal               @default(0) @db.Decimal(18, 6)
+  unapplied_amount        Decimal               @default(0) @db.Decimal(18, 6)
+  preview_snapshot        Json
+  approved_by_user_id     String?
+  approved_at             DateTime?
+  posted_at               DateTime?
+  idempotency_key         String?               @unique
+  created_at              DateTime              @default(now())
+  updated_at              DateTime              @updatedAt
+  note                    Note                  @relation(fields: [note_id], references: [id], onDelete: Cascade)
+
+  @@index([note_id])
+  @@index([payment_id])
+  @@index([status])
+  @@index([posted_at])
+  @@map("note_settlements")
+}
+
+model NoteLedgerAccount {
+  id            String                @id @default(cuid())
+  code          String                @unique
+  name          String
+  type          NoteLedgerAccountType
+  currency      String                @default("MYR")
+  is_system     Boolean               @default(true)
+  created_at    DateTime              @default(now())
+  updated_at    DateTime              @updatedAt
+  ledger_entries NoteLedgerEntry[]
+
+  @@index([type])
+  @@map("note_ledger_accounts")
+}
+
+model NoteLedgerEntry {
+  id                String              @id @default(cuid())
+  note_id           String?
+  account_id        String
+  settlement_id     String?
+  payment_id        String?
+  withdrawal_id     String?
+  direction         NoteLedgerDirection
+  amount            Decimal             @db.Decimal(18, 6)
+  currency          String              @default("MYR")
+  description       String
+  idempotency_key   String              @unique
+  metadata          Json?
+  posted_at         DateTime            @default(now())
+  created_at        DateTime            @default(now())
+  note              Note?               @relation(fields: [note_id], references: [id], onDelete: SetNull)
+  account           NoteLedgerAccount   @relation(fields: [account_id], references: [id], onDelete: Restrict)
+
+  @@index([note_id])
+  @@index([account_id])
+  @@index([settlement_id])
+  @@index([payment_id])
+  @@index([withdrawal_id])
+  @@index([posted_at])
+  @@map("note_ledger_entries")
+}
+
+model NoteEvent {
+  id             String   @id @default(cuid())
+  note_id        String
+  event_type     String
+  actor_user_id  String?
+  actor_role     String?
+  portal         String?
+  ip_address     String?
+  user_agent     String?
+  correlation_id String?
+  metadata       Json?
+  created_at     DateTime @default(now())
+  note           Note     @relation(fields: [note_id], references: [id], onDelete: Cascade)
+
+  @@index([note_id])
+  @@index([event_type])
+  @@index([actor_user_id])
+  @@index([created_at])
+  @@map("note_events")
+}
+
+model NoteAdminAction {
+  id             String   @id @default(cuid())
+  note_id        String
+  action_type    String
+  actor_user_id  String
+  reason         String?
+  before_state   Json?
+  after_state    Json?
+  ip_address     String?
+  user_agent     String?
+  correlation_id String?
+  created_at     DateTime @default(now())
+  note           Note     @relation(fields: [note_id], references: [id], onDelete: Cascade)
+
+  @@index([note_id])
+  @@index([action_type])
+  @@index([actor_user_id])
+  @@index([created_at])
+  @@map("note_admin_actions")
+}
+
+model PlatformFinanceSetting {
+  id                              String   @id @default(cuid())
+  key                             String   @unique
+  grace_period_days               Int      @default(7)
+  arrears_threshold_days          Int      @default(14)
+  tawidh_rate_cap_percent         Decimal  @default(1) @db.Decimal(5, 2)
+  gharamah_rate_cap_percent       Decimal  @default(9) @db.Decimal(5, 2)
+  default_tawidh_rate_percent     Decimal  @default(0) @db.Decimal(5, 2)
+  default_gharamah_rate_percent   Decimal  @default(0) @db.Decimal(5, 2)
+  withdrawal_letter_template      String   @default("DEFAULT_WITHDRAWAL_LETTER")
+  arrears_letter_template         String   @default("DEFAULT_ARREARS_LETTER")
+  default_letter_template         String   @default("DEFAULT_DEFAULT_LETTER")
+  updated_by_user_id              String?
+  metadata                        Json?
+  created_at                      DateTime @default(now())
+  updated_at                      DateTime @updatedAt
+
+  @@map("platform_finance_settings")
+}
+
+model WithdrawalInstruction {
+  id                     String              @id @default(cuid())
+  note_id                String?
+  investor_organization_id String?
+  issuer_organization_id String?
+  requested_by_user_id   String
+  submitted_by_user_id   String?
+  status                 WithdrawalStatus    @default(DRAFT)
+  withdrawal_type        WithdrawalType
+  amount                 Decimal             @db.Decimal(18, 6)
+  currency               String              @default("MYR")
+  beneficiary_snapshot   Json
+  letter_s3_key          String?
+  generated_at           DateTime?
+  submitted_to_trustee_at DateTime?
+  metadata               Json?
+  created_at             DateTime            @default(now())
+  updated_at             DateTime            @updatedAt
+
+  @@index([note_id])
+  @@index([investor_organization_id])
+  @@index([issuer_organization_id])
+  @@index([requested_by_user_id])
+  @@index([status])
+  @@index([created_at])
+  @@map("withdrawal_instructions")
+}
+
 model OrganizationMember {
   id                       String                 @id @default(cuid())
   user_id                  String
@@ -975,6 +1294,110 @@ enum LoanStatus {
   COMPLETED
   DEFAULTED
   REJECTED
+}
+
+enum NoteStatus {
+  DRAFT
+  PUBLISHED
+  FUNDING
+  ACTIVE
+  REPAID
+  ARREARS
+  DEFAULTED
+  FAILED_FUNDING
+  CANCELLED
+}
+
+enum NoteListingStatus {
+  NOT_LISTED
+  DRAFT
+  PUBLISHED
+  UNPUBLISHED
+  CLOSED
+}
+
+enum NoteFundingStatus {
+  NOT_OPEN
+  OPEN
+  FUNDED
+  FAILED
+  CLOSED
+}
+
+enum NoteServicingStatus {
+  NOT_STARTED
+  CURRENT
+  PARTIAL
+  ADVANCE_PAID
+  LATE
+  ARREARS
+  DEFAULTED
+  SETTLED
+}
+
+enum NoteInvestmentStatus {
+  COMMITTED
+  CONFIRMED
+  RELEASED
+  CANCELLED
+  SETTLED
+}
+
+enum NotePaymentSource {
+  PAYMASTER
+  ISSUER_ON_BEHALF
+  ADMIN_ADJUSTMENT
+}
+
+enum NotePaymentStatus {
+  PENDING
+  PARTIAL
+  RECEIVED
+  RECONCILED
+  SETTLED
+  VOID
+}
+
+enum NoteSettlementStatus {
+  PREVIEW
+  APPROVED
+  POSTED
+  VOID
+}
+
+enum NoteSettlementType {
+  STANDARD
+  PARTIAL
+  ADVANCE
+  LATE
+  DEFAULT_RECOVERY
+}
+
+enum NoteLedgerAccountType {
+  INVESTOR_POOL
+  REPAYMENT_POOL
+  OPERATING_ACCOUNT
+  TAWIDH_ACCOUNT
+  GHARAMAH_ACCOUNT
+}
+
+enum NoteLedgerDirection {
+  DEBIT
+  CREDIT
+}
+
+enum WithdrawalStatus {
+  DRAFT
+  LETTER_GENERATED
+  SUBMITTED_TO_TRUSTEE
+  COMPLETED
+  CANCELLED
+}
+
+enum WithdrawalType {
+  INVESTOR_WITHDRAWAL
+  ISSUER_RESIDUAL_RETURN
+  ADMIN_ADJUSTMENT
 }
 
 enum OrganizationType {

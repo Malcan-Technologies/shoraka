@@ -7,7 +7,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Logo } from "@cashsouk/ui";
 import { useOrganization } from "@cashsouk/config";
-import { HomeIcon, UserCircleIcon, ClockIcon, QuestionMarkCircleIcon } from "@heroicons/react/24/outline";
+import {
+  HomeIcon,
+  UserCircleIcon,
+  ClockIcon,
+  QuestionMarkCircleIcon,
+  ArrowTrendingUpIcon,
+} from "@heroicons/react/24/outline";
 
 import { NavUser } from "@/components/nav-user";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
@@ -179,6 +185,29 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     <Link href="/activity">
                       <ClockIcon className="h-4 w-4" />
                       <span>Activity</span>
+                    </Link>
+                  </SidebarMenuButton>
+                )}
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                {isFeaturesDisabled ? (
+                  <SidebarMenuButton
+                    disabled
+                    tooltip={isPendingApproval ? "Pending approval" : "Complete onboarding to access"}
+                    className="opacity-50 cursor-not-allowed"
+                  >
+                    <ArrowTrendingUpIcon className="h-4 w-4" />
+                    <span>Investments</span>
+                  </SidebarMenuButton>
+                ) : (
+                  <SidebarMenuButton
+                    asChild
+                    isActive={pathname === "/investments" || pathname.startsWith("/investments/")}
+                    tooltip="Investments"
+                  >
+                    <Link href="/investments">
+                      <ArrowTrendingUpIcon className="h-4 w-4" />
+                      <span>Investments</span>
                     </Link>
                   </SidebarMenuButton>
                 )}

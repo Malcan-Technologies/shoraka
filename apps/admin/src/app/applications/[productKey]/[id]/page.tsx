@@ -180,7 +180,11 @@ export default function DynamicApplicationDetailPage() {
   ];
   const isReviewable = !!app && REVIEWABLE_STATUSES.includes(app.status);
   const isFinalApplicationForAmlGate =
-    app?.status === "APPROVED" || app?.status === "FUNDED" || app?.status === "COMPLETED";
+    app?.status === "APPROVED" || app?.status === "COMPLETED";
+  const applicationPeople = React.useMemo(() => {
+    const people = (app as unknown as { people?: unknown } | null)?.people;
+    return Array.isArray(people) ? (people as ApplicationPersonRow[]) : [];
+  }, [app]);
   const { getAccessToken } = useAuthToken();
   const { viewDocumentPending, handleViewDocument, handleDownloadDocument } =
     useAdminS3DocumentViewDownload();
@@ -638,10 +642,9 @@ export default function DynamicApplicationDetailPage() {
                   </div>
                   <ApplicationStatusBadge status={app.status} size="lg" />
                   {!isFinalApplicationForAmlGate &&
-                  Array.isArray((app as { people?: unknown }).people) &&
                   (() => {
                     const visibleIndividuals = filterVisiblePeopleRows(
-                      (app as { people: ApplicationPersonRow[] }).people
+                      applicationPeople
                     ).filter((person) => person.entityType === "INDIVIDUAL");
                     return (
                       visibleIndividuals.length > 0 &&

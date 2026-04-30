@@ -1,32 +1,40 @@
 ---
 title: Note Money Flow and Servicing Guide
-description: Admin guide for note funding, repayment pools, issuer residuals, fees, arrears, defaults, withdrawals, and audit trail.
+description: Admin guide for understanding note funding, repayments, settlement, late charges, withdrawals, and bucket activity.
 category: Note Operations
 tags:
   - admin
   - notes
   - finance
 order: 20
-updated: 2026-04-28
+updated: 2026-04-29
 ---
 
-## Purpose
+## Overview
 
-Use this guide when reviewing or operating note money flows in the admin portal. It explains the five platform buckets, how investor funding and paymaster repayment move through the platform, how issuer application fees are handled, and which PDF letters and audit records must be generated.
+Use this guide when you need to understand where note money is, what action to take next, or how a repayment should be allocated. It is written for admin portal users and focuses on day-to-day operations.
 
-## Five Platform Buckets
+A note is created from one approved invoice. If a contract has multiple approved invoices, each invoice can become its own note. The admin portal keeps the note linked to its issuer, paymaster, source application, source contract, and source invoice so you can review the full context when needed.
 
-The note operating model uses five core buckets:
+## Where To Work
 
-- `Investor Pool` - investor deposits, investment commitments, investor repayments, and investor withdrawals.
-- `Repayment Pool` - paymaster financing repayments before settlement allocation.
-- `Operating Account` - CashSouk application fees, platform fees, and service fees.
-- `Ta'widh Account` - Syariah compensation component of late payment charges.
-- `Gharamah Account` - Syariah penalty/charity component of late payment charges.
+- Use **Notes** to create notes from approved invoices, publish notes, close funding, activate servicing, record repayments, settle notes, generate letters, and review the note timeline.
+- Use **Bucket Balances** to view the five platform money buckets and inspect activity logs for each bucket.
+- Use **Platform Finance Settings** to manage the default grace period, arrears threshold, Ta'widh cap, Gharamah cap, and letter templates.
 
-Issuer application fees are not shown in the original money-flow diagram, but they should be included. When the issuer submits a financing application, the application or financing processing fee is paid into the Operating Account.
+## The Five Buckets
 
-## Flowchart for Review
+CashSouk tracks note money through five operational buckets:
+
+- **Investor Pool** holds investor money, investment commitments, repayment returns, and investor withdrawals.
+- **Repayment Pool** receives repayment money from the paymaster or from an issuer paying on behalf of the paymaster.
+- **Operating Account** receives application fees, platform fees, and service fees.
+- **Ta'widh Account** receives the compensation portion of approved late-payment charges.
+- **Gharamah Account** receives the charity or penalty portion of approved late-payment charges.
+
+The bucket balances page is based on posted ledger activity. Credits increase a bucket, debits reduce a bucket, and the activity log shows the transactions behind each balance.
+
+## Note Money Flow
 
 ```mermaid
 flowchart TD
@@ -39,13 +47,12 @@ flowchart TD
   repaymentPool -->|"Investor principal plus net profit / return"| investorPool
   repaymentPool -->|"Service fee from profit, up to 15%"| operating
   repaymentPool -->|"Issuer residual for unfunded portion"| issuer
-  issuer -->|"Late fee set at repayment receipt"| repaymentPool
   repaymentPool -->|"Ta'widh allocation"| tawidh["Ta'widh Account"]
   repaymentPool -->|"Gharamah allocation"| gharamah["Gharamah Account"]
   investorPool -->|"Withdrawal request"| withdrawalLetter["Withdrawal PDF letter"]
   withdrawalLetter -->|"Manual trustee submission"| trustee["Trustee"]
-  repaymentPool -->|"Arrears letter after grace plus 14 days"| arrearsLetter["Arrears PDF letter"]
-  arrearsLetter -->|"Admin manually marks default"| defaultLetter["Default PDF letter"]
+  repaymentPool -->|"Arrears warning letter if overdue"| arrearsLetter["Arrears PDF letter"]
+  arrearsLetter -->|"Admin manually marks default if required"| defaultLetter["Default PDF letter"]
   operating --> audit["Audit Trail"]
   investorPool --> audit
   repaymentPool --> audit
@@ -65,23 +72,44 @@ flowchart TD
   classDef auditStep fill:#f3e8ff,stroke:#9333ea,color:#0f172a
 ```
 
-## Admin Operating Rules
+## From Invoice To Funding
 
-- Platform fee is not a global setting. It is set per note at the point of disbursement and capped at 3%.
-- Service fee is not a global setting. It is determined per customer/note, deducted from investor profit when paymaster repayment is received, and standard capped up to 15% of profit.
-- Grace period should be configurable as a global admin setting, with a standard default of 7 days.
-- Ta'widh defaults should be configurable, manually set at receipt time, and capped at 1% per annum.
-- Gharamah defaults should be configurable, manually set at receipt time, and capped at 9% per annum.
-- Late fees should be calculated and posted only when repayment funds are received. They should not be accrued or posted by a daily cron job.
-- Arrears threshold should be configurable, with a standard default of 14 days after the grace period. With the 7-day grace period, arrears starts 21 days after the missed payment date.
-- Default is not automatic. Admin can manually mark the note as default any time after the note is already in arrears.
-- Financing repayment is paid by the buyer/paymaster into the Repayment Pool.
-- Issuer can also pay into the Repayment Pool on behalf of the paymaster, likely from the issuer portal. Admin should reconcile it as a valid repayment while preserving the payment source.
-- Late fees are borne by the issuer, but deducted from repayment proceeds before returning any issuer residual.
-- If a note is funded below 100%, the paymaster still repays the source invoice/contract obligation. After investor settlement, service fee, and approved late charges, the unfunded residual balance is returned to the issuer. Platform fee has already been deducted at disbursement.
-- Example: if the note is 60% funded and the paymaster repays 100%, investors receive the funded 60% principal plus net profit pro rata, and the issuer receives the remaining 40% less approved late fees, service fee, and investor profit.
+Create notes only from approved invoices. Review the invoice, issuer, paymaster, risk rating, amount, profit rate, platform fee, service fee, maturity date, and listing summary before publishing.
 
-## Settlement Waterfall Example
+When a note is published, it becomes available in the investor marketplace. Investors can commit funds until funding is closed or failed.
+
+- **Publish** makes a reviewed note available to investors.
+- **Unpublish** removes a note from the marketplace before investor commitments exist.
+- **Close Funding** locks a successfully funded note once it meets the required funding threshold.
+- **Fail Funding** closes an open note that did not meet the required funding threshold.
+- **Activate** starts servicing after funding has been closed successfully.
+
+## Disbursement
+
+The platform fee is deducted at disbursement. It is set per note and capped at 3%.
+
+After funding is closed and the note is activated, the funded amount is applied as follows:
+
+- the platform fee goes to the Operating Account,
+- the net funded proceeds are disbursed to the issuer,
+- the note moves into servicing so repayment can be tracked.
+
+## Repayment And Settlement
+
+The repayment amount is based on the invoice face value. It is not the same as the funded amount or the disbursed amount.
+
+Repayment is usually paid by the paymaster into the Repayment Pool. The issuer may also pay the settlement amount on behalf of the paymaster through the issuer portal. When that happens, the admin should review the submitted payment, approve or reject it, and preserve the payment source in the audit trail.
+
+When settlement is posted, the Repayment Pool is allocated across the relevant buckets:
+
+- investors receive principal and net profit according to their allocation,
+- the Operating Account receives the service fee,
+- Ta'widh and Gharamah amounts are posted if approved late charges apply,
+- any issuer residual is returned to the issuer.
+
+After settlement is posted, the note is treated as settled and further payment actions should be disabled.
+
+## Settlement Example
 
 ```mermaid
 flowchart TD
@@ -96,11 +124,11 @@ flowchart TD
   investorPrincipal --> investorRatio["Split by investor allocation ratio"]
   investorProfit --> investorRatio
   investorRatio --> investors["Investors receive principal plus net profit"]
-  repaymentPool --> lateFees["Issuer-borne late fees if any"]
+  repaymentPool --> lateFees["Issuer-borne late charges if any"]
   lateFees --> tawidh["Ta'widh"]
   lateFees --> gharamah["Gharamah"]
   repaymentPool --> issuerResidual["Issuer residual return"]
-  issuerResidual --> formula["40% unfunded residual minus late fees, service fee, and investor profit"]
+  issuerResidual --> formula["40% unfunded residual minus late charges, service fee, and investor profit"]
   formula --> issuer["Issuer"]
 
   class repaymentPool pool
@@ -116,49 +144,59 @@ flowchart TD
   classDef issuerStep fill:#ede9fe,stroke:#7c3aed,color:#0f172a
 ```
 
-## Withdrawal Letters
+Example: if a note is 60% funded and the paymaster repays 100% of the invoice, investors receive the funded 60% principal plus net profit pro rata. The issuer receives the remaining residual after investor allocation, service fee, approved late charges, and investor profit are applied. The platform fee was already deducted during disbursement.
 
-Investor withdrawal and other pool withdrawal flows should generate a PDF template letter before funds are manually submitted to the trustee.
+## Late Payments
 
-The letter should include:
+Late charges are handled manually when repayment funds are received. They are not posted automatically by a daily system job.
+
+Before applying late charges, run the overdue check on the note. This helps confirm the overdue days and prevents duplicate late-charge allocation by taking previous late charges into account.
+
+Late charges are borne by the issuer, but they are deducted from repayment proceeds before any issuer residual is returned.
+
+- **Grace period** is configurable. The standard default is 7 days.
+- **Ta'widh** is set at receipt time and capped at 1% per annum.
+- **Gharamah** is set at receipt time and capped at 9% per annum.
+- **Arrears** starts after the grace period plus the arrears threshold. With a 7-day grace period and 14-day arrears threshold, arrears starts 21 days after the missed payment date.
+- **Default** is never automatic. Admin can mark a note as default only after it is already in arrears.
+
+## Arrears And Default Letters
+
+Use generated PDF letters to support arrears and default handling.
+
+- Generate an arrears or warning letter once the note enters arrears.
+- Review the letter before external communication.
+- If the note must be marked as default, use the manual default action and generate the default letter.
+- Keep the generated letters attached to the note timeline.
+
+## Withdrawals
+
+Investor withdrawals and other trustee-submitted withdrawals must have a generated PDF instruction letter before they are marked as submitted.
+
+The withdrawal letter should include:
 
 - withdrawal reference,
 - source bucket,
-- beneficiary name,
-- beneficiary bank details or masked reference,
+- beneficiary details or masked bank reference,
 - amount and currency,
 - reason,
-- requested by,
-- reviewed by,
-- approval timestamps,
-- trustee submission status,
-- related note or investor reference where applicable.
+- requester and reviewer,
+- related note or investor reference, where applicable,
+- trustee submission status.
 
-The admin portal should keep the generated PDF, submission status, and activity timeline entry. Completion should only be marked after manual trustee submission is confirmed.
-
-## Arrears and Default Letters
-
-Arrears and default should be generated from templates and attached to the note timeline.
-
-- The 7-day grace period controls whether late fees are applied when repayment funds are received.
-- Arrears begins after the grace period plus the configured arrears threshold. Standard timing is 7 days of grace plus 14 arrears-threshold days.
-- At arrears, generate an arrears/default warning letter PDF.
-- Default is a manual admin action available once the note is in arrears.
-- When admin marks default, generate a default letter PDF.
-- Admin should review generated letters before any external submission or communication.
+Mark a withdrawal as submitted only after the letter has been generated and the trustee submission has actually been completed.
 
 ## Audit Trail
 
-Every money-flow action should be auditable:
+Every important money-flow action should be visible in the note timeline or bucket activity log. This includes:
 
-- setting changes,
-- application fee receipt,
-- note funding close,
+- note creation from approved invoice,
+- publish, unpublish, close funding, fail funding, and activate actions,
 - disbursement,
-- paymaster repayment receipt,
-- issuer-on-behalf-of-paymaster repayment receipt,
+- paymaster repayment receipts,
+- issuer payments made on behalf of paymaster,
 - settlement preview and approval,
-- ledger posting,
+- settlement posting,
 - issuer residual return,
 - late-fee calculation and allocation,
 - withdrawal letter generation,
@@ -166,5 +204,4 @@ Every money-flow action should be auditable:
 - arrears/default letter generation,
 - manual overrides and waivers.
 
-Audit entries should include actor, role, timestamp, before/after values where relevant, IP address, user agent, correlation ID, related note/application IDs, and generated document references.
-
+When reviewing a note, use the activity timeline together with the ledger and bucket activity logs. The timeline explains who did what; the ledger and bucket logs explain how money moved.

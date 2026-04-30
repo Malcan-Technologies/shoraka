@@ -12,7 +12,7 @@ The issuer application process currently covers:
 - Admin review, amendment requests, resubmission, contract offers, invoice offers, offer expiry, and offer acceptance or rejection.
 - SigningCloud-based offer signing when configured.
 
-The process ends when the issuer-side application and its related contract or invoices reach a final accepted state. There is not yet a first-class post-application note lifecycle in the database or API.
+The application process hands off to the note lifecycle when the issuer-side application and its related contract or invoices reach a final accepted state. The post-application note lifecycle is now first class in the database and API, but origination remains the source of truth for issuer, contract, invoice, and paymaster context.
 
 ## Fee Flow Context
 
@@ -37,7 +37,7 @@ Note issuance or financing request processing fee flow:
 Implementation implication:
 
 - These fees are separate from investor funding, paymaster repayment, service fee, ta'widh, and gharamah flows.
-- Current codebase has onboarding and application workflows, but there is not yet a dedicated financial ledger for these fee movements.
+- Current codebase has onboarding and application workflows. The note lifecycle has a ledger for note funding, receipt, settlement, and bucket movements; issuer onboarding and application fee ledger posting remains a separate future integration.
 - The RM 50 application fee is a future implementation item and should be enabled after the payment gateway is ready.
 - Future implementation should avoid mixing issuer application fees with note repayment ledger entries.
 - The application fee should be visible in admin finance/audit context as an issuer-paid Operating Account movement tied to the submitted application.
@@ -93,9 +93,16 @@ The active issuer financing flow uses these Prisma models:
 - `ApplicationRevision` stores submitted snapshots by review cycle.
 - `ApplicationLog` stores issuer/admin activity timeline events.
 
-Important current gap:
+Post-origination note schema:
 
-- There is no `Note`, `Repayment`, `Payment`, `Disbursement`, `Settlement`, or normalized `Paymaster` table.
+- The note lifecycle now has first-class tables in `apps/api/prisma/schema.prisma`: `Note`, `NoteListing`, `NoteInvestment`, `NotePaymentSchedule`, `NotePayment`, `NoteSettlement`, `NoteLedgerAccount`, `NoteLedgerEntry`, `NoteEvent`, `NoteAdminAction`, `PlatformFinanceSetting`, and `WithdrawalInstruction`.
+- Notes are created one per approved invoice. `Note.source_invoice_id` points to the invoice, while `Note.source_application_id` and `Note.source_contract_id` retain origination and paymaster context.
+- `Note` snapshots the accepted context in `product_snapshot`, `issuer_snapshot`, `paymaster_snapshot`, `contract_snapshot`, and `invoice_snapshot` so servicing does not depend on mutable application JSON.
+- The five platform buckets are represented by `NoteLedgerAccount.code`: `INVESTOR_POOL`, `REPAYMENT_POOL`, `OPERATING_ACCOUNT`, `TAWIDH_ACCOUNT`, and `GHARAMAH_ACCOUNT`.
+- `NoteLedgerEntry` stores immutable postings with `account_id`, `direction`, `amount`, `idempotency_key`, `posted_at`, and links to note/payment/settlement/withdrawal records where applicable.
+- Admin can view note bucket balances in `/finance/buckets`; balances are derived from ledger credits and debits.
+- Admin notes registry consolidates approved invoices ready for note creation and existing notes into one table so an approved invoice with a created note is not shown twice.
+- Posted settlement summaries are exposed on admin and issuer note pages. Once a note is settled, issuer settlement payment actions are disabled.
 - `Loan` and `Investment` exist in `apps/api/prisma/schema.prisma`, but they are legacy/disconnected from the active issuer application routes and should not be treated as the current note lifecycle without deliberate migration work.
 
 Paymaster clarification:
@@ -338,7 +345,7 @@ The clean boundary for future note work should be:
 - Application has completed review.
 - Required contract/invoice offers have been accepted or signed.
 - The final accepted commercial terms are frozen into an immutable snapshot.
-- A post-application process creates one or more note records from the approved contract/invoice context.
+- A post-application process creates one note record per approved invoice. The related application and contract remain source context for issuer, product, paymaster/customer, and offer snapshots.
 
 The note feature should not mutate the historical application snapshot. It should reference the application, contract, invoice, issuer organization, product version, accepted offer details, and paymaster/customer details.
 
@@ -348,8 +355,8 @@ When building the note feature, treat issuer applications as the origination wor
 
 The first note creation service should:
 
-- Read from completed `Application`, `Contract`, and `Invoice` records.
-- Validate that the application is in an eligible final state.
-- Copy accepted terms into immutable note term fields.
+- Read from approved `Invoice` records and their parent `Application`/`Contract` context.
+- Validate that the invoice is eligible for note creation and has not already produced a note.
+- Copy accepted invoice terms into immutable note term fields.
 - Preserve references back to the source application, contract, invoice, issuer organization, and product.
 - Avoid using mutable application JSON as the long-term accounting source of truth.

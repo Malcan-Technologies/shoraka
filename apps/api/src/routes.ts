@@ -23,6 +23,14 @@ import { createInvoiceRouter } from "./modules/invoices/controller";
 import { activityRouter } from "./modules/activity/controller";
 import { createS3Router } from "./modules/s3/controller";
 import { notificationRouter } from "./modules/notification/controller";
+import {
+  adminNotesRouter,
+  investorNotesRouter,
+  issuerNotesRouter,
+  marketplaceRouter,
+  platformFinanceSettingsRouter,
+  withdrawalsRouter,
+} from "./modules/notes/controller";
 export function registerRoutes(app: Application): void {
   // Swagger API documentation (only in development)
   if (process.env.NODE_ENV !== "production") {
@@ -102,14 +110,30 @@ export function registerRoutes(app: Application): void {
   if (process.env.DISABLE_AUTH === "true" && process.env.NODE_ENV !== "production") {
     logger.warn("🔓 DEVELOPMENT MODE: Admin routes using authentication bypass");
     v1Router.use("/admin", devAuthBypass, requireRole(UserRole.ADMIN), adminRouter);
+    v1Router.use("/admin/notes", devAuthBypass, adminNotesRouter);
+    v1Router.use("/admin/platform-finance-settings", devAuthBypass, platformFinanceSettingsRouter);
+    v1Router.use("/admin/withdrawals", devAuthBypass, withdrawalsRouter);
     v1Router.use("/admin/site-documents", devAuthBypass, requireRole(UserRole.ADMIN), siteDocumentAdminRouter);
     v1Router.use("/admin/document-logs", devAuthBypass, requireRole(UserRole.ADMIN), documentLogRouter);
     v1Router.use("/admin/product-logs", devAuthBypass, requireRole(UserRole.ADMIN), productLogRouter);
   } else {
     v1Router.use("/admin", requireAuth, requireRole(UserRole.ADMIN), adminRouter);
+    v1Router.use("/admin/notes", requireAuth, adminNotesRouter);
+    v1Router.use("/admin/platform-finance-settings", requireAuth, platformFinanceSettingsRouter);
+    v1Router.use("/admin/withdrawals", requireAuth, withdrawalsRouter);
     v1Router.use("/admin/site-documents", requireAuth, requireRole(UserRole.ADMIN), siteDocumentAdminRouter);
     v1Router.use("/admin/document-logs", requireAuth, requireRole(UserRole.ADMIN), documentLogRouter);
     v1Router.use("/admin/product-logs", requireAuth, requireRole(UserRole.ADMIN), productLogRouter);
+  }
+
+  if (process.env.DISABLE_AUTH === "true" && process.env.NODE_ENV !== "production") {
+    v1Router.use("/marketplace", devAuthBypass, marketplaceRouter);
+    v1Router.use("/investor", devAuthBypass, investorNotesRouter);
+    v1Router.use("/issuer", devAuthBypass, issuerNotesRouter);
+  } else {
+    v1Router.use("/marketplace", requireAuth, marketplaceRouter);
+    v1Router.use("/investor", requireAuth, investorNotesRouter);
+    v1Router.use("/issuer", requireAuth, issuerNotesRouter);
   }
 
   // Site documents routes (authenticated users)

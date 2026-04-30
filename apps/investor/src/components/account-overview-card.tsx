@@ -17,6 +17,7 @@ import {
 import type { ChartConfig } from "@cashsouk/ui";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { useInvestorPortfolio } from "@/investments/hooks/use-marketplace-notes";
 
 interface AccountOverviewCardProps {
   isDisabled?: boolean;
@@ -41,9 +42,10 @@ const chartConfig = {
 } satisfies ChartConfig;
 
 export function AccountOverviewCard({ isDisabled = false }: AccountOverviewCardProps) {
-  const portfolioTotal = 0;
-  const totalInvestment = 0;
-  const availableBalance = 0;
+  const { data: portfolio } = useInvestorPortfolio();
+  const portfolioTotal = Number(portfolio?.portfolioTotal ?? 0);
+  const totalInvestment = Number(portfolio?.totalInvestment ?? 0);
+  const availableBalance = Number(portfolio?.availableBalance ?? 0);
   const hasData = portfolioTotal > 0;
 
   // Use placeholder data when there's no real data

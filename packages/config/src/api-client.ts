@@ -80,8 +80,92 @@ import type {
   WithdrawReason,
   AdminCtosReportListItem,
   SoukscoreRiskRating,
+  CreateNoteFromApplicationInput,
+  CreateNoteInvestmentInput,
+  EligibleNoteInvoicesResponse,
+  GetAdminNotesParams,
+  MarketplaceNoteDetail,
+  NoteDetail,
+  NoteActionRequiredCountResponse,
+  NoteEvent,
+  NoteLedgerBucketActivityResponse,
+  NoteLedgerBucketBalancesResponse,
+  NoteLedgerEntry,
+  NotesResponse,
+  PlatformFinanceSetting,
+  RecordNotePaymentInput,
+  SettlementPreviewInput,
+  UpdateNoteDraftInput,
+  WithdrawalInstruction,
 } from "@cashsouk/types";
 import { tokenRefreshService } from "./token-refresh-service";
+
+type OverdueLateChargeInput = {
+  receiptAmount?: number;
+  receiptDate?: string;
+};
+
+type OverdueLateChargeResult = {
+  overdue: boolean;
+  dueDate: string | null;
+  checkDate: string;
+  gracePeriodDays: number;
+  daysLate: number;
+  receiptAmount: number;
+  totalTawidhCap: number;
+  totalGharamahCap: number;
+  appliedTawidhAmount: number;
+  appliedGharamahAmount: number;
+  remainingTawidhAmount: number;
+  remainingGharamahAmount: number;
+  suggestedTawidhAmount: number;
+  suggestedGharamahAmount: number;
+  message: string;
+};
+
+type AdminApplicationDetail = Application &
+  Record<string, unknown> & {
+    invoices?: Array<{
+      id: string;
+      application_id?: string;
+      details?: Record<string, unknown>;
+      status?: string;
+      offer_details?: unknown;
+      offer_signing?: unknown;
+    }>;
+    contract?: {
+      contract_details?: Record<string, unknown> | null;
+      customer_details?: Record<string, unknown> | null;
+      offer_signing?: Record<string, unknown> | null;
+      status?: string;
+      invoices?: Array<{
+        id: string;
+        application_id: string;
+        details?: unknown;
+        status?: string;
+        offer_details?: unknown;
+      }>;
+    } | null;
+    issuer_organization: {
+      name: string | null;
+      owner: {
+        first_name: string;
+        last_name: string;
+        email: string;
+      };
+    };
+    visible_review_sections?: string[];
+  };
+type AdminApplicationActionResult = Record<string, unknown>;
+type PendingAmendmentItem = {
+  id: string;
+  scope: string;
+  scope_key: string;
+  remark: string;
+  item_type: string | null;
+  item_id: string | null;
+  author: { first_name: string; last_name: string };
+};
 
 export class ApiClient {
   private baseUrl: string;
@@ -380,8 +464,196 @@ export class ApiClient {
     return this.get<AdminContractDetail>(`/v1/admin/contracts/${id}`);
   }
 
-  async getAdminApplicationDetail(id: string): Promise<ApiResponse<any> | ApiError> {
-    return this.get<any>(`/v1/admin/applications/${id}`);
+  async getAdminNotes(params: GetAdminNotesParams): Promise<ApiResponse<NotesResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", String(params.page));
+    queryParams.append("pageSize", String(params.pageSize));
+    if (params.search) queryParams.append("search", params.search);
+    if (params.status) queryParams.append("status", params.status);
+    if (params.listingStatus) queryParams.append("listingStatus", params.listingStatus);
+    if (params.fundingStatus) queryParams.append("fundingStatus", params.fundingStatus);
+    if (params.servicingStatus) queryParams.append("servicingStatus", params.servicingStatus);
+    if (params.issuerOrganizationId) {
+      queryParams.append("issuerOrganizationId", params.issuerOrganizationId);
+    }
+    if (params.paymaster) queryParams.append("paymaster", params.paymaster);
+
+    return this.get<NotesResponse>(`/v1/admin/notes?${queryParams.toString()}`);
+  }
+
+  async getAdminNoteDetail(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.get<NoteDetail>(`/v1/admin/notes/${id}`);
+  }
+
+  async getAdminNoteSourceInvoices(): Promise<ApiResponse<EligibleNoteInvoicesResponse> | ApiError> {
+    return this.get<EligibleNoteInvoicesResponse>("/v1/admin/notes/source-invoices");
+  }
+
+  async createAdminNoteFromApplication(
+    applicationId: string,
+    data: CreateNoteFromApplicationInput = {}
+  ): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.post<NoteDetail>(`/v1/admin/notes/from-application/${applicationId}`, data);
+  }
+
+  async createAdminNoteFromInvoice(
+    invoiceId: string,
+    data: Omit<CreateNoteFromApplicationInput, "sourceInvoiceId"> = {}
+  ): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.post<NoteDetail>(`/v1/admin/notes/from-invoice/${invoiceId}`, data);
+  }
+
+  async updateAdminNoteDraft(
+    id: string,
+    data: UpdateNoteDraftInput
+  ): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.patch<NoteDetail>(`/v1/admin/notes/${id}/draft`, data);
+  }
+
+  async publishAdminNote(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.post<NoteDetail>(`/v1/admin/notes/${id}/publish`, {});
+  }
+
+  async unpublishAdminNote(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.post<NoteDetail>(`/v1/admin/notes/${id}/unpublish`, {});
+  }
+
+  async closeAdminNoteFunding(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.post<NoteDetail>(`/v1/admin/notes/${id}/funding/close`, {});
+  }
+
+  async failAdminNoteFunding(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.post<NoteDetail>(`/v1/admin/notes/${id}/funding/fail`, {});
+  }
+
+  async activateAdminNote(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.post<NoteDetail>(`/v1/admin/notes/${id}/activate`, {});
+  }
+
+  async getAdminNoteEvents(id: string): Promise<ApiResponse<NoteEvent[]> | ApiError> {
+    return this.get<NoteEvent[]>(`/v1/admin/notes/${id}/events`);
+  }
+
+  async getAdminNoteLedger(id: string): Promise<ApiResponse<NoteLedgerEntry[]> | ApiError> {
+    return this.get<NoteLedgerEntry[]>(`/v1/admin/notes/${id}/ledger`);
+  }
+
+  async getAdminNoteBucketBalances(): Promise<ApiResponse<NoteLedgerBucketBalancesResponse> | ApiError> {
+    return this.get<NoteLedgerBucketBalancesResponse>("/v1/admin/notes/bucket-balances");
+  }
+
+  async getAdminNoteBucketActivity(
+    accountCode: string,
+    params: { page?: number; pageSize?: number } = {}
+  ): Promise<ApiResponse<NoteLedgerBucketActivityResponse> | ApiError> {
+    const query = new URLSearchParams();
+    if (params.page) query.set("page", String(params.page));
+    if (params.pageSize) query.set("pageSize", String(params.pageSize));
+    const queryString = query.toString();
+    return this.get<NoteLedgerBucketActivityResponse>(
+      `/v1/admin/notes/bucket-balances/${encodeURIComponent(accountCode)}/activity${queryString ? `?${queryString}` : ""}`
+    );
+  }
+
+  async getAdminNoteActionRequiredCount(): Promise<ApiResponse<NoteActionRequiredCountResponse> | ApiError> {
+    return this.get<NoteActionRequiredCountResponse>("/v1/admin/notes/action-count");
+  }
+
+  async recordAdminNotePayment(
+    id: string,
+    data: RecordNotePaymentInput
+  ): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.post<NoteDetail>(`/v1/admin/notes/${id}/payments`, data);
+  }
+
+  async approveAdminNotePayment(
+    id: string,
+    paymentId: string
+  ): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.post<NoteDetail>(`/v1/admin/notes/${id}/payments/${paymentId}/approve`, {});
+  }
+
+  async rejectAdminNotePayment(
+    id: string,
+    paymentId: string,
+    data: { reason?: string | null } = {}
+  ): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.post<NoteDetail>(`/v1/admin/notes/${id}/payments/${paymentId}/reject`, data);
+  }
+
+  async previewAdminNoteSettlement(
+    id: string,
+    data: SettlementPreviewInput
+  ): Promise<ApiResponse<Record<string, unknown>> | ApiError> {
+    return this.post<Record<string, unknown>>(`/v1/admin/notes/${id}/settlements/preview`, data);
+  }
+
+  async approveAdminNoteSettlement(
+    id: string,
+    settlementId: string
+  ): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.post<NoteDetail>(`/v1/admin/notes/${id}/settlements/approve`, { settlementId });
+  }
+
+  async postAdminNoteSettlement(
+    id: string,
+    settlementId: string
+  ): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.post<NoteDetail>(`/v1/admin/notes/${id}/settlements/post`, { settlementId });
+  }
+
+  async calculateAdminNoteLateCharge(
+    id: string,
+    data: Record<string, unknown>
+  ): Promise<ApiResponse<Record<string, unknown>> | ApiError> {
+    return this.post<Record<string, unknown>>(`/v1/admin/notes/${id}/late-charge/calculate`, data);
+  }
+
+  async checkAdminNoteOverdueLateCharge(
+    id: string,
+    data: OverdueLateChargeInput = {}
+  ): Promise<ApiResponse<OverdueLateChargeResult> | ApiError> {
+    return this.post<OverdueLateChargeResult>(`/v1/admin/notes/${id}/late-charge/check-overdue`, data);
+  }
+
+  async approveAdminNoteLateCharge(
+    id: string,
+    data: Record<string, unknown>
+  ): Promise<ApiResponse<Record<string, unknown>> | ApiError> {
+    return this.post<Record<string, unknown>>(`/v1/admin/notes/${id}/late-charge/approve`, data);
+  }
+
+  async generateAdminNoteArrearsLetter(
+    id: string
+  ): Promise<ApiResponse<{ s3Key: string }> | ApiError> {
+    return this.post<{ s3Key: string }>(`/v1/admin/notes/${id}/arrears/generate-letter`, {});
+  }
+
+  async generateAdminNoteDefaultLetter(
+    id: string
+  ): Promise<ApiResponse<{ s3Key: string }> | ApiError> {
+    return this.post<{ s3Key: string }>(`/v1/admin/notes/${id}/default/generate-letter`, {});
+  }
+
+  async markAdminNoteDefault(
+    id: string,
+    reason: string
+  ): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.post<NoteDetail>(`/v1/admin/notes/${id}/default/mark`, { reason });
+  }
+
+  async getPlatformFinanceSettings(): Promise<ApiResponse<PlatformFinanceSetting> | ApiError> {
+    return this.get<PlatformFinanceSetting>("/v1/admin/platform-finance-settings");
+  }
+
+  async updatePlatformFinanceSettings(
+    data: Partial<PlatformFinanceSetting>
+  ): Promise<ApiResponse<PlatformFinanceSetting> | ApiError> {
+    return this.patch<PlatformFinanceSetting>("/v1/admin/platform-finance-settings", data);
+  }
+
+  async getAdminApplicationDetail(id: string): Promise<ApiResponse<AdminApplicationDetail> | ApiError> {
+    return this.get<AdminApplicationDetail>(`/v1/admin/applications/${id}`);
   }
 
   async startAdminApplicationGuarantorAml(
@@ -489,16 +761,16 @@ export class ApiClient {
   async updateAdminApplicationStatus(
     id: string,
     status: string
-  ): Promise<ApiResponse<any> | ApiError> {
-    return this.patch<any>(`/v1/admin/applications/${id}/status`, { status });
+  ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
+    return this.patch<AdminApplicationActionResult>(`/v1/admin/applications/${id}/status`, { status });
   }
 
   async approveReviewSection(
     applicationId: string,
     section: string,
     remark?: string
-  ): Promise<ApiResponse<any> | ApiError> {
-    return this.post<any>(
+  ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
+    return this.post<AdminApplicationActionResult>(
       `/v1/admin/applications/${applicationId}/reviews/sections/${section}/approve`,
       remark ? { remark } : {}
     );
@@ -508,8 +780,8 @@ export class ApiClient {
     applicationId: string,
     section: string,
     remark: string
-  ): Promise<ApiResponse<any> | ApiError> {
-    return this.post<any>(
+  ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
+    return this.post<AdminApplicationActionResult>(
       `/v1/admin/applications/${applicationId}/reviews/sections/${section}/reject`,
       { remark }
     );
@@ -519,8 +791,8 @@ export class ApiClient {
     applicationId: string,
     section: string,
     remark: string
-  ): Promise<ApiResponse<any> | ApiError> {
-    return this.post<any>(
+  ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
+    return this.post<AdminApplicationActionResult>(
       `/v1/admin/applications/${applicationId}/reviews/sections/${section}/request-amendment`,
       { remark }
     );
@@ -530,8 +802,8 @@ export class ApiClient {
     applicationId: string,
     section: string,
     comment: string
-  ): Promise<ApiResponse<any> | ApiError> {
-    return this.post<any>(
+  ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
+    return this.post<AdminApplicationActionResult>(
       `/v1/admin/applications/${applicationId}/reviews/sections/${section}/comments`,
       { comment }
     );
@@ -540,8 +812,8 @@ export class ApiClient {
   async resetSectionReviewToPending(
     applicationId: string,
     section: string
-  ): Promise<ApiResponse<any> | ApiError> {
-    return this.post<any>(
+  ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
+    return this.post<AdminApplicationActionResult>(
       `/v1/admin/applications/${applicationId}/reviews/sections/${section}/reset-to-pending`,
       {}
     );
@@ -552,8 +824,8 @@ export class ApiClient {
     itemType: "invoice" | "document",
     itemId: string,
     remark?: string
-  ): Promise<ApiResponse<any> | ApiError> {
-    return this.post<any>(
+  ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
+    return this.post<AdminApplicationActionResult>(
       `/v1/admin/applications/${applicationId}/reviews/items/approve`,
       remark ? { itemType, itemId, remark } : { itemType, itemId }
     );
@@ -564,8 +836,8 @@ export class ApiClient {
     itemType: "invoice" | "document",
     itemId: string,
     remark: string
-  ): Promise<ApiResponse<any> | ApiError> {
-    return this.post<any>(
+  ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
+    return this.post<AdminApplicationActionResult>(
       `/v1/admin/applications/${applicationId}/reviews/items/reject`,
       { itemType, itemId, remark }
     );
@@ -576,8 +848,8 @@ export class ApiClient {
     itemType: "invoice" | "document",
     itemId: string,
     remark: string
-  ): Promise<ApiResponse<any> | ApiError> {
-    return this.post<any>(
+  ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
+    return this.post<AdminApplicationActionResult>(
       `/v1/admin/applications/${applicationId}/reviews/items/request-amendment`,
       { itemType, itemId, remark }
     );
@@ -587,8 +859,8 @@ export class ApiClient {
     applicationId: string,
     itemType: "invoice" | "document",
     itemId: string
-  ): Promise<ApiResponse<any> | ApiError> {
-    return this.post<any>(
+  ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
+    return this.post<AdminApplicationActionResult>(
       `/v1/admin/applications/${applicationId}/reviews/items/reset-to-pending`,
       { itemType, itemId }
     );
@@ -598,8 +870,8 @@ export class ApiClient {
     applicationId: string,
     offeredFacility: number,
     expiresAt?: string | null
-  ): Promise<ApiResponse<any> | ApiError> {
-    return this.post<any>(
+  ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
+    return this.post<AdminApplicationActionResult>(
       `/v1/admin/applications/${applicationId}/offers/contracts/send`,
       {
         offeredFacility,
@@ -611,8 +883,8 @@ export class ApiClient {
   async patchContractCustomerLargePrivate(
     applicationId: string,
     body: { is_large_private_company: boolean }
-  ): Promise<ApiResponse<any> | ApiError> {
-    return this.patch<any>(
+  ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
+    return this.patch<AdminApplicationActionResult>(
       `/v1/admin/applications/${applicationId}/contract/customer-large-private`,
       body
     );
@@ -628,8 +900,8 @@ export class ApiClient {
       expiresAt?: string | null;
       risk_rating: SoukscoreRiskRating;
     }
-  ): Promise<ApiResponse<any> | ApiError> {
-    return this.post<any>(
+  ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
+    return this.post<AdminApplicationActionResult>(
       `/v1/admin/applications/${applicationId}/offers/invoices/${invoiceId}/send`,
       {
         offeredAmount: payload.offeredAmount,
@@ -680,28 +952,18 @@ export class ApiClient {
       itemType?: "invoice" | "document";
       itemId?: string;
     }
-  ): Promise<ApiResponse<any> | ApiError> {
-    return this.post<any>(
+  ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
+    return this.post<AdminApplicationActionResult>(
       `/v1/admin/applications/${applicationId}/reviews/pending-amendments`,
       params
     );
   }
 
   async listPendingAmendments(applicationId: string): Promise<
-    | ApiResponse<
-        {
-          id: string;
-          scope: string;
-          scope_key: string;
-          remark: string;
-          item_type: string | null;
-          item_id: string | null;
-          author: { first_name: string; last_name: string };
-        }[]
-      >
+    | ApiResponse<PendingAmendmentItem[]>
     | ApiError
   > {
-    return this.get<any>(
+    return this.get<PendingAmendmentItem[]>(
       `/v1/admin/applications/${applicationId}/reviews/pending-amendments`
     );
   }
@@ -711,8 +973,8 @@ export class ApiClient {
     scope: string,
     scopeKey: string,
     remark: string
-  ): Promise<ApiResponse<any> | ApiError> {
-    return this.patch<any>(
+  ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
+    return this.patch<AdminApplicationActionResult>(
       `/v1/admin/applications/${applicationId}/reviews/pending-amendments/${encodeURIComponent(scope)}/${encodeURIComponent(scopeKey)}`,
       { remark }
     );
@@ -722,16 +984,16 @@ export class ApiClient {
     applicationId: string,
     scope: string,
     scopeKey: string
-  ): Promise<ApiResponse<any> | ApiError> {
-    return this.delete<any>(
+  ): Promise<ApiResponse<AdminApplicationActionResult> | ApiError> {
+    return this.delete<AdminApplicationActionResult>(
       `/v1/admin/applications/${applicationId}/reviews/pending-amendments/${encodeURIComponent(scope)}/${encodeURIComponent(scopeKey)}`
     );
   }
 
   async submitAmendmentRequest(applicationId: string): Promise<
-    ApiResponse<any> | ApiError
+    ApiResponse<AdminApplicationActionResult> | ApiError
   > {
-    return this.post<any>(
+    return this.post<AdminApplicationActionResult>(
       `/v1/admin/applications/${applicationId}/reviews/submit-amendment-request`,
       {}
     );
@@ -1898,6 +2160,82 @@ export class ApiClient {
     return this.delete<{ message: string }>(`/v1/invoices/${id}/document`, {
       body: JSON.stringify({ s3Key }),
     });
+  }
+
+  // Marketplace and note servicing
+  async getMarketplaceNotes(params: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+  } = {}): Promise<ApiResponse<NotesResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", String(params.page ?? 1));
+    queryParams.append("pageSize", String(params.pageSize ?? 12));
+    if (params.search) queryParams.append("search", params.search);
+    return this.get<NotesResponse>(`/v1/marketplace/notes?${queryParams.toString()}`);
+  }
+
+  async getMarketplaceNote(id: string): Promise<ApiResponse<MarketplaceNoteDetail> | ApiError> {
+    return this.get<MarketplaceNoteDetail>(`/v1/marketplace/notes/${id}`);
+  }
+
+  async createMarketplaceNoteInvestment(
+    id: string,
+    data: CreateNoteInvestmentInput
+  ): Promise<ApiResponse<MarketplaceNoteDetail> | ApiError> {
+    return this.post<MarketplaceNoteDetail>(`/v1/marketplace/notes/${id}/investments`, data);
+  }
+
+  async getInvestorInvestments(): Promise<ApiResponse<NotesResponse> | ApiError> {
+    return this.get<NotesResponse>("/v1/investor/investments");
+  }
+
+  async getInvestorPortfolio(): Promise<ApiResponse<Record<string, unknown>> | ApiError> {
+    return this.get<Record<string, unknown>>("/v1/investor/portfolio");
+  }
+
+  async getIssuerNotes(): Promise<ApiResponse<NotesResponse> | ApiError> {
+    return this.get<NotesResponse>("/v1/issuer/notes");
+  }
+
+  async getIssuerNote(id: string): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.get<NoteDetail>(`/v1/issuer/notes/${id}`);
+  }
+
+  async getIssuerNotePaymentInstructions(
+    id: string
+  ): Promise<ApiResponse<Record<string, unknown>> | ApiError> {
+    return this.get<Record<string, unknown>>(`/v1/issuer/notes/${id}/payment-instructions`);
+  }
+
+  async getIssuerNoteLedger(id: string): Promise<ApiResponse<NoteLedgerEntry[]> | ApiError> {
+    return this.get<NoteLedgerEntry[]>(`/v1/issuer/notes/${id}/ledger`);
+  }
+
+  async submitIssuerPaymentOnBehalfOfPaymaster(
+    id: string,
+    data: RecordNotePaymentInput
+  ): Promise<ApiResponse<NoteDetail> | ApiError> {
+    return this.post<NoteDetail>(`/v1/issuer/notes/${id}/payments/on-behalf-of-paymaster`, data);
+  }
+
+  async createWithdrawalInstruction(
+    data: Partial<WithdrawalInstruction>
+  ): Promise<ApiResponse<WithdrawalInstruction> | ApiError> {
+    return this.post<WithdrawalInstruction>("/v1/admin/withdrawals", data);
+  }
+
+  async generateWithdrawalLetter(id: string): Promise<ApiResponse<WithdrawalInstruction> | ApiError> {
+    return this.post<WithdrawalInstruction>(`/v1/admin/withdrawals/${id}/generate-letter`, {});
+  }
+
+  async markWithdrawalSubmittedToTrustee(
+    id: string
+  ): Promise<ApiResponse<WithdrawalInstruction> | ApiError> {
+    return this.post<WithdrawalInstruction>(
+      `/v1/admin/withdrawals/${id}/mark-submitted-to-trustee`,
+      {}
+    );
   }
 
   // Invoice APIs removed.
