@@ -7,8 +7,8 @@
  */
 
 import {
+  extractGovernmentId,
   getDisplayRoleLabel,
-  governmentIdFromDirectorKycForEod,
   type DirectorKycStatus,
   type OnboardingApplicationResponse,
 } from "@cashsouk/types";
@@ -306,24 +306,9 @@ function personNameFromCe(p: Record<string, unknown>): string {
   return [first, last].filter(Boolean).join(" ").trim();
 }
 
-function issuerIcOrSsmFromCorpPerson(p: Record<string, unknown>): string | undefined {
+function issuerIcFromCeFormOnly(p: Record<string, unknown>): string | undefined {
   const info = p.personalInfo as Record<string, unknown> | undefined;
-  const fromTop = String(info?.governmentIdNumber ?? "").trim();
-  if (fromTop) return fromTop;
-  const formContent = (info?.formContent ?? p.formContent) as Record<string, unknown> | undefined;
-  const content = Array.isArray(formContent?.content)
-    ? (formContent.content as Array<{ fieldName?: string; fieldValue?: string }>)
-    : [];
-  const idField = content.find((f) => f.fieldName === "Government ID Number");
-  if (idField?.fieldValue) return String(idField.fieldValue).trim();
-  return undefined;
-}
-
-function issuerIcOrSsmForCePersonRow(p: Record<string, unknown>, directorKycJson: unknown): string | undefined {
-  const fromCe = issuerIcOrSsmFromCorpPerson(p);
-  if (fromCe) return fromCe;
-  const eod = String(p.eodRequestId ?? "").trim();
-  return governmentIdFromDirectorKycForEod(directorKycJson, eod) ?? undefined;
+  return extractGovernmentId(info?.formContent) ?? undefined;
 }
 
 function roleForCeShareholder(p: Record<string, unknown>): string {
@@ -369,9 +354,9 @@ function corporateEntitiesHasPeople(
 
 function directorKycRowsFromCorporateEntities(
   ce: NonNullable<OnboardingApplicationResponse["corporateEntities"]>,
-  directorKycStatus: OnboardingApplicationResponse["directorKycStatus"]
+  _directorKycStatus: OnboardingApplicationResponse["directorKycStatus"]
 ): DirectorKycStatus[] {
-  const kycJson = directorKycStatus as unknown;
+  void _directorKycStatus;
   const rows: DirectorKycStatus[] = [];
   let idx = 0;
   for (const d of ce.directors ?? []) {
@@ -385,7 +370,7 @@ function directorKycRowsFromCorporateEntities(
       email: "",
       role: "Director",
       kycStatus: "APPROVED",
-      governmentIdNumber: issuerIcOrSsmForCePersonRow(p, kycJson),
+      governmentIdNumber: issuerIcFromCeFormOnly(p),
       lastUpdated: new Date(0).toISOString(),
     });
   }
@@ -400,7 +385,7 @@ function directorKycRowsFromCorporateEntities(
       email: "",
       role: roleForCeShareholder(p),
       kycStatus: "APPROVED",
-      governmentIdNumber: issuerIcOrSsmForCePersonRow(p, kycJson),
+      governmentIdNumber: issuerIcFromCeFormOnly(p),
       lastUpdated: new Date(0).toISOString(),
     });
   }

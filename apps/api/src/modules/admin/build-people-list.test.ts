@@ -198,6 +198,70 @@ describe("buildUnifiedPeople", () => {
     expect(corp?.matchKey).toBe("123123123");
   });
 
+  it("includes individual when Government ID is only in personalInfo.formContent", () => {
+    const rows = buildUnifiedPeople({
+      ctos: null,
+      issuerDirectorKycStatus: { directors: [] },
+      issuerDirectorAmlStatus: { directors: [], businessShareholders: [] },
+      ctosPartySupplements: null,
+      corporateEntities: {
+        directors: [
+          {
+            eodRequestId: "EOD1",
+            personalInfo: {
+              fullName: "Test Person",
+              email: "t@example.com",
+              formContent: {
+                content: [{ fieldName: "Government ID Number", fieldValue: "050616101789" }],
+              },
+            },
+          },
+        ],
+        shareholders: [],
+        corporateShareholders: [],
+      },
+    });
+
+    const ind = rows.find((r) => r.entityType === "INDIVIDUAL");
+    expect(ind).toBeDefined();
+    expect(ind?.matchKey).toBe("050616101789");
+  });
+
+  it("omits individual when formContent has no Government ID even if director_kyc_status has IC", () => {
+    const rows = buildUnifiedPeople({
+      ctos: null,
+      issuerDirectorKycStatus: {
+        directors: [
+          {
+            governmentIdNumber: "999999999999",
+            kycStatus: "APPROVED",
+            email: "sync@example.com",
+            eodRequestId: "EOD1",
+          },
+        ],
+      },
+      issuerDirectorAmlStatus: { directors: [], businessShareholders: [] },
+      ctosPartySupplements: null,
+      corporateEntities: {
+        directors: [
+          {
+            eodRequestId: "EOD1",
+            personalInfo: {
+              fullName: "No IC In Form",
+              formContent: {
+                content: [{ fieldName: "Email Address", fieldValue: "a@b.com" }],
+              },
+            },
+          },
+        ],
+        shareholders: [],
+        corporateShareholders: [],
+      },
+    });
+
+    expect(rows.filter((r) => r.entityType === "INDIVIDUAL")).toHaveLength(0);
+  });
+
   it("omits corporate shareholder from people when Business Number in form is empty", () => {
     const rows = buildUnifiedPeople({
       ctos: null,

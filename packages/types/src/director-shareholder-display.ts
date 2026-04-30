@@ -6,7 +6,6 @@
  * WHERE USED: apps/issuer, apps/admin (via @cashsouk/types)
  */
 
-import { governmentIdFromDirectorKycForEod } from "./director-kyc-gov-id";
 import {
   getEffectiveCtosPartyOnboarding,
   getEffectiveCtosPartyScreening,
@@ -209,29 +208,6 @@ function findLegacyAmlMatch(
   return null;
 }
 
-function findLegacyKycPersonByEod(
-  eod: string | null | undefined,
-  directorKycStatus: Record<string, unknown> | null | undefined
-): LegacyKycPersonRecord | null {
-  const e = String(eod ?? "").trim();
-  if (!e || !directorKycStatus || typeof directorKycStatus !== "object") return null;
-  const dirs = Array.isArray(directorKycStatus.directors)
-    ? (directorKycStatus.directors as LegacyKycPersonRecord[])
-    : [];
-  for (const d of dirs) {
-    if (String(d.eodRequestId ?? "").trim() === e || String(d.shareholderEodRequestId ?? "").trim() === e) {
-      return d;
-    }
-  }
-  const sh = Array.isArray(directorKycStatus.individualShareholders)
-    ? (directorKycStatus.individualShareholders as LegacyKycPersonRecord[])
-    : [];
-  for (const s of sh) {
-    if (String(s.eodRequestId ?? "").trim() === e) return s;
-  }
-  return null;
-}
-
 /** AML for onboarding buckets: when the row has an EOD, match AML by that EOD only. */
 function findLegacyAmlRawForOnboardingRow(
   icKey: string | null,
@@ -240,14 +216,14 @@ function findLegacyAmlRawForOnboardingRow(
   directorAmlStatus: Record<string, unknown> | null | undefined
 ): string | null {
   const e = String(eod ?? "").trim();
-  const person =
-    (e ? findLegacyKycPersonByEod(e, directorKycStatus) : null) ||
-    (icKey ? findLegacyKycPersonByStrictId(icKey, directorKycStatus) : null);
-  if (!person) return null;
   if (e) {
     return legacyAmlRawFromMatch(findLegacyAmlMatch({ kycId: null, eodRequestId: e }, directorAmlStatus));
   }
-  return findLegacyAmlRawForKycPerson(person, directorAmlStatus);
+  if (icKey) {
+    const person = findLegacyKycPersonByStrictId(icKey, directorKycStatus);
+    if (person) return findLegacyAmlRawForKycPerson(person, directorAmlStatus);
+  }
+  return null;
 }
 
 function findLegacyAmlRawForKycPerson(
@@ -684,19 +660,6 @@ function ownershipFromCtosDirectorRow(r: CtosOrgDirectorRow): string | null {
   return null;
 }
 
-function ownershipFromKycRoleString(roleStr: string): string | null {
-  const m = roleStr.match(/\((\d+)%\)/);
-  return m ? `${m[1]}% ownership` : null;
-}
-
-/** Parses `(12%)` or `(12.5%)` from synced KYC role text; null if absent. */
-function parseShareFromRoleString(role: string): number | null {
-  const m = role.match(/\(\s*([\d.]+)\s*%\s*\)/);
-  if (!m) return null;
-  const n = Number(m[1]);
-  return Number.isFinite(n) ? n : null;
-}
-
 function personNameFromCe(p: Record<string, unknown>): string {
   const info = p.personalInfo as Record<string, unknown> | undefined;
   const full = String(info?.fullName ?? "").trim();
@@ -713,27 +676,34 @@ function emailFromCePerson(p: Record<string, unknown>): string {
   return e;
 }
 
-function issuerIcOrSsmFromCorpPerson(p: Record<string, unknown>): string | null {
-  const info = p.personalInfo as Record<string, unknown> | undefined;
-  const fromTop = String(info?.governmentIdNumber ?? "").trim();
-  if (fromTop) return fromTop;
-  const formContent = (info?.formContent ?? p.formContent) as Record<string, unknown> | undefined;
-  const content = Array.isArray(formContent?.content)
-    ? (formContent.content as Array<{ fieldName?: string; fieldValue?: string }>)
-    : [];
-  const idField = content.find((f) => f.fieldName === "Government ID Number");
-  if (idField?.fieldValue) return String(idField.fieldValue).trim();
+/**
+ * SECTION: Government ID from RegTank corporate-individual form JSON
+ * WHY: Single source for individual director/shareholder identity in corporate_entities
+ * INPUT: personalInfo.formContent (flat `content[]`)
+ * OUTPUT: trimmed IC or null
+ * WHERE USED: onboarding display row builder; must align with corporate {@link extractBusinessNumber}
+ */
+export function extractGovernmentId(formContent: unknown): string | null {
+  if (!formContent || typeof formContent !== "object" || Array.isArray(formContent)) return null;
+  const fc = formContent as Record<string, unknown>;
+  const fields = Array.isArray(fc.content) ? fc.content : [];
+  for (const f of fields) {
+    if (!f || typeof f !== "object" || Array.isArray(f)) continue;
+    const rec = f as Record<string, unknown>;
+    const name = String(rec.fieldName ?? "")
+      .trim()
+      .toLowerCase();
+    if (name === "government id number") {
+      const val = String(rec.fieldValue ?? "").trim();
+      if (val) return val;
+    }
+  }
   return null;
 }
 
-function issuerIcOrSsmForCePersonRow(
-  p: Record<string, unknown>,
-  directorKycStatus: Record<string, unknown> | null | undefined
-): string | null {
-  const fromCe = issuerIcOrSsmFromCorpPerson(p);
-  if (fromCe) return fromCe;
-  const eod = String(p.eodRequestId ?? "").trim();
-  return governmentIdFromDirectorKycForEod(directorKycStatus, eod);
+function issuerIcFromCePersonFormOnly(p: Record<string, unknown>): string | null {
+  const info = p.personalInfo as Record<string, unknown> | undefined;
+  return extractGovernmentId(info?.formContent);
 }
 
 function findKycStatusForEod(
@@ -789,22 +759,9 @@ function buildKycByNormalizedId(directorKycStatus: Record<string, unknown> | nul
       displayRequestId: displayRequestId || prev.displayRequestId,
     });
   };
-  const dirs = Array.isArray(directorKycStatus?.directors)
-    ? (directorKycStatus!.directors as Record<string, unknown>[])
-    : [];
-  for (const d of dirs) {
-    const eodPrimary = String(d.eodRequestId ?? "").trim();
-    const eodSh = String(d.shareholderEodRequestId ?? "").trim();
-    const eodPick = eodPrimary || eodSh || undefined;
-    add(d.governmentIdNumber, d.email, d.kycStatus, d.kycId, eodPick);
-  }
-  const sh = Array.isArray(directorKycStatus?.individualShareholders)
-    ? (directorKycStatus!.individualShareholders as Record<string, unknown>[])
-    : [];
-  for (const s of sh) {
-    add(s.governmentIdNumber, s.email, s.kycStatus, s.kycId, s.eodRequestId);
-  }
-  const biz = Array.isArray(directorKycStatus?.businessShareholders)
+  if (!directorKycStatus || typeof directorKycStatus !== "object") return m;
+
+  const biz = Array.isArray(directorKycStatus.businessShareholders)
     ? (directorKycStatus!.businessShareholders as Record<string, unknown>[])
     : [];
   for (const b of biz) {
@@ -819,66 +776,26 @@ function buildKycByNormalizedId(directorKycStatus: Record<string, unknown> | nul
   return m;
 }
 
+/** Business AML rows keyed by normalized reg id on the AML payload (not director_kyc_status IC). */
 function buildAmlByNormalizedGovId(
   directorAmlStatus: Record<string, unknown> | null | undefined,
-  directorKycStatus: Record<string, unknown> | null | undefined
+  _directorKycStatus: Record<string, unknown> | null | undefined
 ): Map<string, string> {
   const out = new Map<string, string>();
   if (!directorAmlStatus || typeof directorAmlStatus !== "object") return out;
 
-  const linkPerson = (amlEntry: Record<string, unknown>) => {
-    const amlSt = amlEntry.amlStatus;
-    if (amlSt == null || String(amlSt).trim() === "") return;
-    const amlStr = String(amlSt).trim();
-    const kycId = String(amlEntry.kycId ?? "").trim();
-    const eodId = String(amlEntry.eodRequestId ?? "").trim();
-
-    const tryDirs = Array.isArray(directorKycStatus?.directors)
-      ? (directorKycStatus!.directors as Record<string, unknown>[])
-      : [];
-    for (const d of tryDirs) {
-      const gov = normalizeDirectorShareholderIdKey(String(d.governmentIdNumber ?? ""));
-      if (!gov) continue;
-      if (kycId && String(d.kycId ?? "").trim() === kycId) {
-        out.set(gov, amlStr);
-        return;
-      }
-      if (eodId) {
-        const pe = String(d.eodRequestId ?? "").trim();
-        const se = String(d.shareholderEodRequestId ?? "").trim();
-        if (pe === eodId || se === eodId) {
-          out.set(gov, amlStr);
-          return;
-        }
-      }
-    }
-    const sh = Array.isArray(directorKycStatus?.individualShareholders)
-      ? (directorKycStatus!.individualShareholders as Record<string, unknown>[])
-      : [];
-    for (const s of sh) {
-      const gov = normalizeDirectorShareholderIdKey(String(s.governmentIdNumber ?? ""));
-      if (!gov) continue;
-      if (kycId && String(s.kycId ?? "").trim() === kycId) {
-        out.set(gov, amlStr);
-        return;
-      }
-      if (eodId && String(s.eodRequestId ?? "").trim() === eodId) {
-        out.set(gov, amlStr);
-        return;
-      }
-    }
-  };
-
-  const amlDirs = Array.isArray(directorAmlStatus.directors)
-    ? (directorAmlStatus.directors as Record<string, unknown>[])
+  const amlBiz = Array.isArray((directorAmlStatus as { businessShareholders?: unknown }).businessShareholders)
+    ? ((directorAmlStatus as { businessShareholders: unknown[] }).businessShareholders as Record<string, unknown>[])
     : [];
-  for (const a of amlDirs) linkPerson(a);
-
-  const amlInd = Array.isArray(directorAmlStatus.individualShareholders)
-    ? (directorAmlStatus.individualShareholders as Record<string, unknown>[])
-    : [];
-  for (const a of amlInd) linkPerson(a);
-
+  for (const row of amlBiz) {
+    const key = normalizeDirectorShareholderIdKey(
+      String(row.businessNumber ?? row.registrationNumber ?? row.brn_ssm ?? "")
+    );
+    if (!key) continue;
+    const amlSt = row.amlStatus;
+    if (amlSt == null || String(amlSt).trim() === "") continue;
+    out.set(key, String(amlSt).trim());
+  }
   return out;
 }
 
@@ -984,8 +901,8 @@ function buildOnboardingDisplayRows(
     name: string;
     roles: Set<string>;
     email: string;
-    icRaw: string | null;
-    icKey: string | null;
+    icRaw: string;
+    icKey: string;
     eod: string | null;
     ownershipDisplay: string | null;
     isDirector: boolean;
@@ -996,18 +913,12 @@ function buildOnboardingDisplayRows(
   const indBuckets = new Map<string, IndBucket>();
   const indOrder: string[] = [];
 
-  const bucketKeyForIndividual = (icKey: string | null, eod: string | null, idx: number): string => {
-    if (icKey) return `I:${icKey}`;
-    if (eod) return `I:EOD:${eod}`;
-    return `I:IDX:${idx}`;
-  };
+  const bucketKeyForIndividual = (icKey: string): string => `I:${icKey}`;
 
-  let idxCounter = 0;
-  const findExistingIndKey = (icKey: string | null, eod: string | null): string | null => {
+  const findExistingIndKey = (icKey: string): string | null => {
     for (const k of indOrder) {
       const b = indBuckets.get(k)!;
-      if (icKey && b.icKey === icKey) return k;
-      if (eod && b.eod === eod) return k;
+      if (b.icKey === icKey) return k;
     }
     return null;
   };
@@ -1029,8 +940,8 @@ function buildOnboardingDisplayRows(
     if (patch.isShareholder === true) cur.isShareholder = true;
   };
 
-  const addInd = (icKey: string | null, eod: string | null, init: IndBucket) => {
-    const existing = findExistingIndKey(icKey, eod);
+  const addInd = (icKey: string, init: IndBucket) => {
+    const existing = findExistingIndKey(icKey);
     if (existing) {
       for (const r of init.roles) mergeInd(existing, { addRole: r });
       mergeInd(existing, {
@@ -1046,7 +957,7 @@ function buildOnboardingDisplayRows(
       });
       return existing;
     }
-    const key = bucketKeyForIndividual(icKey, eod, idxCounter++);
+    const key = bucketKeyForIndividual(icKey);
     indBuckets.set(key, init);
     indOrder.push(key);
     return key;
@@ -1054,17 +965,19 @@ function buildOnboardingDisplayRows(
 
   for (const p of directors) {
     const pr = p as Record<string, unknown>;
-    const icRaw = issuerIcOrSsmForCePersonRow(p, directorKycStatus);
+    const icRaw = issuerIcFromCePersonFormOnly(p);
     const icKey = normalizeDirectorShareholderIdKey(icRaw);
+    if (!icKey) continue;
+    const icRawTrim = String(icRaw ?? "").trim();
     const eod = String(p.eodRequestId ?? "").trim() || null;
     const em = emailFromCePerson(p);
     const own = ownershipFromCePerson(p);
     const dirShare = percentOfSharesFromOnboardingCePerson(pr);
-    addInd(icKey, eod, {
+    addInd(icKey, {
       name: personNameFromCe(p),
       roles: new Set(["Director"]),
       email: em,
-      icRaw,
+      icRaw: icRawTrim,
       icKey,
       eod,
       ownershipDisplay: own,
@@ -1079,18 +992,20 @@ function buildOnboardingDisplayRows(
     const share = percentOfSharesFromOnboardingCePerson(pr);
     if (share < 5) continue;
 
-    const icRaw = issuerIcOrSsmForCePersonRow(p, directorKycStatus);
+    const icRaw = issuerIcFromCePersonFormOnly(p);
     const icKey = normalizeDirectorShareholderIdKey(icRaw);
+    if (!icKey) continue;
+    const icRawTrim = String(icRaw ?? "").trim();
     const eod = String(p.eodRequestId ?? "").trim() || null;
     const em = emailFromCePerson(p);
     const own = ownershipFromCePerson(p);
-    const existingKey = findExistingIndKey(icKey, eod);
+    const existingKey = findExistingIndKey(icKey);
     if (existingKey) {
       mergeInd(existingKey, {
         addRole: "Shareholder",
         name: personNameFromCe(p),
         email: em,
-        icRaw,
+        icRaw: icRawTrim,
         icKey,
         eod,
         ownershipDisplay: own,
@@ -1098,11 +1013,11 @@ function buildOnboardingDisplayRows(
         isShareholder: true,
       });
     } else {
-      addInd(icKey, eod, {
+      addInd(icKey, {
         name: personNameFromCe(p),
         roles: new Set(["Shareholder"]),
         email: em,
-        icRaw,
+        icRaw: icRawTrim,
         icKey,
         eod,
         ownershipDisplay: own,
@@ -1145,7 +1060,7 @@ function buildOnboardingDisplayRows(
       status,
       canEnterEmail: canBase,
       canSendOnboarding: canBase,
-      enquiryId: b.icRaw ? b.icRaw.trim() : b.eod,
+      enquiryId: b.icRaw.trim() || null,
       subjectKind: "INDIVIDUAL",
       isDirector: b.isDirector,
       isShareholder: b.isShareholder,
@@ -1400,126 +1315,14 @@ function buildCtosBackedDisplayRows(
 }
 
 function buildKycOnlyFallbackRows(
-  directorKycStatus: Record<string, unknown> | null | undefined,
-  directorAmlStatus: Record<string, unknown> | null | undefined,
-  sentRowIds: ReadonlySet<string> | null | undefined
+  _directorKycStatus: Record<string, unknown> | null | undefined,
+  _directorAmlStatus: Record<string, unknown> | null | undefined,
+  _sentRowIds: ReadonlySet<string> | null | undefined
 ): DirectorShareholderDisplayRow[] {
-  const rows: DirectorShareholderDisplayRow[] = [];
-  let idx = 0;
-  const kycDirs = Array.isArray(directorKycStatus?.directors)
-    ? (directorKycStatus!.directors as Record<string, unknown>[])
-    : [];
-  for (const d of kycDirs) {
-    const roleStr = d.role ? String(d.role) : "";
-    const isDir = roleStr.toLowerCase().includes("director");
-    const isSh = roleStr.toLowerCase().includes("shareholder");
-    const sharePct = parseShareFromRoleString(roleStr) ?? 0;
-    if (!isDir && isSh && sharePct < 5) continue;
-
-    const gid = d.governmentIdNumber != null ? String(d.governmentIdNumber).trim() : "";
-    const gKey = normalizeDirectorShareholderIdKey(gid);
-    const eod = String(d.eodRequestId ?? "").trim();
-    const id = `kyc-only-${gKey ?? eod ?? `i${idx++}`}`;
-    const stRaw = d.kycStatus != null ? String(d.kycStatus) : null;
-    const rawBase = stRaw && stRaw.trim() !== "" ? stRaw : "";
-    const unifiedBase = normalizeRawStatus(rawBase);
-    const emKyc = d.email != null ? String(d.email).trim() : "";
-    const em = emKyc;
-    const sent = Boolean(sentRowIds?.has(id));
-    const status = unifiedBase;
-    const canBase = !sent && (!em || !status);
-    const kycIdRow = String(d.kycId ?? "").trim();
-    const amlRaw = legacyAmlRawFromMatch(
-      findLegacyAmlMatch({ kycId: kycIdRow || null, eodRequestId: eod || null }, directorAmlStatus)
-    );
-    const amlLine = normalizeRawStatus(amlRaw);
-    const ownK = ownershipFromKycRoleString(roleStr);
-    const effectiveIsDirector = isDir || (!isDir && !isSh);
-    const role =
-      getDisplayRoleLabel({
-        isDirector: effectiveIsDirector,
-        isShareholder: isSh,
-        sharePercentage: sharePct,
-      }) || "Director";
-    rows.push({
-      id,
-      name: String(d.name || "Unknown"),
-      role,
-      type: "INDIVIDUAL",
-      idNumber: gid || null,
-      registrationNumber: null,
-      ownershipDisplay: ownK,
-      email: em,
-      status,
-      canEnterEmail: canBase,
-      canSendOnboarding: canBase,
-      enquiryId: gid || eod || null,
-      subjectKind: "INDIVIDUAL",
-      isDirector: effectiveIsDirector,
-      isShareholder: isSh,
-      sharePercentage: sharePct,
-      amlStatus: amlLine || undefined,
-    });
-  }
-  const kycSh = Array.isArray(directorKycStatus?.individualShareholders)
-    ? (directorKycStatus!.individualShareholders as Record<string, unknown>[])
-    : [];
-  for (const s of kycSh) {
-    const gid = s.governmentIdNumber != null ? String(s.governmentIdNumber).trim() : "";
-    const gKey = normalizeDirectorShareholderIdKey(gid);
-    const eod = String(s.eodRequestId ?? "").trim();
-    const id = `kyc-sh-${gKey ?? eod ?? `s${idx++}`}`;
-    const dup = rows.find((r) => gKey && normalizeDirectorShareholderIdKey(r.idNumber) === gKey);
-    if (dup) continue;
-    const roleStrS = s.role ? String(s.role) : "";
-    const isDirS = roleStrS.toLowerCase().includes("director");
-    const isShS = roleStrS.toLowerCase().includes("shareholder");
-    const sharePctS = parseShareFromRoleString(roleStrS) ?? 0;
-    if (!isDirS && isShS && sharePctS < 5) continue;
-
-    const stRaw = s.kycStatus != null ? String(s.kycStatus) : null;
-    const rawBase = stRaw && stRaw.trim() !== "" ? stRaw : "";
-    const unifiedBase = normalizeRawStatus(rawBase);
-    const emKycS = s.email != null ? String(s.email).trim() : "";
-    const em = emKycS;
-    const sent = Boolean(sentRowIds?.has(id));
-    const status = unifiedBase;
-    const canBase = !sent && (!em || !status);
-    const kycIdS = String(s.kycId ?? "").trim();
-    const eodS = String(s.eodRequestId ?? "").trim();
-    const amlRawS = legacyAmlRawFromMatch(
-      findLegacyAmlMatch({ kycId: kycIdS || null, eodRequestId: eodS || null }, directorAmlStatus)
-    );
-    const amlLineS = normalizeRawStatus(amlRawS);
-    const ownS = ownershipFromKycRoleString(roleStrS);
-    const effectiveDirS = isDirS || (!isDirS && !isShS);
-    const role =
-      getDisplayRoleLabel({
-        isDirector: effectiveDirS,
-        isShareholder: isShS,
-        sharePercentage: sharePctS,
-      }) || "Shareholder";
-    rows.push({
-      id,
-      name: String(s.name || "Unknown"),
-      role,
-      type: "INDIVIDUAL",
-      idNumber: gid || null,
-      registrationNumber: null,
-      ownershipDisplay: ownS,
-      email: em,
-      status,
-      canEnterEmail: canBase,
-      canSendOnboarding: canBase,
-      enquiryId: gid || eod || null,
-      subjectKind: "INDIVIDUAL",
-      isDirector: effectiveDirS,
-      isShareholder: isShS,
-      sharePercentage: sharePctS,
-      amlStatus: amlLineS || undefined,
-    });
-  }
-  return rows;
+  void _directorKycStatus;
+  void _directorAmlStatus;
+  void _sentRowIds;
+  return [];
 }
 
 export function getDirectorShareholderDisplayRows(
