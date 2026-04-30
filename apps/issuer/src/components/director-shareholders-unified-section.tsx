@@ -6,11 +6,9 @@ import {
   buildDirectorShareholderDisplayRowForEmailEligibility,
   canEnterEmailForDirectorShareholder,
   filterVisiblePeopleRows,
+  getDirectorShareholderSingleStatusPresentation,
   getDisplayRoleLabel,
   normalizeDirectorShareholderPartyEmail,
-  normalizeRawStatus,
-  regtankDisplayStatusBadgeClass,
-  toTitleCase,
   type ApplicationPersonRow,
   type DirectorShareholderDisplayRow,
 } from "@cashsouk/types";
@@ -44,16 +42,6 @@ function isDirectorLikeRow(r: DirectorShareholderDisplayRow): boolean {
 function isIndividualShareholderOnlyRow(r: DirectorShareholderDisplayRow): boolean {
   if (r.type !== "INDIVIDUAL") return false;
   return !Boolean(r.isDirector) && Boolean(r.isShareholder);
-}
-
-function renderStatusBadge(raw: string | null | undefined) {
-  const label = normalizeRawStatus(raw);
-  if (!label) return null;
-  return (
-    <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", regtankDisplayStatusBadgeClass(label))}>
-      {toTitleCase(label)}
-    </Badge>
-  );
 }
 
 function roleLabel(row: AugmentedRow): string {
@@ -172,6 +160,10 @@ export function DirectorShareholdersUnifiedSection({
     const email = displayEmail(row);
     const showSend = canSendForRow(row);
     const showActionCue = highlightActionRequiredRows && showSend && !email.trim();
+    const statusPresentation = getDirectorShareholderSingleStatusPresentation({
+      screening: row.__person.screening,
+      onboarding: row.__person.onboarding,
+    });
     return (
       <div
         key={row.id}
@@ -186,8 +178,14 @@ export function DirectorShareholdersUnifiedSection({
           {email.trim() ? <p className="text-xs text-muted-foreground mt-1 break-all">{email}</p> : null}
           <p className="text-xs text-muted-foreground mt-1">{roleLabel(row)}</p>
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            {renderStatusBadge(row.__person.onboarding?.status)}
-            {renderStatusBadge(row.__person.screening?.status)}
+            {statusPresentation ? (
+              <Badge
+                variant="outline"
+                className={cn("border-transparent text-[11px] font-normal", statusPresentation.badgeClassName)}
+              >
+                {statusPresentation.label}
+              </Badge>
+            ) : null}
           </div>
         </div>
         {showSend ? (

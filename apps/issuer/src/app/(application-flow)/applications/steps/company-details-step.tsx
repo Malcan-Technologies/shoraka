@@ -19,7 +19,7 @@ import {
   filterVisiblePeopleRows,
   formatPeopleRolesLine,
   formatSharePercentageCell,
-  normalizeRawStatus,
+  getDirectorShareholderSingleStatusPresentation,
 } from "@cashsouk/types";
 import {
   areDirectorShareholdersReadyForApplicationSubmit,
@@ -29,6 +29,7 @@ import { useCorporateEntities } from "@/hooks/use-corporate-entities";
 import { useApplication } from "@/hooks/use-applications";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -38,7 +39,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CheckCircleIcon, PencilIcon } from "@heroicons/react/24/outline";
+import { PencilIcon } from "@heroicons/react/24/outline";
 import {
   Dialog,
   DialogContent,
@@ -163,33 +164,6 @@ const inputClassName = cn(formInputClassName, formInputDisabledClassName);
 const inputClassNameEditable = formInputClassName;
 const labelClassName = formLabelClassName;
 const labelClassNameEditable = formLabelClassName;
-
-type UnifiedStatusTone = "muted" | "danger" | "warning" | "success";
-
-function getUnifiedDirectorShareholderStatus(person: {
-  onboarding?: { status?: unknown } | null;
-  screening?: { status?: unknown } | null;
-}) {
-  const screening = normalizeRawStatus(person.screening?.status);
-  const onboarding = normalizeRawStatus(person.onboarding?.status);
-  if (screening === "APPROVED" || onboarding === "APPROVED") {
-    return { label: "Completed", tone: "success" as UnifiedStatusTone };
-  }
-  if (onboarding === "WAIT_FOR_APPROVAL") {
-    return { label: "In Progress", tone: "warning" as UnifiedStatusTone };
-  }
-  if (onboarding === "REJECTED") {
-    return { label: "Action Required", tone: "danger" as UnifiedStatusTone };
-  }
-  return { label: "Not Started", tone: "muted" as UnifiedStatusTone };
-}
-
-function getStatusToneClass(tone: UnifiedStatusTone): string {
-  if (tone === "success") return "text-green-600";
-  if (tone === "warning") return "text-amber-600";
-  if (tone === "danger") return "text-red-600";
-  return "text-muted-foreground";
-}
 
 export function CompanyDetailsStep({
   applicationId,
@@ -704,7 +678,10 @@ export function CompanyDetailsStep({
             ) : (
               visiblePeopleRows.map((p) => {
                 const displayRow = buildDirectorShareholderDisplayRowForEmailEligibility(p, null);
-                const statusView = getUnifiedDirectorShareholderStatus(p);
+                const statusView = getDirectorShareholderSingleStatusPresentation({
+                  screening: p.screening,
+                  onboarding: p.onboarding,
+                });
                 const own = formatSharePercentageCell(p);
                 const showCompleteOnProfile = canEnterEmailForDirectorShareholder(p);
                 const idLabel =
@@ -723,14 +700,16 @@ export function CompanyDetailsStep({
                         <div className="h-4 w-px bg-border" />
                         <div className="flex flex-col gap-0.5 min-w-0">
                           <span className="text-xs text-muted-foreground">Status</span>
-                          <div className="flex items-center gap-1.5 whitespace-nowrap">
-                            {statusView.tone === "success" ? (
-                              <CheckCircleIcon className="h-4 w-4 text-green-600 shrink-0" />
-                            ) : null}
-                            <span className={cn("text-[17px] leading-7 truncate", getStatusToneClass(statusView.tone))}>
+                          {statusView ? (
+                            <Badge
+                              variant="outline"
+                              className={cn("w-fit border-transparent text-[11px] font-normal", statusView.badgeClassName)}
+                            >
                               {statusView.label}
-                            </span>
-                          </div>
+                            </Badge>
+                          ) : (
+                            <span className="text-[17px] leading-7 text-muted-foreground truncate">—</span>
+                          )}
                         </div>
                       </div>
                       {showCompleteOnProfile ? (
