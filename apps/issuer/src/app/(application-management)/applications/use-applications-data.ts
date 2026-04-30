@@ -61,7 +61,6 @@ interface ApiReviewRemark {
 interface ApiApplication {
   id: string;
   status?: string;
-  directorShareholderAmlPending?: boolean;
   financing_structure?: { structure_type?: string } | null;
   created_at?: string;
   updated_at?: string;
@@ -328,7 +327,6 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
     expiresAt,
     signedContractOfferLetterAvailable,
     signedContractOfferLetterS3Key,
-    directorShareholderAmlPending: Boolean(api.directorShareholderAmlPending),
   };
 }
 
