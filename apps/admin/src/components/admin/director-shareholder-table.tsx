@@ -234,18 +234,14 @@ export function DirectorShareholderTable({
 
 function getStatusTooltip(label: string): string {
   switch (label) {
-    case "Approved":
     case "Completed":
-      return "KYC and AML completed";
+      return "All required checks completed";
     case "In Progress":
-    case "Pending Review":
-    case "Under Review":
-      return "Submitted, pending approval";
-    case "Rejected":
+      return "Onboarding submitted and under review";
     case "Action Required":
-      return "Not started or rejected - action required";
+      return "This person requires action (not started or rejected)";
     case "Not Started":
-      return "Onboarding not started";
+      return "Onboarding has not been started";
     default:
       return "";
   }
