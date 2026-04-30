@@ -6,14 +6,10 @@ import { ReviewSectionCard } from "../review-section-card";
 import type { ReviewSectionId } from "../section-types";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
 import { ApplicationFinancialReviewComparison } from "@/components/application-financial-review-comparison";
-import {
-  getDirectorShareholderDisplayRows,
-  isCtosIndividualKycEligibleRow,
-  isLegacyCtosPartyKycApproved,
-  normalizeDirectorShareholderIdKey,
-} from "@cashsouk/types";
+import { isFinancialReviewKycReadyForApprove, type ApplicationPersonRow } from "@cashsouk/types";
 
 export type FinancialSectionAppSlice = {
+  people?: ApplicationPersonRow[];
   issuer_organization?: {
     id?: string;
     corporate_entities?: unknown;
@@ -80,56 +76,10 @@ export function FinancialSection({
 }: FinancialSectionProps) {
   const kycNotReadyReason = "KYC not completed for all required directors/shareholders";
   const kycNotReadyTooltip = "Cannot approve until all required KYC is approved";
-  const financialApproveAllowed = (() => {
-    const issuerOrg = app.issuer_organization;
-    if (!issuerOrg) return true;
-    const supplements = Array.isArray(issuerOrg.ctos_party_supplements)
-      ? issuerOrg.ctos_party_supplements
-      : [];
-    const onboardingByPartyKey = new Map<string, Record<string, unknown>>();
-    const supplementPartyKeys = new Set<string>();
-    for (const supplement of supplements) {
-      const key = normalizeDirectorShareholderIdKey(supplement.party_key);
-      if (!key) continue;
-      supplementPartyKeys.add(key);
-      const onboarding =
-        supplement.onboarding_json &&
-        typeof supplement.onboarding_json === "object" &&
-        !Array.isArray(supplement.onboarding_json)
-          ? (supplement.onboarding_json as Record<string, unknown>)
-          : {};
-      onboardingByPartyKey.set(key, onboarding);
-    }
-    const rows = getDirectorShareholderDisplayRows({
-      corporateEntities: issuerOrg.corporate_entities,
-      directorKycStatus: issuerOrg.director_kyc_status,
-      directorAmlStatus: issuerOrg.director_aml_status ?? null,
-      organizationCtosCompanyJson: issuerOrg.latest_organization_ctos_company_json ?? null,
-      ctosPartySupplements: supplements.map((supplement) => ({
-        partyKey: supplement.party_key,
-        onboardingJson: supplement.onboarding_json ?? null,
-      })),
-      sentRowIds: null,
-    });
-    for (const row of rows) {
-      if (!isCtosIndividualKycEligibleRow(row)) continue;
-      const partyKey = normalizeDirectorShareholderIdKey(
-        row.idNumber?.trim() || row.registrationNumber?.trim() || row.enquiryId?.trim() || ""
-      );
-      if (!partyKey) continue;
-      if (isLegacyCtosPartyKycApproved(partyKey, issuerOrg.director_kyc_status)) continue;
-      if (!supplementPartyKeys.has(partyKey)) continue;
-      const onboarding = onboardingByPartyKey.get(partyKey) ?? {};
-      const regtankStatus = String(onboarding.regtankStatus ?? "").trim().toUpperCase();
-      const kycRawStatus =
-        onboarding.kyc && typeof onboarding.kyc === "object" && !Array.isArray(onboarding.kyc)
-          ? String((onboarding.kyc as Record<string, unknown>).rawStatus ?? "").trim().toUpperCase()
-          : "";
-      const approved = regtankStatus === "APPROVED" || kycRawStatus === "APPROVED";
-      if (!approved) return false;
-    }
-    return true;
-  })();
+  const financialApproveAllowed = isFinancialReviewKycReadyForApprove({
+    people: app.people,
+    ctosPartySupplements: app.issuer_organization?.ctos_party_supplements,
+  });
 
   if (sectionComparison) {
     return (

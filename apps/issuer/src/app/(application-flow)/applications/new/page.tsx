@@ -8,14 +8,15 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useIssuerProducts } from "@/hooks/use-products";
 import { useCreateApplication } from "@/hooks/use-applications";
-import { useOrganization } from "@cashsouk/config";
+import { filterVisiblePeopleRows } from "@cashsouk/types";
+import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
 import { toast } from "sonner";
-import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { useNavigationGuard } from "@/hooks/use-navigation-guard2";
 import { useIssuerUnsavedNavigation } from "@/contexts/issuer-unsaved-navigation-context";
 import { UnsavedChangesModal } from "@/components/unsaved-changes-modal";
 import { VersionMismatchModal } from "@/components/VersionMismatchModal";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DirectorShareholderAlertCard } from "@/components/director-shareholder-alert-card";
 import { ProductList } from "../components/product-list";
 import { ProgressIndicator } from "../components/progress-indicator";
 import { FinancingTypeSkeleton } from "../components/financing-type-skeleton";
@@ -39,6 +40,11 @@ import {
 export default function NewApplicationPage() {
   const router = useRouter();
   const { activeOrganization, isLoading: isOrgLoading } = useOrganization();
+
+  const visiblePeopleForDsAlert = React.useMemo(
+    () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
+    [activeOrganization?.people]
+  );
   const { setTitle } = useHeader();
 
   React.useEffect(() => {
@@ -334,6 +340,15 @@ export default function NewApplicationPage() {
     <div className="flex flex-col h-full">
       {/* Main content */}
       <main className="flex-1 overflow-y-auto p-4">
+        {activeOrganization.type === "COMPANY" ? (
+          <DirectorShareholderAlertCard
+            visiblePeople={visiblePeopleForDsAlert}
+            issuerOrganizationId={activeOrganization.id}
+            enabled={activeOrganization.onboardingStatus === "COMPLETED"}
+            stickyTop
+            className="mb-4"
+          />
+        ) : null}
         <div className="max-w-7xl mx-auto w-full px-4 py-8">
           {/* Page Title */}
           <div className="mb-6">

@@ -26,6 +26,7 @@ import {
   type BankAccountDetails,
   type UpdateOrganizationProfileInput,
 } from "@cashsouk/config";
+import type { ApplicationPersonRow } from "@cashsouk/types";
 import { useAuth } from "../../lib/auth";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -539,6 +540,7 @@ export default function ProfilePage() {
         directorAmlStatus?: unknown;
         latestOrganizationCtosCompanyJson?: unknown | null;
         ctosPartySupplements?: { partyKey: string; onboardingJson?: unknown }[] | null;
+        people?: ApplicationPersonRow[];
       }>(`/v1/organizations/investor/${activeOrganization.id}`);
       if (!result.success) {
         throw new Error(result.error.message);
@@ -1396,10 +1398,7 @@ export default function ProfilePage() {
               {/* 4. Directors/Shareholders Section - Only for COMPANY accounts */}
               {!isPersonal && activeOrganization?.id && orgData?.type === "COMPANY" && (
                 <DirectorsShareholdersCard
-                  corporateEntities={orgData.corporateEntities ?? null}
-                  directorKycStatus={orgData.directorKycStatus ?? null}
-                  directorAmlStatus={orgData.directorAmlStatus ?? null}
-                  organizationCtosCompanyJson={orgData.latestOrganizationCtosCompanyJson ?? null}
+                  people={orgData.people ?? []}
                   ctosPartySupplements={orgData.ctosPartySupplements ?? null}
                 />
               )}

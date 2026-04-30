@@ -4,15 +4,8 @@
 
 export type RegTankOnboardingType = "INDIVIDUAL" | "CORPORATE";
 
-export type RegTankOnboardingStatus =
-  | "PENDING"
-  | "IN_PROGRESS"
-  | "FORM_FILLING"
-  | "LIVENESS_PASSED"
-  | "PENDING_APPROVAL"
-  | "APPROVED"
-  | "REJECTED"
-  | "EXPIRED";
+/** Value persisted on `reg_tank_onboarding.status`: RegTank webhook string after `normalizeRawStatus` (legacy rows may differ). */
+export type RegTankOnboardingStatus = string;
 
 export type PortalType = "investor" | "issuer";
 

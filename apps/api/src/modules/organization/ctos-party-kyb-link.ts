@@ -1,8 +1,15 @@
 import { Prisma } from "@prisma/client";
-import { normalizeDirectorShareholderIdKey } from "@cashsouk/types";
+import {
+  getCtosPartySupplementPipelineStatus,
+  getEffectiveCtosPartyScreening,
+  normalizeDirectorShareholderIdKey,
+  parseCtosPartySupplementRoot,
+  sanitizeCtosPartySupplementOnboardingJsonForPersist,
+} from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
 import { getRegTankAPIClient } from "../regtank/api-client";
+import { ctosPositionDirectorShareholderFlags } from "../regtank/helpers/ctos-position-roles";
 
 type CtosDirectorJson = {
   ic_lcno?: unknown;
@@ -69,21 +76,10 @@ function mergeKeyForCtosRow(r: CtosDirectorJson): string | null {
   }
   if (kind === "INDIVIDUAL") {
     return normalizeDirectorShareholderIdKey(
-      String(r.ic_lcno ?? "").trim() || String(r.nic_brno ?? "").trim() || null
+      String(r.nic_brno ?? "").trim() || String(r.ic_lcno ?? "").trim() || null
     );
   }
   return null;
-}
-
-/** DO/AD → director only; SO → shareholder only; DS/AS → both. */
-function ctosDirectorShareholderFlags(position: string | undefined): {
-  isDirector: boolean;
-  isShareholder: boolean;
-} {
-  const pos = String(position ?? "").trim().toUpperCase();
-  const isDirector = ["DO", "AD", "DS", "AS"].includes(pos);
-  const isShareholder = ["SO", "DS", "AS"].includes(pos);
-  return { isDirector, isShareholder };
 }
 
 function findCtosPartyRow(
@@ -98,7 +94,7 @@ function findCtosPartyRow(
     if (ctosPartyKind(r) === "CORPORATE") continue;
     const mk = mergeKeyForCtosRow(r);
     if (mk !== partyKeyNorm) continue;
-    const { isDirector, isShareholder } = ctosDirectorShareholderFlags(String(r.position ?? ""));
+    const { isDirector, isShareholder } = ctosPositionDirectorShareholderFlags(String(r.position ?? ""));
     if (!isDirector && !isShareholder) {
       logger.warn(
         { partyKeyNorm, position: r.position },
@@ -142,7 +138,7 @@ async function persistOnboardingJson(
   partyKey: string,
   json: Record<string, unknown>
 ): Promise<void> {
-  const data = stripLegacyKybFlags(json);
+  const data = sanitizeCtosPartySupplementOnboardingJsonForPersist(stripLegacyKybFlags(json));
   const row = await prisma.ctosPartySupplement.findFirst({
     where: { issuer_organization_id: organizationId, party_key: partyKey },
     select: { id: true },
@@ -173,16 +169,16 @@ export type LinkCtosPartyToKybInput = {
  */
 export async function linkCtosPartyToKyb(input: LinkCtosPartyToKybInput): Promise<void> {
   const { organizationId, partyKey, onboardingJson } = input;
-  if (String(onboardingJson.regtankStatus ?? "").trim().toUpperCase() !== "APPROVED") return;
+  if (getCtosPartySupplementPipelineStatus(onboardingJson).toUpperCase() !== "APPROVED") return;
 
-  const kyc = onboardingJson.kyc;
-  const kycOb = kyc && typeof kyc === "object" && !Array.isArray(kyc) ? (kyc as Record<string, unknown>) : null;
+  const root = parseCtosPartySupplementRoot(onboardingJson);
+  const scr = getEffectiveCtosPartyScreening(root);
   const kycId =
-    kycOb && typeof kycOb.requestId === "string" && kycOb.requestId.trim() ? kycOb.requestId.trim() : "";
+    typeof scr.requestId === "string" && scr.requestId.trim() ? scr.requestId.trim() : "";
   if (!kycId) {
     logger.error(
       { organizationId, partyKey },
-      "CTOS KYB link skipped: missing KYC requestId on onboarding_json.kyc"
+      "CTOS KYB link skipped: missing KYC requestId on screening.requestId"
     );
     return;
   }

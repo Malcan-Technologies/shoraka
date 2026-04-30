@@ -611,6 +611,9 @@ export interface OrganizationDetailResponse {
   // Director AML screening status — COMPANY only
   directorAmlStatus?: Record<string, unknown> | null;
 
+  /** Unified CTOS-backed people list (COMPANY only); same shape as onboarding application `people`. */
+  people?: import("./application-people-display").ApplicationPersonRow[];
+
   // Director KYC screening status — COMPANY only
   directorKycStatus?: Record<string, unknown> | null;
 
@@ -736,6 +739,9 @@ export interface OnboardingApplicationResponse {
   /** Latest org-level CTOS `company_json` (subject_ref null); enables CTOS-backed unified KYC/AML in admin onboarding dialog. */
   latestOrganizationCtosCompanyJson?: unknown | null;
   ctosPartySupplements?: OnboardingApplicationCtosPartySupplement[] | null;
+  people?: import("./application-people-display").ApplicationPersonRow[];
+  /** True when any CTOS party row lacks AML screening status Approved. */
+  directorShareholderAmlPending?: boolean;
 }
 
 export interface GetOnboardingApplicationsParams extends PaginationParams {
@@ -1035,6 +1041,8 @@ export interface ApplicationListItem {
   updatedAt: string;
   productId: string | null;
   baseProductId: string | null;
+  /** Derived from issuer org CTOS people + AML screening (not stored on application). */
+  directorShareholderAmlPending?: boolean;
 }
 
 export interface GetAdminApplicationsParams extends PaginationParams {

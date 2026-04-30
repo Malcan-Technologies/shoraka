@@ -6,6 +6,7 @@
 import { ApplicationRepository } from "./repository";
 import { ProductRepository } from "../products/repository";
 import { OrganizationRepository } from "../organization/repository";
+import { OrganizationService } from "../organization/service";
 import { ContractRepository } from "../contracts/repository";
 import {
   CreateApplicationInput,
@@ -47,14 +48,13 @@ import {
   ContractStatus,
   InvoiceStatus,
   WithdrawReason,
-  getDirectorShareholderDisplayRows,
-  isCtosIndividualKycEligibleRow,
-  isLegacyCtosPartyKycApproved,
   getFinancialYearEndComputationDetails,
   getIssuerFinancialTabYears,
   issuerUnauditedPlddForFyEndYear,
   getStepKeyFromStepId,
-  normalizeDirectorShareholderIdKey,
+  filterVisiblePeopleRows,
+  type ApplicationPersonRow,
+  normalizeRawStatus,
 } from "@cashsouk/types";
 import { computeApplicationStatus } from "./lifecycle";
 import * as crypto from "crypto";
@@ -80,6 +80,8 @@ import { getIssuerRecipientUserIdsForApplication } from "../notification/applica
 import {
   parseGuarantorsFromBusinessDetails,
 } from "../guarantors/utils";
+import { assertIssuerOrgDirectorShareholderOnboardingReady } from "./director-shareholder-onboarding-guard";
+import { buildAdminPeopleList } from "../admin/build-people-list";
 
 /**
  * Return URL after manual signing. Prefer SIGNINGCLOUD_ISSUER_RETURN_URL (full URL to applications page);
@@ -145,6 +147,26 @@ function financialToNum(v: unknown): number {
   if (typeof v === "number" && !Number.isNaN(v)) return v;
   const n = Number(String(v).replace(/,/g, ""));
   return Number.isNaN(n) ? 0 : n;
+}
+
+/**
+ * SECTION: AML helpers for issuer application list badge
+ * WHY: Keep AML badge logic aligned with screening.status and final-status skip
+ * INPUT: Application people rows + application status
+ * OUTPUT: pending AML boolean per application
+ * WHERE USED: listByOrganization()
+ */
+function isAmlApproved(person: ApplicationPersonRow): boolean {
+  return normalizeRawStatus(person.screening?.status) === "APPROVED";
+}
+
+function hasPendingAmlForIndividuals(people: ApplicationPersonRow[]): boolean {
+  const individuals = filterVisiblePeopleRows(people).filter((person) => person.entityType === "INDIVIDUAL");
+  return individuals.length > 0 && individuals.some((person) => !isAmlApproved(person));
+}
+
+function isFinalApplicationStatus(status: string | null | undefined): boolean {
+  return status === "APPROVED" || status === "FUNDED" || status === "COMPLETED";
 }
 
 /** Business rules for v2 per-year financial blocks (no bsdd). */
@@ -472,69 +494,6 @@ export class ApplicationService {
     }
   }
 
-  private async assertRequiredPartyOnboardingStarted(application: Application): Promise<void> {
-    const issuerOrganization = (application as { issuer_organization?: Record<string, unknown> }).issuer_organization;
-    const organizationId = application.issuer_organization_id;
-    if (!organizationId || !issuerOrganization || typeof issuerOrganization !== "object") return;
-
-    const supplements = await prisma.ctosPartySupplement.findMany({
-      where: { issuer_organization_id: organizationId },
-      select: { party_key: true, onboarding_json: true },
-    });
-    const supplementByPartyKey = new Map<string, Record<string, unknown>>();
-    const supplementPartyKeys = new Set<string>();
-    for (const sup of supplements) {
-      const key = normalizeDirectorShareholderIdKey(sup.party_key);
-      if (!key) continue;
-      supplementPartyKeys.add(key);
-      const onboarding =
-        sup.onboarding_json && typeof sup.onboarding_json === "object" && !Array.isArray(sup.onboarding_json)
-          ? (sup.onboarding_json as Record<string, unknown>)
-          : {};
-      supplementByPartyKey.set(key, onboarding);
-    }
-
-    const rows = getDirectorShareholderDisplayRows({
-      corporateEntities: issuerOrganization.corporate_entities,
-      directorKycStatus: issuerOrganization.director_kyc_status,
-      directorAmlStatus: issuerOrganization.director_aml_status ?? null,
-      organizationCtosCompanyJson: issuerOrganization.latest_organization_ctos_company_json ?? null,
-      ctosPartySupplements: supplements.map((s) => ({ partyKey: s.party_key, onboardingJson: s.onboarding_json })),
-      sentRowIds: null,
-    });
-
-    const NOT_SUBMITTED = new Set([
-      "EMAIL_SENT",
-      "FORM_FILLING",
-      "LIVENESS_STARTED",
-      "LIVENESS_PASSED",
-    ]);
-    const missingNames: string[] = [];
-    for (const row of rows) {
-      if (!isCtosIndividualKycEligibleRow(row)) continue;
-      const partyKey = normalizeDirectorShareholderIdKey(
-        row.idNumber?.trim() || row.registrationNumber?.trim() || row.enquiryId?.trim() || ""
-      );
-      if (!partyKey) continue;
-      if (isLegacyCtosPartyKycApproved(partyKey, issuerOrganization.director_kyc_status)) continue;
-      if (!supplementPartyKeys.has(partyKey)) continue;
-      const onboarding = supplementByPartyKey.get(partyKey) ?? {};
-      const requestId = String(onboarding.requestId ?? "").trim();
-      const status = String(onboarding.regtankStatus || "").trim().toUpperCase();
-      const isFormSubmitted = status !== "" && !NOT_SUBMITTED.has(status);
-      if (!requestId || !isFormSubmitted) {
-        missingNames.push(row.name || partyKey);
-      }
-    }
-    if (missingNames.length > 0) {
-      throw new AppError(
-        400,
-        "ONBOARDING_NOT_STARTED",
-        `RegTank onboarding form must be submitted for all required directors/shareholders before submission: ${missingNames.join(", ")}`
-      );
-    }
-  }
-
   /**
    * Create a new application
    */
@@ -550,6 +509,8 @@ export class ApplicationService {
         "This financing product is not available. Refresh the product list and select a current product."
       );
     }
+
+    await assertIssuerOrgDirectorShareholderOnboardingReady(input.issuerOrganizationId);
 
     // Create application with product version and product_id in financing_type
     return this.repository.create({
@@ -619,7 +580,32 @@ export class ApplicationService {
       throw new AppError(403, "FORBIDDEN", "You do not have access to this organization");
     }
 
-    return this.repository.listByOrganization(organizationId);
+    const applications = await this.repository.listByOrganization(organizationId);
+
+    const org = await prisma.issuerOrganization.findUnique({
+      where: { id: organizationId },
+      select: { corporate_entities: true, director_kyc_status: true, director_aml_status: true },
+    });
+    let directorShareholderAmlPending = false;
+    if (org) {
+      const organizationService = new OrganizationService();
+      const extras = await organizationService.getIssuerPartyListExtras(organizationId);
+      const people = buildAdminPeopleList({
+        ctos: extras.latestOrganizationCtosCompanyJson ?? null,
+        issuerDirectorKycStatus: org.director_kyc_status ?? null,
+        issuerDirectorAmlStatus: org.director_aml_status ?? null,
+        ctosPartySupplements: extras.ctosPartySupplements,
+        corporateEntities: org.corporate_entities ?? null,
+      });
+      directorShareholderAmlPending = hasPendingAmlForIndividuals(people);
+    }
+
+    return applications.map((application) => ({
+      ...application,
+      directorShareholderAmlPending: isFinalApplicationStatus(application.status)
+        ? false
+        : directorShareholderAmlPending,
+    }));
   }
 
   /**
@@ -713,7 +699,7 @@ export class ApplicationService {
     if ((application as any).status !== "AMENDMENT_REQUESTED") {
       throw new AppError(400, "INVALID_STATE", "Resubmit allowed only in AMENDMENT_REQUESTED state");
     }
-    await this.assertRequiredPartyOnboardingStarted(application);
+    await assertIssuerOrgDirectorShareholderOnboardingReady(application.issuer_organization_id);
     const result = await amendmentResubmitApplication(applicationId, userId, this.repository);
 
     try {
@@ -1354,7 +1340,7 @@ export class ApplicationService {
 
     // If submitting, perform cleanup of unused steps
     if (status === "SUBMITTED") {
-      await this.assertRequiredPartyOnboardingStarted(application);
+      await assertIssuerOrgDirectorShareholderOnboardingReady(application.issuer_organization_id);
       // Get product to find active steps
       const financingType = application.financing_type as any;
       const productId = financingType?.product_id;

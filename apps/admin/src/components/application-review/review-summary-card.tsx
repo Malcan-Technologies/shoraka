@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClipboardDocumentCheckIcon } from "@heroicons/react/24/outline";
 import { cn } from "@/lib/utils";
+import { toTitleCase } from "@cashsouk/types";
 import { getReviewTabLabel } from "./review-registry";
 import { getReviewStatusPresentation } from "./status-presentation";
 
@@ -32,6 +33,7 @@ export function ReviewSummaryCard({ sections }: ReviewSummaryCardProps) {
                 const presentation = getReviewStatusPresentation(s.status);
                 const label =
                   s.status === "AMENDMENT_REQUESTED" ? "Amendment" : presentation.label;
+                const displayText = toTitleCase(label) || label;
                 return (
                   <div key={s.section} className="flex items-center justify-between text-sm">
                     <span>{getReviewTabLabel(s.section)}</span>
@@ -49,7 +51,7 @@ export function ReviewSummaryCard({ sections }: ReviewSummaryCardProps) {
                           presentation.dotClass
                         )}
                       />
-                      {label}
+                      {displayText}
                     </Badge>
                   </div>
                 );

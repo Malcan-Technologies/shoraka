@@ -11,6 +11,7 @@ import {
   PaperAirplaneIcon,
 } from "@heroicons/react/24/outline";
 import React from "react";
+import { toTitleCase } from "@cashsouk/types";
 import { getReviewStatusPresentation } from "./status-presentation";
 
 interface ApplicationStatusBadgeProps {
@@ -48,6 +49,7 @@ export function ApplicationStatusBadge({ status, size = "md", label }: Applicati
   const sizeClasses =
     size === "sm" ? "text-xs px-1.5 py-0" : size === "lg" ? "text-sm px-2.5 py-1" : "";
   const displayLabel = label ?? presentation.label;
+  const displayText = toTitleCase(displayLabel);
 
   return (
     <Badge
@@ -55,7 +57,7 @@ export function ApplicationStatusBadge({ status, size = "md", label }: Applicati
       className={`${presentation.badgeClass} ${sizeClasses}`}
     >
       <Icon className={`${iconSize} mr-1 ${presentation.iconClass}`} />
-      {displayLabel}
+      {displayText || displayLabel}
     </Badge>
   );
 }

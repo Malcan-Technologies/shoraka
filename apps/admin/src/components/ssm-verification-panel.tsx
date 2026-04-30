@@ -62,12 +62,14 @@ import type {
 } from "@cashsouk/types";
 import {
   buildOnboardingCtosComparison,
+  buildSharePctMapFromCorporateEntities,
   companyJsonReadyForCtosCompare,
+  ctosResolvedSharePctPercent,
   displayIdFromApp,
   displayIdFromCtosRow,
   getOnboardingPeopleSplit,
+  lookupSharePctForAppRow,
   shareholderPctFromAppRole,
-  shareholderPctFromCtosRow,
   type CtosOrgDirectorParsed,
   type OnboardingCtosOrgFetchState,
   type OnboardingPeopleBuckets,
@@ -191,7 +193,7 @@ function buildMockOrgCtosReports(application: OnboardingApplicationResponse): Ad
       ic_lcno: null,
       name: baseName,
       position: "SO",
-      equity_percentage: pct > 0 ? pct : 35,
+      equity_percentage: pct > 0 ? pct : null,
       equity: null,
       party_type: "I",
     });
@@ -253,7 +255,7 @@ function buildMockOrgCtosReports(application: OnboardingApplicationResponse): Ad
   return [latest, older];
 }
 
-const tableBase = "w-full min-w-[20rem] text-sm";
+const tableBase = "w-full min-w-[20rem] table-fixed text-sm";
 
 /** Same shell for onboarding vs CTOS tables — matches card-in-step pattern from onboarding review. */
 const compareTableWrap = "rounded-lg border border-border bg-card overflow-x-auto shadow-sm";
@@ -366,10 +368,14 @@ function AppDirectorTable({ rows }: { rows: DirectorKycStatus[] }) {
   return (
     <div className={compareTableWrap}>
       <Table className={tableBase}>
+        <colgroup>
+          <col className="w-[62%]" />
+          <col className="w-[38%]" />
+        </colgroup>
         <TableHeader>
           <TableRow className={compareTableHeaderRow}>
-            <TableHead className={compareTh}>Name</TableHead>
-            <TableHead className={compareTh}>IC</TableHead>
+            <TableHead className={cn(compareTh, "w-[62%]")}>Name</TableHead>
+            <TableHead className={cn(compareTh, "w-[38%]")}>IC</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -390,10 +396,14 @@ function CtosDirectorTable({ rows }: { rows: CtosOrgDirectorParsed[] }) {
   return (
     <div className={compareTableWrap}>
       <Table className={tableBase}>
+        <colgroup>
+          <col className="w-[62%]" />
+          <col className="w-[38%]" />
+        </colgroup>
         <TableHeader>
           <TableRow className={compareTableHeaderRow}>
-            <TableHead className={compareTh}>Name</TableHead>
-            <TableHead className={compareTh}>IC</TableHead>
+            <TableHead className={cn(compareTh, "w-[62%]")}>Name</TableHead>
+            <TableHead className={cn(compareTh, "w-[38%]")}>IC</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -409,28 +419,42 @@ function CtosDirectorTable({ rows }: { rows: CtosOrgDirectorParsed[] }) {
   );
 }
 
-function AppShareholderTable({ rows }: { rows: DirectorKycStatus[] }) {
+function AppShareholderTable({
+  rows,
+  sharePctById,
+}: {
+  rows: DirectorKycStatus[];
+  sharePctById: Map<string, number>;
+}) {
   if (rows.length === 0) return null;
   return (
     <div className={compareTableWrap}>
       <Table className={tableBase}>
+        <colgroup>
+          <col className="w-[50%]" />
+          <col className="w-[35%]" />
+          <col className="w-[15%]" />
+        </colgroup>
         <TableHeader>
           <TableRow className={compareTableHeaderRow}>
-            <TableHead className={compareTh}>Name</TableHead>
-            <TableHead className={compareTh}>IC / SSM</TableHead>
-            <TableHead className={cn(compareTh, "w-24 text-right")}>%</TableHead>
+            <TableHead className={cn(compareTh, "w-[50%]")}>Name</TableHead>
+            <TableHead className={cn(compareTh, "w-[35%]")}>IC / SSM</TableHead>
+            <TableHead className={cn(compareTh, "w-[15%] text-right")}>%</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.map((r) => (
-            <TableRow key={r.eodRequestId} className={compareTableBodyRow}>
-              <TableCell className={compareTdValue}>{r.name}</TableCell>
-              <TableCell className={compareTdMuted}>{displayIdFromApp(r.governmentIdNumber) ?? "—"}</TableCell>
-              <TableCell className={compareTdMutedRight}>
-                {shareholderPctFromAppRole(r.role) > 0 ? `${shareholderPctFromAppRole(r.role)}%` : "—"}
-              </TableCell>
-            </TableRow>
-          ))}
+          {rows.map((r) => {
+            const pct = lookupSharePctForAppRow(r, sharePctById);
+            return (
+              <TableRow key={r.eodRequestId} className={compareTableBodyRow}>
+                <TableCell className={compareTdValue}>{r.name}</TableCell>
+                <TableCell className={compareTdMuted}>{displayIdFromApp(r.governmentIdNumber) ?? "—"}</TableCell>
+                <TableCell className={compareTdMutedRight}>
+                  {typeof pct === "number" ? `${pct}%` : "—"}
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </div>
@@ -442,22 +466,27 @@ function CtosShareholderTable({ rows }: { rows: CtosOrgDirectorParsed[] }) {
   return (
     <div className={compareTableWrap}>
       <Table className={tableBase}>
+        <colgroup>
+          <col className="w-[50%]" />
+          <col className="w-[35%]" />
+          <col className="w-[15%]" />
+        </colgroup>
         <TableHeader>
           <TableRow className={compareTableHeaderRow}>
-            <TableHead className={compareTh}>Name</TableHead>
-            <TableHead className={compareTh}>IC / SSM</TableHead>
-            <TableHead className={cn(compareTh, "w-24 text-right")}>%</TableHead>
+            <TableHead className={cn(compareTh, "w-[50%]")}>Name</TableHead>
+            <TableHead className={cn(compareTh, "w-[35%]")}>IC / SSM</TableHead>
+            <TableHead className={cn(compareTh, "w-[15%] text-right")}>%</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {rows.map((r, i) => {
-            const pct = shareholderPctFromCtosRow(r);
+            const pct = ctosResolvedSharePctPercent(r);
             return (
               <TableRow key={`${displayIdFromCtosRow(r) ?? "x"}-sh-${i}`} className={compareTableBodyRow}>
                 <TableCell className={compareTdValue}>{(r.name ?? "").trim() || "—"}</TableCell>
                 <TableCell className={compareTdMuted}>{displayIdFromCtosRow(r) ?? "—"}</TableCell>
                 <TableCell className={compareTdMutedRight}>
-                  {pct > 0 ? `${Math.round(pct * 100) / 100}%` : "—"}
+                  {pct === null ? "—" : `${Math.round(pct * 100) / 100}%`}
                 </TableCell>
               </TableRow>
             );
@@ -523,10 +552,12 @@ function ShareholderBucketsBlock({
   title,
   buckets,
   ctosOrgState,
+  appSharePctById,
 }: {
   title: string;
   buckets: OnboardingPeopleBuckets;
   ctosOrgState: OnboardingCtosOrgFetchState;
+  appSharePctById: Map<string, number>;
 }) {
   const { applicationRows, ctosRows } = orderedCompareRows(buckets);
   const hasAnyApp = applicationRows.length > 0;
@@ -534,10 +565,10 @@ function ShareholderBucketsBlock({
 
   const ctosShEmptyDescription =
     ctosOrgState === "not_pulled"
-      ? "Pull a CTOS report first. Shareholders at ≥5% from the extract will appear here after fetch."
+      ? "Pull a CTOS report first. Shareholding lines from the extract will appear here after fetch."
       : ctosOrgState === "no_record"
-        ? "The stored report has no qualifying shareholder rows. Try fetching again or review the full report."
-        : "This extract has no shareholder rows (≥5%) to compare.";
+        ? "The stored report has no shareholder-position rows in this snapshot. Try fetching again or review the report."
+        : "This extract has no shareholder-position rows listed after filtering under-5% positions.";
 
   return (
     <div className="space-y-3">
@@ -547,11 +578,11 @@ function ShareholderBucketsBlock({
           !hasAnyApp ? (
             <CompareEmptyState
               icon={UserGroupIcon}
-              title="No shareholders (≥5%) on the application"
-              description="No shareholder rows met the ≥5% rule from RegTank data. If you expect names here, ask the user to fix ownership via amendment."
+              title="No shareholder rows on the application"
+              description="No shareholder rows remain after skipping under‑5% entries (directors-only stay in Directors). Missing “%” in the grid still lists the row."
             />
           ) : (
-            <AppShareholderTable rows={applicationRows} />
+            <AppShareholderTable rows={applicationRows} sharePctById={appSharePctById} />
           )
         }
         ctos={
@@ -657,6 +688,11 @@ export function SSMVerificationPanel({
   const comparison = React.useMemo(
     () => buildOnboardingCtosComparison(applicationForCompare, companyJson, compareState),
     [applicationForCompare, companyJson, compareState]
+  );
+
+  const appSharePctById = React.useMemo(
+    () => buildSharePctMapFromCorporateEntities(applicationForCompare.corporateEntities),
+    [applicationForCompare.corporateEntities]
   );
 
   const canApprove = confirmed && !fetchCtosMutation.isPending;
@@ -943,9 +979,10 @@ export function SSMVerificationPanel({
           <DirectorBucketsBlock title="Directors" buckets={comparison.directors} ctosOrgState={orgFetchState} />
 
           <ShareholderBucketsBlock
-            title="Shareholders (≥5%)"
+            title="Shareholders"
             buckets={comparison.shareholders}
             ctosOrgState={orgFetchState}
+            appSharePctById={appSharePctById}
           />
 
           {!isAlreadyVerified ? (

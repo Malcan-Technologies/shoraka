@@ -27,7 +27,7 @@
 
 import * as React from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
-import { useAuthToken } from "@cashsouk/config";
+import { useAuthToken, useOrganization } from "@cashsouk/config";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -49,12 +49,15 @@ import { useApprovedContracts } from "@/hooks/use-contracts";
 import { useProducts } from "@/hooks/use-products";
 import { toast } from "sonner";
 import {
+  filterVisiblePeopleRows,
   getStepKeyFromStepId,
   APPLICATION_STEP_KEYS_WITH_UI,
   STEP_KEY_DISPLAY,
   enforceDeclarationsLastAndDropReview,
   type ApplicationStepKey,
 } from "@cashsouk/types";
+import { areDirectorShareholdersReadyForApplicationSubmit } from "@/lib/director-shareholder-onboarding-ui";
+import { DirectorShareholderAlertCard } from "@/components/director-shareholder-alert-card";
 import { ProgressIndicator } from "../../components/progress-indicator";
 import {
   ApplicationFlowBlockedBackdrop,
@@ -184,9 +187,26 @@ function EditApplicationPageBody() {
   });
 
   /** Approved contracts for Fill Entire Application (existing_contract option). */
-  const { data: approvedContracts = [] } = useApprovedContracts(
-    application?.issuer_organization_id || ""
+  const issuerOrgId = application?.issuer_organization_id ?? "";
+
+  const { data: approvedContracts = [] } = useApprovedContracts(issuerOrgId);
+
+  const { activeOrganization } = useOrganization();
+
+  const issuerVisiblePeopleForAlert = React.useMemo(
+    () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
+    [activeOrganization?.people]
   );
+
+  const directorPartySubmitReady = React.useMemo(() => {
+    if (activeOrganization?.type !== "COMPANY") return true;
+    if (issuerVisiblePeopleForAlert.length === 0) return true;
+    return areDirectorShareholdersReadyForApplicationSubmit({ people: issuerVisiblePeopleForAlert });
+  }, [activeOrganization?.type, issuerVisiblePeopleForAlert]);
+
+  const directorPartySubmitBlockedMessage =
+    activeOrganization?.directorShareholderSubmitBlockedMessage ??
+    "Some directors or shareholders have not finished onboarding. Complete onboarding on your company profile before you submit an application.";
 
   /** Handle application not found */
   React.useEffect(() => {
@@ -1073,6 +1093,12 @@ function EditApplicationPageBody() {
       toast.error("Please complete all required amendment updates first");
       return;
     }
+    if (!devPreviewAmendment && !directorPartySubmitReady) {
+      toast.error(directorPartySubmitBlockedMessage);
+      isSubmittingRef.current = false;
+      setIsSubmittingApplication(false);
+      return;
+    }
 
     /** Before any await: keeps edit layout on screen while React Query refetches (avoid wizard/step skeleton). */
     isSubmittingRef.current = true;
@@ -1571,6 +1597,17 @@ function EditApplicationPageBody() {
     <div className="flex flex-col h-full">
       {/* Main content */}
       <main className="flex-1 overflow-y-auto p-3 sm:p-4">
+        {activeOrganization?.type === "COMPANY" ? (
+          <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 pt-2 sm:pt-3">
+            <DirectorShareholderAlertCard
+              visiblePeople={issuerVisiblePeopleForAlert}
+              issuerOrganizationId={activeOrganization.id}
+              enabled={activeOrganization.onboardingStatus === "COMPLETED"}
+              stickyTop
+              className="mb-2"
+            />
+          </div>
+        ) : null}
         <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 py-4 sm:py-8">
           {useWizardContentShell ? (
             <ApplicationFlowBlockedBackdrop>
@@ -1702,6 +1739,7 @@ function EditApplicationPageBody() {
                       application?.status === "AMENDMENT_REQUESTED" &&
                       !allAmendmentStepsAcknowledged) ||
                     (!devPreviewAmendment && !isCurrentStepValid) ||
+                    (!devPreviewAmendment && !directorPartySubmitReady) ||
                     !isStepMapped
                   : updateStepMutation.isPending ||
                     updateStatusMutation.isPending ||

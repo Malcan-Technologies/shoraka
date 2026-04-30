@@ -34,6 +34,7 @@ export function useCorporateEntities(organizationId: string | undefined) {
         directors: Array<Record<string, unknown>>;
         shareholders: Array<Record<string, unknown>>;
         corporateShareholders: Array<Record<string, unknown>>;
+        people?: import("@cashsouk/types").ApplicationPersonRow[];
         directorKycStatus?: DirectorKycStatus | null;
         directorAmlStatus?: Record<string, unknown> | null;
         latestOrganizationCtosCompanyJson?: unknown | null;

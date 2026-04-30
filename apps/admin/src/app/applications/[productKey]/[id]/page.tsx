@@ -69,6 +69,11 @@ import {
   XCircleIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency, useAuthToken, readInvoiceMaturityMonthsFromWorkflow } from "@cashsouk/config";
+import {
+  filterVisiblePeopleRows,
+  normalizeRawStatus,
+  type ApplicationPersonRow,
+} from "@cashsouk/types";
 import { ApplicationStatusBadge } from "@/components/application-review";
 import JSZip from "jszip";
 
@@ -174,6 +179,12 @@ export default function DynamicApplicationDetailPage() {
     "AMENDMENT_REQUESTED",
   ];
   const isReviewable = !!app && REVIEWABLE_STATUSES.includes(app.status);
+  const isFinalApplicationForAmlGate =
+    app?.status === "APPROVED" || app?.status === "COMPLETED";
+  const applicationPeople = React.useMemo(() => {
+    const people = (app as unknown as { people?: unknown } | null)?.people;
+    return Array.isArray(people) ? (people as ApplicationPersonRow[]) : [];
+  }, [app]);
   const { getAccessToken } = useAuthToken();
   const { viewDocumentPending, handleViewDocument, handleDownloadDocument } =
     useAdminS3DocumentViewDownload();
@@ -630,6 +641,22 @@ export default function DynamicApplicationDetailPage() {
                     </div>
                   </div>
                   <ApplicationStatusBadge status={app.status} size="lg" />
+                  {!isFinalApplicationForAmlGate &&
+                  (() => {
+                    const visibleIndividuals = filterVisiblePeopleRows(
+                      applicationPeople
+                    ).filter((person) => person.entityType === "INDIVIDUAL");
+                    return (
+                      visibleIndividuals.length > 0 &&
+                      visibleIndividuals.some(
+                        (person) => normalizeRawStatus(person.screening?.status) !== "APPROVED"
+                      )
+                    );
+                  })() ? (
+                    <Badge variant="secondary" className="rounded-full text-xs font-semibold">
+                      Pending Director/Shareholder AML
+                    </Badge>
+                  ) : null}
                 </div>
                 {isReviewable ? (
                   <TooltipProvider>

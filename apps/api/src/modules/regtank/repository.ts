@@ -42,23 +42,40 @@ export class RegTankRepository {
     const investorOrgId = data.portalType === "investor" ? data.organizationId : null;
     const issuerOrgId = data.portalType === "issuer" ? data.organizationId : null;
 
-    return prisma.regTankOnboarding.create({
-      data: {
-        user_id: data.userId,
-        investor_organization_id: investorOrgId,
-        issuer_organization_id: issuerOrgId,
-        organization_type: data.organizationType,
-        portal_type: data.portalType,
-        request_id: data.requestId,
-        reference_id: data.referenceId,
-        onboarding_type: data.onboardingType,
-        verify_link: data.verifyLink,
-        verify_link_expires_at: data.verifyLinkExpiresAt,
-        status: data.status,
-        substatus: data.substatus,
-        regtank_response: data.regtankResponse,
-      },
-    });
+    const payload = {
+      user_id: data.userId,
+      investor_organization_id: investorOrgId,
+      issuer_organization_id: issuerOrgId,
+      organization_type: data.organizationType,
+      portal_type: data.portalType,
+      request_id: data.requestId,
+      reference_id: data.referenceId,
+      onboarding_type: data.onboardingType,
+      verify_link: data.verifyLink,
+      verify_link_expires_at: data.verifyLinkExpiresAt,
+      status: data.status,
+      substatus: data.substatus,
+      regtank_response: data.regtankResponse,
+    } satisfies Prisma.RegTankOnboardingUncheckedCreateInput;
+
+    try {
+      return await prisma.regTankOnboarding.create({ data: payload });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002" &&
+        Array.isArray(error.meta?.target) &&
+        error.meta.target.includes("request_id")
+      ) {
+        const existing = await prisma.regTankOnboarding.findUnique({
+          where: { request_id: data.requestId },
+        });
+        if (existing) {
+          return existing;
+        }
+      }
+      throw error;
+    }
   }
 
   /**
@@ -304,7 +321,18 @@ export class RegTankRepository {
         user_id: userId,
         portal_type: portalType,
         status: {
-          in: ["IN_PROGRESS", "FORM_FILLING", "LIVENESS_PASSED", "PENDING_APPROVAL"],
+          in: [
+            "PENDING",
+            "IN_PROGRESS",
+            "PROCESSING",
+            "ID_UPLOADED",
+            "LIVENESS_STARTED",
+            "LIVENESS_PASSED",
+            "WAIT_FOR_APPROVAL",
+            "EMAIL_SENT",
+            "FORM_FILLING",
+            "PENDING_APPROVAL",
+          ],
         },
         verify_link: {
           not: null,

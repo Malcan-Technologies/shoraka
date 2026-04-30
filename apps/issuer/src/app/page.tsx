@@ -9,6 +9,8 @@ import { useOrganization } from "@cashsouk/config";
 import { checkAndRedirectForPendingInvitation } from "../lib/invitation-redirect";
 import { Button } from "../components/ui/button";
 import { PlusIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import { filterVisiblePeopleRows } from "@cashsouk/types";
+import { DirectorShareholderAlertCard } from "../components/director-shareholder-alert-card";
 import { OnboardingStatusCard, getOnboardingSteps } from "../components/onboarding-status-card";
 import { TermsAcceptanceCard } from "../components/terms-acceptance-card";
 import { AccountOverviewCard } from "../components/account-overview-card";
@@ -33,6 +35,11 @@ function IssuerDashboardContent() {
     organizations,
   } = useOrganization();
   const hasRedirected = useRef(false);
+
+  const visiblePeopleForDsAlert = useMemo(
+    () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
+    [activeOrganization?.people]
+  );
 
   // Determine whether the dashboard can be shown (derived, no setState needed)
   const canShowDashboard = useMemo(() => {
@@ -168,6 +175,13 @@ function IssuerDashboardContent() {
     <>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
         <div className="space-y-8 p-2 md:p-4">
+          {activeOrganization?.type === "COMPANY" ? (
+            <DirectorShareholderAlertCard
+              visiblePeople={visiblePeopleForDsAlert}
+              issuerOrganizationId={activeOrganization.id}
+              enabled={activeOrganization.onboardingStatus === "COMPLETED"}
+            />
+          ) : null}
           {/* Onboarding Status Section - shown when not all steps are complete */}
           {activeOrganization && !allStepsComplete && (
             <section className="space-y-6">

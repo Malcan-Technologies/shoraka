@@ -7,8 +7,15 @@ import {
   BuildingOffice2Icon,
 } from "@heroicons/react/24/outline";
 import {
-  getDirectorShareholderDisplayRows,
+  filterVisiblePeopleRows,
+  formatPeopleRolesLine,
+  getCtosPartySupplementFlatRead,
+  getDisplayStatus,
+  normalizeDirectorShareholderIdKey,
+  normalizeRawStatus,
   regtankDisplayStatusBadgeClass,
+  toTitleCase,
+  type ApplicationPersonRow,
   type DirectorShareholderDisplayRow,
 } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
@@ -26,17 +33,62 @@ function isIndividualShareholderOnlyRow(r: DirectorShareholderDisplayRow): boole
   return !r.role.toLowerCase().includes("director");
 }
 
+function personToDisplayRow(
+  p: ApplicationPersonRow,
+  onboardingByPartyKey: Map<string, Record<string, unknown>>
+): DirectorShareholderDisplayRow {
+  const pk = normalizeDirectorShareholderIdKey(p.matchKey);
+  const sup = pk ? onboardingByPartyKey.get(pk) ?? {} : {};
+  const flat = getCtosPartySupplementFlatRead(sup);
+  const regtankStatus = flat.regtankStatus;
+  const kycBlock = flat.kycBlock;
+  const kycRawStatus = kycBlock ? String(kycBlock.rawStatus ?? "").trim() || null : null;
+  const status = getDisplayStatus({
+    screening: p.screening,
+    directorAmlStatus: p.directorAmlStatus ?? null,
+    directorKycStatus: p.directorKycStatus ?? kycRawStatus,
+    onboarding: { status: p.onboarding?.status ?? regtankStatus ?? null },
+  });
+  const rolesU = (p.roles ?? []).map((r) => r.toUpperCase());
+  const isDirector = rolesU.includes("DIRECTOR");
+  const isShareholder = rolesU.includes("SHAREHOLDER");
+  const sharePct = p.sharePercentage;
+  const ownershipDisplay =
+    sharePct != null && Number.isFinite(sharePct) ? `${sharePct}% ownership` : null;
+  const email = String(sup.email ?? sup.contactEmail ?? "").trim();
+  const draftEligible =
+    p.entityType === "INDIVIDUAL" &&
+    (isDirector || (isShareholder && (sharePct ?? 0) >= 5));
+  return {
+    id: p.matchKey,
+    name: p.name ?? "",
+    role: formatPeopleRolesLine(p),
+    type: p.entityType === "CORPORATE" ? "COMPANY" : "INDIVIDUAL",
+    idNumber: p.entityType === "INDIVIDUAL" ? p.matchKey : null,
+    registrationNumber: p.entityType === "CORPORATE" ? p.matchKey : null,
+    ownershipDisplay,
+    email,
+    status,
+    canEnterEmail: true,
+    canSendOnboarding: true,
+    enquiryId: null,
+    subjectKind: p.entityType === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL",
+    ctosIndividualKycEligible: draftEligible,
+    isDirector,
+    isShareholder,
+    sharePercentage: sharePct,
+  };
+}
+
 export interface DirectorsShareholdersCardProps {
-  corporateEntities: unknown;
-  directorKycStatus?: unknown | null;
-  directorAmlStatus?: unknown | null;
-  organizationCtosCompanyJson?: unknown | null;
+  people: ApplicationPersonRow[];
   ctosPartySupplements?: { partyKey: string; onboardingJson?: unknown }[] | null;
 }
 
 function renderIndividualRow(row: DirectorShareholderDisplayRow) {
   const ic = row.idNumber?.trim() || "";
-  const kycBadge = regtankDisplayStatusBadgeClass(row.status);
+  const status = normalizeRawStatus(row.status);
+  const kycBadge = regtankDisplayStatusBadgeClass(status);
   return (
     <div
       key={row.id}
@@ -47,19 +99,21 @@ function renderIndividualRow(row: DirectorShareholderDisplayRow) {
           {row.name}
           {ic ? <span className="font-normal text-muted-foreground"> · IC {ic}</span> : null}
         </p>
-        <p className="text-xs text-muted-foreground mt-1">{row.email.trim() ? row.email : "—"}</p>
+        <p className="text-xs text-muted-foreground mt-1">{row.email.trim() ? row.email : ""}</p>
         <p className="text-xs text-muted-foreground mt-1">{row.role}</p>
         <div className="mt-1 flex flex-wrap flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-muted-foreground">KYC</span>
-            <Badge className={cn("text-xs font-medium", kycBadge)}>{row.status}</Badge>
+            {status ? <Badge className={cn("text-xs font-medium", kycBadge)}>{toTitleCase(status)}</Badge> : null}
           </div>
           {row.amlStatus?.trim() ? (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-muted-foreground">AML</span>
-              <Badge variant="outline" className="text-xs font-medium">
-                {row.amlStatus}
-              </Badge>
+              {normalizeRawStatus(row.amlStatus) ? (
+                <Badge variant="outline" className="text-xs font-medium">
+                  {toTitleCase(normalizeRawStatus(row.amlStatus))}
+                </Badge>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -70,7 +124,8 @@ function renderIndividualRow(row: DirectorShareholderDisplayRow) {
 
 function renderCorporateRow(row: DirectorShareholderDisplayRow) {
   const ssm = row.registrationNumber?.trim() || "";
-  const kycBadge = regtankDisplayStatusBadgeClass(row.status);
+  const status = normalizeRawStatus(row.status);
+  const kycBadge = regtankDisplayStatusBadgeClass(status);
   return (
     <div
       key={row.id}
@@ -80,19 +135,21 @@ function renderCorporateRow(row: DirectorShareholderDisplayRow) {
         <p className="font-medium text-sm">{row.name}</p>
         {ssm ? <p className="text-xs text-muted-foreground mt-1">SSM {ssm}</p> : null}
         <p className="text-xs text-muted-foreground mt-1">
-          {row.ownershipDisplay?.trim() ? row.ownershipDisplay : row.role}
+          {row.role?.trim() ? row.role : "Corporate Shareholder"}
         </p>
         <div className="mt-1 flex flex-wrap flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-muted-foreground">KYC</span>
-            <Badge className={cn("text-xs font-medium", kycBadge)}>{row.status}</Badge>
+            {status ? <Badge className={cn("text-xs font-medium", kycBadge)}>{toTitleCase(status)}</Badge> : null}
           </div>
           {row.amlStatus?.trim() ? (
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs text-muted-foreground">AML</span>
-              <Badge variant="outline" className="text-xs font-medium">
-                {row.amlStatus}
-              </Badge>
+              {normalizeRawStatus(row.amlStatus) ? (
+                <Badge variant="outline" className="text-xs font-medium">
+                  {toTitleCase(normalizeRawStatus(row.amlStatus))}
+                </Badge>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -102,29 +159,26 @@ function renderCorporateRow(row: DirectorShareholderDisplayRow) {
 }
 
 export function DirectorsShareholdersCard({
-  corporateEntities,
-  directorKycStatus = null,
-  directorAmlStatus = null,
-  organizationCtosCompanyJson = null,
+  people,
   ctosPartySupplements = null,
 }: DirectorsShareholdersCardProps) {
+  const onboardingByPartyKey = React.useMemo(() => {
+    const map = new Map<string, Record<string, unknown>>();
+    for (const row of ctosPartySupplements ?? []) {
+      const key = normalizeDirectorShareholderIdKey(row.partyKey);
+      if (!key) continue;
+      const onboarding =
+        row.onboardingJson && typeof row.onboardingJson === "object" && !Array.isArray(row.onboardingJson)
+          ? (row.onboardingJson as Record<string, unknown>)
+          : {};
+      map.set(key, onboarding);
+    }
+    return map;
+  }, [ctosPartySupplements]);
+
   const rows = React.useMemo(
-    () =>
-      getDirectorShareholderDisplayRows({
-        corporateEntities: corporateEntities ?? null,
-        directorKycStatus: directorKycStatus ?? null,
-        directorAmlStatus: directorAmlStatus ?? null,
-        organizationCtosCompanyJson: organizationCtosCompanyJson ?? null,
-        ctosPartySupplements: ctosPartySupplements ?? null,
-        sentRowIds: null,
-      }),
-    [
-      corporateEntities,
-      directorKycStatus,
-      directorAmlStatus,
-      organizationCtosCompanyJson,
-      ctosPartySupplements,
-    ]
+    () => filterVisiblePeopleRows(people).map((p) => personToDisplayRow(p, onboardingByPartyKey)),
+    [people, onboardingByPartyKey]
   );
 
   const directorLikeRows = React.useMemo(() => rows.filter(isDirectorLikeRow), [rows]);
