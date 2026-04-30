@@ -909,15 +909,22 @@ export function ApplicationFinancialReviewContent({
           ctosFetchPendingKey={subjectCtosFetchKey}
           notifyPending={notifyActionRequired.isPending}
           onFetchSubjectCtos={(person) => {
-            const idKey = normalizeDirectorShareholderIdKey(person.matchKey) ?? String(person.matchKey ?? "").trim();
-            const displayName = String(person.name ?? "").trim();
-            setSubjectCtosFetchKey((normalizeDirectorShareholderIdKey(person.matchKey) ?? idKey) || null);
+            const idKey = normalizeDirectorShareholderIdKey(person.matchKey);
+            if (!idKey) {
+              toast.error("Missing IC / SSM. Cannot fetch CTOS report.");
+              return;
+            }
+            const displayName = person.name?.trim();
+            if (!displayName) {
+              toast.error("Missing name. Cannot fetch CTOS report.");
+              return;
+            }
+            setSubjectCtosFetchKey(idKey);
             createSubjectReport.mutate(
               {
                 subjectRef: idKey,
                 subjectKind: person.entityType === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL",
-                enquiryOverride:
-                  displayName && idKey ? { displayName, idNumber: idKey } : undefined,
+                enquiryOverride: { displayName, idNumber: idKey },
               },
               {
                 onSettled: () => setSubjectCtosFetchKey(null),

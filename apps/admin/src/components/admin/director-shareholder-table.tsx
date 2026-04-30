@@ -54,7 +54,6 @@ type PendingCtosSubjectFetch = {
   subjectRef: string;
   subjectKind: "INDIVIDUAL" | "CORPORATE";
   displayName: string;
-  idNumber?: string;
   partyLabel: string;
 };
 
@@ -91,56 +90,34 @@ export function DirectorShareholderTable({
   const [pendingCtosSubjectFetch, setPendingCtosSubjectFetch] = React.useState<PendingCtosSubjectFetch | null>(null);
   const rows = React.useMemo(() => mergePeopleRowsByMatchKey(filterVisiblePeopleRows(people ?? [])), [people]);
 
-  const subjectReportByPartyKey = React.useMemo(() => {
-    const m = new Map<string, { id: string; has_report_html: boolean; fetched_at: string }>();
-    for (const r of subjectCtosReports ?? []) {
-      const ref = r.subject_ref;
-      if (!ref) continue;
-      const k = ref.trim().replace(/\s+/g, "").toLowerCase();
-      m.set(k, {
-        id: r.id,
-        has_report_html: Boolean(r.has_report_html),
-        fetched_at: r.fetched_at,
-      });
-    }
-    return m;
-  }, [subjectCtosReports]);
-
-  /** Same as {@link OrganizationIssuerCtosReportsCard} / ssm-verification-panel — do not use `noopener` on `window.open` or `document.write` yields a blank tab. */
-  const fetchSubjectReportHtml = React.useCallback(
+  /** Same flow as {@link OrganizationIssuerCtosReportsCard}: fetch HTML first, then `window.open("", "_blank")` (no `noopener`) + `document.write`. */
+  const openSubjectReportHtml = React.useCallback(
     async (reportId: string) => {
       const token = await getAccessToken();
       if (!token) {
         toast.error("Not signed in");
-        return null;
+        return;
       }
-      const url = `${API_URL}/v1/admin/organizations/${portal}/${encodeURIComponent(organizationId)}/ctos-reports/${encodeURIComponent(reportId)}/html`;
+      const url = `${API_URL}/v1/admin/organizations/${portal}/${encodeURIComponent(organizationId)}/ctos-reports/${reportId}/html`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) {
         toast.error("Could not load report");
-        return null;
+        return;
       }
-      return res.text();
-    },
-    [getAccessToken, organizationId, portal]
-  );
-
-  const openSubjectReportHtml = React.useCallback(
-    async (reportId: string) => {
-      const html = await fetchSubjectReportHtml(reportId);
-      if (!html?.trim()) {
+      const html = await res.text();
+      if (!html || !html.trim()) {
         toast.error("Report HTML is empty");
         return;
       }
       const w = window.open("", "_blank");
       if (!w) {
-        toast.error("Popup blocked — allow popups for this site");
+        toast.error("Popup blocked. Please allow popups.");
         return;
       }
       w.document.write(html);
       w.document.close();
     },
-    [fetchSubjectReportHtml]
+    [getAccessToken, organizationId, portal]
   );
 
   if (rows.length === 0) {
@@ -161,7 +138,7 @@ export function DirectorShareholderTable({
               <TableHead>RegTank</TableHead>
               <TableHead>IC Front</TableHead>
               <TableHead>IC Back</TableHead>
-              <TableHead>Last CTOS fetch</TableHead>
+              <TableHead>Last CTOS Fetch</TableHead>
               <TableHead>CTOS</TableHead>
               <TableHead>Notify</TableHead>
             </TableRow>
@@ -173,8 +150,7 @@ export function DirectorShareholderTable({
                 screening: p.screening,
                 onboarding: p.onboarding,
               });
-              const partyCtosKey = partyKeyForCtosSubjectLookup(p.matchKey);
-              const subjectSnap = subjectReportByPartyKey.get(partyCtosKey);
+              const latestReport = resolveLatestCtosSubjectReportForParty(subjectCtosReports, p.matchKey);
               const shareDisplay = (() => {
                 const rolesU = (p.roles ?? []).map((r) => String(r).toUpperCase());
                 const hasDirector = rolesU.includes("DIRECTOR");
@@ -280,12 +256,12 @@ export function DirectorShareholderTable({
                     )}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                    {subjectSnap?.fetched_at
+                    {latestReport?.fetched_at
                       ? (() => {
                           try {
-                            return format(new Date(subjectSnap.fetched_at), "PPp");
+                            return format(new Date(latestReport.fetched_at), "PPp");
                           } catch {
-                            return subjectSnap.fetched_at;
+                            return latestReport.fetched_at;
                           }
                         })()
                       : "—"}
@@ -298,17 +274,27 @@ export function DirectorShareholderTable({
                         size="sm"
                         className="h-8"
                         onClick={() => {
-                          const subjectDisplayName = String(p.name ?? "").trim() || p.matchKey;
-                          const idForCtos = normalizeDirectorShareholderIdKey(p.matchKey) ?? p.matchKey.trim();
+                          const idKey = normalizeDirectorShareholderIdKey(p.matchKey);
+                          if (!idKey) {
+                            toast.error("Missing IC / SSM. Cannot fetch CTOS report.");
+                            return;
+                          }
+                          const displayName = p.name?.trim();
+                          if (!displayName) {
+                            toast.error("Missing name. Cannot fetch CTOS report.");
+                            return;
+                          }
                           setPendingCtosSubjectFetch({
-                            subjectRef: idForCtos,
+                            subjectRef: idKey,
                             subjectKind: p.entityType === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL",
-                            displayName: subjectDisplayName,
-                            idNumber: idForCtos,
-                            partyLabel: p.name?.trim() ? `${p.name} — ${idForCtos}` : idForCtos,
+                            displayName,
+                            partyLabel: `${displayName} — ${idKey}`,
                           });
                         }}
-                        disabled={ctosFetchPending === true && ctosFetchPendingKey === normalizeDirectorShareholderIdKey(p.matchKey)}
+                        disabled={
+                          ctosFetchPending === true &&
+                          ctosFetchPendingKey === normalizeDirectorShareholderIdKey(p.matchKey)
+                        }
                       >
                         {ctosFetchPending === true && ctosFetchPendingKey === normalizeDirectorShareholderIdKey(p.matchKey)
                           ? "Fetching..."
@@ -319,15 +305,15 @@ export function DirectorShareholderTable({
                         variant="outline"
                         size="sm"
                         className="h-8"
-                        disabled={!subjectSnap?.has_report_html}
+                        disabled={!latestReport}
                         title={
-                          subjectSnap?.has_report_html
+                          latestReport
                             ? "Open latest CTOS HTML report"
-                            : "No report HTML yet — fetch CTOS first"
+                            : "No CTOS report yet — fetch CTOS first"
                         }
                         onClick={() => {
-                          if (!subjectSnap?.id || !subjectSnap.has_report_html) return;
-                          void openSubjectReportHtml(subjectSnap.id);
+                          if (!latestReport?.id) return;
+                          void openSubjectReportHtml(latestReport.id);
                         }}
                       >
                         View Report
@@ -374,8 +360,8 @@ export function DirectorShareholderTable({
               disabled={ctosFetchPending === true}
               onClick={() => {
                 if (!pendingCtosSubjectFetch) return;
-                const want = partyKeyForCtosSubjectLookup(pendingCtosSubjectFetch.subjectRef);
-                const row = rows.find((r) => partyKeyForCtosSubjectLookup(r.matchKey) === want);
+                const ref = pendingCtosSubjectFetch.subjectRef;
+                const row = rows.find((r) => normalizeDirectorShareholderIdKey(r.matchKey) === ref);
                 setPendingCtosSubjectFetch(null);
                 if (row && onFetchSubjectCtos) onFetchSubjectCtos(row);
               }}
@@ -419,10 +405,25 @@ function mergePeopleRowsByMatchKey(rows: ApplicationPersonRow[]): ApplicationPer
   return Array.from(map.values());
 }
 
-/** Align with persisted `ctos_report.subject_ref` (see business-section / CTOS subject insert). */
-function partyKeyForCtosSubjectLookup(matchKey: string): string {
-  const strict = normalizeDirectorShareholderIdKey(matchKey) ?? String(matchKey ?? "").trim();
-  return strict.replace(/\s+/g, "").toLowerCase();
+/**
+ * SECTION: Latest CTOS subject report for a director/shareholder row
+ * WHY: Match API rows by normalized IC/SSM only; pick newest `fetched_at`.
+ * INPUT: Report list from org detail + person `matchKey`
+ * OUTPUT: Newest matching report or undefined
+ * WHERE USED: Last CTOS Fetch column and View Report in DirectorShareholderTable
+ */
+function resolveLatestCtosSubjectReportForParty(
+  reports: CtosSubjectReportListItem[] | null | undefined,
+  matchKey: string
+): CtosSubjectReportListItem | undefined {
+  const idKey = normalizeDirectorShareholderIdKey(matchKey);
+  if (!idKey) return undefined;
+  const matched = (reports ?? []).filter((r) => {
+    const refKey = normalizeDirectorShareholderIdKey(r.subject_ref ?? "");
+    return refKey != null && refKey === idKey;
+  });
+  matched.sort((a, b) => new Date(b.fetched_at).getTime() - new Date(a.fetched_at).getTime());
+  return matched[0];
 }
 
 function formatRoleTitleCaseWithoutShare(p: { roles: string[]; sharePercentage: number | null }): string {

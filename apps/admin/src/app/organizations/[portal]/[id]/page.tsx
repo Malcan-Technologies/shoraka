@@ -623,25 +623,28 @@ export default function OrganizationDetailPage() {
     mutationFn: async (input: {
       subjectRef: string;
       subjectKind: "INDIVIDUAL" | "CORPORATE";
-      displayName?: string;
-      idNumber?: string;
+      displayName: string;
+      idNumber: string;
     }) => {
-      const idNumber = String(input.idNumber ?? "").trim();
-      const displayName = String(input.displayName ?? "").trim();
+      const idNumber = input.idNumber.trim();
+      const displayName = input.displayName.trim();
+      if (!idNumber || !displayName) {
+        throw new Error("Missing display name or IC/SSM");
+      }
       const res = await apiClient.createAdminOrganizationCtosSubjectReport(
         portal as "issuer" | "investor",
         organizationId,
         {
           subjectRef: input.subjectRef,
           subjectKind: input.subjectKind,
-          enquiryOverride: idNumber && displayName ? { displayName, idNumber } : undefined,
+          enquiryOverride: { displayName, idNumber },
         }
       );
       if (!res.success) throw new Error(formatApiErrorMessage(res.error));
       return res.data;
     },
     onMutate: (input) => {
-      setCtosFetchSubjectKey(normalizeDirectorShareholderIdKey(input.subjectRef));
+      setCtosFetchSubjectKey(input.subjectRef);
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "organization-ctos-reports-inline", portal, organizationId] });
@@ -1217,13 +1220,21 @@ export default function OrganizationDetailPage() {
                         ctosFetchPending={fetchSubjectCtosMutation.isPending}
                         notifyPending={notifyActionRequiredMutation.isPending}
                         onFetchSubjectCtos={(person) => {
-                          const idNum =
-                            normalizeDirectorShareholderIdKey(person.matchKey) ?? String(person.matchKey ?? "").trim();
+                          const idKey = normalizeDirectorShareholderIdKey(person.matchKey);
+                          if (!idKey) {
+                            toast.error("Missing IC / SSM. Cannot fetch CTOS report.");
+                            return;
+                          }
+                          const displayName = person.name?.trim();
+                          if (!displayName) {
+                            toast.error("Missing name. Cannot fetch CTOS report.");
+                            return;
+                          }
                           fetchSubjectCtosMutation.mutate({
-                            subjectRef: idNum,
+                            subjectRef: idKey,
                             subjectKind: person.entityType === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL",
-                            displayName: String(person.name ?? "").trim() || undefined,
-                            idNumber: idNum || undefined,
+                            displayName,
+                            idNumber: idKey,
                           });
                         }}
                         onNotify={(person) => notifyActionRequiredMutation.mutate({ partyKey: person.matchKey })}
