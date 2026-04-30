@@ -106,6 +106,43 @@ export function DirectorShareholderTable({
     return m;
   }, [subjectCtosReports]);
 
+  /** Same as {@link OrganizationIssuerCtosReportsCard} / ssm-verification-panel — do not use `noopener` on `window.open` or `document.write` yields a blank tab. */
+  const fetchSubjectReportHtml = React.useCallback(
+    async (reportId: string) => {
+      const token = await getAccessToken();
+      if (!token) {
+        toast.error("Not signed in");
+        return null;
+      }
+      const url = `${API_URL}/v1/admin/organizations/${portal}/${encodeURIComponent(organizationId)}/ctos-reports/${encodeURIComponent(reportId)}/html`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        toast.error("Could not load report");
+        return null;
+      }
+      return res.text();
+    },
+    [getAccessToken, organizationId, portal]
+  );
+
+  const openSubjectReportHtml = React.useCallback(
+    async (reportId: string) => {
+      const html = await fetchSubjectReportHtml(reportId);
+      if (!html?.trim()) {
+        toast.error("Report HTML is empty");
+        return;
+      }
+      const w = window.open("", "_blank");
+      if (!w) {
+        toast.error("Popup blocked — allow popups for this site");
+        return;
+      }
+      w.document.write(html);
+      w.document.close();
+    },
+    [fetchSubjectReportHtml]
+  );
+
   if (rows.length === 0) {
     return <p className="text-sm text-muted-foreground py-4 text-center">No director or shareholder data.</p>;
   }
@@ -288,25 +325,9 @@ export function DirectorShareholderTable({
                             ? "Open latest CTOS HTML report"
                             : "No report HTML yet — fetch CTOS first"
                         }
-                        onClick={async () => {
+                        onClick={() => {
                           if (!subjectSnap?.id || !subjectSnap.has_report_html) return;
-                          const token = await getAccessToken();
-                          if (!token) {
-                            toast.error("Not signed in");
-                            return;
-                          }
-                          const url = `${API_URL}/v1/admin/organizations/${portal}/${encodeURIComponent(organizationId)}/ctos-reports/${encodeURIComponent(subjectSnap.id)}/html`;
-                          const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-                          if (!res.ok) {
-                            toast.error("Could not load report");
-                            return;
-                          }
-                          const html = await res.text();
-                          const w = window.open("", "_blank", "noopener,noreferrer");
-                          if (w) {
-                            w.document.write(html);
-                            w.document.close();
-                          }
+                          void openSubjectReportHtml(subjectSnap.id);
                         }}
                       >
                         View Report
