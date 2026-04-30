@@ -26,7 +26,7 @@ export function ApplicationsTableRow({
   application,
   onViewDetails,
 }: ApplicationsTableRowProps) {
-  const hasPending = application.directorShareholderAmlPending;
+  const hasPending = Boolean(application.directorShareholderAmlPending);
 
   return (
     <TableRow className={applicationTableRowClass}>
