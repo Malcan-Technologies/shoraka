@@ -361,6 +361,45 @@ export function ApplicationFinancialReviewContent({
 
   const peopleRows = React.useMemo(() => app.people ?? [], [app.people]);
   const visiblePeopleRows = React.useMemo(() => filterVisiblePeopleRows(peopleRows), [peopleRows]);
+
+  /**
+   * SECTION: Merge rows by IC/SSM key
+   * WHY: Listing must combine director + shareholder rows for same IC/SSM.
+   * INPUT: visiblePeopleRows
+   * OUTPUT: mergedVisiblePeopleRows for table rendering
+   * WHERE USED: Admin Financial tab listing table
+   */
+  const mergedVisiblePeopleRows = React.useMemo(() => {
+    const m = new Map<string, ApplicationPersonRow>();
+    for (const p of visiblePeopleRows) {
+      const key = p.matchKey;
+      if (!key) continue;
+
+      const prev = m.get(key);
+      if (!prev) {
+        m.set(key, p);
+        continue;
+      }
+
+      const prevRoles = Array.isArray(prev.roles) ? prev.roles : [];
+      const nextRoles = Array.isArray(p.roles) ? p.roles : [];
+      const roleSet = new Set<string>([...prevRoles, ...nextRoles].filter(Boolean));
+
+      const prevShare = typeof prev.sharePercentage === "number" ? prev.sharePercentage : null;
+      const nextShare = typeof p.sharePercentage === "number" ? p.sharePercentage : null;
+      const sharePercentage =
+        prevShare != null && nextShare != null ? Math.max(prevShare, nextShare) : prevShare ?? nextShare;
+
+      m.set(key, {
+        ...prev,
+        roles: Array.from(roleSet),
+        sharePercentage: sharePercentage as number | null,
+        name: prev.name ?? p.name ?? null,
+      });
+    }
+
+    return Array.from(m.values());
+  }, [visiblePeopleRows]);
   const supplementsByPartyKey = React.useMemo(() => {
     const m = new Map<string, Record<string, unknown>>();
     for (const row of app.issuer_organization?.ctos_party_supplements ?? []) {
@@ -978,7 +1017,7 @@ export function ApplicationFinancialReviewContent({
       </ReviewFieldBlock>
 
       <ReviewFieldBlock title="Director and Shareholders">
-        {visiblePeopleRows.length > 0 ? (
+        {mergedVisiblePeopleRows.length > 0 ? (
           <div className={applicationTableWrapperClass}>
             <div className="overflow-x-auto">
             <Table className="min-w-[1080px] text-[15px]">
@@ -995,7 +1034,7 @@ export function ApplicationFinancialReviewContent({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {visiblePeopleRows.map((p) => {
+                {mergedVisiblePeopleRows.map((p) => {
                   const pk = normalizeDirectorShareholderIdKey(p.matchKey);
                   const supplement = pk ? supplementsByPartyKey.get(pk) ?? {} : {};
                   const displayRow = buildDirectorShareholderDisplayRowForEmailEligibility(p, supplement);
@@ -1019,11 +1058,23 @@ export function ApplicationFinancialReviewContent({
                   const ctosIdNormalized = p.matchKey.replace(/[^a-zA-Z0-9]/g, "");
                   return (
                     <TableRow key={p.matchKey} className={applicationTableRowClass}>
-                      <TableCell className={`${applicationTableCellClass} font-medium`}>{p.name ?? "\u2014"}</TableCell>
+                      <TableCell className={`${applicationTableCellClass} font-medium`}>
+                        <div>{p.name ?? "\u2014"}</div>
+                        <div className="font-mono text-xs text-muted-foreground">{p.matchKey || "—"}</div>
+                      </TableCell>
                       <TableCell className={applicationTableCellClass}>
                         {formatPeopleRolesDisplayCapitalized(p)}
                       </TableCell>
-                      <TableCell className={applicationTableCellClass}>{formatSharePercentageCell(p)}</TableCell>
+                      <TableCell className={applicationTableCellClass}>
+                        {(() => {
+                          const rolesU = (p.roles ?? []).map((r) => String(r).toUpperCase());
+                          const hasDirector = rolesU.includes("DIRECTOR");
+                          const hasShareholder = rolesU.includes("SHAREHOLDER");
+                          if (hasDirector && !hasShareholder) return <span className="text-muted-foreground">{"—"}</span>;
+                          const v = formatSharePercentageCell(p);
+                          return <span className={v ? undefined : "text-muted-foreground"}>{v || "—"}</span>;
+                        })()}
+                      </TableCell>
                       <TableCell className={applicationTableCellClass}>
                         {kycKybLabel ? (
                           <Badge

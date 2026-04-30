@@ -62,10 +62,9 @@ function buildPeopleFromUserDeclaredData(params: {
   });
 
   return displayRows.map((r) => {
-    const matchKey = (r.idNumber ?? r.registrationNumber ?? r.enquiryId ?? r.id) as
-      | string
-      | null
-      | undefined;
+    // Admin UI expects matchKey to be the IC government id (INDIVIDUAL) or SSM number (CORPORATE).
+    // We must not fall back to RegTank request ids here.
+    const matchKey = (r.idNumber ?? r.registrationNumber ?? "") as string;
 
     const roles: Array<"DIRECTOR" | "SHAREHOLDER"> = [];
     if (r.isDirector) roles.push("DIRECTOR");
@@ -75,7 +74,7 @@ function buildPeopleFromUserDeclaredData(params: {
     if (r.isShareholder && sharePct != null && sharePct >= 5) roles.push("SHAREHOLDER");
 
     return {
-      matchKey: matchKey ?? r.id,
+      matchKey,
       name: r.name ?? null,
       entityType: r.type === "INDIVIDUAL" ? "INDIVIDUAL" : "CORPORATE",
       roles,
