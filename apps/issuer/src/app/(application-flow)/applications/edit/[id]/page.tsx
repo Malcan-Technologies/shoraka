@@ -1605,6 +1605,9 @@ function EditApplicationPageBody() {
               enabled={activeOrganization.onboardingStatus === "COMPLETED"}
               stickyTop
               className="mb-2"
+              onGoToProfile={() => {
+                void safeNavigate("/profile", { leavingPage: true });
+              }}
             />
           </div>
         ) : null}

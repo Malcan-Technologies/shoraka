@@ -510,8 +510,6 @@ export class ApplicationService {
       );
     }
 
-    await assertIssuerOrgDirectorShareholderOnboardingReady(input.issuerOrganizationId);
-
     // Create application with product version and product_id in financing_type
     return this.repository.create({
       issuer_organization_id: input.issuerOrganizationId,

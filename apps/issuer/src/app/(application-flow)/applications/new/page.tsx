@@ -347,6 +347,7 @@ export default function NewApplicationPage() {
             enabled={activeOrganization.onboardingStatus === "COMPLETED"}
             stickyTop
             className="mb-4"
+            onGoToProfile={() => requestNavigation("/profile")}
           />
         ) : null}
         <div className="max-w-7xl mx-auto w-full px-4 py-8">

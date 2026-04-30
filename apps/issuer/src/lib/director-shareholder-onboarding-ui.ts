@@ -1,4 +1,5 @@
 import {
+  canEnterEmailForDirectorShareholder,
   filterVisiblePeopleRows,
   getCorporateShareholderEntityRecord,
   getCtosPartySupplementPipelineStatus,
@@ -89,8 +90,7 @@ export function areDirectorShareholdersReadyForApplicationSubmit(params: {
   void params.corporateEntities;
   void params.ctosPartySupplements;
   const visible = getVisibleIndividualPeople(params.people);
-  if (visible.length === 0) return true;
-  return visible.every((p) => isReadyOnboardingStatus(p.onboarding?.status));
+  return !visible.some((p) => canEnterEmailForDirectorShareholder(p));
 }
 
 export function personNeedsProfileDirectorAction(
@@ -102,5 +102,5 @@ export function personNeedsProfileDirectorAction(
   if (p.entityType !== "INDIVIDUAL") return false;
   if (isPartyTypeA(p, directorKycStatus, corporateEntities)) return false;
   void ctosPartySupplements;
-  return !isReadyOnboardingStatus(p.onboarding?.status);
+  return canEnterEmailForDirectorShareholder(p);
 }

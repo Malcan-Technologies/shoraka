@@ -14,13 +14,15 @@
 import * as React from "react";
 import { useOrganization, createApiClient, useAuthToken } from "@cashsouk/config";
 import {
+  buildDirectorShareholderDisplayRowForEmailEligibility,
+  canEnterEmailForDirectorShareholder,
   filterVisiblePeopleRows,
   formatPeopleRolesLine,
   formatSharePercentageCell,
+  normalizeRawStatus,
 } from "@cashsouk/types";
 import {
   areDirectorShareholdersReadyForApplicationSubmit,
-  isReadyOnboardingStatus,
 } from "@/lib/director-shareholder-onboarding-ui";
 import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
@@ -161,6 +163,34 @@ const inputClassName = cn(formInputClassName, formInputDisabledClassName);
 const inputClassNameEditable = formInputClassName;
 const labelClassName = formLabelClassName;
 const labelClassNameEditable = formLabelClassName;
+
+type UnifiedStatusTone = "muted" | "danger" | "warning" | "success";
+
+function getUnifiedDirectorShareholderStatus(person: {
+  onboarding?: { status?: unknown } | null;
+  screening?: { status?: unknown } | null;
+}) {
+  const screening = normalizeRawStatus(person.screening?.status);
+  const onboarding = normalizeRawStatus(person.onboarding?.status);
+  if (screening === "APPROVED" || onboarding === "APPROVED") {
+    return { label: "Completed", tone: "success" as UnifiedStatusTone };
+  }
+  if (onboarding === "WAIT_FOR_APPROVAL") {
+    return { label: "In Progress", tone: "warning" as UnifiedStatusTone };
+  }
+  if (onboarding === "REJECTED") {
+    return { label: "Action Required", tone: "danger" as UnifiedStatusTone };
+  }
+  return { label: "Not Started", tone: "muted" as UnifiedStatusTone };
+}
+
+function getStatusToneClass(tone: UnifiedStatusTone): string {
+  if (tone === "success") return "text-green-600";
+  if (tone === "warning") return "text-amber-600";
+  if (tone === "danger") return "text-red-600";
+  return "text-muted-foreground";
+}
+
 export function CompanyDetailsStep({
   applicationId,
   onDataChange,
@@ -673,31 +703,34 @@ export function CompanyDetailsStep({
               </p>
             ) : (
               visiblePeopleRows.map((p) => {
-                const onboardingReady = isReadyOnboardingStatus(p.onboarding?.status);
-                const onboardingLabel = p.onboarding?.status?.trim() || "—";
+                const displayRow = buildDirectorShareholderDisplayRowForEmailEligibility(p, null);
+                const statusView = getUnifiedDirectorShareholderStatus(p);
                 const own = formatSharePercentageCell(p);
-                const showCompleteOnProfile = !onboardingReady;
+                const showCompleteOnProfile = canEnterEmailForDirectorShareholder(p);
+                const idLabel =
+                  (displayRow.idNumber || displayRow.registrationNumber || p.matchKey || "").trim();
                 return (
                   <React.Fragment key={p.matchKey}>
                     <div className={labelClassName}>{formatPeopleRolesLine(p)}</div>
                     <div className="flex flex-col gap-2">
                       <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
-                        <div className="text-[17px] leading-7 font-medium whitespace-nowrap">{p.name ?? "—"}</div>
+                        <div className="flex min-w-0 flex-col">
+                          <span className="text-[17px] leading-7 font-medium truncate">{p.name ?? "—"}</span>
+                          <span className="text-xs text-muted-foreground truncate">{idLabel || "—"}</span>
+                        </div>
                         <div className="h-4 w-px bg-border" />
                         <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">{own}</div>
                         <div className="h-4 w-px bg-border" />
                         <div className="flex flex-col gap-0.5 min-w-0">
-                          <span className="text-xs text-muted-foreground">Onboarding</span>
-                          {onboardingReady ? (
-                            <div className="flex items-center gap-1.5 whitespace-nowrap">
+                          <span className="text-xs text-muted-foreground">Status</span>
+                          <div className="flex items-center gap-1.5 whitespace-nowrap">
+                            {statusView.tone === "success" ? (
                               <CheckCircleIcon className="h-4 w-4 text-green-600 shrink-0" />
-                              <span className="text-[17px] leading-7 text-green-600 truncate">{onboardingLabel}</span>
-                            </div>
-                          ) : (
-                            <span className="text-[17px] leading-7 text-muted-foreground truncate">
-                              {onboardingLabel}
+                            ) : null}
+                            <span className={cn("text-[17px] leading-7 truncate", getStatusToneClass(statusView.tone))}>
+                              {statusView.label}
                             </span>
-                          )}
+                          </div>
                         </div>
                       </div>
                       {showCompleteOnProfile ? (
