@@ -49,11 +49,11 @@ Normalized → **`screening.status`** (`amlSanitizedStatus`).
 
 Normalized KYB string → **`onboarding.status`** on **CORPORATE** rows (same property name as individual KYC).
 
-### Supplements (optional override)
+### Supplements (full row when present)
 
 | Storage | Effect |
 |---------|--------|
-| `ctos_party_supplements.onboarding_json` | Can replace **`onboarding.status`** (RegTank / KYC pipeline from supplement) and **`screening.status`** (flat screening / AML line) per party key when `normalizeUnifiedPeopleRows` runs |
+| `ctos_party_supplements` row for party key | **`people[]`** for that `matchKey` is built **only** from `onboarding_json` (via `parseCtosPartySupplement`) for **`requestId`**, **`onboarding.*`**, **`screening.*`**, **`email`** — issuer KYC/AML is not mixed in. If no supplement row exists for the key, issuer JSON is used. |
 
 Any value that ends up in `screening.status` / `onboarding.status` is still normalized and then passed through the same UI rules below.
 
@@ -88,12 +88,9 @@ Any value that ends up in `screening.status` / `onboarding.status` is still norm
 - Individual KYC: `kycSanitizedStatus` → `normalizeRawStatus(kycStatus || status)`.
 - Corporate: `onboarding.status` from CE KYB status raw, normalized.
 
-### 3.2 Supplement overrides (optional)
+### 3.2 After row build
 
-**`normalizeUnifiedPeopleRows`** merges duplicate rows by `matchKey`, then for each key:
-
-- If a supplement exists for that party key, **`status`** (onboarding pipeline) and **`screening.status`** are read from `onboarding_json` via `parseCtosPartySupplement` + `normalizeRawStatus`.
-- If no supplement for that key, issuer-derived `row.onboarding?.status` / `row.screening?.status` stay (still normalized).
+**`normalizeUnifiedPeopleRows`** merges duplicate rows by `matchKey` (union roles, max share, strip auxiliary email fields). Supplement vs issuer is already decided **before** this step: supplement row present → row came entirely from `parseCtosPartySupplement`; otherwise from **`enrichPersonFromIssuerMaps`**.
 
 ### 3.3 Single badge (UI) — how `screening` / `onboarding` become labels
 
@@ -224,7 +221,7 @@ So in documentation terms: **AML > (KYC or KYB)**. **KYB** only affects the badg
 | **Missing KYC/KYB** (`onboarding.status` empty) but AML present | AML-only mapping. |
 | **Both missing** | `getDirectorShareholderSingleStatusPresentation` returns **`null`** → UI shows **no** badge from this helper (other columns may still show data). |
 | **Unknown / unlisted raw token** | **AML:** `getAmlGroup` defaults to **`IN_PROGRESS`** → “In Progress”. **KYC:** `getKycGroup` defaults to **`IN_PROGRESS`** → “In Progress”. |
-| **Supplement overrides issuer** | For that `matchKey`, `onboarding_json` drives `onboarding.status` / `screening.status` in `normalizeUnifiedPeopleRows`, then the same presentation rules apply. |
+| **Supplement replaces issuer for that party** | For that `matchKey`, a `ctos_party_supplements` row makes `people[]` use **only** parsed `onboarding_json` for RegTank ids and statuses; issuer KYC/AML is not merged. |
 
 ---
 

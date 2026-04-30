@@ -24,16 +24,8 @@ export type ApplicationPersonRow = {
   /**
    * SOURCE OF TRUTH (CRITICAL)
    *
-   * - All Director/Shareholder UI must use `people` only
-   * - Do NOT read:
-   *   - CTOS supplement (onboarding_json)
-   *   - director_kyc_status / director_aml_status
-   * - Do NOT recompute:
-   *   - onboarding status
-   *   - screening status
-   *   - email
-   *
-   * Backend is responsible for full enrichment.
+   * - Director/Shareholder UI reads **`people` only** for row-level onboarding, screening, email, and `requestId`.
+   * - Backend chooses **supplement-only** vs **issuer-only** per `matchKey` (`build-people-list.ts`); the UI must not merge raw JSON or issuer blobs into these fields.
    */
   matchKey: string;
   name: string | null;
@@ -58,10 +50,15 @@ export type ApplicationPersonRow = {
   /** Optional per-person KYC fallback (e.g. from director_kyc_status). */
   directorKycStatus?: string | null;
   /**
-   * Onboarding (KYC individual or KYB corporate) snapshot from issuer RegTank payloads.
-   * `id` is KYC/KYB request id when known (fallback for {@link ApplicationPersonRow.requestId}).
+   * Onboarding snapshot: from `ctos_party_supplements` when a row exists for this `matchKey`, else from issuer KYC/KYB JSON.
+   * `id` is reference id (supplement) or KYC/KYB id (issuer). `verifyLink` / `updatedAt` are supplement-only when present.
    */
-  onboarding?: { status?: string | null; id?: string | null } | null;
+  onboarding?: {
+    status?: string | null;
+    id?: string | null;
+    verifyLink?: string | null;
+    updatedAt?: string | null;
+  } | null;
   action?: "SEND_EMAIL" | null;
   /**
    * AML screening snapshot (e.g. RegTank ACURIS). `status` drives badges with KYC priority rules in UI helpers.
@@ -74,8 +71,7 @@ export type ApplicationPersonRow = {
     riskScore?: string | number | null;
   } | null;
   /**
-   * Primary RegTank request id for admin (priority: KYC/KYB id, then EOD/COD).
-   * Used with {@link getRegtankLink} for RegTank client portal deep links.
+   * Primary RegTank request id: from supplement when a `ctos_party_supplements` row exists for this party, else KYC/KYB id then EOD/COD from issuer JSON.
    */
   requestId?: string | null;
   /** IC front image URL from issuer `corporate_entities` (director/shareholder `documents`). */
