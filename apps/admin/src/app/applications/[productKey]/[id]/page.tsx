@@ -935,6 +935,7 @@ export default function DynamicApplicationDetailPage() {
                           <SectionContent
                             descriptor={descriptor}
                             app={app}
+                            liveApplicationId={applicationId}
                             isReviewable={isReviewable}
                             approveSectionPending={approveSection.isPending}
                             approveItemPending={approveItem.isPending}

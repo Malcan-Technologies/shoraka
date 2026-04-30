@@ -60,13 +60,17 @@ export function useCreateIssuerOrganizationCtosSubjectReport(
       const refetches: Array<Promise<unknown>> = [];
       if (applicationDetailId) {
         refetches.push(
-          queryClient.refetchQueries({ queryKey: applicationsKeys.detail(applicationDetailId) })
+          queryClient.refetchQueries({
+            queryKey: applicationsKeys.detail(applicationDetailId),
+            type: "all",
+          })
         );
       }
       if (organizationId) {
         refetches.push(
           queryClient.refetchQueries({
             queryKey: ["admin", "organization-detail", "issuer", organizationId],
+            type: "all",
           })
         );
       }
