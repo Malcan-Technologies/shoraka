@@ -164,6 +164,58 @@ describe("buildUnifiedPeople", () => {
     expect(rows[0]?.email).toBe("");
   });
 
+  it("sets requestId and AML risk from EOD-linked issuer payloads (user-declared path)", () => {
+    const rows = buildUnifiedPeople({
+      ctos: null,
+      issuerDirectorKycStatus: {
+        directors: [
+          {
+            governmentIdNumber: "050616101789",
+            kycStatus: "APPROVED",
+            kycId: "KY123",
+            eodRequestId: "EOD05278",
+            email: "a@b.com",
+          },
+        ],
+      },
+      issuerDirectorAmlStatus: {
+        directors: [
+          {
+            governmentIdNumber: "050616101789",
+            eodRequestId: "EOD05278",
+            amlStatus: "REJECTED",
+            amlRiskLevel: "Low",
+            amlRiskScore: 12,
+          },
+        ],
+      },
+      ctosPartySupplements: null,
+      corporateEntities: {
+        directors: [
+          {
+            eodRequestId: "EOD05278",
+            personalInfo: {
+              fullName: "Lim",
+              email: "a@b.com",
+              formContent: {
+                content: [{ fieldName: "Government ID Number", fieldValue: "050616-10-1789" }],
+              },
+            },
+          },
+        ],
+        shareholders: [],
+        corporateShareholders: [],
+      },
+    });
+    const lim = rows.find((r) => r.entityType === "INDIVIDUAL");
+    expect(lim).toBeDefined();
+    expect(lim?.requestId).toBe("KY123");
+    expect(lim?.screening?.riskLevel).toBe("Low");
+    expect(lim?.screening?.riskScore).toBe(12);
+    expect(lim?.onboarding?.id).toBe("KY123");
+    expect(lim?.screening?.status).toBe("REJECTED");
+  });
+
   it("sets corporate matchKey from Business Number in formContent.displayAreas (case-insensitive)", () => {
     const rows = buildUnifiedPeople({
       ctos: null,

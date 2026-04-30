@@ -57,18 +57,62 @@ export type ApplicationPersonRow = {
   directorAmlStatus?: string | null;
   /** Optional per-person KYC fallback (e.g. from director_kyc_status). */
   directorKycStatus?: string | null;
-  /** Optional onboarding pipeline snapshot from CTOS party supplement. */
-  onboarding?: { status?: string | null } | null;
+  /**
+   * Onboarding (KYC individual or KYB corporate) snapshot from issuer RegTank payloads.
+   * `id` is KYC/KYB request id when known (fallback for {@link ApplicationPersonRow.requestId}).
+   */
+  onboarding?: { status?: string | null; id?: string | null } | null;
   action?: "SEND_EMAIL" | null;
-  /** Flat AML screening snapshot (e.g. RegTank ACURIS `status`). Single source for submit/badge gating. */
-  screening?: { status?: string | null } | null;
+  /**
+   * AML screening snapshot (e.g. RegTank ACURIS). `status` drives badges with KYC priority rules in UI helpers.
+   * `id` is AML/COD-linked request id when present.
+   */
+  screening?: {
+    status?: string | null;
+    id?: string | null;
+    riskLevel?: string | null;
+    riskScore?: string | number | null;
+  } | null;
+  /**
+   * Primary RegTank request id for admin (priority: KYC/KYB id, then EOD/COD).
+   * Used with {@link getRegtankLink} for onboarding-proxy deep links.
+   */
+  requestId?: string | null;
+  /** IC front image URL from issuer `corporate_entities` (director/shareholder `documents`). */
+  icFrontUrl?: string | null;
+  /** IC back image URL from issuer `corporate_entities` (director/shareholder `documents`). */
+  icBackUrl?: string | null;
 };
 
+/**
+ * RegTank onboarding-proxy origin (no trailing slash). Admin: set `NEXT_PUBLIC_REGTANK_ONBOARDING_PROXY_URL`.
+ */
+export function getRegtankOnboardingProxyBaseUrl(): string {
+  const fromEnv =
+    typeof process !== "undefined" && typeof process.env.NEXT_PUBLIC_REGTANK_ONBOARDING_PROXY_URL === "string"
+      ? process.env.NEXT_PUBLIC_REGTANK_ONBOARDING_PROXY_URL.trim()
+      : "";
+  const raw = fromEnv || "https://shoraka-trial-onboarding-proxy.regtank.com";
+  return raw.replace(/\/+$/, "");
+}
+
+/**
+ * Deep link into RegTank onboarding-proxy for this party’s primary `requestId` (new tab).
+ * Path: `individual/{id}` vs `corporate/{id}` from {@link ApplicationPersonRow.entityType}.
+ */
+export function getRegtankLink(person: Pick<ApplicationPersonRow, "requestId" | "entityType">): string | null {
+  const id = String(person.requestId ?? "").trim();
+  if (!id) return null;
+  const base = getRegtankOnboardingProxyBaseUrl();
+  const seg = person.entityType === "CORPORATE" ? "corporate" : "individual";
+  return `${base}/${seg}/${encodeURIComponent(id)}`;
+}
+
 export type DisplayStatusPerson = {
-  screening?: { status?: string | null } | null;
+  screening?: { status?: string | null; riskLevel?: string | null; riskScore?: string | number | null } | null;
   directorAmlStatus?: string | null;
   directorKycStatus?: string | null;
-  onboarding?: { status?: string | null } | null;
+  onboarding?: { status?: string | null; id?: string | null } | null;
 };
 
 export type PeopleRolesRowInput = {

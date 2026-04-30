@@ -32,6 +32,7 @@ import {
 import {
   // getDirectorShareholderStatusTooltip,
   getDirectorShareholderSingleStatusPresentation,
+  getRegtankLink,
   normalizeDirectorShareholderIdKey,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
@@ -150,14 +151,54 @@ export function DirectorShareholderTable({
                       </>
                     ) : null}
                   </TableCell>
-                  <TableCell>—</TableCell>
-                  <TableCell>
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {normalizedSubjectRef || p.matchKey}
-                    </span>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {p.screening?.riskLevel != null && String(p.screening.riskLevel).trim()
+                      ? String(p.screening.riskLevel).trim()
+                      : p.screening?.riskScore != null && String(p.screening.riskScore).trim()
+                        ? String(p.screening.riskScore)
+                        : "—"}
                   </TableCell>
-                  <TableCell>—</TableCell>
-                  <TableCell>—</TableCell>
+                  <TableCell>
+                    {(() => {
+                      const rid = String(p.requestId ?? "").trim();
+                      const link = getRegtankLink(p);
+                      const fallback = normalizedSubjectRef || p.matchKey;
+                      if (link && rid) {
+                        return (
+                          <Button asChild variant="link" className="h-auto p-0 font-mono text-xs underline">
+                            <a href={link} target="_blank" rel="noopener noreferrer">
+                              {rid}
+                            </a>
+                          </Button>
+                        );
+                      }
+                      return (
+                        <span className="font-mono text-xs text-muted-foreground">{rid || fallback}</span>
+                      );
+                    })()}
+                  </TableCell>
+                  <TableCell>
+                    {p.icFrontUrl ? (
+                      <Button asChild variant="link" className="h-auto p-0 text-sm underline">
+                        <a href={p.icFrontUrl} target="_blank" rel="noopener noreferrer">
+                          View Front
+                        </a>
+                      </Button>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {p.icBackUrl ? (
+                      <Button asChild variant="link" className="h-auto p-0 text-sm underline">
+                        <a href={p.icBackUrl} target="_blank" rel="noopener noreferrer">
+                          View Back
+                        </a>
+                      </Button>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
                   <TableCell className="text-xs text-muted-foreground whitespace-nowrap">—</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -264,6 +305,9 @@ function mergePeopleRowsByMatchKey(rows: ApplicationPersonRow[]): ApplicationPer
       name: prev.name ?? row.name ?? null,
       onboarding: prev.onboarding ?? row.onboarding ?? null,
       screening: prev.screening ?? row.screening ?? null,
+      requestId: prev.requestId ?? row.requestId ?? null,
+      icFrontUrl: prev.icFrontUrl ?? row.icFrontUrl ?? null,
+      icBackUrl: prev.icBackUrl ?? row.icBackUrl ?? null,
       email: prev.email ?? row.email ?? "",
     });
   }
