@@ -793,27 +793,50 @@ function buildKycByNormalizedId(directorKycStatus: Record<string, unknown> | nul
   return m;
 }
 
-/** Business AML rows keyed by normalized reg id on the AML payload (not director_kyc_status IC). */
-function buildAmlByNormalizedGovId(
-  directorAmlStatus: Record<string, unknown> | null | undefined,
-  _directorKycStatus: Record<string, unknown> | null | undefined
-): Map<string, string> {
-  const out = new Map<string, string>();
-  if (!directorAmlStatus || typeof directorAmlStatus !== "object") return out;
-
-  const amlBiz = Array.isArray((directorAmlStatus as { businessShareholders?: unknown }).businessShareholders)
-    ? ((directorAmlStatus as { businessShareholders: unknown[] }).businessShareholders as Record<string, unknown>[])
+/**
+ * SECTION: AML rows keyed by normalized business registration
+ * WHY: Corporate shareholder rows match director_aml_status.businessShareholders by SSM / BRN
+ * INPUT: directorAmlStatus JSON
+ * OUTPUT: Map normalizedKey → full business shareholder row (for amlStatus and future fields)
+ * WHERE USED: buildOnboardingDisplayRows corporate loop
+ */
+function buildCorporateAmlByBusinessNumber(
+  aml: Record<string, unknown> | null | undefined
+): Map<string, Record<string, unknown>> {
+  const map = new Map<string, Record<string, unknown>>();
+  const list = Array.isArray((aml as { businessShareholders?: unknown })?.businessShareholders)
+    ? ((aml as { businessShareholders: Record<string, unknown>[] }).businessShareholders as Record<string, unknown>[])
     : [];
-  for (const row of amlBiz) {
-    const key = normalizeDirectorShareholderIdKey(
-      String(row.businessNumber ?? row.registrationNumber ?? row.brn_ssm ?? "")
-    );
+  for (const b of list) {
+    const raw = String(b.businessNumber ?? b.registrationNumber ?? b.brn_ssm ?? "").trim();
+    const key = normalizeDirectorShareholderIdKey(raw);
     if (!key) continue;
-    const amlSt = row.amlStatus;
-    if (amlSt == null || String(amlSt).trim() === "") continue;
-    out.set(key, String(amlSt).trim());
+    map.set(key, b);
   }
-  return out;
+  return map;
+}
+
+/**
+ * SECTION: Corporate KYB rows keyed by normalized business registration from formContent
+ * WHY: Same matchKey as AML and CE corporate shareholder identity
+ * INPUT: corporate_entities JSON
+ * OUTPUT: Map normalizedKey → corporate shareholder record
+ * WHERE USED: buildOnboardingDisplayRows corporate loop
+ */
+function buildCorporateKybByBusinessNumber(
+  corporateEntities: Record<string, unknown> | null | undefined
+): Map<string, Record<string, unknown>> {
+  const map = new Map<string, Record<string, unknown>>();
+  const list = Array.isArray(corporateEntities?.corporateShareholders)
+    ? (corporateEntities!.corporateShareholders as Record<string, unknown>[])
+    : [];
+  for (const c of list) {
+    const raw = extractBusinessNumber((c as Record<string, unknown>).formContent);
+    const key = normalizeDirectorShareholderIdKey(raw ?? "");
+    if (!key) continue;
+    map.set(key, c as Record<string, unknown>);
+  }
+  return map;
 }
 
 function resolveIndividualStatus(
@@ -903,7 +926,8 @@ function buildOnboardingDisplayRows(
   sentRowIds: ReadonlySet<string> | null | undefined
 ): DirectorShareholderDisplayRow[] {
   const kycById = buildKycByNormalizedId(directorKycStatus);
-  const amlByGov = buildAmlByNormalizedGovId(directorAmlStatus, directorKycStatus);
+  const corporateAmlMap = buildCorporateAmlByBusinessNumber(directorAmlStatus);
+  const corporateKybMap = buildCorporateKybByBusinessNumber(corporateEntities);
   const directors = Array.isArray(corporateEntities?.directors)
     ? (corporateEntities!.directors as Record<string, unknown>[])
     : [];
@@ -1101,21 +1125,35 @@ function buildOnboardingDisplayRows(
         sharePercentage: share,
       }) || "Corporate Shareholder";
 
-    console.log("[CORP BUILD]", {
-      name: String(c.companyName ?? c.businessName ?? "").trim() || getCorpDisplayName(corp),
-      share,
-      roles: isSh ? ["SHAREHOLDER"] : [],
+    const amlRec = corporateAmlMap.get(regKey);
+    const kybRec = corporateKybMap.get(regKey) ?? c;
+    const amlStRaw =
+      amlRec && amlRec.amlStatus != null && String(amlRec.amlStatus).trim() !== ""
+        ? String(amlRec.amlStatus).trim()
+        : "";
+    const amlLine = amlStRaw ? normalizeRawStatus(amlStRaw) || undefined : undefined;
+    const kybDto = kybRec.kybRequestDto as Record<string, unknown> | undefined;
+    const kybStRaw =
+      (kybDto?.status != null ? String(kybDto.status).trim() : "") ||
+      (kybRec.status != null ? String(kybRec.status).trim() : "") ||
+      "";
+    let statusBase = kybStRaw ? normalizeRawStatus(kybStRaw) || "" : "";
+    if (!statusBase) {
+      const rawResolved = resolveCompanyStatus(regKey, kycById);
+      statusBase = normalizeRawStatus(rawResolved);
+    }
+    const status = statusBase;
+    const displayName = String(c.companyName ?? c.businessName ?? "").trim() || getCorpDisplayName(corp);
+    console.log("[CORP STATUS]", {
+      name: displayName,
       matchKey: regKey,
+      aml: amlRec && amlRec.amlStatus != null ? String(amlRec.amlStatus) : null,
+      kyb: kybDto?.status != null ? String(kybDto.status) : kybRec.status != null ? String(kybRec.status) : null,
     });
 
     const id = `onb-corp-${regKey}`;
-    const rawResolved = resolveCompanyStatus(regKey, kycById);
-    const unifiedBase = normalizeRawStatus(rawResolved);
-    const status = unifiedBase;
     const email = String(c.email ?? "").trim();
     const corpOwn = ownershipFromCorpShareholder(corp);
-    const corpAmlRaw = amlByGov.get(regKey);
-    const corpAmlLine = normalizeRawStatus(corpAmlRaw);
     rows.push({
       id,
       name: getCorpDisplayName(corp),
@@ -1130,7 +1168,7 @@ function buildOnboardingDisplayRows(
       canSendOnboarding: false,
       enquiryId: regRaw ? regRaw.trim() : null,
       subjectKind: "CORPORATE",
-      amlStatus: corpAmlLine || undefined,
+      amlStatus: amlLine || undefined,
       isDirector: false,
       isShareholder: isSh,
       sharePercentage: share,
