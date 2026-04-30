@@ -70,6 +70,32 @@ export function getDisplayRoleLabel(row: {
 }
 
 /**
+ * SECTION: Derive director / shareholder flags from designation + share
+ * WHY: Single helper for onboarding role booleans (same rules as previous inline checks)
+ * INPUT: designation "director" when row comes from CE directors list; share for >=5% shareholder rule
+ * OUTPUT: isDirector, isShareholder, roles[], numeric share
+ * WHERE USED: buildOnboardingDisplayRows (individual + corporate shareholders)
+ */
+export function deriveDirectorShareholderRoles(input: {
+  designation?: string | null;
+  sharePercentage?: number | null;
+}) {
+  const roles: string[] = [];
+  const isDirector =
+    typeof input.designation === "string" && input.designation.toLowerCase() === "director";
+  const share = Number(input.sharePercentage ?? 0);
+  const isShareholder = Number.isFinite(share) && share >= 5;
+  if (isDirector) roles.push("DIRECTOR");
+  if (isShareholder) roles.push("SHAREHOLDER");
+  return {
+    isDirector,
+    isShareholder,
+    roles,
+    sharePercentage: share,
+  };
+}
+
+/**
  * Canonical person inclusion rule:
  * - Directors always included
  * - Individual shareholders included only when >= 5%
@@ -1014,6 +1040,10 @@ function buildOnboardingDisplayRows(
     const em = emailFromCePerson(p);
     const own = ownershipFromCePerson(p);
     const dirShare = percentOfSharesFromOnboardingCePerson(pr);
+    const dirRole = deriveDirectorShareholderRoles({
+      designation: "director",
+      sharePercentage: 0,
+    });
     addInd(icKey, {
       name: personNameFromCe(p),
       roles: new Set(["Director"]),
@@ -1022,8 +1052,8 @@ function buildOnboardingDisplayRows(
       icKey,
       eod,
       ownershipDisplay: own,
-      isDirector: true,
-      isShareholder: false,
+      isDirector: dirRole.isDirector,
+      isShareholder: dirRole.isShareholder,
       sharePctMax: dirShare,
     });
   }
@@ -1040,6 +1070,7 @@ function buildOnboardingDisplayRows(
     const eod = String(p.eodRequestId ?? "").trim() || null;
     const em = emailFromCePerson(p);
     const own = ownershipFromCePerson(p);
+    const shRole = deriveDirectorShareholderRoles({ sharePercentage: share });
     const existingKey = findExistingIndKey(icKey);
     if (existingKey) {
       mergeInd(existingKey, {
@@ -1051,7 +1082,7 @@ function buildOnboardingDisplayRows(
         eod,
         ownershipDisplay: own,
         sharePctMax: share,
-        isShareholder: true,
+        isShareholder: shRole.isShareholder,
       });
     } else {
       addInd(icKey, {
@@ -1062,8 +1093,8 @@ function buildOnboardingDisplayRows(
         icKey,
         eod,
         ownershipDisplay: own,
-        isDirector: false,
-        isShareholder: true,
+        isDirector: shRole.isDirector,
+        isShareholder: shRole.isShareholder,
         sharePctMax: share,
       });
     }
@@ -1117,7 +1148,8 @@ function buildOnboardingDisplayRows(
     if (!regKey) continue;
 
     const share = percentOfSharesFromCorpShareholder(c);
-    const isSh = share >= 5;
+    const corpRole = deriveDirectorShareholderRoles({ sharePercentage: share });
+    const isSh = corpRole.isShareholder;
     const roleLabel =
       getDisplayRoleLabel({
         isDirector: false,
