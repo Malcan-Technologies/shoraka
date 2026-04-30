@@ -382,17 +382,11 @@ export function buildUnifiedPeople(params: {
 
   const rawRows = Array.from(peopleMap.values()).map((person) => {
     const key = normalizeDirectorShareholderIdKey(person.matchKey) ?? "";
-    const fromSup = key ? screeningByPartyKey.get(key) : undefined;
-    const screeningNorm = normalizeRawStatus(fromSup?.status);
-    const screening: { status: string | null } = { status: screeningNorm || null };
-    const amlLabel = screeningNorm;
+    const kycRefs = key ? individualKycRefByGov.get(key) : undefined;
     const rawAmlSync =
       person.entityType === "CORPORATE"
-        ? key
-          ? corporateRawAmlByKey.get(key)
-          : undefined
+        ? (key ? corporateRawAmlByKey.get(key) : undefined)
         : (() => {
-            const kycRefs = key ? individualKycRefByGov.get(key) : undefined;
             return (
               (key ? individualSyncAmlByGov.get(key) : undefined) ||
               (kycRefs?.kycId ? individualSyncAmlByKycId.get(kycRefs.kycId) : undefined) ||
@@ -402,36 +396,60 @@ export function buildUnifiedPeople(params: {
                 : undefined)
             );
           })();
-    const directorAmlStatus =
-      rawAmlSync != null && String(rawAmlSync).trim() !== ""
-        ? normalizeRawStatus(String(rawAmlSync).trim()) || null
-        : null;
-    const kycRefs = key ? individualKycRefByGov.get(key) : undefined;
-    const directorKycStatus = kycRefs?.kycStatus?.trim()
-      ? normalizeRawStatus(kycRefs.kycStatus.trim()) || null
-      : null;
-    const onboardingStatus = key ? onboardingByPartyKey.get(key)?.status ?? null : null;
 
-    const rawSaved = key ? userEmailByPartyKey.get(key) : undefined;
-    const userEmail = rawSaved?.trim() ? rawSaved.trim() : null;
+    const hasSupplementMatch =
+      Boolean(key) &&
+      (onboardingByPartyKey.has(key) || screeningByPartyKey.has(key) || userEmailByPartyKey.has(key));
+    const hasDbMatch = Boolean(key) && Boolean(kycRefs || rawAmlSync || corporateRawAmlByKey.has(key));
+    const source: "SUPPLEMENT" | "DB" | "NEW_PERSON" = hasSupplementMatch
+      ? "SUPPLEMENT"
+      : hasDbMatch
+        ? "DB"
+        : "NEW_PERSON";
 
+    let onboardingStatus: string | null = null;
+    let screeningNorm: string | null = null;
+    let userEmail: string | null = null;
     let kycEmail: string | null = null;
     let amlEmail: string | null = null;
-    if (person.entityType === "INDIVIDUAL") {
-      kycEmail = kycRefs?.email?.trim() ? kycRefs.email.trim() : null;
-      const amlByIc = key ? individualAmlEmailByGov.get(key) : undefined;
-      if (amlByIc?.trim()) {
-        amlEmail = amlByIc.trim();
-      } else if (kycRefs?.kycId) {
-        const amlByKyc = individualAmlEmailByKycId.get(kycRefs.kycId);
-        if (amlByKyc?.trim()) amlEmail = amlByKyc.trim();
+
+    if (source === "SUPPLEMENT") {
+      onboardingStatus = onboardingByPartyKey.get(key)?.status ?? null;
+      screeningNorm = normalizeRawStatus(screeningByPartyKey.get(key)?.status) || null;
+      const supEmail = userEmailByPartyKey.get(key);
+      userEmail = supEmail?.trim() ? supEmail.trim() : null;
+    } else if (source === "DB") {
+      onboardingStatus = kycRefs?.kycStatus?.trim() ? normalizeRawStatus(kycRefs.kycStatus.trim()) || null : null;
+      screeningNorm =
+        rawAmlSync != null && String(rawAmlSync).trim() !== ""
+          ? normalizeRawStatus(String(rawAmlSync).trim()) || null
+          : null;
+      if (person.entityType === "INDIVIDUAL") {
+        kycEmail = kycRefs?.email?.trim() ? kycRefs.email.trim() : null;
+        const amlByIc = key ? individualAmlEmailByGov.get(key) : undefined;
+        if (amlByIc?.trim()) {
+          amlEmail = amlByIc.trim();
+        } else if (kycRefs?.kycId) {
+          const amlByKyc = individualAmlEmailByKycId.get(kycRefs.kycId);
+          if (amlByKyc?.trim()) amlEmail = amlByKyc.trim();
+        }
       }
     }
 
-    const email = userEmail ?? kycEmail ?? amlEmail ?? "";
+    const screening: { status: string | null } = { status: screeningNorm || null };
+    const amlLabel = screeningNorm;
+    const directorAmlStatus = screeningNorm;
+    const directorKycStatus = onboardingStatus;
+    const email =
+      source === "SUPPLEMENT"
+        ? userEmail ?? ""
+        : source === "DB"
+          ? kycEmail ?? amlEmail ?? ""
+          : "";
 
     console.log("RAW STATUS", {
       matchKey: person.matchKey,
+      source,
       onboarding: onboardingStatus ?? "",
       screening: screeningNorm,
     });

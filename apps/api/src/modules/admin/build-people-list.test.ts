@@ -128,4 +128,39 @@ describe("buildUnifiedPeople", () => {
     expect(rows[0]?.screening?.status).toBe("APPROVED");
     expect(rows[0]?.email).toBe("supplement@example.com");
   });
+
+  it("treats unmatched person as NEW_PERSON with null status and email", () => {
+    const rows = buildUnifiedPeople({
+      ctos: {
+        directors: [
+          {
+            party_type: "I",
+            nic_brno: "550505-10-5555",
+            name: "New Person",
+            position: "Director",
+          },
+        ],
+        shareholders: [],
+      },
+      issuerDirectorKycStatus: {
+        directors: [{ governmentIdNumber: "111111111111", kycStatus: "APPROVED", email: "db@example.com" }],
+      },
+      issuerDirectorAmlStatus: {
+        directors: [{ governmentIdNumber: "111111111111", amlStatus: "APPROVED", email: "db-aml@example.com" }],
+      },
+      ctosPartySupplements: [
+        {
+          party_key: "222222222222",
+          onboarding_json: { onboarding: { status: "APPROVED", email: "supp@example.com" } },
+        },
+      ],
+      corporateEntities: null,
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.matchKey).toBe("550505105555");
+    expect(rows[0]?.onboarding?.status).toBeNull();
+    expect(rows[0]?.screening?.status).toBeNull();
+    expect(rows[0]?.email).toBe("");
+  });
 });
