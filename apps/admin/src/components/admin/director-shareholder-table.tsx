@@ -80,6 +80,8 @@ type PendingCtosSubjectFetch = {
  */
 export function DirectorShareholderTable({
   people,
+  portal,
+  organizationId,
   supplements,
   directorAmlStatus,
   directorKycStatus,
@@ -90,12 +92,12 @@ export function DirectorShareholderTable({
   ctosFetchPendingKey,
   ctosFetchPending,
   notifyPending,
-  canNotify,
   onFetchSubjectCtos,
-  onViewLastReport,
   onNotify,
 }: {
   people: ApplicationPersonRow[];
+  portal: "issuer" | "investor";
+  organizationId: string;
   supplements: Array<{ partyKey: string; onboardingJson?: unknown }> | null | undefined;
   directorAmlStatus: unknown;
   directorKycStatus: unknown;
@@ -106,14 +108,12 @@ export function DirectorShareholderTable({
   ctosFetchPendingKey?: string | null;
   ctosFetchPending?: boolean;
   notifyPending?: boolean;
-  canNotify?: boolean;
   onFetchSubjectCtos: (input: {
     subjectRef: string;
     subjectKind: "INDIVIDUAL" | "CORPORATE";
     displayName?: string;
     idNumber?: string;
   }) => void;
-  onViewLastReport?: (reportId: string) => void;
   onNotify?: (partyKey: string) => void;
 }) {
   const [pendingCtosSubjectFetch, setPendingCtosSubjectFetch] = React.useState<PendingCtosSubjectFetch | null>(null);
@@ -261,7 +261,9 @@ export function DirectorShareholderTable({
                 String(screening.riskLevel ?? "").trim() ||
                 "—";
               const canNotifyByHelper = displayRow.canSendOnboarding === true;
-              const notifyEnabled = (canNotify ?? true) && canNotifyByHelper;
+              const notifyEnabled = canNotifyByHelper;
+              const normalizedSubjectRef = normalizeCtosSubjectRef(p.matchKey);
+              const viewUrl = `/organizations/${portal}/${encodeURIComponent(organizationId)}?tab=ctos&subject=${encodeURIComponent(p.matchKey)}`;
               const shareDisplay = (() => {
                 const rolesU = (p.roles ?? []).map((r) => String(r).toUpperCase());
                 const hasDirector = rolesU.includes("DIRECTOR");
@@ -333,10 +335,10 @@ export function DirectorShareholderTable({
                             idNumber: subjectIdNumber || "(server resolve)",
                           });
                           setPendingCtosSubjectFetch({
-                            subjectRef: p.matchKey,
+                            subjectRef: normalizedSubjectRef || p.matchKey,
                             subjectKind: p.entityType === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL",
                             displayName: subjectDisplayName,
-                            idNumber: subjectIdNumber || undefined,
+                            idNumber: normalizedSubjectRef || subjectIdNumber || undefined,
                             partyLabel: p.name?.trim() ? `${p.name} (${p.matchKey})` : p.matchKey,
                           });
                         }}
@@ -351,10 +353,12 @@ export function DirectorShareholderTable({
                         variant="outline"
                         size="sm"
                         className="h-8"
-                        onClick={() => latestSubjectReport?.id && onViewLastReport?.(latestSubjectReport.id)}
-                        disabled={!latestSubjectReport?.id || !onViewLastReport}
+                        asChild
+                        disabled={!latestSubjectReport?.id}
                       >
-                        View Last
+                        <a href={viewUrl} target="_blank" rel="noopener noreferrer">
+                          View Last
+                        </a>
                       </Button>
                     </div>
                   </TableCell>
@@ -440,6 +444,10 @@ function mergePeopleRowsByMatchKey(rows: ApplicationPersonRow[]): ApplicationPer
     });
   }
   return Array.from(map.values());
+}
+
+function normalizeCtosSubjectRef(raw: string): string {
+  return String(raw ?? "").replace(/[^a-zA-Z0-9]/g, "");
 }
 
 function formatRoleTitleCaseWithoutShare(roles: string[]): string {

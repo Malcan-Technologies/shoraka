@@ -905,6 +905,8 @@ export function ApplicationFinancialReviewContent({
       <ReviewFieldBlock title="Director and Shareholders">
         <DirectorShareholderTable
           people={app.people ?? []}
+          portal="issuer"
+          organizationId={issuerOrgId}
           supplements={
             (app.issuer_organization?.ctos_party_supplements ?? []).map((row) => ({
               partyKey: String(row.party_key ?? ""),
@@ -920,12 +922,10 @@ export function ApplicationFinancialReviewContent({
           ctosFetchPending={createSubjectReport.isPending}
           ctosFetchPendingKey={null}
           notifyPending={notifyActionRequired.isPending}
-          canNotify={issuerOrgId.length > 0}
-          onFetchSubjectCtos={(input) => {
-            const ctosIdNormalized = input.subjectRef.replace(/[^a-zA-Z0-9]/g, "");
+          onFetchSubjectCtos={(input) =>
             createSubjectReport.mutate(
               {
-                subjectRef: ctosIdNormalized || input.subjectRef,
+                subjectRef: input.subjectRef,
                 subjectKind: input.subjectKind,
                 enquiryOverride:
                   input.displayName && input.idNumber
@@ -936,28 +936,8 @@ export function ApplicationFinancialReviewContent({
                 onSuccess: () => toast.success("Subject report updated"),
                 onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "Request failed"),
               }
-            );
-          }}
-          onViewLastReport={async (reportId) => {
-            const token = await getAccessToken();
-            if (!token) {
-              toast.error("Not signed in");
-              return;
-            }
-            if (!issuerOrgId) return;
-            const url = `${API_URL}/v1/admin/organizations/issuer/${encodeURIComponent(issuerOrgId)}/ctos-reports/${reportId}/html`;
-            const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-            if (!res.ok) {
-              toast.error("Could not load report");
-              return;
-            }
-            const html = await res.text();
-            const w = window.open("", "_blank");
-            if (w) {
-              w.document.write(html);
-              w.document.close();
-            }
-          }}
+            )
+          }
           onNotify={(partyKey) =>
             notifyActionRequired.mutate(
               { partyKey },

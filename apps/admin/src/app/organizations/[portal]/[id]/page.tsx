@@ -752,29 +752,6 @@ export default function OrganizationDetailPage() {
       : `${org.owner.firstName} ${org.owner.lastName}`;
   }, [org]);
 
-  const openSubjectReportHtml = React.useCallback(
-    async (reportId: string) => {
-      const token = await getAccessToken();
-      if (!token) {
-        toast.error("Not signed in");
-        return;
-      }
-      const url = `${API_URL}/v1/admin/organizations/${portal}/${encodeURIComponent(organizationId)}/ctos-reports/${reportId}/html`;
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok) {
-        toast.error("Could not load report");
-        return;
-      }
-      const html = await res.text();
-      const w = window.open("", "_blank");
-      if (w) {
-        w.document.write(html);
-        w.document.close();
-      }
-    },
-    [getAccessToken, organizationId, portal]
-  );
-
   return (
     <>
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
@@ -1260,6 +1237,8 @@ export default function OrganizationDetailPage() {
                     <CardContent>
                       <DirectorShareholderTable
                         people={org.people ?? []}
+                        portal={portal === "investor" ? "investor" : "issuer"}
+                        organizationId={organizationId}
                         supplements={org.ctosPartySupplements ?? []}
                         directorAmlStatus={org.directorAmlStatus}
                         directorKycStatus={org.directorKycStatus}
@@ -1273,9 +1252,7 @@ export default function OrganizationDetailPage() {
                         ctosFetchPendingKey={ctosFetchSubjectKey}
                         ctosFetchPending={fetchSubjectCtosMutation.isPending}
                         notifyPending={notifyActionRequiredMutation.isPending}
-                        canNotify={portal === "issuer" && String(org.onboardingStatus ?? "").trim() === "COMPLETED"}
                         onFetchSubjectCtos={(input) => fetchSubjectCtosMutation.mutate(input)}
-                        onViewLastReport={(reportId) => void openSubjectReportHtml(reportId)}
                         onNotify={(partyKey) => notifyActionRequiredMutation.mutate({ partyKey })}
                       />
                     </CardContent>
