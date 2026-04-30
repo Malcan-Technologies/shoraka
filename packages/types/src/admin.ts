@@ -605,6 +605,14 @@ export interface OrganizationDetailResponse {
   latestOrganizationCtosCompanyJson?: Record<string, unknown> | null;
   ctosPartySupplements?: Array<{ partyKey: string; onboardingJson?: unknown }> | null;
 
+  /** Latest CTOS subject report per party (IC/SSM key); COMPANY issuer/investor org detail. */
+  latestOrganizationCtosSubjectReports?: Array<{
+    id: string;
+    subject_ref: string | null;
+    fetched_at: string;
+    has_report_html: boolean;
+  }> | null;
+
   // Corporate required documents (SSM profile, etc.) — COMPANY only
   corporateRequiredDocuments?: Record<string, unknown>[] | null;
 

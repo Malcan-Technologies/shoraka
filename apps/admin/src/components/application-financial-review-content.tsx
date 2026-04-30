@@ -42,6 +42,7 @@ import {
   getAdminFinancialSummaryUserColumnYears,
   getLatestThreeCtosYearSlots,
   normalizeFinancialStatementsQuestionnaire,
+  normalizeDirectorShareholderIdKey,
   type ApplicationPersonRow,
   type ColumnComputedMetrics,
   type FinancialStatementsInput,
@@ -288,6 +289,7 @@ export function ApplicationFinancialReviewContent({
     applicationId
   );
   const [orgCtosConfirmOpen, setOrgCtosConfirmOpen] = React.useState(false);
+  const [subjectCtosFetchKey, setSubjectCtosFetchKey] = React.useState<string | null>(null);
 
   const { unauditedByYear, questionnaire: financialQuestionnaire } = React.useMemo(
     () => extractQuestionnaireAndUnaudited(app.financial_statements),
@@ -902,25 +904,28 @@ export function ApplicationFinancialReviewContent({
           people={app.people ?? []}
           portal="issuer"
           organizationId={issuerOrgId}
+          subjectCtosReports={app.issuer_organization?.latest_organization_ctos_subject_reports ?? null}
           ctosFetchPending={createSubjectReport.isPending}
-          ctosFetchPendingKey={null}
+          ctosFetchPendingKey={subjectCtosFetchKey}
           notifyPending={notifyActionRequired.isPending}
-          onFetchSubjectCtos={(person) =>
+          onFetchSubjectCtos={(person) => {
+            const idKey = normalizeDirectorShareholderIdKey(person.matchKey) ?? String(person.matchKey ?? "").trim();
+            const displayName = String(person.name ?? "").trim();
+            setSubjectCtosFetchKey((normalizeDirectorShareholderIdKey(person.matchKey) ?? idKey) || null);
             createSubjectReport.mutate(
               {
-                subjectRef: String(person.matchKey ?? ""),
+                subjectRef: idKey,
                 subjectKind: person.entityType === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL",
                 enquiryOverride:
-                  person.name && person.matchKey
-                    ? { displayName: person.name, idNumber: String(person.matchKey) }
-                    : undefined,
+                  displayName && idKey ? { displayName, idNumber: idKey } : undefined,
               },
               {
+                onSettled: () => setSubjectCtosFetchKey(null),
                 onSuccess: () => toast.success("Subject report updated"),
                 onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "Request failed"),
               }
-            )
-          }
+            );
+          }}
           onNotify={(person) =>
             notifyActionRequired.mutate(
               { partyKey: person.matchKey },

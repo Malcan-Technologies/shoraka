@@ -646,6 +646,7 @@ export default function OrganizationDetailPage() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin", "organization-ctos-reports-inline", portal, organizationId] });
       void queryClient.invalidateQueries({ queryKey: ["admin", "organization-ctos-reports", portal, organizationId] });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "organization-detail", portal, organizationId] });
       toast.success("CTOS subject report saved.");
     },
     onError: (e: Error) => {
@@ -1211,17 +1212,20 @@ export default function OrganizationDetailPage() {
                         people={org.people ?? []}
                         portal={portal === "investor" ? "investor" : "issuer"}
                         organizationId={organizationId}
+                        subjectCtosReports={org.latestOrganizationCtosSubjectReports ?? null}
                         ctosFetchPendingKey={ctosFetchSubjectKey}
                         ctosFetchPending={fetchSubjectCtosMutation.isPending}
                         notifyPending={notifyActionRequiredMutation.isPending}
-                        onFetchSubjectCtos={(person) =>
+                        onFetchSubjectCtos={(person) => {
+                          const idNum =
+                            normalizeDirectorShareholderIdKey(person.matchKey) ?? String(person.matchKey ?? "").trim();
                           fetchSubjectCtosMutation.mutate({
-                            subjectRef: String(person.matchKey ?? ""),
+                            subjectRef: idNum,
                             subjectKind: person.entityType === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL",
-                            displayName: person.name ?? undefined,
-                            idNumber: String(person.matchKey ?? "") || undefined,
-                          })
-                        }
+                            displayName: String(person.name ?? "").trim() || undefined,
+                            idNumber: idNum || undefined,
+                          });
+                        }}
                         onNotify={(person) => notifyActionRequiredMutation.mutate({ partyKey: person.matchKey })}
                       />
                     </CardContent>
