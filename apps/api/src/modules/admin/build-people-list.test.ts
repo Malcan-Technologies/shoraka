@@ -163,4 +163,133 @@ describe("buildUnifiedPeople", () => {
     expect(rows[0]?.screening?.status).toBeNull();
     expect(rows[0]?.email).toBe("");
   });
+
+  it("sets corporate matchKey from Business Number in formContent.displayAreas (case-insensitive)", () => {
+    const rows = buildUnifiedPeople({
+      ctos: null,
+      issuerDirectorKycStatus: { directors: [] },
+      issuerDirectorAmlStatus: { directors: [], businessShareholders: [] },
+      ctosPartySupplements: null,
+      corporateEntities: {
+        directors: [],
+        shareholders: [],
+        corporateShareholders: [
+          {
+            companyName: "Petronas Sdn Bhd",
+            formContent: {
+              displayAreas: [
+                {
+                  displayArea: "Basic Information Setting",
+                  content: [
+                    { fieldName: "Business Name", fieldType: "text", fieldValue: "Petronas Sdn Bhd" },
+                    { fieldName: "BUSINESS NUMBER", fieldType: "text", fieldValue: "123123123" },
+                    { fieldName: "% of Shares", fieldType: "number", fieldValue: "10" },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    const corp = rows.find((r) => r.entityType === "CORPORATE");
+    expect(corp).toBeDefined();
+    expect(corp?.matchKey).toBe("123123123");
+  });
+
+  it("includes individual when Government ID is only in personalInfo.formContent", () => {
+    const rows = buildUnifiedPeople({
+      ctos: null,
+      issuerDirectorKycStatus: { directors: [] },
+      issuerDirectorAmlStatus: { directors: [], businessShareholders: [] },
+      ctosPartySupplements: null,
+      corporateEntities: {
+        directors: [
+          {
+            eodRequestId: "EOD1",
+            personalInfo: {
+              fullName: "Test Person",
+              email: "t@example.com",
+              formContent: {
+                content: [{ fieldName: "Government ID Number", fieldValue: "050616101789" }],
+              },
+            },
+          },
+        ],
+        shareholders: [],
+        corporateShareholders: [],
+      },
+    });
+
+    const ind = rows.find((r) => r.entityType === "INDIVIDUAL");
+    expect(ind).toBeDefined();
+    expect(ind?.matchKey).toBe("050616101789");
+  });
+
+  it("omits individual when formContent has no Government ID even if director_kyc_status has IC", () => {
+    const rows = buildUnifiedPeople({
+      ctos: null,
+      issuerDirectorKycStatus: {
+        directors: [
+          {
+            governmentIdNumber: "999999999999",
+            kycStatus: "APPROVED",
+            email: "sync@example.com",
+            eodRequestId: "EOD1",
+          },
+        ],
+      },
+      issuerDirectorAmlStatus: { directors: [], businessShareholders: [] },
+      ctosPartySupplements: null,
+      corporateEntities: {
+        directors: [
+          {
+            eodRequestId: "EOD1",
+            personalInfo: {
+              fullName: "No IC In Form",
+              formContent: {
+                content: [{ fieldName: "Email Address", fieldValue: "a@b.com" }],
+              },
+            },
+          },
+        ],
+        shareholders: [],
+        corporateShareholders: [],
+      },
+    });
+
+    expect(rows.filter((r) => r.entityType === "INDIVIDUAL")).toHaveLength(0);
+  });
+
+  it("omits corporate shareholder from people when Business Number in form is empty", () => {
+    const rows = buildUnifiedPeople({
+      ctos: null,
+      issuerDirectorKycStatus: { directors: [] },
+      issuerDirectorAmlStatus: { directors: [], businessShareholders: [] },
+      ctosPartySupplements: null,
+      corporateEntities: {
+        directors: [],
+        shareholders: [],
+        corporateShareholders: [
+          {
+            companyName: "Ghost Corp",
+            registrationNumber: "IGNORED_TOP_LEVEL",
+            formContent: {
+              displayAreas: [
+                {
+                  content: [
+                    { fieldName: "Business Name", fieldValue: "Ghost" },
+                    { fieldName: "Business Number", fieldValue: "" },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(rows.filter((r) => r.entityType === "CORPORATE")).toHaveLength(0);
+  });
 });

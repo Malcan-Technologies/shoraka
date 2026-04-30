@@ -75,22 +75,6 @@ export function extractNormalizedBrnFromRegTankFormTree(root: unknown): string |
 }
 
 function extractNormalizedBrnFromCorpShareholderRow(row: Record<string, unknown>): string | null {
-  const directKeys = [
-    "businessNumber",
-    "registrationNumber",
-    "brn_ssm",
-    "brnSsm",
-    "companyRegistrationNumber",
-    "ssmNumber",
-    "rocRob",
-  ] as const;
-  for (const k of directKeys) {
-    const v = row[k];
-    if (typeof v === "string" && v.trim()) {
-      const n = normalizeBusinessRegKey(v);
-      if (n) return n;
-    }
-  }
   return extractNormalizedBrnFromRegTankFormTree(row.formContent);
 }
 
@@ -192,9 +176,7 @@ export async function syncCorporateShareholderStatusInOrganization(params: {
   let fallbackBrn: string | null = null;
   if (codDetailsForBrnFallback) {
     const codObj = codDetailsForBrnFallback as Record<string, unknown>;
-    fallbackBrn =
-      extractNormalizedBrnFromRegTankFormTree(codObj.formContent) ??
-      extractNormalizedBrnFromRegTankFormTree(codObj);
+    fallbackBrn = extractNormalizedBrnFromRegTankFormTree(codObj.formContent);
   }
   if (!fallbackBrn && kybPayloadForBrnFallback) {
     fallbackBrn = extractNormalizedBrnFromKybPayload(kybPayloadForBrnFallback);

@@ -73,7 +73,7 @@ function normalizeUnifiedPeopleRows(
     });
   }
 
-  return Array.from(merged.values()).map((row) => {
+  const out = Array.from(merged.values()).map((row) => {
     const key = normalizeDirectorShareholderIdKey(row.matchKey) ?? row.matchKey;
     const roleSet = new Set<string>((row.roles ?? []).map((r) => String(r).toUpperCase()));
     const share = typeof row.sharePercentage === "number" ? row.sharePercentage : null;
@@ -97,6 +97,7 @@ function normalizeUnifiedPeopleRows(
       directorKycStatus: undefined,
     };
   });
+  return out;
 }
 
 function screeningStatusFromSupplement(raw: unknown): string | null {
@@ -173,7 +174,18 @@ function buildPeopleFromUserDeclaredData(params: {
       directorKycStatus: r.status ? normalizeRawStatus(r.status) : null,
     };
   });
-  return normalizeUnifiedPeopleRows(baseRows, params.ctosPartySupplements ?? null);
+
+  const finalPeople = normalizeUnifiedPeopleRows(baseRows, params.ctosPartySupplements ?? null);
+  console.log(
+    "[FINAL PEOPLE]",
+    finalPeople.map((r) => ({
+      entityType: r.entityType,
+      matchKey: r.matchKey,
+      roles: r.roles,
+      sharePercentage: r.sharePercentage,
+    }))
+  );
+  return finalPeople;
 }
 
 export function buildUnifiedPeople(params: {
@@ -185,8 +197,6 @@ export function buildUnifiedPeople(params: {
   ctosPartySupplements?: SupplementInput[] | null;
   corporateEntities: unknown;
 }): ApplicationPersonRow[] {
-  void params.corporateEntities;
-
   const ctos = params.ctos;
   const ctosSafe =
     ctos && typeof ctos === "object"
@@ -200,6 +210,7 @@ export function buildUnifiedPeople(params: {
             : [],
         }
       : null;
+
   if (!ctosSafe) {
     const organization = {
       corporateEntities: params.corporateEntities,

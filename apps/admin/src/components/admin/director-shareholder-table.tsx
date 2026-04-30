@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+// import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DirectorShareholderNotifyButton } from "@/components/director-shareholder-notify-button";
 import {
   AlertDialog,
@@ -30,7 +30,7 @@ import {
   formatPeopleRolesLineWithoutShare,
 } from "@/lib/onboarding-people-display";
 import {
-  getDirectorShareholderStatusTooltip,
+  // getDirectorShareholderStatusTooltip,
   getDirectorShareholderSingleStatusPresentation,
   normalizeDirectorShareholderIdKey,
   type ApplicationPersonRow,
@@ -123,21 +123,31 @@ export function DirectorShareholderTable({
                   <TableCell>{shareDisplay}</TableCell>
                   <TableCell>
                     {statusPresentation ? (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Badge
-                              variant="outline"
-                              className={`border-transparent text-[11px] font-normal ${statusPresentation.badgeClassName}`}
-                            >
-                              {statusPresentation.label}
-                            </Badge>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p>{getDirectorShareholderStatusTooltip(statusPresentation.label)}</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                      <>
+                        {/*
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Badge
+                                variant="outline"
+                                className={`border-transparent text-[11px] font-normal ${statusPresentation.badgeClassName}`}
+                              >
+                                {statusPresentation.label}
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{getDirectorShareholderStatusTooltip(statusPresentation.label)}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                        */}
+                        <Badge
+                          variant="outline"
+                          className={`border-transparent text-[11px] font-normal ${statusPresentation.badgeClassName}`}
+                        >
+                          {statusPresentation.label}
+                        </Badge>
+                      </>
                     ) : null}
                   </TableCell>
                   <TableCell>—</TableCell>

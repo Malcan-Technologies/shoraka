@@ -6,9 +6,10 @@ import {
   buildDirectorShareholderDisplayRowForEmailEligibility,
   canEnterEmailForDirectorShareholder,
   filterVisiblePeopleRows,
+  formatPeopleIdentityLine,
+  formatPeopleRolesLineTitleCase,
   getDirectorShareholderSingleStatusPresentation,
-  getDirectorShareholderStatusTooltip,
-  getDisplayRoleLabel,
+  // getDirectorShareholderStatusTooltip,
   normalizeDirectorShareholderIdKey,
   normalizeDirectorShareholderPartyEmail,
   type ApplicationPersonRow,
@@ -17,7 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+// import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
@@ -46,17 +47,6 @@ function isDirectorLikeRow(r: DirectorShareholderDisplayRow): boolean {
 function isIndividualShareholderOnlyRow(r: DirectorShareholderDisplayRow): boolean {
   if (r.type !== "INDIVIDUAL") return false;
   return !Boolean(r.isDirector) && Boolean(r.isShareholder);
-}
-
-function roleLabel(row: AugmentedRow): string {
-  if (row.type === "COMPANY") return row.role || "Corporate Shareholder";
-  return (
-    getDisplayRoleLabel({
-      isDirector: row.isDirector ?? false,
-      isShareholder: row.isShareholder ?? false,
-      sharePercentage: row.sharePercentage,
-    }) || row.role
-  );
 }
 
 export function DirectorShareholdersUnifiedSection({
@@ -184,27 +174,36 @@ export function DirectorShareholdersUnifiedSection({
       screening: row.__person.screening,
       onboarding: row.__person.onboarding,
     });
+    const identityLine = formatPeopleIdentityLine(row.__person);
+    const rolesLine = formatPeopleRolesLineTitleCase({
+      roles: row.__person.roles ?? [],
+      sharePercentage: row.__person.sharePercentage ?? null,
+    });
     return (
       <div
         key={row.id}
         data-person-key={normalizeDirectorShareholderIdKey(row.__person.matchKey) ?? undefined}
         data-action-required={showActionCue ? "true" : undefined}
-        className="flex flex-col gap-3 p-4 rounded-lg border border-border bg-muted/30 sm:flex-row sm:items-start sm:justify-between"
+        className="flex flex-col gap-3 rounded-lg border border-border bg-muted/30 p-4 sm:flex-row sm:items-start sm:justify-between"
       >
-        <div className="flex-1 min-w-0">
-          <p className="font-medium text-sm">
-            {row.name}
-            {row.idNumber?.trim() ? <span className="font-normal text-muted-foreground"> · IC {row.idNumber}</span> : null}
-          </p>
-          {email.trim() ? <p className="text-xs text-muted-foreground mt-1 break-all">{email}</p> : null}
-          <p className="text-xs text-muted-foreground mt-1">{roleLabel(row)}</p>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
-            {statusPresentation ? (
+        <div className="min-w-0 flex-1 space-y-1">
+          <p className="truncate text-sm font-medium text-foreground">{row.name}</p>
+          {identityLine ? (
+            <p className="font-mono text-xs text-muted-foreground">{identityLine}</p>
+          ) : null}
+          {email.trim() ? <p className="text-xs text-muted-foreground break-all">{email}</p> : null}
+          <p className="text-xs text-muted-foreground">{rolesLine || "—"}</p>
+          {statusPresentation ? (
+            <div className="pt-0.5">
+              {/*
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Badge
                     variant="outline"
-                    className={cn("border-transparent text-[11px] font-normal", statusPresentation.badgeClassName)}
+                    className={cn(
+                      "border-transparent text-[11px] font-normal",
+                      statusPresentation.badgeClassName
+                    )}
                   >
                     {statusPresentation.label}
                   </Badge>
@@ -213,15 +212,25 @@ export function DirectorShareholdersUnifiedSection({
                   <p>{getDirectorShareholderStatusTooltip(statusPresentation.label)}</p>
                 </TooltipContent>
               </Tooltip>
-            ) : null}
-          </div>
+              */}
+              <Badge
+                variant="outline"
+                className={cn(
+                  "border-transparent text-[11px] font-normal",
+                  statusPresentation.badgeClassName
+                )}
+              >
+                {statusPresentation.label}
+              </Badge>
+            </div>
+          ) : null}
         </div>
         {showSend ? (
-          <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:items-end">
+          <div className="flex w-full shrink-0 flex-col gap-2 sm:w-56 sm:min-w-[14rem]">
             <Input
               type="email"
               data-profile-director-email
-              className="h-11 max-w-full rounded-xl border-2 border-input bg-background sm:max-w-xs"
+              className="h-11 w-full rounded-xl border border-input bg-background"
               placeholder="Email"
               value={email}
               disabled={savePending}
@@ -230,7 +239,7 @@ export function DirectorShareholdersUnifiedSection({
             <Button
               type="button"
               size="sm"
-              className="w-full rounded-xl sm:w-auto"
+              className="h-9 w-full shrink-0 rounded-lg text-xs font-medium sm:text-sm"
               disabled={savePending || !email.trim()}
               onClick={() => setConfirmRow(row)}
             >

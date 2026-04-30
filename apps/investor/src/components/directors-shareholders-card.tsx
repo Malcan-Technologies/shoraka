@@ -5,7 +5,8 @@ import { UserGroupIcon, UserIcon, BuildingOffice2Icon } from "@heroicons/react/2
 import {
   buildDirectorShareholderDisplayRowForEmailEligibility,
   filterVisiblePeopleRows,
-  getDisplayRoleLabel,
+  formatPeopleIdentityLine,
+  formatPeopleRolesLineTitleCase,
   normalizeRawStatus,
   regtankDisplayStatusBadgeClass,
   toTitleCase,
@@ -31,35 +32,31 @@ function renderStatusBadge(raw: string | null | undefined) {
   const status = normalizeRawStatus(raw);
   if (!status) return null;
   return (
-    <Badge className={cn("text-xs font-medium", regtankDisplayStatusBadgeClass(status))}>{toTitleCase(status)}</Badge>
-  );
-}
-
-function roleLabel(row: DirectorShareholderDisplayRow): string {
-  if (row.type === "COMPANY") return row.role || "Corporate Shareholder";
-  return (
-    getDisplayRoleLabel({
-      isDirector: row.isDirector ?? false,
-      isShareholder: row.isShareholder ?? false,
-      sharePercentage: row.sharePercentage,
-    }) || row.role
+    <Badge
+      variant="outline"
+      className={cn("border-transparent text-[11px] font-normal", regtankDisplayStatusBadgeClass(status))}
+    >
+      {toTitleCase(status)}
+    </Badge>
   );
 }
 
 function renderRow(row: DirectorShareholderDisplayRow & { __person: ApplicationPersonRow }) {
-  const ic = row.idNumber?.trim() || "";
-  const ssm = row.registrationNumber?.trim() || "";
+  const identityLine = formatPeopleIdentityLine(row.__person);
+  const rolesLine = formatPeopleRolesLineTitleCase({
+    roles: row.__person.roles ?? [],
+    sharePercentage: row.__person.sharePercentage ?? null,
+  });
   return (
-    <div key={row.id} className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
-      <div className="flex-1 min-w-0">
-        <p className="font-medium text-sm">
-          {row.name}
-          {ic ? <span className="font-normal text-muted-foreground"> · IC {ic}</span> : null}
-        </p>
-        {!ic && ssm ? <p className="text-xs text-muted-foreground mt-1">SSM {ssm}</p> : null}
-        {row.email.trim() ? <p className="text-xs text-muted-foreground mt-1">{row.email}</p> : null}
-        <p className="text-xs text-muted-foreground mt-1">{roleLabel(row)}</p>
-        <div className="mt-1 flex flex-wrap flex-col gap-1">
+    <div key={row.id} className="rounded-lg border border-border bg-muted/30 p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1 space-y-1">
+          <p className="truncate text-sm font-medium text-foreground">{row.name}</p>
+          {identityLine ? <p className="font-mono text-xs text-muted-foreground">{identityLine}</p> : null}
+          {row.email.trim() ? <p className="text-xs text-muted-foreground break-all">{row.email}</p> : null}
+          <p className="text-xs text-muted-foreground">{rolesLine || "—"}</p>
+        </div>
+        <div className="flex shrink-0 flex-col gap-1.5 sm:items-end">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs text-muted-foreground">KYC</span>
             {renderStatusBadge(row.__person.onboarding?.status)}
