@@ -90,7 +90,7 @@ export function DirectorShareholderTable({
               <TableHead>Share %</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Risk Level</TableHead>
-              <TableHead>Request ID</TableHead>
+              <TableHead>RegTank</TableHead>
               <TableHead>IC Front</TableHead>
               <TableHead>IC Back</TableHead>
               <TableHead>Timestamp</TableHead>
@@ -171,7 +171,7 @@ export function DirectorShareholderTable({
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="h-8 gap-1.5 rounded-full px-3 text-sm font-medium text-primary border-border shrink-0"
+                            className="h-8 gap-1.5 rounded-full border-border bg-background px-3 text-sm font-medium text-foreground shadow-sm hover:bg-muted/60 hover:text-foreground [&_svg]:text-foreground shrink-0"
                             title={rid ? `RegTank: ${rid}` : undefined}
                             onClick={() => window.open(link, "_blank", "noopener,noreferrer")}
                           >
@@ -185,22 +185,28 @@ export function DirectorShareholderTable({
                   </TableCell>
                   <TableCell>
                     {p.icFrontUrl ? (
-                      <Button asChild variant="link" className="h-auto p-0 text-sm underline">
-                        <a href={p.icFrontUrl} target="_blank" rel="noopener noreferrer">
-                          View Front
-                        </a>
-                      </Button>
+                      <a
+                        href={p.icFrontUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-primary underline underline-offset-4 hover:underline"
+                      >
+                        View Front
+                      </a>
                     ) : (
                       "—"
                     )}
                   </TableCell>
                   <TableCell>
                     {p.icBackUrl ? (
-                      <Button asChild variant="link" className="h-auto p-0 text-sm underline">
-                        <a href={p.icBackUrl} target="_blank" rel="noopener noreferrer">
-                          View Back
-                        </a>
-                      </Button>
+                      <a
+                        href={p.icBackUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-primary underline underline-offset-4 hover:underline"
+                      >
+                        View Back
+                      </a>
                     ) : (
                       "—"
                     )}
