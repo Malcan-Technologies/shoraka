@@ -10,6 +10,7 @@ import {
   isDirectorShareholderAmlScreeningApproved,
   isReadyOnboardingStatus,
   normalizeRawStatus,
+  filterVisiblePeopleRows,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
 
@@ -87,7 +88,8 @@ export function FinancialSection({
    * WHERE USED: Admin application review → Financial section
    */
   const hasPendingDirectorShareholder = (() => {
-    const people = app.people ?? [];
+    const rawPeople = app.people ?? [];
+    const people = filterVisiblePeopleRows(rawPeople);
     // No people rows means we do not know KYC/AML states yet.
     if (people.length === 0) return true;
 
@@ -97,7 +99,8 @@ export function FinancialSection({
   })();
 
   const bannerMessage = (() => {
-    const people = app.people ?? [];
+    const rawPeople = app.people ?? [];
+    const people = filterVisiblePeopleRows(rawPeople);
     const individuals = people.filter((p) => p.entityType === "INDIVIDUAL");
 
     const isOnboardingDoneAll = people.every((p) => isReadyOnboardingStatus(p.onboarding?.status));
