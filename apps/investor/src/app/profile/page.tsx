@@ -536,10 +536,6 @@ export default function ProfilePage() {
           shareholders?: Array<Record<string, unknown>>;
           corporateShareholders?: Array<Record<string, unknown>>;
         };
-        directorKycStatus?: unknown;
-        directorAmlStatus?: unknown;
-        latestOrganizationCtosCompanyJson?: unknown | null;
-        ctosPartySupplements?: { partyKey: string; onboardingJson?: unknown }[] | null;
         people?: ApplicationPersonRow[];
       }>(`/v1/organizations/investor/${activeOrganization.id}`);
       if (!result.success) {
@@ -1399,7 +1395,6 @@ export default function ProfilePage() {
               {!isPersonal && activeOrganization?.id && orgData?.type === "COMPANY" && (
                 <DirectorsShareholdersCard
                   people={orgData.people ?? []}
-                  ctosPartySupplements={orgData.ctosPartySupplements ?? null}
                 />
               )}
 

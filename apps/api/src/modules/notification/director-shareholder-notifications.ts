@@ -42,6 +42,68 @@ function buildPeopleListParams(params: {
 
 type PeopleListInput = ReturnType<typeof buildPeopleListParams>;
 
+function buildKnownKeysFromDbAndSupplement(input: PeopleListInput): {
+  dbKeys: Set<string>;
+  supplementKeys: Set<string>;
+} {
+  const dbKeys = new Set<string>();
+  const supplementKeys = new Set<string>();
+
+  const kycRoot =
+    input.issuerDirectorKycStatus &&
+    typeof input.issuerDirectorKycStatus === "object" &&
+    !Array.isArray(input.issuerDirectorKycStatus)
+      ? (input.issuerDirectorKycStatus as { directors?: unknown[]; individualShareholders?: unknown[] })
+      : {};
+  const kycRows = [
+    ...(Array.isArray(kycRoot.directors) ? kycRoot.directors : []),
+    ...(Array.isArray(kycRoot.individualShareholders) ? kycRoot.individualShareholders : []),
+  ];
+  for (const row of kycRows) {
+    if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+    const r = row as Record<string, unknown>;
+    const key = normalizeDirectorShareholderIdKey(String(r.governmentIdNumber ?? r.ic_lcno ?? ""));
+    if (key) dbKeys.add(key);
+  }
+
+  const amlRoot =
+    input.issuerDirectorAmlStatus &&
+    typeof input.issuerDirectorAmlStatus === "object" &&
+    !Array.isArray(input.issuerDirectorAmlStatus)
+      ? (input.issuerDirectorAmlStatus as {
+          directors?: unknown[];
+          individualShareholders?: unknown[];
+          businessShareholders?: unknown[];
+        })
+      : {};
+  const amlRows = [
+    ...(Array.isArray(amlRoot.directors) ? amlRoot.directors : []),
+    ...(Array.isArray(amlRoot.individualShareholders) ? amlRoot.individualShareholders : []),
+  ];
+  for (const row of amlRows) {
+    if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+    const r = row as Record<string, unknown>;
+    const key = normalizeDirectorShareholderIdKey(String(r.governmentIdNumber ?? r.ic_lcno ?? ""));
+    if (key) dbKeys.add(key);
+  }
+  const businessRows = Array.isArray(amlRoot.businessShareholders) ? amlRoot.businessShareholders : [];
+  for (const row of businessRows) {
+    if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+    const r = row as Record<string, unknown>;
+    const key = normalizeDirectorShareholderIdKey(
+      String(r.businessNumber ?? r.registrationNumber ?? r.brn_ssm ?? r.ic_lcno ?? r.additional_registration_no ?? "")
+    );
+    if (key) dbKeys.add(key);
+  }
+
+  for (const s of input.ctosPartySupplements ?? []) {
+    const key = normalizeDirectorShareholderIdKey(String(s.party_key ?? ""));
+    if (key) supplementKeys.add(key);
+  }
+
+  return { dbKeys, supplementKeys };
+}
+
 function hasStartedOnboarding(p: Pick<ApplicationPersonRow, "onboarding">): boolean {
   return Boolean(normalizeRawStatus(p.onboarding?.status));
 }
@@ -109,9 +171,15 @@ export async function runIssuerDirectorShareholderNotificationsAfterOrgCtosRepor
   const { visible: afterVisible } = computeVisiblePeopleState(afterInput);
 
   const beforeKeys = new Set(beforeVisible.map((p) => p.matchKey));
-  const newPeopleWithoutOnboarding = afterVisible.filter(
-    (p) => !beforeKeys.has(p.matchKey) && shouldNotifyNewPerson(p)
-  );
+  const { dbKeys, supplementKeys } = buildKnownKeysFromDbAndSupplement(afterInput);
+  const newPeopleWithoutOnboarding = afterVisible.filter((p) => {
+    const key = normalizeDirectorShareholderIdKey(p.matchKey);
+    if (!key) return false;
+    if (beforeKeys.has(key)) return false;
+    if (dbKeys.has(key)) return false;
+    if (supplementKeys.has(key)) return false;
+    return shouldNotifyNewPerson(p);
+  });
   const shouldTriggerNotification = afterVisible.length > 0 && newPeopleWithoutOnboarding.length > 0;
 
   console.log("DS mismatch check", {
@@ -131,30 +199,34 @@ export async function runIssuerDirectorShareholderNotificationsAfterOrgCtosRepor
   });
 
   if (shouldTriggerNotification) {
-    const idempotencyKey = `ds_mismatch:${issuerOrganizationId}:${newCtosReportId}`;
-    const dupKey = await prisma.notification.findUnique({
-      where: { idempotency_key: idempotencyKey },
-    });
-    if (dupKey) {
-      console.log("DS mismatch skipped: duplicate idempotency key", {
-        issuerOrganizationId,
-        newCtosReportId,
-        idempotencyKey,
-      });
-      return;
-    }
-
     const notificationService = new NotificationService();
-    await notificationService.sendTyped(
-      ownerUserId,
-      NotificationTypeIds.DIRECTOR_SHAREHOLDER_MISMATCH,
-      { issuerOrganizationId },
-      idempotencyKey
-    );
-    logger.info(
-      { issuerOrganizationId, newCtosReportId, ownerUserId },
-      "Created director_shareholder_mismatch notification"
-    );
+    for (const person of newPeopleWithoutOnboarding) {
+      const partyKey = normalizeDirectorShareholderIdKey(person.matchKey);
+      if (!partyKey) continue;
+      const idempotencyKey = `ds_action_required:${issuerOrganizationId}:${newCtosReportId}:${partyKey}`;
+      const dupKey = await prisma.notification.findUnique({
+        where: { idempotency_key: idempotencyKey },
+      });
+      if (dupKey) {
+        console.log("DS action-required skipped: duplicate idempotency key", {
+          issuerOrganizationId,
+          newCtosReportId,
+          partyKey,
+          idempotencyKey,
+        });
+        continue;
+      }
+      await notificationService.sendTyped(
+        ownerUserId,
+        NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED,
+        { issuerOrganizationId, partyKey, personName: person.name ?? undefined, link: "/profile" },
+        idempotencyKey
+      );
+      logger.info(
+        { issuerOrganizationId, newCtosReportId, ownerUserId, partyKey },
+        "Created director_shareholder_action_required notification"
+      );
+    }
   } else {
     console.log("DS mismatch skipped: no new person needing onboarding notification", {
       issuerOrganizationId,

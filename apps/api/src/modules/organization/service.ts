@@ -38,6 +38,8 @@ import { sendOnboardingEmail } from "../../lib/email/ses";
 import { organizationInvitationTemplate } from "../../lib/email/templates";
 import { randomBytes } from "crypto";
 import {
+  canEnterEmailForDirectorShareholder,
+  filterVisiblePeopleRows,
   getDirectorShareholderDisplayRows,
   getEffectiveCtosPartyOnboarding,
   getEffectiveCtosPartyScreening,
@@ -1684,9 +1686,9 @@ export class OrganizationService {
     const nextOnb: Record<string, unknown> = { ...prevOnb, email };
     if (emailChanged) {
       nextOnb.sent = false;
-      nextOnb.status = "PENDING";
+      nextOnb.status = "NOT_STARTED";
       nextOnb.updatedAt = new Date().toISOString();
-      delete nextOnb.requestId;
+      nextOnb.requestId = `draft-${Date.now()}`;
       delete nextOnb.verifyLink;
       delete nextOnb.regtankStatus;
     }
@@ -1697,8 +1699,8 @@ export class OrganizationService {
             screeningReset: true,
             screening: {
               provider: "ACURIS",
-              status: "PENDING",
-              requestId: "",
+              status: null,
+              requestId: null,
               riskLevel: "",
               riskScore: "",
               updatedAt: new Date().toISOString(),
@@ -1745,6 +1747,15 @@ export class OrganizationService {
     }
 
     const entities = await this.getCorporateEntities(userId, organizationId, portalType);
+    const peopleRows = filterVisiblePeopleRows(entities.people ?? []);
+    const personRow = peopleRows.find((p) => normalizeDirectorShareholderIdKey(p.matchKey) === pk);
+    if (!personRow || !canEnterEmailForDirectorShareholder(personRow)) {
+      throw new AppError(
+        400,
+        "NOT_ALLOWED",
+        "Resend is only allowed for actionable individual rows"
+      );
+    }
     if (isLegacyCtosPartyKycApproved(pk, entities.directorKycStatus)) {
       throw new AppError(
         400,
@@ -1855,16 +1866,7 @@ export class OrganizationService {
     const sendHistory = parseSendTimestamps(getEffectiveCtosPartyOnboarding(prevRoot));
     try {
       logger.info({ referenceId }, "RegTank director onboarding referenceId");
-      const existingRequestId =
-        typeof supOb.requestId === "string" ? (supOb.requestId as string).trim() : "";
-      const regTankResponse = existingRequestId
-        ? await regTankApi.restartOnboarding(existingRequestId, {
-            email: supplementEmail,
-            language: "EN",
-            idType: "IDENTITY",
-            skipFormPage: false,
-          })
-        : await regTankApi.createIndividualOnboarding(onboardingRequest);
+      const regTankResponse = await regTankApi.createIndividualOnboarding(onboardingRequest);
       requestId = regTankResponse.requestId;
       verifyLink =
         typeof regTankResponse.verifyLink === "string" ? regTankResponse.verifyLink.trim() : "";
@@ -2018,6 +2020,15 @@ export class OrganizationService {
     }
 
     const entities = await this.getCorporateEntitiesPrivileged(organizationId);
+    const peopleRows = filterVisiblePeopleRows(entities.people ?? []);
+    const personRow = peopleRows.find((p) => normalizeDirectorShareholderIdKey(p.matchKey) === pk);
+    if (!personRow || !canEnterEmailForDirectorShareholder(personRow)) {
+      throw new AppError(
+        400,
+        "NOT_ALLOWED",
+        "Resend is only allowed for actionable individual rows"
+      );
+    }
     if (isLegacyCtosPartyKycApproved(pk, entities.directorKycStatus)) {
       throw new AppError(
         400,
@@ -2127,16 +2138,7 @@ export class OrganizationService {
     const sendHistory = parseSendTimestamps(getEffectiveCtosPartyOnboarding(prevRoot));
     try {
       logger.info({ referenceId }, "RegTank director onboarding referenceId (admin privileged)");
-      const existingRequestId =
-        typeof supOb.requestId === "string" ? (supOb.requestId as string).trim() : "";
-      const regTankResponse = existingRequestId
-        ? await regTankApi.restartOnboarding(existingRequestId, {
-            email: supplementEmail,
-            language: "EN",
-            idType: "IDENTITY",
-            skipFormPage: false,
-          })
-        : await regTankApi.createIndividualOnboarding(onboardingRequest);
+      const regTankResponse = await regTankApi.createIndividualOnboarding(onboardingRequest);
       requestId = regTankResponse.requestId;
       verifyLink =
         typeof regTankResponse.verifyLink === "string" ? regTankResponse.verifyLink.trim() : "";

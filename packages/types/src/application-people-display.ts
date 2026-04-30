@@ -21,6 +21,20 @@ import { isPartyTypeA, type CorporateEntitiesShape } from "./director-shareholde
 import { normalizeRawStatus } from "./status-normalization";
 
 export type ApplicationPersonRow = {
+  /**
+   * SOURCE OF TRUTH (CRITICAL)
+   *
+   * - All Director/Shareholder UI must use `people` only
+   * - Do NOT read:
+   *   - CTOS supplement (onboarding_json)
+   *   - director_kyc_status / director_aml_status
+   * - Do NOT recompute:
+   *   - onboarding status
+   *   - screening status
+   *   - email
+   *
+   * Backend is responsible for full enrichment.
+   */
   matchKey: string;
   name: string | null;
   entityType: "INDIVIDUAL" | "CORPORATE";
@@ -175,6 +189,30 @@ export function requiresOnboardingEmail(p: ApplicationPersonRow): boolean {
 }
 
 /**
+ * SECTION: Director/shareholder completion gate for email/notify
+ * WHY: Email entry and admin notify must follow the same rule
+ * INPUT: A single people row
+ * OUTPUT: True when person is completed and should not be actioned
+ * WHERE USED: issuer email entry + admin notify visibility
+ */
+export function isDirectorShareholderCompleted(p: ApplicationPersonRow): boolean {
+  const onboarding = normalizeRawStatus(p.onboarding?.status);
+  const screening = normalizeRawStatus(p.screening?.status);
+  return onboarding === "APPROVED" || onboarding === "WAIT_FOR_APPROVAL" || screening === "APPROVED";
+}
+
+/**
+ * SECTION: Unified action gate for issuer email and admin notify
+ * WHY: Keep CTA behavior identical across portals
+ * INPUT: A single people row
+ * OUTPUT: True when user should be allowed to action this person
+ * WHERE USED: issuer profile + admin director/shareholder table
+ */
+export function canEnterEmailForDirectorShareholder(p: ApplicationPersonRow): boolean {
+  return p.entityType === "INDIVIDUAL" && !isDirectorShareholderCompleted(p);
+}
+
+/**
  * Build the display row used for {@link isCtosIndividualKycEligibleRow} and lock checks
  * (same shape as issuer `personToDisplayRow`).
  */
@@ -267,7 +305,7 @@ export function isDirectorShareholderEmailActionable(
 
 /** Backward-compatible alias for existing call sites. */
 export function isNotifyEligible(p: ApplicationPersonRow): boolean {
-  return requiresOnboardingEmail(p);
+  return canEnterEmailForDirectorShareholder(p);
 }
 
 export function shouldShowPeopleSendEmailButton(
