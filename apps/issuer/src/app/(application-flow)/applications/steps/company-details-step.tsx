@@ -20,6 +20,7 @@ import {
   formatPeopleRolesLine,
   formatSharePercentageCell,
   getDirectorShareholderSingleStatusPresentation,
+  getDirectorShareholderStatusTooltip,
 } from "@cashsouk/types";
 import {
   areDirectorShareholdersReadyForApplicationSubmit,
@@ -30,6 +31,7 @@ import { useApplication } from "@/hooks/use-applications";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -701,12 +703,19 @@ export function CompanyDetailsStep({
                         <div className="flex flex-col gap-0.5 min-w-0">
                           <span className="text-xs text-muted-foreground">Status</span>
                           {statusView ? (
-                            <Badge
-                              variant="outline"
-                              className={cn("w-fit border-transparent text-[11px] font-normal", statusView.badgeClassName)}
-                            >
-                              {statusView.label}
-                            </Badge>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge
+                                  variant="outline"
+                                  className={cn("w-fit border-transparent text-[11px] font-normal", statusView.badgeClassName)}
+                                >
+                                  {statusView.label}
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>{getDirectorShareholderStatusTooltip(statusView.label)}</p>
+                              </TooltipContent>
+                            </Tooltip>
                           ) : (
                             <span className="text-[17px] leading-7 text-muted-foreground truncate">—</span>
                           )}

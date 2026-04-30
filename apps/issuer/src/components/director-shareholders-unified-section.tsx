@@ -7,6 +7,7 @@ import {
   canEnterEmailForDirectorShareholder,
   filterVisiblePeopleRows,
   getDirectorShareholderSingleStatusPresentation,
+  getDirectorShareholderStatusTooltip,
   getDisplayRoleLabel,
   normalizeDirectorShareholderIdKey,
   normalizeDirectorShareholderPartyEmail,
@@ -16,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
@@ -198,12 +200,19 @@ export function DirectorShareholdersUnifiedSection({
           <p className="text-xs text-muted-foreground mt-1">{roleLabel(row)}</p>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             {statusPresentation ? (
-              <Badge
-                variant="outline"
-                className={cn("border-transparent text-[11px] font-normal", statusPresentation.badgeClassName)}
-              >
-                {statusPresentation.label}
-              </Badge>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Badge
+                    variant="outline"
+                    className={cn("border-transparent text-[11px] font-normal", statusPresentation.badgeClassName)}
+                  >
+                    {statusPresentation.label}
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{getDirectorShareholderStatusTooltip(statusPresentation.label)}</p>
+                </TooltipContent>
+              </Tooltip>
             ) : null}
           </div>
         </div>

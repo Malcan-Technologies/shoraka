@@ -30,6 +30,7 @@ import {
   formatPeopleRolesLineWithoutShare,
 } from "@/lib/onboarding-people-display";
 import {
+  getDirectorShareholderStatusTooltip,
   getDirectorShareholderSingleStatusPresentation,
   normalizeDirectorShareholderIdKey,
   type ApplicationPersonRow,
@@ -133,7 +134,7 @@ export function DirectorShareholderTable({
                             </Badge>
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>{getStatusTooltip(statusPresentation.label)}</p>
+                            <p>{getDirectorShareholderStatusTooltip(statusPresentation.label)}</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -230,21 +231,6 @@ export function DirectorShareholderTable({
       </AlertDialog>
     </>
   );
-}
-
-function getStatusTooltip(label: string): string {
-  switch (label) {
-    case "Completed":
-      return "All required checks completed";
-    case "In Progress":
-      return "Onboarding submitted and under review";
-    case "Action Required":
-      return "This person requires action (not started or rejected)";
-    case "Not Started":
-      return "Onboarding has not been started";
-    default:
-      return "";
-  }
 }
 
 function mergePeopleRowsByMatchKey(rows: ApplicationPersonRow[]): ApplicationPersonRow[] {
