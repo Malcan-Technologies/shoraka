@@ -63,11 +63,9 @@ import {
   getStepKeyFromStepId,
   isRegtankIso3166Code,
   normalizeDirectorShareholderIdKey,
-  buildDirectorShareholderDisplayRowForEmailEligibility,
+  canEnterEmailForDirectorShareholder,
   filterVisiblePeopleRows,
-  isDirectorShareholderEmailActionable,
   type ApplicationPersonRow,
-  type CorporateEntitiesShape,
   type SoukscoreRiskRating,
   normalizeRawStatus,
 } from "@cashsouk/types";
@@ -2222,24 +2220,7 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Party not found among visible directors/shareholders");
     }
 
-    const supplementRecord = extras.ctosPartySupplements.find(
-      (s) => normalizeDirectorShareholderIdKey(s.partyKey) === want
-    );
-    const supplement =
-      supplementRecord?.onboardingJson &&
-      typeof supplementRecord.onboardingJson === "object" &&
-      !Array.isArray(supplementRecord.onboardingJson)
-        ? (supplementRecord.onboardingJson as Record<string, unknown>)
-        : {};
-    const displayRow = buildDirectorShareholderDisplayRowForEmailEligibility(match, supplement);
-    const emailActionable = isDirectorShareholderEmailActionable(match, {
-      displayRow,
-      latestOnboardingRoot: supplement,
-      partySourcePresent: true,
-      directorKycStatus: fullOrg.director_kyc_status,
-      corporateEntities: fullOrg.corporate_entities as CorporateEntitiesShape | null | undefined,
-      blockPartyOnboarding: fullOrg.onboarding_status !== OnboardingStatus.COMPLETED,
-    });
+    const emailActionable = canEnterEmailForDirectorShareholder(match);
     if (!emailActionable) {
       throw new AppError(400, "VALIDATION_ERROR", "Not eligible for notify");
     }

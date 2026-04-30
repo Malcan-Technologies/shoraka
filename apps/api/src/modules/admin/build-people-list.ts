@@ -397,14 +397,14 @@ export function buildUnifiedPeople(params: {
             );
           })();
 
+    const hasDbMatch = Boolean(key) && Boolean(kycRefs || rawAmlSync || corporateRawAmlByKey.has(key));
     const hasSupplementMatch =
       Boolean(key) &&
       (onboardingByPartyKey.has(key) || screeningByPartyKey.has(key) || userEmailByPartyKey.has(key));
-    const hasDbMatch = Boolean(key) && Boolean(kycRefs || rawAmlSync || corporateRawAmlByKey.has(key));
-    const source: "SUPPLEMENT" | "DB" | "NEW_PERSON" = hasSupplementMatch
-      ? "SUPPLEMENT"
-      : hasDbMatch
-        ? "DB"
+    const source: "EXISTING" | "ONBOARDING" | "NEW_PERSON" = hasDbMatch
+      ? "EXISTING"
+      : hasSupplementMatch
+        ? "ONBOARDING"
         : "NEW_PERSON";
 
     let onboardingStatus: string | null = null;
@@ -413,12 +413,12 @@ export function buildUnifiedPeople(params: {
     let kycEmail: string | null = null;
     let amlEmail: string | null = null;
 
-    if (source === "SUPPLEMENT") {
+    if (source === "ONBOARDING") {
       onboardingStatus = onboardingByPartyKey.get(key)?.status ?? null;
       screeningNorm = normalizeRawStatus(screeningByPartyKey.get(key)?.status) || null;
       const supEmail = userEmailByPartyKey.get(key);
       userEmail = supEmail?.trim() ? supEmail.trim() : null;
-    } else if (source === "DB") {
+    } else if (source === "EXISTING") {
       onboardingStatus = kycRefs?.kycStatus?.trim() ? normalizeRawStatus(kycRefs.kycStatus.trim()) || null : null;
       screeningNorm =
         rawAmlSync != null && String(rawAmlSync).trim() !== ""
@@ -441,9 +441,9 @@ export function buildUnifiedPeople(params: {
     const directorAmlStatus = screeningNorm;
     const directorKycStatus = onboardingStatus;
     const email =
-      source === "SUPPLEMENT"
+      source === "ONBOARDING"
         ? userEmail ?? ""
-        : source === "DB"
+        : source === "EXISTING"
           ? kycEmail ?? amlEmail ?? ""
           : "";
 
@@ -468,7 +468,7 @@ export function buildUnifiedPeople(params: {
       email,
     };
   });
-  return normalizeUnifiedPeopleRows(rawRows, supplements);
+  return normalizeUnifiedPeopleRows(rawRows, null);
 }
 
 export function buildAdminPeopleList(params: {

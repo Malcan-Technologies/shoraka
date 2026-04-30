@@ -46,6 +46,7 @@ import {
   isLegacyCtosPartyKycApproved,
   mergeCtosPartySupplementDocument,
   normalizeDirectorShareholderIdKey,
+  normalizeRawStatus,
   parseCtosPartySupplementRoot,
 } from "@cashsouk/types";
 import { buildAdminPeopleList } from "../admin/build-people-list";
@@ -1684,9 +1685,9 @@ export class OrganizationService {
     const nextOnb: Record<string, unknown> = { ...prevOnb, email };
     if (emailChanged) {
       nextOnb.sent = false;
-      nextOnb.status = "PENDING";
+      nextOnb.status = "NOT_STARTED";
       nextOnb.updatedAt = new Date().toISOString();
-      delete nextOnb.requestId;
+      nextOnb.requestId = `draft-${Date.now()}`;
       delete nextOnb.verifyLink;
       delete nextOnb.regtankStatus;
     }
@@ -1697,8 +1698,8 @@ export class OrganizationService {
             screeningReset: true,
             screening: {
               provider: "ACURIS",
-              status: "PENDING",
-              requestId: "",
+              status: null,
+              requestId: null,
               riskLevel: "",
               riskScore: "",
               updatedAt: new Date().toISOString(),
@@ -1757,6 +1758,15 @@ export class OrganizationService {
     const prevRoot = parseCtosPartySupplementRoot(supplement?.onboarding_json);
     assertOnboardingEmailMutable(prevRoot);
     const supOb = getEffectiveCtosPartyOnboarding(prevRoot);
+    const onboardingStatus = normalizeRawStatus(supOb.status ?? supOb.regtankStatus);
+    const canResend = onboardingStatus === "" || onboardingStatus === "REJECTED";
+    if (!canResend) {
+      throw new AppError(
+        400,
+        "NOT_ALLOWED",
+        "Resend is only allowed when onboarding status is empty or REJECTED"
+      );
+    }
     const supplementEmail =
       supOb.email != null ? String(supOb.email).trim() : "";
     if (!supplementEmail) {
@@ -1855,16 +1865,7 @@ export class OrganizationService {
     const sendHistory = parseSendTimestamps(getEffectiveCtosPartyOnboarding(prevRoot));
     try {
       logger.info({ referenceId }, "RegTank director onboarding referenceId");
-      const existingRequestId =
-        typeof supOb.requestId === "string" ? (supOb.requestId as string).trim() : "";
-      const regTankResponse = existingRequestId
-        ? await regTankApi.restartOnboarding(existingRequestId, {
-            email: supplementEmail,
-            language: "EN",
-            idType: "IDENTITY",
-            skipFormPage: false,
-          })
-        : await regTankApi.createIndividualOnboarding(onboardingRequest);
+      const regTankResponse = await regTankApi.createIndividualOnboarding(onboardingRequest);
       requestId = regTankResponse.requestId;
       verifyLink =
         typeof regTankResponse.verifyLink === "string" ? regTankResponse.verifyLink.trim() : "";
@@ -2030,6 +2031,15 @@ export class OrganizationService {
     const prevRoot = parseCtosPartySupplementRoot(supplement?.onboarding_json);
     assertOnboardingEmailMutable(prevRoot);
     const supOb = getEffectiveCtosPartyOnboarding(prevRoot);
+    const onboardingStatus = normalizeRawStatus(supOb.status ?? supOb.regtankStatus);
+    const canResend = onboardingStatus === "" || onboardingStatus === "REJECTED";
+    if (!canResend) {
+      throw new AppError(
+        400,
+        "NOT_ALLOWED",
+        "Resend is only allowed when onboarding status is empty or REJECTED"
+      );
+    }
     const supplementEmail = supOb.email != null ? String(supOb.email).trim() : "";
     if (!supplementEmail) {
       throw new AppError(
@@ -2127,16 +2137,7 @@ export class OrganizationService {
     const sendHistory = parseSendTimestamps(getEffectiveCtosPartyOnboarding(prevRoot));
     try {
       logger.info({ referenceId }, "RegTank director onboarding referenceId (admin privileged)");
-      const existingRequestId =
-        typeof supOb.requestId === "string" ? (supOb.requestId as string).trim() : "";
-      const regTankResponse = existingRequestId
-        ? await regTankApi.restartOnboarding(existingRequestId, {
-            email: supplementEmail,
-            language: "EN",
-            idType: "IDENTITY",
-            skipFormPage: false,
-          })
-        : await regTankApi.createIndividualOnboarding(onboardingRequest);
+      const regTankResponse = await regTankApi.createIndividualOnboarding(onboardingRequest);
       requestId = regTankResponse.requestId;
       verifyLink =
         typeof regTankResponse.verifyLink === "string" ? regTankResponse.verifyLink.trim() : "";

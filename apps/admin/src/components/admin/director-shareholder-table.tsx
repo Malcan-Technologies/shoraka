@@ -23,7 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  buildDirectorShareholderDisplayRowForEmailEligibility,
+  canEnterEmailForDirectorShareholder,
   filterVisiblePeopleRows,
   formatSharePercentageCell,
   getDisplayStatus,
@@ -98,8 +98,7 @@ export function DirectorShareholderTable({
           </TableHeader>
           <TableBody>
             {rows.map((p) => {
-              const displayRow = buildDirectorShareholderDisplayRowForEmailEligibility(p, null);
-              const canNotify = displayRow.canSendOnboarding === true;
+              const canNotify = canEnterEmailForDirectorShareholder(p);
               const status = getDisplayStatus({
                 screening: p.screening,
                 onboarding: p.onboarding,

@@ -80,7 +80,7 @@ describe("buildUnifiedPeople", () => {
     expect(shareholderOnlyLow).toBeUndefined();
   });
 
-  it("uses supplement onboarding/screening/email as final override", () => {
+  it("uses DB values when DB match exists", () => {
     const rows = buildUnifiedPeople({
       ctos: {
         directors: [
@@ -124,9 +124,9 @@ describe("buildUnifiedPeople", () => {
     });
 
     expect(rows).toHaveLength(1);
-    expect(rows[0]?.onboarding?.status).toBe("APPROVED");
-    expect(rows[0]?.screening?.status).toBe("APPROVED");
-    expect(rows[0]?.email).toBe("supplement@example.com");
+    expect(rows[0]?.onboarding?.status).toBe("PENDING");
+    expect(rows[0]?.screening?.status).toBe("REJECTED");
+    expect(rows[0]?.email).toBe("db-kyc@example.com");
   });
 
   it("treats unmatched person as NEW_PERSON with null status and email", () => {

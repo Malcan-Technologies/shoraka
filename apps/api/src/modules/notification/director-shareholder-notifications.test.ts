@@ -93,7 +93,7 @@ describe("director-shareholder-notifications", () => {
     jest.clearAllMocks();
   });
 
-  it("sends mismatch only once for the same CTOS report id (idempotency key)", async () => {
+  it("sends action-required only once for the same CTOS report id + party key", async () => {
     (prisma.notification.findFirst as jest.Mock).mockResolvedValue(null);
     (prisma.notification.findUnique as jest.Mock)
       .mockResolvedValueOnce(null)
@@ -118,13 +118,18 @@ describe("director-shareholder-notifications", () => {
     expect(sendTyped).toHaveBeenCalledTimes(1);
     expect(sendTyped).toHaveBeenCalledWith(
       "user-1",
-      NotificationTypeIds.DIRECTOR_SHAREHOLDER_MISMATCH,
-      { issuerOrganizationId: "org-1" },
-      "ds_mismatch:org-1:rep-same"
+      NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED,
+      {
+        issuerOrganizationId: "org-1",
+        partyKey: "801234567890",
+        personName: "Director B",
+        link: "/profile",
+      },
+      "ds_action_required:org-1:rep-same:801234567890"
     );
   });
 
-  it("creates mismatch notification on pending transition after CTOS insert", async () => {
+  it("creates action-required notification on CTOS new person transition", async () => {
     (prisma.notification.findFirst as jest.Mock).mockResolvedValue(null);
     (prisma.notification.findUnique as jest.Mock).mockResolvedValue(null);
     (prisma.notification.updateMany as jest.Mock).mockResolvedValue({ count: 0 });
@@ -144,13 +149,18 @@ describe("director-shareholder-notifications", () => {
     expect(sendTyped).toHaveBeenCalledTimes(1);
     expect(sendTyped).toHaveBeenCalledWith(
       "user-1",
-      NotificationTypeIds.DIRECTOR_SHAREHOLDER_MISMATCH,
-      { issuerOrganizationId: "org-1" },
-      "ds_mismatch:org-1:rep-new"
+      NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED,
+      {
+        issuerOrganizationId: "org-1",
+        partyKey: "801234567890",
+        personName: "Director B",
+        link: "/profile",
+      },
+      "ds_action_required:org-1:rep-new:801234567890"
     );
   });
 
-  it("resolves notifications when there are no visible director/shareholder rows (empty CTOS parties)", async () => {
+  it("does not resolve notifications when there are no visible director/shareholder rows", async () => {
     (prisma.issuerOrganization.findUnique as jest.Mock).mockResolvedValue({
       owner_user_id: "user-1",
       corporate_entities: null,
@@ -165,10 +175,10 @@ describe("director-shareholder-notifications", () => {
 
     await runIssuerDirectorShareholderNotificationResolutionFromDb("org-1");
 
-    expect(prisma.notification.updateMany).toHaveBeenCalledTimes(2);
+    expect(prisma.notification.updateMany).not.toHaveBeenCalled();
   });
 
-  it("resolves mismatch and all org rejected notifications when AML is fully clear", async () => {
+  it("does not resolve notifications when onboarding is not yet ready", async () => {
     (prisma.issuerOrganization.findUnique as jest.Mock).mockResolvedValue({
       owner_user_id: "user-1",
       corporate_entities: null,
@@ -188,15 +198,7 @@ describe("director-shareholder-notifications", () => {
 
     await runIssuerDirectorShareholderNotificationResolutionFromDb("org-1");
 
-    expect(prisma.notification.updateMany).toHaveBeenCalledTimes(2);
-    const mismatchCall = (prisma.notification.updateMany as jest.Mock).mock.calls.find(
-      (c) => c[0].where.notification_type_id === NotificationTypeIds.DIRECTOR_SHAREHOLDER_MISMATCH
-    );
-    const rejectedCall = (prisma.notification.updateMany as jest.Mock).mock.calls.find(
-      (c) => c[0].where.notification_type_id === NotificationTypeIds.DIRECTOR_SHAREHOLDER_REJECTED
-    );
-    expect(mismatchCall).toBeDefined();
-    expect(rejectedCall).toBeDefined();
+    expect(prisma.notification.updateMany).not.toHaveBeenCalled();
   });
 
   it("sendTyped is not called for rejected notify with invalid party key", async () => {

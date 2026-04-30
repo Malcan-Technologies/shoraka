@@ -4,6 +4,7 @@ import * as React from "react";
 import { UserGroupIcon, UserIcon, BuildingOffice2Icon } from "@heroicons/react/24/outline";
 import {
   buildDirectorShareholderDisplayRowForEmailEligibility,
+  canEnterEmailForDirectorShareholder,
   filterVisiblePeopleRows,
   getDisplayRoleLabel,
   normalizeDirectorShareholderPartyEmail,
@@ -109,7 +110,7 @@ export function DirectorShareholdersUnifiedSection({
   const displayEmail = React.useCallback((row: AugmentedRow) => draftEmails[row.id] ?? row.email ?? "", [draftEmails]);
 
   const canSendForRow = React.useCallback(
-    (row: AugmentedRow) => !blockPartyOnboarding && row.canSendOnboarding === true && row.type === "INDIVIDUAL",
+    (row: AugmentedRow) => !blockPartyOnboarding && canEnterEmailForDirectorShareholder(row.__person),
     [blockPartyOnboarding]
   );
 
