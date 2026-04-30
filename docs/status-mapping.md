@@ -1,11 +1,13 @@
 # Status Mapping (DB → UI)
 
+This document describes **only** display behavior. **No code paths are changed here.**
+
 ## Overview
 
 Director and shareholder rows in Admin and Issuer are backed by `people[]` (`ApplicationPersonRow`). Each row carries:
 
 - **`screening.status`** — AML / ACURIS-style screening line (from issuer `director_aml_status`, including corporate **business shareholders**).
-- **`onboarding.status`** — Individual **KYC** pipeline status from issuer `director_kyc_status`, or for **corporate** rows the **KYB** status derived from `corporate_entities` (same field name; see [Corporate nuance](#corporate-nuance-kyb-in-onboardingstatus) below).
+- **`onboarding.status`** — Individual **KYC** pipeline status from issuer `director_kyc_status`, or for **corporate** rows the **KYB** status derived from `corporate_entities` (same field name; see **§5. Priority rules**).
 
 The **single badge** next to each person (e.g. “In Progress”, “Rejected”) comes from **one function** shared by Admin and Issuer:
 
@@ -16,29 +18,68 @@ It does **not** read the database directly. It only reads **`screening.status`**
 
 ---
 
-## Data Sources
+## 1. All raw statuses (KYC / AML / KYB)
 
-| Source | Storage | Becomes on `ApplicationPersonRow` | Notes |
-|--------|---------|-------------------------------------|--------|
-| **KYC (individual onboarding)** | `director_kyc_status` JSON: `directors[]`, `individualShareholders[]` → `kycStatus` / `status` | `onboarding.status` (individuals) | Matched by government ID / EOD in `build-people-list.ts` → `enrichPersonFromIssuerMaps` |
-| **AML (screening)** | `director_aml_status` JSON: `directors[]`, `individualShareholders[]`, `businessShareholders[]` → `amlStatus` | `screening.status` | Individuals: AML row by IC / EOD. Corporates: AML by COD or BRN |
-| **KYB (corporate onboarding)** | `corporate_entities.corporateShareholders[]` → `kybRequestDto.status` or shareholder `status` (via CE party refs) | `onboarding.status` (corporates) | Same `onboarding` field as KYC; value is normalized KYB status |
-| **CTOS party supplements** | `ctos_party_supplements.onboarding_json` | **Overrides** `onboarding.status` and `screening.status` per party key when present | Applied in `normalizeUnifiedPeopleRows` in `apps/api/src/modules/admin/build-people-list.ts` using `getEffectiveCtosPartyOnboarding` / `getEffectiveCtosPartyScreening` from `packages/types/src/ctos-party-supplement-json.ts` |
+These are the **issuer-side JSON** fields that ultimately feed the badge (after API mapping and optional supplement overrides).
 
-Raw strings from JSON are passed through **`normalizeRawStatus`** before grouping (see below).
+### KYC (individuals only)
+
+| Location | JSON path | Typical field holding status |
+|----------|-----------|--------------------------------|
+| `director_kyc_status` | `directors[]` | `kycStatus`, sometimes `status` |
+| `director_kyc_status` | `individualShareholders[]` | `kycStatus`, sometimes `status` |
+
+API picks `kycStatus` or `status`, normalizes → **`onboarding.status`** on each **INDIVIDUAL** `people` row (`build-people-list.ts` → `kycSanitizedStatus`).
+
+### AML (individuals + corporate business shareholders)
+
+| Location | JSON path | Field |
+|----------|-----------|--------|
+| `director_aml_status` | `directors[]` | `amlStatus` |
+| `director_aml_status` | `individualShareholders[]` | `amlStatus` |
+| `director_aml_status` | `businessShareholders[]` | `amlStatus` |
+
+Normalized → **`screening.status`** (`amlSanitizedStatus`).
+
+### KYB (corporate shareholders only)
+
+| Location | JSON path | Typical status source |
+|----------|-----------|------------------------|
+| `corporate_entities` | `corporateShareholders[]` | `kybRequestDto.status`, and/or top-level shareholder `status` (via CE merge in API) |
+
+Normalized KYB string → **`onboarding.status`** on **CORPORATE** rows (same property name as individual KYC).
+
+### Supplements (optional override)
+
+| Storage | Effect |
+|---------|--------|
+| `ctos_party_supplements.onboarding_json` | Can replace **`onboarding.status`** (RegTank / KYC pipeline from supplement) and **`screening.status`** (flat screening / AML line) per party key when `normalizeUnifiedPeopleRows` runs |
+
+Any value that ends up in `screening.status` / `onboarding.status` is still normalized and then passed through the same UI rules below.
 
 ---
 
-## Transformation Pipeline
+## 2. How statuses are normalized
 
-### 1. Raw → normalized
+**Function:** `normalizeRawStatus(v)` — `packages/types/src/status-normalization.ts`
 
-**`normalizeRawStatus(v)`** — `packages/types/src/status-normalization.ts`
+| Step | Rule |
+|------|------|
+| Input | Any `unknown` / string from DB or JSON |
+| Trim | Leading/trailing whitespace removed |
+| Case | Entire string uppercased |
+| Spaces | Whitespace runs replaced with `_` |
+| Output | Token string, or `""` if empty after trim |
 
-- Trims, uppercases, replaces whitespace with `_`.
-- Example: `"Rejected"` → `"REJECTED"`, `"In Progress"` → `"IN_PROGRESS"`.
+**Examples:** `"Rejected"` → `REJECTED`, `"In Progress"` → `IN_PROGRESS`, `"  pending  "` → `PENDING`.
 
-### 2. Row build (API)
+**Where it runs:** On `screening.status` and `onboarding.status` **inside** `getDirectorShareholderSingleStatusPresentation`, and earlier when building/overriding rows in `build-people-list.ts` and supplement maps.
+
+---
+
+## 3. Transformation pipeline (API + UI)
+
+### 3.1 Row build (issuer JSON → `people[]`)
 
 **`buildAdminPeopleList` / `buildUnifiedPeople` / `buildPeopleFromUserDeclaredData`** — `apps/api/src/modules/admin/build-people-list.ts`
 
@@ -47,14 +88,14 @@ Raw strings from JSON are passed through **`normalizeRawStatus`** before groupin
 - Individual KYC: `kycSanitizedStatus` → `normalizeRawStatus(kycStatus || status)`.
 - Corporate: `onboarding.status` from CE KYB status raw, normalized.
 
-### 3. Supplement overrides (optional)
+### 3.2 Supplement overrides (optional)
 
 **`normalizeUnifiedPeopleRows`** merges duplicate rows by `matchKey`, then for each key:
 
 - If a supplement exists for that party key, **`onboarding.status`** and **`screening.status`** are replaced by values read from `onboarding_json` (`getEffectiveCtosPartyOnboarding` / `getEffectiveCtosPartyScreening` + `normalizeRawStatus`).
 - If no supplement for that key, issuer-derived `row.onboarding?.status` / `row.screening?.status` stay (still normalized).
 
-### 4. Single badge (UI)
+### 3.3 Single badge (UI) — how `screening` / `onboarding` become labels
 
 **`getDirectorShareholderSingleStatusPresentation(person)`**
 
@@ -79,9 +120,10 @@ All import **`getDirectorShareholderSingleStatusPresentation`** from **`@cashsou
 
 ---
 
-## Status Mapping Table
+## 4. Status mapping tables (normalized token → UI label)
 
-Values below are **after `normalizeRawStatus`**. Group → **label** = `toTitleCase(group)` (e.g. `IN_PROGRESS` → **“In Progress”**).
+Labels are **`toTitleCase(group)`** on the internal group enum (e.g. `IN_PROGRESS` → **“In Progress”**).  
+Values in the tables below are **after `normalizeRawStatus`** (what `getAmlGroup` / `getKycGroup` compare against).
 
 ### AML groups (`getAmlGroup`) — source: `screening.status`
 
@@ -110,20 +152,33 @@ Values below are **after `normalizeRawStatus`**. Group → **label** = `toTitleC
 
 ---
 
-## Priority Rules
+## 5. Priority rules: AML > KYC > KYB
 
-**Documented in code** (`director-shareholder-single-status-display.ts`, lines 3–4 and 113–115):
+The UI function implements a **strict two-step** check, not a three-way merge:
 
-1. **`screening.status` (AML) wins whenever it is non-empty after normalization.**
-2. **`onboarding.status` (KYC / KYB)** is used **only if** AML is empty.
-3. There is **no** merge of “worst” or “best” of both: AML fully **replaces** KYC/KYB for the badge whenever AML has any normalized value.
+```
+normalize(screening.status)  →  if non-empty → AML pipeline (getAmlGroup) → badge
+else normalize(onboarding.status)  →  if non-empty → same grouping as KYC (getKycGroup) → badge
+else → no badge
+```
 
-**Corporate nuance (`onboarding.status` = KYB):**  
-For `entityType === "CORPORATE"`, `onboarding.status` still flows through **`getKycGroup`** when AML is absent. The returned `source` field is typed `"KYC" | "AML"` — for that branch the data is **KYB** from CE, but the **label rules** are the KYC group lists above.
+| Priority | Field on `people[]` | Meaning in product terms |
+|:--------:|---------------------|---------------------------|
+| **1 — wins** | `screening.status` | **AML** (from `director_aml_status`, including `businessShareholders` for corporates) |
+| **2** | `onboarding.status` | **KYC** for individuals (`director_kyc_status`) **or KYB** for corporates (`corporate_entities` KYB), same property |
+| **3** | *(N/A as separate input)* | **KYB never competes with AML** in code: if AML is non-empty, KYB is ignored for this badge |
+
+So in documentation terms: **AML > (KYC or KYB)**. **KYB** only affects the badge when it is the value in **`onboarding.status`** *and* **AML is empty** after normalization.
+
+**Source of truth:** `getDirectorShareholderSingleStatusPresentation` in `packages/types/src/director-shareholder-single-status-display.ts` (file header: “AML always wins over KYC”).
+
+**Corporate nuance:** For corporates, KYB still uses **`getKycGroup`** (naming is historical). The returned `source` is `"KYC"` in that branch even when the underlying data is KYB.
+
+**No merge:** If both AML and KYC/KYB are present, **only AML** drives the badge. There is no “pick worst” or “pick best” across the two.
 
 ---
 
-## Examples
+## 6. Real examples
 
 ### Individual example (Lim Tze Yang)
 
@@ -161,7 +216,7 @@ For `entityType === "CORPORATE"`, `onboarding.status` still flows through **`get
 
 ---
 
-## Edge Cases
+## 7. Edge cases
 
 | Case | Behavior |
 |------|----------|
