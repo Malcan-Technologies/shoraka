@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -30,13 +29,7 @@ import {
   applicationTableWrapperClass,
 } from "@/components/application-review/application-table-styles";
 import { cn } from "@/lib/utils";
-import {
-  buildDirectorShareholderDisplayRowForEmailEligibility,
-  filterVisiblePeopleRows,
-  formatPeopleRolesLineWithoutShare,
-  formatSharePercentageCell,
-} from "@/lib/onboarding-people-display";
-import { DirectorShareholderNotifyButton } from "@/components/director-shareholder-notify-button";
+import { DirectorShareholderTable } from "@/components/admin/director-shareholder-table";
 import { ReviewFieldBlock } from "@/components/application-review/review-field-block";
 import { reviewEmptyStateClass } from "@/components/application-review/review-section-styles";
 import { formatCurrency, formatNumber, useAuthToken } from "@cashsouk/config";
@@ -48,8 +41,6 @@ import {
   formatFinancialFyPeriodDisplay,
   getAdminFinancialSummaryUserColumnYears,
   getLatestThreeCtosYearSlots,
-  isDirectorShareholderAmlScreeningApproved,
-  normalizeDirectorShareholderIdKey,
   normalizeFinancialStatementsQuestionnaire,
   type ApplicationPersonRow,
   type ColumnComputedMetrics,
@@ -62,7 +53,6 @@ import {
   useCreateIssuerOrganizationCtosReport,
   useCreateIssuerOrganizationCtosSubjectReport,
   useNotifyIssuerDirectorShareholderActionRequired,
-  useRejectIssuerDirectorShareholder,
 } from "@/hooks/use-admin-issuer-organization-ctos-mutations";
 import { CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
 
@@ -106,52 +96,6 @@ function formatFinancialDateDisplay(raw: string | null | undefined): string {
     /* ignore */
   }
   return s;
-}
-
-function formatPeopleRolesDisplayCapitalized(p: { roles: string[]; sharePercentage: number | null }): string {
-  return formatPeopleRolesLineWithoutShare(p)
-    .replace(/\bDIRECTOR\b/g, "Director")
-    .replace(/\bSHAREHOLDER\b/g, "Shareholder");
-}
-
-/** Align persisted `subject_ref` with `people[].matchKey` (IC / BRN, mixed formatting). */
-function ctosSubjectRefComparable(s: string | null | undefined): string {
-  return String(s ?? "")
-    .trim()
-    .replace(/[^a-zA-Z0-9]/g, "")
-    .toLowerCase();
-}
-
-/** AML screening cleared → green KYC (individual) or KYB (corporate); else em dash in UI. */
-function directorShareholderKycKybBadgeLabel(p: ApplicationPersonRow): "KYC" | "KYB" | null {
-  if (!isDirectorShareholderAmlScreeningApproved(p.screening)) return null;
-  return p.entityType === "CORPORATE" ? "KYB" : "KYC";
-}
-
-function latestSubjectReportForMatchKey(
-  matchKey: string,
-  reports: Array<{ subject_ref: string | null; fetched_at: string }> | null | undefined
-): { fetched_at: string } | null {
-  const want = ctosSubjectRefComparable(matchKey);
-  if (!want || !reports?.length) return null;
-  let best: { fetched_at: string } | null = null;
-  let bestMs = 0;
-  for (const r of reports) {
-    const ref = ctosSubjectRefComparable(r.subject_ref);
-    if (ref !== want) continue;
-    const ms = Date.parse(r.fetched_at);
-    if (!Number.isFinite(ms) || ms <= bestMs) continue;
-    bestMs = ms;
-    best = { fetched_at: r.fetched_at };
-  }
-  return best;
-}
-
-function formatSubjectReportTimestamp(iso: string | null | undefined): string {
-  if (iso == null || String(iso).trim() === "") return "\u2014";
-  const d = parseISO(String(iso).trim());
-  if (!isValid(d)) return "\u2014";
-  return format(d, "d MMM yyyy, HH:mm");
 }
 
 function financialSummaryColumnShellClass(
@@ -320,6 +264,7 @@ interface ApplicationFinancialReviewContentProps {
       }> | null;
       ctos_party_supplements?: { party_key: string; onboarding_json?: unknown }[] | null;
       director_kyc_status?: unknown;
+      director_aml_status?: unknown;
       corporate_entities?: unknown;
     } | null;
     financial_statements?: unknown;
@@ -345,11 +290,7 @@ export function ApplicationFinancialReviewContent({
     issuerOrgId || undefined,
     applicationId
   );
-  const rejectParty = useRejectIssuerDirectorShareholder(issuerOrgId || undefined, applicationId);
   const [orgCtosConfirmOpen, setOrgCtosConfirmOpen] = React.useState(false);
-  const [rejectDialogOpen, setRejectDialogOpen] = React.useState(false);
-  const [rejectTarget, setRejectTarget] = React.useState<ApplicationPersonRow | null>(null);
-  const [rejectRemark, setRejectRemark] = React.useState("");
 
   const { unauditedByYear, questionnaire: financialQuestionnaire } = React.useMemo(
     () => extractQuestionnaireAndUnaudited(app.financial_statements),
@@ -357,59 +298,6 @@ export function ApplicationFinancialReviewContent({
   );
   const hasIssuerFinancialData = Object.keys(unauditedByYear).length > 0;
 
-  const peopleRows = React.useMemo(() => app.people ?? [], [app.people]);
-  const visiblePeopleRows = React.useMemo(() => filterVisiblePeopleRows(peopleRows), [peopleRows]);
-
-  /**
-   * SECTION: Merge rows by IC/SSM key
-   * WHY: Listing must combine director + shareholder rows for same IC/SSM.
-   * INPUT: visiblePeopleRows
-   * OUTPUT: mergedVisiblePeopleRows for table rendering
-   * WHERE USED: Admin Financial tab listing table
-   */
-  const mergedVisiblePeopleRows = React.useMemo(() => {
-    const m = new Map<string, ApplicationPersonRow>();
-    for (const p of visiblePeopleRows) {
-      const key = p.matchKey;
-      if (!key) continue;
-
-      const prev = m.get(key);
-      if (!prev) {
-        m.set(key, p);
-        continue;
-      }
-
-      const prevRoles = Array.isArray(prev.roles) ? prev.roles : [];
-      const nextRoles = Array.isArray(p.roles) ? p.roles : [];
-      const roleSet = new Set<string>([...prevRoles, ...nextRoles].filter(Boolean));
-
-      const prevShare = typeof prev.sharePercentage === "number" ? prev.sharePercentage : null;
-      const nextShare = typeof p.sharePercentage === "number" ? p.sharePercentage : null;
-      const sharePercentage =
-        prevShare != null && nextShare != null ? Math.max(prevShare, nextShare) : prevShare ?? nextShare;
-
-      m.set(key, {
-        ...prev,
-        roles: Array.from(roleSet),
-        sharePercentage: sharePercentage as number | null,
-        name: prev.name ?? p.name ?? null,
-      });
-    }
-
-    return Array.from(m.values());
-  }, [visiblePeopleRows]);
-  const supplementsByPartyKey = React.useMemo(() => {
-    const m = new Map<string, Record<string, unknown>>();
-    for (const row of app.issuer_organization?.ctos_party_supplements ?? []) {
-      const pk = normalizeDirectorShareholderIdKey(String(row.party_key ?? ""));
-      if (!pk) continue;
-      const raw = row.onboarding_json;
-      const json =
-        raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
-      m.set(pk, json);
-    }
-    return m;
-  }, [app.issuer_organization?.ctos_party_supplements]);
   const orgSubjectReports = app.issuer_organization?.latest_organization_ctos_subject_reports;
 
   const financialRows: CtosFinRow[] = React.useMemo(() => {
@@ -1015,151 +903,71 @@ export function ApplicationFinancialReviewContent({
       </ReviewFieldBlock>
 
       <ReviewFieldBlock title="Director and Shareholders">
-        {mergedVisiblePeopleRows.length > 0 ? (
-          <div className={applicationTableWrapperClass}>
-            <div className="overflow-x-auto">
-            <Table className="min-w-[1080px] text-[15px]">
-              <TableHeader className={applicationTableHeaderBgClass}>
-                <TableRow className="hover:bg-transparent border-b border-border">
-                  <TableHead className={applicationTableHeaderClass}>Name</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>Role</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>Share %</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>KYC / KYB</TableHead>
-                  <TableHead className={applicationTableHeaderClass}>Last report</TableHead>
-                  <TableHead className={`${applicationTableHeaderClass} text-right`}>Fetch report</TableHead>
-                  <TableHead className={`${applicationTableHeaderClass} text-right`}>Notify</TableHead>
-                  <TableHead className={`${applicationTableHeaderClass} text-right`}>Reject</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {mergedVisiblePeopleRows.map((p) => {
-                  const pk = normalizeDirectorShareholderIdKey(p.matchKey);
-                  const supplement = pk ? supplementsByPartyKey.get(pk) ?? {} : {};
-                  const displayRow = buildDirectorShareholderDisplayRowForEmailEligibility(p, supplement);
-                  const canNotify = displayRow.canSendOnboarding === true;
-                  const lastReport = latestSubjectReportForMatchKey(p.matchKey, orgSubjectReports);
-                  const lastReportLabel = formatSubjectReportTimestamp(lastReport?.fetched_at);
-                  const kycKybLabel = directorShareholderKycKybBadgeLabel(p);
-                  const displayNameForCtos =
-                    p.name?.trim() ||
-                    (p.entityType === "CORPORATE" ? "Corporate party" : "Individual");
-                  const ctosIdNormalized = p.matchKey.replace(/[^a-zA-Z0-9]/g, "");
-                  return (
-                    <TableRow key={p.matchKey} className={applicationTableRowClass}>
-                      <TableCell className={`${applicationTableCellClass} font-medium`}>
-                        <div>{p.name ?? "\u2014"}</div>
-                        <div className="font-mono text-xs text-muted-foreground">{p.matchKey || "—"}</div>
-                      </TableCell>
-                      <TableCell className={applicationTableCellClass}>
-                        {formatPeopleRolesDisplayCapitalized(p)}
-                      </TableCell>
-                      <TableCell className={applicationTableCellClass}>
-                        {(() => {
-                          const rolesU = (p.roles ?? []).map((r) => String(r).toUpperCase());
-                          const hasDirector = rolesU.includes("DIRECTOR");
-                          const hasShareholder = rolesU.includes("SHAREHOLDER");
-                          if (hasDirector && !hasShareholder) return <span className="text-muted-foreground">{"—"}</span>;
-                          const v = formatSharePercentageCell(p);
-                          return <span className={v ? undefined : "text-muted-foreground"}>{v || "—"}</span>;
-                        })()}
-                      </TableCell>
-                      <TableCell className={applicationTableCellClass}>
-                        {kycKybLabel ? (
-                          <Badge
-                            className="rounded-md border-transparent bg-emerald-600 text-white shadow-none hover:bg-emerald-600"
-                          >
-                            {kycKybLabel}
-                          </Badge>
-                        ) : (
-                          <span className="text-muted-foreground">{"\u2014"}</span>
-                        )}
-                      </TableCell>
-                      <TableCell className={applicationTableCellClass}>
-                        <span className="text-muted-foreground">{lastReportLabel}</span>
-                      </TableCell>
-                      <TableCell className={`${applicationTableCellClass} text-right`}>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-8 rounded-lg text-xs"
-                          disabled={!issuerOrgId || createSubjectReport.isPending}
-                          onClick={() => {
-                            console.log("Fetch CTOS subject report:", p.matchKey, p.entityType);
-                            createSubjectReport.mutate(
-                              {
-                                subjectRef: ctosIdNormalized || p.matchKey,
-                                subjectKind: p.entityType === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL",
-                                enquiryOverride: {
-                                  displayName: displayNameForCtos,
-                                  idNumber: ctosIdNormalized || p.matchKey,
-                                },
-                              },
-                              {
-                                onSuccess: () => toast.success("Subject report updated"),
-                                onError: (err: unknown) =>
-                                  toast.error(err instanceof Error ? err.message : "Request failed"),
-                              }
-                            );
-                          }}
-                        >
-                          Fetch report
-                        </Button>
-                      </TableCell>
-                      <TableCell className={`${applicationTableCellClass} text-right`}>
-                        <div className="flex flex-col items-end gap-1">
-                          {issuerOrgId && !notifyActionRequired.isPending && canNotify ? (
-                            <DirectorShareholderNotifyButton
-                              rowActionable={true}
-                              className="h-8 rounded-lg text-xs"
-                              disabled={false}
-                              onNotify={() =>
-                                notifyActionRequired.mutate(
-                                  { partyKey: p.matchKey },
-                                  {
-                                    onSuccess: () => toast.success("Notify sent to issuer."),
-                                    onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "Notify failed"),
-                                  }
-                                )
-                              }
-                            />
-                          ) : null}
-                        </div>
-                      </TableCell>
-                      <TableCell className={`${applicationTableCellClass} text-right`}>
-                        {p.entityType === "INDIVIDUAL" &&
-                        p.matchKey?.trim() &&
-                        !isDirectorShareholderAmlScreeningApproved(p.screening) ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-8 rounded-lg border-destructive/50 text-xs text-destructive hover:bg-destructive/10"
-                            disabled={!issuerOrgId || rejectParty.isPending}
-                            onClick={() => {
-                              setRejectTarget(p);
-                              setRejectRemark("");
-                              setRejectDialogOpen(true);
-                            }}
-                          >
-                            Reject
-                          </Button>
-                        ) : (
-                          <span className="text-muted-foreground">{"\u2014"}</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-            </div>
-          </div>
-        ) : (
-          <div className="rounded-xl border border-border bg-card min-h-[80px] flex items-center justify-center">
-            <p className={`${reviewEmptyStateClass} py-6`}>No director or shareholder data.</p>
-          </div>
-        )}
+        <DirectorShareholderTable
+          people={app.people ?? []}
+          supplements={
+            (app.issuer_organization?.ctos_party_supplements ?? []).map((row) => ({
+              partyKey: String(row.party_key ?? ""),
+              onboardingJson: row.onboarding_json,
+            })) ?? []
+          }
+          directorAmlStatus={app.issuer_organization?.director_aml_status}
+          directorKycStatus={app.issuer_organization?.director_kyc_status}
+          corporateEntities={app.issuer_organization?.corporate_entities}
+          codRequestId={null}
+          regtankPortalUrl={null}
+          ctosReports={orgSubjectReports ?? []}
+          ctosFetchPending={createSubjectReport.isPending}
+          ctosFetchPendingKey={null}
+          notifyPending={notifyActionRequired.isPending}
+          canNotify={issuerOrgId.length > 0}
+          onFetchSubjectCtos={(input) => {
+            const ctosIdNormalized = input.subjectRef.replace(/[^a-zA-Z0-9]/g, "");
+            createSubjectReport.mutate(
+              {
+                subjectRef: ctosIdNormalized || input.subjectRef,
+                subjectKind: input.subjectKind,
+                enquiryOverride:
+                  input.displayName && input.idNumber
+                    ? { displayName: input.displayName, idNumber: input.idNumber }
+                    : undefined,
+              },
+              {
+                onSuccess: () => toast.success("Subject report updated"),
+                onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "Request failed"),
+              }
+            );
+          }}
+          onViewLastReport={async (reportId) => {
+            const token = await getAccessToken();
+            if (!token) {
+              toast.error("Not signed in");
+              return;
+            }
+            if (!issuerOrgId) return;
+            const url = `${API_URL}/v1/admin/organizations/issuer/${encodeURIComponent(issuerOrgId)}/ctos-reports/${reportId}/html`;
+            const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+            if (!res.ok) {
+              toast.error("Could not load report");
+              return;
+            }
+            const html = await res.text();
+            const w = window.open("", "_blank");
+            if (w) {
+              w.document.write(html);
+              w.document.close();
+            }
+          }}
+          onNotify={(partyKey) =>
+            notifyActionRequired.mutate(
+              { partyKey },
+              {
+                onSuccess: () => toast.success("Notify sent to issuer."),
+                onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "Notify failed"),
+              }
+            )
+          }
+        />
       </ReviewFieldBlock>
 
       <ReviewFieldBlock title="Cashsouk Intelligence">
@@ -1206,76 +1014,6 @@ export function ApplicationFinancialReviewContent({
             >
               {createOrgCtos.isPending ? CTOS_UI.fetching : CTOS_CONFIRM.primaryAction}
             </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog
-        open={rejectDialogOpen}
-        onOpenChange={(open) => {
-          if (!open && rejectParty.isPending) return;
-          setRejectDialogOpen(open);
-          if (!open) {
-            setRejectTarget(null);
-            setRejectRemark("");
-          }
-        }}
-      >
-        <AlertDialogContent className="rounded-xl max-w-lg">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Reject director or shareholder</AlertDialogTitle>
-            <AlertDialogDescription>
-              The issuer gets a notification. RegTank onboarding is resent for this party. Add an internal
-              remark (required).
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {rejectTarget ? (
-            <div className="space-y-2 py-2">
-              <p className="text-sm text-foreground">
-                <span className="text-muted-foreground">Party: </span>
-                {rejectTarget.name?.trim() || rejectTarget.matchKey}
-              </p>
-              <Textarea
-                value={rejectRemark}
-                onChange={(e) => setRejectRemark(e.target.value)}
-                placeholder="Remark for audit trail (required)"
-                className="min-h-[100px] rounded-lg text-[15px] leading-7"
-                maxLength={2000}
-                disabled={rejectParty.isPending}
-              />
-            </div>
-          ) : null}
-          <AlertDialogFooter>
-            <AlertDialogCancel className="rounded-lg" disabled={rejectParty.isPending}>
-              Cancel
-            </AlertDialogCancel>
-            <Button
-              type="button"
-              variant="destructive"
-              className="rounded-lg"
-              disabled={
-                rejectParty.isPending || !rejectTarget || rejectRemark.trim().length === 0
-              }
-              onClick={() => {
-                if (!rejectTarget) return;
-                console.log("Reject director/shareholder party:", rejectTarget.matchKey);
-                rejectParty.mutate(
-                  { partyKey: rejectTarget.matchKey, remark: rejectRemark.trim() },
-                  {
-                    onSuccess: () => {
-                      toast.success("Party rejected; issuer notified.");
-                      setRejectDialogOpen(false);
-                      setRejectTarget(null);
-                      setRejectRemark("");
-                    },
-                    onError: (err: unknown) =>
-                      toast.error(err instanceof Error ? err.message : "Reject failed"),
-                  }
-                );
-              }}
-            >
-              {rejectParty.isPending ? "Sending…" : "Confirm reject"}
-            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
