@@ -195,11 +195,6 @@ export function OnboardingQueueRow({ application }: OnboardingQueueRowProps) {
                     SSM: {application.registrationNumber}
                   </div>
                 )}
-                {application.directorShareholderAmlPending ? (
-                  <Badge variant="secondary" className="mt-1 w-fit rounded-full text-xs font-semibold">
-                    Pending Directors/Shareholders
-                  </Badge>
-                ) : null}
               </>
             ) : (
               <>
