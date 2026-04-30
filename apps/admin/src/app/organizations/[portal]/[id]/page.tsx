@@ -646,10 +646,12 @@ export default function OrganizationDetailPage() {
     onMutate: (input) => {
       setCtosFetchSubjectKey(input.subjectRef);
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      await queryClient.refetchQueries({
+        queryKey: ["admin", "organization-detail", portal, organizationId],
+      });
       void queryClient.invalidateQueries({ queryKey: ["admin", "organization-ctos-reports-inline", portal, organizationId] });
       void queryClient.invalidateQueries({ queryKey: ["admin", "organization-ctos-reports", portal, organizationId] });
-      void queryClient.invalidateQueries({ queryKey: ["admin", "organization-detail", portal, organizationId] });
       toast.success("CTOS subject report saved.");
     },
     onError: (e: Error) => {

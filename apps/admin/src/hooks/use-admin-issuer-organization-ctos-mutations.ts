@@ -56,10 +56,21 @@ export function useCreateIssuerOrganizationCtosSubjectReport(
       }
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      const refetches: Array<Promise<unknown>> = [];
       if (applicationDetailId) {
-        void queryClient.invalidateQueries({ queryKey: applicationsKeys.detail(applicationDetailId) });
+        refetches.push(
+          queryClient.refetchQueries({ queryKey: applicationsKeys.detail(applicationDetailId) })
+        );
       }
+      if (organizationId) {
+        refetches.push(
+          queryClient.refetchQueries({
+            queryKey: ["admin", "organization-detail", "issuer", organizationId],
+          })
+        );
+      }
+      await Promise.all(refetches);
     },
   });
 }
