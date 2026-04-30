@@ -347,6 +347,10 @@ export default function NewApplicationPage() {
             enabled={activeOrganization.onboardingStatus === "COMPLETED"}
             stickyTop
             className="mb-4"
+            onGoToProfile={(matchKey) => {
+              const personQuery = matchKey ? `&person=${encodeURIComponent(matchKey)}` : "";
+              requestNavigation(`/profile?focus=directors${personQuery}`);
+            }}
           />
         ) : null}
         <div className="max-w-7xl mx-auto w-full px-4 py-8">

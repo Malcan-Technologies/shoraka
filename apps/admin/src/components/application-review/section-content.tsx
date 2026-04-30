@@ -83,8 +83,6 @@ export type ReviewApplicationView = {
     corporateOnboardingData?: Record<string, unknown> | null;
     bank_account_details?: Record<string, unknown> | null;
     bankAccountDetails?: Record<string, unknown> | null;
-    director_kyc_status?: unknown;
-    director_aml_status?: unknown;
     business_aml_status?: unknown;
     latest_organization_ctos_company_json?: unknown | null;
     latest_organization_ctos_financials_json?: unknown | null;
@@ -97,7 +95,6 @@ export type ReviewApplicationView = {
       fetched_at: string;
       has_report_html: boolean;
     }> | null;
-    ctos_party_supplements?: { party_key: string; onboarding_json?: unknown }[] | null;
   } | null;
 };
 

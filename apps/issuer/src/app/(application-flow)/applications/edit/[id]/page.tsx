@@ -1605,6 +1605,10 @@ function EditApplicationPageBody() {
               enabled={activeOrganization.onboardingStatus === "COMPLETED"}
               stickyTop
               className="mb-2"
+              onGoToProfile={(matchKey) => {
+                const personQuery = matchKey ? `&person=${encodeURIComponent(matchKey)}` : "";
+                void safeNavigate(`/profile?focus=directors${personQuery}`, { leavingPage: true });
+              }}
             />
           </div>
         ) : null}

@@ -9,8 +9,8 @@
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
 import {
+  canEnterEmailForDirectorShareholder,
   filterVisiblePeopleRows,
-  isReadyOnboardingStatus,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
@@ -22,7 +22,7 @@ const DIRECTOR_SHAREHOLDER_PENDING_MESSAGE =
 function peopleHavePendingOnboarding(visible: ApplicationPersonRow[]): boolean {
   const individuals = visible.filter((p) => p.entityType === "INDIVIDUAL");
   if (individuals.length === 0) return false;
-  return individuals.some((p) => !isReadyOnboardingStatus(p.onboarding?.status ?? null));
+  return individuals.some((p) => canEnterEmailForDirectorShareholder(p));
 }
 
 export async function getIssuerDirectorShareholderSubmitReadiness(issuerOrganizationId: string): Promise<{

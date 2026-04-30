@@ -70,7 +70,7 @@ export function getEffectiveCtosPartyOnboarding(root: Record<string, unknown>): 
     }
     return o;
   }
-  const rawSt = root.regtankStatus ?? root.status;
+  const rawSt = root.onboardingStatus ?? root.regtankStatus ?? root.status;
   let statusOut: string | undefined;
   if (typeof rawSt === "string") statusOut = rawSt;
   else if (rawSt != null && rawSt !== undefined) statusOut = String(rawSt);
@@ -148,7 +148,18 @@ export function getEffectiveCtosPartyScreening(root: Record<string, unknown>): R
   }
   const kyc = asObject(root.kyc) ?? {};
   const aml = asObject(root.aml) ?? {};
-  if (Object.keys(kyc).length === 0 && Object.keys(aml).length === 0) return {};
+  if (Object.keys(kyc).length === 0 && Object.keys(aml).length === 0) {
+    const screeningStatus = normalizeRawStatus(root.screeningStatus);
+    if (!screeningStatus) return {};
+    return {
+      provider: "ACURIS",
+      requestId: String(root.requestId ?? "").trim(),
+      status: screeningStatus,
+      riskLevel: "",
+      riskScore: "",
+      updatedAt: String(root.updatedAt ?? ""),
+    };
+  }
   return flatScreeningFromLegacyKycAml(kyc, aml);
 }
 
@@ -221,6 +232,13 @@ export function mergeCtosPartySupplementDocument(
 
   return {
     ...extras,
+    requestId: String(onboarding.requestId ?? "").trim() || null,
+    email: String(onboarding.email ?? "").trim() || null,
+    onboardingStatus: normalizeRawStatus(onboarding.status ?? onboarding.regtankStatus) || null,
+    screeningStatus: normalizeRawStatus(screening.status) || null,
+    updatedAt:
+      String(onboarding.updatedAt ?? screening.updatedAt ?? "").trim() ||
+      new Date().toISOString(),
     onboarding,
     screening,
   };

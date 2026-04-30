@@ -9,6 +9,8 @@ export {
   formatPeopleRolesLineWithoutShare,
   formatSharePercentageCell,
   getDisplayStatus,
+  canEnterEmailForDirectorShareholder,
+  isDirectorShareholderCompleted,
   requiresOnboardingEmail,
   isDirectorShareholderEmailActionable,
   isNotifyEligible,

@@ -8,8 +8,8 @@ import { useOrganization } from "@cashsouk/config";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  applicationPeopleToUnifiedDirectorRows,
-  getDirectorShareholderDisplayRows,
+  buildDirectorShareholderDisplayRowForEmailEligibility,
+  filterVisiblePeopleRows,
 } from "@cashsouk/types";
 import { UnifiedKycAmlReadonlyRows } from "@cashsouk/ui";
 import { toast } from "sonner";
@@ -80,9 +80,7 @@ function getOnboardingSteps(organization: Organization): OnboardingStep[] {
   ];
 }
 
-type OrganizationWithCtos = Organization & {
-  latestOrganizationCtosCompanyJson?: unknown | null;
-  ctosPartySupplements?: ReadonlyArray<{ partyKey: string; onboardingJson?: unknown }> | null;
+type OrganizationWithPeople = Organization & {
   people?: import("@cashsouk/types").ApplicationPersonRow[];
 };
 
@@ -96,23 +94,14 @@ export function OnboardingStatusCard({
   const steps = getOnboardingSteps(organization);
   const allComplete = steps.every((step) => step.isCompleted);
 
-  const orgWithCtos = organization as OrganizationWithCtos;
+  const orgWithPeople = organization as OrganizationWithPeople;
   const corporateUnifiedRows = React.useMemo(() => {
     if (organization.type !== "COMPANY") return [];
-    const legacyInput = {
-      corporateEntities: organization.corporateEntities ?? null,
-      directorKycStatus: organization.directorKycStatus ?? null,
-      directorAmlStatus: organization.directorAmlStatus ?? null,
-      organizationCtosCompanyJson: orgWithCtos.latestOrganizationCtosCompanyJson ?? null,
-      ctosPartySupplements: orgWithCtos.ctosPartySupplements ?? null,
-      sentRowIds: null,
-    };
-    const people = orgWithCtos.people ?? [];
-    if (people.length > 0) {
-      return applicationPeopleToUnifiedDirectorRows(people, legacyInput);
-    }
-    return getDirectorShareholderDisplayRows(legacyInput);
-  }, [organization]);
+    const people = orgWithPeople.people ?? [];
+    return filterVisiblePeopleRows(people).map((person) =>
+      buildDirectorShareholderDisplayRowForEmailEligibility(person, null)
+    );
+  }, [organization, orgWithPeople.people]);
 
   const handleRefreshAml = async () => {
     if (!organization.id) return;

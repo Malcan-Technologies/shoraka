@@ -140,3 +140,26 @@ export function getDirectorShareholderSingleStatusPresentation(
   }
   return null;
 }
+
+/**
+ * Tooltip copy derived from final display label only.
+ * Keep this aligned across Admin and Issuer surfaces.
+ */
+export function getDirectorShareholderStatusTooltip(label: string): string {
+  switch (label) {
+    case "Approved":
+      return "All required checks completed";
+    case "Under Review":
+      return "Onboarding is under review";
+    case "Pending Review":
+      return "Awaiting review";
+    case "In Progress":
+      return "Onboarding is in progress";
+    case "Rejected":
+      return "Onboarding was rejected - action required";
+    case "Expired":
+      return "Onboarding expired - action required";
+    default:
+      return "Status information unavailable";
+  }
+}
