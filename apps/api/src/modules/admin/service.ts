@@ -63,7 +63,6 @@ import {
   getStepKeyFromStepId,
   isRegtankIso3166Code,
   normalizeDirectorShareholderIdKey,
-  peopleHasPendingDirectorShareholderAml,
   buildDirectorShareholderDisplayRowForEmailEligibility,
   filterVisiblePeopleRows,
   isDirectorShareholderEmailActionable,
@@ -109,6 +108,31 @@ type ResubmitComparisonAmendmentRemark = {
 
 function isPlainObjectRecord(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+/**
+ * SECTION: Unified KYC/AML pending flag
+ * WHY: Show one action-required state for directors/shareholders
+ * INPUT: Application people rows from CTOS + issuer snapshots
+ * OUTPUT: boolean hasPending (any person has KYC or AML not done)
+ * WHERE USED: Admin applications list badge
+ */
+function hasPendingDirectorShareholderKycOrAml(people: ApplicationPersonRow[]): boolean {
+  const visible = filterVisiblePeopleRows(people);
+  // No visible people means we do not have the needed party status yet → keep action required.
+  if (!visible || visible.length === 0) return true;
+
+  return visible.some((p) => {
+    const onboardingStatus = normalizeRawStatus(p.onboarding?.status);
+    const amlStatus = normalizeRawStatus(p.screening?.status);
+
+    const isOnboardingDone =
+      onboardingStatus === "APPROVED" || onboardingStatus === "WAIT_FOR_APPROVAL";
+    const isAmlDone = amlStatus === "APPROVED";
+
+    // Pending if either KYC or AML is not cleared.
+    return !isOnboardingDone || !isAmlDone;
+  });
 }
 
 /**
@@ -2905,7 +2929,7 @@ export class AdminService {
         : [];
     const directorShareholderAmlPending =
       record.organization_type === "COMPANY"
-        ? peopleHasPendingDirectorShareholderAml(onboardingPeopleForAml)
+        ? hasPendingDirectorShareholderKycOrAml(onboardingPeopleForAml)
         : false;
 
     return {

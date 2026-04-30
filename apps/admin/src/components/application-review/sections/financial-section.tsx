@@ -6,7 +6,11 @@ import { ReviewSectionCard } from "../review-section-card";
 import type { ReviewSectionId } from "../section-types";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
 import { ApplicationFinancialReviewComparison } from "@/components/application-financial-review-comparison";
-import { isFinancialReviewKycReadyForApprove, type ApplicationPersonRow } from "@cashsouk/types";
+import {
+  isDirectorShareholderAmlScreeningApproved,
+  isReadyOnboardingStatus,
+  type ApplicationPersonRow,
+} from "@cashsouk/types";
 
 export type FinancialSectionAppSlice = {
   people?: ApplicationPersonRow[];
@@ -74,12 +78,25 @@ export function FinancialSection({
   sectionComparison,
   hideSectionComments = false,
 }: FinancialSectionProps) {
-  const kycNotReadyReason = "KYC not completed for all required directors/shareholders";
-  const kycNotReadyTooltip = "Cannot approve until all required KYC is approved";
-  const financialApproveAllowed = isFinancialReviewKycReadyForApprove({
-    people: app.people,
-    ctosPartySupplements: app.issuer_organization?.ctos_party_supplements,
-  });
+  /**
+   * SECTION: Admin unified banner (KYC OR AML pending)
+   * WHY: Admin needs one clear action-required signal for both checks
+   * INPUT: app.people rows (per-person onboarding + screening status)
+   * OUTPUT: boolean hasPending (show banner + disable approve)
+   * WHERE USED: Admin application review → Financial section
+   */
+  const hasPendingDirectorShareholder = (() => {
+    const people = app.people ?? [];
+    // No people rows means we do not know KYC/AML states yet.
+    if (people.length === 0) return true;
+
+    const isOnboardingDoneAll = people.every((p) => isReadyOnboardingStatus(p.onboarding?.status));
+    const isAmlDoneAll = people.every((p) => isDirectorShareholderAmlScreeningApproved(p.screening));
+    return !isOnboardingDoneAll || !isAmlDoneAll;
+  })();
+
+  const bannerMessage = "Complete all director/shareholder onboarding and AML to proceed.";
+  const bannerTooltip = "Cannot approve until all director/shareholder KYC and AML are approved.";
 
   if (sectionComparison) {
     return (
@@ -107,19 +124,19 @@ export function FinancialSection({
       actionLockTooltip={actionLockTooltip}
       sectionStatus={sectionStatus}
       showApprove={true}
-      approveDisabled={!financialApproveAllowed}
-      approveDisabledReason={!financialApproveAllowed ? "KYC not ready" : undefined}
+      approveDisabled={hasPendingDirectorShareholder}
+      approveDisabledReason={hasPendingDirectorShareholder ? bannerMessage : undefined}
       onResetToPending={onResetSectionToPending}
       onApprove={onApprove}
       onReject={onReject}
       onRequestAmendment={onRequestAmendment}
     >
-      {!financialApproveAllowed ? (
+      {hasPendingDirectorShareholder ? (
         <div
           className="rounded-xl border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
-          title={kycNotReadyTooltip}
+          title={bannerTooltip}
         >
-          {kycNotReadyReason}
+          {bannerMessage}
         </div>
       ) : null}
       <ApplicationFinancialReviewContent
