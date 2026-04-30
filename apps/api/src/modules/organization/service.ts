@@ -41,14 +41,12 @@ import {
   canEnterEmailForDirectorShareholder,
   filterVisiblePeopleRows,
   getDirectorShareholderDisplayRows,
-  getEffectiveCtosPartyOnboarding,
-  getEffectiveCtosPartyScreening,
   isCtosIndividualKycEligibleRow,
   isCtosPartySupplementApprovalLocked,
   isLegacyCtosPartyKycApproved,
   mergeCtosPartySupplementDocument,
   normalizeDirectorShareholderIdKey,
-  parseCtosPartySupplementRoot,
+  parseCtosPartySupplement,
 } from "@cashsouk/types";
 import { buildAdminPeopleList } from "../admin/build-people-list";
 import { RegTankAPIClient } from "../regtank/api-client";
@@ -68,7 +66,7 @@ function splitForenameSurname(full: string): { forename: string; surname: string
   return { forename: parts[0], surname: parts.slice(1).join(" ") };
 }
 
-function assertOnboardingEmailMutable(root: Record<string, unknown>): void {
+function assertOnboardingEmailMutable(root: unknown): void {
   if (!isCtosPartySupplementApprovalLocked(root)) return;
   throw new AppError(
     400,
@@ -93,13 +91,9 @@ function assertOrgOnboardingCompletedForCompanyPartyActions(org: {
   }
 }
 
-function parseSendTimestamps(onboarding: Record<string, unknown>): string[] {
-  const raw = onboarding.sendTimestamps;
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .filter((v): v is string => typeof v === "string")
-    .map((v) => v.trim())
-    .filter((v) => v.length > 0);
+function parseSendTimestampsFromSupplementJson(raw: unknown): string[] {
+  const s = parseCtosPartySupplement(raw);
+  return s.sendTimestamps ?? [];
 }
 
 /** RegTank referenceId: only [A-Za-z0-9_-], no colons; max length 99. */
@@ -1678,35 +1672,21 @@ export class OrganizationService {
     }
     const email = input.email.trim();
     const existing = await findCtosPartySupplementForOrg(portalType, organizationId, partyKey);
-    const prevRoot = parseCtosPartySupplementRoot(existing?.onboarding_json);
+    const prevRoot = existing?.onboarding_json;
     assertOnboardingEmailMutable(prevRoot);
-    const prevOnb = getEffectiveCtosPartyOnboarding(prevRoot);
-    const previousEmail = typeof prevOnb.email === "string" ? prevOnb.email.trim() : "";
+    const prevSup = parseCtosPartySupplement(prevRoot);
+    const previousEmail = (prevSup.email ?? "").trim();
     const emailChanged = previousEmail.toLowerCase() !== email.toLowerCase();
-    const nextOnb: Record<string, unknown> = { ...prevOnb, email };
-    if (emailChanged) {
-      nextOnb.sent = false;
-      nextOnb.status = "NOT_STARTED";
-      nextOnb.updatedAt = new Date().toISOString();
-      nextOnb.requestId = `draft-${Date.now()}`;
-      delete nextOnb.verifyLink;
-      delete nextOnb.regtankStatus;
-    }
     const mergedDoc = mergeCtosPartySupplementDocument(prevRoot, {
-      onboarding: nextOnb,
-      ...(emailChanged
+      onboarding: emailChanged
         ? {
-            screeningReset: true,
-            screening: {
-              provider: "ACURIS",
-              status: null,
-              requestId: null,
-              riskLevel: "",
-              riskScore: "",
-              updatedAt: new Date().toISOString(),
-            },
+            email,
+            status: "NOT_STARTED",
+            requestId: `draft-${Date.now()}`,
+            verifyLink: "",
           }
-        : {}),
+        : { email },
+      ...(emailChanged ? { screeningReset: true } : {}),
     });
     await upsertCtosPartySupplementOnboardingJson(
       portalType,
@@ -1765,11 +1745,10 @@ export class OrganizationService {
     }
 
     const supplement = await findCtosPartySupplementForOrg(portalType, organizationId, pk);
-    const prevRoot = parseCtosPartySupplementRoot(supplement?.onboarding_json);
+    const prevRoot = supplement?.onboarding_json;
     assertOnboardingEmailMutable(prevRoot);
-    const supOb = getEffectiveCtosPartyOnboarding(prevRoot);
-    const supplementEmail =
-      supOb.email != null ? String(supOb.email).trim() : "";
+    const supOb = parseCtosPartySupplement(prevRoot);
+    const supplementEmail = (supOb.email ?? "").trim();
     if (!supplementEmail) {
       throw new AppError(
         400,
@@ -1851,7 +1830,7 @@ export class OrganizationService {
       }
     }
     const dailyCutoffMs = now.getTime() - 24 * 60 * 60 * 1000;
-    const recentSends = parseSendTimestamps(getEffectiveCtosPartyOnboarding(prevRoot)).filter((ts) => {
+    const recentSends = parseSendTimestampsFromSupplementJson(prevRoot).filter((ts) => {
       const ms = new Date(ts).getTime();
       return Number.isFinite(ms) && ms >= dailyCutoffMs;
     });
@@ -1863,7 +1842,7 @@ export class OrganizationService {
       );
     }
     */
-    const sendHistory = parseSendTimestamps(getEffectiveCtosPartyOnboarding(prevRoot));
+    const sendHistory = parseSendTimestampsFromSupplementJson(prevRoot);
     try {
       logger.info({ referenceId }, "RegTank director onboarding referenceId");
       const regTankResponse = await regTankApi.createIndividualOnboarding(onboardingRequest);
@@ -1883,30 +1862,16 @@ export class OrganizationService {
       );
     }
 
-    const prevScr = getEffectiveCtosPartyScreening(prevRoot);
-    const nextOnb: Record<string, unknown> = {
-      ...supOb,
-      email: supplementEmail,
-      sent: true,
-      status: "IN_PROGRESS",
-      requestId,
-      referenceId,
-      ...(verifyLink ? { verifyLink } : {}),
-      sentAt: nowIso,
-      lastSentAt: nowIso,
-      sendTimestamps: [...sendHistory, nowIso],
-    };
-    delete nextOnb.regtankStatus;
     const mergedSend = mergeCtosPartySupplementDocument(prevRoot, {
-      onboarding: nextOnb,
-      screening: {
-        ...prevScr,
-        provider: String(prevScr.provider || "ACURIS"),
+      onboarding: {
+        email: supplementEmail,
+        status: "IN_PROGRESS",
         requestId,
-        status: "PENDING",
-        riskLevel: "",
-        riskScore: "",
-        updatedAt: nowIso,
+        referenceId,
+        ...(verifyLink ? { verifyLink } : {}),
+        sentAt: nowIso,
+        lastSentAt: nowIso,
+        sendTimestamps: [...sendHistory, nowIso],
       },
     });
     await upsertCtosPartySupplementOnboardingJson(
@@ -2038,10 +2003,10 @@ export class OrganizationService {
     }
 
     const supplement = await findCtosPartySupplementForOrg("issuer", organizationId, pk);
-    const prevRoot = parseCtosPartySupplementRoot(supplement?.onboarding_json);
+    const prevRoot = supplement?.onboarding_json;
     assertOnboardingEmailMutable(prevRoot);
-    const supOb = getEffectiveCtosPartyOnboarding(prevRoot);
-    const supplementEmail = supOb.email != null ? String(supOb.email).trim() : "";
+    const supOb = parseCtosPartySupplement(prevRoot);
+    const supplementEmail = (supOb.email ?? "").trim();
     if (!supplementEmail) {
       throw new AppError(
         400,
@@ -2123,7 +2088,7 @@ export class OrganizationService {
       }
     }
     const dailyCutoffMs = now.getTime() - 24 * 60 * 60 * 1000;
-    const recentSends = parseSendTimestamps(getEffectiveCtosPartyOnboarding(prevRoot)).filter((ts) => {
+    const recentSends = parseSendTimestampsFromSupplementJson(prevRoot).filter((ts) => {
       const ms = new Date(ts).getTime();
       return Number.isFinite(ms) && ms >= dailyCutoffMs;
     });
@@ -2135,7 +2100,7 @@ export class OrganizationService {
       );
     }
     */
-    const sendHistory = parseSendTimestamps(getEffectiveCtosPartyOnboarding(prevRoot));
+    const sendHistory = parseSendTimestampsFromSupplementJson(prevRoot);
     try {
       logger.info({ referenceId }, "RegTank director onboarding referenceId (admin privileged)");
       const regTankResponse = await regTankApi.createIndividualOnboarding(onboardingRequest);
@@ -2155,31 +2120,17 @@ export class OrganizationService {
       );
     }
 
-    const prevScr = getEffectiveCtosPartyScreening(prevRoot);
-    const nextOnb: Record<string, unknown> = {
-      ...supOb,
-      email: supplementEmail,
-      sent: true,
-      status: "IN_PROGRESS",
-      directorMismatchAdminRemark: adminRemark.trim(),
-      requestId,
-      referenceId,
-      ...(verifyLink ? { verifyLink } : {}),
-      sentAt: nowIso,
-      lastSentAt: nowIso,
-      sendTimestamps: [...sendHistory, nowIso],
-    };
-    delete nextOnb.regtankStatus;
     const mergedSend = mergeCtosPartySupplementDocument(prevRoot, {
-      onboarding: nextOnb,
-      screening: {
-        ...prevScr,
-        provider: String(prevScr.provider || "ACURIS"),
+      onboarding: {
+        email: supplementEmail,
+        status: "IN_PROGRESS",
+        directorMismatchAdminRemark: adminRemark.trim(),
         requestId,
-        status: "PENDING",
-        riskLevel: "",
-        riskScore: "",
-        updatedAt: nowIso,
+        referenceId,
+        ...(verifyLink ? { verifyLink } : {}),
+        sentAt: nowIso,
+        lastSentAt: nowIso,
+        sendTimestamps: [...sendHistory, nowIso],
       },
     });
     await upsertCtosPartySupplementOnboardingJson(

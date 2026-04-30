@@ -92,7 +92,7 @@ Any value that ends up in `screening.status` / `onboarding.status` is still norm
 
 **`normalizeUnifiedPeopleRows`** merges duplicate rows by `matchKey`, then for each key:
 
-- If a supplement exists for that party key, **`onboarding.status`** and **`screening.status`** are replaced by values read from `onboarding_json` (`getEffectiveCtosPartyOnboarding` / `getEffectiveCtosPartyScreening` + `normalizeRawStatus`).
+- If a supplement exists for that party key, **`status`** (onboarding pipeline) and **`screening.status`** are read from `onboarding_json` via `parseCtosPartySupplement` + `normalizeRawStatus`.
 - If no supplement for that key, issuer-derived `row.onboarding?.status` / `row.screening?.status` stay (still normalized).
 
 ### 3.3 Single badge (UI) — how `screening` / `onboarding` become labels

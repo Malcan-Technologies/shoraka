@@ -6,6 +6,7 @@
  * WHERE USED: apps/api RegTank handlers, packages/types CTOS display, issuer UI
  */
 import { normalizeRawStatus } from "./status-normalization";
+import { parseCtosPartySupplement } from "./ctos-party-supplement-json";
 
 /** Persists webhook `status` with trim / upper / spaces→underscore only (no semantic remap). */
 export function mapRegtankIndividualLivenessRawToInternalStatus(status: string): string {
@@ -25,25 +26,11 @@ export function getCtosPartySupplementAmlRawStatus(
   onboardingJson: unknown,
   fallbackDirectorAmlStatus?: string | null
 ): string | null {
-  if (!onboardingJson || typeof onboardingJson !== "object" || Array.isArray(onboardingJson)) {
-    const n = normalizeRawStatus(fallbackDirectorAmlStatus);
+  const sup = parseCtosPartySupplement(onboardingJson);
+  const st = sup.screening?.status;
+  if (typeof st === "string" && st.trim()) {
+    const n = normalizeRawStatus(st);
     return n || null;
-  }
-  const ob = onboardingJson as Record<string, unknown>;
-  const screening = ob.screening && typeof ob.screening === "object" && !Array.isArray(ob.screening)
-    ? (ob.screening as Record<string, unknown>)
-    : null;
-  if (screening && typeof screening.status === "string" && screening.status.trim()) {
-    const n = normalizeRawStatus(screening.status);
-    return n || null;
-  }
-  const aml = screening?.aml ?? ob.aml;
-  if (aml && typeof aml === "object" && !Array.isArray(aml)) {
-    const raw = (aml as Record<string, unknown>).rawStatus;
-    if (typeof raw === "string" && raw.trim()) {
-      const n = normalizeRawStatus(raw);
-      return n || null;
-    }
   }
   const n = normalizeRawStatus(fallbackDirectorAmlStatus);
   return n || null;
@@ -54,27 +41,13 @@ export function getDisplayAmlStatus(raw?: string | null): string {
   return normalizeRawStatus(raw);
 }
 
-/** Read RegTank pipeline status from supplement JSON (`onboarding.status` or legacy `regtankStatus`). */
+/** RegTank onboarding pipeline status from supplement root `status`. */
 export function effectiveCtosRegtankStatusFromOnboardingJson(
   onboardingJson: unknown
 ): string | null {
-  if (!onboardingJson || typeof onboardingJson !== "object" || Array.isArray(onboardingJson)) {
-    return null;
-  }
-  const ob = onboardingJson as Record<string, unknown>;
-  const nested = ob.onboarding;
-  const fromOnb =
-    nested && typeof nested === "object" && !Array.isArray(nested)
-      ? (nested as Record<string, unknown>)
-      : null;
-  const rs = (fromOnb?.status ?? fromOnb?.regtankStatus ?? ob.regtankStatus) as unknown;
-  if (typeof rs === "string" && rs.trim()) {
-    const n = normalizeRawStatus(rs);
-    return n || null;
-  }
-  const legacy = ob.status;
-  if (typeof legacy === "string" && legacy.trim()) {
-    const n = normalizeRawStatus(legacy);
+  const st = parseCtosPartySupplement(onboardingJson).status;
+  if (typeof st === "string" && st.trim()) {
+    const n = normalizeRawStatus(st);
     return n || null;
   }
   return null;

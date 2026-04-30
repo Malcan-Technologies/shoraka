@@ -6,10 +6,7 @@
  * WHERE USED: apps/issuer, apps/admin (via @cashsouk/types)
  */
 
-import {
-  getEffectiveCtosPartyOnboarding,
-  getEffectiveCtosPartyScreening,
-} from "./ctos-party-supplement-json";
+import { parseCtosPartySupplement, serializeCtosPartySupplement } from "./ctos-party-supplement-json";
 import { effectiveCtosRegtankStatusFromOnboardingJson } from "./regtank-onboarding-status";
 import { normalizeRawStatus } from "./status-normalization";
 
@@ -32,7 +29,7 @@ export interface DirectorShareholderDisplayRow {
   /** Admin CTOS subject enquiry (IC / SSM / EOD). */
   enquiryId: string | null;
   subjectKind: "INDIVIDUAL" | "CORPORATE" | null;
-  /** CTOS party: RegTank link sent (supplement.sent). Drives row chrome without overloading `status`. */
+  /** CTOS party: RegTank link sent (supplement sentAt / lastSentAt). Drives row chrome without overloading `status`. */
   ctosOnboardingLinkSent?: boolean;
   /** Raw internal RegTank status (reg_tank_onboarding semantics) when CTOS supplement exists. */
   ctosRegtankStatus?: string | null;
@@ -350,13 +347,6 @@ function findLegacyKycAmlByStrictIdForCtosRow(
   return { kycRaw, amlRaw, legacyEmail: legacyEmail || null };
 }
 
-function parseCtosPartyOnboardingJson(raw: unknown): Record<string, unknown> {
-  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
-    return raw as Record<string, unknown>;
-  }
-  return {};
-}
-
 function buildSupplementDerivedMaps(supplements: ReadonlyArray<CtosPartySupplementInput> | null | undefined): {
   emailByPartyKey: Map<string, string>;
   sentPartyKeys: Set<string>;
@@ -382,12 +372,12 @@ function buildSupplementDerivedMaps(supplements: ReadonlyArray<CtosPartySuppleme
     const k = normalizeDirectorShareholderIdKey(row.partyKey);
     if (!k) continue;
     supplementPartyKeys.add(k);
-    const ob = parseCtosPartyOnboardingJson(row.onboardingJson);
-    onboardingByPartyKey.set(k, ob);
-    const em = ob.email != null ? String(ob.email).trim() : "";
+    const s = parseCtosPartySupplement(row.onboardingJson);
+    onboardingByPartyKey.set(k, serializeCtosPartySupplement(s) as Record<string, unknown>);
+    const em = (s.email ?? "").trim();
     if (em) emailByPartyKey.set(k, em);
-    if (ob.sent === true) sentPartyKeys.add(k);
-    const rs = effectiveCtosRegtankStatusFromOnboardingJson(ob);
+    if (s.sentAt || s.lastSentAt) sentPartyKeys.add(k);
+    const rs = effectiveCtosRegtankStatusFromOnboardingJson(s);
     if (rs) regtankStatusByPartyKey.set(k, rs);
   }
   return {
@@ -1220,11 +1210,10 @@ function ctosSupplementOnboardingFields(ob: Record<string, unknown>): {
   kycRaw: string;
   amlRaw: string;
 } {
-  const onb = getEffectiveCtosPartyOnboarding(ob);
-  const scr = getEffectiveCtosPartyScreening(ob);
-  const req = String(onb.requestId ?? "").trim();
-  const reg = String(onb.status ?? onb.regtankStatus ?? "").trim();
-  const screeningStatus = String(scr.status ?? "").trim();
+  const s = parseCtosPartySupplement(ob);
+  const req = s.requestId.trim();
+  const reg = String(s.status ?? "").trim();
+  const screeningStatus = String(s.screening?.status ?? "").trim();
   const kycRaw = screeningStatus;
   const amlRaw = screeningStatus;
   return { req, reg, kycRaw, amlRaw };

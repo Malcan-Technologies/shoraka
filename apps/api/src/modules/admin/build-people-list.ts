@@ -1,10 +1,7 @@
 import {
   normalizeDirectorShareholderIdKey,
   normalizeRawStatus,
-  parseCtosPartySupplementRoot,
-  getEffectiveCtosPartyScreening,
-  getEffectiveCtosPartyOnboarding,
-  getCtosPartySupplementFlatRead,
+  parseCtosPartySupplement,
   extractBusinessNumber,
   extractGovernmentId,
   type ApplicationPersonRow,
@@ -301,13 +298,10 @@ function buildSupplementOverrideMaps(supplements: SupplementInput[] | null | und
     const key = normalizeDirectorShareholderIdKey(String(s.partyKey ?? s.party_key ?? ""));
     if (!key) continue;
     const raw = s.onboardingJson ?? s.onboarding_json;
-    const root = parseCtosPartySupplementRoot(raw);
-    const onboarding = getEffectiveCtosPartyOnboarding(root);
-    const screening = getEffectiveCtosPartyScreening(root);
-    const flat = getCtosPartySupplementFlatRead(raw);
-    onboardingByKey.set(key, normalizeRawStatus(onboarding.status ?? onboarding.regtankStatus) || null);
-    screeningByKey.set(key, normalizeRawStatus(screening.status) || null);
-    emailByKey.set(key, flat.email.trim() || null);
+    const sup = parseCtosPartySupplement(raw);
+    onboardingByKey.set(key, normalizeRawStatus(sup.status) || null);
+    screeningByKey.set(key, (sup.screening?.status ? normalizeRawStatus(sup.screening.status) : null) || null);
+    emailByKey.set(key, (sup.email ?? "").trim() || null);
   }
   return { onboardingByKey, screeningByKey, emailByKey };
 }
@@ -376,9 +370,10 @@ function normalizeUnifiedPeopleRows(
 }
 
 function screeningStatusFromSupplement(raw: unknown): string | null {
-  const root = parseCtosPartySupplementRoot(raw);
-  const scr = getEffectiveCtosPartyScreening(root);
-  const n = normalizeRawStatus(scr.status);
+  const sup = parseCtosPartySupplement(raw);
+  const st = sup.screening?.status;
+  if (!st) return null;
+  const n = normalizeRawStatus(st);
   return n || null;
 }
 
@@ -543,11 +538,10 @@ export function buildUnifiedPeople(params: {
     const raw = s.onboarding_json ?? s.onboardingJson;
     const st = screeningStatusFromSupplement(raw);
     screeningByPartyKey.set(pk, { status: st });
-    const root = parseCtosPartySupplementRoot(raw);
-    const onboarding = getEffectiveCtosPartyOnboarding(root);
-    const onboardingNorm = normalizeRawStatus(onboarding.status ?? onboarding.regtankStatus);
+    const sup = parseCtosPartySupplement(raw);
+    const onboardingNorm = normalizeRawStatus(sup.status);
     onboardingByPartyKey.set(pk, { status: onboardingNorm || null });
-    const flatEm = getCtosPartySupplementFlatRead(raw).email.trim();
+    const flatEm = (sup.email ?? "").trim();
     if (flatEm) userEmailByPartyKey.set(pk, flatEm);
   }
 
