@@ -544,10 +544,6 @@ export default function ProfilePage() {
           shareholders?: Array<Record<string, unknown>>;
           corporateShareholders?: Array<Record<string, unknown>>;
         };
-        directorKycStatus?: unknown;
-        directorAmlStatus?: Record<string, unknown> | null;
-        latestOrganizationCtosCompanyJson?: unknown | null;
-        ctosPartySupplements?: { partyKey: string; onboardingJson?: unknown }[] | null;
         people?: import("@cashsouk/types").ApplicationPersonRow[];
       }>(`/v1/organizations/issuer/${activeOrganization.id}`);
       if (!result.success) {
@@ -1341,11 +1337,6 @@ export default function ProfilePage() {
                     organizationId={activeOrganization.id}
                     organizationOnboardingStatus={orgData.onboardingStatus}
                     people={orgData.people ?? []}
-                    ctosPartySupplements={orgData.ctosPartySupplements ?? null}
-                    partySource={{
-                      directorKycStatus: orgData.directorKycStatus ?? null,
-                      corporateEntities: orgData.corporateEntities ?? null,
-                    }}
                     highlightActionRequiredRows
                     autoFocusFirstEmptyEmail={focusDirectors}
                   />
