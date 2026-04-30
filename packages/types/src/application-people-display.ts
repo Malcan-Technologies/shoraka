@@ -138,6 +138,26 @@ export function formatPeopleRolesLineWithoutShare(p: PeopleRolesRowInput): strin
   return upper.join(", ");
 }
 
+/**
+ * Same as {@link formatPeopleRolesLine} with admin-style title case (Director, Shareholder).
+ * WHERE USED: Issuer/investor profile director-shareholder cards (parity with admin table wording).
+ */
+export function formatPeopleRolesLineTitleCase(p: PeopleRolesRowInput): string {
+  const line = formatPeopleRolesLine(p);
+  return line.replace(/\bDIRECTOR\b/g, "Director").replace(/\bSHAREHOLDER\b/g, "Shareholder");
+}
+
+/**
+ * Second-line identity for cards: `IC {matchKey}` or `SSM {matchKey}` (admin shows `matchKey` under name).
+ * WHERE USED: Issuer/investor profile cards so IC and SSM sit in the same slot as each other and as email.
+ */
+export function formatPeopleIdentityLine(person: Pick<ApplicationPersonRow, "entityType" | "matchKey">): string | null {
+  const k = String(person.matchKey ?? "").trim();
+  if (!k) return null;
+  if (person.entityType === "CORPORATE") return `SSM ${k}`;
+  return `IC ${k}`;
+}
+
 function firstUsableStatus(raw: unknown): string | null {
   const s = normalizeRawStatus(raw);
   if (!s) return null;
