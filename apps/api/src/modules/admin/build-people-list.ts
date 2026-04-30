@@ -73,7 +73,7 @@ function normalizeUnifiedPeopleRows(
     });
   }
 
-  return Array.from(merged.values()).map((row) => {
+  const out = Array.from(merged.values()).map((row) => {
     const key = normalizeDirectorShareholderIdKey(row.matchKey) ?? row.matchKey;
     const roleSet = new Set<string>((row.roles ?? []).map((r) => String(r).toUpperCase()));
     const share = typeof row.sharePercentage === "number" ? row.sharePercentage : null;
@@ -97,6 +97,16 @@ function normalizeUnifiedPeopleRows(
       directorKycStatus: undefined,
     };
   });
+  console.log(
+    "[NORMALIZE UNIFIED OUT]",
+    out.map((r) => ({
+      entityType: r.entityType,
+      matchKey: r.matchKey,
+      roles: r.roles,
+      sharePercentage: r.sharePercentage,
+    }))
+  );
+  return out;
 }
 
 function screeningStatusFromSupplement(raw: unknown): string | null {
@@ -143,6 +153,17 @@ function buildPeopleFromUserDeclaredData(params: {
     sentRowIds: null,
   });
 
+  console.log(
+    "[DISPLAY ROWS] counts",
+    displayRows.reduce(
+      (acc, r) => {
+        acc[r.type === "COMPANY" ? "company" : "individual"] += 1;
+        return acc;
+      },
+      { company: 0, individual: 0 }
+    )
+  );
+
   const baseRows = displayRows.map((r) => {
     // Admin UI expects matchKey to be the IC government id (INDIVIDUAL) or SSM number (CORPORATE).
     // We must not fall back to RegTank request ids here.
@@ -173,7 +194,28 @@ function buildPeopleFromUserDeclaredData(params: {
       directorKycStatus: r.status ? normalizeRawStatus(r.status) : null,
     };
   });
-  return normalizeUnifiedPeopleRows(baseRows, params.ctosPartySupplements ?? null);
+
+  console.log(
+    "[BASE ROWS pre-normalize]",
+    baseRows.map((r) => ({
+      entityType: r.entityType,
+      matchKey: r.matchKey,
+      roles: r.roles,
+      sharePercentage: r.sharePercentage,
+    }))
+  );
+
+  const finalPeople = normalizeUnifiedPeopleRows(baseRows, params.ctosPartySupplements ?? null);
+  console.log(
+    "[FINAL PEOPLE] user-declared path",
+    finalPeople.map((r) => ({
+      entityType: r.entityType,
+      matchKey: r.matchKey,
+      roles: r.roles,
+      sharePercentage: r.sharePercentage,
+    }))
+  );
+  return finalPeople;
 }
 
 export function buildUnifiedPeople(params: {
@@ -185,7 +227,11 @@ export function buildUnifiedPeople(params: {
   ctosPartySupplements?: SupplementInput[] | null;
   corporateEntities: unknown;
 }): ApplicationPersonRow[] {
-  void params.corporateEntities;
+  const ceRoot =
+    params.corporateEntities && typeof params.corporateEntities === "object" && !Array.isArray(params.corporateEntities)
+      ? (params.corporateEntities as Record<string, unknown>)
+      : null;
+  const ceCorpList = Array.isArray(ceRoot?.corporateShareholders) ? ceRoot.corporateShareholders : [];
 
   const ctos = params.ctos;
   const ctosSafe =
@@ -200,7 +246,16 @@ export function buildUnifiedPeople(params: {
             : [],
         }
       : null;
+
+  console.log("[MODE CHECK]", {
+    usingCtos: Boolean(ctosSafe),
+    ctosDirectorCount: ctosSafe ? (ctosSafe as { directors: unknown[] }).directors.length : 0,
+    ctosShareholderCount: ctosSafe ? (ctosSafe as { shareholders: unknown[] }).shareholders.length : 0,
+    corporateShareholdersInCe: ceCorpList.length,
+  });
+
   if (!ctosSafe) {
+    console.log("[CORP INPUT]", { corporateShareholders: ceCorpList });
     const organization = {
       corporateEntities: params.corporateEntities,
       issuerDirectorKycStatus: params.issuerDirectorKycStatus,
@@ -210,6 +265,11 @@ export function buildUnifiedPeople(params: {
 
     return buildPeopleFromUserDeclaredData(organization);
   }
+
+  console.log(
+    "[CTOS PATH] corporate_entities.corporateShareholders are not merged into people[] in this branch (CTOS-only map).",
+    { ceCorporateShareholderCount: ceCorpList.length }
+  );
 
   const supplements: SupplementInput[] =
     Array.isArray(params.ctosPartySupplements) && params.ctosPartySupplements.length > 0

@@ -98,7 +98,16 @@ export function filterVisiblePeopleRows<T extends PeopleRolesRowInput>(peopleRow
       });
 
       if (!hasDirector && hasShareholder && !shareholderAllowed) return null;
-      if (nextRoles.length === 0) return null;
+      if (nextRoles.length === 0) {
+        const ent = "entityType" in p ? String((p as { entityType?: string }).entityType ?? "") : "";
+        console.log("[PEOPLE FILTER DROP] empty roles after visibility rules", {
+          entityType: ent || undefined,
+          matchKey: "matchKey" in p ? String((p as { matchKey?: string }).matchKey ?? "") : undefined,
+          rolesBefore: roles,
+          sharePercentage: sharePct,
+        });
+        return null;
+      }
 
       return { ...p, roles: nextRoles };
     })
