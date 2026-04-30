@@ -298,8 +298,6 @@ export function ApplicationFinancialReviewContent({
   );
   const hasIssuerFinancialData = Object.keys(unauditedByYear).length > 0;
 
-  const orgSubjectReports = app.issuer_organization?.latest_organization_ctos_subject_reports;
-
   const financialRows: CtosFinRow[] = React.useMemo(() => {
     const raw = app.issuer_organization?.latest_organization_ctos_financials_json;
     if (!raw || !Array.isArray(raw)) return [];
@@ -907,29 +905,17 @@ export function ApplicationFinancialReviewContent({
           people={app.people ?? []}
           portal="issuer"
           organizationId={issuerOrgId}
-          supplements={
-            (app.issuer_organization?.ctos_party_supplements ?? []).map((row) => ({
-              partyKey: String(row.party_key ?? ""),
-              onboardingJson: row.onboarding_json,
-            })) ?? []
-          }
-          directorAmlStatus={app.issuer_organization?.director_aml_status}
-          directorKycStatus={app.issuer_organization?.director_kyc_status}
-          corporateEntities={app.issuer_organization?.corporate_entities}
-          codRequestId={null}
-          regtankPortalUrl={null}
-          ctosReports={orgSubjectReports ?? []}
           ctosFetchPending={createSubjectReport.isPending}
           ctosFetchPendingKey={null}
           notifyPending={notifyActionRequired.isPending}
-          onFetchSubjectCtos={(input) =>
+          onFetchSubjectCtos={(person) =>
             createSubjectReport.mutate(
               {
-                subjectRef: input.subjectRef,
-                subjectKind: input.subjectKind,
+                subjectRef: String(person.matchKey ?? ""),
+                subjectKind: person.entityType === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL",
                 enquiryOverride:
-                  input.displayName && input.idNumber
-                    ? { displayName: input.displayName, idNumber: input.idNumber }
+                  person.name && person.matchKey
+                    ? { displayName: person.name, idNumber: String(person.matchKey) }
                     : undefined,
               },
               {
@@ -938,9 +924,9 @@ export function ApplicationFinancialReviewContent({
               }
             )
           }
-          onNotify={(partyKey) =>
+          onNotify={(person) =>
             notifyActionRequired.mutate(
-              { partyKey },
+              { partyKey: person.matchKey },
               {
                 onSuccess: () => toast.success("Notify sent to issuer."),
                 onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "Notify failed"),

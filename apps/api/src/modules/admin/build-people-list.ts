@@ -17,6 +17,88 @@ type SupplementInput = {
   onboardingJson?: unknown;
 };
 
+function buildSupplementOverrideMaps(supplements: SupplementInput[] | null | undefined): {
+  onboardingByKey: Map<string, string | null>;
+  screeningByKey: Map<string, string | null>;
+  emailByKey: Map<string, string | null>;
+} {
+  const onboardingByKey = new Map<string, string | null>();
+  const screeningByKey = new Map<string, string | null>();
+  const emailByKey = new Map<string, string | null>();
+  for (const s of supplements ?? []) {
+    const key = normalizeDirectorShareholderIdKey(String(s.partyKey ?? s.party_key ?? ""));
+    if (!key) continue;
+    const raw = s.onboardingJson ?? s.onboarding_json;
+    const root = parseCtosPartySupplementRoot(raw);
+    const onboarding = getEffectiveCtosPartyOnboarding(root);
+    const screening = getEffectiveCtosPartyScreening(root);
+    const flat = getCtosPartySupplementFlatRead(raw);
+    onboardingByKey.set(key, normalizeRawStatus(onboarding.status ?? onboarding.regtankStatus) || null);
+    screeningByKey.set(key, normalizeRawStatus(screening.status) || null);
+    emailByKey.set(key, flat.email.trim() || null);
+  }
+  return { onboardingByKey, screeningByKey, emailByKey };
+}
+
+function normalizeUnifiedPeopleRows(
+  rows: ApplicationPersonRow[],
+  supplements: SupplementInput[] | null | undefined
+): ApplicationPersonRow[] {
+  const { onboardingByKey, screeningByKey, emailByKey } = buildSupplementOverrideMaps(supplements);
+  const merged = new Map<string, ApplicationPersonRow>();
+  for (const row of rows) {
+    const key = normalizeDirectorShareholderIdKey(row.matchKey);
+    if (!key) continue;
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, {
+        ...row,
+        matchKey: key,
+        roles: [...(row.roles ?? [])],
+      });
+      continue;
+    }
+    const roleSet = new Set<string>([...(existing.roles ?? []), ...(row.roles ?? [])].map((r) => String(r).toUpperCase()));
+    const existingShare = typeof existing.sharePercentage === "number" ? existing.sharePercentage : null;
+    const incomingShare = typeof row.sharePercentage === "number" ? row.sharePercentage : null;
+    merged.set(key, {
+      ...existing,
+      name: existing.name ?? row.name ?? null,
+      roles: Array.from(roleSet),
+      sharePercentage:
+        existingShare != null && incomingShare != null ? Math.max(existingShare, incomingShare) : existingShare ?? incomingShare,
+      screening: existing.screening ?? row.screening ?? { status: null },
+      onboarding: existing.onboarding ?? row.onboarding ?? { status: null },
+      email: String(existing.email ?? row.email ?? "").trim(),
+    });
+  }
+
+  return Array.from(merged.values()).map((row) => {
+    const key = normalizeDirectorShareholderIdKey(row.matchKey) ?? row.matchKey;
+    const roleSet = new Set<string>((row.roles ?? []).map((r) => String(r).toUpperCase()));
+    const share = typeof row.sharePercentage === "number" ? row.sharePercentage : null;
+    if (roleSet.has("SHAREHOLDER") && (share == null || share < 5)) roleSet.delete("SHAREHOLDER");
+    const onboardingStatus = onboardingByKey.has(key) ? onboardingByKey.get(key) ?? null : normalizeRawStatus(row.onboarding?.status) || null;
+    const screeningStatus = screeningByKey.has(key) ? screeningByKey.get(key) ?? null : normalizeRawStatus(row.screening?.status) || null;
+    const email = emailByKey.has(key)
+      ? emailByKey.get(key) ?? null
+      : String(row.email ?? row.userEmail ?? row.kycEmail ?? row.amlEmail ?? "").trim() || null;
+    return {
+      ...row,
+      matchKey: key,
+      roles: Array.from(roleSet),
+      onboarding: { status: onboardingStatus },
+      screening: { status: screeningStatus },
+      email: email ?? "",
+      userEmail: undefined,
+      kycEmail: undefined,
+      amlEmail: undefined,
+      directorAmlStatus: undefined,
+      directorKycStatus: undefined,
+    };
+  });
+}
+
 function screeningStatusFromSupplement(raw: unknown): string | null {
   const root = parseCtosPartySupplementRoot(raw);
   const scr = getEffectiveCtosPartyScreening(root);
@@ -61,7 +143,7 @@ function buildPeopleFromUserDeclaredData(params: {
     sentRowIds: null,
   });
 
-  return displayRows.map((r) => {
+  const baseRows = displayRows.map((r) => {
     // Admin UI expects matchKey to be the IC government id (INDIVIDUAL) or SSM number (CORPORATE).
     // We must not fall back to RegTank request ids here.
     const matchKey = (r.idNumber ?? r.registrationNumber ?? "") as string;
@@ -76,7 +158,7 @@ function buildPeopleFromUserDeclaredData(params: {
     return {
       matchKey,
       name: r.name ?? null,
-      entityType: r.type === "INDIVIDUAL" ? "INDIVIDUAL" : "CORPORATE",
+      entityType: (r.type === "INDIVIDUAL" ? "INDIVIDUAL" : "CORPORATE") as "INDIVIDUAL" | "CORPORATE",
       roles,
       sharePercentage: typeof r.sharePercentage === "number" ? r.sharePercentage : null,
       status: r.status ?? "",
@@ -91,9 +173,10 @@ function buildPeopleFromUserDeclaredData(params: {
       directorKycStatus: r.status ? normalizeRawStatus(r.status) : null,
     };
   });
+  return normalizeUnifiedPeopleRows(baseRows, params.ctosPartySupplements ?? null);
 }
 
-export function buildAdminPeopleList(params: {
+export function buildUnifiedPeople(params: {
   ctos: unknown;
   issuerDirectorKycStatus: unknown;
   issuerDirectorAmlStatus: unknown;
@@ -297,7 +380,7 @@ export function buildAdminPeopleList(params: {
     }
   }
 
-  return Array.from(peopleMap.values()).map((person) => {
+  const rawRows = Array.from(peopleMap.values()).map((person) => {
     const key = normalizeDirectorShareholderIdKey(person.matchKey) ?? "";
     const fromSup = key ? screeningByPartyKey.get(key) : undefined;
     const screeningNorm = normalizeRawStatus(fromSup?.status);
@@ -367,4 +450,16 @@ export function buildAdminPeopleList(params: {
       email,
     };
   });
+  return normalizeUnifiedPeopleRows(rawRows, supplements);
+}
+
+export function buildAdminPeopleList(params: {
+  ctos: unknown;
+  issuerDirectorKycStatus: unknown;
+  issuerDirectorAmlStatus: unknown;
+  supplement?: unknown | null;
+  ctosPartySupplements?: SupplementInput[] | null;
+  corporateEntities: unknown;
+}): ApplicationPersonRow[] {
+  return buildUnifiedPeople(params);
 }

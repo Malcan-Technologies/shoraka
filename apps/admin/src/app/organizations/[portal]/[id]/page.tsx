@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -60,26 +60,11 @@ import { toast } from "sonner";
 import {
   normalizeDirectorShareholderIdKey,
   toTitleCase,
-  type AdminCtosReportListItem,
 } from "@cashsouk/types";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { formatApiErrorMessage } from "@/lib/format-api-error-message";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
-const REGTANK_PORTAL_BASE_URL =
-  typeof process !== "undefined" ? (process.env.NEXT_PUBLIC_REGTANK_PORTAL_BASE_URL ?? "").trim() : "";
-
-function resolveRegtankPortalBase(raw: string | null | undefined): string {
-  const s = String(raw ?? "").trim();
-  if (!s) return "";
-  try {
-    const u = new URL(s);
-    return `${u.protocol}//${u.host}`;
-  } catch {
-    return s.replace(/\/+$/, "");
-  }
-}
-
 function DetailRow({
   label,
   value,
@@ -631,19 +616,6 @@ export default function OrganizationDetailPage() {
   const { getAccessToken } = useAuthToken();
   const apiClient = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
   const queryClient = useQueryClient();
-
-  const ctosReportsQuery = useQuery<AdminCtosReportListItem[]>({
-    queryKey: ["admin", "organization-ctos-reports-inline", portal, organizationId],
-    queryFn: async () => {
-      const res = await apiClient.listAdminOrganizationCtosSubjectReports(
-        portal as "issuer" | "investor",
-        organizationId
-      );
-      if (!res.success) throw new Error(formatApiErrorMessage(res.error));
-      return res.data;
-    },
-    enabled: Boolean(organizationId && (portal === "issuer" || portal === "investor")),
-  });
 
   const [ctosFetchSubjectKey, setCtosFetchSubjectKey] = React.useState<string | null>(null);
 
@@ -1239,21 +1211,18 @@ export default function OrganizationDetailPage() {
                         people={org.people ?? []}
                         portal={portal === "investor" ? "investor" : "issuer"}
                         organizationId={organizationId}
-                        supplements={org.ctosPartySupplements ?? []}
-                        directorAmlStatus={org.directorAmlStatus}
-                        directorKycStatus={org.directorKycStatus}
-                        corporateEntities={org.corporateEntities}
-                        codRequestId={org.codRequestId}
-                        regtankPortalUrl={
-                          resolveRegtankPortalBase(org.regtankPortalUrl) ||
-                          resolveRegtankPortalBase(REGTANK_PORTAL_BASE_URL)
-                        }
-                        ctosReports={ctosReportsQuery.data ?? []}
                         ctosFetchPendingKey={ctosFetchSubjectKey}
                         ctosFetchPending={fetchSubjectCtosMutation.isPending}
                         notifyPending={notifyActionRequiredMutation.isPending}
-                        onFetchSubjectCtos={(input) => fetchSubjectCtosMutation.mutate(input)}
-                        onNotify={(partyKey) => notifyActionRequiredMutation.mutate({ partyKey })}
+                        onFetchSubjectCtos={(person) =>
+                          fetchSubjectCtosMutation.mutate({
+                            subjectRef: String(person.matchKey ?? ""),
+                            subjectKind: person.entityType === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL",
+                            displayName: person.name ?? undefined,
+                            idNumber: String(person.matchKey ?? "") || undefined,
+                          })
+                        }
+                        onNotify={(person) => notifyActionRequiredMutation.mutate({ partyKey: person.matchKey })}
                       />
                     </CardContent>
                   </Card>
