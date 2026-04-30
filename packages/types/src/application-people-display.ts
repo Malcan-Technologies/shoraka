@@ -227,6 +227,15 @@ export function formatPeopleRolesLineTitleCase(p: PeopleRolesRowInput): string {
 }
 
 /**
+ * {@link formatPeopleRolesLineWithoutShare} in title case (Director, Shareholder).
+ * WHERE USED: Issuer application company-details when share % is shown in a separate column.
+ */
+export function formatPeopleRolesLineTitleCaseWithoutShare(p: PeopleRolesRowInput): string {
+  const line = formatPeopleRolesLineWithoutShare(p);
+  return line.replace(/\bDIRECTOR\b/g, "Director").replace(/\bSHAREHOLDER\b/g, "Shareholder");
+}
+
+/**
  * Second-line identity for cards: `IC {matchKey}` or `SSM {matchKey}` (admin shows `matchKey` under name).
  * WHERE USED: Issuer/investor profile cards so IC and SSM sit in the same slot as each other and as email.
  */
@@ -269,6 +278,13 @@ export function formatSharePercentageCell(p: { sharePercentage: number | null })
     return Number.isInteger(v) ? `${v}%` : `${Number(v.toFixed(2))}%`;
   }
   return "";
+}
+
+/** Share cell with ownership label, e.g. `50% ownership`. Empty when no numeric share. */
+export function formatShareOwnershipCell(p: { sharePercentage: number | null }): string {
+  const pct = formatSharePercentageCell(p);
+  if (!pct) return "";
+  return `${pct} ownership`;
 }
 
 /**

@@ -17,8 +17,8 @@ import {
   buildDirectorShareholderDisplayRowForEmailEligibility,
   canEnterEmailForDirectorShareholder,
   filterVisiblePeopleRows,
-  formatPeopleRolesLine,
-  formatSharePercentageCell,
+  formatPeopleRolesLineTitleCaseWithoutShare,
+  formatShareOwnershipCell,
   getDirectorShareholderSingleStatusPresentation,
   // getDirectorShareholderStatusTooltip,
 } from "@cashsouk/types";
@@ -668,7 +668,7 @@ export function CompanyDetailsStep({
         {/* Directors & Shareholders Section */}
         <div className="space-y-3">
           <div>
-            <h3 className={applicationFlowSectionTitleClassName}>{"Director & Shareholders"}</h3>
+            <h3 className={applicationFlowSectionTitleClassName}>Directors & Shareholders</h3>
             <div className={applicationFlowSectionDividerClassName} />
           </div>
 
@@ -684,13 +684,13 @@ export function CompanyDetailsStep({
                   screening: p.screening,
                   onboarding: p.onboarding,
                 });
-                const own = formatSharePercentageCell(p);
+                const own = formatShareOwnershipCell(p);
                 const showCompleteOnProfile = canEnterEmailForDirectorShareholder(p);
                 const idLabel =
                   (displayRow.idNumber || displayRow.registrationNumber || p.matchKey || "").trim();
                 return (
                   <React.Fragment key={p.matchKey}>
-                    <div className={labelClassName}>{formatPeopleRolesLine(p)}</div>
+                    <div className={labelClassName}>{formatPeopleRolesLineTitleCaseWithoutShare(p)}</div>
                     <div className="flex flex-col gap-2">
                       <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
                         <div className="flex min-w-0 flex-col">
@@ -698,7 +698,9 @@ export function CompanyDetailsStep({
                           <span className="text-xs text-muted-foreground truncate">{idLabel || "—"}</span>
                         </div>
                         <div className="h-4 w-px bg-border" />
-                        <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">{own}</div>
+                        <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">
+                          {own || "—"}
+                        </div>
                         <div className="h-4 w-px bg-border" />
                         <div className="flex flex-col gap-0.5 min-w-0">
                           <span className="text-xs text-muted-foreground">Status</span>
