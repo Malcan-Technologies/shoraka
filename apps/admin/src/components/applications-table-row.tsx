@@ -26,6 +26,8 @@ export function ApplicationsTableRow({
   application,
   onViewDetails,
 }: ApplicationsTableRowProps) {
+  const hasPending = Boolean(application.directorShareholderAmlPending);
+
   return (
     <TableRow className={applicationTableRowClass}>
       {/* Reference */}
@@ -43,9 +45,9 @@ export function ApplicationsTableRow({
           <div className="font-medium truncate max-w-[200px]" title={application.issuerOrganizationName || ""}>
             {application.issuerOrganizationName || "Unnamed Organization"}
           </div>
-          {application.directorShareholderAmlPending ? (
+          {hasPending ? (
             <span className="shrink-0 inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:text-amber-100">
-              Pending Director/Shareholder AML
+              Director/Shareholder Action Required
             </span>
           ) : null}
         </div>

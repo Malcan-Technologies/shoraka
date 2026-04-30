@@ -163,8 +163,6 @@ export interface NormalizedApplication {
   signedContractOfferLetterAvailable: boolean;
   /** S3 key for contract signed offer letter when available. */
   signedContractOfferLetterS3Key: string | null;
-  /** True when organization has pending director/shareholder AML for this non-final application. */
-  directorShareholderAmlPending?: boolean;
 }
 
 /* =============================================================================
