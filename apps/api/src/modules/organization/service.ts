@@ -38,6 +38,8 @@ import { sendOnboardingEmail } from "../../lib/email/ses";
 import { organizationInvitationTemplate } from "../../lib/email/templates";
 import { randomBytes } from "crypto";
 import {
+  canEnterEmailForDirectorShareholder,
+  filterVisiblePeopleRows,
   getDirectorShareholderDisplayRows,
   getEffectiveCtosPartyOnboarding,
   getEffectiveCtosPartyScreening,
@@ -46,7 +48,6 @@ import {
   isLegacyCtosPartyKycApproved,
   mergeCtosPartySupplementDocument,
   normalizeDirectorShareholderIdKey,
-  normalizeRawStatus,
   parseCtosPartySupplementRoot,
 } from "@cashsouk/types";
 import { buildAdminPeopleList } from "../admin/build-people-list";
@@ -1746,6 +1747,15 @@ export class OrganizationService {
     }
 
     const entities = await this.getCorporateEntities(userId, organizationId, portalType);
+    const peopleRows = filterVisiblePeopleRows(entities.people ?? []);
+    const personRow = peopleRows.find((p) => normalizeDirectorShareholderIdKey(p.matchKey) === pk);
+    if (!personRow || !canEnterEmailForDirectorShareholder(personRow)) {
+      throw new AppError(
+        400,
+        "NOT_ALLOWED",
+        "Resend is only allowed for actionable individual rows"
+      );
+    }
     if (isLegacyCtosPartyKycApproved(pk, entities.directorKycStatus)) {
       throw new AppError(
         400,
@@ -1758,15 +1768,6 @@ export class OrganizationService {
     const prevRoot = parseCtosPartySupplementRoot(supplement?.onboarding_json);
     assertOnboardingEmailMutable(prevRoot);
     const supOb = getEffectiveCtosPartyOnboarding(prevRoot);
-    const onboardingStatus = normalizeRawStatus(supOb.status ?? supOb.regtankStatus);
-    const canResend = onboardingStatus === "" || onboardingStatus === "REJECTED";
-    if (!canResend) {
-      throw new AppError(
-        400,
-        "NOT_ALLOWED",
-        "Resend is only allowed when onboarding status is empty or REJECTED"
-      );
-    }
     const supplementEmail =
       supOb.email != null ? String(supOb.email).trim() : "";
     if (!supplementEmail) {
@@ -2019,6 +2020,15 @@ export class OrganizationService {
     }
 
     const entities = await this.getCorporateEntitiesPrivileged(organizationId);
+    const peopleRows = filterVisiblePeopleRows(entities.people ?? []);
+    const personRow = peopleRows.find((p) => normalizeDirectorShareholderIdKey(p.matchKey) === pk);
+    if (!personRow || !canEnterEmailForDirectorShareholder(personRow)) {
+      throw new AppError(
+        400,
+        "NOT_ALLOWED",
+        "Resend is only allowed for actionable individual rows"
+      );
+    }
     if (isLegacyCtosPartyKycApproved(pk, entities.directorKycStatus)) {
       throw new AppError(
         400,
@@ -2031,15 +2041,6 @@ export class OrganizationService {
     const prevRoot = parseCtosPartySupplementRoot(supplement?.onboarding_json);
     assertOnboardingEmailMutable(prevRoot);
     const supOb = getEffectiveCtosPartyOnboarding(prevRoot);
-    const onboardingStatus = normalizeRawStatus(supOb.status ?? supOb.regtankStatus);
-    const canResend = onboardingStatus === "" || onboardingStatus === "REJECTED";
-    if (!canResend) {
-      throw new AppError(
-        400,
-        "NOT_ALLOWED",
-        "Resend is only allowed when onboarding status is empty or REJECTED"
-      );
-    }
     const supplementEmail = supOb.email != null ? String(supOb.email).trim() : "";
     if (!supplementEmail) {
       throw new AppError(
