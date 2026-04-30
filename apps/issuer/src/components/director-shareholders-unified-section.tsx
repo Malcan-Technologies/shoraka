@@ -9,7 +9,7 @@ import {
   formatPeopleIdentityLine,
   formatPeopleRolesLineTitleCase,
   getDirectorShareholderSingleStatusPresentation,
-  getDirectorShareholderStatusTooltip,
+  // getDirectorShareholderStatusTooltip,
   normalizeDirectorShareholderIdKey,
   normalizeDirectorShareholderPartyEmail,
   type ApplicationPersonRow,
@@ -18,7 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+// import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { createApiClient, useAuthToken } from "@cashsouk/config";
@@ -195,6 +195,7 @@ export function DirectorShareholdersUnifiedSection({
           <p className="text-xs text-muted-foreground">{rolesLine || "—"}</p>
           {statusPresentation ? (
             <div className="pt-0.5">
+              {/*
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Badge
@@ -211,6 +212,16 @@ export function DirectorShareholdersUnifiedSection({
                   <p>{getDirectorShareholderStatusTooltip(statusPresentation.label)}</p>
                 </TooltipContent>
               </Tooltip>
+              */}
+              <Badge
+                variant="outline"
+                className={cn(
+                  "border-transparent text-[11px] font-normal",
+                  statusPresentation.badgeClassName
+                )}
+              >
+                {statusPresentation.label}
+              </Badge>
             </div>
           ) : null}
         </div>
