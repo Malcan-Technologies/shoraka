@@ -51,19 +51,20 @@ export function getDisplayRoleLabel(row: {
   isShareholder: boolean;
   sharePercentage?: number | null;
 }): string {
-  const roles: string[] = [];
-
-  if (row.isDirector) {
-    roles.push("Director");
-  }
-
   const share = Number(row.sharePercentage ?? 0);
+  const shareholderLabel =
+    !row.isShareholder
+      ? ""
+      : Number.isFinite(share) && share >= 5
+        ? `Shareholder (${share}%)`
+        : "Shareholder";
 
-  if (row.isShareholder && share >= 5) {
-    roles.push(`Shareholder (${share}%)`);
+  if (row.isDirector && row.isShareholder) {
+    return shareholderLabel ? `Director, ${shareholderLabel}` : "Director, Shareholder";
   }
-
-  return roles.join(", ");
+  if (row.isDirector) return "Director";
+  if (row.isShareholder) return shareholderLabel || "Shareholder";
+  return "";
 }
 
 /**
@@ -401,7 +402,7 @@ export interface CtosCompanyJsonDirectorEntry {
 
 type CtosOrgDirectorRow = CtosCompanyJsonDirectorEntry;
 
-const CTOS_POSITION_CODES = new Set(["DO", "SO", "DS", "AD", "AS"]);
+const CTOS_POSITION_CODES = new Set(["DO", "SO", "DS", "AD", "AS", "SC"]);
 
 function extractCtosOrgDirectorsFromCompanyJson(companyJson: unknown): CtosOrgDirectorRow[] {
   const cj = companyJson as { directors?: unknown } | null | undefined;
@@ -1104,12 +1105,11 @@ function buildOnboardingDisplayRows(
     const canBase = !sent && (!email.trim() || !status);
     const amlRaw = findLegacyAmlRawForOnboardingRow(b.icKey, b.eod, directorKycStatus, directorAmlStatus);
     const amlLine = normalizeRawStatus(amlRaw);
-    const role =
-      getDisplayRoleLabel({
-        isDirector: b.isDirector,
-        isShareholder: b.isShareholder,
-        sharePercentage: b.sharePctMax,
-      }) || "Director";
+    const role = getDisplayRoleLabel({
+      isDirector: b.isDirector,
+      isShareholder: b.isShareholder,
+      sharePercentage: b.sharePctMax,
+    });
     rows.push({
       id,
       name: b.name,
@@ -1380,7 +1380,7 @@ function buildCtosBackedDisplayRows(
             isDirector: b.ctosIsDirector,
             isShareholder: b.ctosIsShareholder,
             sharePercentage: b.ctosSharePct,
-          }) || "Director";
+          });
     const ctosIndividualKycEligible =
       b.type === "INDIVIDUAL" &&
       (b.ctosIsDirector || (b.ctosIsShareholder && b.ctosSharePct >= 5));

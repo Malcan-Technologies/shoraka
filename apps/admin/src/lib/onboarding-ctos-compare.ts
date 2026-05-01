@@ -83,10 +83,12 @@ function ctosPositionCode(position: string | null | undefined): string {
   return String(position ?? "").trim().toUpperCase();
 }
 
+/** CTOS director-side codes only. `SC` is intentionally omitted (neutral — not director or shareholder). */
 function isCtosDirectorTableRow(code: string): boolean {
   return code === "DO" || code === "AD" || code === "DS" || code === "AS";
 }
 
+/** CTOS shareholder-side codes only. `SC` is intentionally omitted (neutral). */
 function isCtosShareholderTableRow(code: string): boolean {
   return code === "SO" || code === "DS" || code === "AS";
 }
