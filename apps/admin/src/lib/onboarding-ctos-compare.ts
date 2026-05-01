@@ -9,6 +9,7 @@
 import {
   extractGovernmentId,
   getDisplayRoleLabel,
+  mergeCtosDirectorsForVerification,
   type DirectorKycStatus,
   type OnboardingApplicationResponse,
 } from "@cashsouk/types";
@@ -25,6 +26,10 @@ export interface CtosOrgDirectorParsed {
   equity_percentage: number | null;
   equity: number | null;
   party_type: string | null;
+  addr?: string | null;
+  appoint?: string | null;
+  resign_date?: string | null;
+  remark?: string | null;
 }
 
 function getCtosId(x: unknown): string | null {
@@ -83,12 +88,12 @@ function ctosPositionCode(position: string | null | undefined): string {
   return String(position ?? "").trim().toUpperCase();
 }
 
-/** CTOS director-side codes only. `SC` is intentionally omitted (neutral — not director or shareholder). */
+/** CTOS director-side codes only (`SC` is not a director code). */
 function isCtosDirectorTableRow(code: string): boolean {
   return code === "DO" || code === "AD" || code === "DS" || code === "AS";
 }
 
-/** CTOS shareholder-side codes only. `SC` is intentionally omitted (neutral). */
+/** CTOS shareholder-side codes only (`SC` is not included here — unchanged qualification rules). */
 function isCtosShareholderTableRow(code: string): boolean {
   return code === "SO" || code === "DS" || code === "AS";
 }
@@ -132,6 +137,10 @@ function extractCtosOrgDirectorsFromCompanyJson(companyJson: unknown): CtosOrgDi
       equity_percentage: equityNum,
       equity: typeof x.equity === "number" ? x.equity : null,
       party_type: ptRaw !== "" ? ptRaw : null,
+      addr: x.addr != null ? String(x.addr) : undefined,
+      appoint: x.appoint != null ? String(x.appoint) : undefined,
+      resign_date: x.resign_date != null ? String(x.resign_date) : undefined,
+      remark: x.remark != null ? String(x.remark) : undefined,
     });
   }
   return out;
@@ -595,7 +604,10 @@ export function buildOnboardingCtosComparison(
   const appShList = appShareholdersFromKyc(kycList, sharePctById);
   const appShFiltered = appShList;
 
-  const ctosAll = ready && companyJson ? extractCtosOrgDirectorsFromCompanyJson(companyJson) : [];
+  const ctosAll =
+    ready && companyJson
+      ? mergeCtosDirectorsForVerification(extractCtosOrgDirectorsFromCompanyJson(companyJson))
+      : [];
 
   // Keep director/shareholder matching independent so DS/AS rows can appear in both sections.
   const dirPart = partitionPeople(appDirList, ctosAll, qualifiesCtosDirector, new Set<number>());
