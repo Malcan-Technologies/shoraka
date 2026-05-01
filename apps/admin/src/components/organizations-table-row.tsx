@@ -1,4 +1,5 @@
 import * as React from "react";
+import Link from "next/link";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,8 @@ export function OrganizationsTableRow({
     organization.type === "COMPANY"
       ? organization.name || "Unnamed Company"
       : `${organization.owner.firstName} ${organization.owner.lastName}`;
+  const ownerName = `${organization.owner.firstName} ${organization.owner.lastName}`.trim();
+  const ownerHref = `/users/${encodeURIComponent(organization.owner.userId)}`;
 
   return (
     <TableRow className="odd:bg-muted/40 hover:bg-muted">
@@ -51,10 +54,26 @@ export function OrganizationsTableRow({
             )}
           </div>
           <div className="min-w-0">
-            <div className="font-medium truncate" title={displayName}>{displayName}</div>
+            <div className="font-medium truncate" title={displayName}>
+              {organization.type === "COMPANY" ? (
+                displayName
+              ) : (
+                <Link href={ownerHref} className="hover:text-primary hover:underline">
+                  {displayName}
+                </Link>
+              )}
+            </div>
             {organization.registrationNumber && (
               <div className="text-xs text-muted-foreground truncate" title={`SSM: ${organization.registrationNumber}`}>
                 SSM: {organization.registrationNumber}
+              </div>
+            )}
+            {organization.type === "COMPANY" && (
+              <div className="text-xs text-muted-foreground truncate" title={organization.owner.email}>
+                Owner:{" "}
+                <Link href={ownerHref} className="hover:text-primary hover:underline">
+                  {ownerName || organization.owner.email}
+                </Link>
               </div>
             )}
           </div>

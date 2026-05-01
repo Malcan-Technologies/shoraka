@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -22,6 +23,14 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   kycAmlScreeningRiskLevelBadgeClass,
   kycAmlScreeningStatusBadgeClass,
 } from "@/lib/kyc-aml-screening-badge-classes";
@@ -34,7 +43,7 @@ import {
   useOrganizationDetail,
   useUpdateSophisticatedStatus,
 } from "@/hooks/use-organization-detail";
-import type { PortalType } from "@cashsouk/types";
+import type { OrganizationDetailResponse, PortalType } from "@cashsouk/types";
 import { format } from "date-fns";
 import {
   UserIcon,
@@ -44,6 +53,7 @@ import {
   DocumentTextIcon,
   CheckCircleIcon,
   ClockIcon,
+  EyeIcon,
   UsersIcon,
   BanknotesIcon,
   ShieldCheckIcon,
@@ -61,7 +71,7 @@ import {
   normalizeDirectorShareholderIdKey,
   toTitleCase,
 } from "@cashsouk/types";
-import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { createApiClient, formatCurrency, useAuthToken } from "@cashsouk/config";
 import { formatApiErrorMessage } from "@/lib/format-api-error-message";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -589,6 +599,204 @@ function formatAddressDisplay(address?: {
   return parts.length > 0 ? parts.join(", ") : "—";
 }
 
+type LinkedRecordTab = "all" | "applications" | "contracts" | "notes" | "investments";
+type LinkedRecords = NonNullable<OrganizationDetailResponse["linkedRecords"]>;
+
+function statusBadgeClass(status: string) {
+  if (["APPROVED", "COMPLETED", "ACTIVE", "REPAID", "CONFIRMED", "RELEASED"].includes(status)) {
+    return "border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300";
+  }
+  if (["SUBMITTED", "RESUBMITTED", "PUBLISHED", "COMMITTED"].includes(status)) {
+    return "border-transparent bg-status-submitted-bg text-status-submitted-text dark:bg-blue-950/40 dark:text-blue-300";
+  }
+  if (["UNDER_REVIEW", "CONTRACT_PENDING", "CONTRACT_ACCEPTED", "INVOICE_PENDING", "FUNDING", "OPEN"].includes(status)) {
+    return "border-transparent bg-status-in-progress-bg text-status-in-progress-text dark:bg-indigo-950/40 dark:text-indigo-300";
+  }
+  if (["DRAFT", "AMENDMENT_REQUESTED", "ARREARS"].includes(status)) {
+    return "border-transparent bg-status-action-bg text-status-action-text dark:bg-amber-950/40 dark:text-amber-300";
+  }
+  if (["REJECTED", "FAILED", "FAILED_FUNDING", "DEFAULTED", "CANCELLED", "WITHDRAWN"].includes(status)) {
+    return "border-transparent bg-status-rejected-bg text-status-rejected-text dark:bg-red-950/40 dark:text-red-300";
+  }
+  return "border-transparent bg-status-neutral-bg text-status-neutral-text dark:bg-slate-800/50 dark:text-slate-300";
+}
+
+function LinkedRecordsTable({
+  linkedRecords,
+  activeTab,
+  onTabChange,
+}: {
+  linkedRecords?: LinkedRecords;
+  activeTab: LinkedRecordTab;
+  onTabChange: (tab: LinkedRecordTab) => void;
+}) {
+  const records = linkedRecords ?? {
+    applications: [],
+    contracts: [],
+    notes: [],
+    investments: [],
+  };
+  const rows = [
+    ...records.applications.map((record) => ({
+      id: record.id,
+      type: "applications" as const,
+      typeLabel: "Application",
+      title: record.id.slice(-8).toUpperCase(),
+      subtitle: record.productId ? `Product ${record.productId}` : "Application",
+      amount: record.requestedAmount,
+      status: record.status,
+      updatedAt: record.updatedAt,
+      href: record.productId ? `/applications/${encodeURIComponent(record.productId)}/${encodeURIComponent(record.id)}` : null,
+    })),
+    ...records.contracts.map((record) => ({
+      id: record.id,
+      type: "contracts" as const,
+      typeLabel: "Contract",
+      title: record.title ?? record.contractNumber ?? record.id.slice(-8).toUpperCase(),
+      subtitle: record.contractNumber ?? record.id,
+      amount: record.contractValue,
+      status: record.status,
+      updatedAt: record.updatedAt,
+      href: `/contracts/${encodeURIComponent(record.id)}`,
+    })),
+    ...records.notes.map((record) => ({
+      id: record.id,
+      type: "notes" as const,
+      typeLabel: "Note",
+      title: record.noteReference,
+      subtitle: record.title,
+      amount: record.targetAmount,
+      status: record.status,
+      updatedAt: record.updatedAt,
+      href: `/notes/${encodeURIComponent(record.id)}`,
+    })),
+    ...records.investments.map((record) => ({
+      id: record.id,
+      type: "investments" as const,
+      typeLabel: "Investment",
+      title: record.id.slice(-8).toUpperCase(),
+      subtitle: `${record.noteReference} · ${record.noteTitle}`,
+      amount: record.amount,
+      status: record.status,
+      updatedAt: record.updatedAt,
+      href: `/notes/${encodeURIComponent(record.noteId)}`,
+    })),
+  ];
+  const filteredRows = activeTab === "all" ? rows : rows.filter((row) => row.type === activeTab);
+  const tabs: { value: LinkedRecordTab; label: string; count: number }[] = [
+    { value: "all", label: "All", count: rows.length },
+    { value: "applications", label: "Applications", count: records.applications.length },
+    { value: "contracts", label: "Contracts", count: records.contracts.length },
+    { value: "notes", label: "Notes", count: records.notes.length },
+    { value: "investments", label: "Investments", count: records.investments.length },
+  ];
+
+  return (
+    <Card className="rounded-2xl">
+      <CardHeader className="pb-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <LinkIcon className="h-4 w-4" />
+              Linked Records
+            </CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Contracts, applications, notes, and investments connected to this organization.
+            </p>
+          </div>
+          <Badge variant="secondary" className="rounded-xl px-3 py-1">
+            {rows.length} {rows.length === 1 ? "record" : "records"}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          {tabs.map((tab) => (
+            <Button
+              key={tab.value}
+              type="button"
+              size="sm"
+              variant={activeTab === tab.value ? "default" : "outline"}
+              className="rounded-full"
+              onClick={() => onTabChange(tab.value)}
+            >
+              {tab.label}
+              <span className="ml-2 rounded-full bg-background/20 px-2 py-0.5 text-xs">
+                {tab.count}
+              </span>
+            </Button>
+          ))}
+        </div>
+        <div className="overflow-hidden rounded-xl border">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>Type</TableHead>
+                  <TableHead>Reference</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Updated</TableHead>
+                  <TableHead>Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                      No linked records found for this filter.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredRows.map((row) => (
+                    <TableRow key={`${row.type}-${row.id}`} className="odd:bg-muted/40 hover:bg-muted">
+                      <TableCell>
+                        <Badge variant="outline">{row.typeLabel}</Badge>
+                      </TableCell>
+                      <TableCell className="min-w-[220px]">
+                        <div className="font-medium">{row.title}</div>
+                        <div className="mt-0.5 max-w-sm truncate font-mono text-xs text-muted-foreground" title={row.subtitle}>
+                          {row.subtitle}
+                        </div>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-sm font-semibold">
+                        {row.amount == null ? "—" : formatCurrency(row.amount)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={statusBadgeClass(row.status)}>
+                          {toTitleCase(row.status)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                        {format(new Date(row.updatedAt), "dd MMM yyyy")}
+                      </TableCell>
+                      <TableCell>
+                        {row.href ? (
+                          <Button asChild variant="ghost" size="sm" className="h-8 px-2">
+                            <Link href={row.href}>
+                              <EyeIcon className="h-4 w-4 mr-1" />
+                              View
+                            </Link>
+                          </Button>
+                        ) : (
+                          <Button variant="ghost" size="sm" className="h-8 px-2" disabled>
+                            <EyeIcon className="h-4 w-4 mr-1" />
+                            View
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function PageSkeleton() {
   return (
     <div className="space-y-6">
@@ -618,6 +826,7 @@ export default function OrganizationDetailPage() {
   const queryClient = useQueryClient();
 
   const [ctosFetchSubjectKey, setCtosFetchSubjectKey] = React.useState<string | null>(null);
+  const [linkedRecordsTab, setLinkedRecordsTab] = React.useState<LinkedRecordTab>("all");
 
   const fetchSubjectCtosMutation = useMutation({
     mutationFn: async (input: {
@@ -859,6 +1068,18 @@ export default function OrganizationDetailPage() {
                         value={org.onboardedAt ? format(new Date(org.onboardedAt), "PPpp") : null}
                         icon={CheckCircleIcon}
                       />
+                      <DetailRow
+                        label="Owner"
+                        value={
+                          <Link
+                            href={`/users/${encodeURIComponent(org.owner.userId)}`}
+                            className="hover:text-primary hover:underline"
+                          >
+                            {org.owner.firstName} {org.owner.lastName}
+                          </Link>
+                        }
+                        icon={UserIcon}
+                      />
                       <DetailRow label="Created" value={format(new Date(org.createdAt), "PPpp")} icon={ClockIcon} />
                       <DetailRow label="Updated" value={format(new Date(org.updatedAt), "PPpp")} icon={ClockIcon} />
                     </div>
@@ -882,71 +1103,11 @@ export default function OrganizationDetailPage() {
                   </CardContent>
                 </Card>
 
-                {/* Applications (issuer only) */}
-                {org.applications && org.applications.length > 0 && (
-                  <Card className="rounded-2xl">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-medium flex items-center gap-2">
-                        <DocumentTextIcon className="h-4 w-4" />
-                        Applications ({org.applications.length})
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <div className="divide-y">
-                        {org.applications.map((app) => (
-                          <div
-                            key={app.id}
-                            className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0"
-                          >
-                            <div className="flex items-center gap-3 min-w-0">
-                              <Badge
-                                variant="outline"
-                                className={
-                                  app.status === "APPROVED"
-                                    ? "border-emerald-500/30 text-foreground bg-emerald-500/10 text-xs"
-                                    : app.status === "SUBMITTED"
-                                      ? "border-blue-500/30 text-foreground bg-blue-500/10 text-xs"
-                                      : app.status === "REJECTED"
-                                        ? "border-red-500/30 text-foreground bg-red-500/10 text-xs"
-                                        : app.status === "ARCHIVED"
-                                          ? "border-slate-500/30 text-foreground bg-slate-500/10 text-xs"
-                                          : "border-amber-500/30 text-foreground bg-amber-500/10 text-xs"
-                                }
-                              >
-                                {app.status === "DRAFT" && <ClockIcon className="h-3 w-3 mr-1 text-amber-600" />}
-                                {app.status === "SUBMITTED" && <DocumentTextIcon className="h-3 w-3 mr-1 text-blue-600" />}
-                                {app.status === "APPROVED" && <CheckCircleIcon className="h-3 w-3 mr-1 text-emerald-600" />}
-                                {app.status === "REJECTED" && <ExclamationTriangleIcon className="h-3 w-3 mr-1 text-red-600" />}
-                                {app.status === "ARCHIVED" && <DocumentTextIcon className="h-3 w-3 mr-1 text-slate-600" />}
-                                {app.status.charAt(0) + app.status.slice(1).toLowerCase()}
-                              </Badge>
-                              <span className="text-xs text-muted-foreground font-mono truncate">
-                                {app.id}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-3 shrink-0 text-xs text-muted-foreground">
-                              {app.submittedAt && (
-                                <span title={format(new Date(app.submittedAt), "PPpp")}>
-                                  Submitted {format(new Date(app.submittedAt), "MMM d, yyyy")}
-                                </span>
-                              )}
-                              {!app.submittedAt && (
-                                <span title={format(new Date(app.createdAt), "PPpp")}>
-                                  Created {format(new Date(app.createdAt), "MMM d, yyyy")}
-                                </span>
-                              )}
-                              {app.contractId && (
-                                <Badge variant="outline" className="text-[10px] h-5 px-1.5">
-                                  Has Contract
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+                <LinkedRecordsTable
+                  linkedRecords={org.linkedRecords}
+                  activeTab={linkedRecordsTab}
+                  onTabChange={setLinkedRecordsTab}
+                />
 
                 {/* Members + Company Info (or just Members for personal) */}
                 <div className={org.type === "COMPANY" ? "grid grid-cols-1 lg:grid-cols-2 gap-6" : ""}>
@@ -971,9 +1132,12 @@ export default function OrganizationDetailPage() {
                                   <UserIcon className="h-4 w-4 text-primary" />
                                 </div>
                                 <div>
-                                  <div className="text-sm font-medium">
+                                  <Link
+                                    href={`/users/${encodeURIComponent(member.userId)}`}
+                                    className="text-sm font-medium hover:text-primary hover:underline"
+                                  >
                                     {member.firstName} {member.lastName}
-                                  </div>
+                                  </Link>
                                   <div className="text-xs text-muted-foreground">{member.email}</div>
                                 </div>
                               </div>

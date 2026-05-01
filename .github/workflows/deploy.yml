@@ -300,9 +300,7 @@ jobs:
             sleep 60
           done
 
-          docker tag "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
           docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
 
   build-landing:
     name: Build Landing
@@ -388,9 +386,7 @@ jobs:
             sleep 60
           done
 
-          docker tag "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
           docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
 
   build-investor:
     name: Build Investor
@@ -476,9 +472,7 @@ jobs:
             sleep 60
           done
 
-          docker tag "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
           docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
 
   build-issuer:
     name: Build Issuer
@@ -564,9 +558,7 @@ jobs:
             sleep 60
           done
 
-          docker tag "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
           docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
 
   build-admin:
     name: Build Admin
@@ -652,9 +644,7 @@ jobs:
             sleep 60
           done
 
-          docker tag "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
           docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
 
   db-migrations:
     name: Database Migrations
@@ -684,9 +674,7 @@ jobs:
           set -euo pipefail
 
           docker build -f docker/migrate.Dockerfile -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" .
-          docker tag "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
           docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
 
       - name: Run database migrations
         env:

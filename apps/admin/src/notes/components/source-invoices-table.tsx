@@ -1,8 +1,10 @@
-import * as React from "react";
 import { formatCurrency } from "@cashsouk/config";
+import { Skeleton } from "@cashsouk/ui";
 import type { EligibleNoteInvoice } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { formatNoteStatus } from "@/notes/utils/format-note-status";
+import { EyeIcon } from "@heroicons/react/24/outline";
 import {
   Table,
   TableBody,
@@ -22,6 +24,25 @@ interface SourceInvoicesTableProps {
 
 function formatDate(value: string | null) {
   return value ? new Date(value).toLocaleDateString("en-MY") : "-";
+}
+
+function SourceInvoicesTableSkeleton() {
+  return (
+    <>
+      {Array.from({ length: 5 }).map((_, index) => (
+        <TableRow key={index}>
+          <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+          <TableCell><Skeleton className="h-5 w-36" /></TableCell>
+          <TableCell><Skeleton className="h-5 w-36" /></TableCell>
+          <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+          <TableCell><Skeleton className="h-5 w-16" /></TableCell>
+          <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+          <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
+          <TableCell><Skeleton className="h-8 w-28" /></TableCell>
+        </TableRow>
+      ))}
+    </>
+  );
 }
 
 export function SourceInvoicesTable({
@@ -55,11 +76,7 @@ export function SourceInvoicesTable({
           </TableHeader>
           <TableBody>
             {loading ? (
-              <TableRow>
-                <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
-                  Loading approved invoices...
-                </TableCell>
-              </TableRow>
+              <SourceInvoicesTableSkeleton />
             ) : invoices.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="py-8 text-center text-muted-foreground">
@@ -84,15 +101,16 @@ export function SourceInvoicesTable({
                   <TableCell>{formatDate(invoice.maturityDate)}</TableCell>
                   <TableCell>
                     {invoice.noteId ? (
-                      <Badge variant="outline">{invoice.noteStatus?.replace(/_/g, " ")}</Badge>
+                      <Badge variant="outline">{formatNoteStatus(invoice.noteStatus)}</Badge>
                     ) : (
                       <Badge variant="secondary">Ready</Badge>
                     )}
                   </TableCell>
                   <TableCell>
                     {invoice.noteId ? (
-                      <Button size="sm" variant="outline" onClick={() => onViewNote(invoice.noteId!)}>
-                        View Note
+                      <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => onViewNote(invoice.noteId!)}>
+                        <EyeIcon className="h-4 w-4 mr-1" />
+                        View
                       </Button>
                     ) : (
                       <Button

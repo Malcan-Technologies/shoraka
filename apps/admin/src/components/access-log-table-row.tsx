@@ -185,7 +185,7 @@ export function AccessLogTableRow({
         )}
       </TableCell>
       <TableCell>
-        <Button size="sm" variant="ghost" onClick={onViewDetails} className="h-8">
+        <Button size="sm" variant="ghost" onClick={onViewDetails} className="h-8 px-2">
           <EyeIcon className="h-4 w-4 mr-1" />
           View
         </Button>

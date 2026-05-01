@@ -40,6 +40,36 @@ export interface UserResponse {
   updated_at: string;
 }
 
+export interface UserOrganizationSummary {
+  id: string;
+  portal: "investor" | "issuer";
+  type: "PERSONAL" | "COMPANY";
+  name: string | null;
+  registrationNumber: string | null;
+  onboardingStatus: string;
+  onboardedAt: string | null;
+  relationship: "owner" | "member";
+  memberRole: string | null;
+  memberCount: number;
+  isSophisticatedInvestor: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserDetailResponse extends UserResponse {
+  stats: {
+    accessLogs: number;
+    investments: number;
+    loans: number;
+    investorOrganizations: number;
+    issuerOrganizations: number;
+  };
+  organizations: {
+    investor: UserOrganizationSummary[];
+    issuer: UserOrganizationSummary[];
+  };
+}
+
 export interface UsersResponse {
   users: UserResponse[];
   pagination: PaginationResponse;
@@ -157,10 +187,33 @@ export interface OnboardingOperationsMetrics {
   approved: number;
   rejected: number;
   expired: number;
-  avgTimeToApprovalMinutes: number | null;
-  avgTimeToApprovalChangePercent: number | null;
-  avgTimeToOnboardingMinutes: number | null;
-  avgTimeToOnboardingChangePercent: number | null;
+}
+
+export interface ApplicationDashboardMetrics {
+  total: number;
+  actionRequired: number;
+  draft: number;
+  contractOrAmendmentCycle: number;
+  approvedCompleted: number;
+  withdrawnRejectedOrArchived: number;
+}
+
+export interface ContractDashboardMetrics {
+  total: number;
+  actionRequired: number;
+  draft: number;
+  offerSent: number;
+  approved: number;
+  rejectedOrWithdrawn: number;
+}
+
+export interface NoteDashboardMetrics {
+  total: number;
+  draft: number;
+  live: number;
+  repaid: number;
+  distressed: number;
+  cancelledOrFailedFunding: number;
 }
 
 export interface DashboardStatsResponse {
@@ -172,6 +225,9 @@ export interface DashboardStatsResponse {
   signupTrends: SignupTrendItem[];
   organizations: OrganizationStats;
   onboardingOperations?: OnboardingOperationsMetrics;
+  applicationMetrics?: ApplicationDashboardMetrics;
+  contractMetrics?: ContractDashboardMetrics;
+  noteMetrics?: NoteDashboardMetrics;
 }
 
 // Admin Management Types
@@ -560,6 +616,48 @@ export interface OrganizationDetailResponse {
     updatedAt: string;
     contractId: string | null;
   }[];
+
+  linkedRecords?: {
+    applications: {
+      id: string;
+      status: string;
+      productId: string | null;
+      submittedAt: string | null;
+      createdAt: string;
+      updatedAt: string;
+      contractId: string | null;
+      requestedAmount: number | null;
+    }[];
+    contracts: {
+      id: string;
+      title: string | null;
+      contractNumber: string | null;
+      status: string;
+      createdAt: string;
+      updatedAt: string;
+      contractValue: number | null;
+    }[];
+    notes: {
+      id: string;
+      noteReference: string;
+      title: string;
+      status: string;
+      targetAmount: number;
+      fundedAmount: number;
+      createdAt: string;
+      updatedAt: string;
+    }[];
+    investments: {
+      id: string;
+      status: string;
+      amount: number;
+      noteId: string;
+      noteReference: string;
+      noteTitle: string;
+      committedAt: string;
+      updatedAt: string;
+    }[];
+  };
 
   // Corporate onboarding data (for COMPANY type)
   corporateOnboardingData?: {
@@ -1065,6 +1163,18 @@ export interface AdminApplicationsResponse {
   pagination: PaginationResponse;
 }
 
+export interface AdminApplicationActionRequiredCountResponse {
+  count: number;
+  breakdown: {
+    submitted: number;
+    underReview: number;
+    resubmitted: number;
+    contractPending: number;
+    contractAccepted: number;
+    invoicePending: number;
+  };
+}
+
 export interface ContractListItem {
   id: string;
   contractNumber: string | null;
@@ -1095,11 +1205,21 @@ export interface AdminContractApplicationSummary {
   requestedAmount: number;
 }
 
+export interface AdminContractNoteSummary {
+  id: string;
+  noteReference: string;
+  title: string;
+  status: string;
+  sourceApplicationId: string;
+  sourceInvoiceId: string | null;
+}
+
 export interface AdminContractDetail {
   id: string;
   contractNumber: string | null;
   title: string | null;
   description: string | null;
+  issuerOrganizationId: string | null;
   issuerOrganizationName: string | null;
   requestedFacility: number;
   approvedFacility: number;
@@ -1112,6 +1232,7 @@ export interface AdminContractDetail {
   offerRespondedByUserName: string | null;
   customerDetails: Record<string, unknown> | null;
   applications: AdminContractApplicationSummary[];
+  notes: AdminContractNoteSummary[];
 }
 
 export interface ApplicationReviewSection {

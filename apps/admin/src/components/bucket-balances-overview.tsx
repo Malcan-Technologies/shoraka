@@ -75,11 +75,15 @@ export function BucketBalancesOverview() {
           </div>
           <div className="rounded-xl border bg-card p-4">
             <div className="text-xs text-muted-foreground">Total Credits</div>
-            <div className="mt-1 text-2xl font-semibold">{formatCurrency(data?.totals.creditTotal ?? 0)}</div>
+            <div className="mt-1 text-2xl font-semibold">
+              {formatCurrency(data?.totals.creditTotal ?? 0)}
+            </div>
           </div>
           <div className="rounded-xl border bg-card p-4">
             <div className="text-xs text-muted-foreground">Total Debits</div>
-            <div className="mt-1 text-2xl font-semibold">{formatCurrency(data?.totals.debitTotal ?? 0)}</div>
+            <div className="mt-1 text-2xl font-semibold">
+              {formatCurrency(data?.totals.debitTotal ?? 0)}
+            </div>
           </div>
         </div>
 
@@ -88,10 +92,16 @@ export function BucketBalancesOverview() {
             const width = `${Math.max(4, (Math.abs(bucket.balance) / largestBalance) * 100)}%`;
             return (
               <div key={bucket.accountCode} className="rounded-xl border bg-card p-4">
-                <div className="truncate text-xs font-medium text-muted-foreground" title={bucket.accountName}>
+                <div
+                  className="truncate text-xs font-medium text-muted-foreground"
+                  title={bucket.accountName}
+                >
                   {bucket.accountName}
                 </div>
-                <div className="mt-1 truncate text-lg font-semibold" title={formatCurrency(bucket.balance)}>
+                <div
+                  className="mt-1 truncate text-lg font-semibold"
+                  title={formatCurrency(bucket.balance)}
+                >
                   {formatCurrency(bucket.balance)}
                 </div>
                 <div className="mt-1 truncate text-xs text-muted-foreground">

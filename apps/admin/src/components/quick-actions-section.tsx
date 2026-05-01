@@ -3,7 +3,15 @@
 import * as React from "react";
 import { QuickActionCard } from "./quick-action-card";
 import { Button } from "./ui/button";
-import { ClipboardDocumentCheckIcon, ArrowPathIcon, DocumentTextIcon } from "@heroicons/react/24/outline";
+import {
+  ArrowPathIcon,
+  ClipboardDocumentCheckIcon,
+  DocumentCheckIcon,
+  DocumentTextIcon,
+} from "@heroicons/react/24/outline";
+import { APPLICATION_ACTION_REQUIRED_STATUS_SET } from "@/applications/action-required-statuses";
+import { useAdminApplicationsForSidebar } from "@/hooks/use-admin-applications-for-sidebar";
+import { useApplicationActionRequiredCount } from "@/hooks/use-application-action-required-count";
 import { usePendingApprovalCount } from "@/hooks/use-pending-approval-count";
 import { useNoteActionRequiredCount } from "@/notes/hooks/use-notes";
 
@@ -20,15 +28,30 @@ export function QuickActionsSection({
 }: QuickActionsSectionProps) {
   // Fetch real pending approval count from API
   const { data: pendingCountData, isLoading: isPendingCountLoading } = usePendingApprovalCount();
+  const { data: applicationActionCountData, isLoading: isApplicationActionCountLoading } =
+    useApplicationActionRequiredCount();
   const { data: noteActionCountData, isLoading: isNoteActionCountLoading } = useNoteActionRequiredCount();
+  const { data: applicationsForSidebar = [], isLoading: isApplicationsForSidebarLoading } =
+    useAdminApplicationsForSidebar();
   const pendingOnboardingCount = pendingCountData?.count ?? 0;
+  const applicationActionCount = applicationActionCountData?.count ?? 0;
   const noteActionCount = noteActionCountData?.count ?? 0;
+  const firstActionApplication = applicationsForSidebar.find(
+    (application) =>
+      APPLICATION_ACTION_REQUIRED_STATUS_SET.has(application.status) &&
+      (application.baseProductId || application.productId)
+  );
+  const applicationActionHref = firstActionApplication
+    ? `/applications/${firstActionApplication.baseProductId ?? firstActionApplication.productId}`
+    : "/";
 
   return (
     <section className="space-y-4">
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-foreground">Quick Actions</h2>
+          <h2 className="text-xl font-semibold tracking-tight text-primary md:text-2xl">
+            Quick Actions
+          </h2>
           <p className="text-sm text-muted-foreground">Tasks that need your attention</p>
         </div>
         {onRefresh && (
@@ -60,6 +83,22 @@ export function QuickActionsSection({
                 : "default"
           }
           loading={loading || isPendingCountLoading}
+        />
+        <QuickActionCard
+          title="Application Actions"
+          description="Review applications, send offers, and process accepted contracts"
+          count={applicationActionCount}
+          countLabel="actions"
+          href={applicationActionHref}
+          icon={DocumentCheckIcon}
+          variant={
+            applicationActionCount > 5
+              ? "urgent"
+              : applicationActionCount > 0
+                ? "warning"
+                : "default"
+          }
+          loading={loading || isApplicationActionCountLoading || isApplicationsForSidebarLoading}
         />
         <QuickActionCard
           title="Note Actions"

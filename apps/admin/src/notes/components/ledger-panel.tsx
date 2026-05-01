@@ -1,6 +1,7 @@
 "use client";
 
 import { formatCurrency } from "@cashsouk/config";
+import { Skeleton } from "@cashsouk/ui";
 import type { NoteDetail } from "@cashsouk/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +20,39 @@ function formatDateTime(value: string) {
     dateStyle: "medium",
     timeStyle: "short",
   });
+}
+
+function LedgerTableSkeleton() {
+  return (
+    <div className="overflow-hidden rounded-xl border">
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="min-w-36">Posted</TableHead>
+              <TableHead className="min-w-44">Account</TableHead>
+              <TableHead className="min-w-64">Description</TableHead>
+              <TableHead className="text-right">Debit</TableHead>
+              <TableHead className="text-right">Credit</TableHead>
+              <TableHead className="min-w-52">Reference</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {Array.from({ length: 5 }).map((_, index) => (
+              <TableRow key={index}>
+                <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+                <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+                <TableCell><Skeleton className="h-5 w-56" /></TableCell>
+                <TableCell><Skeleton className="ml-auto h-5 w-24" /></TableCell>
+                <TableCell><Skeleton className="ml-auto h-5 w-24" /></TableCell>
+                <TableCell><Skeleton className="h-5 w-44" /></TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
 }
 
 export function LedgerPanel({ note }: { note: NoteDetail }) {
@@ -67,7 +101,7 @@ export function LedgerPanel({ note }: { note: NoteDetail }) {
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading ledger...</p>
+          <LedgerTableSkeleton />
         ) : entries.length === 0 ? (
           <p className="text-sm text-muted-foreground">No ledger entries posted yet.</p>
         ) : (

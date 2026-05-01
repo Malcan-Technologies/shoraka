@@ -54,6 +54,7 @@ import type {
   OnboardingApprovalStatus,
   OnboardingApplicationResponse,
   OnboardingStatusEnum,
+  UserDetailResponse,
 } from "@cashsouk/types";
 import {
   getSectionForPendingAmendment,
@@ -96,6 +97,16 @@ import { getS3ObjectBuffer } from "../../lib/s3/client";
 import { computeSupportingDocumentsSectionStatus } from "../applications/supporting-documents-section-status";
 import { computeInvoiceDetailsSectionStatus } from "../applications/invoice-details-section-status";
 import { assertMaturityForSendInvoiceOffer } from "../products/validate-financial-config";
+
+const APPLICATION_ACTION_REQUIRED_STATUSES = [
+  ApplicationStatus.SUBMITTED,
+  ApplicationStatus.UNDER_REVIEW,
+  ApplicationStatus.RESUBMITTED,
+  ApplicationStatus.CONTRACT_PENDING,
+  ApplicationStatus.CONTRACT_ACCEPTED,
+  ApplicationStatus.INVOICE_PENDING,
+] as const;
+
 type ResubmitComparisonAmendmentRemark = {
   scope: string;
   scope_key: string;
@@ -432,6 +443,143 @@ export class AdminService {
    */
   async getUserById(userId: string): Promise<User | null> {
     return this.repository.getUserById(userId);
+  }
+
+  async getUserDetail(userId: string): Promise<UserDetailResponse | null> {
+    const [user, investorOrganizations, issuerOrganizations] = await Promise.all([
+      prisma.user.findUnique({
+        where: { user_id: userId },
+        include: {
+          _count: {
+            select: {
+              access_logs: true,
+              investments: true,
+              loans: true,
+            },
+          },
+        },
+      }),
+      prisma.investorOrganization.findMany({
+        where: {
+          OR: [
+            { owner_user_id: userId },
+            { members: { some: { user_id: userId } } },
+          ],
+        },
+        orderBy: { updated_at: "desc" },
+        select: {
+          id: true,
+          owner_user_id: true,
+          type: true,
+          name: true,
+          registration_number: true,
+          onboarding_status: true,
+          onboarded_at: true,
+          created_at: true,
+          updated_at: true,
+          is_sophisticated_investor: true,
+          members: {
+            where: { user_id: userId },
+            select: { role: true },
+            take: 1,
+          },
+          _count: { select: { members: true } },
+        },
+      }),
+      prisma.issuerOrganization.findMany({
+        where: {
+          OR: [
+            { owner_user_id: userId },
+            { members: { some: { user_id: userId } } },
+          ],
+        },
+        orderBy: { updated_at: "desc" },
+        select: {
+          id: true,
+          owner_user_id: true,
+          type: true,
+          name: true,
+          registration_number: true,
+          onboarding_status: true,
+          onboarded_at: true,
+          created_at: true,
+          updated_at: true,
+          members: {
+            where: { user_id: userId },
+            select: { role: true },
+            take: 1,
+          },
+          _count: { select: { members: true } },
+        },
+      }),
+    ]);
+
+    if (!user) {
+      return null;
+    }
+
+    const mapOrganization = (
+      org: {
+        id: string;
+        owner_user_id: string;
+        type: OrganizationType;
+        name: string | null;
+        registration_number: string | null;
+        onboarding_status: OnboardingStatus;
+        onboarded_at: Date | null;
+        created_at: Date;
+        updated_at: Date;
+        is_sophisticated_investor?: boolean;
+        members: { role: string }[];
+        _count: { members: number };
+      },
+      portal: "investor" | "issuer"
+    ) => ({
+      id: org.id,
+      portal,
+      type: org.type,
+      name: org.name,
+      registrationNumber: org.registration_number,
+      onboardingStatus: org.onboarding_status,
+      onboardedAt: org.onboarded_at?.toISOString() ?? null,
+      relationship: org.owner_user_id === userId ? "owner" as const : "member" as const,
+      memberRole: org.members[0]?.role ?? null,
+      memberCount: org._count.members,
+      isSophisticatedInvestor: org.is_sophisticated_investor ?? false,
+      createdAt: org.created_at.toISOString(),
+      updatedAt: org.updated_at.toISOString(),
+    });
+
+    return {
+      id: user.user_id,
+      user_id: user.user_id,
+      email: user.email,
+      email_verified: user.email_verified,
+      cognito_sub: user.cognito_sub,
+      cognito_username: user.cognito_username,
+      roles: user.roles,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      phone: user.phone,
+      investor_account: user.investor_account,
+      issuer_account: user.issuer_account,
+      investor_organization_count: investorOrganizations.length,
+      issuer_organization_count: issuerOrganizations.length,
+      password_changed_at: user.password_changed_at?.toISOString() ?? null,
+      created_at: user.created_at.toISOString(),
+      updated_at: user.updated_at.toISOString(),
+      stats: {
+        accessLogs: user._count.access_logs,
+        investments: user._count.investments,
+        loans: user._count.loans,
+        investorOrganizations: investorOrganizations.length,
+        issuerOrganizations: issuerOrganizations.length,
+      },
+      organizations: {
+        investor: investorOrganizations.map((org) => mapOrganization(org, "investor")),
+        issuer: issuerOrganizations.map((org) => mapOrganization(org, "issuer")),
+      },
+    };
   }
 
   /**
@@ -834,10 +982,30 @@ export class AdminService {
       approved: number;
       rejected: number;
       expired: number;
-      avgTimeToApprovalMinutes: number | null;
-      avgTimeToApprovalChangePercent: number | null;
-      avgTimeToOnboardingMinutes: number | null;
-      avgTimeToOnboardingChangePercent: number | null;
+    };
+    applicationMetrics: {
+      total: number;
+      actionRequired: number;
+      draft: number;
+      contractOrAmendmentCycle: number;
+      approvedCompleted: number;
+      withdrawnRejectedOrArchived: number;
+    };
+    contractMetrics: {
+      total: number;
+      actionRequired: number;
+      draft: number;
+      offerSent: number;
+      approved: number;
+      rejectedOrWithdrawn: number;
+    };
+    noteMetrics: {
+      total: number;
+      draft: number;
+      live: number;
+      repaid: number;
+      distressed: number;
+      cancelledOrFailedFunding: number;
     };
   }> {
     const TREND_PERIOD_DAYS = 30;
@@ -850,6 +1018,9 @@ export class AdminService {
       signupTrends,
       organizationStats,
       onboardingOperations,
+      applicationMetrics,
+      contractMetrics,
+      noteMetrics,
     ] = await Promise.all([
       this.repository.getUserStats(),
       this.repository.getCurrentPeriodStats(TREND_PERIOD_DAYS),
@@ -857,6 +1028,9 @@ export class AdminService {
       this.repository.getSignupTrends(TREND_PERIOD_DAYS),
       this.repository.getOrganizationStats(),
       this.repository.getOnboardingOperationsMetrics(),
+      this.repository.getApplicationDashboardMetrics(),
+      this.repository.getContractDashboardMetrics(),
+      this.repository.getNoteDashboardMetrics(),
     ]);
 
     // Calculate percentage changes
@@ -904,6 +1078,9 @@ export class AdminService {
       signupTrends,
       organizations: organizationStats,
       onboardingOperations,
+      applicationMetrics,
+      contractMetrics,
+      noteMetrics,
     };
   }
 
@@ -1837,6 +2014,47 @@ export class AdminService {
       updatedAt: string;
       contractId: string | null;
     }[];
+    linkedRecords: {
+      applications: {
+        id: string;
+        status: string;
+        productId: string | null;
+        submittedAt: string | null;
+        createdAt: string;
+        updatedAt: string;
+        contractId: string | null;
+        requestedAmount: number | null;
+      }[];
+      contracts: {
+        id: string;
+        title: string | null;
+        contractNumber: string | null;
+        status: string;
+        createdAt: string;
+        updatedAt: string;
+        contractValue: number | null;
+      }[];
+      notes: {
+        id: string;
+        noteReference: string;
+        title: string;
+        status: string;
+        targetAmount: number;
+        fundedAmount: number;
+        createdAt: string;
+        updatedAt: string;
+      }[];
+      investments: {
+        id: string;
+        status: string;
+        amount: number;
+        noteId: string;
+        noteReference: string;
+        noteTitle: string;
+        committedAt: string;
+        updatedAt: string;
+      }[];
+    };
     corporateOnboardingData?: {
       basicInfo?: {
         tinNumber?: string;
@@ -1939,6 +2157,76 @@ export class AdminService {
       }));
       latestOrganizationCtosSubjectReports = extras.latestOrganizationCtosSubjectReports;
     }
+
+    const [linkedApplications, linkedContracts, linkedNotes, linkedInvestments] = await Promise.all([
+      portal === "issuer"
+        ? prisma.application.findMany({
+            where: { issuer_organization_id: id },
+            orderBy: { created_at: "desc" },
+            select: {
+              id: true,
+              status: true,
+              financing_type: true,
+              submitted_at: true,
+              created_at: true,
+              updated_at: true,
+              contract_id: true,
+              invoices: { select: { details: true } },
+              contract: { select: { contract_details: true } },
+            },
+          })
+        : Promise.resolve([]),
+      portal === "issuer"
+        ? prisma.contract.findMany({
+            where: { issuer_organization_id: id },
+            orderBy: { created_at: "desc" },
+            select: {
+              id: true,
+              status: true,
+              created_at: true,
+              updated_at: true,
+              contract_details: true,
+            },
+          })
+        : Promise.resolve([]),
+      portal === "issuer"
+        ? prisma.note.findMany({
+            where: { issuer_organization_id: id },
+            orderBy: { created_at: "desc" },
+            select: {
+              id: true,
+              note_reference: true,
+              title: true,
+              status: true,
+              target_amount: true,
+              funded_amount: true,
+              created_at: true,
+              updated_at: true,
+            },
+          })
+        : Promise.resolve([]),
+      prisma.noteInvestment.findMany({
+        where:
+          portal === "investor"
+            ? { investor_organization_id: id }
+            : { note: { issuer_organization_id: id } },
+        orderBy: { committed_at: "desc" },
+        select: {
+          id: true,
+          status: true,
+          amount: true,
+          committed_at: true,
+          updated_at: true,
+          note: {
+            select: {
+              id: true,
+              note_reference: true,
+              title: true,
+            },
+          },
+        },
+      }),
+    ]);
 
     return {
       id: org.id,
@@ -2123,6 +2411,71 @@ export class AdminService {
           contractId: app.contract_id,
         }))
         : undefined,
+      linkedRecords: {
+        applications: linkedApplications.map((app) => {
+          const requestedAmount = app.invoices.length > 0
+            ? app.invoices.reduce((sum, invoice) => {
+                const details = isPlainObjectRecord(invoice.details) ? invoice.details : null;
+                const invoiceValue = Number(details?.value ?? 0);
+                const financingRatio = Number(details?.financing_ratio_percent ?? 80);
+                return sum + (invoiceValue * financingRatio) / 100;
+              }, 0)
+            : (() => {
+                const contractDetails = isPlainObjectRecord(app.contract?.contract_details)
+                  ? app.contract.contract_details
+                  : null;
+                const amount = Number(contractDetails?.value ?? contractDetails?.approved_facility ?? 0);
+                return Number.isFinite(amount) && amount > 0 ? amount : null;
+              })();
+          const financingType = isPlainObjectRecord(app.financing_type) ? app.financing_type : null;
+          return {
+            id: app.id,
+            status: app.status,
+            productId:
+              typeof financingType?.product_id === "string" && financingType.product_id.trim().length > 0
+                ? financingType.product_id.trim()
+                : null,
+            submittedAt: app.submitted_at?.toISOString() ?? null,
+            createdAt: app.created_at.toISOString(),
+            updatedAt: app.updated_at.toISOString(),
+            contractId: app.contract_id,
+            requestedAmount: requestedAmount == null ? null : Number(requestedAmount),
+          };
+        }),
+        contracts: linkedContracts.map((contract) => {
+          const details = isPlainObjectRecord(contract.contract_details) ? contract.contract_details : null;
+          const value = Number(details?.value ?? details?.approved_facility ?? 0);
+          return {
+            id: contract.id,
+            title: typeof details?.title === "string" ? details.title : null,
+            contractNumber: typeof details?.number === "string" ? details.number : null,
+            status: contract.status,
+            createdAt: contract.created_at.toISOString(),
+            updatedAt: contract.updated_at.toISOString(),
+            contractValue: Number.isFinite(value) && value > 0 ? value : null,
+          };
+        }),
+        notes: linkedNotes.map((note) => ({
+          id: note.id,
+          noteReference: note.note_reference,
+          title: note.title,
+          status: note.status,
+          targetAmount: Number(note.target_amount),
+          fundedAmount: Number(note.funded_amount),
+          createdAt: note.created_at.toISOString(),
+          updatedAt: note.updated_at.toISOString(),
+        })),
+        investments: linkedInvestments.map((investment) => ({
+          id: investment.id,
+          status: investment.status,
+          amount: Number(investment.amount),
+          noteId: investment.note.id,
+          noteReference: investment.note.note_reference,
+          noteTitle: investment.note.title,
+          committedAt: investment.committed_at.toISOString(),
+          updatedAt: investment.updated_at.toISOString(),
+        })),
+      },
     };
   }
 
@@ -4561,6 +4914,40 @@ export class AdminService {
     };
   }
 
+  async getApplicationActionRequiredCount() {
+    const [
+      count,
+      submitted,
+      underReview,
+      resubmitted,
+      contractPending,
+      contractAccepted,
+      invoicePending,
+    ] = await Promise.all([
+      prisma.application.count({ where: { status: { in: [...APPLICATION_ACTION_REQUIRED_STATUSES] } } }),
+      prisma.application.count({ where: { status: ApplicationStatus.SUBMITTED } }),
+      prisma.application.count({ where: { status: ApplicationStatus.UNDER_REVIEW } }),
+      prisma.application.count({ where: { status: ApplicationStatus.RESUBMITTED } }),
+      prisma.application.count({ where: { status: ApplicationStatus.CONTRACT_PENDING } }),
+      prisma.application.count({ where: { status: ApplicationStatus.CONTRACT_ACCEPTED } }),
+      prisma.application.count({ where: { status: ApplicationStatus.INVOICE_PENDING } }),
+    ]);
+
+    const breakdown = {
+      submitted,
+      underReview,
+      resubmitted,
+      contractPending,
+      contractAccepted,
+      invoicePending,
+    };
+
+    return {
+      count,
+      breakdown,
+    };
+  }
+
   /**
    * List all contracts with pagination and filters
    */
@@ -4793,6 +5180,18 @@ export class AdminService {
     return {
       ...applicationWithIssuerExtras,
       people,
+      linked_notes: await prisma.note.findMany({
+        where: { source_application_id: id },
+        orderBy: { created_at: "desc" },
+        select: {
+          id: true,
+          note_reference: true,
+          title: true,
+          status: true,
+          source_contract_id: true,
+          source_invoice_id: true,
+        },
+      }),
       application_guarantors: this.mapApplicationGuarantorsForAdmin(
         applicationWithIssuerExtras.application_guarantors
       ),
@@ -4837,11 +5236,14 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Previous revision snapshot not found");
     }
 
-    console.log("[admin] getResubmitComparisonSnapshots", {
-      applicationId,
-      previous_review_cycle: prevCycle,
-      next_review_cycle: nextReviewCycle,
-    });
+    logger.info(
+      {
+        applicationId,
+        previous_review_cycle: prevCycle,
+        next_review_cycle: nextReviewCycle,
+      },
+      "[admin] getResubmitComparisonSnapshots"
+    );
 
     const resubmitLog = await prisma.applicationLog.findFirst({
       where: {
@@ -5000,7 +5402,7 @@ export class AdminService {
     }
 
     if (status === ApplicationStatus.APPROVED) {
-      this.assertFinancialReviewDirectorShareholderAmlApproved(application as any);
+      this.assertFinancialReviewDirectorShareholderAmlApproved(application);
       const reviews = (application.application_reviews ?? []) as { section: string; status: string }[];
       const sectionPolicy = await this.getReviewSectionPolicy(application);
       const reviewStatusBySection = new Map<string, string>();
@@ -5960,7 +6362,7 @@ export class AdminService {
           ? previousOffer.version
           : 0;
       const now = new Date().toISOString();
-      console.log("Saving risk rating:", riskRating);
+      logger.info({ applicationId, invoiceId, riskRating }, "Saving invoice offer risk rating");
       const offerDetails = {
         requested_amount: requestedAmount,
         offered_amount: offeredAmount,
@@ -6186,7 +6588,7 @@ export class AdminService {
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     if (section === "financial") {
-      this.assertFinancialReviewDirectorShareholderAmlApproved(application as any);
+      this.assertFinancialReviewDirectorShareholderAmlApproved(application);
     }
     await this.ensureUnderReview(
       repository,

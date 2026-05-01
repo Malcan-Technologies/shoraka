@@ -19,7 +19,7 @@ export default function AdminHomePage() {
       <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
-        <h1 className="text-lg font-semibold">Dashboard</h1>
+        <h1 className="text-lg font-semibold text-primary">Dashboard</h1>
         <div className="ml-auto">
           <SystemHealthIndicator />
         </div>
@@ -35,7 +35,9 @@ export default function AdminHomePage() {
 
           <section className="space-y-4">
             <div>
-              <h2 className="text-lg font-semibold text-foreground">Finance</h2>
+              <h2 className="text-xl font-semibold tracking-tight text-primary md:text-2xl">
+                Finance
+              </h2>
               <p className="text-sm text-muted-foreground">
                 Current balances across platform money buckets
               </p>
@@ -47,7 +49,9 @@ export default function AdminHomePage() {
           <section className="space-y-4">
             <div className="flex items-start justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-foreground">Operations</h2>
+                <h2 className="text-xl font-semibold tracking-tight text-primary md:text-2xl">
+                  Operations
+                </h2>
                 <p className="text-sm text-muted-foreground">
                   Operational efficiency and processing metrics
                 </p>
@@ -63,14 +67,22 @@ export default function AdminHomePage() {
                 <ArrowPathIcon className={`h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
               </Button>
             </div>
-            <OperationsSection loading={isLoading} metrics={stats?.onboardingOperations} />
+            <OperationsSection
+              loading={isLoading}
+              onboarding={stats?.onboardingOperations}
+              applications={stats?.applicationMetrics}
+              contracts={stats?.contractMetrics}
+              notes={stats?.noteMetrics}
+            />
           </section>
 
           {/* Platform Overview Section */}
           <section className="space-y-4">
             <div className="flex items-start justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-foreground">Platform</h2>
+                <h2 className="text-xl font-semibold tracking-tight text-primary md:text-2xl">
+                  Platform
+                </h2>
                 <p className="text-sm text-muted-foreground">Users and organization statistics</p>
               </div>
               <Button

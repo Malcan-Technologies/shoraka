@@ -31,9 +31,9 @@ export function ApplicationsTableRow({
   return (
     <TableRow className={applicationTableRowClass}>
       {/* Reference */}
-      <TableCell className={applicationTableCellClass}>
-        <div className="flex items-center gap-2">
-          <span className="truncate max-w-[100px]" title={application.id}>
+      <TableCell className={`${applicationTableCellClass} min-w-0 overflow-hidden truncate font-mono text-xs`}>
+        <div className="min-w-0">
+          <span className="block truncate" title={application.id}>
             {application.id.slice(-8).toUpperCase()}
           </span>
         </div>

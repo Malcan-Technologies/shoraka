@@ -4,6 +4,7 @@ import * as React from "react";
 import { format } from "date-fns";
 import { BanknotesIcon } from "@heroicons/react/24/outline";
 import { formatCurrency } from "@cashsouk/config";
+import { Skeleton } from "@cashsouk/ui";
 import type { NoteLedgerBucketBalance } from "@cashsouk/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,23 @@ const ACTIVITY_PAGE_SIZE = 20;
 
 function formatDateTime(value: string | null) {
   return value ? format(new Date(value), "dd MMM yyyy, h:mm a") : "No entries";
+}
+
+function ActivityTableSkeleton() {
+  return (
+    <>
+      {Array.from({ length: 6 }).map((_, index) => (
+        <TableRow key={index}>
+          <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+          <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+          <TableCell><Skeleton className="h-5 w-56" /></TableCell>
+          <TableCell><Skeleton className="ml-auto h-5 w-24" /></TableCell>
+          <TableCell><Skeleton className="ml-auto h-5 w-24" /></TableCell>
+          <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+        </TableRow>
+      ))}
+    </>
+  );
 }
 
 function BucketActivityLog({
@@ -100,11 +118,7 @@ function BucketActivityLog({
             </TableHeader>
             <TableBody>
               {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                    Loading activity...
-                  </TableCell>
-                </TableRow>
+                <ActivityTableSkeleton />
               ) : entries.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
@@ -157,7 +171,7 @@ function BucketActivityLog({
 
 export default function BucketBalancesPage() {
   const { data, isLoading, error } = useNoteBucketBalances();
-  const buckets = data?.buckets ?? [];
+  const buckets = React.useMemo(() => data?.buckets ?? [], [data?.buckets]);
   const [selectedBucketCode, setSelectedBucketCode] = React.useState<string | null>(null);
   const [activityPage, setActivityPage] = React.useState(1);
   const activeBucket = buckets.find((bucket) => bucket.accountCode === selectedBucketCode) ?? buckets[0] ?? null;
@@ -193,7 +207,7 @@ export default function BucketBalancesPage() {
               <div>
                 <h2 className="text-lg font-semibold">Platform Money Buckets</h2>
                 <p className="text-sm text-muted-foreground">
-                  View ledger-derived balances across Investor Pool, Repayment Pool, Operating Account, Ta'widh,
+                  View ledger-derived balances across Investor Pool, Repayment Pool, Operating Account, Ta&apos;widh,
                   and Gharamah.
                 </p>
               </div>
