@@ -470,8 +470,8 @@ function preferFilledCtosString(
 
 /**
  * Normalized merge key for CTOS rows: same person → one bucket.
- * INDIVIDUAL → nic then ic (see {@link individualCtosIdDisplayRaw}), else normalized name.
- * CORPORATE → SSM / registration. Unknown `kind` → same id heuristics, then name.
+ * Only when {@link directorSubjectKindFromCtosOrgRow} is explicit `I` or `C` — no inference from IDs when `kind` is null.
+ * INDIVIDUAL (`I`): nic then ic, else normalized name. CORPORATE (`C`): nic then ic (see {@link corporateCtosRegDisplayRaw}).
  */
 function ctosPartyNormalizedMergeKey(
   r: CtosOrgDirectorRow,
@@ -485,11 +485,7 @@ function ctosPartyNormalizedMergeKey(
   if (kind === "CORPORATE") {
     return normalizeDirectorShareholderIdKey(corporateCtosRegDisplayRaw(r) || null);
   }
-  const fromInd = normalizeDirectorShareholderIdKey(individualCtosIdDisplayRaw(r) || null);
-  if (fromInd) return fromInd;
-  const fromCorp = normalizeDirectorShareholderIdKey(corporateCtosRegDisplayRaw(r) || null);
-  if (fromCorp) return fromCorp;
-  return normalizeDirectorShareholderIdKey((r.name ?? "").trim() || null);
+  return null;
 }
 
 function ctosPositionCanonicalCode(position: string | null | undefined): string | null {
@@ -653,14 +649,9 @@ export function isLegacyCtosPartyKycApproved(
 }
 
 function directorSubjectKindFromCtosOrgRow(r: CtosOrgDirectorRow): "INDIVIDUAL" | "CORPORATE" | null {
-  if (r.party_type === "I") return "INDIVIDUAL";
-  if (r.party_type === "C") return "CORPORATE";
-  const nic = (r.nic_brno ?? "").trim();
-  const ic = (r.ic_lcno ?? "").trim();
-  if (nic && !ic) return "INDIVIDUAL";
-  if (ic && !nic) return "CORPORATE";
-  if (nic) return "INDIVIDUAL";
-  if (ic) return "CORPORATE";
+  const pt = (r.party_type ?? "").trim().toUpperCase();
+  if (pt === "I") return "INDIVIDUAL";
+  if (pt === "C") return "CORPORATE";
   return null;
 }
 

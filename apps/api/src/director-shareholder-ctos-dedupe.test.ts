@@ -55,6 +55,92 @@ describe("CTOS director display dedupe (same nic_brno)", () => {
   });
 });
 
+describe("CTOS display merge: explicit party_type only", () => {
+  it("party_type C with same nic_brno merges as one company", () => {
+    const companyJson = {
+      directors: [
+        {
+          name: "ACME SDN BHD",
+          ic_lcno: null,
+          nic_brno: "202001000001",
+          party_type: "C",
+          position: "SO",
+          equity_percentage: 6,
+          equity: 0,
+        },
+        {
+          name: "ACME SDN BHD",
+          ic_lcno: null,
+          nic_brno: "202001000001",
+          party_type: "C",
+          position: "SO",
+          equity_percentage: 6,
+          equity: 0,
+          remark: "note",
+        },
+      ],
+    };
+    const rows = buildUnifiedCtosDirectorShareholdersFromCompanyJson(companyJson);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].isIndividual).toBe(false);
+    expect(rows[0].sharePercentage).toBe(6);
+  });
+
+  it("missing party_type does not merge two rows by shared ic_lcno or name", () => {
+    const companyJson = {
+      directors: [
+        {
+          name: "SAME NAME",
+          ic_lcno: "900101011234",
+          nic_brno: null,
+          party_type: null,
+          position: "DO",
+          equity_percentage: 0,
+          equity: 0,
+        },
+        {
+          name: "SAME NAME",
+          ic_lcno: "900101011234",
+          nic_brno: null,
+          party_type: null,
+          position: "DO",
+          equity_percentage: 0,
+          equity: 0,
+        },
+      ],
+    };
+    const rows = buildUnifiedCtosDirectorShareholdersFromCompanyJson(companyJson);
+    expect(rows).toHaveLength(2);
+  });
+
+  it("invalid party_type does not merge by ic_lcno", () => {
+    const companyJson = {
+      directors: [
+        {
+          name: "X",
+          ic_lcno: "111",
+          nic_brno: null,
+          party_type: "X",
+          position: "DO",
+          equity_percentage: 0,
+          equity: 0,
+        },
+        {
+          name: "X",
+          ic_lcno: "111",
+          nic_brno: null,
+          party_type: "X",
+          position: "DO",
+          equity_percentage: 0,
+          equity: 0,
+        },
+      ],
+    };
+    const rows = buildUnifiedCtosDirectorShareholdersFromCompanyJson(companyJson);
+    expect(rows).toHaveLength(2);
+  });
+});
+
 describe("CTOS display merge: SC does not contribute shareholder", () => {
   it("duplicate corporate CTOS rows with position SC merge without shareholder flag", () => {
     const companyJson = {
