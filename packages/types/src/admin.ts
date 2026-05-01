@@ -56,7 +56,7 @@ export interface UserOrganizationSummary {
   updatedAt: string;
 }
 
-export interface UserDetailResponse extends UserResponse {
+export interface UserDetailResponse extends Omit<UserResponse, "id"> {
   stats: {
     accessLogs: number;
     investments: number;

@@ -13,6 +13,7 @@ import { APPLICATION_ACTION_REQUIRED_STATUS_SET } from "@/applications/action-re
 import { useAdminApplicationsForSidebar } from "@/hooks/use-admin-applications-for-sidebar";
 import { useApplicationActionRequiredCount } from "@/hooks/use-application-action-required-count";
 import { usePendingApprovalCount } from "@/hooks/use-pending-approval-count";
+import { useProducts } from "@/hooks/use-products";
 import { useNoteActionRequiredCount } from "@/notes/hooks/use-notes";
 
 interface QuickActionsSectionProps {
@@ -33,6 +34,11 @@ export function QuickActionsSection({
   const { data: noteActionCountData, isLoading: isNoteActionCountLoading } = useNoteActionRequiredCount();
   const { data: applicationsForSidebar = [], isLoading: isApplicationsForSidebarLoading } =
     useAdminApplicationsForSidebar();
+  const { data: productsData, isLoading: isProductsLoading } = useProducts({
+    page: 1,
+    pageSize: 100,
+    includeDeleted: true,
+  });
   const pendingOnboardingCount = pendingCountData?.count ?? 0;
   const applicationActionCount = applicationActionCountData?.count ?? 0;
   const noteActionCount = noteActionCountData?.count ?? 0;
@@ -41,9 +47,24 @@ export function QuickActionsSection({
       APPLICATION_ACTION_REQUIRED_STATUS_SET.has(application.status) &&
       (application.baseProductId || application.productId)
   );
-  const applicationActionHref = firstActionApplication
-    ? `/applications/${firstActionApplication.baseProductId ?? firstActionApplication.productId}`
-    : "/";
+  const firstApplicationQueue = applicationsForSidebar.find(
+    (application) => application.baseProductId || application.productId
+  );
+  const firstProductQueueKey = React.useMemo(() => {
+    const products = productsData?.products ?? [];
+    const active = products.find((product) => (product.status ?? "ACTIVE") === "ACTIVE");
+    const fallback = active ?? products[0];
+    return fallback ? (fallback.base_id ?? fallback.id) : null;
+  }, [productsData?.products]);
+  const applicationActionQueueKey =
+    firstActionApplication?.baseProductId ??
+    firstActionApplication?.productId ??
+    firstApplicationQueue?.baseProductId ??
+    firstApplicationQueue?.productId ??
+    firstProductQueueKey;
+  const applicationActionHref = applicationActionQueueKey
+    ? `/applications/${applicationActionQueueKey}`
+    : "/applications";
 
   return (
     <section className="space-y-4">
@@ -98,7 +119,7 @@ export function QuickActionsSection({
                 ? "warning"
                 : "default"
           }
-          loading={loading || isApplicationActionCountLoading || isApplicationsForSidebarLoading}
+          loading={loading || isApplicationActionCountLoading || isApplicationsForSidebarLoading || isProductsLoading}
         />
         <QuickActionCard
           title="Note Actions"

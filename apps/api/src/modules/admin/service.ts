@@ -551,7 +551,6 @@ export class AdminService {
     });
 
     return {
-      id: user.user_id,
       user_id: user.user_id,
       email: user.email,
       email_verified: user.email_verified,

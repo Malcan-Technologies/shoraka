@@ -321,7 +321,6 @@ function AccountMetadataCard({ user }: { user: UserDetailResponse }) {
       <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <DetailRow label="Cognito Username" value={<span className="font-mono">{user.cognito_username}</span>} />
         <DetailRow label="Cognito Sub" value={<span className="font-mono">{user.cognito_sub}</span>} />
-        <DetailRow label="Internal ID" value={<span className="font-mono">{user.id}</span>} />
         <DetailRow label="Investments" value={user.stats.investments} />
         <DetailRow label="Loans" value={user.stats.loans} />
         <DetailRow label="Investor Account Flags" value={user.investor_account.length} />
