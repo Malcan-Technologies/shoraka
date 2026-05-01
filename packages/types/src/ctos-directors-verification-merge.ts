@@ -2,7 +2,7 @@
  * SECTION: Dedupe CTOS `company_json.directors` for onboarding verification
  * WHY: Parser can emit duplicate rows (same nic); admin CTOS compare must match people[] merge rules
  * INPUT: Parsed director rows (same shape as admin extract, post-parse only)
- * OUTPUT: One row per normalized person; merged roles, max equity, first non-empty metadata
+ * OUTPUT: One row per normalized ID key (nic/ic); merged roles, max equity, first non-empty metadata
  * WHERE USED: apps/admin onboarding-ctos-compare (SSM / CTOS verification panel)
  */
 
@@ -39,14 +39,15 @@ function individualIdNicFirstIcSecond(r: CtosDirectorRowForVerificationMerge): s
 function mergeKeyForCtosDirectorRow(r: CtosDirectorRowForVerificationMerge): string | null {
   const pt = (r.party_type ?? "").trim().toUpperCase();
   if (pt === "C") {
-    const corpId = ((r.ic_lcno ?? "").trim() || (r.brn_ssm ?? "").trim()) || null;
-    const fromCorp = normalizeDirectorShareholderIdKey(corpId);
-    if (fromCorp) return fromCorp;
-    return normalizeDirectorShareholderIdKey((r.name ?? "").trim() || null);
+    const nic = (r.nic_brno ?? "").trim();
+    const ic = (r.ic_lcno ?? "").trim();
+    const corpId = nic || ic || null;
+    return normalizeDirectorShareholderIdKey(corpId);
   }
-  const fromInd = normalizeDirectorShareholderIdKey(individualIdNicFirstIcSecond(r) || null);
-  if (fromInd) return fromInd;
-  return normalizeDirectorShareholderIdKey((r.name ?? "").trim() || null);
+  if (pt === "I") {
+    return normalizeDirectorShareholderIdKey(individualIdNicFirstIcSecond(r) || null);
+  }
+  return null;
 }
 
 function positionCodeUpper(position: string | null | undefined): string {
@@ -90,7 +91,8 @@ function syntheticPosition(hasDir: boolean, hasSh: boolean, firstDirPos: string 
 
 /**
  * Dedupe and merge CTOS director rows before admin onboarding / CTOS verification compare.
- * Same identity rule as people[] display: nic → ic → normalized name.
+ * Only explicit `party_type` I or C (aligned with CTOS display/listing); other rows are omitted.
+ * Individuals: nic → ic only (no name). Corporate (`party_type` C): nic → ic only (same as display `corporateCtosRegDisplayRaw`).
  */
 export function mergeCtosDirectorsForVerification<T extends CtosDirectorRowForVerificationMerge>(rows: T[]): T[] {
   const keyOrder: string[] = [];
@@ -98,6 +100,8 @@ export function mergeCtosDirectorsForVerification<T extends CtosDirectorRowForVe
   let anonSeq = 0;
 
   for (const r of rows) {
+    const pt = (r.party_type ?? "").trim().toUpperCase();
+    if (pt !== "I" && pt !== "C") continue;
     const rawKey = mergeKeyForCtosDirectorRow(r);
     const mapKey = rawKey ?? `__anon_${anonSeq++}`;
     if (!groups.has(mapKey)) keyOrder.push(mapKey);

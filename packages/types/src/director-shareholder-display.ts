@@ -470,26 +470,20 @@ function preferFilledCtosString(
 
 /**
  * Normalized merge key for CTOS rows: same person → one bucket.
- * INDIVIDUAL → nic then ic (see {@link individualCtosIdDisplayRaw}), else normalized name.
- * CORPORATE → SSM / registration. Unknown `kind` → same id heuristics, then name.
+ * Only when {@link directorSubjectKindFromCtosOrgRow} is explicit `I` or `C` — no inference from IDs when `kind` is null.
+ * INDIVIDUAL (`I`): nic then ic only (no name). CORPORATE (`C`): nic then ic only (see {@link corporateCtosRegDisplayRaw}).
  */
 function ctosPartyNormalizedMergeKey(
   r: CtosOrgDirectorRow,
   kind: "INDIVIDUAL" | "CORPORATE" | null
 ): string | null {
   if (kind === "INDIVIDUAL") {
-    const fromId = normalizeDirectorShareholderIdKey(individualCtosIdDisplayRaw(r) || null);
-    if (fromId) return fromId;
-    return normalizeDirectorShareholderIdKey((r.name ?? "").trim() || null);
+    return normalizeDirectorShareholderIdKey(individualCtosIdDisplayRaw(r) || null);
   }
   if (kind === "CORPORATE") {
     return normalizeDirectorShareholderIdKey(corporateCtosRegDisplayRaw(r) || null);
   }
-  const fromInd = normalizeDirectorShareholderIdKey(individualCtosIdDisplayRaw(r) || null);
-  if (fromInd) return fromInd;
-  const fromCorp = normalizeDirectorShareholderIdKey(corporateCtosRegDisplayRaw(r) || null);
-  if (fromCorp) return fromCorp;
-  return normalizeDirectorShareholderIdKey((r.name ?? "").trim() || null);
+  return null;
 }
 
 function ctosPositionCanonicalCode(position: string | null | undefined): string | null {
@@ -523,23 +517,23 @@ function ctosDirectorShareholderFlagsFromCanonicalCode(code: string | null): {
 }
 
 /**
- * When OR-merging duplicate CTOS director rows for display, treat `SC` as shareholder contribution.
- * (Canonical {@link ctosDirectorShareholderFlagsFromCanonicalCode} keeps `SC` off D/S sets for inclusion rules.)
+ * When OR-merging duplicate CTOS director rows for display, use the same code→role mapping as
+ * onboarding CTOS verification merge (`SC` does not contribute shareholder).
  */
 function ctosDisplayMergeFlagsFromPositionCode(code: string | null): { isDirector: boolean; isShareholder: boolean } {
-  if (!code) return { isDirector: false, isShareholder: false };
-  if (code === "SC") return { isDirector: false, isShareholder: true };
   return ctosDirectorShareholderFlagsFromCanonicalCode(code);
 }
 
 /**
  * CTOS company_json director row: include in unified profile lists.
+ * Rows without explicit party_type I/C are excluded from CTOS display/listing.
  * Corporate parties are always listed; individuals use director OR ≥5% shareholder rule.
  */
 export function shouldIncludeCtosCompanyJsonDirectorEntry(
   subjectKind: "INDIVIDUAL" | "CORPORATE" | null,
   r: CtosCompanyJsonDirectorEntry
 ): boolean {
+  if (subjectKind == null) return false;
   if (subjectKind === "CORPORATE") return true;
   const code = ctosPositionCanonicalCode(r.position);
   if (!code) return true;
@@ -655,14 +649,9 @@ export function isLegacyCtosPartyKycApproved(
 }
 
 function directorSubjectKindFromCtosOrgRow(r: CtosOrgDirectorRow): "INDIVIDUAL" | "CORPORATE" | null {
-  if (r.party_type === "I") return "INDIVIDUAL";
-  if (r.party_type === "C") return "CORPORATE";
-  const nic = (r.nic_brno ?? "").trim();
-  const ic = (r.ic_lcno ?? "").trim();
-  if (nic && !ic) return "INDIVIDUAL";
-  if (ic && !nic) return "CORPORATE";
-  if (nic) return "INDIVIDUAL";
-  if (ic) return "CORPORATE";
+  const pt = (r.party_type ?? "").trim().toUpperCase();
+  if (pt === "I") return "INDIVIDUAL";
+  if (pt === "C") return "CORPORATE";
   return null;
 }
 

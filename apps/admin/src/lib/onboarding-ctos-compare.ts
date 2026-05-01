@@ -128,8 +128,14 @@ function extractCtosOrgDirectorsFromCompanyJson(companyJson: unknown): CtosOrgDi
           : null;
     const equityNum =
       typeof equityPct === "number" && Number.isFinite(equityPct) ? equityPct : null;
+    const icLcno =
+      x.ic_lcno != null && String(x.ic_lcno).trim() !== ""
+        ? String(x.ic_lcno)
+        : x.ic_no != null && String(x.ic_no).trim() !== ""
+          ? String(x.ic_no)
+          : null;
     out.push({
-      ic_lcno: x.ic_lcno != null ? String(x.ic_lcno) : null,
+      ic_lcno: icLcno,
       nic_brno: x.nic_brno != null ? String(x.nic_brno) : null,
       brn_ssm: x.brn_ssm != null ? String(x.brn_ssm) : null,
       name: x.name != null ? String(x.name) : null,
