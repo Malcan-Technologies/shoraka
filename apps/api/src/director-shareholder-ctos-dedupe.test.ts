@@ -86,7 +86,7 @@ describe("CTOS display merge: explicit party_type only", () => {
     expect(rows[0].sharePercentage).toBe(6);
   });
 
-  it("missing party_type does not merge two rows by shared ic_lcno or name", () => {
+  it("missing party_type rows are excluded from unified list and display", () => {
     const companyJson = {
       directors: [
         {
@@ -109,11 +109,18 @@ describe("CTOS display merge: explicit party_type only", () => {
         },
       ],
     };
-    const rows = buildUnifiedCtosDirectorShareholdersFromCompanyJson(companyJson);
-    expect(rows).toHaveLength(2);
+    expect(buildUnifiedCtosDirectorShareholdersFromCompanyJson(companyJson)).toHaveLength(0);
+    expect(
+      getDirectorShareholderDisplayRows({
+        corporateEntities: null,
+        directorKycStatus: null,
+        organizationCtosCompanyJson: companyJson,
+        sentRowIds: null,
+      })
+    ).toHaveLength(0);
   });
 
-  it("invalid party_type does not merge by ic_lcno", () => {
+  it("invalid party_type rows are excluded from unified list and display", () => {
     const companyJson = {
       directors: [
         {
@@ -136,8 +143,44 @@ describe("CTOS display merge: explicit party_type only", () => {
         },
       ],
     };
+    expect(buildUnifiedCtosDirectorShareholdersFromCompanyJson(companyJson)).toHaveLength(0);
+    expect(
+      getDirectorShareholderDisplayRows({
+        corporateEntities: null,
+        directorKycStatus: null,
+        organizationCtosCompanyJson: companyJson,
+        sentRowIds: null,
+      })
+    ).toHaveLength(0);
+  });
+
+  it("only explicit I rows appear when mixed with missing party_type", () => {
+    const companyJson = {
+      directors: [
+        {
+          name: "KEEP ME",
+          ic_lcno: null,
+          nic_brno: "630615075495",
+          party_type: "I",
+          position: "DO",
+          equity_percentage: 0,
+          equity: 0,
+        },
+        {
+          name: "DROP ME",
+          ic_lcno: "900101011234",
+          nic_brno: null,
+          party_type: null,
+          position: "DO",
+          equity_percentage: 0,
+          equity: 0,
+        },
+      ],
+    };
     const rows = buildUnifiedCtosDirectorShareholdersFromCompanyJson(companyJson);
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].ic).toBe("630615075495");
+    expect(rows[0].name).toContain("KEEP");
   });
 });
 

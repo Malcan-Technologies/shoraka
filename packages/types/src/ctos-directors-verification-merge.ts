@@ -44,9 +44,12 @@ function mergeKeyForCtosDirectorRow(r: CtosDirectorRowForVerificationMerge): str
     const corpId = nic || ic || null;
     return normalizeDirectorShareholderIdKey(corpId);
   }
-  const fromInd = normalizeDirectorShareholderIdKey(individualIdNicFirstIcSecond(r) || null);
-  if (fromInd) return fromInd;
-  return normalizeDirectorShareholderIdKey((r.name ?? "").trim() || null);
+  if (pt === "I") {
+    const fromInd = normalizeDirectorShareholderIdKey(individualIdNicFirstIcSecond(r) || null);
+    if (fromInd) return fromInd;
+    return normalizeDirectorShareholderIdKey((r.name ?? "").trim() || null);
+  }
+  return null;
 }
 
 function positionCodeUpper(position: string | null | undefined): string {
@@ -90,6 +93,7 @@ function syntheticPosition(hasDir: boolean, hasSh: boolean, firstDirPos: string 
 
 /**
  * Dedupe and merge CTOS director rows before admin onboarding / CTOS verification compare.
+ * Only explicit `party_type` I or C (aligned with CTOS display/listing); other rows are omitted.
  * Individuals: nic → ic → normalized name. Corporate (`party_type` C): nic → ic (same as display `corporateCtosRegDisplayRaw`).
  */
 export function mergeCtosDirectorsForVerification<T extends CtosDirectorRowForVerificationMerge>(rows: T[]): T[] {
@@ -98,6 +102,8 @@ export function mergeCtosDirectorsForVerification<T extends CtosDirectorRowForVe
   let anonSeq = 0;
 
   for (const r of rows) {
+    const pt = (r.party_type ?? "").trim().toUpperCase();
+    if (pt !== "I" && pt !== "C") continue;
     const rawKey = mergeKeyForCtosDirectorRow(r);
     const mapKey = rawKey ?? `__anon_${anonSeq++}`;
     if (!groups.has(mapKey)) keyOrder.push(mapKey);

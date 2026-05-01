@@ -528,12 +528,14 @@ function ctosDisplayMergeFlagsFromPositionCode(code: string | null): { isDirecto
 
 /**
  * CTOS company_json director row: include in unified profile lists.
+ * Rows without explicit party_type I/C are excluded from CTOS display/listing.
  * Corporate parties are always listed; individuals use director OR ≥5% shareholder rule.
  */
 export function shouldIncludeCtosCompanyJsonDirectorEntry(
   subjectKind: "INDIVIDUAL" | "CORPORATE" | null,
   r: CtosCompanyJsonDirectorEntry
 ): boolean {
+  if (subjectKind == null) return false;
   if (subjectKind === "CORPORATE") return true;
   const code = ctosPositionCanonicalCode(r.position);
   if (!code) return true;
