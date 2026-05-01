@@ -59,7 +59,7 @@ export function SourceApplicationPanel({ note }: { note: NoteDetail }) {
       ? `${applicationHref}?invoiceId=${encodeURIComponent(note.sourceInvoiceId)}`
       : null;
   const contractHref = note.sourceContractId
-    ? `/contracts?contractId=${encodeURIComponent(note.sourceContractId)}`
+    ? `/contracts/${encodeURIComponent(note.sourceContractId)}`
     : null;
   const organizationHref = `/organizations/issuer/${encodeURIComponent(note.issuerOrganizationId)}`;
 

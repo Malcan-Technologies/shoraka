@@ -47,7 +47,7 @@ export default function DynamicApplicationsPage() {
 
   // Pagination
   const [currentPage, setCurrentPage] = React.useState(1);
-  const pageSize = 10;
+  const pageSize = 20;
 
   // Build API params
   const apiParams = React.useMemo(() => {
@@ -107,7 +107,7 @@ export default function DynamicApplicationsPage() {
         </div>
       </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="max-w-7xl mx-auto w-full px-2 md:px-4 py-8 space-y-8">
+        <div className="w-full px-2 md:px-4 py-8 space-y-8">
 
           {/* Applications Section */}
           <section className="space-y-4">

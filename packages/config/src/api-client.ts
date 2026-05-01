@@ -3,6 +3,7 @@ import type {
   ApiError,
   GetUsersParams,
   UsersResponse,
+  UserDetailResponse,
   UserResponse,
   UpdateUserRolesInput,
   UpdateUserKycInput,
@@ -34,6 +35,7 @@ import type {
   OnboardingApplicationsResponse,
   OnboardingApplicationResponse,
   GetAdminApplicationsParams,
+  AdminApplicationActionRequiredCountResponse,
   AdminApplicationsResponse,
   GetAdminContractsParams,
   AdminContractsResponse,
@@ -133,7 +135,16 @@ type AdminApplicationDetail = Application &
       offer_details?: unknown;
       offer_signing?: unknown;
     }>;
+    linked_notes?: Array<{
+      id: string;
+      note_reference: string;
+      title: string;
+      status: string;
+      source_contract_id: string | null;
+      source_invoice_id: string | null;
+    }>;
     contract?: {
+      id?: string;
       contract_details?: Record<string, unknown> | null;
       customer_details?: Record<string, unknown> | null;
       offer_signing?: Record<string, unknown> | null;
@@ -443,6 +454,12 @@ export class ApiClient {
     if (params.productId) queryParams.append("productId", params.productId);
 
     return this.get<AdminApplicationsResponse>(`/v1/admin/applications?${queryParams.toString()}`);
+  }
+
+  async getAdminApplicationActionRequiredCount(): Promise<
+    ApiResponse<AdminApplicationActionRequiredCountResponse> | ApiError
+  > {
+    return this.get<AdminApplicationActionRequiredCountResponse>("/v1/admin/applications/action-count");
   }
 
   async getAdminContracts(
@@ -1105,8 +1122,8 @@ export class ApiClient {
     }>(`/v1/admin/onboarding-applications/${onboardingId}/refresh-aml-status`, {});
   }
 
-  async getUser(id: string): Promise<ApiResponse<{ user: UserResponse }> | ApiError> {
-    return this.get<{ user: UserResponse }>(`/v1/admin/users/${id}`);
+  async getUser(id: string): Promise<ApiResponse<{ user: UserDetailResponse }> | ApiError> {
+    return this.get<{ user: UserDetailResponse }>(`/v1/admin/users/${id}`);
   }
 
   async updateUserRoles(

@@ -45,10 +45,12 @@ import {
 } from "@/components/ui/sidebar";
 import { ChevronRight } from "lucide-react";
 import { usePendingApprovalCount } from "@/hooks/use-pending-approval-count";
+import { useApplicationActionRequiredCount } from "@/hooks/use-application-action-required-count";
 import { useProducts } from "@/hooks/use-products";
 import { useAdminApplicationsForSidebar } from "@/hooks/use-admin-applications-for-sidebar";
 import { useNoteActionRequiredCount } from "@/notes/hooks/use-notes";
 import { productName } from "@/app/settings/products/product-utils";
+import { APPLICATION_ACTION_REQUIRED_STATUS_SET } from "@/applications/action-required-statuses";
 import { cn } from "@/lib/utils";
 import type { ApplicationListItem, Product } from "@cashsouk/types";
 
@@ -67,6 +69,7 @@ type ApplicationNavGroup = {
   productTitle: string;
   queuePath: string;
   isInactive: boolean;
+  pendingActionCount: number;
 };
 
 function buildApplicationSidebarGroups(
@@ -90,6 +93,7 @@ function buildApplicationSidebarGroups(
     if (!display) continue;
     const baseKey = (display.base_id ?? display.id) as string;
     const appsFor = applications.filter((a) => (a.baseProductId ?? "") === baseKey);
+    const pendingActionCount = appsFor.filter((a) => APPLICATION_ACTION_REQUIRED_STATUS_SET.has(a.status)).length;
     const isLive = (display.status ?? "ACTIVE") === "ACTIVE";
     if (!isLive && appsFor.length === 0) continue;
 
@@ -98,6 +102,7 @@ function buildApplicationSidebarGroups(
       productTitle: productName(display),
       queuePath: `/applications/${baseKey}`,
       isInactive: !isLive,
+      pendingActionCount,
     });
   }
 
@@ -113,6 +118,7 @@ function buildApplicationSidebarGroups(
       productTitle: appsFor[0]?.financingTypeLabel ?? "Product",
       queuePath: `/applications/${baseKey}`,
       isInactive: true,
+      pendingActionCount: appsFor.filter((a) => APPLICATION_ACTION_REQUIRED_STATUS_SET.has(a.status)).length,
     });
   }
 
@@ -205,6 +211,7 @@ const navAudit = [
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname();
   const { data: pendingCountData } = usePendingApprovalCount();
+  const { data: applicationActionCountData } = useApplicationActionRequiredCount();
   const { data: noteActionCountData } = useNoteActionRequiredCount();
   const { data: productsData } = useProducts({ page: 1, pageSize: 100, includeDeleted: true });
   const { data: applicationsForSidebar = [] } = useAdminApplicationsForSidebar();
@@ -212,6 +219,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // Build badges dynamically
   const badges: Record<string, number> = {
     onboardingApproval: pendingCountData?.count || 0,
+    applicationActions: applicationActionCountData?.count || 0,
     noteActions: noteActionCountData?.count || 0,
   };
 
@@ -276,6 +284,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
                 if (item.title === "Applications" && "applicationNavGroups" in item) {
                   const groups = item.applicationNavGroups ?? [];
+                  const applicationBadgeCount = badges.applicationActions;
                   return (
                     <Collapsible
                       key={item.title}
@@ -288,7 +297,17 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                           <SidebarMenuButton tooltip={item.title}>
                             <Icon className="h-4 w-4" />
                             <span>{item.title}</span>
-                            <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                            {applicationBadgeCount > 0 && (
+                              <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-md bg-primary px-1 text-xs font-medium tabular-nums text-primary-foreground group-data-[collapsible=icon]:hidden">
+                                {applicationBadgeCount}
+                              </span>
+                            )}
+                            <ChevronRight
+                              className={cn(
+                                "transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90",
+                                applicationBadgeCount > 0 ? "" : "ml-auto"
+                              )}
+                            />
                           </SidebarMenuButton>
                         </CollapsibleTrigger>
                         <CollapsibleContent>
@@ -311,7 +330,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                                     }
                                     className="flex min-w-0 flex-col gap-0.5"
                                   >
-                                    <span className="truncate text-sm leading-tight">{g.productTitle}</span>
+                                    <span className="flex min-w-0 items-center gap-2">
+                                      <span className="truncate text-sm leading-tight">{g.productTitle}</span>
+                                      {g.pendingActionCount > 0 && (
+                                        <span className="ml-auto flex h-5 min-w-5 shrink-0 items-center justify-center rounded-md bg-primary px-1 text-xs font-medium tabular-nums text-primary-foreground">
+                                          {g.pendingActionCount}
+                                        </span>
+                                      )}
+                                    </span>
                                     <span
                                       className={applicationProductStatusBadgeClass(g.isInactive)}
                                       aria-label={g.isInactive ? "Inactive product" : "Active product"}

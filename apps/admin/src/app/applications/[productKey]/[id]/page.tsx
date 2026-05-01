@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@cashsouk/ui";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -65,6 +66,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import {
   ArrowLeftIcon,
   ArrowPathIcon,
+  ArrowTopRightOnSquareIcon,
   PencilSquareIcon,
   XCircleIcon,
 } from "@heroicons/react/24/outline";
@@ -89,6 +91,39 @@ function PageSkeleton() {
       </div>
       <Skeleton className="h-40 w-full rounded-2xl" />
       <Skeleton className="h-40 w-full rounded-2xl" />
+    </div>
+  );
+}
+
+function RelatedRecordLink({
+  label,
+  value,
+  href,
+  display,
+}: {
+  label: string;
+  value: string | null | undefined;
+  href?: string | null;
+  display?: string | null;
+}) {
+  return (
+    <div className="space-y-1">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      {value ? (
+        href ? (
+          <Link
+            href={href}
+            className="group flex min-w-0 items-center gap-1 break-all font-mono text-xs font-medium text-primary underline-offset-4 hover:underline"
+          >
+            <span className="min-w-0 break-all">{display ?? value}</span>
+            <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 shrink-0 opacity-70 transition-opacity group-hover:opacity-100" />
+          </Link>
+        ) : (
+          <div className="break-all font-mono text-xs font-medium">{display ?? value}</div>
+        )
+      ) : (
+        <div className="text-sm text-muted-foreground">—</div>
+      )}
     </div>
   );
 }
@@ -181,6 +216,19 @@ export default function DynamicApplicationDetailPage() {
   const isReviewable = !!app && REVIEWABLE_STATUSES.includes(app.status);
   const isFinalApplicationForAmlGate =
     app?.status === "APPROVED" || app?.status === "COMPLETED";
+  const applicationContractId =
+    (app as { contract_id?: string | null } | null)?.contract_id ??
+    (app?.contract as { id?: string | null } | null)?.id ??
+    null;
+  const linkedNotes =
+    (app as {
+      linked_notes?: Array<{
+        id: string;
+        note_reference: string;
+        title: string;
+        status: string;
+      }>;
+    } | null)?.linked_notes ?? [];
   const applicationPeople = React.useMemo(() => {
     const people = (app as unknown as { people?: unknown } | null)?.people;
     return Array.isArray(people) ? (people as ApplicationPersonRow[]) : [];
@@ -1089,6 +1137,42 @@ export default function DynamicApplicationDetailPage() {
                 </div>
 
                 <div className="min-w-0 space-y-6">
+                  <Card className="rounded-2xl">
+                    <CardHeader>
+                      <CardTitle className="text-base">Related Records</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4 text-sm">
+                      <RelatedRecordLink
+                        label="Issuer Organization"
+                        value={app.issuer_organization_id}
+                        href={`/organizations/issuer/${encodeURIComponent(app.issuer_organization_id)}`}
+                        display={
+                          app.issuer_organization.name
+                            ? `${app.issuer_organization.name} (${app.issuer_organization_id})`
+                            : app.issuer_organization_id
+                        }
+                      />
+                      <RelatedRecordLink
+                        label="Contract ID"
+                        value={applicationContractId}
+                        href={applicationContractId ? `/contracts/${encodeURIComponent(applicationContractId)}` : null}
+                      />
+                      {linkedNotes.length > 0 ? (
+                        linkedNotes.map((note) => (
+                          <RelatedRecordLink
+                            key={note.id}
+                            label="Note ID"
+                            value={note.id}
+                            href={`/notes/${encodeURIComponent(note.id)}`}
+                            display={`${note.note_reference} (${note.id})`}
+                          />
+                        ))
+                      ) : (
+                        <RelatedRecordLink label="Note ID" value={null} />
+                      )}
+                    </CardContent>
+                  </Card>
+
                   <ReviewSummaryCard sections={reviewSections} />
 
                   <RecentActivityCard

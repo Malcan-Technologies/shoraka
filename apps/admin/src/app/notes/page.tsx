@@ -20,7 +20,7 @@ export default function NotesPage() {
   const [searchQuery, setSearchQuery] = React.useState("");
   const [status, setStatus] = React.useState("ALL");
   const [currentPage, setCurrentPage] = React.useState(1);
-  const pageSize = 10;
+  const pageSize = 20;
 
   const params = React.useMemo(() => {
     const next: GetAdminNotesParams = { page: currentPage, pageSize };
@@ -77,7 +77,7 @@ export default function NotesPage() {
         </div>
       </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="mx-auto w-full max-w-7xl space-y-8 px-2 py-8 md:px-4">
+        <div className="w-full space-y-8 px-2 py-8 md:px-4">
           <section className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">

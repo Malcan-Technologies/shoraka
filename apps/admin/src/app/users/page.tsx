@@ -19,7 +19,7 @@ export default function UsersPage() {
   const [investorOnboardedFilter, setInvestorOnboardedFilter] = React.useState("all");
   const [issuerOnboardedFilter, setIssuerOnboardedFilter] = React.useState("all");
   const [currentPage, setCurrentPage] = React.useState(1);
-  const pageSize = 10;
+  const pageSize = 20;
 
   // Build API params from filters
   const apiParams = React.useMemo(() => {
@@ -57,12 +57,6 @@ export default function UsersPage() {
     queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
   };
 
-  const handleUserUpdate = () => {
-    // User updates are handled by mutations in the edit dialog
-    // This function is kept for compatibility but doesn't need to do anything
-    // as React Query will automatically refetch
-  };
-
   const handleClearFilters = () => {
     setSearchQuery("");
     setRoleFilter("all");
@@ -90,7 +84,7 @@ export default function UsersPage() {
         </div>
       </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="max-w-7xl mx-auto w-full px-2 md:px-4 py-8 space-y-6">
+        <div className="w-full px-2 md:px-4 py-8 space-y-6">
           <UsersTableToolbar
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
@@ -128,7 +122,6 @@ export default function UsersPage() {
             pageSize={pageSize}
             totalUsers={totalUsers}
             onPageChange={setCurrentPage}
-            onUserUpdate={handleUserUpdate}
           />
         </div>
       </div>

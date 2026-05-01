@@ -15,8 +15,8 @@ interface ContractsTableRowProps {
 export function ContractsTableRow({ contract, onViewDetails }: ContractsTableRowProps) {
   return (
     <TableRow className="odd:bg-muted/40 hover:bg-muted">
-      <TableCell className="text-sm font-medium">
-        <span className="truncate max-w-[100px]" title={contract.id}>
+      <TableCell className="min-w-0 overflow-hidden truncate font-mono text-xs">
+        <span className="block truncate" title={contract.id}>
           {contract.id.slice(-8).toUpperCase()}
         </span>
       </TableCell>

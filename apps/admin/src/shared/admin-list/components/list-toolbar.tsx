@@ -28,6 +28,7 @@ interface ListToolbarProps {
   statusFilters: string[];
   onStatusFiltersChange: (values: string[]) => void;
   statusOptions: readonly ListStatusOption[];
+  statusFilterMode?: "multi" | "single";
   totalCount: number;
   filteredCount: number;
   itemLabelSingular: string;
@@ -44,6 +45,7 @@ export function ListToolbar({
   statusFilters,
   onStatusFiltersChange,
   statusOptions,
+  statusFilterMode = "multi",
   totalCount,
   filteredCount,
   itemLabelSingular,
@@ -64,6 +66,11 @@ export function ListToolbar({
   };
 
   const handleStatusToggle = (status: string) => {
+    if (statusFilterMode === "single") {
+      onStatusFiltersChange(statusFilters.includes(status) ? [] : [status]);
+      return;
+    }
+
     if (statusFilters.includes(status)) {
       onStatusFiltersChange(statusFilters.filter((item) => item !== status));
       return;
@@ -104,7 +111,7 @@ export function ListToolbar({
             checked={statusFilters.length === 0}
             onCheckedChange={() => onStatusFiltersChange([])}
           >
-            All Statuses
+            All statuses
           </DropdownMenuCheckboxItem>
           {statusOptions.map((option) => (
             <DropdownMenuCheckboxItem
