@@ -44,6 +44,11 @@ export interface DirectorShareholderDisplayRow {
   isDirector?: boolean;
   isShareholder?: boolean;
   sharePercentage?: number | null;
+  /** Deduped CTOS director row metadata (merged duplicate `company_json.directors` entries). */
+  ctosAddr?: string | null;
+  ctosAppoint?: string | null;
+  ctosRemark?: string | null;
+  ctosResignDate?: string | null;
 }
 
 export function getDisplayRoleLabel(row: {
@@ -51,19 +56,20 @@ export function getDisplayRoleLabel(row: {
   isShareholder: boolean;
   sharePercentage?: number | null;
 }): string {
-  const roles: string[] = [];
-
-  if (row.isDirector) {
-    roles.push("Director");
-  }
-
   const share = Number(row.sharePercentage ?? 0);
+  const shareholderLabel =
+    !row.isShareholder
+      ? ""
+      : Number.isFinite(share) && share >= 5
+        ? `Shareholder (${share}%)`
+        : "Shareholder";
 
-  if (row.isShareholder && share >= 5) {
-    roles.push(`Shareholder (${share}%)`);
+  if (row.isDirector && row.isShareholder) {
+    return shareholderLabel ? `Director, ${shareholderLabel}` : "Director, Shareholder";
   }
-
-  return roles.join(", ");
+  if (row.isDirector) return "Director";
+  if (row.isShareholder) return shareholderLabel || "Shareholder";
+  return "";
 }
 
 /**
@@ -397,11 +403,16 @@ export interface CtosCompanyJsonDirectorEntry {
   equity_percentage: number | null;
   equity: number | null;
   party_type: string | null;
+  /** Populated by display extract only; used when merging duplicate CTOS rows. */
+  addr?: string | null;
+  appoint?: string | null;
+  resign_date?: string | null;
+  remark?: string | null;
 }
 
 type CtosOrgDirectorRow = CtosCompanyJsonDirectorEntry;
 
-const CTOS_POSITION_CODES = new Set(["DO", "SO", "DS", "AD", "AS"]);
+const CTOS_POSITION_CODES = new Set(["DO", "SO", "DS", "AD", "AS", "SC"]);
 
 function extractCtosOrgDirectorsFromCompanyJson(companyJson: unknown): CtosOrgDirectorRow[] {
   const cj = companyJson as { directors?: unknown } | null | undefined;
@@ -424,16 +435,20 @@ function extractCtosOrgDirectorsFromCompanyJson(companyJson: unknown): CtosOrgDi
       equity_percentage: typeof x.equity_percentage === "number" ? x.equity_percentage : null,
       equity: typeof x.equity === "number" ? x.equity : null,
       party_type: ptRaw !== "" ? ptRaw : null,
+      addr: x.addr != null ? String(x.addr) : null,
+      appoint: x.appoint != null ? String(x.appoint) : null,
+      resign_date: x.resign_date != null ? String(x.resign_date) : null,
+      remark: x.remark != null ? String(x.remark) : null,
     });
   }
   return out;
 }
 
-/** IC / government id display for individual CTOS parties (prefer ic_lcno). */
+/** IC / government id for individual CTOS parties: **nic_brno first**, then `ic_lcno` (display + merge key). */
 function individualCtosIdDisplayRaw(r: CtosOrgDirectorRow): string {
-  const ic = (r.ic_lcno ?? "").trim();
   const nic = (r.nic_brno ?? "").trim();
-  return ic || nic;
+  const ic = (r.ic_lcno ?? "").trim();
+  return nic || ic;
 }
 
 /** SSM / registration display for corporate CTOS parties (prefer nic_brno). */
@@ -443,21 +458,38 @@ function corporateCtosRegDisplayRaw(r: CtosOrgDirectorRow): string {
   return ssm || ic;
 }
 
+function preferFilledCtosString(
+  primary: string | null | undefined,
+  secondary: string | null | undefined
+): string | null {
+  const p = primary != null ? String(primary).trim() : "";
+  if (p) return p;
+  const s = secondary != null ? String(secondary).trim() : "";
+  return s || null;
+}
+
 /**
  * Normalized merge key for CTOS rows: same person → one bucket.
- * INDIVIDUAL → IC / gov id; COMPANY → SSM / registration (not name-based). Uses {@link normalizeStrictPartyId} rules.
+ * INDIVIDUAL → nic then ic (see {@link individualCtosIdDisplayRaw}), else normalized name.
+ * CORPORATE → SSM / registration. Unknown `kind` → same id heuristics, then name.
  */
 function ctosPartyNormalizedMergeKey(
   r: CtosOrgDirectorRow,
   kind: "INDIVIDUAL" | "CORPORATE" | null
 ): string | null {
   if (kind === "INDIVIDUAL") {
-    return normalizeDirectorShareholderIdKey(individualCtosIdDisplayRaw(r) || null);
+    const fromId = normalizeDirectorShareholderIdKey(individualCtosIdDisplayRaw(r) || null);
+    if (fromId) return fromId;
+    return normalizeDirectorShareholderIdKey((r.name ?? "").trim() || null);
   }
   if (kind === "CORPORATE") {
     return normalizeDirectorShareholderIdKey(corporateCtosRegDisplayRaw(r) || null);
   }
-  return null;
+  const fromInd = normalizeDirectorShareholderIdKey(individualCtosIdDisplayRaw(r) || null);
+  if (fromInd) return fromInd;
+  const fromCorp = normalizeDirectorShareholderIdKey(corporateCtosRegDisplayRaw(r) || null);
+  if (fromCorp) return fromCorp;
+  return normalizeDirectorShareholderIdKey((r.name ?? "").trim() || null);
 }
 
 function ctosPositionCanonicalCode(position: string | null | undefined): string | null {
@@ -488,6 +520,16 @@ function ctosDirectorShareholderFlagsFromCanonicalCode(code: string | null): {
     isDirector: CTOS_DIRECTOR_POSITION_CODES.has(code),
     isShareholder: CTOS_SHAREHOLDER_POSITION_CODES.has(code),
   };
+}
+
+/**
+ * When OR-merging duplicate CTOS director rows for display, treat `SC` as shareholder contribution.
+ * (Canonical {@link ctosDirectorShareholderFlagsFromCanonicalCode} keeps `SC` off D/S sets for inclusion rules.)
+ */
+function ctosDisplayMergeFlagsFromPositionCode(code: string | null): { isDirector: boolean; isShareholder: boolean } {
+  if (!code) return { isDirector: false, isShareholder: false };
+  if (code === "SC") return { isDirector: false, isShareholder: true };
+  return ctosDirectorShareholderFlagsFromCanonicalCode(code);
 }
 
 /**
@@ -541,7 +583,7 @@ export function buildUnifiedCtosDirectorShareholdersFromCompanyJson(
     const lookupKey = ctosPartyNormalizedMergeKey(cr, kind);
     const mapKey = lookupKey ?? `__anon_${anonSeq++}`;
     const code = ctosPositionCanonicalCode(cr.position);
-    const { isDirector, isShareholder } = ctosDirectorShareholderFlagsFromCanonicalCode(code);
+    const { isDirector, isShareholder } = ctosDisplayMergeFlagsFromPositionCode(code);
     const sharePct = equitySharePercentageFromCtosRow(cr);
     const icDisplay = isIndividual ? individualCtosIdDisplayRaw(cr) : corporateCtosRegDisplayRaw(cr);
 
@@ -1104,12 +1146,11 @@ function buildOnboardingDisplayRows(
     const canBase = !sent && (!email.trim() || !status);
     const amlRaw = findLegacyAmlRawForOnboardingRow(b.icKey, b.eod, directorKycStatus, directorAmlStatus);
     const amlLine = normalizeRawStatus(amlRaw);
-    const role =
-      getDisplayRoleLabel({
-        isDirector: b.isDirector,
-        isShareholder: b.isShareholder,
-        sharePercentage: b.sharePctMax,
-      }) || "Director";
+    const role = getDisplayRoleLabel({
+      isDirector: b.isDirector,
+      isShareholder: b.isShareholder,
+      sharePercentage: b.sharePctMax,
+    });
     rows.push({
       id,
       name: b.name,
@@ -1252,6 +1293,10 @@ function buildCtosBackedDisplayRows(
     ctosIsDirector: boolean;
     ctosIsShareholder: boolean;
     ctosSharePct: number;
+    ctosAddr: string | null;
+    ctosAppoint: string | null;
+    ctosRemark: string | null;
+    ctosResignDate: string | null;
   };
 
   const merged = new Map<string, CtosMergedBucket>();
@@ -1270,7 +1315,7 @@ function buildCtosBackedDisplayRows(
     const regDisp = corporateCtosRegDisplayRaw(cr);
     const own = ownershipFromCtosDirectorRow(cr);
     const posCode = ctosPositionCanonicalCode(cr.position);
-    const { isDirector: rowIsDir, isShareholder: rowIsSh } = ctosDirectorShareholderFlagsFromCanonicalCode(posCode);
+    const { isDirector: rowIsDir, isShareholder: rowIsSh } = ctosDisplayMergeFlagsFromPositionCode(posCode);
     const rowSharePct = equitySharePercentageFromCtosRow(cr);
 
     const existing = merged.get(mapKey);
@@ -1287,6 +1332,10 @@ function buildCtosBackedDisplayRows(
         ctosIsDirector: rowIsDir,
         ctosIsShareholder: rowIsSh,
         ctosSharePct: rowSharePct,
+        ctosAddr: cr.addr ?? null,
+        ctosAppoint: cr.appoint ?? null,
+        ctosRemark: cr.remark ?? null,
+        ctosResignDate: cr.resign_date ?? null,
       });
       keyOrder.push(mapKey);
     } else {
@@ -1300,6 +1349,10 @@ function buildCtosBackedDisplayRows(
       if (own && !existing.ownershipDisplay) {
         existing.ownershipDisplay = own;
       }
+      existing.ctosAddr = preferFilledCtosString(existing.ctosAddr, cr.addr);
+      existing.ctosAppoint = preferFilledCtosString(existing.ctosAppoint, cr.appoint);
+      existing.ctosRemark = preferFilledCtosString(existing.ctosRemark, cr.remark);
+      existing.ctosResignDate = preferFilledCtosString(existing.ctosResignDate, cr.resign_date);
       if (existing.type === "INDIVIDUAL") {
         if (idDisp && !existing.idNumber?.trim()) {
           existing.idNumber = idDisp;
@@ -1380,7 +1433,7 @@ function buildCtosBackedDisplayRows(
             isDirector: b.ctosIsDirector,
             isShareholder: b.ctosIsShareholder,
             sharePercentage: b.ctosSharePct,
-          }) || "Director";
+          });
     const ctosIndividualKycEligible =
       b.type === "INDIVIDUAL" &&
       (b.ctosIsDirector || (b.ctosIsShareholder && b.ctosSharePct >= 5));
@@ -1406,6 +1459,10 @@ function buildCtosBackedDisplayRows(
       isDirector: b.type === "INDIVIDUAL" ? b.ctosIsDirector : undefined,
       isShareholder: b.type === "INDIVIDUAL" ? b.ctosIsShareholder : undefined,
       sharePercentage: b.type === "INDIVIDUAL" ? b.ctosSharePct : undefined,
+      ctosAddr: b.ctosAddr ?? undefined,
+      ctosAppoint: b.ctosAppoint ?? undefined,
+      ctosRemark: b.ctosRemark ?? undefined,
+      ctosResignDate: b.ctosResignDate ?? undefined,
     });
   }
   return rows;

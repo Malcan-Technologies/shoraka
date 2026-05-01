@@ -640,7 +640,9 @@ export function SSMVerificationPanel({
 
   const fetchCtosMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiClient.createAdminOrganizationCtosReport(application.portal, orgId);
+      const res = await apiClient.createAdminOrganizationCtosReport(application.portal, orgId, {
+        skipDirectorShareholderNotifications: true,
+      });
       if (!res.success) {
         throw new Error(formatApiErrorMessage(res.error));
       }
