@@ -471,16 +471,14 @@ function preferFilledCtosString(
 /**
  * Normalized merge key for CTOS rows: same person → one bucket.
  * Only when {@link directorSubjectKindFromCtosOrgRow} is explicit `I` or `C` — no inference from IDs when `kind` is null.
- * INDIVIDUAL (`I`): nic then ic, else normalized name. CORPORATE (`C`): nic then ic (see {@link corporateCtosRegDisplayRaw}).
+ * INDIVIDUAL (`I`): nic then ic only (no name). CORPORATE (`C`): nic then ic only (see {@link corporateCtosRegDisplayRaw}).
  */
 function ctosPartyNormalizedMergeKey(
   r: CtosOrgDirectorRow,
   kind: "INDIVIDUAL" | "CORPORATE" | null
 ): string | null {
   if (kind === "INDIVIDUAL") {
-    const fromId = normalizeDirectorShareholderIdKey(individualCtosIdDisplayRaw(r) || null);
-    if (fromId) return fromId;
-    return normalizeDirectorShareholderIdKey((r.name ?? "").trim() || null);
+    return normalizeDirectorShareholderIdKey(individualCtosIdDisplayRaw(r) || null);
   }
   if (kind === "CORPORATE") {
     return normalizeDirectorShareholderIdKey(corporateCtosRegDisplayRaw(r) || null);

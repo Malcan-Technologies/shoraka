@@ -32,6 +32,87 @@ describe("mergeCtosDirectorsForVerification", () => {
     expect(merged[0].remark).toBe("Da team");
   });
 
+  it("dedupes two individual rows with no nic_brno but same ic_lcno into one", () => {
+    const merged = mergeCtosDirectorsForVerification([
+      {
+        name: "A",
+        ic_lcno: "900101011234",
+        nic_brno: null,
+        brn_ssm: null,
+        position: "DO",
+        party_type: "I",
+        equity_percentage: 0,
+        equity: 0,
+      },
+      {
+        name: "B",
+        ic_lcno: "900101011234",
+        nic_brno: null,
+        brn_ssm: null,
+        position: "DO",
+        party_type: "I",
+        equity_percentage: 0,
+        equity: 0,
+        remark: "only-b",
+      },
+    ]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].ic_lcno).toBe("900101011234");
+    expect(merged[0].remark).toBe("only-b");
+  });
+
+  it("does not merge two individual rows that share only the same name (no nic_brno, no ic_lcno)", () => {
+    const merged = mergeCtosDirectorsForVerification([
+      {
+        name: "SAME",
+        ic_lcno: null,
+        nic_brno: null,
+        brn_ssm: null,
+        position: "DO",
+        party_type: "I",
+        equity_percentage: 0,
+        equity: 0,
+      },
+      {
+        name: "SAME",
+        ic_lcno: null,
+        nic_brno: null,
+        brn_ssm: null,
+        position: "DO",
+        party_type: "I",
+        equity_percentage: 0,
+        equity: 0,
+      },
+    ]);
+    expect(merged).toHaveLength(2);
+  });
+
+  it("does not merge two corporate rows that share only the same name (no nic_brno, no ic_lcno)", () => {
+    const merged = mergeCtosDirectorsForVerification([
+      {
+        name: "ACME SDN BHD",
+        ic_lcno: null,
+        nic_brno: null,
+        brn_ssm: null,
+        party_type: "C",
+        position: "SO",
+        equity_percentage: 5,
+        equity: 0,
+      },
+      {
+        name: "ACME SDN BHD",
+        ic_lcno: null,
+        nic_brno: null,
+        brn_ssm: null,
+        party_type: "C",
+        position: "SO",
+        equity_percentage: 6,
+        equity: 0,
+      },
+    ]);
+    expect(merged).toHaveLength(2);
+  });
+
   it("merges DO + SO on same person into DS with max equity", () => {
     const merged = mergeCtosDirectorsForVerification([
       {
