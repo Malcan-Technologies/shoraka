@@ -59,4 +59,62 @@ describe("mergeCtosDirectorsForVerification", () => {
     expect(merged[0].position?.toUpperCase()).toBe("DS");
     expect(merged[0].equity_percentage).toBe(40);
   });
+
+  it("dedupes two corporate CTOS rows with the same nic_brno into one", () => {
+    const merged = mergeCtosDirectorsForVerification([
+      {
+        name: "FOO BHD",
+        ic_lcno: null,
+        nic_brno: "130586H",
+        brn_ssm: "999",
+        party_type: "C",
+        position: "SO",
+        equity_percentage: 5,
+        equity: 0,
+      },
+      {
+        name: "FOO BHD",
+        ic_lcno: null,
+        nic_brno: "130586H",
+        brn_ssm: "888",
+        party_type: "C",
+        position: "SO",
+        equity_percentage: 10,
+        equity: 0,
+        remark: "merged",
+      },
+    ]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].nic_brno).toBe("130586H");
+    expect(merged[0].equity_percentage).toBe(10);
+    expect(merged[0].remark).toBe("merged");
+  });
+
+  it("dedupes two corporate CTOS rows without nic_brno but same ic_lcno into one", () => {
+    const merged = mergeCtosDirectorsForVerification([
+      {
+        name: "BAR SDN BHD",
+        ic_lcno: "198401018032",
+        nic_brno: null,
+        brn_ssm: "X1",
+        party_type: "C",
+        position: "SO",
+        equity_percentage: 3,
+        equity: 0,
+      },
+      {
+        name: "BAR SDN BHD",
+        ic_lcno: "198401018032",
+        nic_brno: "",
+        brn_ssm: "X2",
+        party_type: "C",
+        position: "SO",
+        equity_percentage: 7,
+        equity: 0,
+      },
+    ]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].ic_lcno).toBe("198401018032");
+    expect(merged[0].equity_percentage).toBe(7);
+  });
 });

@@ -39,10 +39,10 @@ function individualIdNicFirstIcSecond(r: CtosDirectorRowForVerificationMerge): s
 function mergeKeyForCtosDirectorRow(r: CtosDirectorRowForVerificationMerge): string | null {
   const pt = (r.party_type ?? "").trim().toUpperCase();
   if (pt === "C") {
-    const corpId = ((r.ic_lcno ?? "").trim() || (r.brn_ssm ?? "").trim()) || null;
-    const fromCorp = normalizeDirectorShareholderIdKey(corpId);
-    if (fromCorp) return fromCorp;
-    return normalizeDirectorShareholderIdKey((r.name ?? "").trim() || null);
+    const nic = (r.nic_brno ?? "").trim();
+    const ic = (r.ic_lcno ?? "").trim();
+    const corpId = nic || ic || null;
+    return normalizeDirectorShareholderIdKey(corpId);
   }
   const fromInd = normalizeDirectorShareholderIdKey(individualIdNicFirstIcSecond(r) || null);
   if (fromInd) return fromInd;
@@ -90,7 +90,7 @@ function syntheticPosition(hasDir: boolean, hasSh: boolean, firstDirPos: string 
 
 /**
  * Dedupe and merge CTOS director rows before admin onboarding / CTOS verification compare.
- * Same identity rule as people[] display: nic → ic → normalized name.
+ * Individuals: nic → ic → normalized name. Corporate (`party_type` C): nic → ic (same as display `corporateCtosRegDisplayRaw`).
  */
 export function mergeCtosDirectorsForVerification<T extends CtosDirectorRowForVerificationMerge>(rows: T[]): T[] {
   const keyOrder: string[] = [];
