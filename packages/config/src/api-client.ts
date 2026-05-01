@@ -706,11 +706,16 @@ export class ApiClient {
 
   async createAdminOrganizationCtosReport(
     portal: "issuer" | "investor",
-    organizationId: string
+    organizationId: string,
+    options?: { skipDirectorShareholderNotifications?: boolean }
   ): Promise<ApiResponse<AdminCtosReportListItem> | ApiError> {
+    const body: Record<string, boolean> = {};
+    if (options?.skipDirectorShareholderNotifications) {
+      body.skipDirectorShareholderNotifications = true;
+    }
     return this.post<AdminCtosReportListItem>(
       `/v1/admin/organizations/${portal}/${encodeURIComponent(organizationId)}/ctos-reports`,
-      {}
+      body
     );
   }
 

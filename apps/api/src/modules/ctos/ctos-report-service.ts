@@ -401,10 +401,16 @@ export async function fetchAndInsertCtosReport(
   return row;
 }
 
+export type FetchCtosReportForAdminOrgOptions = {
+  /** When true, do not run director/shareholder notification/email hook (e.g. admin onboarding review CTOS pull). */
+  skipDirectorShareholderNotifications?: boolean;
+};
+
 export async function fetchAndInsertCtosReportForAdminOrg(
   portal: AdminOrgCtosPortal,
   organizationId: string,
-  correlationId?: string
+  correlationId?: string,
+  options?: FetchCtosReportForAdminOrgOptions
 ): Promise<CtosReport> {
   const cfg = getCtosConfig();
   if (!cfg) {
@@ -493,7 +499,8 @@ export async function fetchAndInsertCtosReportForAdminOrg(
   if (
     portal === "issuer" &&
     beforeExtras &&
-    orgForPeople?.owner_user_id
+    orgForPeople?.owner_user_id &&
+    !options?.skipDirectorShareholderNotifications
   ) {
     try {
       await runIssuerDirectorShareholderNotificationsAfterOrgCtosReportInsert({
@@ -517,6 +524,11 @@ export async function fetchAndInsertCtosReportForAdminOrg(
         "Director/shareholder notification hook after admin CTOS org report failed (non-blocking)"
       );
     }
+  } else if (portal === "issuer" && options?.skipDirectorShareholderNotifications) {
+    logger.info(
+      { organizationId, correlationId },
+      "CTOS org report inserted from admin; skipped director/shareholder notifications (requested)"
+    );
   }
 
   if (portal === "issuer" && orgForPeople && beforeExtras) {

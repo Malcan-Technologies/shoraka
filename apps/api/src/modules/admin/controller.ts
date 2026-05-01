@@ -2292,7 +2292,15 @@ router.post(
           throw new AppError(404, "NOT_FOUND", "Organization not found");
         }
       }
-      const row = await fetchAndInsertCtosReportForAdminOrg(orgPortal, id, res.locals.correlationId);
+      const body = (req.body && typeof req.body === "object" && !Array.isArray(req.body)
+        ? (req.body as Record<string, unknown>)
+        : {}) as { skipDirectorShareholderNotifications?: unknown };
+      const skipDirectorShareholderNotifications =
+        body.skipDirectorShareholderNotifications === true ||
+        body.skipDirectorShareholderNotifications === "true";
+      const row = await fetchAndInsertCtosReportForAdminOrg(orgPortal, id, res.locals.correlationId, {
+        skipDirectorShareholderNotifications,
+      });
       res.status(201).json({
         success: true,
         data: ctosRowPublicSummary(row),
