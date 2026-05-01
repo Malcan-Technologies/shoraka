@@ -523,12 +523,10 @@ function ctosDirectorShareholderFlagsFromCanonicalCode(code: string | null): {
 }
 
 /**
- * When OR-merging duplicate CTOS director rows for display, treat `SC` as shareholder contribution.
- * (Canonical {@link ctosDirectorShareholderFlagsFromCanonicalCode} keeps `SC` off D/S sets for inclusion rules.)
+ * When OR-merging duplicate CTOS director rows for display, use the same code→role mapping as
+ * onboarding CTOS verification merge (`SC` does not contribute shareholder).
  */
 function ctosDisplayMergeFlagsFromPositionCode(code: string | null): { isDirector: boolean; isShareholder: boolean } {
-  if (!code) return { isDirector: false, isShareholder: false };
-  if (code === "SC") return { isDirector: false, isShareholder: true };
   return ctosDirectorShareholderFlagsFromCanonicalCode(code);
 }
 

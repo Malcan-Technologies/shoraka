@@ -54,3 +54,35 @@ describe("CTOS director display dedupe (same nic_brno)", () => {
     expect(rows[0].ctosAddr).toBe("ADDR-A");
   });
 });
+
+describe("CTOS display merge: SC does not contribute shareholder", () => {
+  it("duplicate corporate CTOS rows with position SC merge without shareholder flag", () => {
+    const companyJson = {
+      directors: [
+        {
+          name: "FOO BHD",
+          ic_lcno: null,
+          nic_brno: "130586H",
+          position: "SC",
+          party_type: "C",
+          equity_percentage: 10,
+          equity: 0,
+        },
+        {
+          name: "FOO BHD",
+          ic_lcno: null,
+          nic_brno: "130586H",
+          position: "SC",
+          party_type: "C",
+          equity_percentage: 5,
+          equity: 0,
+        },
+      ],
+    };
+    const rows = buildUnifiedCtosDirectorShareholdersFromCompanyJson(companyJson);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].isShareholder).toBe(false);
+    expect(rows[0].isDirector).toBe(false);
+    expect(rows[0].sharePercentage).toBe(10);
+  });
+});
