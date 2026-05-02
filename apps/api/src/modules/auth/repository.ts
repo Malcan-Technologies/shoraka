@@ -189,10 +189,8 @@ export class AuthRepository {
         user_agent: data.userAgent,
         device_info: data.deviceInfo,
         device_type: data.deviceType,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         cognito_event: data.cognitoEvent as any,
         success: data.success ?? true,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         metadata: data.metadata as any,
       },
     });

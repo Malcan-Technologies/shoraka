@@ -55,7 +55,7 @@ export async function devAuthBypass(req: Request, _res: Response, next: NextFunc
     req.activeRole = UserRole.ADMIN;
 
     next();
-  } catch (error) {
+  } catch {
     // If database query fails, still allow through with mock user
     req.user = {
       user_id: "DEVAD",

@@ -80,7 +80,7 @@ export async function testS3ObjectPublicAccess(key: string): Promise<boolean> {
 
     // If we get 200 OK, the object is publicly accessible
     return response.ok;
-  } catch (error) {
+  } catch {
     // If fetch fails or returns 403/404, it's not publicly accessible
     return false;
   }

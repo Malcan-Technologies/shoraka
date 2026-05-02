@@ -392,12 +392,18 @@ export async function fetchAndInsertCtosReport(
     });
   }
 
-  console.log("Inserted CTOS report row:", row.id, "for issuer org:", issuerOrganizationId);
-  console.log("CTOS FINAL OUTPUT TO UI (persisted report row):", {
-    id: row.id,
-    issuer_organization_id: row.issuer_organization_id,
-    fetched_at: row.fetched_at,
-  });
+  logger.debug(
+    { rowId: row.id, issuerOrganizationId },
+    "Inserted CTOS report row for issuer org"
+  );
+  logger.debug(
+    {
+      id: row.id,
+      issuer_organization_id: row.issuer_organization_id,
+      fetched_at: row.fetched_at,
+    },
+    "CTOS persisted report row summary"
+  );
   return row;
 }
 
@@ -542,14 +548,20 @@ export async function fetchAndInsertCtosReportForAdminOrg(
     });
   }
 
-  console.log("Inserted CTOS report row:", row.id, "portal:", portal, "org:", organizationId);
-  console.log("CTOS FINAL OUTPUT TO UI (persisted report row):", {
-    id: row.id,
-    portal,
-    organizationId,
-    subject_ref: row.subject_ref,
-    fetched_at: row.fetched_at,
-  });
+  logger.debug(
+    { rowId: row.id, portal, organizationId },
+    "Inserted CTOS report row (admin org)"
+  );
+  logger.debug(
+    {
+      id: row.id,
+      portal,
+      organizationId,
+      subject_ref: row.subject_ref,
+      fetched_at: row.fetched_at,
+    },
+    "CTOS persisted report row summary (admin org)"
+  );
   return row;
 }
 
@@ -651,19 +663,22 @@ export async function fetchAndInsertCtosSubjectReport(
     },
   });
 
-  console.log(
-    "Inserted CTOS subject report row:",
-    row.id,
-    "subject_ref:",
-    subjectRefPersisted,
-    "issuer org:",
-    issuerOrganizationId
+  logger.debug(
+    {
+      rowId: row.id,
+      subjectRefPersisted,
+      issuerOrganizationId,
+    },
+    "Inserted CTOS subject report row"
   );
-  console.log("CTOS FINAL OUTPUT TO UI (persisted subject report row):", {
-    id: row.id,
-    subject_ref: row.subject_ref,
-    issuer_organization_id: row.issuer_organization_id,
-  });
+  logger.debug(
+    {
+      id: row.id,
+      subject_ref: row.subject_ref,
+      issuer_organization_id: row.issuer_organization_id,
+    },
+    "CTOS persisted subject report row summary"
+  );
   return row;
 }
 
@@ -761,21 +776,23 @@ export async function fetchAndInsertCtosSubjectReportForAdminOrg(
     },
   });
 
-  console.log(
-    "Inserted CTOS subject report row:",
-    row.id,
-    "subject_ref:",
-    subjectRefPersisted,
-    "portal:",
-    portal,
-    "org:",
-    organizationId
+  logger.debug(
+    {
+      rowId: row.id,
+      subjectRefPersisted,
+      portal,
+      organizationId,
+    },
+    "Inserted CTOS subject report row (admin org)"
   );
-  console.log("CTOS FINAL OUTPUT TO UI (persisted subject report row):", {
-    id: row.id,
-    subject_ref: row.subject_ref,
-    portal,
-    organizationId,
-  });
+  logger.debug(
+    {
+      id: row.id,
+      subject_ref: row.subject_ref,
+      portal,
+      organizationId,
+    },
+    "CTOS persisted subject report row summary (admin org)"
+  );
   return row;
 }

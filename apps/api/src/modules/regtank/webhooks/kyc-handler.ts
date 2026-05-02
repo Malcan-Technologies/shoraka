@@ -691,13 +691,13 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
         const amlRiskLevel = riskLevel || null;
 
         // Get or create director_aml_status
-        let directorAmlStatus = (org.director_aml_status as any) || { directors: [], lastSyncedAt: new Date().toISOString() };
+        const directorAmlStatus = (org.director_aml_status as any) || { directors: [], lastSyncedAt: new Date().toISOString() };
         if (!directorAmlStatus.directors || !Array.isArray(directorAmlStatus.directors)) {
           directorAmlStatus.directors = [];
         }
 
         // Find or create AML status entry for this director (match by kycId or eodRequestId)
-        let amlIndex = directorAmlStatus.directors.findIndex(
+        const amlIndex = directorAmlStatus.directors.findIndex(
           (d: any) => d.kycId === requestId || d.eodRequestId === eodRequestId
         );
 

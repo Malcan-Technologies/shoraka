@@ -56,7 +56,7 @@ export class RegTankAPIClient {
 
       try {
         responseData = responseText ? JSON.parse(responseText) : {};
-      } catch (parseError) {
+      } catch {
         logger.error(
           { responseText, status: response.status },
           "Failed to parse RegTank API response"
@@ -173,15 +173,15 @@ export class RegTankAPIClient {
       email: "[redacted]",
       governmentIdNumber: "[redacted]",
     };
-    console.log("RegTank API:", method, url);
-    console.log("RegTank individual onboarding payload:", JSON.stringify(payloadForLog, null, 2));
+    logger.debug({ method, url }, "RegTank API request");
+    logger.debug({ payload: payloadForLog }, "RegTank individual onboarding payload");
 
     const regTankReply = await this.makeRequest<RegTankOnboardingResponse>(endpoint, {
       method,
       body: JSON.stringify(request),
     });
 
-    console.log("RegTank individual onboarding reply:", JSON.stringify(regTankReply, null, 2));
+    logger.debug({ reply: regTankReply }, "RegTank individual onboarding reply");
 
     return regTankReply;
   }

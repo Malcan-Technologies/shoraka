@@ -601,7 +601,7 @@ export class AMLFetcherService {
       }
 
       // Get existing director_aml_status to update businessShareholders array
-      let directorAmlStatus = (org.director_aml_status as any) || { directors: [], businessShareholders: [], lastSyncedAt: new Date().toISOString() };
+      const directorAmlStatus = (org.director_aml_status as any) || { directors: [], businessShareholders: [], lastSyncedAt: new Date().toISOString() };
       if (!directorAmlStatus.businessShareholders || !Array.isArray(directorAmlStatus.businessShareholders)) {
         directorAmlStatus.businessShareholders = [];
       }
@@ -889,7 +889,7 @@ export class AMLFetcherService {
       }
 
       // Merge new AML statuses with existing ones
-      let existingDirectorAmlStatus = (org.director_aml_status as any) || { 
+      const existingDirectorAmlStatus = (org.director_aml_status as any) || { 
         directors: [], 
         businessShareholders: [],
         lastSyncedAt: new Date().toISOString() 

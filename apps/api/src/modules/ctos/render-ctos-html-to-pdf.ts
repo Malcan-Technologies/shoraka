@@ -8,6 +8,7 @@
 
 import { existsSync } from "fs";
 import { chromium } from "playwright";
+import { logger } from "../../lib/logger";
 
 function resolveChromiumExecutablePath(): string | undefined {
   const fromEnv = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH?.trim();
@@ -24,9 +25,9 @@ function resolveChromiumExecutablePath(): string | undefined {
 }
 
 export async function renderCtosHtmlToPdfBuffer(html: string): Promise<Buffer> {
-  console.log("Creating PDF from CTOS HTML, html length:", html.length);
+  logger.debug({ htmlLength: html.length }, "Creating PDF from CTOS HTML");
   const executablePath = resolveChromiumExecutablePath();
-  console.log("Chromium path from env or defaults:", executablePath ?? "(playwright bundled)");
+  logger.debug({ executablePath: executablePath ?? "(playwright bundled)" }, "Chromium path");
 
   const browser = await chromium.launch({
     headless: true,
@@ -42,7 +43,7 @@ export async function renderCtosHtmlToPdfBuffer(html: string): Promise<Buffer> {
       printBackground: true,
       margin: { top: "12mm", bottom: "12mm", left: "10mm", right: "10mm" },
     });
-    console.log("PDF created, size bytes:", pdf.length);
+    logger.debug({ pdfSizeBytes: pdf.length }, "CTOS PDF created");
     return Buffer.from(pdf);
   } finally {
     await browser.close();

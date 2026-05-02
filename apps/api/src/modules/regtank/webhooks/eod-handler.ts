@@ -694,7 +694,7 @@ export class EODWebhookHandler extends BaseWebhookHandler {
 
             if (director) {
               // Get or create director_aml_status
-              let directorAmlStatus = (org.director_aml_status as any) || { directors: [], lastSyncedAt: new Date().toISOString() };
+              const directorAmlStatus = (org.director_aml_status as any) || { directors: [], lastSyncedAt: new Date().toISOString() };
               if (!directorAmlStatus.directors || !Array.isArray(directorAmlStatus.directors)) {
                 directorAmlStatus.directors = [];
               }

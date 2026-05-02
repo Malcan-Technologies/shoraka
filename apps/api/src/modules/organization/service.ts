@@ -665,7 +665,6 @@ export class OrganizationService {
     );
 
     // Build update data - only include fields that are provided
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const updateData: Record<string, any> = {};
 
     if (input.phoneNumber !== undefined) {

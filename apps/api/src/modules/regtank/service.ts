@@ -968,7 +968,6 @@ export class RegTankService {
   private async extractAndUpdateOrganizationData(
     organizationId: string,
     portalType: PortalType,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     regtankDetails: Record<string, any>,
     requestId?: string
   ): Promise<void> {

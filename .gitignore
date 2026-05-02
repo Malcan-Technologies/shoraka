@@ -55,3 +55,5 @@ pnpm-debug.log*
 Thumbs.db
 
 kill-dev.sh
+# next-agents-md
+.next-docs/

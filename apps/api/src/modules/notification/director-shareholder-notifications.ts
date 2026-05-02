@@ -182,15 +182,18 @@ export async function runIssuerDirectorShareholderNotificationsAfterOrgCtosRepor
   });
   const shouldTriggerNotification = afterVisible.length > 0 && newPeopleWithoutOnboarding.length > 0;
 
-  console.log("DS mismatch check", {
-    issuerOrganizationId,
-    ownerUserId,
-    newCtosReportId,
-    beforeVisibleCount: beforeVisible.length,
-    afterVisibleCount: afterVisible.length,
-    newPeopleWithoutOnboardingCount: newPeopleWithoutOnboarding.length,
-    shouldTriggerNotification,
-  });
+  logger.debug(
+    {
+      issuerOrganizationId,
+      ownerUserId,
+      newCtosReportId,
+      beforeVisibleCount: beforeVisible.length,
+      afterVisibleCount: afterVisible.length,
+      newPeopleWithoutOnboardingCount: newPeopleWithoutOnboarding.length,
+      shouldTriggerNotification,
+    },
+    "DS mismatch check"
+  );
 
   await resolveIssuerDirectorShareholderNotificationsIfCleared({
     issuerOrganizationId,
@@ -208,12 +211,10 @@ export async function runIssuerDirectorShareholderNotificationsAfterOrgCtosRepor
         where: { idempotency_key: idempotencyKey },
       });
       if (dupKey) {
-        console.log("DS action-required skipped: duplicate idempotency key", {
-          issuerOrganizationId,
-          newCtosReportId,
-          partyKey,
-          idempotencyKey,
-        });
+        logger.debug(
+          { issuerOrganizationId, newCtosReportId, partyKey, idempotencyKey },
+          "DS action-required skipped: duplicate idempotency key"
+        );
         continue;
       }
       await notificationService.sendTyped(
@@ -228,11 +229,14 @@ export async function runIssuerDirectorShareholderNotificationsAfterOrgCtosRepor
       );
     }
   } else {
-    console.log("DS mismatch skipped: no new person needing onboarding notification", {
-      issuerOrganizationId,
-      afterVisibleCount: afterVisible.length,
-      newPeopleWithoutOnboardingCount: newPeopleWithoutOnboarding.length,
-    });
+    logger.debug(
+      {
+        issuerOrganizationId,
+        afterVisibleCount: afterVisible.length,
+        newPeopleWithoutOnboardingCount: newPeopleWithoutOnboarding.length,
+      },
+      "DS mismatch skipped: no new person needing onboarding notification"
+    );
   }
 }
 

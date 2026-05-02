@@ -40,8 +40,8 @@ function generateClientAssertion(cfg: CtosConfig): string {
     exp: Math.floor(Date.now() / 1000) + 300,
   };
   const jwtToken = jwt.sign(payloadObject, cfg.privateKeyPem, { algorithm: "RS256" });
-  console.log("CTOS JWT PAYLOAD:", payloadObject);
-  console.log("CTOS JWT CREATED:", jwtToken);
+  logger.debug({ payload: payloadObject }, "CTOS JWT payload created");
+  logger.debug("CTOS JWT signed for client assertion");
   return jwtToken;
 }
 
@@ -56,11 +56,7 @@ export async function getCtosAccessToken(cfg: CtosConfig): Promise<string> {
   const client_id = cfg.clientId;
   const username = cfg.username;
   const CTOS_SSO_URL = cfg.tokenUrl;
-  console.log("CTOS LOGIN REQUEST:", {
-    client_id,
-    username,
-    url: CTOS_SSO_URL,
-  });
+  logger.debug({ client_id, username, url: CTOS_SSO_URL }, "CTOS login request");
 
   const body = new URLSearchParams({
     grant_type: "password",
@@ -87,14 +83,18 @@ export async function getCtosAccessToken(cfg: CtosConfig): Promise<string> {
   }
 
   const data = (await res.json()) as { access_token?: string; expires_in?: number };
-  console.log("CTOS LOGIN RESPONSE STATUS:", res.status);
-  console.log("CTOS LOGIN RESPONSE DATA:", data);
+  logger.debug(
+    {
+      status: res.status,
+      hasAccessToken: Boolean(data.access_token),
+      expiresIn: data.expires_in,
+    },
+    "CTOS login response"
+  );
   if (!data.access_token) {
     throw new Error("CTOS token response missing access_token");
   }
 
-  console.log("CTOS ACCESS TOKEN:", data.access_token);
-  console.log("CTOS TOKEN EXPIRES IN:", data.expires_in);
   return data.access_token;
 }
 
@@ -107,13 +107,12 @@ export async function callCtosSoap(cfg: CtosConfig, innerBatchXml: string): Prom
   // WHERE USED: CTOS integration flow
   // ===============================
   const CTOS_SOAP_URL = cfg.soapUrl;
-  console.log("CTOS SOAP: operation ws:request (only request; no requestConfirm in this client)");
+  logger.debug("CTOS SOAP: operation ws:request (only request; no requestConfirm in this client)");
   try {
-    console.log("CTOS SOAP URL:", CTOS_SOAP_URL);
-    console.log("CTOS REQUEST XML (inner batch):", innerBatchXml);
+    logger.debug({ soapUrl: CTOS_SOAP_URL, innerBatchXmlLength: innerBatchXml.length }, "CTOS SOAP request");
     const token = await getCtosAccessToken(cfg);
     const envelope = wrapSoap(innerBatchXml);
-    console.log("CTOS SOAP ENVELOPE (outer):", envelope);
+    logger.debug({ envelopeLength: envelope.length }, "CTOS SOAP envelope built");
 
     const res = await fetch(cfg.soapUrl, {
       method: "POST",
@@ -125,8 +124,7 @@ export async function callCtosSoap(cfg: CtosConfig, innerBatchXml: string): Prom
     });
 
     const text = await res.text();
-    console.log("CTOS RAW RESPONSE STATUS:", res.status);
-    console.log("CTOS RAW RESPONSE DATA:", text);
+    logger.debug({ status: res.status, responseLength: text.length }, "CTOS SOAP raw response");
     if (!res.ok) {
       logger.error({ status: res.status, bodyPreview: text.slice(0, 300) }, "CTOS SOAP request failed");
       console.error("CTOS ERROR MESSAGE:", "CTOS SOAP request failed");
@@ -143,7 +141,7 @@ export async function callCtosSoap(cfg: CtosConfig, innerBatchXml: string): Prom
     }
 
     const decoded = Buffer.from(match[1], "base64").toString("utf-8");
-    console.log("CTOS SOAP response decoded, decodedXML length:", decoded.length);
+    logger.debug({ decodedXmlLength: decoded.length }, "CTOS SOAP response decoded");
     return decoded;
   } catch (error: unknown) {
     const err = error as { message?: string; response?: { data?: unknown; status?: number } };

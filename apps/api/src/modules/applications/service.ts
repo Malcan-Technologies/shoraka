@@ -618,8 +618,7 @@ export class ApplicationService {
     }
     const remarks = await loadAmendmentRemarks(id);
     if (process.env.NODE_ENV !== "production") {
-      console.log("[AMENDMENT][API] Application ID:", id);
-      console.log("[AMENDMENT][API] Raw remarks from DB:", JSON.stringify(remarks, null, 2));
+      logger.debug({ applicationId: id, remarks }, "[AMENDMENT][API] Raw remarks from DB");
     }
     return {
       application,
@@ -799,11 +798,16 @@ export class ApplicationService {
       const { questionnaire, unaudited_by_year } = v2.data;
       const serverNow = new Date();
       const dbg = getFinancialYearEndComputationDetails(questionnaire, serverNow);
-      console.log("FYE selected:", dbg.fye);
-      console.log("Previous FY End:", dbg.previousFYEndIso);
-      console.log("Deadline:", dbg.deadlineIso);
-      console.log("Today:", dbg.todayIso);
-      console.log("Years to show:", dbg.years);
+      logger.debug(
+        {
+          fye: dbg.fye,
+          previousFYEndIso: dbg.previousFYEndIso,
+          deadlineIso: dbg.deadlineIso,
+          todayIso: dbg.todayIso,
+          years: dbg.years,
+        },
+        "Financial statements FYE computation"
+      );
       const expectedYears = getIssuerFinancialTabYears(questionnaire, serverNow);
       const actualKeys = Object.keys(unaudited_by_year).sort();
       const expectedStr = expectedYears.map((y) => String(y)).sort();
@@ -1204,13 +1208,9 @@ export class ApplicationService {
       throw new AppError(400, "VALIDATION_ERROR", "Invalid file type");
     }
 
-    console.log(
-      "Application upload URL: fileName:",
-      params.fileName,
-      "token:",
-      token,
-      "allowedTypes:",
-      allowedTypes
+    logger.debug(
+      { fileName: params.fileName, token, allowedTypes },
+      "Application supporting-doc upload URL resolution"
     );
 
     return requestPresignedUploadUrl({

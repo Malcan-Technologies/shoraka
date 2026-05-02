@@ -402,7 +402,7 @@ async deleteInvoice(id: string, userId: string) {
 
     try {
       await deleteS3Object(s3Key);
-    } catch (error) {
+    } catch {
       throw new AppError(500, "DELETE_FAILED", "Failed to delete document from S3");
     }
   }

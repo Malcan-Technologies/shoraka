@@ -25,8 +25,10 @@ export default tseslint.config(
     rules: {
       "@typescript-eslint/no-unused-vars": [
         "error",
-        { argsIgnorePattern: "^_" },
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
+      // Third-party JSON (RegTank, CTOS, Prisma Json) is validated at boundaries; explicit any stays local.
+      "@typescript-eslint/no-explicit-any": "off",
       "no-console": ["warn", { allow: ["warn", "error"] }],
     },
   },
