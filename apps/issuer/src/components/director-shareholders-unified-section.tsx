@@ -8,8 +8,8 @@ import {
   filterVisiblePeopleRows,
   formatPeopleIdentityLine,
   formatPeopleRolesLineTitleCase,
-  getDirectorShareholderSingleStatusPresentation,
-  // getDirectorShareholderStatusTooltip,
+  getFinalStatusBadgeClassName,
+  getFinalStatusLabel,
   normalizeDirectorShareholderIdKey,
   normalizeDirectorShareholderPartyEmail,
   type ApplicationPersonRow,
@@ -170,7 +170,7 @@ export function DirectorShareholdersUnifiedSection({
     const email = displayEmail(row);
     const showSend = canSendForRow(row);
     const showActionCue = highlightActionRequiredRows && showSend && !email.trim();
-    const statusPresentation = getDirectorShareholderSingleStatusPresentation({
+    const finalStatus = getFinalStatusLabel({
       screening: row.__person.screening,
       onboarding: row.__person.onboarding,
     });
@@ -193,37 +193,17 @@ export function DirectorShareholdersUnifiedSection({
           ) : null}
           {email.trim() ? <p className="text-xs text-muted-foreground break-all">{email}</p> : null}
           <p className="text-xs text-muted-foreground">{rolesLine || "—"}</p>
-          {statusPresentation ? (
-            <div className="pt-0.5">
-              {/*
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "border-transparent text-[11px] font-normal",
-                      statusPresentation.badgeClassName
-                    )}
-                  >
-                    {statusPresentation.label}
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{getDirectorShareholderStatusTooltip(statusPresentation.label)}</p>
-                </TooltipContent>
-              </Tooltip>
-              */}
-              <Badge
-                variant="outline"
-                className={cn(
-                  "border-transparent text-[11px] font-normal",
-                  statusPresentation.badgeClassName
-                )}
-              >
-                {statusPresentation.label}
-              </Badge>
-            </div>
-          ) : null}
+          <div className="pt-0.5">
+            <Badge
+              variant="outline"
+              className={cn(
+                "border-transparent text-[11px] font-normal",
+                getFinalStatusBadgeClassName(finalStatus.tone)
+              )}
+            >
+              {finalStatus.label}
+            </Badge>
+          </div>
         </div>
         {showSend ? (
           <div className="flex w-full shrink-0 flex-col gap-2 sm:w-56 sm:min-w-[14rem]">

@@ -19,8 +19,8 @@ import {
   filterVisiblePeopleRows,
   formatPeopleRolesLineTitleCaseWithoutShare,
   formatShareOwnershipCell,
-  getDirectorShareholderSingleStatusPresentation,
-  // getDirectorShareholderStatusTooltip,
+  getFinalStatusBadgeClassName,
+  getFinalStatusLabel,
 } from "@cashsouk/types";
 import {
   areDirectorShareholdersReadyForApplicationSubmit,
@@ -680,7 +680,7 @@ export function CompanyDetailsStep({
             ) : (
               visiblePeopleRows.map((p) => {
                 const displayRow = buildDirectorShareholderDisplayRowForEmailEligibility(p, null);
-                const statusView = getDirectorShareholderSingleStatusPresentation({
+                const finalStatus = getFinalStatusLabel({
                   screening: p.screening,
                   onboarding: p.onboarding,
                 });
@@ -704,33 +704,15 @@ export function CompanyDetailsStep({
                         <div className="h-4 w-px bg-border" />
                         <div className="flex flex-col gap-0.5 min-w-0">
                           <span className="text-xs text-muted-foreground">Status</span>
-                          {statusView ? (
-                            <>
-                              {/*
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Badge
-                                    variant="outline"
-                                    className={cn("w-fit border-transparent text-[11px] font-normal", statusView.badgeClassName)}
-                                  >
-                                    {statusView.label}
-                                  </Badge>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>{getDirectorShareholderStatusTooltip(statusView.label)}</p>
-                                </TooltipContent>
-                              </Tooltip>
-                              */}
-                              <Badge
-                                variant="outline"
-                                className={cn("w-fit border-transparent text-[11px] font-normal", statusView.badgeClassName)}
-                              >
-                                {statusView.label}
-                              </Badge>
-                            </>
-                          ) : (
-                            <span className="text-[17px] leading-7 text-muted-foreground truncate">—</span>
-                          )}
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "w-fit border-transparent text-[11px] font-normal",
+                              getFinalStatusBadgeClassName(finalStatus.tone)
+                            )}
+                          >
+                            {finalStatus.label}
+                          </Badge>
                         </div>
                       </div>
                       {showCompleteOnProfile ? (

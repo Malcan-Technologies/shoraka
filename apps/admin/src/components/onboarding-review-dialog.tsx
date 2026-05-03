@@ -44,7 +44,11 @@ import {
   useRefreshCorporateAmlStatus,
 } from "@/hooks/use-onboarding-applications";
 import { Skeleton } from "@/components/ui/skeleton";
-import { type OnboardingApprovalStatus, getDirectorShareholderSingleStatusPresentation } from "@cashsouk/types";
+import {
+  type OnboardingApprovalStatus,
+  getFinalStatusBadgeClassName,
+  getFinalStatusLabel,
+} from "@cashsouk/types";
 import { cn } from "@/lib/utils";
 import {
   UserIcon,
@@ -92,7 +96,7 @@ function OnboardingPeopleReadonlyCards({
         const rolesLine = formatPeopleRolesLine(p);
         const idLine =
           p.entityType === "CORPORATE" ? `SSM ${p.matchKey}` : `IC ${p.matchKey}`;
-        const pr = getDirectorShareholderSingleStatusPresentation({
+        const finalStatus = getFinalStatusLabel({
           screening: p.screening,
           onboarding: p.onboarding,
         });
@@ -110,11 +114,15 @@ function OnboardingPeopleReadonlyCards({
               <p className="text-xs text-muted-foreground font-mono break-all">{idLine}</p>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2 shrink-0 sm:pt-0.5">
-              {pr ? (
-                <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", pr.badgeClassName)}>
-                  {pr.label}
-                </Badge>
-              ) : null}
+              <Badge
+                variant="outline"
+                className={cn(
+                  "border-transparent text-[11px] font-normal",
+                  getFinalStatusBadgeClassName(finalStatus.tone)
+                )}
+              >
+                {finalStatus.label}
+              </Badge>
             </div>
           </div>
         );

@@ -358,6 +358,7 @@ export * from "./resubmit-meaningful-field-path";
 export * from "./application-people-display";
 export * from "./director-kyc-gov-id";
 export * from "./director-shareholder-single-status-display";
+export * from "./director-shareholder-final-status";
 export * from "./director-shareholder-display";
 export * from "./ctos-directors-verification-merge";
 export * from "./director-shareholder-party-type-a";

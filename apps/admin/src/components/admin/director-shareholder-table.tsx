@@ -32,8 +32,8 @@ import {
   formatPeopleRolesLineWithoutShare,
 } from "@/lib/onboarding-people-display";
 import {
-  // getDirectorShareholderStatusTooltip,
-  getDirectorShareholderSingleStatusPresentation,
+  getFinalStatusBadgeClassName,
+  getFinalStatusLabel,
   getRegtankLink,
   normalizeDirectorShareholderIdKey,
   type ApplicationPersonRow,
@@ -146,7 +146,7 @@ export function DirectorShareholderTable({
           <TableBody>
             {rows.map((p) => {
               const canNotify = canEnterEmailForDirectorShareholder(p);
-              const statusPresentation = getDirectorShareholderSingleStatusPresentation({
+              const finalStatus = getFinalStatusLabel({
                 screening: p.screening,
                 onboarding: p.onboarding,
               });
@@ -168,33 +168,12 @@ export function DirectorShareholderTable({
                   <TableCell>{formatRoleTitleCaseWithoutShare(p)}</TableCell>
                   <TableCell>{shareDisplay}</TableCell>
                   <TableCell>
-                    {statusPresentation ? (
-                      <>
-                        {/*
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Badge
-                                variant="outline"
-                                className={`border-transparent text-[11px] font-normal ${statusPresentation.badgeClassName}`}
-                              >
-                                {statusPresentation.label}
-                              </Badge>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>{getDirectorShareholderStatusTooltip(statusPresentation.label)}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                        */}
-                        <Badge
-                          variant="outline"
-                          className={`border-transparent text-[11px] font-normal ${statusPresentation.badgeClassName}`}
-                        >
-                          {statusPresentation.label}
-                        </Badge>
-                      </>
-                    ) : null}
+                    <Badge
+                      variant="outline"
+                      className={`border-transparent text-[11px] font-normal ${getFinalStatusBadgeClassName(finalStatus.tone)}`}
+                    >
+                      {finalStatus.label}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {p.screening?.riskLevel != null && String(p.screening.riskLevel).trim()
