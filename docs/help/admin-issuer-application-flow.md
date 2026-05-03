@@ -12,6 +12,8 @@ updated: 2026-04-28
 
 Use this guide when reviewing issuer financing applications in the admin portal. It explains what the issuer submitted, what must be checked before approval, when to request amendments, and when commercial offers can be sent.
 
+For a shorter, **operations-first** walkthrough of approve / reject / amendment behaviour and status meanings (without the detailed checklist), see [Financing Application Review — Operations Guide](./admin-financing-application-review-operations.md).
+
 ## Flow at a Glance
 
 1. The issuer selects a product and creates a draft application.
