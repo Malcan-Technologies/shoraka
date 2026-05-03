@@ -42,7 +42,21 @@ Which tabs appear depends on the product. Typically the review covers:
 - **Section (tab):** a single workflow step, for example company details or contract details.
 - **Line item:** one row in a list within a section, for example one invoice or one document.
 
-For **documents** and **invoices**, review is usually **per line item**. Aggregate section status derives from item outcomes. Apply actions to the specific row that requires a decision rather than assuming a single section-level control replaces item review.
+For **documents** and **invoices**, review is usually **per line item**. The overall status for that step follows from the rows you complete. Use the row controls for the file or invoice that needs a decision instead of looking for one control that approves the entire list at once.
+
+## Supporting documents and invoices
+
+**Supporting documents** differs from company or financials. You only use **approve**, **reject**, or **request amendment** on **each file row**. There is **no extra button** whose only job is to approve the entire Supporting documents list after you have already worked the rows.
+
+How the step status reads:
+
+- **Any** file row **rejected** → the Supporting documents step reads as **rejected** until that row is cleared or the case is closed.
+- **Any** file row still **pending** → the step stays **pending**.
+- **Every** file row **approved** → the Supporting documents step reads as **approved**. That happens as soon as the **last** pending file row is approved. You do **not** look for another “approve whole Supporting documents” action after that, because none exists.
+
+You must still choose an outcome on **each** listed file. Nothing is skipped; the list is simply finished when each row is done.
+
+**Invoices** use the same pattern. Work **each invoice row** (review, then send offer when the product requires it). The status shown for the invoice area reflects **all** of those rows together (for example pending until each row is finished, or offer sent where that applies). There is still **no** one control that approves the full invoice list in the same way as approving a single company tab in one click.
 
 ## Tab Gating and Order
 
