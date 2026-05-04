@@ -37,7 +37,6 @@ interface ProgressIndicatorProps {
 export function ProgressIndicator({
   steps,
   currentStep,
-  lastCompletedStep: _lastCompletedStep,
   isLoading = false,
   disabledSteps = [],
   onStepClick,

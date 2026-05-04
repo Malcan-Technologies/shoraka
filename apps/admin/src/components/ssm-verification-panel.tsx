@@ -624,7 +624,7 @@ export function SSMVerificationPanel({
     const { directors, shareholders } = getOnboardingPeopleSplit(application);
     if (directors.length > 0 || shareholders.length > 0) return application;
     return { ...application, directorKycStatus: syntheticDemoDirectorKycForMock() };
-  }, [application, useOrgCtosFlow, mockOnboardingCtosEmpty]);
+  }, [application, useOrgCtosFlow]);
 
   const ctosQuery = useQuery({
     queryKey: ["admin", "organization-ctos-reports", application.portal, orgId],
@@ -667,7 +667,7 @@ export function SSMVerificationPanel({
       return sortOrgCtosReports(buildMockOrgCtosReports(applicationForCompare));
     }
     return sortOrgCtosReports(ctosQuery.data ?? []);
-  }, [applicationForCompare, ctosQuery.data, useOrgCtosFlow, mockOnboardingCtosEmpty]);
+  }, [applicationForCompare, ctosQuery.data, useOrgCtosFlow]);
 
   const latestOrgCtos = orgCtosReports[0] ?? null;
   const companyJson = latestOrgCtos?.company_json ?? null;
@@ -683,7 +683,7 @@ export function SSMVerificationPanel({
     if (orgCtosReports.length === 0) return "not_pulled";
     if (!companyJsonReadyForCtosCompare(companyJson)) return "no_record";
     return "ready";
-  }, [useOrgCtosFlow, useMockOnboardingCtos, ctosQuery.isSuccess, orgCtosReports.length, companyJson]);
+  }, [useOrgCtosFlow, ctosQuery.isSuccess, orgCtosReports.length, companyJson]);
 
   const compareState = useOrgCtosFlow ? orgFetchState : "not_pulled";
 
@@ -750,7 +750,7 @@ export function SSMVerificationPanel({
     const latest = sortOrgCtosReports(raw)[0];
     if (!latest?.id || !latest.has_report_html) return;
     await openOrgReportHtml(latest.id);
-  }, [applicationForCompare, ctosQuery.data, useOrgCtosFlow, mockOnboardingCtosEmpty, openOrgReportHtml]);
+  }, [applicationForCompare, ctosQuery.data, useOrgCtosFlow, openOrgReportHtml]);
 
   const onConfirmGetLatestReport = () => {
     if (useMockOnboardingCtos) {
@@ -1006,7 +1006,7 @@ export function SSMVerificationPanel({
                 </Label>
               </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:items-start">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start">
                 <div className="flex w-full flex-col gap-1 sm:w-auto sm:shrink-0">
                   <Button
                     type="button"

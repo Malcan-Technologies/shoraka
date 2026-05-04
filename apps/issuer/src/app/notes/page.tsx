@@ -77,7 +77,7 @@ export default function IssuerNotesPage() {
                           <div className="font-semibold">{formatCurrency(note.settlementSummary.operatingAccountAmount)}</div>
                         </div>
                         <div>
-                          <div className="text-emerald-800">Ta'widh</div>
+                          <div className="text-emerald-800">{"Ta'widh"}</div>
                           <div className="font-semibold">{formatCurrency(note.settlementSummary.tawidhAccountAmount)}</div>
                         </div>
                         <div>

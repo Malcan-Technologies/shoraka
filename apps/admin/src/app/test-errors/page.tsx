@@ -66,7 +66,7 @@ export default function TestErrorsPage() {
         // The proxy now returns the actual status code
         // Use response.status (actual HTTP status) or fallback to data.status
         return response.status || data.status || 0;
-      } catch (error) {
+      } catch {
         // Network errors
         return 0;
       }
@@ -255,7 +255,7 @@ export default function TestErrorsPage() {
         // The proxy now returns the actual status code, but also includes it in body
         // Use response.status (actual HTTP status) or fallback to data.status
         return response.status || data.status || 0;
-      } catch (error) {
+      } catch {
         return 0;
       }
   }, [getAccessToken]);
@@ -313,10 +313,13 @@ export default function TestErrorsPage() {
             <CardHeader>
               <CardTitle className="text-destructive">⚠️ Temporary Test Page</CardTitle>
               <CardDescription>
-                This page spams 4xx errors to test if high error rates cause AWS crashes. 
-                "404 Errors" buttons send requests to invalid endpoints. 
-                "Bad Request" button sends invalid data to valid endpoints (400 errors).
-                Each button sends 50 requests. "All at once" sends 200 requests (50 per method).
+                This page spams 4xx errors to test if high error rates cause AWS crashes.{" "}
+                <q className="font-medium text-foreground not-italic">404 Errors</q> buttons send requests
+                to invalid endpoints.{" "}
+                <q className="font-medium text-foreground not-italic">Bad Request</q> button sends invalid
+                data to valid endpoints (400 errors). Each button sends 50 requests.{" "}
+                <q className="font-medium text-foreground not-italic">All at once</q> sends 200 requests
+                (50 per method).
               </CardDescription>
             </CardHeader>
           </Card>

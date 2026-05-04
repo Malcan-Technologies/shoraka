@@ -8,6 +8,7 @@ import { Textarea } from "../../../../../components/ui/textarea";
 import { INPUT_CLASS, TEXTAREA_CLASS, FIELD_GAP, SECTION_GAP } from "../product-form-input-styles";
 import { cn } from "@/lib/utils";
 import { PhotoIcon } from "@heroicons/react/24/outline";
+import Image from "next/image";
 import { useS3ViewUrl } from "../../../../../hooks/use-s3";
 import { toast } from "sonner";
 
@@ -71,10 +72,15 @@ export function FinancingTypeConfig({
   onPendingImageChange?: (file: File | null) => void;
   pendingImageFile?: File | null;
 }) {
-  const current = getConfig(config);
+  const [configSnapshot, setConfigSnapshot] = React.useState(() => getConfig(config));
+  React.useEffect(() => {
+    setConfigSnapshot(getConfig(config));
+  }, [config]);
+
+  const current = configSnapshot;
   const [previewDataUrl, setPreviewDataUrl] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const base = (config as Record<string, unknown>) ?? {};
+  const base = React.useMemo(() => (config as Record<string, unknown>) ?? {}, [config]);
 
   const imageData = current.imageData;
   const s3Key = imageData?.s3_key ?? "";
@@ -100,7 +106,8 @@ export function FinancingTypeConfig({
 
   const update = React.useCallback(
     (updates: Partial<FinancingTypeConfigShape>) => {
-      const { imageData: _omit, ...rest } = current;
+      const { imageData, ...rest } = current;
+      void imageData;
       const next = { ...base, ...rest, ...updates } as Record<string, unknown>;
       if ("image" in updates) {
         next.image = updates.image;
@@ -108,7 +115,7 @@ export function FinancingTypeConfig({
       }
       onChange(next);
     },
-    [config, onChange, current]
+    [base, onChange, current]
   );
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -195,11 +202,14 @@ export function FinancingTypeConfig({
                 {previewLoading ? (
                   <div className="w-14 h-14 rounded-xl border border-input bg-muted overflow-hidden flex items-center justify-center shrink-0"><Skeleton className="w-full h-full"/></div>
                 ) : previewSrc ? (
-                  <div className="w-14 h-14 rounded-xl border border-input bg-muted overflow-hidden flex items-center justify-center shrink-0">
-                    <img
+                  <div className="relative w-14 h-14 rounded-xl border border-input bg-muted overflow-hidden flex items-center justify-center shrink-0">
+                    <Image
                       src={previewSrc}
                       alt=""
-                      className="w-full h-full object-contain"
+                      width={56}
+                      height={56}
+                      className="object-contain"
+                      unoptimized
                       onError={() => setImgError(true)}
                     />
                   </div>

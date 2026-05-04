@@ -633,7 +633,7 @@ export function InvoiceList({
                                     <p className={applicationTableExpandableLabelClass}>Document</p>
                                     <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                                       <p
-                                        className={`${applicationTableExpandableValueClass} line-clamp-3 min-w-0 w-full max-w-full break-words [overflow-wrap:anywhere]`}
+                                        className={`${applicationTableExpandableValueClass} line-clamp-3 min-w-0 w-full max-w-full [overflow-wrap:anywhere]`}
                                         title={documentName}
                                       >
                                         {documentName}
@@ -838,7 +838,8 @@ export function InvoiceList({
                                               onBlur={() => {
                                                 const draft = financingRatioDraftByInvoiceId[inv.id];
                                                 setFinancingRatioDraftByInvoiceId((prev) => {
-                                                  const { [inv.id]: _removed, ...rest } = prev;
+                                                  const rest = { ...prev };
+                                                  delete rest[inv.id];
                                                   return rest;
                                                 });
                                                 const fallback = offered.ratio;
@@ -875,7 +876,8 @@ export function InvoiceList({
                                                 onValueChange={(v) => {
                                                   setOffered(inv.id, { ratio: v[0] });
                                                   setFinancingRatioDraftByInvoiceId((prev) => {
-                                                    const { [inv.id]: _removed, ...rest } = prev;
+                                                    const rest = { ...prev };
+                                                    delete rest[inv.id];
                                                     return rest;
                                                   });
                                                 }}

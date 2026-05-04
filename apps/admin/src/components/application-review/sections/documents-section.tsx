@@ -156,6 +156,11 @@ export function DocumentsSection({
   hideSectionComments = false,
   supportingDocumentsStepConfig = null,
 }: DocumentsSectionProps) {
+  const downloadableFiles = React.useMemo(
+    () => collectSupportingDocumentFiles(supportingDocuments),
+    [supportingDocuments]
+  );
+
   if (sectionComparison) {
     const { beforeDocs, afterDocs, amendmentRemarks } = sectionComparison;
     return (
@@ -183,11 +188,6 @@ export function DocumentsSection({
       </Card>
     );
   }
-
-  const downloadableFiles = React.useMemo(
-    () => collectSupportingDocumentFiles(supportingDocuments),
-    [supportingDocuments]
-  );
 
   const peerDocumentRejected = reviewItems.some(
     (r) => r.item_type === "document" && r.status === "REJECTED"

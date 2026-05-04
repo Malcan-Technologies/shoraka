@@ -20,6 +20,43 @@ export const applicationLogsKeys = {
  * Data shape returned:
  * { data: Activity[], isLoading, error, total?: number }
  */
+type RawLogItem = Record<string, unknown>;
+
+export type ApplicationLogEntry = {
+  id: string;
+  event_type: string;
+  activity: unknown;
+  actor_id: string | null;
+  metadata: Record<string, unknown> | null;
+  ip_address: string | null;
+  created_at: string;
+  remark: string | null;
+  entityId: string | null;
+  review_cycle: number | null;
+};
+
+function normalizeLogItem(d: RawLogItem): ApplicationLogEntry {
+  return {
+    id: typeof d.id === "string" ? d.id : String(d.id ?? ""),
+    event_type: typeof d.event_type === "string" ? d.event_type : String(d.event_type ?? ""),
+    activity: d.activity,
+    actor_id: typeof d.actor_id === "string" ? d.actor_id : typeof d.user_id === "string" ? d.user_id : null,
+    metadata: d.metadata != null && typeof d.metadata === "object" && !Array.isArray(d.metadata)
+      ? (d.metadata as Record<string, unknown>)
+      : null,
+    ip_address: typeof d.ip_address === "string" ? d.ip_address : null,
+    created_at: typeof d.created_at === "string" ? d.created_at : String(d.created_at ?? ""),
+    remark: typeof d.remark === "string" ? d.remark : null,
+    entityId:
+      typeof d.entityId === "string"
+        ? d.entityId
+        : typeof d.entity_id === "string"
+          ? d.entity_id
+          : null,
+    review_cycle: typeof d.review_cycle === "number" ? d.review_cycle : null,
+  };
+}
+
 export function useApplicationLogs(applicationId: string | null) {
   const { getAccessToken } = useAuthToken();
 
@@ -46,35 +83,21 @@ export function useApplicationLogs(applicationId: string | null) {
         throw new Error(payload.error?.message || "Failed to fetch application logs");
       }
 
-      // Server may return either:
-      // - an array of log items, OR
-      // - an envelope { items: [], pagination: { total, ... } }
       const raw = payload.data;
 
-      let items: any[] = [];
+      let items: RawLogItem[] = [];
       let total: number | undefined = undefined;
 
       if (Array.isArray(raw)) {
-        items = raw;
+        items = raw as RawLogItem[];
         total = raw.length;
-      } else if (raw && Array.isArray(raw.items)) {
-        items = raw.items;
-        total = raw.pagination?.total ?? raw.items.length;
+      } else if (raw && typeof raw === "object" && Array.isArray((raw as { items?: unknown }).items)) {
+        const envelope = raw as { items: RawLogItem[]; pagination?: { total?: number } };
+        items = envelope.items;
+        total = envelope.pagination?.total ?? envelope.items.length;
       }
 
-      // Normalize each item minimally for the UI
-      const normalized = items.map((d: any) => ({
-        id: d.id,
-        event_type: d.event_type,
-        activity: d.activity,
-        actor_id: d.actor_id ?? d.user_id,
-        metadata: (d.metadata ?? null) as Record<string, unknown> | null,
-        ip_address: d.ip_address ?? null,
-        created_at: d.created_at,
-        remark: d.remark ?? null,
-        entityId: d.entityId ?? d.entity_id ?? null,
-        review_cycle: typeof d.review_cycle === "number" ? d.review_cycle : null,
-      }));
+      const normalized = items.map((d) => normalizeLogItem(d));
 
       return {
         items: normalized,
@@ -85,13 +108,13 @@ export function useApplicationLogs(applicationId: string | null) {
     staleTime: 1000 * 60 * 1,
   });
 
-  const qdata = query.data as any;
+  const qdata = query.data;
 
   return {
-    data: (qdata?.items as any[]) ?? [],
+    data: qdata?.items ?? [],
     isLoading: query.isLoading,
     error: query.error,
-    total: qdata?.pagination?.total as number | undefined,
+    total: qdata?.pagination?.total,
   };
 }
 

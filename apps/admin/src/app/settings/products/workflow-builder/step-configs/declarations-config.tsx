@@ -27,7 +27,7 @@ function getDeclarations(config: unknown): DeclarationItemShape[] {
 }
 
 export function DeclarationsConfig({ config, onChange }: { config: unknown; onChange: (config: unknown) => void }) {
-  const base = (config as Record<string, unknown>) ?? {};
+  const base = React.useMemo(() => (config as Record<string, unknown>) ?? {}, [config]);
   const [declarations, setDeclarations] = React.useState<DeclarationItemShape[]>(() => getDeclarations(config));
 
   React.useEffect(() => {

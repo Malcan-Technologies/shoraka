@@ -132,11 +132,9 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
   const addedIds = steps.map(getStepId);
   const addableSteps = allAvailableSteps.filter((s) => !addedIds.includes(s.id));
 
-  function getKey(s: unknown) {
-    return getStepKeyFromStepId(getStepId(s));
-  }
+  const getKey = useCallback((s: unknown) => getStepKeyFromStepId(getStepId(s)), []);
 
-  function ensureFirstAndLastPresent(items: unknown[]): unknown[] {
+  const ensureFirstAndLastPresent = useCallback((items: unknown[]): unknown[] => {
     const [firstStep, lastStep] = getRequiredFirstAndLastSteps();
     let result = [...items];
     if (!result.some((s) => getKey(s) === FIRST_STEP_KEY)) {
@@ -146,9 +144,9 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       result = [...result.filter((s) => getKey(s) !== LAST_STEP_KEY), lastStep];
     }
     return result;
-  }
+  }, [getKey]);
 
-  function enforceFirstAndLast(items: unknown[]): unknown[] {
+  const enforceFirstAndLast = useCallback((items: unknown[]): unknown[] => {
     if (items.length === 0) return items;
     let result = [...items];
     const firstIdx = result.findIndex((s) => getKey(s) === FIRST_STEP_KEY);
@@ -160,7 +158,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       result = arrayMove(result, lastIdx, result.length - 1);
     }
     return result;
-  }
+  }, [getKey]);
 
   useEffect(() => {
     if (!open) {
@@ -193,7 +191,7 @@ export function ProductFormDialog({ open, onOpenChange, productId }: ProductForm
       initialWorkflowRef.current = [];
       setOfferExpiryDays("7");
     }
-  }, [open, isEdit, product]);
+  }, [open, isEdit, product, ensureFirstAndLastPresent, enforceFirstAndLast]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),

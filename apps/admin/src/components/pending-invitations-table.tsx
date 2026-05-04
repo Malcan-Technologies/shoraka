@@ -51,7 +51,7 @@ function InvitationRow({
       setCopiedId(invitation.id);
       toast.success("Link copied to clipboard");
       setTimeout(() => setCopiedId(null), 2000);
-    } catch (error) {
+    } catch {
       toast.error("Failed to copy link");
     }
   };

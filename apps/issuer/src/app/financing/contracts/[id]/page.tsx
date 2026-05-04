@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { FileText, MoreVertical } from "lucide-react";
 import { useParams } from "next/navigation";
+import type { Contract, Invoice } from "@cashsouk/types";
 import { useContract } from "@/hooks/use-contracts";
 import { useInvoicesByContract } from "@/hooks/use-invoices";
 import { FilterButton } from "@/components/dashboard/financing-section";
@@ -21,8 +22,8 @@ export default function ContractDetailsPage() {
   const { data: contract } = useContract(contractId);
   const { data: invoices = [] } = useInvoicesByContract(contractId);
 
-  const contractDetails: any = (contract as any)?.contract_details ?? {};
-  const customerDetails: any = (contract as any)?.customer_details ?? {};
+  const contractDetails = ((contract as Contract | null | undefined)?.contract_details ?? {}) as Contract["contract_details"];
+  const customerDetails = ((contract as Contract | null | undefined)?.customer_details ?? {}) as Contract["customer_details"];
   const approved = contractDetails.approved_facility ?? 0;
   const utilised = contractDetails.utilized_facility ?? 0;
   const utilisationPct = approved > 0 ? Math.round((utilised / approved) * 100) : 0;
@@ -111,9 +112,9 @@ export default function ContractDetailsPage() {
               <p className="text-sm font-medium text-foreground">Total no. of invoices : {invoices.length}</p>
 
               <div className="grid grid-cols-3 gap-4">
-                <MetricBox label="Approved" value={`${invoices.filter((i: any) => i.status === "APPROVED").length}`} />
-                <MetricBox label="Rejected" value={`${invoices.filter((i: any) => i.status === "REJECTED").length}`} />
-                <MetricBox label="Unfinanced" value={`${invoices.filter((i: any) => i.status !== "APPROVED" && i.status !== "REJECTED").length}`} />
+                <MetricBox label="Approved" value={`${invoices.filter((i: Invoice) => i.status === "APPROVED").length}`} />
+                <MetricBox label="Rejected" value={`${invoices.filter((i: Invoice) => i.status === "REJECTED").length}`} />
+                <MetricBox label="Unfinanced" value={`${invoices.filter((i: Invoice) => i.status !== "APPROVED" && i.status !== "REJECTED").length}`} />
               </div>
             </div>
 
@@ -124,10 +125,10 @@ export default function ContractDetailsPage() {
               </p>
 
               <div className="grid grid-cols-3 gap-x-6 gap-y-3 text-xs text-muted-foreground">
-                <BreakdownItem label="Funding in progress" value={`${invoices.filter((i: any) => i.status === "SUBMITTED").length}`} />
+                <BreakdownItem label="Funding in progress" value={`${invoices.filter((i: Invoice) => i.status === "SUBMITTED").length}`} />
                 <BreakdownItem label="Active notes" value="0" />
-                <BreakdownItem label="Completed notes" value={`${invoices.filter((i: any) => i.status === "APPROVED").length}`} />
-                <BreakdownItem label="Unsuccessful raise" value={`${invoices.filter((i: any) => i.status === "REJECTED").length}`} />
+                <BreakdownItem label="Completed notes" value={`${invoices.filter((i: Invoice) => i.status === "APPROVED").length}`} />
+                <BreakdownItem label="Unsuccessful raise" value={`${invoices.filter((i: Invoice) => i.status === "REJECTED").length}`} />
                 <BreakdownItem label="Disputed notes" value="0" />
               </div>
             </div>
