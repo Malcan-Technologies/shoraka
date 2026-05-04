@@ -39,7 +39,7 @@ const CTOS_ONE_DIRECTOR = {
   directors: [
     {
       party_type: "I",
-      position: "Director",
+      position: "DO",
       nic_brno: "901234567890",
       name: "Test Director",
       equity_percentage: null,
@@ -53,7 +53,7 @@ const CTOS_DIRECTOR_A_ONLY = {
   directors: [
     {
       party_type: "I",
-      position: "Director",
+      position: "DO",
       nic_brno: "901234567890",
       name: "Director A",
       equity_percentage: null,
@@ -67,14 +67,14 @@ const CTOS_DIRECTORS_A_AND_B = {
   directors: [
     {
       party_type: "I",
-      position: "Director",
+      position: "DO",
       nic_brno: "901234567890",
       name: "Director A",
       equity_percentage: null,
     },
     {
       party_type: "I",
-      position: "Director",
+      position: "DO",
       nic_brno: "801234567890",
       name: "Director B",
       equity_percentage: null,
