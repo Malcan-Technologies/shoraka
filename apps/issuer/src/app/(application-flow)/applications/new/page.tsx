@@ -188,7 +188,7 @@ export default function NewApplicationPage() {
       return [];
     }
 
-    const selectedProduct = products.find((p: Product) => p.id === selectedProductId);
+    const selectedProduct = products.find((p) => p.id === selectedProductId);
 
     if (!selectedProduct || !selectedProduct.workflow) {
       return [];
@@ -257,7 +257,7 @@ export default function NewApplicationPage() {
 
     try {
       const liveResp = await apiClient.getIssuerProductLiveCheck(selectedProductId);
-      const currentProduct = productsData?.products?.find((p: Product) => p.id === selectedProductId);
+      const currentProduct = productsData?.products?.find((p) => p.id === selectedProductId);
 
       if (!liveResp.success) {
         setVersionModalReason("PRODUCT_UNAVAILABLE");

@@ -961,6 +961,8 @@ export function ContractDetailsStep({
       const iu = initial.customer || {};
       const cu = formData.customer || {};
 
+      type NestedDoc = { document?: { s3_key?: string; file_name?: string } };
+
       const simpleContractFields: (keyof typeof cc)[] = [
         "title",
         "description",
@@ -976,8 +978,10 @@ export function ContractDetailsStep({
         if (String(a) !== String(b)) return true;
       }
 
-      const initialContractDocKey = ic.document?.s3_key || ic.document?.file_name || "";
-      const currentContractDocKey = cc.document?.s3_key || cc.document?.file_name || "";
+      const icDoc = (ic as NestedDoc).document;
+      const ccDoc = (cc as NestedDoc).document;
+      const initialContractDocKey = icDoc?.s3_key || icDoc?.file_name || "";
+      const currentContractDocKey = ccDoc?.s3_key || ccDoc?.file_name || "";
       if (initialContractDocKey !== currentContractDocKey) return true;
       if (pendingFiles.contract) return true;
 
@@ -994,8 +998,10 @@ export function ContractDetailsStep({
         if (String(a) !== String(b)) return true;
       }
 
-      const initialConsentDocKey = iu.document?.s3_key || iu.document?.file_name || "";
-      const currentConsentDocKey = cu.document?.s3_key || cu.document?.file_name || "";
+      const iuDoc = (iu as NestedDoc).document;
+      const cuDoc = (cu as NestedDoc).document;
+      const initialConsentDocKey = iuDoc?.s3_key || iuDoc?.file_name || "";
+      const currentConsentDocKey = cuDoc?.s3_key || cuDoc?.file_name || "";
       if (initialConsentDocKey !== currentConsentDocKey) return true;
       if (pendingFiles.consent) return true;
 

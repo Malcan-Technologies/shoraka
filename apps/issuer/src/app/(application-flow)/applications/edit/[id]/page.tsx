@@ -1135,7 +1135,7 @@ function EditApplicationPageBody() {
       } else {
         await updateStatusMutation.mutateAsync({
           id: applicationId,
-          status: "SUBMITTED",
+          status: ApplicationStatus.SUBMITTED,
         });
         successPendingNav = true;
       }

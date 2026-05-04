@@ -333,10 +333,7 @@ router.get("/callback", async (req: Request, res: Response) => {
     // Cognito returns email_verified as string "true"/"false" or boolean, convert to boolean
     const emailVerifiedRaw = userInfo.email_verified as unknown;
     const emailVerified =
-      emailVerifiedRaw === "true" ||
-      emailVerifiedRaw === true ||
-      emailVerifiedRaw === "1" ||
-      false;
+      emailVerifiedRaw === "true" || emailVerifiedRaw === true || emailVerifiedRaw === "1" || false;
     const firstName =
       (userInfo.given_name as string) || (userInfo.name as string)?.split(" ")[0] || "";
     const lastName =

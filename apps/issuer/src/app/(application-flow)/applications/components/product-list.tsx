@@ -17,6 +17,17 @@ const VISIBLE_PRODUCTS_PER_CATEGORY = 8;
  */
 const SHOW_PRODUCT_LIST_EXTENDED_CONTROLS = false;
 
+/** Financing-type workflow step config (admin workflow builder); loosely typed from JSON. */
+type FinancingTypeStepConfig = {
+  category?: string;
+  category_display_order?: number | null;
+  product_display_order?: number | null;
+  name?: string;
+  description?: string;
+  image?: { s3_key?: string };
+  s3_key?: string;
+};
+
 /** Product row shape from issuer catalog (workflow-driven display fields). */
 type CatalogProduct = {
   id: string;
@@ -27,12 +38,18 @@ type CatalogProduct = {
   created_at?: string;
 };
 
-/** Lowercase blob for client-side search (name, description, category). */
-function productSearchText(product: CatalogProduct): string {
+function financingStepConfig(
+  product: CatalogProduct
+): FinancingTypeStepConfig {
   const financingStep = product.workflow?.find((step) =>
     String(step?.name).toLowerCase().includes("financing type")
   );
-  const config = financingStep?.config || {};
+  return (financingStep?.config ?? {}) as FinancingTypeStepConfig;
+}
+
+/** Lowercase blob for client-side search (name, description, category). */
+function productSearchText(product: CatalogProduct): string {
+  const config = financingStepConfig(product);
   const categoryName = product.category_name || config.category || "Other";
   const name = config.name || (product.workflow?.[0]?.config?.name as string) || "Unnamed Product";
   const description = config.description || "";
@@ -193,10 +210,7 @@ export function ProductList({
     const map = new Map<string, CatEntry>();
 
     filteredProducts.forEach((product: CatalogProduct) => {
-      const financingStep = product.workflow?.find((step) =>
-        String(step?.name).toLowerCase().includes("financing type")
-      );
-      const config = financingStep?.config || {};
+      const config = financingStepConfig(product);
 
       const categoryName = product.category_name || config.category || "Other";
       const categoryDisplayOrder = product.category_display_order ?? config.category_display_order ?? null;

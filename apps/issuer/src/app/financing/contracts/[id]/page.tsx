@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { FileText, MoreVertical } from "lucide-react";
 import { useParams } from "next/navigation";
-import type { Contract, Invoice } from "@cashsouk/types";
+import type { ContractDetails, CustomerDetails, Invoice } from "@cashsouk/types";
 import { useContract } from "@/hooks/use-contracts";
 import { useInvoicesByContract } from "@/hooks/use-invoices";
 import { FilterButton } from "@/components/dashboard/financing-section";
@@ -22,8 +22,8 @@ export default function ContractDetailsPage() {
   const { data: contract } = useContract(contractId);
   const { data: invoices = [] } = useInvoicesByContract(contractId);
 
-  const contractDetails = ((contract as Contract | null | undefined)?.contract_details ?? {}) as Contract["contract_details"];
-  const customerDetails = ((contract as Contract | null | undefined)?.customer_details ?? {}) as Contract["customer_details"];
+  const contractDetails = (contract?.contract_details ?? {}) as ContractDetails;
+  const customerDetails = (contract?.customer_details ?? {}) as CustomerDetails;
   const approved = contractDetails.approved_facility ?? 0;
   const utilised = contractDetails.utilized_facility ?? 0;
   const utilisationPct = approved > 0 ? Math.round((utilised / approved) * 100) : 0;

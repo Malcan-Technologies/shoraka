@@ -20,10 +20,10 @@ async function logoutFromCognito() {
 
   // 1. Manually clear all Cognito cookies
   if (cognitoClientId) {
-    const cookies = document.cookie.split(';');
-    cookies.forEach(cookie => {
-      const cookieName = cookie.split('=')[0].trim();
-      if (cookieName.startsWith('CognitoIdentityServiceProvider')) {
+    const cookies = document.cookie.split(";");
+    cookies.forEach((cookie) => {
+      const cookieName = cookie.split("=")[0].trim();
+      if (cookieName.startsWith("CognitoIdentityServiceProvider")) {
         const cookieDomain = process.env.NEXT_PUBLIC_COOKIE_DOMAIN || "localhost";
         document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${cookieDomain};`;
         document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
@@ -43,9 +43,10 @@ async function logoutFromCognito() {
 
   // 3. Redirect through Cognito's logout endpoint to clear hosted UI session
   if (cognitoDomain && cognitoClientId) {
-    const cognitoDomainUrl = cognitoDomain.startsWith('http://') || cognitoDomain.startsWith('https://')
-      ? cognitoDomain
-      : `https://${cognitoDomain}`;
+    const cognitoDomainUrl =
+      cognitoDomain.startsWith("http://") || cognitoDomain.startsWith("https://")
+        ? cognitoDomain
+        : `https://${cognitoDomain}`;
     const cognitoLogoutUrl = `${cognitoDomainUrl}/logout?client_id=${cognitoClientId}&logout_uri=${encodeURIComponent(landingUrl)}`;
     window.location.href = cognitoLogoutUrl;
   } else {
@@ -118,17 +119,17 @@ function AuthErrorPageContent() {
               <div className="flex flex-col gap-2">
                 {wasPreviouslyAdmin ? (
                   <>
-                    <Button 
-                      onClick={handleSignOut} 
-                      className="w-full" 
+                    <Button
+                      onClick={handleSignOut}
+                      className="w-full"
                       variant="action"
                       disabled={isLoggingOut}
                     >
                       {isLoggingOut ? "Signing Out..." : "Sign Out"}
                     </Button>
-                    <Button 
-                      onClick={handleGoHome} 
-                      variant="ghost" 
+                    <Button
+                      onClick={handleGoHome}
+                      variant="ghost"
                       className="w-full"
                       disabled={isLoggingOut}
                     >
@@ -152,9 +153,7 @@ function AuthErrorPageContent() {
                 </p>
               )}
               {wasPreviouslyAdmin && isLoggingOut && (
-                <p className="text-xs text-center text-muted-foreground">
-                  Signing out...
-                </p>
+                <p className="text-xs text-center text-muted-foreground">Signing out...</p>
               )}
             </CardContent>
           </Card>
@@ -183,4 +182,3 @@ export default function AuthErrorPage() {
     </Suspense>
   );
 }
-
