@@ -53,6 +53,8 @@ Content-Type: application/json
 
 Never enable this in production without additional controls.
 
+When this test top-up is used, the API also writes a matching `note_ledger_entries` credit into the `INVESTOR_POOL` bucket so admin bucket balances remain aligned with the simulated deposit inflow.
+
 ## Shared types and SDK
 
 - `InvestorPortfolioResponse` in `packages/types` (`investor` portfolio fields).

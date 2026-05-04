@@ -97,7 +97,7 @@ export async function creditInvestorBalance(
     data: { available_amount: { increment: amountDecimal } },
   });
 
-  await tx.investorBalanceTransaction.create({
+  return tx.investorBalanceTransaction.create({
     data: {
       investor_organization_id: input.investorOrganizationId,
       direction: InvestorBalanceTransactionDirection.IN,

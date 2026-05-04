@@ -1115,29 +1115,46 @@ export class NoteService {
   }
 
   async testTopUpInvestorBalance(
-    userId: string,
+    actor: ActorContext,
     input: { investorOrganizationId: string; amount: number }
   ) {
     const investorOrg = await prisma.investorOrganization.findFirst({
       where: {
         id: input.investorOrganizationId,
         OR: [
-          { owner_user_id: userId },
-          { members: { some: { user_id: userId } } },
+          { owner_user_id: actor.userId },
+          { members: { some: { user_id: actor.userId } } },
         ],
       },
     });
     if (!investorOrg) throw new AppError(403, "INVESTOR_ORG_FORBIDDEN", "Investor organization not accessible");
 
     await prisma.$transaction(async (tx) => {
-      await creditInvestorBalance(tx, {
+      const balanceTransaction = await creditInvestorBalance(tx, {
         investorOrganizationId: input.investorOrganizationId,
         amount: input.amount,
         source: InvestorBalanceTransactionSource.MANUAL_TOPUP,
         metadata: { reason: "test_topup" },
       });
+      const investorPoolId = await this.getLedgerAccountId(tx, "INVESTOR_POOL");
+      await tx.noteLedgerEntry.create({
+        data: {
+          account_id: investorPoolId,
+          direction: NoteLedgerDirection.CREDIT,
+          amount: money(input.amount),
+          description: "Investor test top-up received into investor pool",
+          idempotency_key: `investor-balance-topup:${balanceTransaction.id}`,
+          metadata: {
+            actorUserId: actor.userId,
+            actorPortal: actor.portal ?? "INVESTOR",
+            investorOrganizationId: input.investorOrganizationId,
+            investorBalanceTransactionId: balanceTransaction.id,
+            source: "MANUAL_TOPUP",
+          },
+        },
+      });
     });
-    return this.getInvestorPortfolio(userId);
+    return this.getInvestorPortfolio(actor.userId);
   }
 
   async listIssuerNotes(userId: string) {
