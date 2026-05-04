@@ -38,6 +38,7 @@ export function getFinalStatusLabel(person: {
         "RISK_ASSESSED",
         "PENDING",
         "UNRESOLVED",
+        "NO_MATCH",
       ].includes(s)
     )
   ) {
