@@ -993,6 +993,7 @@ export default function InvoiceDetailsStep({
             financing_ratio_percent: (() => {
               const raw = d.financing_ratio_percent;
               if (raw == null) return 60;
+              if (typeof raw === "string" && raw.trim() === "") return 60;
               const n = typeof raw === "number" ? raw : Number(raw);
               return Number.isFinite(n) ? Math.round(n) : 60;
             })(),
