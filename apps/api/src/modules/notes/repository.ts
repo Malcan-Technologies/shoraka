@@ -19,7 +19,18 @@ export const noteInclude = {
 
 export class NoteRepository {
   list(params: GetNotesQuery) {
-    const { page, pageSize, search, status, listingStatus, fundingStatus, servicingStatus, issuerOrganizationId, paymaster } = params;
+    const {
+      page,
+      pageSize,
+      search,
+      status,
+      listingStatus,
+      fundingStatus,
+      servicingStatus,
+      issuerOrganizationId,
+      paymaster,
+      featuredOnly,
+    } = params;
     const where: Prisma.NoteWhereInput = {};
 
     if (status) where.status = status;
@@ -46,14 +57,28 @@ export class NoteRepository {
         },
       });
     }
+    if (featuredOnly) {
+      const now = new Date();
+      and.push({
+        is_featured: true,
+        AND: [
+          { OR: [{ featured_from: null }, { featured_from: { lte: now } }] },
+          { OR: [{ featured_until: null }, { featured_until: { gte: now } }] },
+        ],
+      });
+    }
     if (and.length > 0) where.AND = and;
+
+    const orderBy: Prisma.NoteOrderByWithRelationInput[] = featuredOnly
+      ? [{ featured_rank: "asc" }, { updated_at: "desc" }]
+      : [{ updated_at: "desc" }];
 
     return prisma.$transaction(async (tx) => {
       const [notes, totalCount] = await Promise.all([
         tx.note.findMany({
           where,
           include: noteInclude,
-          orderBy: { updated_at: "desc" },
+          orderBy,
           skip: (page - 1) * pageSize,
           take: pageSize,
         }),

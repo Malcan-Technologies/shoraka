@@ -587,6 +587,10 @@ model Note {
   platform_fee_rate_percent   Decimal    @default(0) @db.Decimal(5, 2)
   service_fee_rate_percent    Decimal    @default(0) @db.Decimal(5, 2)
   service_fee_customer_scope  String?
+  is_featured                 Boolean    @default(false)
+  featured_rank               Int?
+  featured_from               DateTime?
+  featured_until              DateTime?
   maturity_date               DateTime?
   grace_period_days           Int        @default(7)
   arrears_threshold_days      Int        @default(14)
@@ -619,6 +623,8 @@ model Note {
   @@index([listing_status])
   @@index([funding_status])
   @@index([servicing_status])
+  @@index([is_featured, featured_rank])
+  @@index([featured_from, featured_until])
   @@index([maturity_date])
   @@map("notes")
 }

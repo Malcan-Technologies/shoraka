@@ -24,6 +24,7 @@ export type MarketplaceNote = {
   /** When false, capacity rules mean no valid commit (e.g. fully allocated). */
   investable: boolean;
   isFeatured?: boolean;
+  featuredRank?: number;
 };
 
 type NoteCardProps = {

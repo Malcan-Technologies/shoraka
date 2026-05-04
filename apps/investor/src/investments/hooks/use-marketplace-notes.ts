@@ -5,7 +5,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export const marketplaceKeys = {
   all: ["marketplace-notes"] as const,
-  list: (search: string) => [...marketplaceKeys.all, "list", search] as const,
+  list: (params: { search: string; page: number; pageSize: number; featuredOnly: boolean }) =>
+    [...marketplaceKeys.all, "list", params] as const,
   detail: (id?: string) => [...marketplaceKeys.all, "detail", id] as const,
   portfolio: ["investor-portfolio"] as const,
 };
@@ -15,12 +16,22 @@ function useMarketplaceApiClient() {
   return createApiClient(API_URL, getAccessToken);
 }
 
-export function useMarketplaceNotes(search = "") {
+export function useMarketplaceNotes({
+  search = "",
+  page = 1,
+  pageSize = 24,
+  featuredOnly = false,
+}: {
+  search?: string;
+  page?: number;
+  pageSize?: number;
+  featuredOnly?: boolean;
+} = {}) {
   const apiClient = useMarketplaceApiClient();
   return useQuery({
-    queryKey: marketplaceKeys.list(search),
+    queryKey: marketplaceKeys.list({ search, page, pageSize, featuredOnly }),
     queryFn: async () => {
-      const response = await apiClient.getMarketplaceNotes({ page: 1, pageSize: 24, search });
+      const response = await apiClient.getMarketplaceNotes({ page, pageSize, search, featuredOnly });
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },

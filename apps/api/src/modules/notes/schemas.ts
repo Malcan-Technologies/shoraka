@@ -39,6 +39,10 @@ export const getNotesQuerySchema = z.object({
   servicingStatus: z.nativeEnum(NoteServicingStatus).optional(),
   issuerOrganizationId: z.string().optional(),
   paymaster: z.string().optional(),
+  featuredOnly: z
+    .enum(["true", "false", "1", "0"])
+    .transform((value) => value === "true" || value === "1")
+    .optional(),
 });
 
 export const createNoteFromApplicationSchema = z.object({
@@ -55,6 +59,13 @@ export const updateNoteDraftSchema = z.object({
   serviceFeeCustomerScope: z.string().max(120).nullable().optional(),
   profitRatePercent: z.number().min(0).nullable().optional(),
   summary: z.string().max(1000).nullable().optional(),
+});
+
+export const updateNoteFeaturedSchema = z.object({
+  isFeatured: z.boolean(),
+  featuredRank: z.number().int().min(1).max(9999).nullable().optional(),
+  featuredFrom: z.string().datetime().nullable().optional(),
+  featuredUntil: z.string().datetime().nullable().optional(),
 });
 
 export const createInvestmentSchema = z.object({

@@ -133,6 +133,14 @@ function resolveSettlementSummary(note: NoteWithRelations) {
   };
 }
 
+function resolveFeaturedActive(note: NoteWithRelations) {
+  if (!note.is_featured) return false;
+  const now = new Date();
+  const startsOk = !note.featured_from || note.featured_from <= now;
+  const endsOk = !note.featured_until || note.featured_until >= now;
+  return startsOk && endsOk;
+}
+
 export function mapNoteListItem(note: NoteWithRelations) {
   const targetAmount = decimalToNumber(note.target_amount);
   const fundedAmount = decimalToNumber(note.funded_amount);
@@ -167,6 +175,11 @@ export function mapNoteListItem(note: NoteWithRelations) {
     profitRatePercent: note.profit_rate_percent ? decimalToNumber(note.profit_rate_percent) : null,
     platformFeeRatePercent: decimalToNumber(note.platform_fee_rate_percent),
     serviceFeeRatePercent: decimalToNumber(note.service_fee_rate_percent),
+    isFeatured: note.is_featured,
+    featuredRank: note.featured_rank,
+    featuredFrom: iso(note.featured_from),
+    featuredUntil: iso(note.featured_until),
+    featuredActive: resolveFeaturedActive(note),
     maturityDate: iso(note.maturity_date),
     publishedAt: iso(note.published_at),
     settlementSummary: resolveSettlementSummary(note),

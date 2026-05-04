@@ -42,6 +42,7 @@ import type {
   paymentReviewSchema,
   recordPaymentSchema,
   settlementPreviewSchema,
+  updateNoteFeaturedSchema,
   updateNoteDraftSchema,
   updatePlatformFinanceSettingsSchema,
 } from "./schemas";
@@ -724,6 +725,78 @@ export class NoteService {
         include: noteInclude,
       });
       await this.logAdminAction(tx, id, "UPDATE_DRAFT", actor, mapNoteListItem(note), mapNoteListItem(result));
+      return result;
+    });
+
+    return mapNoteDetail(updated);
+  }
+
+  async updateFeaturedSettings(
+    id: string,
+    input: z.infer<typeof updateNoteFeaturedSchema>,
+    actor: ActorContext
+  ) {
+    const note = await noteRepository.findById(id);
+    if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
+
+    const featuredFrom = input.featuredFrom ? dateFrom(input.featuredFrom) : null;
+    const featuredUntil = input.featuredUntil ? dateFrom(input.featuredUntil) : null;
+    if (input.featuredFrom && !featuredFrom) {
+      throw new AppError(422, "INVALID_FEATURED_FROM", "Invalid featured start datetime");
+    }
+    if (input.featuredUntil && !featuredUntil) {
+      throw new AppError(422, "INVALID_FEATURED_UNTIL", "Invalid featured end datetime");
+    }
+    if (featuredFrom && featuredUntil && featuredUntil < featuredFrom) {
+      throw new AppError(422, "INVALID_FEATURED_WINDOW", "Featured end datetime must be after start datetime");
+    }
+
+    if (input.isFeatured) {
+      if (
+        note.status !== NoteStatus.PUBLISHED ||
+        note.listing_status !== NoteListingStatus.PUBLISHED ||
+        note.funding_status !== NoteFundingStatus.OPEN
+      ) {
+        throw new AppError(
+          409,
+          "NOTE_NOT_FEATURE_ELIGIBLE",
+          "Only notes that are published and open for funding can be featured"
+        );
+      }
+      const activeFeaturedCount = await prisma.note.count({
+        where: {
+          is_featured: true,
+          id: { not: id },
+          status: NoteStatus.PUBLISHED,
+          listing_status: NoteListingStatus.PUBLISHED,
+          funding_status: NoteFundingStatus.OPEN,
+          AND: [
+            { OR: [{ featured_from: null }, { featured_from: { lte: new Date() } }] },
+            { OR: [{ featured_until: null }, { featured_until: { gte: new Date() } }] },
+          ],
+        },
+      });
+      if (activeFeaturedCount >= 6) {
+        throw new AppError(409, "FEATURED_CAP_REACHED", "Active featured note cap (6) has been reached");
+      }
+    }
+
+    const featuredRank = input.isFeatured
+      ? input.featuredRank ?? note.featured_rank ?? 9999
+      : null;
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await tx.note.update({
+        where: { id },
+        data: {
+          is_featured: input.isFeatured,
+          featured_rank: featuredRank,
+          featured_from: input.isFeatured ? featuredFrom : null,
+          featured_until: input.isFeatured ? featuredUntil : null,
+        },
+        include: noteInclude,
+      });
+      await this.logAdminAction(tx, id, "UPDATE_FEATURED_SETTINGS", actor, mapNoteListItem(note), mapNoteListItem(result));
       return result;
     });
 

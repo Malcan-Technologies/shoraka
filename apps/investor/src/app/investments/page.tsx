@@ -77,7 +77,7 @@ function formatDefaultCommitAmount(amount: number) {
   return amount.toLocaleString("en-MY", { maximumFractionDigits: 2 });
 }
 
-function toMarketplaceNote(note: NoteListItem, index: number): MarketplaceNote {
+function toMarketplaceNote(note: NoteListItem): MarketplaceNote {
   const { minCommit, maxCommit, investable } = computeMarketplaceCommitBounds(
     note.targetAmount,
     note.fundedAmount
@@ -98,7 +98,8 @@ function toMarketplaceNote(note: NoteListItem, index: number): MarketplaceNote {
     minInvestment: minCommit,
     maxInvestment: maxCommit,
     investable,
-    isFeatured: index < 3,
+    isFeatured: note.featuredActive,
+    featuredRank: note.featuredRank ?? undefined,
   };
 }
 
@@ -110,7 +111,7 @@ export default function InvestmentsPage() {
   const availableBalance = Number(portfolio?.availableBalance ?? 0);
 
   const [search, setSearch] = useState("");
-  const { data, isLoading, error } = useMarketplaceNotes(search);
+  const { data, isLoading, error } = useMarketplaceNotes({ search, page: 1, pageSize: 100 });
   const [industryFilter, setIndustryFilter] = useState("all");
   const [riskFilter, setRiskFilter] = useState("all");
   const [profitFilter, setProfitFilter] = useState("all");
@@ -128,11 +129,23 @@ export default function InvestmentsPage() {
   }, [setTitle]);
 
   const marketplaceNotes = useMemo(
-    () => (data?.notes ?? []).map((note, index) => toMarketplaceNote(note, index)),
+    () => (data?.notes ?? []).map((note) => toMarketplaceNote(note)),
     [data?.notes]
   );
 
-  const featuredNotes = useMemo(() => marketplaceNotes.filter((note) => note.isFeatured), [marketplaceNotes]);
+  const featuredNotes = useMemo(
+    () =>
+      marketplaceNotes
+        .filter((note) => note.isFeatured)
+        .sort((left, right) => {
+          const leftRank = left.featuredRank ?? Number.MAX_SAFE_INTEGER;
+          const rightRank = right.featuredRank ?? Number.MAX_SAFE_INTEGER;
+          if (leftRank !== rightRank) return leftRank - rightRank;
+          return left.title.localeCompare(right.title);
+        }),
+    [marketplaceNotes]
+  );
+  const featuredPreviewNotes = featuredNotes.slice(0, 6);
 
   const filteredNotes = useMemo(() => {
     return marketplaceNotes.filter((note) => !note.isFeatured).filter((note) => {
@@ -289,13 +302,20 @@ export default function InvestmentsPage() {
         {!isLoading && marketplaceNotes.length > 0 ? (
           <section className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:p-6">
             <div>
+              <div>
               <h2 className="text-3xl font-bold tracking-tight text-slate-900">Featured investment opportunities</h2>
               <p className="mt-1 text-sm text-slate-500">Top picks curated for you</p>
+              </div>
             </div>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {featuredNotes.map((note) => (
+              {featuredPreviewNotes.map((note) => (
                 <MarketplaceMockNoteCard key={note.id} note={note} onInvest={openInvestDialog} />
               ))}
+              {featuredPreviewNotes.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-8 text-sm text-slate-500">
+                  No featured notes are available right now.
+                </div>
+              ) : null}
             </div>
           </section>
         ) : null}
@@ -305,11 +325,11 @@ export default function InvestmentsPage() {
           <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 md:flex-row md:items-center md:justify-between">
             <div className="grid grid-cols-2 gap-2 md:ml-auto md:flex md:items-center">
               <Select value={industryFilter} onValueChange={setIndustryFilter}>
-                <SelectTrigger className="h-9 min-w-[120px] rounded-lg border-slate-200 px-3 text-xs text-slate-700 focus:ring-slate-300">
-                  <SelectValue placeholder="Industry" />
+                <SelectTrigger className="h-9 w-[170px] md:w-[220px] rounded-lg border-slate-200 px-3 text-xs text-slate-700 focus:ring-slate-300">
+                  <SelectValue placeholder="Industry" className="truncate" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Industry</SelectItem>
+                  <SelectItem value="all">All industries</SelectItem>
                   {ONBOARDING_INDUSTRY_OPTIONS.map((industry) => (
                     <SelectItem key={industry} value={industry}>
                       {industry}
@@ -319,11 +339,11 @@ export default function InvestmentsPage() {
               </Select>
 
               <Select value={riskFilter} onValueChange={setRiskFilter}>
-                <SelectTrigger className="h-9 min-w-[100px] rounded-lg border-slate-200 px-3 text-xs text-slate-700 focus:ring-slate-300">
-                  <SelectValue placeholder="Risk Score" />
+                <SelectTrigger className="h-9 w-[120px] rounded-lg border-slate-200 px-3 text-xs text-slate-700 focus:ring-slate-300">
+                  <SelectValue placeholder="Risk Score" className="truncate" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Risk Score</SelectItem>
+                  <SelectItem value="all">All risk scores</SelectItem>
                   {SOUKSCORE_RISK_RATING_GRADES.map((grade) => (
                     <SelectItem key={grade} value={grade}>
                       {grade}
@@ -333,11 +353,11 @@ export default function InvestmentsPage() {
               </Select>
 
               <Select value={profitFilter} onValueChange={setProfitFilter}>
-                <SelectTrigger className="h-9 min-w-[90px] rounded-lg border-slate-200 px-3 text-xs text-slate-700 focus:ring-slate-300">
-                  <SelectValue placeholder="Profit" />
+                <SelectTrigger className="h-9 w-[120px] rounded-lg border-slate-200 px-3 text-xs text-slate-700 focus:ring-slate-300">
+                  <SelectValue placeholder="Profit" className="truncate" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Profit</SelectItem>
+                  <SelectItem value="all">All profit bands</SelectItem>
                   <SelectItem value="low">Below 14%</SelectItem>
                   <SelectItem value="mid">14% - 15%</SelectItem>
                   <SelectItem value="high">Above 15%</SelectItem>
@@ -345,11 +365,11 @@ export default function InvestmentsPage() {
               </Select>
 
               <Select value={tenorFilter} onValueChange={setTenorFilter}>
-                <SelectTrigger className="h-9 min-w-[90px] rounded-lg border-slate-200 px-3 text-xs text-slate-700 focus:ring-slate-300">
-                  <SelectValue placeholder="Tenor" />
+                <SelectTrigger className="h-9 w-[120px] rounded-lg border-slate-200 px-3 text-xs text-slate-700 focus:ring-slate-300">
+                  <SelectValue placeholder="Tenor" className="truncate" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Tenor</SelectItem>
+                  <SelectItem value="all">All tenors</SelectItem>
                   <SelectItem value="short">Up to 30 days</SelectItem>
                   <SelectItem value="medium">31 - 45 days</SelectItem>
                   <SelectItem value="long">46+ days</SelectItem>

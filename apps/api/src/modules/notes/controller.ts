@@ -21,6 +21,7 @@ import {
   settlementActionSchema,
   settlementPreviewSchema,
   testInvestorBalanceTopupSchema,
+  updateNoteFeaturedSchema,
   updateNoteDraftSchema,
   updatePlatformFinanceSettingsSchema,
 } from "./schemas";
@@ -140,6 +141,16 @@ adminNotesRouter.patch("/:id/draft", async (req: Request, res: Response, next: N
     const { id } = idParamSchema.parse(req.params);
     const input = updateNoteDraftSchema.parse(req.body);
     send(res, await noteService.updateDraft(id, input, getActor(req, res, "ADMIN")));
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminNotesRouter.patch("/:id/featured", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    const input = updateNoteFeaturedSchema.parse(req.body);
+    send(res, await noteService.updateFeaturedSettings(id, input, getActor(req, res, "ADMIN")));
   } catch (error) {
     next(error);
   }

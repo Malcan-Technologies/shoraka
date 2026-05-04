@@ -149,6 +149,11 @@ export interface NoteListItem extends NoteMoneySummary {
   listingStatus: NoteListingStatus;
   fundingStatus: NoteFundingStatus;
   servicingStatus: NoteServicingStatus;
+  isFeatured: boolean;
+  featuredRank: number | null;
+  featuredFrom: string | null;
+  featuredUntil: string | null;
+  featuredActive: boolean;
   maturityDate: string | null;
   publishedAt: string | null;
   settlementSummary: NoteSettlementPoolSummary | null;
@@ -390,6 +395,7 @@ export interface GetAdminNotesParams {
   servicingStatus?: NoteServicingStatus;
   issuerOrganizationId?: string;
   paymaster?: string;
+  featuredOnly?: boolean;
 }
 
 export interface NotesResponse {
@@ -447,6 +453,13 @@ export interface UpdateNoteDraftInput {
   serviceFeeCustomerScope?: string | null;
   profitRatePercent?: number | null;
   summary?: string | null;
+}
+
+export interface UpdateNoteFeaturedInput {
+  isFeatured: boolean;
+  featuredRank?: number | null;
+  featuredFrom?: string | null;
+  featuredUntil?: string | null;
 }
 
 export interface CreateNoteInvestmentInput {
