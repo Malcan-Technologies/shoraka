@@ -1,0 +1,5421 @@
+PENDING_SSM_REVIEW
+
+corporate_entities
+{
+  "directors": [
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/0fc6196a742746569a6a5720aa605ce2.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/ae46a7fbd9254b19babd358dc0906f4b.png"
+      },
+      "createdDate": "2026-05-03T23:38:34.075+00:00",
+      "updatedDate": "2026-05-03T23:38:34.553+00:00",
+      "eodRequestId": "EOD06224",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Ahmad Danish Bin   Kamarudin",
+        "lastName": "Kamarudin",
+        "firstName": "Ahmad Danish Bin ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Ahmad Danish Bin "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Kamarudin"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": null
+      },
+      "approveStatus": null
+    },
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/7119a314903f478682a60f3483e6ce13.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/299b6bc2209341548f58d99c9dd64150.png"
+      },
+      "createdDate": "2026-05-03T23:39:24.194+00:00",
+      "updatedDate": "2026-05-03T23:39:25.047+00:00",
+      "eodRequestId": "EOD06225",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Lim   Shu Wei",
+        "lastName": "Shu Wei",
+        "firstName": "Lim ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Lim "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Shu Wei"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": "980329140755"
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": "980329140755"
+      },
+      "approveStatus": null
+    }
+  ],
+  "shareholders": [],
+  "corporateShareholders": [
+    {
+      "id": 1142127,
+      "email": null,
+      "token": null,
+      "formId": 1015520,
+      "status": "WAIT_FOR_APPROVAL",
+      "country": null,
+      "kybType": "ACURIS",
+      "assignee": null,
+      "formName": null,
+      "createdAt": null,
+      "createdBy": null,
+      "isPrimary": false,
+      "requestId": "COD05035",
+      "updatedAt": null,
+      "deviceType": "Desktop",
+      "companyName": "Zenith Edge Holdings Sdn. Bhd.",
+      "companyType": null,
+      "expiredDate": null,
+      "formContent": {
+        "displayAreas": [
+          {
+            "content": [
+              {
+                "fieldName": "Business Name",
+                "fieldType": "text",
+                "fieldValue": "Zenith Edge Holdings Sdn. Bhd."
+              },
+              {
+                "fieldName": "% of Shares",
+                "fieldType": "number",
+                "fieldValue": "100"
+              },
+              {
+                "fieldName": "Business Number",
+                "fieldType": "text",
+                "fieldValue": "8123456E"
+              },
+              {
+                "fieldName": "Business Relationship",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Nature of Business",
+                "fieldType": "picklist-nature-of-business",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Type",
+                "fieldType": "picklist-company-type",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Size",
+                "fieldType": "picklist-company-size",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Date of Incorporation",
+                "fieldType": "date",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Incorporation",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Headquarter",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Website",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Phone Number",
+                "fieldType": "phone",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Email Address",
+                "fieldType": "email",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Address",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Reference ID (internal)",
+                "fieldType": "text",
+                "fieldValue": ""
+              }
+            ],
+            "displayArea": "Basic Information Setting"
+          }
+        ]
+      },
+      "assigneeInfo": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "approveStatus": null,
+      "directorCount": 0,
+      "lastModifiedBy": null,
+      "sendEmailStatus": null,
+      "requestIpAddress": "161.142.124.176",
+      "corporateRequestDtos": null,
+      "corporateIndividualDtos": null,
+      "corporateShareholderCount": 0,
+      "individualShareholderCount": 0
+    }
+  ]
+}
+
+
+director_kyc_status
+{
+  "directors": [
+    {
+      "name": "Ahmad Danish Bin  Kamarudin",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycStatus": "ID_UPLOADED",
+      "lastUpdated": "2026-05-03T23:41:52.300Z",
+      "eodRequestId": "EOD06224"
+    },
+    {
+      "name": "Lim  Shu Wei",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycStatus": "ID_UPLOADED",
+      "lastUpdated": "2026-05-03T23:41:52.374Z",
+      "eodRequestId": "EOD06225",
+      "governmentIdNumber": "980329140755"
+    }
+  ],
+  "lastSyncedAt": "2026-05-03T23:41:52.374Z",
+  "corpIndvDirectorCount": 2,
+  "corpBizShareholderCount": 1,
+  "corpIndvShareholderCount": 0
+}
+
+
+---
+PENDING_APPROVAL
+
+corporate_entities
+{
+  "directors": [
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/0fc6196a742746569a6a5720aa605ce2.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/ae46a7fbd9254b19babd358dc0906f4b.png"
+      },
+      "createdDate": "2026-05-03T23:38:34.075+00:00",
+      "updatedDate": "2026-05-03T23:38:34.553+00:00",
+      "eodRequestId": "EOD06224",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Ahmad Danish Bin   Kamarudin",
+        "lastName": "Kamarudin",
+        "firstName": "Ahmad Danish Bin ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Ahmad Danish Bin "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Kamarudin"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": null
+      },
+      "approveStatus": null
+    },
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/7119a314903f478682a60f3483e6ce13.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/299b6bc2209341548f58d99c9dd64150.png"
+      },
+      "createdDate": "2026-05-03T23:39:24.194+00:00",
+      "updatedDate": "2026-05-03T23:39:25.047+00:00",
+      "eodRequestId": "EOD06225",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Lim   Shu Wei",
+        "lastName": "Shu Wei",
+        "firstName": "Lim ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Lim "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Shu Wei"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": "980329140755"
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": "980329140755"
+      },
+      "approveStatus": null
+    }
+  ],
+  "shareholders": [],
+  "corporateShareholders": [
+    {
+      "id": 1142127,
+      "email": null,
+      "token": null,
+      "formId": 1015520,
+      "status": "WAIT_FOR_APPROVAL",
+      "country": null,
+      "kybType": "ACURIS",
+      "assignee": null,
+      "formName": null,
+      "createdAt": null,
+      "createdBy": null,
+      "isPrimary": false,
+      "requestId": "COD05035",
+      "updatedAt": null,
+      "deviceType": "Desktop",
+      "companyName": "Zenith Edge Holdings Sdn. Bhd.",
+      "companyType": null,
+      "expiredDate": null,
+      "formContent": {
+        "displayAreas": [
+          {
+            "content": [
+              {
+                "fieldName": "Business Name",
+                "fieldType": "text",
+                "fieldValue": "Zenith Edge Holdings Sdn. Bhd."
+              },
+              {
+                "fieldName": "% of Shares",
+                "fieldType": "number",
+                "fieldValue": "100"
+              },
+              {
+                "fieldName": "Business Number",
+                "fieldType": "text",
+                "fieldValue": "8123456E"
+              },
+              {
+                "fieldName": "Business Relationship",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Nature of Business",
+                "fieldType": "picklist-nature-of-business",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Type",
+                "fieldType": "picklist-company-type",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Size",
+                "fieldType": "picklist-company-size",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Date of Incorporation",
+                "fieldType": "date",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Incorporation",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Headquarter",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Website",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Phone Number",
+                "fieldType": "phone",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Email Address",
+                "fieldType": "email",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Address",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Reference ID (internal)",
+                "fieldType": "text",
+                "fieldValue": ""
+              }
+            ],
+            "displayArea": "Basic Information Setting"
+          }
+        ]
+      },
+      "assigneeInfo": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "approveStatus": null,
+      "directorCount": 0,
+      "lastModifiedBy": null,
+      "sendEmailStatus": null,
+      "requestIpAddress": "161.142.124.176",
+      "corporateRequestDtos": null,
+      "corporateIndividualDtos": null,
+      "corporateShareholderCount": 0,
+      "individualShareholderCount": 0
+    }
+  ]
+}
+
+
+director_kyc_status
+{
+  "directors": [
+    {
+      "name": "Ahmad Danish Bin  Kamarudin",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycStatus": "ID_UPLOADED",
+      "lastUpdated": "2026-05-03T23:41:52.300Z",
+      "eodRequestId": "EOD06224"
+    },
+    {
+      "name": "Lim  Shu Wei",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycStatus": "ID_UPLOADED",
+      "lastUpdated": "2026-05-03T23:41:52.374Z",
+      "eodRequestId": "EOD06225",
+      "governmentIdNumber": "980329140755"
+    }
+  ],
+  "lastSyncedAt": "2026-05-03T23:41:52.374Z",
+  "corpIndvDirectorCount": 2,
+  "corpBizShareholderCount": 1,
+  "corpIndvShareholderCount": 0
+}
+
+
+
+
+---
+PENDING_APPROVAL (after corporate)
+
+corporate_entities
+{
+  "directors": [
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/0fc6196a742746569a6a5720aa605ce2.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/ae46a7fbd9254b19babd358dc0906f4b.png"
+      },
+      "createdDate": "2026-05-03T23:38:34.075+00:00",
+      "updatedDate": "2026-05-03T23:38:34.553+00:00",
+      "eodRequestId": "EOD06224",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Ahmad Danish Bin   Kamarudin",
+        "lastName": "Kamarudin",
+        "firstName": "Ahmad Danish Bin ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Ahmad Danish Bin "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Kamarudin"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": null
+      },
+      "approveStatus": null
+    },
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/7119a314903f478682a60f3483e6ce13.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/299b6bc2209341548f58d99c9dd64150.png"
+      },
+      "createdDate": "2026-05-03T23:39:24.194+00:00",
+      "updatedDate": "2026-05-03T23:39:25.047+00:00",
+      "eodRequestId": "EOD06225",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Lim   Shu Wei",
+        "lastName": "Shu Wei",
+        "firstName": "Lim ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Lim "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Shu Wei"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": "980329140755"
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": "980329140755"
+      },
+      "approveStatus": null
+    }
+  ],
+  "shareholders": [],
+  "corporateShareholders": [
+    {
+      "id": 1142127,
+      "email": null,
+      "token": null,
+      "formId": 1015520,
+      "status": "No Match",
+      "country": null,
+      "kybType": "ACURIS",
+      "assignee": null,
+      "formName": null,
+      "createdAt": null,
+      "createdBy": null,
+      "isPrimary": false,
+      "requestId": "COD05035",
+      "updatedAt": null,
+      "deviceType": "Desktop",
+      "companyName": "Zenith Edge Holdings Sdn. Bhd.",
+      "companyType": null,
+      "expiredDate": null,
+      "formContent": {
+        "displayAreas": [
+          {
+            "content": [
+              {
+                "fieldName": "Business Name",
+                "fieldType": "text",
+                "fieldValue": "Zenith Edge Holdings Sdn. Bhd."
+              },
+              {
+                "fieldName": "% of Shares",
+                "fieldType": "number",
+                "fieldValue": "100"
+              },
+              {
+                "fieldName": "Business Number",
+                "fieldType": "text",
+                "fieldValue": "8123456E"
+              },
+              {
+                "fieldName": "Business Relationship",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Nature of Business",
+                "fieldType": "picklist-nature-of-business",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Type",
+                "fieldType": "picklist-company-type",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Size",
+                "fieldType": "picklist-company-size",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Date of Incorporation",
+                "fieldType": "date",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Incorporation",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Headquarter",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Website",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Phone Number",
+                "fieldType": "phone",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Email Address",
+                "fieldType": "email",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Address",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Reference ID (internal)",
+                "fieldType": "text",
+                "fieldValue": ""
+              }
+            ],
+            "displayArea": "Basic Information Setting"
+          }
+        ]
+      },
+      "assigneeInfo": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "approveStatus": null,
+      "directorCount": 0,
+      "lastModifiedBy": null,
+      "sendEmailStatus": null,
+      "requestIpAddress": "161.142.124.176",
+      "corporateRequestDtos": null,
+      "corporateIndividualDtos": null,
+      "corporateShareholderCount": 0,
+      "individualShareholderCount": 0
+    }
+  ]
+}
+
+director_aml_status
+{
+  "directors": [],
+  "lastSyncedAt": "2026-05-03T23:52:19.340Z",
+  "businessShareholders": [
+    {
+      "kybId": "KYB00091",
+      "amlStatus": "Pending",
+      "rawStatus": "No Match",
+      "lastUpdated": "2026-05-03T23:52:19.340Z",
+      "amlRiskLevel": null,
+      "amlRiskScore": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "codRequestId": "COD05035",
+      "sharePercentage": 100,
+      "amlMessageStatus": "DONE"
+    }
+  ]
+}
+
+director_kyc_status
+{
+  "directors": [
+    {
+      "name": "Ahmad Danish Bin  Kamarudin",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycStatus": "EMAIL_SENT",
+      "lastUpdated": "2026-05-03T23:51:59.959Z",
+      "eodRequestId": "EOD06224"
+    },
+    {
+      "name": "Lim  Shu Wei",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycStatus": "EMAIL_SENT",
+      "lastUpdated": "2026-05-03T23:52:01.701Z",
+      "eodRequestId": "EOD06225",
+      "governmentIdNumber": "980329140755"
+    }
+  ],
+  "lastSyncedAt": "2026-05-03T23:52:01.701Z",
+  "corpIndvDirectorCount": 2,
+  "corpBizShareholderCount": 1,
+  "corpIndvShareholderCount": 0
+}
+
+
+---
+PENDING_APPROVAL (after government id director submit form)
+
+corporate_entities
+{
+  "directors": [
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/0fc6196a742746569a6a5720aa605ce2.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/ae46a7fbd9254b19babd358dc0906f4b.png"
+      },
+      "createdDate": "2026-05-03T23:38:34.075+00:00",
+      "updatedDate": "2026-05-03T23:38:34.553+00:00",
+      "eodRequestId": "EOD06224",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Ahmad Danish Bin   Kamarudin",
+        "lastName": "Kamarudin",
+        "firstName": "Ahmad Danish Bin ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Ahmad Danish Bin "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Kamarudin"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": null
+      },
+      "approveStatus": null
+    },
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/7119a314903f478682a60f3483e6ce13.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/299b6bc2209341548f58d99c9dd64150.png"
+      },
+      "createdDate": "2026-05-03T23:39:24.194+00:00",
+      "updatedDate": "2026-05-03T23:39:25.047+00:00",
+      "eodRequestId": "EOD06225",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Lim   Shu Wei",
+        "lastName": "Shu Wei",
+        "firstName": "Lim ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Lim "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Shu Wei"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": "980329140755"
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": "980329140755"
+      },
+      "approveStatus": null
+    }
+  ],
+  "shareholders": [],
+  "corporateShareholders": [
+    {
+      "id": 1142127,
+      "email": null,
+      "token": null,
+      "formId": 1015520,
+      "status": "No Match",
+      "country": null,
+      "kybType": "ACURIS",
+      "assignee": null,
+      "formName": null,
+      "createdAt": null,
+      "createdBy": null,
+      "isPrimary": false,
+      "requestId": "COD05035",
+      "updatedAt": null,
+      "deviceType": "Desktop",
+      "companyName": "Zenith Edge Holdings Sdn. Bhd.",
+      "companyType": null,
+      "expiredDate": null,
+      "formContent": {
+        "displayAreas": [
+          {
+            "content": [
+              {
+                "fieldName": "Business Name",
+                "fieldType": "text",
+                "fieldValue": "Zenith Edge Holdings Sdn. Bhd."
+              },
+              {
+                "fieldName": "% of Shares",
+                "fieldType": "number",
+                "fieldValue": "100"
+              },
+              {
+                "fieldName": "Business Number",
+                "fieldType": "text",
+                "fieldValue": "8123456E"
+              },
+              {
+                "fieldName": "Business Relationship",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Nature of Business",
+                "fieldType": "picklist-nature-of-business",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Type",
+                "fieldType": "picklist-company-type",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Size",
+                "fieldType": "picklist-company-size",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Date of Incorporation",
+                "fieldType": "date",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Incorporation",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Headquarter",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Website",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Phone Number",
+                "fieldType": "phone",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Email Address",
+                "fieldType": "email",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Address",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Reference ID (internal)",
+                "fieldType": "text",
+                "fieldValue": ""
+              }
+            ],
+            "displayArea": "Basic Information Setting"
+          }
+        ]
+      },
+      "assigneeInfo": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "approveStatus": null,
+      "directorCount": 0,
+      "lastModifiedBy": null,
+      "sendEmailStatus": null,
+      "requestIpAddress": "161.142.124.176",
+      "corporateRequestDtos": null,
+      "corporateIndividualDtos": null,
+      "corporateShareholderCount": 0,
+      "individualShareholderCount": 0
+    }
+  ]
+}
+
+director_aml_status
+{
+  "directors": [],
+  "lastSyncedAt": "2026-05-03T23:52:19.340Z",
+  "businessShareholders": [
+    {
+      "kybId": "KYB00091",
+      "amlStatus": "Pending",
+      "rawStatus": "No Match",
+      "lastUpdated": "2026-05-03T23:52:19.340Z",
+      "amlRiskLevel": null,
+      "amlRiskScore": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "codRequestId": "COD05035",
+      "sharePercentage": 100,
+      "amlMessageStatus": "DONE"
+    }
+  ]
+}
+
+director_kyc_status
+{
+  "directors": [
+    {
+      "name": "Ahmad Danish Bin  Kamarudin",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycStatus": "EMAIL_SENT",
+      "lastUpdated": "2026-05-03T23:51:59.959Z",
+      "eodRequestId": "EOD06224"
+    },
+    {
+      "name": "Lim  Shu Wei",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycStatus": "WAIT_FOR_APPROVAL",
+      "lastUpdated": "2026-05-03T23:56:22.475Z",
+      "eodRequestId": "EOD06225",
+      "governmentIdNumber": "980329140755"
+    }
+  ],
+  "lastSyncedAt": "2026-05-03T23:56:22.475Z",
+  "corpIndvDirectorCount": 2,
+  "corpBizShareholderCount": 1,
+  "corpIndvShareholderCount": 0
+}
+
+
+---
+PENDING_APPROVAL (request email again for director)
+
+corporate_entities
+{
+  "directors": [
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/0fc6196a742746569a6a5720aa605ce2.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/ae46a7fbd9254b19babd358dc0906f4b.png"
+      },
+      "createdDate": "2026-05-03T23:38:34.075+00:00",
+      "updatedDate": "2026-05-03T23:38:34.553+00:00",
+      "eodRequestId": "EOD06224",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Ahmad Danish Bin   Kamarudin",
+        "lastName": "Kamarudin",
+        "firstName": "Ahmad Danish Bin ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Ahmad Danish Bin "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Kamarudin"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": null
+      },
+      "approveStatus": null
+    },
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/7119a314903f478682a60f3483e6ce13.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/299b6bc2209341548f58d99c9dd64150.png"
+      },
+      "createdDate": "2026-05-03T23:39:24.194+00:00",
+      "updatedDate": "2026-05-03T23:39:25.047+00:00",
+      "eodRequestId": "EOD06225",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Lim   Shu Wei",
+        "lastName": "Shu Wei",
+        "firstName": "Lim ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Lim "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Shu Wei"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": "980329140755"
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": "980329140755"
+      },
+      "approveStatus": null
+    }
+  ],
+  "shareholders": [],
+  "corporateShareholders": [
+    {
+      "id": 1142127,
+      "email": null,
+      "token": null,
+      "formId": 1015520,
+      "status": "No Match",
+      "country": null,
+      "kybType": "ACURIS",
+      "assignee": null,
+      "formName": null,
+      "createdAt": null,
+      "createdBy": null,
+      "isPrimary": false,
+      "requestId": "COD05035",
+      "updatedAt": null,
+      "deviceType": "Desktop",
+      "companyName": "Zenith Edge Holdings Sdn. Bhd.",
+      "companyType": null,
+      "expiredDate": null,
+      "formContent": {
+        "displayAreas": [
+          {
+            "content": [
+              {
+                "fieldName": "Business Name",
+                "fieldType": "text",
+                "fieldValue": "Zenith Edge Holdings Sdn. Bhd."
+              },
+              {
+                "fieldName": "% of Shares",
+                "fieldType": "number",
+                "fieldValue": "100"
+              },
+              {
+                "fieldName": "Business Number",
+                "fieldType": "text",
+                "fieldValue": "8123456E"
+              },
+              {
+                "fieldName": "Business Relationship",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Nature of Business",
+                "fieldType": "picklist-nature-of-business",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Type",
+                "fieldType": "picklist-company-type",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Size",
+                "fieldType": "picklist-company-size",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Date of Incorporation",
+                "fieldType": "date",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Incorporation",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Headquarter",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Website",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Phone Number",
+                "fieldType": "phone",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Email Address",
+                "fieldType": "email",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Address",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Reference ID (internal)",
+                "fieldType": "text",
+                "fieldValue": ""
+              }
+            ],
+            "displayArea": "Basic Information Setting"
+          }
+        ]
+      },
+      "assigneeInfo": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "approveStatus": null,
+      "directorCount": 0,
+      "lastModifiedBy": null,
+      "sendEmailStatus": null,
+      "requestIpAddress": "161.142.124.176",
+      "corporateRequestDtos": null,
+      "corporateIndividualDtos": null,
+      "corporateShareholderCount": 0,
+      "individualShareholderCount": 0
+    }
+  ]
+}
+
+director_aml_status
+{
+  "directors": [],
+  "lastSyncedAt": "2026-05-03T23:52:19.340Z",
+  "businessShareholders": [
+    {
+      "kybId": "KYB00091",
+      "amlStatus": "Pending",
+      "rawStatus": "No Match",
+      "lastUpdated": "2026-05-03T23:52:19.340Z",
+      "amlRiskLevel": null,
+      "amlRiskScore": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "codRequestId": "COD05035",
+      "sharePercentage": 100,
+      "amlMessageStatus": "DONE"
+    }
+  ]
+}
+
+director_kyc_status
+{
+  "directors": [
+    {
+      "name": "Ahmad Danish Bin  Kamarudin",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycStatus": "WAIT_FOR_APPROVAL",
+      "lastUpdated": "2026-05-03T23:59:47.878Z",
+      "eodRequestId": "EOD06224"
+    },
+    {
+      "name": "Lim  Shu Wei",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycStatus": "EMAIL_SENT",
+      "lastUpdated": "2026-05-04T00:00:57.713Z",
+      "eodRequestId": "EOD06225",
+      "governmentIdNumber": "980329140755"
+    }
+  ],
+  "lastSyncedAt": "2026-05-04T00:00:57.713Z",
+  "corpIndvDirectorCount": 2,
+  "corpBizShareholderCount": 1,
+  "corpIndvShareholderCount": 0
+}
+
+
+PENDING_APPROVAL (after resubmit after email sent)
+
+corporate entities
+{
+  "directors": [
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/0fc6196a742746569a6a5720aa605ce2.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/ae46a7fbd9254b19babd358dc0906f4b.png"
+      },
+      "createdDate": "2026-05-03T23:38:34.075+00:00",
+      "updatedDate": "2026-05-03T23:38:34.553+00:00",
+      "eodRequestId": "EOD06224",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Ahmad Danish Bin   Kamarudin",
+        "lastName": "Kamarudin",
+        "firstName": "Ahmad Danish Bin ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Ahmad Danish Bin "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Kamarudin"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": null
+      },
+      "approveStatus": null
+    },
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/7119a314903f478682a60f3483e6ce13.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/299b6bc2209341548f58d99c9dd64150.png"
+      },
+      "createdDate": "2026-05-03T23:39:24.194+00:00",
+      "updatedDate": "2026-05-03T23:39:25.047+00:00",
+      "eodRequestId": "EOD06225",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Lim   Shu Wei",
+        "lastName": "Shu Wei",
+        "firstName": "Lim ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Lim "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Shu Wei"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": "980329140755"
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": "980329140755"
+      },
+      "approveStatus": null
+    }
+  ],
+  "shareholders": [],
+  "corporateShareholders": [
+    {
+      "id": 1142127,
+      "email": null,
+      "token": null,
+      "formId": 1015520,
+      "status": "No Match",
+      "country": null,
+      "kybType": "ACURIS",
+      "assignee": null,
+      "formName": null,
+      "createdAt": null,
+      "createdBy": null,
+      "isPrimary": false,
+      "requestId": "COD05035",
+      "updatedAt": null,
+      "deviceType": "Desktop",
+      "companyName": "Zenith Edge Holdings Sdn. Bhd.",
+      "companyType": null,
+      "expiredDate": null,
+      "formContent": {
+        "displayAreas": [
+          {
+            "content": [
+              {
+                "fieldName": "Business Name",
+                "fieldType": "text",
+                "fieldValue": "Zenith Edge Holdings Sdn. Bhd."
+              },
+              {
+                "fieldName": "% of Shares",
+                "fieldType": "number",
+                "fieldValue": "100"
+              },
+              {
+                "fieldName": "Business Number",
+                "fieldType": "text",
+                "fieldValue": "8123456E"
+              },
+              {
+                "fieldName": "Business Relationship",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Nature of Business",
+                "fieldType": "picklist-nature-of-business",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Type",
+                "fieldType": "picklist-company-type",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Size",
+                "fieldType": "picklist-company-size",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Date of Incorporation",
+                "fieldType": "date",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Incorporation",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Headquarter",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Website",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Phone Number",
+                "fieldType": "phone",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Email Address",
+                "fieldType": "email",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Address",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Reference ID (internal)",
+                "fieldType": "text",
+                "fieldValue": ""
+              }
+            ],
+            "displayArea": "Basic Information Setting"
+          }
+        ]
+      },
+      "assigneeInfo": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "approveStatus": null,
+      "directorCount": 0,
+      "lastModifiedBy": null,
+      "sendEmailStatus": null,
+      "requestIpAddress": "161.142.124.176",
+      "corporateRequestDtos": null,
+      "corporateIndividualDtos": null,
+      "corporateShareholderCount": 0,
+      "individualShareholderCount": 0
+    }
+  ]
+}
+
+director_aml_status
+{
+  "directors": [],
+  "lastSyncedAt": "2026-05-03T23:52:19.340Z",
+  "businessShareholders": [
+    {
+      "kybId": "KYB00091",
+      "amlStatus": "Pending",
+      "rawStatus": "No Match",
+      "lastUpdated": "2026-05-03T23:52:19.340Z",
+      "amlRiskLevel": null,
+      "amlRiskScore": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "codRequestId": "COD05035",
+      "sharePercentage": 100,
+      "amlMessageStatus": "DONE"
+    }
+  ]
+}
+
+director_kyc_status
+{
+  "directors": [
+    {
+      "name": "Ahmad Danish Bin  Kamarudin",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycStatus": "WAIT_FOR_APPROVAL",
+      "lastUpdated": "2026-05-03T23:59:47.878Z",
+      "eodRequestId": "EOD06224"
+    },
+    {
+      "name": "Lim  Shu Wei",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycStatus": "WAIT_FOR_APPROVAL",
+      "lastUpdated": "2026-05-04T00:02:31.242Z",
+      "eodRequestId": "EOD06225",
+      "governmentIdNumber": "980329140755"
+    }
+  ],
+  "lastSyncedAt": "2026-05-04T00:02:31.242Z",
+  "corpIndvDirectorCount": 2,
+  "corpBizShareholderCount": 1,
+  "corpIndvShareholderCount": 0
+}
+
+
+
+---
+PENDING_APPROVAL (after all checked, corporate and indidvudal)
+
+corporate_entities
+{
+  "directors": [
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/0fc6196a742746569a6a5720aa605ce2.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/ae46a7fbd9254b19babd358dc0906f4b.png"
+      },
+      "createdDate": "2026-05-03T23:38:34.075+00:00",
+      "updatedDate": "2026-05-03T23:38:34.553+00:00",
+      "eodRequestId": "EOD06224",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Ahmad Danish Bin   Kamarudin",
+        "lastName": "Kamarudin",
+        "firstName": "Ahmad Danish Bin ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Ahmad Danish Bin "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Kamarudin"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": null
+      },
+      "approveStatus": null
+    },
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/7119a314903f478682a60f3483e6ce13.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/299b6bc2209341548f58d99c9dd64150.png"
+      },
+      "createdDate": "2026-05-03T23:39:24.194+00:00",
+      "updatedDate": "2026-05-03T23:39:25.047+00:00",
+      "eodRequestId": "EOD06225",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Lim   Shu Wei",
+        "lastName": "Shu Wei",
+        "firstName": "Lim ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Lim "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Shu Wei"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": "980329140755"
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": "980329140755"
+      },
+      "approveStatus": null
+    }
+  ],
+  "shareholders": [],
+  "corporateShareholders": [
+    {
+      "id": 1142127,
+      "email": null,
+      "token": null,
+      "formId": 1015520,
+      "status": "No Match",
+      "country": null,
+      "kybType": "ACURIS",
+      "assignee": null,
+      "formName": null,
+      "createdAt": null,
+      "createdBy": null,
+      "isPrimary": false,
+      "requestId": "COD05035",
+      "updatedAt": null,
+      "deviceType": "Desktop",
+      "companyName": "Zenith Edge Holdings Sdn. Bhd.",
+      "companyType": null,
+      "expiredDate": null,
+      "formContent": {
+        "displayAreas": [
+          {
+            "content": [
+              {
+                "fieldName": "Business Name",
+                "fieldType": "text",
+                "fieldValue": "Zenith Edge Holdings Sdn. Bhd."
+              },
+              {
+                "fieldName": "% of Shares",
+                "fieldType": "number",
+                "fieldValue": "100"
+              },
+              {
+                "fieldName": "Business Number",
+                "fieldType": "text",
+                "fieldValue": "8123456E"
+              },
+              {
+                "fieldName": "Business Relationship",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Nature of Business",
+                "fieldType": "picklist-nature-of-business",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Type",
+                "fieldType": "picklist-company-type",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Size",
+                "fieldType": "picklist-company-size",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Date of Incorporation",
+                "fieldType": "date",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Incorporation",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Headquarter",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Website",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Phone Number",
+                "fieldType": "phone",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Email Address",
+                "fieldType": "email",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Address",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Reference ID (internal)",
+                "fieldType": "text",
+                "fieldValue": ""
+              }
+            ],
+            "displayArea": "Basic Information Setting"
+          }
+        ]
+      },
+      "assigneeInfo": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "approveStatus": null,
+      "directorCount": 0,
+      "lastModifiedBy": null,
+      "sendEmailStatus": null,
+      "requestIpAddress": "161.142.124.176",
+      "corporateRequestDtos": null,
+      "corporateIndividualDtos": null,
+      "corporateShareholderCount": 0,
+      "individualShareholderCount": 0
+    }
+  ]
+}
+
+director_aml_status
+{
+  "directors": [
+    {
+      "name": "Ahmad Danish Bin  Kamarudin",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00157",
+      "amlStatus": "Unresolved",
+      "lastUpdated": "2026-05-04T00:03:52.315Z",
+      "amlRiskLevel": null,
+      "amlRiskScore": null,
+      "amlMessageStatus": "DONE"
+    },
+    {
+      "name": "Lim  Shu Wei",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00158",
+      "amlStatus": "Unresolved",
+      "lastUpdated": "2026-05-04T00:03:59.447Z",
+      "amlRiskLevel": null,
+      "amlRiskScore": null,
+      "amlMessageStatus": "DONE"
+    }
+  ],
+  "lastSyncedAt": "2026-05-04T00:03:59.447Z",
+  "businessShareholders": [
+    {
+      "kybId": "KYB00091",
+      "amlStatus": "Pending",
+      "rawStatus": "No Match",
+      "lastUpdated": "2026-05-03T23:52:19.340Z",
+      "amlRiskLevel": null,
+      "amlRiskScore": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "codRequestId": "COD05035",
+      "sharePercentage": 100,
+      "amlMessageStatus": "DONE"
+    }
+  ]
+}
+
+director_kyc_status
+{
+  "directors": [
+    {
+      "name": "Ahmad Danish Bin  Kamarudin",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00157",
+      "kycStatus": "APPROVED",
+      "lastUpdated": "2026-05-04T00:03:48.700Z",
+      "eodRequestId": "EOD06224"
+    },
+    {
+      "name": "Lim  Shu Wei",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00158",
+      "kycStatus": "APPROVED",
+      "lastUpdated": "2026-05-04T00:03:56.091Z",
+      "eodRequestId": "EOD06225",
+      "governmentIdNumber": "980329140755"
+    }
+  ],
+  "lastSyncedAt": "2026-05-04T00:03:56.091Z",
+  "corpIndvDirectorCount": 2,
+  "corpBizShareholderCount": 1,
+  "corpIndvShareholderCount": 0
+}
+
+---
+PENDING_AML
+
+{
+  "directors": [
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/0fc6196a742746569a6a5720aa605ce2.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/ae46a7fbd9254b19babd358dc0906f4b.png"
+      },
+      "createdDate": "2026-05-03T23:38:34.075+00:00",
+      "updatedDate": "2026-05-03T23:38:34.553+00:00",
+      "eodRequestId": "EOD06224",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Ahmad Danish Bin   Kamarudin",
+        "lastName": "Kamarudin",
+        "firstName": "Ahmad Danish Bin ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Ahmad Danish Bin "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Kamarudin"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": null
+      },
+      "approveStatus": null
+    },
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/7119a314903f478682a60f3483e6ce13.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/299b6bc2209341548f58d99c9dd64150.png"
+      },
+      "createdDate": "2026-05-03T23:39:24.194+00:00",
+      "updatedDate": "2026-05-03T23:39:25.047+00:00",
+      "eodRequestId": "EOD06225",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Lim   Shu Wei",
+        "lastName": "Shu Wei",
+        "firstName": "Lim ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Lim "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Shu Wei"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": "980329140755"
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": "980329140755"
+      },
+      "approveStatus": null
+    }
+  ],
+  "shareholders": [],
+  "corporateShareholders": [
+    {
+      "id": 1142127,
+      "email": null,
+      "token": null,
+      "formId": 1015520,
+      "status": "No Match",
+      "country": null,
+      "kybType": "ACURIS",
+      "assignee": null,
+      "formName": null,
+      "createdAt": null,
+      "createdBy": null,
+      "isPrimary": false,
+      "requestId": "COD05035",
+      "updatedAt": null,
+      "deviceType": "Desktop",
+      "companyName": "Zenith Edge Holdings Sdn. Bhd.",
+      "companyType": null,
+      "expiredDate": null,
+      "formContent": {
+        "displayAreas": [
+          {
+            "content": [
+              {
+                "fieldName": "Business Name",
+                "fieldType": "text",
+                "fieldValue": "Zenith Edge Holdings Sdn. Bhd."
+              },
+              {
+                "fieldName": "% of Shares",
+                "fieldType": "number",
+                "fieldValue": "100"
+              },
+              {
+                "fieldName": "Business Number",
+                "fieldType": "text",
+                "fieldValue": "8123456E"
+              },
+              {
+                "fieldName": "Business Relationship",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Nature of Business",
+                "fieldType": "picklist-nature-of-business",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Type",
+                "fieldType": "picklist-company-type",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Size",
+                "fieldType": "picklist-company-size",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Date of Incorporation",
+                "fieldType": "date",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Incorporation",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Headquarter",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Website",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Phone Number",
+                "fieldType": "phone",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Email Address",
+                "fieldType": "email",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Address",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Reference ID (internal)",
+                "fieldType": "text",
+                "fieldValue": ""
+              }
+            ],
+            "displayArea": "Basic Information Setting"
+          }
+        ]
+      },
+      "assigneeInfo": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "approveStatus": null,
+      "directorCount": 0,
+      "lastModifiedBy": null,
+      "sendEmailStatus": null,
+      "requestIpAddress": "161.142.124.176",
+      "corporateRequestDtos": null,
+      "corporateIndividualDtos": null,
+      "corporateShareholderCount": 0,
+      "individualShareholderCount": 0
+    }
+  ]
+}
+
+director_aml_status
+{
+  "directors": [
+    {
+      "name": "Ahmad Danish Bin  Kamarudin",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00157",
+      "amlStatus": "Unresolved",
+      "lastUpdated": "2026-05-04T00:03:52.315Z",
+      "amlRiskLevel": null,
+      "amlRiskScore": null,
+      "amlMessageStatus": "DONE"
+    },
+    {
+      "name": "Lim  Shu Wei",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00158",
+      "amlStatus": "Unresolved",
+      "lastUpdated": "2026-05-04T00:03:59.447Z",
+      "amlRiskLevel": null,
+      "amlRiskScore": null,
+      "amlMessageStatus": "DONE"
+    }
+  ],
+  "lastSyncedAt": "2026-05-04T00:03:59.447Z",
+  "businessShareholders": [
+    {
+      "kybId": "KYB00091",
+      "amlStatus": "Pending",
+      "rawStatus": "No Match",
+      "lastUpdated": "2026-05-03T23:52:19.340Z",
+      "amlRiskLevel": null,
+      "amlRiskScore": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "codRequestId": "COD05035",
+      "sharePercentage": 100,
+      "amlMessageStatus": "DONE"
+    }
+  ]
+}
+
+director_kyc_status
+{
+  "directors": [
+    {
+      "name": "Ahmad Danish Bin  Kamarudin",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00157",
+      "kycStatus": "APPROVED",
+      "lastUpdated": "2026-05-04T00:03:48.700Z",
+      "eodRequestId": "EOD06224"
+    },
+    {
+      "name": "Lim  Shu Wei",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00158",
+      "kycStatus": "APPROVED",
+      "lastUpdated": "2026-05-04T00:03:56.091Z",
+      "eodRequestId": "EOD06225",
+      "governmentIdNumber": "980329140755"
+    }
+  ],
+  "lastSyncedAt": "2026-05-04T00:45:26.699Z",
+  "corpIndvDirectorCount": 2,
+  "corpBizShareholderCount": 1,
+  "corpIndvShareholderCount": 0
+}
+
+---
+PENDING_AML (after clicking on one indiudal director)
+
+corporate_entities
+{
+  "directors": [
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/0fc6196a742746569a6a5720aa605ce2.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/ae46a7fbd9254b19babd358dc0906f4b.png"
+      },
+      "createdDate": "2026-05-03T23:38:34.075+00:00",
+      "updatedDate": "2026-05-03T23:38:34.553+00:00",
+      "eodRequestId": "EOD06224",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Ahmad Danish Bin   Kamarudin",
+        "lastName": "Kamarudin",
+        "firstName": "Ahmad Danish Bin ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Ahmad Danish Bin "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Kamarudin"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": null
+      },
+      "approveStatus": null
+    },
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/7119a314903f478682a60f3483e6ce13.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/299b6bc2209341548f58d99c9dd64150.png"
+      },
+      "createdDate": "2026-05-03T23:39:24.194+00:00",
+      "updatedDate": "2026-05-03T23:39:25.047+00:00",
+      "eodRequestId": "EOD06225",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Lim   Shu Wei",
+        "lastName": "Shu Wei",
+        "firstName": "Lim ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Lim "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Shu Wei"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": "980329140755"
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": "980329140755"
+      },
+      "approveStatus": null
+    }
+  ],
+  "shareholders": [],
+  "corporateShareholders": [
+    {
+      "id": 1142127,
+      "email": null,
+      "token": null,
+      "formId": 1015520,
+      "status": "No Match",
+      "country": null,
+      "kybType": "ACURIS",
+      "assignee": null,
+      "formName": null,
+      "createdAt": null,
+      "createdBy": null,
+      "isPrimary": false,
+      "requestId": "COD05035",
+      "updatedAt": null,
+      "deviceType": "Desktop",
+      "companyName": "Zenith Edge Holdings Sdn. Bhd.",
+      "companyType": null,
+      "expiredDate": null,
+      "formContent": {
+        "displayAreas": [
+          {
+            "content": [
+              {
+                "fieldName": "Business Name",
+                "fieldType": "text",
+                "fieldValue": "Zenith Edge Holdings Sdn. Bhd."
+              },
+              {
+                "fieldName": "% of Shares",
+                "fieldType": "number",
+                "fieldValue": "100"
+              },
+              {
+                "fieldName": "Business Number",
+                "fieldType": "text",
+                "fieldValue": "8123456E"
+              },
+              {
+                "fieldName": "Business Relationship",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Nature of Business",
+                "fieldType": "picklist-nature-of-business",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Type",
+                "fieldType": "picklist-company-type",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Size",
+                "fieldType": "picklist-company-size",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Date of Incorporation",
+                "fieldType": "date",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Incorporation",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Headquarter",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Website",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Phone Number",
+                "fieldType": "phone",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Email Address",
+                "fieldType": "email",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Address",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Reference ID (internal)",
+                "fieldType": "text",
+                "fieldValue": ""
+              }
+            ],
+            "displayArea": "Basic Information Setting"
+          }
+        ]
+      },
+      "assigneeInfo": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "approveStatus": null,
+      "directorCount": 0,
+      "lastModifiedBy": null,
+      "sendEmailStatus": null,
+      "requestIpAddress": "161.142.124.176",
+      "corporateRequestDtos": null,
+      "corporateIndividualDtos": null,
+      "corporateShareholderCount": 0,
+      "individualShareholderCount": 0
+    }
+  ]
+}
+
+director_aml_status
+{
+  "directors": [
+    {
+      "name": "Ahmad Danish Bin  Kamarudin",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00157",
+      "amlStatus": "Unresolved",
+      "lastUpdated": "2026-05-04T00:03:52.315Z",
+      "amlRiskLevel": null,
+      "amlRiskScore": null,
+      "amlMessageStatus": "DONE"
+    },
+    {
+      "name": "Lim  Shu Wei",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00158",
+      "amlStatus": "Unresolved",
+      "lastUpdated": "2026-05-04T00:03:59.447Z",
+      "amlRiskLevel": null,
+      "amlRiskScore": null,
+      "amlMessageStatus": "DONE"
+    }
+  ],
+  "lastSyncedAt": "2026-05-04T00:03:59.447Z",
+  "businessShareholders": [
+    {
+      "kybId": "KYB00091",
+      "amlStatus": "Pending",
+      "rawStatus": "No Match",
+      "lastUpdated": "2026-05-03T23:52:19.340Z",
+      "amlRiskLevel": null,
+      "amlRiskScore": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "codRequestId": "COD05035",
+      "sharePercentage": 100,
+      "amlMessageStatus": "DONE"
+    }
+  ]
+}
+
+director_kyc_status
+{
+  "directors": [
+    {
+      "name": "Ahmad Danish Bin  Kamarudin",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00157",
+      "kycStatus": "APPROVED",
+      "lastUpdated": "2026-05-04T00:03:48.700Z",
+      "eodRequestId": "EOD06224"
+    },
+    {
+      "name": "Lim  Shu Wei",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00158",
+      "kycStatus": "APPROVED",
+      "lastUpdated": "2026-05-04T00:03:56.091Z",
+      "eodRequestId": "EOD06225",
+      "governmentIdNumber": "980329140755"
+    }
+  ],
+  "lastSyncedAt": "2026-05-04T00:45:26.699Z",
+  "corpIndvDirectorCount": 2,
+  "corpBizShareholderCount": 1,
+  "corpIndvShareholderCount": 0
+}
+
+---
+PENDING_AML (after approve first stage aml)
+
+corporate_entities
+{
+  "directors": [
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/0fc6196a742746569a6a5720aa605ce2.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/ae46a7fbd9254b19babd358dc0906f4b.png"
+      },
+      "createdDate": "2026-05-03T23:38:34.075+00:00",
+      "updatedDate": "2026-05-03T23:38:34.553+00:00",
+      "eodRequestId": "EOD06224",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Ahmad Danish Bin   Kamarudin",
+        "lastName": "Kamarudin",
+        "firstName": "Ahmad Danish Bin ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Ahmad Danish Bin "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Kamarudin"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": null
+      },
+      "approveStatus": null
+    },
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/7119a314903f478682a60f3483e6ce13.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/299b6bc2209341548f58d99c9dd64150.png"
+      },
+      "createdDate": "2026-05-03T23:39:24.194+00:00",
+      "updatedDate": "2026-05-03T23:39:25.047+00:00",
+      "eodRequestId": "EOD06225",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Lim   Shu Wei",
+        "lastName": "Shu Wei",
+        "firstName": "Lim ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Lim "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Shu Wei"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": "980329140755"
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": "980329140755"
+      },
+      "approveStatus": null
+    }
+  ],
+  "shareholders": [],
+  "corporateShareholders": [
+    {
+      "id": 1142127,
+      "email": null,
+      "token": null,
+      "formId": 1015520,
+      "status": "No Match",
+      "country": null,
+      "kybType": "ACURIS",
+      "assignee": null,
+      "formName": null,
+      "createdAt": null,
+      "createdBy": null,
+      "isPrimary": false,
+      "requestId": "COD05035",
+      "updatedAt": null,
+      "deviceType": "Desktop",
+      "companyName": "Zenith Edge Holdings Sdn. Bhd.",
+      "companyType": null,
+      "expiredDate": null,
+      "formContent": {
+        "displayAreas": [
+          {
+            "content": [
+              {
+                "fieldName": "Business Name",
+                "fieldType": "text",
+                "fieldValue": "Zenith Edge Holdings Sdn. Bhd."
+              },
+              {
+                "fieldName": "% of Shares",
+                "fieldType": "number",
+                "fieldValue": "100"
+              },
+              {
+                "fieldName": "Business Number",
+                "fieldType": "text",
+                "fieldValue": "8123456E"
+              },
+              {
+                "fieldName": "Business Relationship",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Nature of Business",
+                "fieldType": "picklist-nature-of-business",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Type",
+                "fieldType": "picklist-company-type",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Size",
+                "fieldType": "picklist-company-size",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Date of Incorporation",
+                "fieldType": "date",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Incorporation",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Headquarter",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Website",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Phone Number",
+                "fieldType": "phone",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Email Address",
+                "fieldType": "email",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Address",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Reference ID (internal)",
+                "fieldType": "text",
+                "fieldValue": ""
+              }
+            ],
+            "displayArea": "Basic Information Setting"
+          }
+        ]
+      },
+      "assigneeInfo": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "approveStatus": null,
+      "directorCount": 0,
+      "lastModifiedBy": null,
+      "sendEmailStatus": null,
+      "requestIpAddress": "161.142.124.176",
+      "corporateRequestDtos": null,
+      "corporateIndividualDtos": null,
+      "corporateShareholderCount": 0,
+      "individualShareholderCount": 0
+    }
+  ]
+}
+
+director_aml_status
+{
+  "directors": [
+    {
+      "name": "Ahmad Danish Bin  Kamarudin",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00157",
+      "amlStatus": "Unresolved",
+      "lastUpdated": "2026-05-04T00:03:52.315Z",
+      "amlRiskLevel": null,
+      "amlRiskScore": null,
+      "amlMessageStatus": "DONE"
+    },
+    {
+      "name": "Lim  Shu Wei",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00158",
+      "amlStatus": "Pending",
+      "lastUpdated": "2026-05-04T00:49:13.428Z",
+      "amlRiskLevel": "High Risk",
+      "amlRiskScore": 28.4,
+      "eodRequestId": "EOD06225",
+      "amlMessageStatus": "DONE"
+    }
+  ],
+  "lastSyncedAt": "2026-05-04T00:49:13.428Z",
+  "businessShareholders": [
+    {
+      "kybId": "KYB00091",
+      "amlStatus": "Pending",
+      "rawStatus": "No Match",
+      "lastUpdated": "2026-05-03T23:52:19.340Z",
+      "amlRiskLevel": null,
+      "amlRiskScore": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "codRequestId": "COD05035",
+      "sharePercentage": 100,
+      "amlMessageStatus": "DONE"
+    }
+  ]
+}
+
+director_kyc_status
+{
+  "directors": [
+    {
+      "name": "Ahmad Danish Bin  Kamarudin",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00157",
+      "kycStatus": "APPROVED",
+      "lastUpdated": "2026-05-04T00:03:48.700Z",
+      "eodRequestId": "EOD06224"
+    },
+    {
+      "name": "Lim  Shu Wei",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00158",
+      "kycStatus": "APPROVED",
+      "lastUpdated": "2026-05-04T00:03:56.091Z",
+      "eodRequestId": "EOD06225",
+      "governmentIdNumber": "980329140755"
+    }
+  ],
+  "lastSyncedAt": "2026-05-04T00:45:26.699Z",
+  "corpIndvDirectorCount": 2,
+  "corpBizShareholderCount": 1,
+  "corpIndvShareholderCount": 0
+}
+
+---
+PENDING_AML (after approve the second stage of aml)
+
+corporate_entites
+{
+  "directors": [
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/0fc6196a742746569a6a5720aa605ce2.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/ae46a7fbd9254b19babd358dc0906f4b.png"
+      },
+      "createdDate": "2026-05-03T23:38:34.075+00:00",
+      "updatedDate": "2026-05-03T23:38:34.553+00:00",
+      "eodRequestId": "EOD06224",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Ahmad Danish Bin   Kamarudin",
+        "lastName": "Kamarudin",
+        "firstName": "Ahmad Danish Bin ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Ahmad Danish Bin "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Kamarudin"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": null
+      },
+      "approveStatus": null
+    },
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/7119a314903f478682a60f3483e6ce13.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/299b6bc2209341548f58d99c9dd64150.png"
+      },
+      "createdDate": "2026-05-03T23:39:24.194+00:00",
+      "updatedDate": "2026-05-03T23:39:25.047+00:00",
+      "eodRequestId": "EOD06225",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Lim   Shu Wei",
+        "lastName": "Shu Wei",
+        "firstName": "Lim ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Lim "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Shu Wei"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": "980329140755"
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": "980329140755"
+      },
+      "approveStatus": null
+    }
+  ],
+  "shareholders": [],
+  "corporateShareholders": [
+    {
+      "id": 1142127,
+      "email": null,
+      "token": null,
+      "formId": 1015520,
+      "status": "No Match",
+      "country": null,
+      "kybType": "ACURIS",
+      "assignee": null,
+      "formName": null,
+      "createdAt": null,
+      "createdBy": null,
+      "isPrimary": false,
+      "requestId": "COD05035",
+      "updatedAt": null,
+      "deviceType": "Desktop",
+      "companyName": "Zenith Edge Holdings Sdn. Bhd.",
+      "companyType": null,
+      "expiredDate": null,
+      "formContent": {
+        "displayAreas": [
+          {
+            "content": [
+              {
+                "fieldName": "Business Name",
+                "fieldType": "text",
+                "fieldValue": "Zenith Edge Holdings Sdn. Bhd."
+              },
+              {
+                "fieldName": "% of Shares",
+                "fieldType": "number",
+                "fieldValue": "100"
+              },
+              {
+                "fieldName": "Business Number",
+                "fieldType": "text",
+                "fieldValue": "8123456E"
+              },
+              {
+                "fieldName": "Business Relationship",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Nature of Business",
+                "fieldType": "picklist-nature-of-business",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Type",
+                "fieldType": "picklist-company-type",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Size",
+                "fieldType": "picklist-company-size",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Date of Incorporation",
+                "fieldType": "date",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Incorporation",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Headquarter",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Website",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Phone Number",
+                "fieldType": "phone",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Email Address",
+                "fieldType": "email",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Address",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Reference ID (internal)",
+                "fieldType": "text",
+                "fieldValue": ""
+              }
+            ],
+            "displayArea": "Basic Information Setting"
+          }
+        ]
+      },
+      "assigneeInfo": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "approveStatus": null,
+      "directorCount": 0,
+      "lastModifiedBy": null,
+      "sendEmailStatus": null,
+      "requestIpAddress": "161.142.124.176",
+      "corporateRequestDtos": null,
+      "corporateIndividualDtos": null,
+      "corporateShareholderCount": 0,
+      "individualShareholderCount": 0
+    }
+  ]
+}
+
+director_aml_status
+{
+  "directors": [
+    {
+      "name": "Ahmad Danish Bin  Kamarudin",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00157",
+      "amlStatus": "Unresolved",
+      "lastUpdated": "2026-05-04T00:03:52.315Z",
+      "amlRiskLevel": null,
+      "amlRiskScore": null,
+      "amlMessageStatus": "DONE"
+    },
+    {
+      "name": "Lim  Shu Wei",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00158",
+      "amlStatus": "Approved",
+      "lastUpdated": "2026-05-04T00:50:56.923Z",
+      "amlRiskLevel": "High Risk",
+      "amlRiskScore": 28.4,
+      "eodRequestId": "EOD06225",
+      "amlMessageStatus": "DONE"
+    }
+  ],
+  "lastSyncedAt": "2026-05-04T00:50:56.923Z",
+  "businessShareholders": [
+    {
+      "kybId": "KYB00091",
+      "amlStatus": "Pending",
+      "rawStatus": "No Match",
+      "lastUpdated": "2026-05-03T23:52:19.340Z",
+      "amlRiskLevel": null,
+      "amlRiskScore": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "codRequestId": "COD05035",
+      "sharePercentage": 100,
+      "amlMessageStatus": "DONE"
+    }
+  ]
+}
+
+director_kyc_status
+{
+  "directors": [
+    {
+      "name": "Ahmad Danish Bin  Kamarudin",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00157",
+      "kycStatus": "APPROVED",
+      "lastUpdated": "2026-05-04T00:03:48.700Z",
+      "eodRequestId": "EOD06224"
+    },
+    {
+      "name": "Lim  Shu Wei",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00158",
+      "kycStatus": "APPROVED",
+      "lastUpdated": "2026-05-04T00:03:56.091Z",
+      "eodRequestId": "EOD06225",
+      "governmentIdNumber": "980329140755"
+    }
+  ],
+  "lastSyncedAt": "2026-05-04T00:45:26.699Z",
+  "corpIndvDirectorCount": 2,
+  "corpBizShareholderCount": 1,
+  "corpIndvShareholderCount": 0
+}
+
+
+---
+PENDING_AML (after terminate one at first stage indidudal)
+{
+  "directors": [
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/0fc6196a742746569a6a5720aa605ce2.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/ae46a7fbd9254b19babd358dc0906f4b.png"
+      },
+      "createdDate": "2026-05-03T23:38:34.075+00:00",
+      "updatedDate": "2026-05-03T23:38:34.553+00:00",
+      "eodRequestId": "EOD06224",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Ahmad Danish Bin   Kamarudin",
+        "lastName": "Kamarudin",
+        "firstName": "Ahmad Danish Bin ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Ahmad Danish Bin "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Kamarudin"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": null
+      },
+      "approveStatus": null
+    },
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/7119a314903f478682a60f3483e6ce13.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/299b6bc2209341548f58d99c9dd64150.png"
+      },
+      "createdDate": "2026-05-03T23:39:24.194+00:00",
+      "updatedDate": "2026-05-03T23:39:25.047+00:00",
+      "eodRequestId": "EOD06225",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Lim   Shu Wei",
+        "lastName": "Shu Wei",
+        "firstName": "Lim ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Lim "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Shu Wei"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": "980329140755"
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": "980329140755"
+      },
+      "approveStatus": null
+    }
+  ],
+  "shareholders": [],
+  "corporateShareholders": [
+    {
+      "id": 1142127,
+      "email": null,
+      "token": null,
+      "formId": 1015520,
+      "status": "No Match",
+      "country": null,
+      "kybType": "ACURIS",
+      "assignee": null,
+      "formName": null,
+      "createdAt": null,
+      "createdBy": null,
+      "isPrimary": false,
+      "requestId": "COD05035",
+      "updatedAt": null,
+      "deviceType": "Desktop",
+      "companyName": "Zenith Edge Holdings Sdn. Bhd.",
+      "companyType": null,
+      "expiredDate": null,
+      "formContent": {
+        "displayAreas": [
+          {
+            "content": [
+              {
+                "fieldName": "Business Name",
+                "fieldType": "text",
+                "fieldValue": "Zenith Edge Holdings Sdn. Bhd."
+              },
+              {
+                "fieldName": "% of Shares",
+                "fieldType": "number",
+                "fieldValue": "100"
+              },
+              {
+                "fieldName": "Business Number",
+                "fieldType": "text",
+                "fieldValue": "8123456E"
+              },
+              {
+                "fieldName": "Business Relationship",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Nature of Business",
+                "fieldType": "picklist-nature-of-business",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Type",
+                "fieldType": "picklist-company-type",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Size",
+                "fieldType": "picklist-company-size",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Date of Incorporation",
+                "fieldType": "date",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Incorporation",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Headquarter",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Website",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Phone Number",
+                "fieldType": "phone",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Email Address",
+                "fieldType": "email",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Address",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Reference ID (internal)",
+                "fieldType": "text",
+                "fieldValue": ""
+              }
+            ],
+            "displayArea": "Basic Information Setting"
+          }
+        ]
+      },
+      "assigneeInfo": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "approveStatus": null,
+      "directorCount": 0,
+      "lastModifiedBy": null,
+      "sendEmailStatus": null,
+      "requestIpAddress": "161.142.124.176",
+      "corporateRequestDtos": null,
+      "corporateIndividualDtos": null,
+      "corporateShareholderCount": 0,
+      "individualShareholderCount": 0
+    }
+  ]
+}
+
+director_aml_status
+{
+  "directors": [
+    {
+      "name": "Ahmad Danish Bin  Kamarudin",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00157",
+      "amlStatus": "Rejected",
+      "lastUpdated": "2026-05-04T00:53:18.237Z",
+      "amlRiskLevel": null,
+      "amlRiskScore": null,
+      "eodRequestId": "EOD06224",
+      "amlMessageStatus": "DONE"
+    },
+    {
+      "name": "Lim  Shu Wei",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00158",
+      "amlStatus": "Approved",
+      "lastUpdated": "2026-05-04T00:50:56.923Z",
+      "amlRiskLevel": "High Risk",
+      "amlRiskScore": 28.4,
+      "eodRequestId": "EOD06225",
+      "amlMessageStatus": "DONE"
+    }
+  ],
+  "lastSyncedAt": "2026-05-04T00:53:18.237Z",
+  "businessShareholders": [
+    {
+      "kybId": "KYB00091",
+      "amlStatus": "Pending",
+      "rawStatus": "No Match",
+      "lastUpdated": "2026-05-03T23:52:19.340Z",
+      "amlRiskLevel": null,
+      "amlRiskScore": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "codRequestId": "COD05035",
+      "sharePercentage": 100,
+      "amlMessageStatus": "DONE"
+    }
+  ]
+}
+
+director_kyc_state
+{
+  "directors": [
+    {
+      "name": "Ahmad Danish Bin  Kamarudin",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00157",
+      "kycStatus": "APPROVED",
+      "lastUpdated": "2026-05-04T00:03:48.700Z",
+      "eodRequestId": "EOD06224"
+    },
+    {
+      "name": "Lim  Shu Wei",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00158",
+      "kycStatus": "APPROVED",
+      "lastUpdated": "2026-05-04T00:03:56.091Z",
+      "eodRequestId": "EOD06225",
+      "governmentIdNumber": "980329140755"
+    }
+  ],
+  "lastSyncedAt": "2026-05-04T00:45:26.699Z",
+  "corpIndvDirectorCount": 2,
+  "corpBizShareholderCount": 1,
+  "corpIndvShareholderCount": 0
+}
+
+
+---
+PENDING_AML (after approve first stage of business shareholder)
+{
+  "directors": [
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/0fc6196a742746569a6a5720aa605ce2.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/ae46a7fbd9254b19babd358dc0906f4b.png"
+      },
+      "createdDate": "2026-05-03T23:38:34.075+00:00",
+      "updatedDate": "2026-05-03T23:38:34.553+00:00",
+      "eodRequestId": "EOD06224",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Ahmad Danish Bin   Kamarudin",
+        "lastName": "Kamarudin",
+        "firstName": "Ahmad Danish Bin ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Ahmad Danish Bin "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Kamarudin"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": null
+      },
+      "approveStatus": null
+    },
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/7119a314903f478682a60f3483e6ce13.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/299b6bc2209341548f58d99c9dd64150.png"
+      },
+      "createdDate": "2026-05-03T23:39:24.194+00:00",
+      "updatedDate": "2026-05-03T23:39:25.047+00:00",
+      "eodRequestId": "EOD06225",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Lim   Shu Wei",
+        "lastName": "Shu Wei",
+        "firstName": "Lim ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Lim "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Shu Wei"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": "980329140755"
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": "980329140755"
+      },
+      "approveStatus": null
+    }
+  ],
+  "shareholders": [],
+  "corporateShareholders": [
+    {
+      "id": 1142127,
+      "email": null,
+      "token": null,
+      "formId": 1015520,
+      "status": "No Match",
+      "country": null,
+      "kybType": "ACURIS",
+      "assignee": null,
+      "formName": null,
+      "createdAt": null,
+      "createdBy": null,
+      "isPrimary": false,
+      "requestId": "COD05035",
+      "updatedAt": null,
+      "deviceType": "Desktop",
+      "companyName": "Zenith Edge Holdings Sdn. Bhd.",
+      "companyType": null,
+      "expiredDate": null,
+      "formContent": {
+        "displayAreas": [
+          {
+            "content": [
+              {
+                "fieldName": "Business Name",
+                "fieldType": "text",
+                "fieldValue": "Zenith Edge Holdings Sdn. Bhd."
+              },
+              {
+                "fieldName": "% of Shares",
+                "fieldType": "number",
+                "fieldValue": "100"
+              },
+              {
+                "fieldName": "Business Number",
+                "fieldType": "text",
+                "fieldValue": "8123456E"
+              },
+              {
+                "fieldName": "Business Relationship",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Nature of Business",
+                "fieldType": "picklist-nature-of-business",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Type",
+                "fieldType": "picklist-company-type",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Size",
+                "fieldType": "picklist-company-size",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Date of Incorporation",
+                "fieldType": "date",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Incorporation",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Headquarter",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Website",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Phone Number",
+                "fieldType": "phone",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Email Address",
+                "fieldType": "email",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Address",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Reference ID (internal)",
+                "fieldType": "text",
+                "fieldValue": ""
+              }
+            ],
+            "displayArea": "Basic Information Setting"
+          }
+        ]
+      },
+      "assigneeInfo": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "approveStatus": null,
+      "directorCount": 0,
+      "lastModifiedBy": null,
+      "sendEmailStatus": null,
+      "requestIpAddress": "161.142.124.176",
+      "corporateRequestDtos": null,
+      "corporateIndividualDtos": null,
+      "corporateShareholderCount": 0,
+      "individualShareholderCount": 0
+    }
+  ]
+}
+
+director_aml_status
+{
+  "directors": [
+    {
+      "name": "Ahmad Danish Bin  Kamarudin",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00157",
+      "amlStatus": "Rejected",
+      "lastUpdated": "2026-05-04T00:53:18.237Z",
+      "amlRiskLevel": null,
+      "amlRiskScore": null,
+      "eodRequestId": "EOD06224",
+      "amlMessageStatus": "DONE"
+    },
+    {
+      "name": "Lim  Shu Wei",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00158",
+      "amlStatus": "Approved",
+      "lastUpdated": "2026-05-04T00:50:56.923Z",
+      "amlRiskLevel": "High Risk",
+      "amlRiskScore": 28.4,
+      "eodRequestId": "EOD06225",
+      "amlMessageStatus": "DONE"
+    }
+  ],
+  "lastSyncedAt": "2026-05-04T00:54:55.059Z",
+  "businessShareholders": [
+    {
+      "kybId": "KYB00091",
+      "amlStatus": "Pending",
+      "rawStatus": "No Match",
+      "lastUpdated": "2026-05-04T00:54:55.059Z",
+      "amlRiskLevel": null,
+      "amlRiskScore": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "codRequestId": "COD05035",
+      "sharePercentage": 100,
+      "amlMessageStatus": "DONE"
+    }
+  ]
+}
+
+director_kyc_status
+{
+  "directors": [
+    {
+      "name": "Ahmad Danish Bin  Kamarudin",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00157",
+      "kycStatus": "APPROVED",
+      "lastUpdated": "2026-05-04T00:03:48.700Z",
+      "eodRequestId": "EOD06224"
+    },
+    {
+      "name": "Lim  Shu Wei",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00158",
+      "kycStatus": "APPROVED",
+      "lastUpdated": "2026-05-04T00:03:56.091Z",
+      "eodRequestId": "EOD06225",
+      "governmentIdNumber": "980329140755"
+    }
+  ],
+  "lastSyncedAt": "2026-05-04T00:45:26.699Z",
+  "corpIndvDirectorCount": 2,
+  "corpBizShareholderCount": 1,
+  "corpIndvShareholderCount": 0
+}
+
+---
+PENDING_AML (after generate score fo rbusiness)
+
+corporate_entities
+{
+  "directors": [
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/0fc6196a742746569a6a5720aa605ce2.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/ae46a7fbd9254b19babd358dc0906f4b.png"
+      },
+      "createdDate": "2026-05-03T23:38:34.075+00:00",
+      "updatedDate": "2026-05-03T23:38:34.553+00:00",
+      "eodRequestId": "EOD06224",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Ahmad Danish Bin   Kamarudin",
+        "lastName": "Kamarudin",
+        "firstName": "Ahmad Danish Bin ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Ahmad Danish Bin "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Kamarudin"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": null
+      },
+      "approveStatus": null
+    },
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/7119a314903f478682a60f3483e6ce13.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/299b6bc2209341548f58d99c9dd64150.png"
+      },
+      "createdDate": "2026-05-03T23:39:24.194+00:00",
+      "updatedDate": "2026-05-03T23:39:25.047+00:00",
+      "eodRequestId": "EOD06225",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Lim   Shu Wei",
+        "lastName": "Shu Wei",
+        "firstName": "Lim ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Lim "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Shu Wei"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": "980329140755"
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": "980329140755"
+      },
+      "approveStatus": null
+    }
+  ],
+  "shareholders": [],
+  "corporateShareholders": [
+    {
+      "id": 1142127,
+      "email": null,
+      "token": null,
+      "formId": 1015520,
+      "status": "Risk Assessed",
+      "country": null,
+      "kybType": "ACURIS",
+      "assignee": null,
+      "formName": null,
+      "createdAt": null,
+      "createdBy": null,
+      "isPrimary": false,
+      "requestId": "COD05035",
+      "updatedAt": null,
+      "deviceType": "Desktop",
+      "companyName": "Zenith Edge Holdings Sdn. Bhd.",
+      "companyType": null,
+      "expiredDate": null,
+      "formContent": {
+        "displayAreas": [
+          {
+            "content": [
+              {
+                "fieldName": "Business Name",
+                "fieldType": "text",
+                "fieldValue": "Zenith Edge Holdings Sdn. Bhd."
+              },
+              {
+                "fieldName": "% of Shares",
+                "fieldType": "number",
+                "fieldValue": "100"
+              },
+              {
+                "fieldName": "Business Number",
+                "fieldType": "text",
+                "fieldValue": "8123456E"
+              },
+              {
+                "fieldName": "Business Relationship",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Nature of Business",
+                "fieldType": "picklist-nature-of-business",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Type",
+                "fieldType": "picklist-company-type",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Size",
+                "fieldType": "picklist-company-size",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Date of Incorporation",
+                "fieldType": "date",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Incorporation",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Headquarter",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Website",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Phone Number",
+                "fieldType": "phone",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Email Address",
+                "fieldType": "email",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Address",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Reference ID (internal)",
+                "fieldType": "text",
+                "fieldValue": ""
+              }
+            ],
+            "displayArea": "Basic Information Setting"
+          }
+        ]
+      },
+      "assigneeInfo": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "approveStatus": null,
+      "directorCount": 0,
+      "lastModifiedBy": null,
+      "sendEmailStatus": null,
+      "requestIpAddress": "161.142.124.176",
+      "corporateRequestDtos": null,
+      "corporateIndividualDtos": null,
+      "corporateShareholderCount": 0,
+      "individualShareholderCount": 0
+    }
+  ]
+}
+
+director_aml_status
+{
+  "directors": [
+    {
+      "name": "Ahmad Danish Bin  Kamarudin",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00157",
+      "amlStatus": "Rejected",
+      "lastUpdated": "2026-05-04T00:53:18.237Z",
+      "amlRiskLevel": null,
+      "amlRiskScore": null,
+      "eodRequestId": "EOD06224",
+      "amlMessageStatus": "DONE"
+    },
+    {
+      "name": "Lim  Shu Wei",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00158",
+      "amlStatus": "Approved",
+      "lastUpdated": "2026-05-04T00:50:56.923Z",
+      "amlRiskLevel": "High Risk",
+      "amlRiskScore": 28.4,
+      "eodRequestId": "EOD06225",
+      "amlMessageStatus": "DONE"
+    }
+  ],
+  "lastSyncedAt": "2026-05-04T00:56:11.986Z",
+  "businessShareholders": [
+    {
+      "kybId": "KYB00091",
+      "amlStatus": "Approved",
+      "rawStatus": "Risk Assessed",
+      "lastUpdated": "2026-05-04T00:56:11.986Z",
+      "amlRiskLevel": "Low Risk",
+      "amlRiskScore": 24,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "codRequestId": "COD05035",
+      "sharePercentage": 100,
+      "amlMessageStatus": "DONE"
+    }
+  ]
+}
+
+director_kyc_status
+{
+  "directors": [
+    {
+      "name": "Ahmad Danish Bin  Kamarudin",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00157",
+      "kycStatus": "APPROVED",
+      "lastUpdated": "2026-05-04T00:03:48.700Z",
+      "eodRequestId": "EOD06224"
+    },
+    {
+      "name": "Lim  Shu Wei",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00158",
+      "kycStatus": "APPROVED",
+      "lastUpdated": "2026-05-04T00:03:56.091Z",
+      "eodRequestId": "EOD06225",
+      "governmentIdNumber": "980329140755"
+    }
+  ],
+  "lastSyncedAt": "2026-05-04T00:45:26.699Z",
+  "corpIndvDirectorCount": 2,
+  "corpBizShareholderCount": 1,
+  "corpIndvShareholderCount": 0
+}
+
+
+---
+PENDING_AML (after reject the score for business)
+
+corporate_entities
+{
+  "directors": [
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/0fc6196a742746569a6a5720aa605ce2.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/ae46a7fbd9254b19babd358dc0906f4b.png"
+      },
+      "createdDate": "2026-05-03T23:38:34.075+00:00",
+      "updatedDate": "2026-05-03T23:38:34.553+00:00",
+      "eodRequestId": "EOD06224",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Ahmad Danish Bin   Kamarudin",
+        "lastName": "Kamarudin",
+        "firstName": "Ahmad Danish Bin ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Ahmad Danish Bin "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Kamarudin"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": null
+      },
+      "approveStatus": null
+    },
+    {
+      "status": "ID_UPLOADED",
+      "kycType": "ACURIS",
+      "documents": {
+        "ocrStatus": "PROCESSING",
+        "countryCode": null,
+        "documentType": "Identity",
+        "backDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/7119a314903f478682a60f3483e6ce13.png",
+        "frontDocumentUrl": "https://shoraka-trial-onboarding-proxy.regtank.com/downloadFile?fullPath=prod/userportal/Client-00391/COD05034/document/299b6bc2209341548f58d99c9dd64150.png"
+      },
+      "createdDate": "2026-05-03T23:39:24.194+00:00",
+      "updatedDate": "2026-05-03T23:39:25.047+00:00",
+      "eodRequestId": "EOD06225",
+      "personalInfo": {
+        "email": "max.chng@malcan.io",
+        "fullName": "Lim   Shu Wei",
+        "lastName": "Shu Wei",
+        "firstName": "Lim ",
+        "middleName": null,
+        "formContent": {
+          "content": [
+            {
+              "fieldName": "First Name",
+              "fieldType": "text",
+              "fieldValue": "Lim "
+            },
+            {
+              "fieldName": "Middle Name",
+              "fieldType": "text",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Last Name",
+              "fieldType": "text",
+              "fieldValue": "Shu Wei"
+            },
+            {
+              "fieldName": "Designation",
+              "fieldType": "picklist",
+              "fieldValue": "Director"
+            },
+            {
+              "fieldName": "Email Address",
+              "fieldType": "email",
+              "fieldValue": "max.chng@malcan.io"
+            },
+            {
+              "fieldName": "Gender",
+              "fieldType": "picklist",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Date of Birth",
+              "fieldType": "date",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Place of Birth",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Government ID Number",
+              "fieldType": "text",
+              "fieldValue": "980329140755"
+            },
+            {
+              "fieldName": "ID Issuing Country",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Nationality",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            },
+            {
+              "fieldName": "Country of Residence",
+              "fieldType": "picklist-country",
+              "fieldValue": ""
+            }
+          ]
+        },
+        "governmentIdNumber": "980329140755"
+      },
+      "approveStatus": null
+    }
+  ],
+  "shareholders": [],
+  "corporateShareholders": [
+    {
+      "id": 1142127,
+      "email": null,
+      "token": null,
+      "formId": 1015520,
+      "status": "Rejected",
+      "country": null,
+      "kybType": "ACURIS",
+      "assignee": null,
+      "formName": null,
+      "createdAt": null,
+      "createdBy": null,
+      "isPrimary": false,
+      "requestId": "COD05035",
+      "updatedAt": null,
+      "deviceType": "Desktop",
+      "companyName": "Zenith Edge Holdings Sdn. Bhd.",
+      "companyType": null,
+      "expiredDate": null,
+      "formContent": {
+        "displayAreas": [
+          {
+            "content": [
+              {
+                "fieldName": "Business Name",
+                "fieldType": "text",
+                "fieldValue": "Zenith Edge Holdings Sdn. Bhd."
+              },
+              {
+                "fieldName": "% of Shares",
+                "fieldType": "number",
+                "fieldValue": "100"
+              },
+              {
+                "fieldName": "Business Number",
+                "fieldType": "text",
+                "fieldValue": "8123456E"
+              },
+              {
+                "fieldName": "Business Relationship",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Nature of Business",
+                "fieldType": "picklist-nature-of-business",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Type",
+                "fieldType": "picklist-company-type",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Company Size",
+                "fieldType": "picklist-company-size",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Date of Incorporation",
+                "fieldType": "date",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Incorporation",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Country of Headquarter",
+                "fieldType": "picklist-country",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Website",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Phone Number",
+                "fieldType": "phone",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Email Address",
+                "fieldType": "email",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Address",
+                "fieldType": "text",
+                "fieldValue": ""
+              },
+              {
+                "fieldName": "Reference ID (internal)",
+                "fieldType": "text",
+                "fieldValue": ""
+              }
+            ],
+            "displayArea": "Basic Information Setting"
+          }
+        ]
+      },
+      "assigneeInfo": null,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "approveStatus": null,
+      "directorCount": 0,
+      "lastModifiedBy": null,
+      "sendEmailStatus": null,
+      "requestIpAddress": "161.142.124.176",
+      "corporateRequestDtos": null,
+      "corporateIndividualDtos": null,
+      "corporateShareholderCount": 0,
+      "individualShareholderCount": 0
+    }
+  ]
+}
+
+director_aml_status
+{
+  "directors": [
+    {
+      "name": "Ahmad Danish Bin  Kamarudin",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00157",
+      "amlStatus": "Rejected",
+      "lastUpdated": "2026-05-04T00:53:18.237Z",
+      "amlRiskLevel": null,
+      "amlRiskScore": null,
+      "eodRequestId": "EOD06224",
+      "amlMessageStatus": "DONE"
+    },
+    {
+      "name": "Lim  Shu Wei",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00158",
+      "amlStatus": "Approved",
+      "lastUpdated": "2026-05-04T00:50:56.923Z",
+      "amlRiskLevel": "High Risk",
+      "amlRiskScore": 28.4,
+      "eodRequestId": "EOD06225",
+      "amlMessageStatus": "DONE"
+    }
+  ],
+  "lastSyncedAt": "2026-05-04T00:58:10.508Z",
+  "businessShareholders": [
+    {
+      "kybId": "KYB00091",
+      "amlStatus": "Rejected",
+      "rawStatus": "Rejected",
+      "lastUpdated": "2026-05-04T00:58:10.508Z",
+      "amlRiskLevel": "Low Risk",
+      "amlRiskScore": 24,
+      "businessName": "Zenith Edge Holdings Sdn. Bhd.",
+      "codRequestId": "COD05035",
+      "sharePercentage": 100,
+      "amlMessageStatus": "DONE"
+    }
+  ]
+}
+
+director_kyc_status
+{
+  "directors": [
+    {
+      "name": "Ahmad Danish Bin  Kamarudin",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00157",
+      "kycStatus": "APPROVED",
+      "lastUpdated": "2026-05-04T00:03:48.700Z",
+      "eodRequestId": "EOD06224"
+    },
+    {
+      "name": "Lim  Shu Wei",
+      "role": "Director",
+      "email": "max.chng@malcan.io",
+      "kycId": "KYC00158",
+      "kycStatus": "APPROVED",
+      "lastUpdated": "2026-05-04T00:03:56.091Z",
+      "eodRequestId": "EOD06225",
+      "governmentIdNumber": "980329140755"
+    }
+  ],
+  "lastSyncedAt": "2026-05-04T00:45:26.699Z",
+  "corpIndvDirectorCount": 2,
+  "corpBizShareholderCount": 1,
+  "corpIndvShareholderCount": 0
+}

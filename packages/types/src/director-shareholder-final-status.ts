@@ -36,6 +36,8 @@ export function getFinalStatusLabel(person: {
         "PENDING_APPROVAL",
         "UNDER_REVIEW",
         "RISK_ASSESSED",
+        "PENDING",
+        "UNRESOLVED",
       ].includes(s)
     )
   ) {
@@ -45,7 +47,6 @@ export function getFinalStatusLabel(person: {
   if (
     statuses.some((s) =>
       [
-        "PENDING",
         "IN_PROGRESS",
         "PROCESSING",
         "ID_UPLOADED",
