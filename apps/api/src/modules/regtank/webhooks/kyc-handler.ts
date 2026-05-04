@@ -636,22 +636,27 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
           return;
         }
 
-        // Find the director by eodRequestId first (more reliable), then by kycId
+        // Match director row: primary EOD (liveness), shareholder EOD (RegTank may webhook the shareholder flow only), then kycId
         let directorIndex = directorKycStatus.directors.findIndex(
-          (d: any) => d.eodRequestId === eodRequestId
+          (d: { eodRequestId?: string }) => d.eodRequestId === eodRequestId
         );
 
         if (directorIndex === -1) {
-          // Fallback: try to find by kycId
           directorIndex = directorKycStatus.directors.findIndex(
-            (d: any) => d.kycId === requestId
+            (d: { shareholderEodRequestId?: string }) => d.shareholderEodRequestId === eodRequestId
+          );
+        }
+
+        if (directorIndex === -1) {
+          directorIndex = directorKycStatus.directors.findIndex(
+            (d: { kycId?: string }) => d.kycId === requestId
           );
         }
 
         if (directorIndex === -1) {
           logger.warn(
             { eodRequestId, kycRequestId: requestId, organizationId },
-            "[KYC Webhook] Director not found in director_kyc_status by eodRequestId or kycId, skipping AML status update"
+            "[KYC Webhook] Director not found in director_kyc_status by eodRequestId, shareholderEodRequestId, or kycId, skipping AML status update"
           );
           return;
         }
@@ -696,14 +701,20 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
           directorAmlStatus.directors = [];
         }
 
-        // Find or create AML status entry for this director (match by kycId or eodRequestId)
+        // Find or create AML row: same keys as director_kyc (KYC id, director EOD, shareholder EOD)
         const amlIndex = directorAmlStatus.directors.findIndex(
-          (d: any) => d.kycId === requestId || d.eodRequestId === eodRequestId
+          (d: { kycId?: string; eodRequestId?: string; shareholderEodRequestId?: string }) =>
+            d.kycId === requestId ||
+            d.eodRequestId === eodRequestId ||
+            d.shareholderEodRequestId === eodRequestId
         );
 
-        const amlEntry = {
+        const primaryEod = String((director as { eodRequestId?: string }).eodRequestId ?? "").trim();
+        const shareholderEod = String((director as { shareholderEodRequestId?: string }).shareholderEodRequestId ?? "").trim();
+        const amlEntry: Record<string, unknown> = {
           kycId: requestId,
-          eodRequestId: eodRequestId,
+          eodRequestId: primaryEod || eodRequestId,
+          ...(shareholderEod ? { shareholderEodRequestId: shareholderEod } : {}),
           name: director.name,
           email: director.email,
           role: director.role,
@@ -717,7 +728,8 @@ export class KYCWebhookHandler extends BaseWebhookHandler {
         if (amlIndex === -1) {
           directorAmlStatus.directors.push(amlEntry);
         } else {
-          directorAmlStatus.directors[amlIndex] = amlEntry;
+          const prev = directorAmlStatus.directors[amlIndex] as Record<string, unknown>;
+          directorAmlStatus.directors[amlIndex] = { ...prev, ...amlEntry };
         }
 
         directorAmlStatus.lastSyncedAt = new Date().toISOString();
