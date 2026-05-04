@@ -10,7 +10,7 @@ import {
   maturityMeetsMinimumMonthsFrom,
   parseInvoiceMaturityDate,
 } from "@cashsouk/config";
-import { isSoukscoreRiskRating, type SoukscoreRiskRating } from "@cashsouk/types";
+import { isSoukscoreRiskRating, SOUKSCORE_RISK_RATING_GRADES, type SoukscoreRiskRating } from "@cashsouk/types";
 import { ItemActionDropdown } from "@/components/application-review/item-action-dropdown";
 import { ReviewStepStatusBadge } from "@/components/application-review/review-step-status-badge";
 import { REVIEW_EMPTY_LABEL } from "@/components/application-review/review-section-styles";
@@ -846,7 +846,7 @@ export function InvoiceList({
                                       </Select>
                                     )}
                                   </div>
-                                  {/* SECTION: Risk Rating (Manual SoukScore). WHY: placeholder until automation. INPUT: A|B|C. OUTPUT: offer_details.risk_rating. WHERE USED: Send Offer. */}
+                                  {/* SECTION: Risk Rating (Manual SoukScore). WHY: placeholder until automation. INPUT: Soukscore grade. OUTPUT: offer_details.risk_rating. WHERE USED: Send Offer. */}
                                   <div className={applicationTableExpandableFieldBlockClass}>
                                     <p className={applicationTableExpandableLabelClass}>Risk Rating</p>
                                     {isOfferSent ? (
@@ -877,9 +877,11 @@ export function InvoiceList({
                                           <SelectValue placeholder="Grade" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                          <SelectItem value="A">A</SelectItem>
-                                          <SelectItem value="B">B</SelectItem>
-                                          <SelectItem value="C">C</SelectItem>
+                                          {SOUKSCORE_RISK_RATING_GRADES.map((grade) => (
+                                            <SelectItem key={grade} value={grade}>
+                                              {grade}
+                                            </SelectItem>
+                                          ))}
                                         </SelectContent>
                                       </Select>
                                     )}

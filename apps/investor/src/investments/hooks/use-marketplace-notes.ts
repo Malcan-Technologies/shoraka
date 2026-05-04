@@ -41,11 +41,19 @@ export function useMarketplaceNote(noteId?: string) {
   });
 }
 
-export function useCommitInvestment(noteId: string) {
+export function useCommitInvestment() {
   const apiClient = useMarketplaceApiClient();
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ amount, investorOrganizationId }: { amount: number; investorOrganizationId: string }) => {
+    mutationFn: async ({
+      noteId,
+      amount,
+      investorOrganizationId,
+    }: {
+      noteId: string;
+      amount: number;
+      investorOrganizationId: string;
+    }) => {
       const response = await apiClient.createMarketplaceNoteInvestment(noteId, {
         amount,
         investorOrganizationId,
@@ -53,9 +61,9 @@ export function useCommitInvestment(noteId: string) {
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: marketplaceKeys.all });
-      queryClient.invalidateQueries({ queryKey: marketplaceKeys.detail(noteId) });
+      queryClient.invalidateQueries({ queryKey: marketplaceKeys.detail(variables.noteId) });
       queryClient.invalidateQueries({ queryKey: marketplaceKeys.portfolio });
     },
   });

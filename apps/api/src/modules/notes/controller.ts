@@ -20,6 +20,7 @@ import {
   recordPaymentSchema,
   settlementActionSchema,
   settlementPreviewSchema,
+  testInvestorBalanceTopupSchema,
   updateNoteDraftSchema,
   updatePlatformFinanceSettingsSchema,
 } from "./schemas";
@@ -368,6 +369,21 @@ investorNotesRouter.get("/investments", async (req: Request, res: Response, next
 investorNotesRouter.get("/portfolio", async (req: Request, res: Response, next: NextFunction) => {
   try {
     send(res, await noteService.getInvestorPortfolio(getActor(req, res, "INVESTOR").userId));
+  } catch (error) {
+    next(error);
+  }
+});
+
+investorNotesRouter.post("/balance/test-topup", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (process.env.INVESTOR_BALANCE_TEST_TOPUP_ENABLED !== "true") {
+      throw new AppError(403, "TEST_TOPUP_DISABLED", "Investor balance test top-up is not enabled");
+    }
+    const input = testInvestorBalanceTopupSchema.parse(req.body);
+    send(
+      res,
+      await noteService.testTopUpInvestorBalance(getActor(req, res, "INVESTOR").userId, input)
+    );
   } catch (error) {
     next(error);
   }

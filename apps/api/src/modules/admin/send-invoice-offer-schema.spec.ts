@@ -13,9 +13,17 @@ describe("sendInvoiceOfferSchema", () => {
     expect(parsed.success).toBe(false);
   });
 
-  it("fails when risk_rating is outside A/B/C", () => {
-    const parsed = sendInvoiceOfferSchema.safeParse({ ...base, risk_rating: "AAA" });
+  it("fails when risk_rating is outside Soukscore grades", () => {
+    const parsed = sendInvoiceOfferSchema.safeParse({ ...base, risk_rating: "ZZ" });
     expect(parsed.success).toBe(false);
+  });
+
+  it("passes with risk_rating AAA", () => {
+    const parsed = sendInvoiceOfferSchema.safeParse({ ...base, risk_rating: "AAA" });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.risk_rating).toBe("AAA");
+    }
   });
 
   it("passes with risk_rating B", () => {

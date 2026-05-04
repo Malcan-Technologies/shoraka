@@ -62,6 +62,11 @@ export const createInvestmentSchema = z.object({
   investorOrganizationId: z.string().min(1),
 });
 
+export const testInvestorBalanceTopupSchema = z.object({
+  investorOrganizationId: z.string().min(1),
+  amount: z.number().positive(),
+});
+
 export const recordPaymentSchema = z.object({
   source: z.nativeEnum(NotePaymentSource),
   receiptAmount: z.number().positive(),

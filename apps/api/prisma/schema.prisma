@@ -255,6 +255,8 @@ model InvestorOrganization {
   regtank_onboarding            RegTankOnboarding[]              @relation("RegTankOnboardingToInvestorOrg")
   ctos_reports                  CtosReport[]
   ctos_party_supplements        CtosPartySupplement[]
+  investor_balance              InvestorBalance?
+  investor_balance_transactions InvestorBalanceTransaction[]
 
   @@index([owner_user_id])
   @@index([owner_user_id, type])
@@ -663,6 +665,35 @@ model NoteInvestment {
   @@index([investor_user_id])
   @@index([status])
   @@map("note_investments")
+}
+
+/// Per-investor-organization cash available for marketplace commits (minimal interaction/testing ledger).
+model InvestorBalance {
+  id                       String                @id @default(cuid())
+  investor_organization_id String                @unique
+  available_amount         Decimal               @default(0) @db.Decimal(18, 6)
+  created_at               DateTime              @default(now())
+  updated_at               DateTime              @updatedAt
+  investor_organization    InvestorOrganization  @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
+
+  @@map("investor_balances")
+}
+
+/// Append-only balance movements for audit and reconciliation of investor pool cash.
+model InvestorBalanceTransaction {
+  id                       String                           @id @default(cuid())
+  investor_organization_id String
+  direction                InvestorBalanceTransactionDirection
+  amount                   Decimal                          @db.Decimal(18, 6)
+  source                   InvestorBalanceTransactionSource
+  note_id                  String?
+  note_investment_id       String?
+  metadata                 Json?
+  created_at               DateTime                         @default(now())
+  investor_organization    InvestorOrganization             @relation(fields: [investor_organization_id], references: [id], onDelete: Cascade)
+
+  @@index([investor_organization_id, created_at])
+  @@map("investor_balance_transactions")
 }
 
 model NotePaymentSchedule {
@@ -1339,6 +1370,17 @@ enum NoteInvestmentStatus {
   RELEASED
   CANCELLED
   SETTLED
+}
+
+enum InvestorBalanceTransactionDirection {
+  IN
+  OUT
+}
+
+enum InvestorBalanceTransactionSource {
+  MANUAL_TOPUP
+  NOTE_INVESTMENT_COMMIT
+  NOTE_INVESTMENT_RELEASE
 }
 
 enum NotePaymentSource {

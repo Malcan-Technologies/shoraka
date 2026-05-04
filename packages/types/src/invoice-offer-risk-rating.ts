@@ -6,10 +6,20 @@
  * WHERE USED: Admin send-invoice-offer API, admin invoice review UI
  */
 
-export const SOUKSCORE_RISK_RATING_GRADES = ["A", "B", "C"] as const;
+export const SOUKSCORE_RISK_RATING_GRADES = [
+  "AAA",
+  "AA",
+  "A",
+  "BBB",
+  "BB",
+  "B",
+  "C",
+] as const;
 
 export type SoukscoreRiskRating = (typeof SOUKSCORE_RISK_RATING_GRADES)[number];
 
+const gradeSet = new Set<string>(SOUKSCORE_RISK_RATING_GRADES);
+
 export function isSoukscoreRiskRating(value: unknown): value is SoukscoreRiskRating {
-  return value === "A" || value === "B" || value === "C";
+  return typeof value === "string" && gradeSet.has(value);
 }

@@ -12,6 +12,7 @@ import {
   NoteSettlementStatus,
   NoteSettlementType,
   NoteStatus,
+  InvestorBalanceTransactionSource,
   Prisma,
   UserRole,
   WithdrawalStatus,
@@ -25,7 +26,9 @@ import {
   resolveOfferedProfitRate,
   resolveRequestedInvoiceAmount,
 } from "../../lib/invoice-offer";
-import { mapLedgerEntry, mapMarketplaceNoteDetail, mapNoteDetail, mapNoteListItem } from "./mapper";
+import { isSoukscoreRiskRating } from "@cashsouk/types";
+import { creditInvestorBalance, debitInvestorBalanceForCommit } from "./investor-balance";
+import { mapLedgerEntry, mapMarketplaceNoteDetail, mapNoteDetail, mapNoteListItem, resolveProductNameFromWorkflow } from "./mapper";
 import { noteInclude, noteRepository } from "./repository";
 import { calculateLateCharge as calculateLateChargeValues, calculateSettlementWaterfall } from "./calculators";
 import type {
@@ -59,6 +62,31 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
+function resolveProductCategoryFromWorkflow(workflow: Prisma.JsonValue | null | undefined): string | null {
+  if (!Array.isArray(workflow)) return null;
+  const financingTypeStep = workflow.find((step) => {
+    if (!step || typeof step !== "object" || Array.isArray(step)) return false;
+    const stepRecord = step as Record<string, unknown>;
+    const id = typeof stepRecord.id === "string" ? stepRecord.id : "";
+    return id.startsWith("financing_type");
+  });
+  if (!financingTypeStep || typeof financingTypeStep !== "object" || Array.isArray(financingTypeStep)) {
+    return null;
+  }
+  const financingConfig = asRecord((financingTypeStep as Record<string, unknown>).config);
+  const category = financingConfig?.category;
+  if (typeof category === "string" && category.trim().length > 0) return category.trim();
+  return null;
+}
+
+function resolveIssuerIndustryFromCorporateData(data: Prisma.JsonValue | null | undefined): string | null {
+  const corporateData = asRecord(data);
+  const basicInfo = asRecord(corporateData?.basicInfo);
+  const industry = basicInfo?.industry;
+  if (typeof industry === "string" && industry.trim().length > 0) return industry.trim();
+  return null;
+}
+
 function toNumber(value: unknown): number {
   if (value instanceof Prisma.Decimal) return value.toNumber();
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -68,6 +96,9 @@ function toNumber(value: unknown): number {
   }
   return 0;
 }
+
+/** Standard marketplace ticket floor (MYR). When remaining capacity is smaller, min commit equals remainder. */
+const MARKETPLACE_MIN_COMMIT_MYR = 100;
 
 function resolveNoteSettlementAmount(note: {
   invoice_snapshot?: Prisma.JsonValue | null;
@@ -91,7 +122,7 @@ function resolveIssuerPaymentPurpose(input: { metadata?: Record<string, unknown>
 }
 
 function resolveRiskRating(value: unknown) {
-  return value === "A" || value === "B" || value === "C" ? value : null;
+  return isSoukscoreRiskRating(value) ? value : null;
 }
 
 function isUniqueConstraintError(error: unknown, target: string): boolean {
@@ -200,8 +231,54 @@ async function renderPdfBuffer(title: string, rows: Array<[string, string]>): Pr
 export class NoteService {
   async listAdminNotes(params: z.infer<typeof getNotesQuerySchema>) {
     const { notes, totalCount } = await noteRepository.list(params);
+    const productIds = notes
+      .map((note) => {
+        const productSnapshot = asRecord(note.product_snapshot);
+        const productId = productSnapshot?.product_id;
+        return typeof productId === "string" && productId.trim().length > 0 ? productId : null;
+      })
+      .filter((value): value is string => Boolean(value));
+    const uniqueProductIds = [...new Set(productIds)];
+    const products = uniqueProductIds.length
+      ? await prisma.product.findMany({
+          where: { id: { in: uniqueProductIds } },
+          select: { id: true, workflow: true },
+        })
+      : [];
+    const productCategoryById = new Map(
+      products.map((product) => [product.id, resolveProductCategoryFromWorkflow(product.workflow)])
+    );
+    const productNameById = new Map(
+      products.map((product) => [product.id, resolveProductNameFromWorkflow(product.workflow)])
+    );
+    const issuerOrgIds = [...new Set(notes.map((note) => note.issuer_organization_id))];
+    const issuerOrgs = issuerOrgIds.length
+      ? await prisma.issuerOrganization.findMany({
+          where: { id: { in: issuerOrgIds } },
+          select: { id: true, corporate_onboarding_data: true },
+        })
+      : [];
+    const issuerIndustryByOrgId = new Map(
+      issuerOrgs.map((org) => [org.id, resolveIssuerIndustryFromCorporateData(org.corporate_onboarding_data)])
+    );
+    const mappedNotes = notes.map((note) => {
+      const mapped = mapNoteListItem(note);
+      const productSnapshot = asRecord(note.product_snapshot);
+      const productId =
+        typeof productSnapshot?.product_id === "string" && productSnapshot.product_id.trim().length > 0
+          ? productSnapshot.product_id
+          : null;
+      return {
+        ...mapped,
+        productCategory:
+          mapped.productCategory ??
+          (productId ? productCategoryById.get(productId) ?? null : null),
+        productName: mapped.productName ?? (productId ? productNameById.get(productId) ?? null : null),
+        issuerIndustry: mapped.issuerIndustry ?? issuerIndustryByOrgId.get(note.issuer_organization_id) ?? null,
+      };
+    });
     return {
-      notes: notes.map(mapNoteListItem),
+      notes: mappedNotes,
       pagination: {
         page: params.page,
         pageSize: params.pageSize,
@@ -437,6 +514,7 @@ export class NoteService {
         id: string;
         name: string | null;
         type: string;
+        corporate_onboarding_data: Prisma.JsonValue | null;
       };
     };
     invoice: {
@@ -468,6 +546,21 @@ export class NoteService {
     const invoiceDetails = asRecord(invoice.details) ?? {};
     const invoiceOffer = asRecord(invoice.offer_details) ?? {};
     const contractDetails = asRecord(sourceContract?.contract_details) ?? {};
+    const financingType = asRecord(application.financing_type);
+    const productId = typeof financingType?.product_id === "string" ? financingType.product_id : null;
+    const product = productId
+      ? await prisma.product.findUnique({
+          where: { id: productId },
+          select: { id: true, workflow: true },
+        })
+      : null;
+    const productCategory = resolveProductCategoryFromWorkflow(product?.workflow);
+    const productDisplayName =
+      resolveProductNameFromWorkflow(product?.workflow) ??
+      (typeof financingType?.product_name === "string" && financingType.product_name.trim().length > 0
+        ? financingType.product_name.trim()
+        : null);
+    const issuerIndustry = resolveIssuerIndustryFromCorporateData(application.issuer_organization.corporate_onboarding_data);
     const invoiceFaceValue = resolveRequestedInvoiceAmount(invoiceDetails);
     const targetAmount =
       resolveOfferedAmount(invoiceOffer) ||
@@ -496,13 +589,19 @@ export class NoteService {
             params.title ??
             `Note for invoice ${invoiceNumber} - ${application.issuer_organization.name ?? application.issuer_organization.id}`,
           note_reference: reference,
-          product_snapshot: json(application.financing_type),
           issuer_snapshot: {
             id: application.issuer_organization.id,
             name: application.issuer_organization.name,
             type: application.issuer_organization.type,
+            industry: issuerIndustry,
           },
           paymaster_snapshot: json(sourceContract?.customer_details),
+          product_snapshot: json({
+            ...(financingType ?? {}),
+            product_id: productId,
+            category: productCategory,
+            ...(productDisplayName ? { product_name: productDisplayName } : {}),
+          }),
           contract_snapshot: json(
             sourceContract
               ? {
@@ -735,6 +834,7 @@ export class NoteService {
         status: true,
         funding_status: true,
         target_amount: true,
+        funded_amount: true,
       },
     });
     if (!note) throw new AppError(404, "NOTE_NOT_FOUND", "Note not found");
@@ -743,6 +843,27 @@ export class NoteService {
     }
 
     const target = toNumber(note.target_amount);
+    const funded = toNumber(note.funded_amount);
+    const remainingCapacity = Math.max(target - funded, 0);
+    if (remainingCapacity <= 0) {
+      throw new AppError(409, "NOTE_FULLY_ALLOCATED", "This note has no remaining funding capacity");
+    }
+    if (input.amount > remainingCapacity) {
+      throw new AppError(
+        422,
+        "NOTE_OVERSUBSCRIBED",
+        `Investment exceeds remaining note capacity of ${remainingCapacity.toFixed(2)}`
+      );
+    }
+    const minCommit = Math.min(MARKETPLACE_MIN_COMMIT_MYR, remainingCapacity);
+    if (input.amount + 1e-9 < minCommit) {
+      throw new AppError(
+        422,
+        "INVESTMENT_BELOW_MINIMUM",
+        `Minimum commitment for this note is ${minCommit.toFixed(2)}`
+      );
+    }
+
     const investmentAmount = money(input.amount);
     const remainingCapacityFloor = money(target - input.amount);
 
@@ -779,7 +900,7 @@ export class NoteService {
         );
       }
 
-      await tx.noteInvestment.create({
+      const investment = await tx.noteInvestment.create({
         data: {
           note_id: noteId,
           investor_organization_id: input.investorOrganizationId,
@@ -787,6 +908,12 @@ export class NoteService {
           amount: investmentAmount,
           allocation_percent: money(target > 0 ? (input.amount / target) * 100 : 0),
         },
+      });
+      await debitInvestorBalanceForCommit(tx, {
+        investorOrganizationId: input.investorOrganizationId,
+        amount: input.amount,
+        noteId,
+        noteInvestmentId: investment.id,
       });
       await this.logEvent(tx, noteId, "INVESTMENT_COMMITTED", actor, {
         investorOrganizationId: input.investorOrganizationId,
@@ -851,6 +978,10 @@ export class NoteService {
       throw new AppError(409, "NOTE_MINIMUM_FUNDING_MET", "Notes that meet the minimum funding threshold should be closed, not failed");
     }
     const updated = await prisma.$transaction(async (tx) => {
+      const releasedCommitments = await tx.noteInvestment.findMany({
+        where: { note_id: id, status: NoteInvestmentStatus.COMMITTED },
+        select: { id: true, investor_organization_id: true, amount: true },
+      });
       const stateUpdate = await tx.note.updateMany({
         where: {
           id,
@@ -871,6 +1002,15 @@ export class NoteService {
         where: { note_id: id, status: NoteInvestmentStatus.COMMITTED },
         data: { status: NoteInvestmentStatus.RELEASED, released_at: now },
       });
+      for (const inv of releasedCommitments) {
+        await creditInvestorBalance(tx, {
+          investorOrganizationId: inv.investor_organization_id,
+          amount: toNumber(inv.amount),
+          source: InvestorBalanceTransactionSource.NOTE_INVESTMENT_RELEASE,
+          noteId: id,
+          noteInvestmentId: inv.id,
+        });
+      }
       const result = await tx.note.findUniqueOrThrow({ where: { id }, include: noteInclude });
       await this.logAdminAction(tx, id, "FAIL_FUNDING", actor, mapNoteListItem(note), mapNoteListItem(result));
       return result;
@@ -960,12 +1100,44 @@ export class NoteService {
       },
     });
     const committed = investments.reduce((sum, investment) => sum + toNumber(investment.amount), 0);
+    const balanceRows = await prisma.investorBalance.findMany({
+      where: { investor_organization_id: { in: orgIds } },
+      select: { available_amount: true },
+    });
+    const availableBalance = balanceRows.reduce((sum, row) => sum + toNumber(row.available_amount), 0);
+    const portfolioTotal = availableBalance + committed;
     return {
       totalInvestment: committed,
-      portfolioTotal: committed,
-      availableBalance: 0,
+      portfolioTotal,
+      availableBalance,
       investmentCount: investments.length,
     };
+  }
+
+  async testTopUpInvestorBalance(
+    userId: string,
+    input: { investorOrganizationId: string; amount: number }
+  ) {
+    const investorOrg = await prisma.investorOrganization.findFirst({
+      where: {
+        id: input.investorOrganizationId,
+        OR: [
+          { owner_user_id: userId },
+          { members: { some: { user_id: userId } } },
+        ],
+      },
+    });
+    if (!investorOrg) throw new AppError(403, "INVESTOR_ORG_FORBIDDEN", "Investor organization not accessible");
+
+    await prisma.$transaction(async (tx) => {
+      await creditInvestorBalance(tx, {
+        investorOrganizationId: input.investorOrganizationId,
+        amount: input.amount,
+        source: InvestorBalanceTransactionSource.MANUAL_TOPUP,
+        metadata: { reason: "test_topup" },
+      });
+    });
+    return this.getInvestorPortfolio(userId);
   }
 
   async listIssuerNotes(userId: string) {

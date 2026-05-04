@@ -1,3 +1,4 @@
+import { isSoukscoreRiskRating } from "@cashsouk/types";
 import { Prisma } from "@prisma/client";
 
 type NoteWithRelations = Prisma.NoteGetPayload<{
@@ -53,7 +54,7 @@ function resolveRiskRating(note: NoteWithRelations) {
   const invoiceSnapshot = asRecord(note.invoice_snapshot);
   const offerDetails = asRecord(invoiceSnapshot?.offer_details as Prisma.JsonValue | null | undefined);
   const riskRating = offerDetails?.risk_rating;
-  return riskRating === "A" || riskRating === "B" || riskRating === "C" ? riskRating : null;
+  return isSoukscoreRiskRating(riskRating) ? riskRating : null;
 }
 
 function resolveIssuerName(note: NoteWithRelations): string | null {
@@ -62,10 +63,52 @@ function resolveIssuerName(note: NoteWithRelations): string | null {
   return typeof name === "string" ? name : null;
 }
 
+function resolveIssuerIndustry(note: NoteWithRelations): string | null {
+  const issuer = asRecord(note.issuer_snapshot);
+  const industry = issuer?.industry;
+  return typeof industry === "string" && industry.trim().length > 0 ? industry : null;
+}
+
 function resolvePaymasterName(note: NoteWithRelations): string | null {
   const paymaster = asRecord(note.paymaster_snapshot);
   const name = paymaster?.name ?? paymaster?.company_name ?? paymaster?.business_name;
   return typeof name === "string" ? name : null;
+}
+
+function resolveProductCategory(note: NoteWithRelations): string | null {
+  const product = asRecord(note.product_snapshot);
+  const category =
+    product?.category ??
+    product?.productCategory ??
+    product?.financing_category ??
+    product?.financingCategory;
+  return typeof category === "string" && category.trim().length > 0 ? category.trim() : null;
+}
+
+/** Same rule as admin `productName`: first workflow step `config.name` or `config.type.name`. */
+export function resolveProductNameFromWorkflow(workflow: Prisma.JsonValue | null | undefined): string | null {
+  if (!Array.isArray(workflow) || workflow.length === 0) return null;
+  const first = workflow[0];
+  if (!first || typeof first !== "object" || Array.isArray(first)) return null;
+  const config = asRecord((first as Record<string, unknown>).config as Prisma.JsonValue);
+  if (!config) return null;
+  const direct = config.name;
+  if (typeof direct === "string" && direct.trim().length > 0) return direct.trim();
+  const type = asRecord(config.type as Prisma.JsonValue);
+  const typeName = type?.name;
+  if (typeof typeName === "string" && typeName.trim().length > 0) return typeName.trim();
+  return null;
+}
+
+function resolveProductName(note: NoteWithRelations): string | null {
+  const product = asRecord(note.product_snapshot);
+  if (product) {
+    const candidates = [product.product_name, product.name, product.productName, product.productLabel];
+    for (const value of candidates) {
+      if (typeof value === "string" && value.trim().length > 0) return value.trim();
+    }
+  }
+  return null;
 }
 
 function resolveSettlementSummary(note: NoteWithRelations) {
@@ -100,6 +143,9 @@ export function mapNoteListItem(note: NoteWithRelations) {
     id: note.id,
     noteReference: note.note_reference,
     title: note.title,
+    productCategory: resolveProductCategory(note),
+    productName: resolveProductName(note),
+    issuerIndustry: resolveIssuerIndustry(note),
     sourceApplicationId: note.source_application_id,
     sourceContractId: note.source_contract_id,
     sourceInvoiceId: note.source_invoice_id,

@@ -15,7 +15,7 @@ export default function InvestmentDetailPage() {
   const { setTitle } = useHeader();
   const { activeOrganization } = useOrganization();
   const { data: note, isLoading, error } = useMarketplaceNote(noteId);
-  const commitInvestment = useCommitInvestment(noteId);
+  const commitInvestment = useCommitInvestment();
   const [amount, setAmount] = React.useState("");
 
   React.useEffect(() => {
@@ -34,6 +34,7 @@ export default function InvestmentDetailPage() {
     }
     try {
       await commitInvestment.mutateAsync({
+        noteId,
         amount: parsed,
         investorOrganizationId: activeOrganization.id,
       });

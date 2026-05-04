@@ -134,6 +134,10 @@ export interface NoteListItem extends NoteMoneySummary {
   id: string;
   noteReference: string;
   title: string;
+  productCategory: string | null;
+  /** Display name from product workflow / snapshot; preferred for marketplace card title. */
+  productName: string | null;
+  issuerIndustry: string | null;
   sourceApplicationId: string;
   sourceContractId: string | null;
   sourceInvoiceId: string | null;
@@ -396,6 +400,13 @@ export interface NotesResponse {
     totalCount: number;
     totalPages: number;
   };
+}
+
+export interface InvestorPortfolioResponse {
+  portfolioTotal: number;
+  totalInvestment: number;
+  availableBalance: number;
+  investmentCount: number;
 }
 
 export interface EligibleNoteInvoice {

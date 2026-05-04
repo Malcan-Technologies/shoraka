@@ -92,6 +92,7 @@ import type {
   NoteLedgerBucketBalancesResponse,
   NoteLedgerEntry,
   NotesResponse,
+  InvestorPortfolioResponse,
   PlatformFinanceSetting,
   RecordNotePaymentInput,
   SettlementPreviewInput,
@@ -2170,8 +2171,15 @@ export class ApiClient {
     return this.get<NotesResponse>("/v1/investor/investments");
   }
 
-  async getInvestorPortfolio(): Promise<ApiResponse<Record<string, unknown>> | ApiError> {
-    return this.get<Record<string, unknown>>("/v1/investor/portfolio");
+  async getInvestorPortfolio(): Promise<ApiResponse<InvestorPortfolioResponse> | ApiError> {
+    return this.get<InvestorPortfolioResponse>("/v1/investor/portfolio");
+  }
+
+  async postInvestorBalanceTestTopup(input: {
+    investorOrganizationId: string;
+    amount: number;
+  }): Promise<ApiResponse<InvestorPortfolioResponse> | ApiError> {
+    return this.post<InvestorPortfolioResponse>("/v1/investor/balance/test-topup", input);
   }
 
   async getIssuerNotes(): Promise<ApiResponse<NotesResponse> | ApiError> {

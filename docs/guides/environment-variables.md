@@ -110,6 +110,14 @@ Issuer director CTOS RegTank onboarding: after a successful RegTank create call,
 | `PAYMENT_GATEWAY_WEBHOOK_SECRET` | Webhook signing secret | From Secrets Manager      |
 | `PAYMENT_GATEWAY_MODE`           | Mode                   | `sandbox` or `production` |
 
+### Investor balance (testing / dev only)
+
+| Variable                               | Description                                      | Default |
+| -------------------------------------- | ------------------------------------------------ | ------- |
+| `INVESTOR_BALANCE_TEST_TOPUP_ENABLED` | Enables `POST /v1/investor/balance/test-topup` for fake credits. Investor UI can call this route from a dev-only control, but API still enforces this flag. | unset / `false` |
+
+See [marketplace-investor-balance.md](./marketplace-investor-balance.md).
+
 ---
 
 ## Frontend Environment Variables (Next.js)
