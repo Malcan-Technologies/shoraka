@@ -6,11 +6,11 @@ import { ReviewSectionCard } from "../review-section-card";
 import type { ReviewSectionId } from "../section-types";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
 import { ApplicationFinancialReviewComparison } from "@/components/application-financial-review-comparison";
-import { hasActionableDirectorShareholder, type ApplicationPersonRow } from "@cashsouk/types";
+import { isReadyForFinancialApproval, type ApplicationPersonRow } from "@cashsouk/types";
 
-const DIRECTOR_SHAREHOLDER_PENDING_LABEL = "Director/Shareholder Pending";
+const DIRECTOR_SHAREHOLDER_PENDING_LABEL = "Director/Shareholder AML Pending";
 const DIRECTOR_SHAREHOLDER_PENDING_TOOLTIP =
-  "Director/shareholder verification is not complete.";
+  "AML screening must be approved for all directors/shareholders before Financial can be approved.";
 
 export type FinancialSectionAppSlice = {
   people?: ApplicationPersonRow[];
@@ -75,7 +75,7 @@ export function FinancialSection({
   sectionComparison,
   hideSectionComments = false,
 }: FinancialSectionProps) {
-  const hasPendingDirectorShareholder = hasActionableDirectorShareholder(app.people ?? []);
+  const hasPendingDirectorShareholder = !isReadyForFinancialApproval(app.people ?? []);
 
   if (sectionComparison) {
     return (

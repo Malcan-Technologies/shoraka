@@ -66,7 +66,8 @@ import {
   normalizeDirectorShareholderIdKey,
   canManageDirectorShareholder,
   filterVisiblePeopleRows,
-  hasActionableDirectorShareholder,
+  isReadyForSubmit,
+  isReadyForFinancialApproval,
   type SoukscoreRiskRating,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
@@ -3160,9 +3161,7 @@ export class AdminService {
           })
         : [];
     const directorShareholderAmlPending =
-      record.organization_type === "COMPANY"
-        ? hasActionableDirectorShareholder(onboardingPeopleForAml)
-        : false;
+      record.organization_type === "COMPANY" ? !isReadyForSubmit(onboardingPeopleForAml) : false;
 
     return {
       id: record.id,
@@ -4762,7 +4761,7 @@ export class AdminService {
           ctosPartySupplements: extras.ctosPartySupplements,
           corporateEntities: org.corporate_entities ?? null,
         });
-        const pending = hasActionableDirectorShareholder(people);
+        const pending = !isReadyForSubmit(people);
         pendingByOrg.set(oid, pending);
       })
     );
@@ -5410,11 +5409,11 @@ export class AdminService {
       })),
       corporateEntities: issuerOrg.corporate_entities ?? null,
     });
-    if (hasActionableDirectorShareholder(people)) {
+    if (!isReadyForFinancialApproval(people)) {
       throw new AppError(
         400,
         "DIRECTOR_SHAREHOLDER_NOT_READY",
-        "Director/shareholder verification must be complete before this action."
+        "Director/shareholder AML screening must be approved for all parties before this action."
       );
     }
   }

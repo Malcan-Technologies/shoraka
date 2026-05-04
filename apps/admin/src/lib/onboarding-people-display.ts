@@ -11,6 +11,8 @@ export {
   getDisplayStatus,
   canManageDirectorShareholder,
   hasActionableDirectorShareholder,
+  isReadyForSubmit,
+  isReadyForFinancialApproval,
   requiresOnboardingEmail,
   isDirectorShareholderAmlScreeningApproved,
   shouldShowPeopleSendEmailButton,

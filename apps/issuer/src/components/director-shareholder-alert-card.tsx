@@ -3,9 +3,9 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
-  canManageDirectorShareholder,
   filterVisiblePeopleRows,
-  hasActionableDirectorShareholder,
+  isReadyForSubmit,
+  normalizeRawStatus,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -30,24 +30,26 @@ export function DirectorShareholderAlertCard({
   onGoToProfile,
 }: Props) {
   const router = useRouter();
-  const visibleIndividualPeople = React.useMemo(
-    () => visiblePeople.filter((p) => p.entityType === "INDIVIDUAL"),
+  const visibleIndividuals = React.useMemo(
+    () => filterVisiblePeopleRows(visiblePeople).filter((p) => p.entityType === "INDIVIDUAL"),
     [visiblePeople]
   );
-  const hasPending = React.useMemo(
-    () => hasActionableDirectorShareholder(visiblePeople),
-    [visiblePeople]
-  );
+  const hasPending = React.useMemo(() => !isReadyForSubmit(visiblePeople), [visiblePeople]);
   const completedCount = React.useMemo(
-    () => visibleIndividualPeople.filter((p) => !canManageDirectorShareholder(p)).length,
-    [visibleIndividualPeople]
+    () =>
+      visibleIndividuals.filter((p) => {
+        const onboarding = normalizeRawStatus(p.onboarding?.status);
+        return onboarding === "WAIT_FOR_APPROVAL" || onboarding === "APPROVED";
+      }).length,
+    [visibleIndividuals]
   );
-  const firstActionable = React.useMemo(() => {
-    for (const p of filterVisiblePeopleRows(visiblePeople)) {
-      if (canManageDirectorShareholder(p)) return p;
+  const firstNeedSubmit = React.useMemo(() => {
+    for (const p of visibleIndividuals) {
+      const onboarding = normalizeRawStatus(p.onboarding?.status);
+      if (onboarding !== "WAIT_FOR_APPROVAL" && onboarding !== "APPROVED") return p;
     }
     return undefined;
-  }, [visiblePeople]);
+  }, [visibleIndividuals]);
 
   if (!enabled) return null;
   if (!hasPending) return null;
@@ -79,9 +81,9 @@ export function DirectorShareholderAlertCard({
             <p className="text-[17px] leading-7 text-foreground">
               Complete onboarding on your company profile before you submit an application.
             </p>
-            {visibleIndividualPeople.length > 0 ? (
+            {visibleIndividuals.length > 0 ? (
               <p className="text-sm text-muted-foreground">
-                {completedCount} of {visibleIndividualPeople.length} directors/shareholders completed
+                {completedCount} of {visibleIndividuals.length} directors/shareholders submit-ready
               </p>
             ) : null}
           </div>
@@ -105,7 +107,7 @@ export function DirectorShareholderAlertCard({
               variant="action"
               className="h-10 shrink-0 rounded-full px-5 text-sm font-semibold sm:self-center"
               onClick={() => {
-                const matchKey = firstActionable?.matchKey;
+                const matchKey = firstNeedSubmit?.matchKey;
                 if (onGoToProfile) {
                   onGoToProfile(matchKey);
                   return;

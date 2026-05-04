@@ -52,7 +52,7 @@ import {
   getIssuerFinancialTabYears,
   issuerUnauditedPlddForFyEndYear,
   getStepKeyFromStepId,
-  hasActionableDirectorShareholder,
+  isReadyForSubmit,
 } from "@cashsouk/types";
 import { computeApplicationStatus } from "./lifecycle";
 import * as crypto from "crypto";
@@ -577,7 +577,7 @@ export class ApplicationService {
         ctosPartySupplements: extras.ctosPartySupplements,
         corporateEntities: org.corporate_entities ?? null,
       });
-      directorShareholderAmlPending = hasActionableDirectorShareholder(people);
+      directorShareholderAmlPending = !isReadyForSubmit(people);
     }
 
     return applications.map((application) => ({

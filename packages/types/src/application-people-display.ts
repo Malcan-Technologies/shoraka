@@ -328,6 +328,43 @@ export function hasActionableDirectorShareholder(
   return visible.some((p) => canManageDirectorShareholder(p));
 }
 
+function getVisibleIndividualPeopleFromList(
+  people?: ReadonlyArray<ApplicationPersonRow | null | undefined> | null
+): ApplicationPersonRow[] {
+  const list = (people ?? []).filter((p): p is ApplicationPersonRow => p != null);
+  return filterVisiblePeopleRows(list).filter((p) => p.entityType === "INDIVIDUAL");
+}
+
+/**
+ * Issuer submit / resubmit: every visible individual must be at or past RegTank review submission.
+ * AML does not affect this gate.
+ */
+export function isReadyForSubmit(
+  people?: ReadonlyArray<ApplicationPersonRow | null | undefined> | null
+): boolean {
+  const individuals = getVisibleIndividualPeopleFromList(people);
+  if (individuals.length === 0) return true;
+  return individuals.every((p) => {
+    const onboarding = normalizeRawStatus(p.onboarding?.status);
+    return onboarding === "WAIT_FOR_APPROVAL" || onboarding === "APPROVED";
+  });
+}
+
+/**
+ * Admin Financial section approve: every visible individual must have AML screening approved.
+ * Onboarding stage does not affect this gate.
+ */
+export function isReadyForFinancialApproval(
+  people?: ReadonlyArray<ApplicationPersonRow | null | undefined> | null
+): boolean {
+  const individuals = getVisibleIndividualPeopleFromList(people);
+  if (individuals.length === 0) return true;
+  return individuals.every((p) => {
+    const aml = normalizeRawStatus(p.screening?.status);
+    return aml === "APPROVED";
+  });
+}
+
 /**
  * Build the display row used for {@link isCtosIndividualKycEligibleRow} and lock checks
  * (same shape as issuer `personToDisplayRow`).

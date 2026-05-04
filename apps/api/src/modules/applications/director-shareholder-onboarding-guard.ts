@@ -1,6 +1,6 @@
 /**
  * SECTION: Block issuer application submit while any director/shareholder row is still actionable
- * WHY: Same rule as notify/resend — {@link hasActionableDirectorShareholder} from `@cashsouk/types`
+ * WHY: Issuer submit uses {@link isReadyForSubmit} (onboarding only), independent of AML
  * INPUT: Issuer org id
  * OUTPUT: throws AppError DIRECTOR_SHAREHOLDER_PENDING or returns void / readiness object
  * WHERE USED: ApplicationService, issuer org API fields
@@ -8,7 +8,7 @@
 
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
-import { hasActionableDirectorShareholder } from "@cashsouk/types";
+import { isReadyForSubmit } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
 import { buildAdminPeopleList } from "../admin/build-people-list";
 
@@ -52,7 +52,7 @@ export async function assertIssuerOrgDirectorShareholderOnboardingReady(
     corporateEntities: org.corporate_entities ?? null,
   });
 
-  if (hasActionableDirectorShareholder(people)) {
+  if (!isReadyForSubmit(people)) {
     throw new AppError(400, "DIRECTOR_SHAREHOLDER_PENDING", DIRECTOR_SHAREHOLDER_PENDING_MESSAGE);
   }
 }
