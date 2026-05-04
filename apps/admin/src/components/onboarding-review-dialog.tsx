@@ -165,7 +165,7 @@ export function OnboardingReviewDialog({
   }, [application]);
 
   const isCompany = application?.type === "COMPANY";
-  const peopleRows = application?.people ?? [];
+  const peopleRows = React.useMemo(() => application?.people ?? [], [application]);
   const visiblePeopleRows = React.useMemo(() => filterVisiblePeopleRows(peopleRows), [peopleRows]);
   React.useEffect(() => {
     console.log("Onboarding dialog people[]:", peopleRows);
@@ -174,10 +174,11 @@ export function OnboardingReviewDialog({
 
   const steps = React.useMemo(() => {
     if (!application) return [];
-    return isCompany
+    const company = application.type === "COMPANY";
+    return company
       ? getCompanyOnboardingSteps(application.onboardingStatus, application.ssmApproved)
       : getPersonalOnboardingSteps(application.onboardingStatus);
-  }, [application, isCompany]);
+  }, [application]);
 
   const hasOnboardingApproval = application?.onboardingApproved ?? false;
   const hasAmlApproval = application?.amlApproved ?? false;

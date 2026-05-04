@@ -359,7 +359,7 @@ export default function IssuerNoteDetailPage() {
                 </div>
                 <div className="mt-3 grid gap-3 text-sm md:grid-cols-2">
                   <div>
-                    <div className="text-amber-800">Ta'widh</div>
+                    <div className="text-amber-800">{"Ta'widh"}</div>
                     <div className="font-semibold">{formatCurrency(lateFeeSummary.assessedTawidhAmount)}</div>
                   </div>
                   <div>
@@ -370,7 +370,7 @@ export default function IssuerNoteDetailPage() {
               </div>
               <p className="text-sm text-muted-foreground">
                 Late fees are borne by the issuer, but the issuer does not make a separate late-fee payment here.
-                Admin deducts approved Ta'widh and Gharamah from the repayment pool before returning any residual
+                Admin deducts approved {"Ta'widh"} and Gharamah from the repayment pool before returning any residual
                 balance to the issuer.
               </p>
             </CardContent>

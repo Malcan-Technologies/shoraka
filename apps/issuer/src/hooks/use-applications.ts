@@ -4,8 +4,12 @@ import {
   useAuthToken,
 } from "@cashsouk/config";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { WithdrawReason } from "@cashsouk/types";
-import type { CreateApplicationInput, UpdateApplicationStepInput } from "@cashsouk/types";
+import { ApplicationStatus, WithdrawReason } from "@cashsouk/types";
+import type {
+  Application,
+  CreateApplicationInput,
+  UpdateApplicationStepInput,
+} from "@cashsouk/types";
 import { toast } from "sonner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -84,8 +88,8 @@ export function useUpdateApplicationStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const response = await apiClient.updateApplicationStatus(id, status as any);
+    mutationFn: async ({ id, status }: { id: string; status: ApplicationStatus }) => {
+      const response = await apiClient.updateApplicationStatus(id, status);
       if (!response.success) {
         throw new Error(response.error.message);
       }
@@ -168,7 +172,7 @@ export function useDeleteDraftApplication() {
     mutationFn: async (id: string) => {
       const response = await apiClient.deleteDraftApplication(id);
       if (!response.success) {
-        throw new Error((response as any).error?.message ?? "Failed to delete draft");
+        throw new Error(response.error.message ?? "Failed to delete draft");
       }
       return { id };
     },
@@ -193,13 +197,13 @@ export function useCancelApplication() {
     mutationFn: async (id: string) => {
       const response = await apiClient.cancelApplication(id);
       if (!response.success) {
-        throw new Error((response as any).error?.message ?? "Failed to cancel");
+        throw new Error(response.error.message ?? "Failed to cancel");
       }
-      return (response as any).data;
+      return response.data;
     },
     onSuccess: (data, id) => {
       queryClient.invalidateQueries({ queryKey: ["application", id] });
-      const organizationId = (data as any)?.issuer_organization_id as string | undefined;
+      const organizationId = (data as Application | undefined)?.issuer_organization_id;
       if (organizationId) {
         queryClient.invalidateQueries({ queryKey: ["applications", organizationId] });
       } else {
@@ -233,9 +237,9 @@ export function useWithdrawInvoice() {
     }) => {
       const response = await apiClient.withdrawInvoice(invoiceId, reason);
       if (!response.success) {
-        throw new Error((response as any).error?.message ?? "Failed to withdraw invoice");
+        throw new Error(response.error.message ?? "Failed to withdraw invoice");
       }
-      return { data: (response as any).data, applicationId, organizationId };
+      return { data: response.data, applicationId, organizationId };
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["application", variables.applicationId] });
@@ -270,9 +274,9 @@ export function useWithdrawContract() {
     }) => {
       const response = await apiClient.withdrawContract(contractId);
       if (!response.success) {
-        throw new Error((response as any).error?.message ?? "Failed to withdraw contract");
+        throw new Error(response.error.message ?? "Failed to withdraw contract");
       }
-      return { data: (response as any).data, applicationId, organizationId };
+      return { data: response.data, applicationId, organizationId };
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["application", variables.applicationId] });
@@ -301,18 +305,18 @@ export function useOrganizationApplications(organizationId?: string) {
       if (!organizationId) return [];
       const response = await apiClient.get(`/v1/applications?organizationId=${encodeURIComponent(organizationId)}`);
       if (!response.success) {
-        throw new Error((response as any).error?.message || "Failed to list applications");
+        throw new Error(response.error.message || "Failed to list applications");
       }
-      return response.data as any[];
+      return response.data as Application[];
     },
     enabled: !!organizationId,
     ...refreshPolicy,
   });
 }
 
-function getOfferError(res: { success?: boolean; error?: { message?: string } }): string {
+function getOfferError(res: { success: true } | { success: false; error: { message?: string } }): string {
   if (res.success) return "";
-  return (res as any).error?.message ?? "Offer operation failed";
+  return res.error?.message ?? "Offer operation failed";
 }
 
 export function useAcceptContractOffer() {
@@ -328,7 +332,7 @@ export function useAcceptContractOffer() {
     },
     onSuccess: async (data, applicationId) => {
       queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
-      const organizationId = (data as any)?.issuer_organization_id as string | undefined;
+      const organizationId = data?.issuer_organization_id;
       if (organizationId) {
         queryClient.invalidateQueries({ queryKey: ["applications", organizationId] });
       }
@@ -363,7 +367,7 @@ export function useRejectContractOffer() {
     onSuccess: async (data, variables) => {
       const applicationId = variables.applicationId;
       queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
-      const organizationId = (data as any)?.issuer_organization_id as string | undefined;
+      const organizationId = data?.issuer_organization_id;
       if (organizationId) {
         queryClient.invalidateQueries({ queryKey: ["applications", organizationId] });
       }
@@ -389,7 +393,7 @@ export function useAcceptInvoiceOffer() {
     },
     onSuccess: async (data, { applicationId }) => {
       queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
-      const organizationId = (data as any)?.issuer_organization_id as string | undefined;
+      const organizationId = data?.issuer_organization_id;
       if (organizationId) {
         queryClient.invalidateQueries({ queryKey: ["applications", organizationId] });
       }
@@ -426,7 +430,7 @@ export function useRejectInvoiceOffer() {
     onSuccess: async (data, variables) => {
       const applicationId = variables.applicationId;
       queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
-      const organizationId = (data as any)?.issuer_organization_id as string | undefined;
+      const organizationId = data?.issuer_organization_id;
       if (organizationId) {
         queryClient.invalidateQueries({ queryKey: ["applications", organizationId] });
       }

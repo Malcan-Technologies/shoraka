@@ -1,29 +1,32 @@
-const path = require('path');
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',
-  outputFileTracingRoot: path.join(__dirname, '../..'),
+  output: "standalone",
+  outputFileTracingRoot: path.join(__dirname, "../.."),
   outputFileTracingIncludes: {
-    '/*': ['../../docs/help/**/*.md'],
+    "/*": ["../../docs/help/**/*.md"],
   },
   transpilePackages: [
-    '@cashsouk/ui',
-    '@cashsouk/styles',
-    '@cashsouk/types',
-    '@cashsouk/config',
-    '@cashsouk/help-content',
+    "@cashsouk/ui",
+    "@cashsouk/styles",
+    "@cashsouk/types",
+    "@cashsouk/config",
+    "@cashsouk/help-content",
   ],
   experimental: {
-    optimizePackageImports: ['@cashsouk/ui'],
+    optimizePackageImports: ["@cashsouk/ui"],
   },
   async headers() {
     return [
       {
-        source: '/:path*',
+        source: "/:path*",
         headers: [
           {
-            key: 'Content-Security-Policy',
+            key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
               "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://*.amazoncognito.com https://*.auth.ap-southeast-5.amazoncognito.com https://auth.cashsouk.com https://static.cloudflareinsights.com http://localhost:3001 blob:",
@@ -33,7 +36,7 @@ const nextConfig = {
               "connect-src 'self' https://*.amazoncognito.com https://*.auth.ap-southeast-5.amazoncognito.com https://auth.cashsouk.com https://api.cashsouk.com https://*.s3.ap-southeast-5.amazonaws.com https://*.truestack.my http://localhost:4000 http://localhost:3000 http://localhost:3001 ws://localhost:3001 wss://*.truestack.my",
               "frame-src 'self' https://*.amazoncognito.com https://*.auth.ap-southeast-5.amazoncognito.com https://auth.cashsouk.com",
               "form-action 'self' https://*.amazoncognito.com https://*.auth.ap-southeast-5.amazoncognito.com https://auth.cashsouk.com",
-            ].join('; '),
+            ].join("; "),
           },
         ],
       },
@@ -41,5 +44,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
-
+export default nextConfig;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 
 /**
  * useNavigationGuard (production-grade)
@@ -72,8 +72,10 @@ export function useNavigationGuard(
   // auto-close modal if unsaved cleared
   useEffect(() => {
     if (!hasUnsavedRef.current && isModalOpenRef.current) {
-      setIsModalOpen(false);
-      setPendingPath(null);
+      startTransition(() => {
+        setIsModalOpen(false);
+        setPendingPath(null);
+      });
     }
   }, [hasUnsavedChanges]);
 

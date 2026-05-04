@@ -738,7 +738,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
           <div className="rounded-xl border bg-card p-4">
             <div className="text-xs text-muted-foreground">Late Fee Caps</div>
             <div className="mt-1 text-lg font-semibold">
-              Ta'widh {note.tawidhRateCapPercent}%
+              Ta&apos;widh {note.tawidhRateCapPercent}%
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
               Gharamah {note.gharamahRateCapPercent}% cap
@@ -800,7 +800,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                 <div>
                   <div className="text-sm font-medium">Charge Overdue Fees</div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Set Ta'widh and Gharamah manually at receipt time, up to the remaining platform caps.
+                    Set Ta&apos;widh and Gharamah manually at receipt time, up to the remaining platform caps.
                   </p>
                 </div>
                 <Badge variant={overdueSnapshot.daysOverdue > 0 ? "secondary" : "outline"}>
@@ -817,7 +817,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                     {formatCurrency(pendingLateFeeTotal)} queued for next settlement preview
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground">
-                    Ta'widh {formatCurrency(Number(tawidhAmount) || 0)} · Gharamah {formatCurrency(Number(gharamahAmount) || 0)}
+                    Ta&apos;widh {formatCurrency(Number(tawidhAmount) || 0)} · Gharamah {formatCurrency(Number(gharamahAmount) || 0)}
                   </div>
                 </div>
               ) : null}
@@ -1233,7 +1233,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
         <DialogHeader>
           <DialogTitle>Charge Overdue Fees?</DialogTitle>
           <DialogDescription className="text-[15px] leading-7">
-            Set the Ta'widh and Gharamah amounts to include in the next settlement waterfall. Amounts cannot exceed the remaining caps calculated from today's overdue check.
+            Set the Ta&apos;widh and Gharamah amounts to include in the next settlement waterfall. Amounts cannot exceed the remaining caps calculated from today&apos;s overdue check.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
@@ -1276,7 +1276,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
                 className="text-sm font-medium"
                 htmlFor={overdueFeeInputMode === "PERCENTAGE" ? "overdue-tawidh-percent" : "overdue-tawidh-amount"}
               >
-                Ta'widh {overdueFeeInputMode === "PERCENTAGE" ? "percentage" : "amount"}
+                Ta&apos;widh {overdueFeeInputMode === "PERCENTAGE" ? "percentage" : "amount"}
               </label>
               {overdueFeeInputMode === "PERCENTAGE" ? (
                 <Input
@@ -1353,7 +1353,7 @@ export function SettlementPanel({ note }: { note: NoteDetail }) {
               Total to apply: {formatCurrency(overdueTawidhPreviewAmount + overdueGharamahPreviewAmount)}
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
-              Ta'widh {formatCurrency(overdueTawidhPreviewAmount)} · Gharamah {formatCurrency(overdueGharamahPreviewAmount)}
+              Ta&apos;widh {formatCurrency(overdueTawidhPreviewAmount)} · Gharamah {formatCurrency(overdueGharamahPreviewAmount)}
             </div>
           </div>
           <div className="rounded-xl border bg-muted/20 p-3 text-xs text-muted-foreground">

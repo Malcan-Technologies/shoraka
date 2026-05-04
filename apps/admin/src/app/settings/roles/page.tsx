@@ -134,8 +134,7 @@ export default function RolesPage() {
   const pendingInvitations = invitationsData?.invitations || [];
   const invitationsTotalPages = invitationsData?.pagination.totalPages || 0;
 
-  const handleUpdateUser = (_userId: string, _updates: Partial<AdminUser>) => {
-    // Optimistic update - the mutation will invalidate and refetch
+  const handleUpdateUser: (userId: string, updates: Partial<AdminUser>) => void = () => {
     refetch();
   };
 

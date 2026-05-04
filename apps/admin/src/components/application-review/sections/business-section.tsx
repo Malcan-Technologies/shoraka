@@ -117,6 +117,66 @@ export interface BusinessSectionProps {
 const DECLARATION_TEXT =
   "I confirm that all information provided is true, accurate, and not misleading, and I understand that false or incomplete information may result in removal from the platform and regulatory action.";
 
+function ComparisonDeclarationCell({
+  confirmed,
+  side,
+  valuesDiffer,
+}: {
+  confirmed: boolean;
+  side: "before" | "after";
+  valuesDiffer: boolean;
+}) {
+  const shell = comparisonCellSurfaceShellClass;
+  const changedHighlight =
+    valuesDiffer &&
+    (side === "before" ? comparisonSurfaceChangedBeforeClass : comparisonSurfaceChangedAfterClass);
+  return (
+    <div
+      className={cn(
+        shell,
+        "items-start",
+        side === "before" ? "text-muted-foreground" : "text-foreground",
+        changedHighlight
+      )}
+    >
+      <div className="w-full rounded-lg border border-input bg-background p-3">
+        <div className="flex items-start gap-3">
+          <div
+            className={cn(
+              "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border",
+              confirmed ? "border-primary bg-primary" : "border-muted-foreground"
+            )}
+            aria-hidden
+          >
+            {confirmed ? (
+              <svg
+                className="h-2.5 w-2.5 text-primary-foreground"
+                viewBox="0 0 12 12"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M2 6l3 3 5-6" />
+              </svg>
+            ) : null}
+          </div>
+          <span
+            className={cn(
+              "text-sm",
+              side === "before" ? "text-muted-foreground" : "text-foreground"
+            )}
+          >
+            {DECLARATION_TEXT}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 /** Em dash placeholder (matches financial CTOS tables). */
@@ -1533,57 +1593,6 @@ function ComparisonDeclarationRow({
   changed: boolean;
 }) {
   const valuesDiffer = beforeConfirmed !== afterConfirmed;
-  const Cell = ({ confirmed, side }: { confirmed: boolean; side: "before" | "after" }) => {
-    const shell = comparisonCellSurfaceShellClass;
-    const changedHighlight =
-      valuesDiffer &&
-      (side === "before" ? comparisonSurfaceChangedBeforeClass : comparisonSurfaceChangedAfterClass);
-    return (
-      <div
-        className={cn(
-          shell,
-          "items-start",
-          side === "before" ? "text-muted-foreground" : "text-foreground",
-          changedHighlight
-        )}
-      >
-        <div className="w-full rounded-lg border border-input bg-background p-3">
-          <div className="flex items-start gap-3">
-            <div
-              className={cn(
-                "mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border",
-                confirmed ? "border-primary bg-primary" : "border-muted-foreground"
-              )}
-              aria-hidden
-            >
-              {confirmed ? (
-                <svg
-                  className="h-2.5 w-2.5 text-primary-foreground"
-                  viewBox="0 0 12 12"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden
-                >
-                  <path d="M2 6l3 3 5-6" />
-                </svg>
-              ) : null}
-            </div>
-            <span
-              className={cn(
-                "text-sm",
-                side === "before" ? "text-muted-foreground" : "text-foreground"
-              )}
-            >
-              {DECLARATION_TEXT}
-            </span>
-          </div>
-        </div>
-      </div>
-    );
-  };
   return (
     <div
       className="py-2 space-y-3"
@@ -1596,10 +1605,18 @@ function ComparisonDeclarationRow({
     >
       <div className={comparisonSplitRowGridClass}>
         <div className={comparisonSplitBeforeColClass}>
-          <Cell confirmed={beforeConfirmed} side="before" />
+          <ComparisonDeclarationCell
+            confirmed={beforeConfirmed}
+            side="before"
+            valuesDiffer={valuesDiffer}
+          />
         </div>
         <div className={comparisonSplitAfterColClass}>
-          <Cell confirmed={afterConfirmed} side="after" />
+          <ComparisonDeclarationCell
+            confirmed={afterConfirmed}
+            side="after"
+            valuesDiffer={valuesDiffer}
+          />
         </div>
       </div>
     </div>

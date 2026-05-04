@@ -26,7 +26,7 @@ export function EditUserDialog({ open, onOpenChange, userName, onConfirm }: Edit
           <AlertDialogTitle>Confirm Changes</AlertDialogTitle>
           <AlertDialogDescription className="text-[15px] leading-7">
             Are you sure you want to save changes to <strong>{userName}</strong>? This will update
-            the user's information in the system.
+            the user&apos;s information in the system.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

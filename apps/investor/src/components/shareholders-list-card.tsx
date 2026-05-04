@@ -56,7 +56,7 @@ export function ShareholdersListCard({ organizationId }: ShareholdersListCardPro
         </div>
       </div>
       <div className="p-6 space-y-4">
-        {shareholders.map((shareholder: any, index: number) => (
+        {shareholders.map((shareholder, index) => (
           <div key={index} className="rounded-lg border bg-card p-4">
             <div className="flex items-start justify-between mb-3">
               <div className="flex-1">

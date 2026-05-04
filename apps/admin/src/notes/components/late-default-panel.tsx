@@ -81,7 +81,7 @@ export function LateDefaultPanel({ note }: { note: NoteDetail }) {
           </div>
           <div>
             <div className="text-muted-foreground">Late caps</div>
-            <div className="font-medium">Ta'widh {note.tawidhRateCapPercent}%, Gharamah {note.gharamahRateCapPercent}%</div>
+            <div className="font-medium">Ta&apos;widh {note.tawidhRateCapPercent}%, Gharamah {note.gharamahRateCapPercent}%</div>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">

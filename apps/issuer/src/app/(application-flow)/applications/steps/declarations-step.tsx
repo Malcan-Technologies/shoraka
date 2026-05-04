@@ -55,7 +55,6 @@ function buildInitialCheckedState(
 }
 
 export function DeclarationsStep({
-  applicationId: _applicationId,
   stepConfig,
   onDataChange,
   readOnly = false,

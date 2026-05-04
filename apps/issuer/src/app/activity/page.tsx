@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import type { GetActivitiesParams } from "@cashsouk/types";
 import { useActivities } from "../../hooks/use-activities";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
@@ -21,6 +22,23 @@ export default function ActivityPage() {
   const [page, setPage] = useState(1);
   const limit = 10;
 
+  const apiDateRangeByUi: Record<string, GetActivitiesParams["dateRange"] | undefined> = {
+    all: undefined,
+    "24h": "24h",
+    "7d": "7d",
+    "30d": "30d",
+  };
+
+  const handleEventTypesChange = useCallback((values: string[]) => {
+    setEventTypes(values);
+    setPage(1);
+  }, []);
+
+  const handleDateRangeChange = useCallback((value: string) => {
+    setDateRange(value);
+    setPage(1);
+  }, []);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
@@ -29,17 +47,12 @@ export default function ActivityPage() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  // Reset page when filters change
-  useEffect(() => {
-    setPage(1);
-  }, [eventTypes, dateRange]);
-
   const { data, isLoading, refetch } = useActivities({
     page,
     limit,
     search: debouncedSearch || undefined,
     eventTypes: eventTypes.length > 0 ? eventTypes : undefined,
-    dateRange: dateRange !== "all" ? (dateRange as any) : undefined,
+    dateRange: apiDateRangeByUi[dateRange],
   });
 
   const activities = data?.activities || [];
@@ -71,9 +84,9 @@ export default function ActivityPage() {
               searchQuery={search}
               onSearchChange={setSearch}
               eventTypeFilters={eventTypes}
-              onEventTypeFiltersChange={setEventTypes}
+              onEventTypeFiltersChange={handleEventTypesChange}
               dateRangeFilter={dateRange}
-              onDateRangeFilterChange={setDateRange}
+              onDateRangeFilterChange={handleDateRangeChange}
               totalCount={pagination?.unfilteredTotal || 0}
               filteredCount={pagination?.total || 0}
               onClearFilters={handleClearFilters}
@@ -118,7 +131,8 @@ export default function ActivityPage() {
               {pagination && pagination.total > 0 && (
                 <div className="flex items-center justify-between border-t px-6 py-4 bg-white">
                   <div className="text-sm text-muted-foreground">
-                    Showing {Math.min((page - 1) * limit + 1, pagination.total)}-{Math.min(page * limit, pagination.total)} of {pagination.total}
+                    Showing {Math.min((page - 1) * limit + 1, pagination.total)}-{Math.min(page * limit, pagination.total)} of{" "}
+                    {pagination.total}
                   </div>
                   <div className="flex items-center gap-2">
                     <Button

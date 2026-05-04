@@ -459,9 +459,9 @@ function fromSnakeSaved(
   saved: BusinessDetailsSnake | Record<string, unknown> | null | undefined,
   relationalGuarantors?: unknown
 ): BusinessDetailsPayload {
-  const raw = saved as any;
-  const a = raw?.about_your_business ?? raw?.aboutYourBusiness;
-  const w = raw?.why_raising_funds ?? raw?.whyRaisingFunds;
+  const raw = saved as Record<string, unknown>;
+  const a = (raw?.about_your_business ?? raw?.aboutYourBusiness) as Record<string, unknown> | undefined;
+  const w = (raw?.why_raising_funds ?? raw?.whyRaisingFunds) as Record<string, unknown> | undefined;
   const relational = guarantorsFromRelationalRows(relationalGuarantors ?? []);
   const jsonGuarantors = parseGuarantorsFromRaw(raw?.guarantors);
   const mergedGuarantors = relational.length > 0 ? relational : jsonGuarantors;
@@ -483,12 +483,15 @@ function fromSnakeSaved(
       sameInvoiceUsed: booleanToYesNo(w?.same_invoice_used ?? w?.sameInvoiceUsed),
       accountingSoftware: w?.accounting_software ?? w?.accountingSoftware ?? "",
       supportingDocuments: Array.isArray(w?.supporting_documents ?? w?.supportingDocuments)
-        ? (w?.supporting_documents ?? w?.supportingDocuments).map((doc: any) => ({
-            file_name: String(doc?.file_name ?? doc?.fileName ?? "document.pdf"),
-            file_size: Number(doc?.file_size ?? doc?.fileSize ?? 0),
-            s3_key: typeof doc?.s3_key === "string" ? doc.s3_key : undefined,
-            uploaded_at: String(doc?.uploaded_at ?? doc?.uploadedAt ?? new Date().toISOString()),
-          }))
+        ? (w?.supporting_documents ?? w?.supportingDocuments as unknown[]).map((doc: unknown) => {
+            const d = doc as Record<string, unknown>;
+            return {
+            file_name: String(d?.file_name ?? d?.fileName ?? "document.pdf"),
+            file_size: Number(d?.file_size ?? d?.fileSize ?? 0),
+            s3_key: typeof d?.s3_key === "string" ? d.s3_key : undefined,
+            uploaded_at: String(d?.uploaded_at ?? d?.uploadedAt ?? new Date().toISOString()),
+          };
+          })
         : [],
     },
     declarationConfirmed: raw?.declaration_confirmed ?? raw?.declarationConfirmed ?? false,
@@ -575,7 +578,7 @@ interface BusinessDetailsStepProps {
   applicationId: string;
   /** Business & guarantor step config from the active product workflow (e.g. guarantor agreement template). */
   stepConfig?: Record<string, unknown>;
-  onDataChange?: (data: any) => void;
+  onDataChange?: (data: Record<string, unknown>) => void;
   readOnly?: boolean;
 }
 
@@ -1324,10 +1327,12 @@ export function BusinessDetailsStep({
       prev.map((row, i) => {
         if (i !== index) return row;
         if (row.guarantorType === "individual") {
-          const { guarantorAgreement: _a, ...rest } = row;
+          const { guarantorAgreement, ...rest } = row;
+          void guarantorAgreement;
           return rest as GuarantorIndividualRow;
         }
-        const { guarantorAgreement: _b, ...rest } = row;
+        const { guarantorAgreement, ...rest } = row;
+        void guarantorAgreement;
         return rest as GuarantorCompanyRow;
       })
     );
@@ -1440,11 +1445,12 @@ export function BusinessDetailsStep({
     return false;
   }, [initialWhySupportingDocuments, whyRaisingFunds.supportingDocuments]);
 
-  async function uploadGuarantorAgreementFilesAndDeletes(
+  const uploadGuarantorAgreementFilesAndDeletes = React.useCallback(
+    async (
     token: string,
     guarantorsIn: GuarantorFormRow[],
     pendingSnap: Array<{ index: number; file: File; client_id: string }>
-  ): Promise<GuarantorFormRow[]> {
+  ): Promise<GuarantorFormRow[]> => {
     const uploadedByClientId = new Map<
       string,
       { s3_key: string; file_name: string; file_size: number; uploaded_at: string }
@@ -1541,9 +1547,11 @@ export function BusinessDetailsStep({
     }
 
     return next;
-  }
+  },
+    [applicationId]
+  );
 
-  async function uploadWhySectionSupportingDocuments(guarantorsIn: GuarantorFormRow[]) {
+  const uploadWhySectionSupportingDocuments = React.useCallback(async (guarantorsIn: GuarantorFormRow[]) => {
     const token = await getAccessToken();
     if (!token) {
       throw new Error("Authentication required to upload supporting documents.");
@@ -1658,7 +1666,17 @@ export function BusinessDetailsStep({
     initialPayloadRef.current = JSON.stringify(nextPayload);
     initialGuarantorRowsForAgreementCleanup.current = guarantorsIn.map((g) => ({ ...g }));
     return nextPayload;
-  }
+  },
+    [
+      getAccessToken,
+      applicationId,
+      pendingSupportingDocuments,
+      whyRaisingFunds,
+      initialWhySupportingDocuments,
+      aboutYourBusiness,
+      declarationConfirmed,
+    ]
+  );
 
   React.useEffect(() => {
     if (!onDataChangeRef.current || !isInitialized) return;
@@ -1723,8 +1741,15 @@ export function BusinessDetailsStep({
     validateBusinessDetails,
     pendingSupportingDocuments.length,
     hasRemovedSupportingDocuments,
-    pendingGuarantorAgreements.length,
+    pendingGuarantorAgreements,
     hasRemovedGuarantorAgreements,
+    aboutYourBusiness,
+    declarationConfirmed,
+    getAccessToken,
+    guarantors,
+    uploadGuarantorAgreementFilesAndDeletes,
+    uploadWhySectionSupportingDocuments,
+    whyRaisingFunds,
   ]);
 
   const addWhySectionSupportingPdfFiles = React.useCallback((files: File[]) => {

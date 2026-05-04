@@ -1,6 +1,6 @@
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import * as z from "zod";
 import {
   Dialog,
@@ -70,7 +70,7 @@ export function InviteAdminDialog({ open, onOpenChange }: InviteAdminDialogProps
     },
   });
 
-  const formValues = form.watch();
+  const formValues = useWatch({ control: form.control }) as InviteAdminFormValues;
   // Only role is required for link generation
 
   React.useEffect(() => {
@@ -153,7 +153,7 @@ export function InviteAdminDialog({ open, onOpenChange }: InviteAdminDialogProps
         setCopied(true);
         toast.success("Link copied to clipboard");
         setTimeout(() => setCopied(false), 2000);
-      } catch (error) {
+      } catch {
         toast.error("Failed to copy link");
       }
     }

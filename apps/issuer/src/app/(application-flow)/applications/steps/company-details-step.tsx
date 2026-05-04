@@ -12,7 +12,7 @@
  */
 
 import * as React from "react";
-import { useOrganization, createApiClient, useAuthToken } from "@cashsouk/config";
+import { useOrganization, createApiClient, useAuthToken, type OrganizationMember } from "@cashsouk/config";
 import {
   buildDirectorShareholderDisplayRowForEmailEligibility,
   canEnterEmailForDirectorShareholder,
@@ -198,7 +198,7 @@ export function CompanyDetailsStep({
   const canEditOrganization = React.useMemo(() => {
     if (!activeOrganization || !currentUser) return false;
     if (activeOrganization.isOwner) return true;
-    const currentUserMember = activeOrganization.members?.find((m: any) => m.id === currentUser.userId);
+    const currentUserMember = activeOrganization.members?.find((m: OrganizationMember) => m.id === currentUser.userId);
     return currentUserMember?.role === "ORGANIZATION_ADMIN";
   }, [activeOrganization, currentUser]);
 

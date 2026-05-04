@@ -34,7 +34,7 @@ export function SystemHealthIndicator() {
       const data = (await response.json()) as HealthCheckResponse;
       setHealth(data);
       setLastChecked(new Date());
-    } catch (error) {
+    } catch {
       setHealth({
         status: "error",
         database: "disconnected",

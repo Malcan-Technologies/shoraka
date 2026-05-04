@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card } from "@/components/ui/card"
 import { useOrganization } from "@cashsouk/config";
 import { useOrganizationApplications } from "@/hooks/use-applications";
+import type { Application, Invoice, InvoiceDetails } from "@cashsouk/types";
 
 type Status =
   | "Draft"
@@ -14,19 +15,34 @@ type Status =
   | "Completed"
   | "Unsuccessful"
 
- 
+type ApplicationWithInvoices = Application & { invoices?: Invoice[] };
+
+type InvoiceDashboardRow = Invoice & {
+  invoiceNo: string | number | null;
+  invoiceValue: unknown;
+  financingAmount: unknown;
+  noteNo?: string;
+  submissionDate?: string;
+  fundingDeadline?: string;
+  maturityDate?: string;
+  fundingProgress?: number;
+  fundingLabel?: string;
+};
 
 // Gather invoices from applications for the active organization
 function useOrgInvoiceList() {
   const { activeOrganization } = useOrganization();
   const { data: applications = [] } = useOrganizationApplications(activeOrganization?.id);
-  const invoices = (applications || []).flatMap((app: any) =>
-    (app.invoices || []).map((inv: any) => ({
-      ...inv,
-      invoiceNo: inv.details?.number ?? inv.id,
-      invoiceValue: inv.details?.value ?? null,
-      financingAmount: inv.details?.financing_amount ?? null,
-    }))
+  const invoices = (applications as ApplicationWithInvoices[]).flatMap((app) =>
+    (app.invoices ?? []).map(
+      (inv): InvoiceDashboardRow => ({
+        ...inv,
+        invoiceNo: inv.details?.number ?? inv.id,
+        invoiceValue: inv.details?.value ?? null,
+        financingAmount:
+          (inv.details as InvoiceDetails & { financing_amount?: number }).financing_amount ?? null,
+      })
+    )
   );
   return invoices;
 }
@@ -53,7 +69,7 @@ export function FinancingRequestsList() {
       <h3 className="text-lg font-semibold">Invoices</h3>
 
       <div className="space-y-4">
-        {invoices.map((item: any) => (
+        {invoices.map((item: InvoiceDashboardRow) => (
           <Card
             key={item.id}
             className="p-6 rounded-xl border border-gray-200 shadow-sm"
@@ -68,7 +84,7 @@ export function FinancingRequestsList() {
                     Invoice no :{" "}
                     <span className="font-semibold">{item.invoiceNo}</span>
                   </p>
-                  {getStatusBadge(item.status)}
+                  {getStatusBadge(item.status as Status)}
                 </div>
 
                 {item.noteNo && (

@@ -9,6 +9,7 @@ import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useIssuerProducts } from "@/hooks/use-products";
 import { useCreateApplication } from "@/hooks/use-applications";
 import { filterVisiblePeopleRows } from "@cashsouk/types";
+import type { Product } from "@cashsouk/types";
 import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
 import { toast } from "sonner";
 import { useNavigationGuard } from "@/hooks/use-navigation-guard2";
@@ -153,7 +154,7 @@ export default function NewApplicationPage() {
     }
   }, [activeOrganization, isOrgLoading, router]);
 
-  const apiProducts = (productsData as any)?.products || [];
+  const apiProducts: Product[] = productsData?.products ?? [];
   const products = USE_MOCK_FINANCING_TYPE_CATALOG ? MOCK_FINANCING_TYPE_PRODUCTS : apiProducts;
 
   /**
@@ -187,13 +188,13 @@ export default function NewApplicationPage() {
       return [];
     }
 
-    const selectedProduct = products.find((p: any) => p.id === selectedProductId);
+    const selectedProduct = products.find((p: Product) => p.id === selectedProductId);
 
     if (!selectedProduct || !selectedProduct.workflow) {
       return [];
     }
 
-    return selectedProduct.workflow.map((step: any) => step.name);
+    return selectedProduct.workflow.map((step) => String((step as { name?: string }).name ?? ""));
   }, [selectedProductId, products]);
 
 
@@ -256,7 +257,7 @@ export default function NewApplicationPage() {
 
     try {
       const liveResp = await apiClient.getIssuerProductLiveCheck(selectedProductId);
-      const currentProduct = productsData?.products?.find((p: any) => p.id === selectedProductId);
+      const currentProduct = productsData?.products?.find((p: Product) => p.id === selectedProductId);
 
       if (!liveResp.success) {
         setVersionModalReason("PRODUCT_UNAVAILABLE");
@@ -295,7 +296,7 @@ export default function NewApplicationPage() {
       // Clear unsaved and go to step 2 (next step after selecting product)
       setHasUnsavedChanges(false);
       router.push(`/applications/edit/${application.id}?step=2`);
-    } catch (error) {
+    } catch {
       // Error already shown by mutation hook
     }
   };

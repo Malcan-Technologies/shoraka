@@ -12,7 +12,7 @@ export function useInvoice(invoiceId?: string) {
     enabled: !!invoiceId,
     queryFn: async () => {
       const api = createApiClient(API_URL, getAccessToken);
-      const resp: any = await api.getInvoice(invoiceId!);
+      const resp = await api.getInvoice(invoiceId!);
       if (!resp.success) {
         throw new Error("Failed to load invoice");
       }
@@ -29,7 +29,7 @@ export function useInvoicesByApplication(applicationId?: string) {
     enabled: !!applicationId,
     queryFn: async () => {
       const api = createApiClient(API_URL, getAccessToken);
-      const resp: any = await api.getInvoicesByApplication(applicationId!);
+      const resp = await api.getInvoicesByApplication(applicationId!);
 
       if (!resp.success) {
         throw new Error("Failed to load invoices");
@@ -48,7 +48,7 @@ export function useInvoicesByContract(contractId?: string) {
     enabled: !!contractId,
     queryFn: async () => {
       const api = createApiClient(API_URL, getAccessToken);
-      const resp: any = await api.getInvoicesByContract(contractId!);
+      const resp = await api.getInvoicesByContract(contractId!);
       if (!resp.success) {
         throw new Error("Failed to load invoices by contract");
       }

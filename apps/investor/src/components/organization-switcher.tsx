@@ -23,6 +23,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useOrganization, type Organization, type OnboardingStatus, createApiClient } from "@cashsouk/config";
 import { useAuthToken } from "@cashsouk/config";
 
+function navigateHardToUrl(url: string): void {
+  window.location.assign(url);
+}
+
 function getOrgDisplayName(org: Organization): string {
   // Personal accounts always show as "Personal Account" in sidebar
   if (org.type === "PERSONAL") {
@@ -256,13 +260,13 @@ export function OrganizationSwitcher() {
     // Check if this org has an in-progress regtank onboarding and redirect to verify_link (for personal accounts)
     const inProgressStatuses = ["IN_PROGRESS", "FORM_FILLING", "LIVENESS_STARTED"];
     if (org.regtankOnboardingStatus && inProgressStatuses.includes(org.regtankOnboardingStatus) && org.regtankVerifyLink) {
-      window.location.href = org.regtankVerifyLink;
+      navigateHardToUrl(org.regtankVerifyLink);
       return;
     }
     
     // If status is PENDING, redirect to RegTank portal (verifyLink) (for personal accounts)
     if ((org.onboardingStatus === "PENDING" || org.regtankOnboardingStatus === "PENDING") && org.regtankVerifyLink) {
-      window.location.href = org.regtankVerifyLink;
+      navigateHardToUrl(org.regtankVerifyLink);
       return;
     }
     
@@ -289,7 +293,7 @@ export function OrganizationSwitcher() {
         }>(`/v1/regtank/retry/${org.id}?portalType=${portalType}`);
         
         if (result.success && result.data?.verifyLink) {
-          window.location.href = result.data.verifyLink;
+          navigateHardToUrl(result.data.verifyLink);
           return;
         }
       } catch (error) {

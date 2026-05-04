@@ -168,13 +168,17 @@ function isEndDateTooSoon(
 }
 
 /** Read product-level min_contract_months from product workflow (if present). */
-function getProductMinContractMonths(workflow: any[]): number | null {
+function getProductMinContractMonths(workflow: unknown[] | null | undefined): number | null {
+  if (!workflow?.length) return null;
   try {
-    const contractStep = workflow.find(
-      (step: any) =>
-        step.id?.includes?.("contract_details") ||
-        step.name?.toLowerCase?.()?.includes?.("contract")
-    );
+    const contractStep = workflow.find((step) => {
+      if (typeof step !== "object" || step === null) return false;
+      const s = step as { id?: string; name?: string; config?: Record<string, unknown> };
+      return (
+        s.id?.includes?.("contract_details") === true ||
+        s.name?.toLowerCase?.()?.includes?.("contract") === true
+      );
+    }) as { config?: Record<string, unknown> } | undefined;
 
     const config = contractStep?.config || {};
     const val = config.min_contract_months ?? config.minContractMonths;
@@ -502,7 +506,6 @@ export function ContractDetailsStep({
   isAmendmentMode,
   flaggedSections,
   flaggedItems,
-  remarks: _remarks,
   readOnly = false,
   isInvoiceOnly = false,
 }: ContractDetailsStepProps) {
@@ -596,7 +599,7 @@ export function ContractDetailsStep({
      ================================================================ */
 
   const isInitializedRef = React.useRef(false);
-  const initialSnapshotRef = React.useRef<Record<string, any> | null>(null);
+  const initialSnapshotRef = React.useRef<Record<string, unknown> | null>(null);
 
   React.useEffect(() => {
     // Only initialize once per applicationId
@@ -915,6 +918,7 @@ export function ContractDetailsStep({
     isInvoiceOnly,
     contract,
     application,
+    productMinMonths,
   ]);
 
   /* ================================================================
@@ -967,8 +971,8 @@ export function ContractDetailsStep({
         "end_date",
       ];
       for (const f of simpleContractFields) {
-        const a = (ic as any)[f] ?? "";
-        const b = (cc as any)[f] ?? "";
+        const a = (ic as Record<string, unknown>)[f as string] ?? "";
+        const b = (cc as Record<string, unknown>)[f as string] ?? "";
         if (String(a) !== String(b)) return true;
       }
 
@@ -985,8 +989,8 @@ export function ContractDetailsStep({
         "is_related_party",
       ];
       for (const f of simpleCustomerFields) {
-        const a = (iu as any)[f] ?? "";
-        const b = (cu as any)[f] ?? "";
+        const a = (iu as Record<string, unknown>)[f as string] ?? "";
+        const b = (cu as Record<string, unknown>)[f as string] ?? "";
         if (String(a) !== String(b)) return true;
       }
 
@@ -1038,7 +1042,6 @@ export function ContractDetailsStep({
       saveFunction: saveFunctionRef.current || undefined,
       _saveFunctionRef: saveFunctionRef, // internal fallback for debugging/tests
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData, pendingFiles, isInvoiceOnly]);
   // Determine whether the step is editable (amendment mode + flagged, or explicit readOnly override)
   const stepIsEditable = React.useMemo(() => {

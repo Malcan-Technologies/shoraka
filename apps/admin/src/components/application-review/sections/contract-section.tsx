@@ -139,6 +139,120 @@ export function ContractSection({
     setLargePrivateCompany(unknownToTriBool(liveCustomerDetails?.is_large_private_company));
   }, [liveCustomerDetails?.is_large_private_company]);
 
+  const cd = contractDetails as Record<string, unknown> | null | undefined;
+  const offer = offerDetails as Record<string, unknown> | null | undefined;
+  const cust = liveCustomerDetails;
+
+  const contractDoc = cd?.document as FileDoc | undefined;
+  const customerDoc = cust?.document as FileDoc | undefined;
+  const requestedFacility = resolveRequestedFacility(cd);
+  const contractValue = typeof cd?.value === "number" ? cd.value : 0;
+  const persistedOffered = resolveOfferedFacility(offer);
+  const offerSentAtRaw =
+    typeof offer?.sent_at === "string" && offer.sent_at.trim().length > 0 ? offer.sent_at : null;
+  let offerSentAtLabel: string | null = null;
+  if (offerSentAtRaw) {
+    const d = new Date(offerSentAtRaw);
+    if (!Number.isNaN(d.getTime())) offerSentAtLabel = format(d, "PPpp");
+  }
+  const offerRespondedAtRaw =
+    typeof offer?.responded_at === "string" && offer.responded_at.trim().length > 0
+      ? offer.responded_at
+      : null;
+  let offerRespondedAtLabel: string | null = null;
+  if (offerRespondedAtRaw) {
+    const d = new Date(offerRespondedAtRaw);
+    if (!Number.isNaN(d.getTime())) offerRespondedAtLabel = format(d, "PPpp");
+  }
+  const offerTimelineLine = (() => {
+    if (offerRespondedAtLabel) {
+      if (contractRowStatus === "APPROVED") {
+        return `Issuer accepted the offer on ${offerRespondedAtLabel}`;
+      }
+      if (contractRowStatus === "WITHDRAWN") {
+        return `Issuer declined the offer on ${offerRespondedAtLabel}`;
+      }
+    }
+    if (offerSentAtLabel) {
+      return `Offer sent ${offerSentAtLabel}`;
+    }
+    return null;
+  })();
+  const isContractOfferSendLocked =
+    contractRowStatus === "OFFER_SENT" ||
+    contractRowStatus === "WITHDRAWN" ||
+    contractRowStatus === "APPROVED" ||
+    contractRowStatus === "REJECTED" ||
+    offerSentAtRaw != null;
+  const seedOfferedInput = persistedOffered > 0 ? formatMoney(persistedOffered) : "";
+  const [offeredFacilityInput, setOfferedFacilityInput] = React.useState<string>(seedOfferedInput);
+  const [contractOfferConfirmOpen, setContractOfferConfirmOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    setOfferedFacilityInput(persistedOffered > 0 ? formatMoney(persistedOffered) : "");
+  }, [persistedOffered]);
+
+  const hasData = cd || cust;
+  const offeredFacility = parseMoney(offeredFacilityInput);
+  const offeredFacilityInputTrimmed = offeredFacilityInput.trim();
+  const offeredFacilityNotPositive =
+    offeredFacilityInputTrimmed.length > 0 && offeredFacility <= 0;
+  const offeredExceedsContractValue = contractValue > 0 && offeredFacility > contractValue;
+  const isContractApproved = sectionStatus === "APPROVED";
+  const isContractFinalizedByIssuer = isContractApproved;
+  const showViewSignedOfferOnlyAction =
+    isContractFinalizedByIssuer &&
+    !!signedContractOfferLetterAvailable &&
+    !!onViewSignedContractOffer;
+  const canSendContractOffer =
+    !isContractApproved &&
+    !isContractOfferSendLocked &&
+    offeredFacility > 0 &&
+    !offeredExceedsContractValue;
+
+  const assertLargePrivateThenOpenOffer = () => {
+    console.log("Customer Large Private:", largePrivateCompany);
+    if (largePrivateCompany === null) {
+      console.log("Blocked: Customer type not confirmed");
+      toast.error("Please confirm if customer is a large private company");
+      setLargePrivateHighlight(true);
+      return;
+    }
+    setContractOfferConfirmOpen(true);
+  };
+
+  const handleConfirmContractOffer = async () => {
+    console.log("Customer Large Private:", largePrivateCompany);
+    if (largePrivateCompany === null) {
+      console.log("Blocked: Customer type not confirmed");
+      toast.error("Please confirm if customer is a large private company");
+      setLargePrivateHighlight(true);
+      return;
+    }
+    if (!onSendOffer || !canSendContractOffer) return;
+    await onSendOffer({ offeredFacility });
+    setContractOfferConfirmOpen(false);
+  };
+
+  const persistLargePrivate = React.useCallback(
+    async (value: boolean) => {
+      if (!applicationId) {
+        toast.error("Missing application id; cannot save customer type.");
+        return;
+      }
+      console.log("Customer Large Private:", value);
+      setLargePrivateCompany(value);
+      setLargePrivateHighlight(false);
+      try {
+        await patchLargePrivate.mutateAsync({ applicationId, isLargePrivateCompany: value });
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Failed to save customer type");
+        setLargePrivateCompany(unknownToTriBool(liveCustomerDetails?.is_large_private_company));
+      }
+    },
+    [applicationId, patchLargePrivate, liveCustomerDetails?.is_large_private_company]
+  );
+
   if (sectionComparison) {
     const { before, after, isPathChanged } = sectionComparison;
     const bCd = before.contractDetails as Record<string, unknown> | null | undefined;
@@ -305,120 +419,6 @@ export function ContractSection({
       </ReviewSectionCard>
     );
   }
-
-  const cd = contractDetails as Record<string, unknown> | null | undefined;
-  const offer = offerDetails as Record<string, unknown> | null | undefined;
-  const cust = liveCustomerDetails;
-
-  const contractDoc = cd?.document as FileDoc | undefined;
-  const customerDoc = cust?.document as FileDoc | undefined;
-  const requestedFacility = resolveRequestedFacility(cd);
-  const contractValue = typeof cd?.value === "number" ? cd.value : 0;
-  const persistedOffered = resolveOfferedFacility(offer);
-  const offerSentAtRaw =
-    typeof offer?.sent_at === "string" && offer.sent_at.trim().length > 0 ? offer.sent_at : null;
-  let offerSentAtLabel: string | null = null;
-  if (offerSentAtRaw) {
-    const d = new Date(offerSentAtRaw);
-    if (!Number.isNaN(d.getTime())) offerSentAtLabel = format(d, "PPpp");
-  }
-  const offerRespondedAtRaw =
-    typeof offer?.responded_at === "string" && offer.responded_at.trim().length > 0
-      ? offer.responded_at
-      : null;
-  let offerRespondedAtLabel: string | null = null;
-  if (offerRespondedAtRaw) {
-    const d = new Date(offerRespondedAtRaw);
-    if (!Number.isNaN(d.getTime())) offerRespondedAtLabel = format(d, "PPpp");
-  }
-  const offerTimelineLine = (() => {
-    if (offerRespondedAtLabel) {
-      if (contractRowStatus === "APPROVED") {
-        return `Issuer accepted the offer on ${offerRespondedAtLabel}`;
-      }
-      if (contractRowStatus === "WITHDRAWN") {
-        return `Issuer declined the offer on ${offerRespondedAtLabel}`;
-      }
-    }
-    if (offerSentAtLabel) {
-      return `Offer sent ${offerSentAtLabel}`;
-    }
-    return null;
-  })();
-  const isContractOfferSendLocked =
-    contractRowStatus === "OFFER_SENT" ||
-    contractRowStatus === "WITHDRAWN" ||
-    contractRowStatus === "APPROVED" ||
-    contractRowStatus === "REJECTED" ||
-    offerSentAtRaw != null;
-  const seedOfferedInput = persistedOffered > 0 ? formatMoney(persistedOffered) : "";
-  const [offeredFacilityInput, setOfferedFacilityInput] = React.useState<string>(seedOfferedInput);
-  const [contractOfferConfirmOpen, setContractOfferConfirmOpen] = React.useState(false);
-
-  React.useEffect(() => {
-    setOfferedFacilityInput(persistedOffered > 0 ? formatMoney(persistedOffered) : "");
-  }, [persistedOffered]);
-
-  const hasData = cd || cust;
-  const offeredFacility = parseMoney(offeredFacilityInput);
-  const offeredFacilityInputTrimmed = offeredFacilityInput.trim();
-  const offeredFacilityNotPositive =
-    offeredFacilityInputTrimmed.length > 0 && offeredFacility <= 0;
-  const offeredExceedsContractValue = contractValue > 0 && offeredFacility > contractValue;
-  const isContractApproved = sectionStatus === "APPROVED";
-  const isContractFinalizedByIssuer = isContractApproved;
-  const showViewSignedOfferOnlyAction =
-    isContractFinalizedByIssuer &&
-    !!signedContractOfferLetterAvailable &&
-    !!onViewSignedContractOffer;
-  const canSendContractOffer =
-    !isContractApproved &&
-    !isContractOfferSendLocked &&
-    offeredFacility > 0 &&
-    !offeredExceedsContractValue;
-
-  const assertLargePrivateThenOpenOffer = React.useCallback(() => {
-    console.log("Customer Large Private:", largePrivateCompany);
-    if (largePrivateCompany === null) {
-      console.log("Blocked: Customer type not confirmed");
-      toast.error("Please confirm if customer is a large private company");
-      setLargePrivateHighlight(true);
-      return;
-    }
-    setContractOfferConfirmOpen(true);
-  }, [largePrivateCompany]);
-
-  const handleConfirmContractOffer = React.useCallback(async () => {
-    console.log("Customer Large Private:", largePrivateCompany);
-    if (largePrivateCompany === null) {
-      console.log("Blocked: Customer type not confirmed");
-      toast.error("Please confirm if customer is a large private company");
-      setLargePrivateHighlight(true);
-      return;
-    }
-    if (!onSendOffer || !canSendContractOffer) return;
-    await onSendOffer({ offeredFacility });
-    setContractOfferConfirmOpen(false);
-  }, [onSendOffer, offeredFacility, canSendContractOffer, largePrivateCompany]);
-
-  const persistLargePrivate = React.useCallback(
-    async (value: boolean) => {
-      if (!applicationId) {
-        toast.error("Missing application id; cannot save customer type.");
-        return;
-      }
-      console.log("Customer Large Private:", value);
-      setLargePrivateCompany(value);
-      setLargePrivateHighlight(false);
-      try {
-        await patchLargePrivate.mutateAsync({ applicationId, isLargePrivateCompany: value });
-      } catch (e) {
-        toast.error(e instanceof Error ? e.message : "Failed to save customer type");
-        setLargePrivateCompany(unknownToTriBool(liveCustomerDetails?.is_large_private_company));
-      }
-    },
-    [applicationId, patchLargePrivate, liveCustomerDetails?.is_large_private_company]
-  );
 
   return (
     <ReviewSectionCard
