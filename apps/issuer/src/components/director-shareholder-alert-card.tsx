@@ -88,20 +88,6 @@ export function DirectorShareholderAlertCard({
           <div className="flex items-center gap-2">
             <Button
               type="button"
-              variant="outline"
-              className="h-10 shrink-0 rounded-full px-5 text-sm font-semibold sm:self-center"
-              onClick={() => {
-                if (onGoToProfile) {
-                  onGoToProfile();
-                  return;
-                }
-                router.push("/profile");
-              }}
-            >
-              Go to Profile
-            </Button>
-            <Button
-              type="button"
               variant="action"
               className="h-10 shrink-0 rounded-full px-5 text-sm font-semibold sm:self-center"
               onClick={() => {
@@ -114,7 +100,7 @@ export function DirectorShareholderAlertCard({
                 router.push(`/profile?focus=directors${personQuery}`);
               }}
             >
-              Fix now
+              Go to Profile
             </Button>
           </div>
         </div>
