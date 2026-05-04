@@ -1644,6 +1644,15 @@ export class OrganizationService {
       throw new AppError(400, "VALIDATION_ERROR", "Invalid party key");
     }
     const entitiesForParty = await this.getCorporateEntities(userId, organizationId, portalType);
+    const peopleRows = filterVisiblePeopleRows(entitiesForParty.people ?? []);
+    const personRow = peopleRows.find((p) => normalizeDirectorShareholderIdKey(p.matchKey) === partyKey);
+    if (!personRow || !canManageDirectorShareholder(personRow)) {
+      throw new AppError(
+        400,
+        "DIRECTOR_SHAREHOLDER_NOT_EDITABLE",
+        "Email cannot be edited at this stage"
+      );
+    }
     const displayRowsForParty = getDirectorShareholderDisplayRows({
       corporateEntities: entitiesForParty,
       directorKycStatus: (entitiesForParty.directorKycStatus as Record<string, unknown> | null) ?? null,
