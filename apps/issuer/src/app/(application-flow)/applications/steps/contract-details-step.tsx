@@ -140,11 +140,7 @@ function isStartBeforeEnd(start?: string, end?: string) {
   return parsedStart.getTime() < parsedEnd.getTime();
 }
 
-function isEndDateTooSoon(
-  startDate?: string,
-  endDate?: string,
-  minMonths?: number
-) {
+function isEndDateTooSoon(startDate?: string, endDate?: string, minMonths?: number) {
   if (!endDate) return false;
   if (!minMonths || minMonths <= 0) return false;
 
@@ -197,10 +193,7 @@ function getProductMinContractMonths(workflow: unknown[] | null | undefined): nu
    ================================================================ */
 
 const radioSelectedLabel = formLabelClassName;
-const radioUnselectedLabel = formLabelClassName.replace(
-  "text-foreground",
-  "text-muted-foreground"
-);
+const radioUnselectedLabel = formLabelClassName.replace("text-foreground", "text-muted-foreground");
 
 function CustomRadio({
   name,
@@ -222,7 +215,9 @@ function CustomRadio({
   disabled?: boolean;
 }) {
   return (
-    <label className={cn("flex items-center gap-2", disabled ? "cursor-not-allowed" : "cursor-pointer")}>
+    <label
+      className={cn("flex items-center gap-2", disabled ? "cursor-not-allowed" : "cursor-pointer")}
+    >
       <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
         <input
           type="radio"
@@ -255,16 +250,11 @@ function CustomRadio({
             />
           )}
           {!checked && (
-            <span
-              className="absolute inset-1.5 rounded-full bg-muted-foreground/40"
-              aria-hidden
-            />
+            <span className="absolute inset-1.5 rounded-full bg-muted-foreground/40" aria-hidden />
           )}
         </span>
       </span>
-      <span className={checked ? selectedLabelClass : unselectedLabelClass}>
-        {label}
-      </span>
+      <span className={checked ? selectedLabelClass : unselectedLabelClass}>{label}</span>
     </label>
   );
 }
@@ -406,31 +396,25 @@ function FileUploadArea({
             <CheckCircle2
               className={cn(
                 "h-4 w-4",
-                disabled
-                  ? "text-muted-foreground"
-                  : isPending
-                    ? "text-yellow-500"
-                    : "text-primary"
+                disabled ? "text-muted-foreground" : isPending ? "text-yellow-500" : "text-primary"
               )}
             />
           </div>
           <div className="min-w-0 flex-1" title={fileName}>
             <div className="text-sm font-medium truncate">{fileName}</div>
-            <div className="text-xs text-muted-foreground">
-              {sizeDisplay}
-            </div>
+            <div className="text-xs text-muted-foreground">{sizeDisplay}</div>
           </div>
         </div>
         {!disabled && onRemove ? (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove();
-          }}
-          className="p-1 hover:bg-muted rounded-full transition-colors"
-        >
-          <X className="h-3 w-3 text-muted-foreground" />
-        </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove();
+            }}
+            className="p-1 hover:bg-muted rounded-full transition-colors"
+          >
+            <X className="h-3 w-3 text-muted-foreground" />
+          </button>
         ) : null}
       </div>
     );
@@ -515,7 +499,7 @@ export function ContractDetailsStep({
 
   // DEBUG: Toggle skeleton mode
 
-  const contractId = ((application as unknown) as { contract?: { id?: string } })?.contract?.id;
+  const contractId = (application as unknown as { contract?: { id?: string } })?.contract?.id;
   const { data: contract, isLoading: isLoadingContract } = useContract(contractId || "");
   const createContractMutation = useCreateContract();
   const updateContractMutation = useUpdateContract();
@@ -569,7 +553,6 @@ export function ContractDetailsStep({
     [workflow]
   );
 
-
   /* Clear financing error when user changes the value */
   React.useEffect(() => {
     setFinancingError(null);
@@ -579,10 +562,13 @@ export function ContractDetailsStep({
   React.useEffect(() => {
     const data =
       devTools?.autoFillData?.stepKey === "contract_details"
-        ? (devTools.autoFillData.data as { contract?: Record<string, unknown>; customer?: Record<string, unknown> })
-        : devTools?.autoFillDataMap?.["contract_details"] as
+        ? (devTools.autoFillData.data as {
+            contract?: Record<string, unknown>;
+            customer?: Record<string, unknown>;
+          })
+        : (devTools?.autoFillDataMap?.["contract_details"] as
             | { contract?: Record<string, unknown>; customer?: Record<string, unknown> }
-            | undefined;
+            | undefined);
     if (!data || (!data.contract && !data.customer)) return;
     setFormData((prev) => ({
       contract: data.contract ? { ...prev.contract, ...data.contract } : prev.contract,
@@ -609,13 +595,15 @@ export function ContractDetailsStep({
     // Note: contract can be undefined/null if it doesn't exist yet - we'll create it on save
     // So we don't wait for contract loading here
 
-    const rawContract = (contract as unknown) as { contract_details?: Record<string, unknown> | null; customer_details?: Record<string, unknown> | null } | null;
+    const rawContract = contract as unknown as {
+      contract_details?: Record<string, unknown> | null;
+      customer_details?: Record<string, unknown> | null;
+    } | null;
     const contractDetails = (rawContract?.contract_details ?? {}) as Record<string, unknown>;
     const customerDetails = (rawContract?.customer_details ?? {}) as Record<string, unknown>;
 
     const relatedPartyValue: YesNo | "" =
-      customerDetails.is_related_party === undefined ||
-        customerDetails.is_related_party === null
+      customerDetails.is_related_party === undefined || customerDetails.is_related_party === null
         ? ""
         : customerDetails.is_related_party
           ? ("yes" as const)
@@ -626,12 +614,19 @@ export function ContractDetailsStep({
         title: (contractDetails.title as string) || "",
         description: (contractDetails.description as string) || "",
         number: (contractDetails.number as string) || "",
-        value: contractDetails.value != null ? formatMoney(contractDetails.value as string | number) : "",
+        value:
+          contractDetails.value != null
+            ? formatMoney(contractDetails.value as string | number)
+            : "",
         start_date: (contractDetails.start_date as string) || "",
         end_date: (contractDetails.end_date as string) || "",
         financing:
-          (contractDetails.financing != null ? formatMoney(contractDetails.financing as string | number) : "") ||
-          (contractDetails.contract_financing != null ? formatMoney(contractDetails.contract_financing as string | number) : "") ||
+          (contractDetails.financing != null
+            ? formatMoney(contractDetails.financing as string | number)
+            : "") ||
+          (contractDetails.contract_financing != null
+            ? formatMoney(contractDetails.contract_financing as string | number)
+            : "") ||
           "",
         document: (contractDetails.document as FileMetadata | null) || null,
       },
@@ -645,19 +640,19 @@ export function ContractDetailsStep({
       },
     };
 
-  const displayedInitialData = {
-    ...initialData,
-    contract: {
-      ...initialData.contract,
-      start_date: isoToApplicationFlowDateDisplay(initialData.contract.start_date),
-      end_date: isoToApplicationFlowDateDisplay(initialData.contract.end_date),
-    },
-  };
+    const displayedInitialData = {
+      ...initialData,
+      contract: {
+        ...initialData.contract,
+        start_date: isoToApplicationFlowDateDisplay(initialData.contract.start_date),
+        end_date: isoToApplicationFlowDateDisplay(initialData.contract.end_date),
+      },
+    };
 
-  setFormData(displayedInitialData);
+    setFormData(displayedInitialData);
 
-  // Track an immutable snapshot of the initially hydrated/displayed values for change detection
-  initialSnapshotRef.current = displayedInitialData;
+    // Track an immutable snapshot of the initially hydrated/displayed values for change detection
+    initialSnapshotRef.current = displayedInitialData;
 
     // Track S3 keys for versioning
     const contractDoc = contractDetails.document as FileMetadata | undefined;
@@ -697,11 +692,7 @@ export function ContractDetailsStep({
       if (!isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date))
         validationErrors.push("VALIDATION_CONTRACT_DATE_ORDER");
       if (
-        isEndDateTooSoon(
-          formData.contract.start_date,
-          formData.contract.end_date,
-          productMinMonths
-        )
+        isEndDateTooSoon(formData.contract.start_date, formData.contract.end_date, productMinMonths)
       ) {
         validationErrors.push("VALIDATION_CONTRACT_DURATION_TOO_SHORT");
       }
@@ -716,7 +707,8 @@ export function ContractDetailsStep({
       }
     }
 
-    if (!/^\d{12}$/.test(formData.customer.ssm_number)) validationErrors.push("VALIDATION_CONTRACT_SSM_FORMAT");
+    if (!/^\d{12}$/.test(formData.customer.ssm_number))
+      validationErrors.push("VALIDATION_CONTRACT_SSM_FORMAT");
 
     if (validationErrors.length > 0) {
       toast.error("Please fix the highlighted fields");
@@ -846,8 +838,13 @@ export function ContractDetailsStep({
     };
 
     if (isInvoiceOnly) {
-      const existingContractDetails = (contract as unknown as { contract_details?: Record<string, unknown> })?.contract_details;
-      const updatePayload: { customer_details: typeof updatedCustomerDetails; contract_details?: null } = {
+      const existingContractDetails = (
+        contract as unknown as { contract_details?: Record<string, unknown> }
+      )?.contract_details;
+      const updatePayload: {
+        customer_details: typeof updatedCustomerDetails;
+        contract_details?: null;
+      } = {
         customer_details: updatedCustomerDetails,
       };
       if (existingContractDetails != null && Object.keys(existingContractDetails).length > 0) {
@@ -863,8 +860,10 @@ export function ContractDetailsStep({
 
     const valueNum = parseMoney(updatedFormData.contract.value);
     const contractFinancingNum = parseMoney(updatedFormData.contract.financing);
-    const structureType = (application as { financing_structure?: { structure_type?: string } })?.financing_structure?.structure_type;
-    const existingCd = (contract as unknown as { contract_details?: Record<string, unknown> })?.contract_details;
+    const structureType = (application as { financing_structure?: { structure_type?: string } })
+      ?.financing_structure?.structure_type;
+    const existingCd = (contract as unknown as { contract_details?: Record<string, unknown> })
+      ?.contract_details;
     /** New contract: approved, utilized, available = null. Existing contract: use stored values from backend. */
     const approvedFacilityValue =
       structureType === "existing_contract" && typeof existingCd?.approved_facility === "number"
@@ -884,9 +883,11 @@ export function ContractDetailsStep({
       value: valueNum,
       financing: contractFinancingNum,
       start_date:
-        applicationFlowDateToIso(updatedFormData.contract.start_date) ?? updatedFormData.contract.start_date,
+        applicationFlowDateToIso(updatedFormData.contract.start_date) ??
+        updatedFormData.contract.start_date,
       end_date:
-        applicationFlowDateToIso(updatedFormData.contract.end_date) ?? updatedFormData.contract.end_date,
+        applicationFlowDateToIso(updatedFormData.contract.end_date) ??
+        updatedFormData.contract.end_date,
       approved_facility: approvedFacilityValue,
       utilized_facility: utilizedFacilityValue,
       available_facility: availableFacilityValue,
@@ -1011,8 +1012,10 @@ export function ContractDetailsStep({
     const hasFormChanges = hasFormChanged();
     const hasContractDocument = !!formData.contract.document || !!pendingFiles.contract;
     const hasConsentDocument = !!formData.customer.document || !!pendingFiles.consent;
-    const hasValidStartDate = !!formData.contract.start_date && isApplicationFlowDateValid(formData.contract.start_date);
-    const hasValidEndDate = !!formData.contract.end_date && isApplicationFlowDateValid(formData.contract.end_date);
+    const hasValidStartDate =
+      !!formData.contract.start_date && isApplicationFlowDateValid(formData.contract.start_date);
+    const hasValidEndDate =
+      !!formData.contract.end_date && isApplicationFlowDateValid(formData.contract.end_date);
 
     const isValid = isInvoiceOnly
       ? !!formData.customer.name &&
@@ -1053,18 +1056,17 @@ export function ContractDetailsStep({
   const stepIsEditable = React.useMemo(() => {
     if (readOnly) return false;
     if (!isAmendmentMode) return true;
-    return flaggedSections?.has("contract_details") || (flaggedItems?.get("contract_details")?.size ?? 0) > 0;
+    return (
+      flaggedSections?.has("contract_details") ||
+      (flaggedItems?.get("contract_details")?.size ?? 0) > 0
+    );
   }, [readOnly, isAmendmentMode, flaggedSections, flaggedItems]);
 
   /* ================================================================
      HANDLERS
      ================================================================ */
 
-  const handleInputChange = (
-    section: "contract" | "customer",
-    field: string,
-    value: unknown
-  ) => {
+  const handleInputChange = (section: "contract" | "customer", field: string, value: unknown) => {
     setFormData((prev) => ({
       ...prev,
       [section]: {
@@ -1080,21 +1082,19 @@ export function ContractDetailsStep({
 
   const isStartInvalid =
     hasSubmitted &&
-    (
-      !formData.contract.start_date ||
-      !isApplicationFlowDateValid(formData.contract.start_date)
-    );
+    (!formData.contract.start_date || !isApplicationFlowDateValid(formData.contract.start_date));
 
   const isEndInvalid =
     hasSubmitted &&
-    (
-      !formData.contract.end_date ||
+    (!formData.contract.end_date ||
       !isApplicationFlowDateValid(formData.contract.end_date) ||
       !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) ||
       (productMinMonths != null &&
-        isEndDateTooSoon(formData.contract.start_date, formData.contract.end_date, productMinMonths))
-    );
-
+        isEndDateTooSoon(
+          formData.contract.start_date,
+          formData.contract.end_date,
+          productMinMonths
+        )));
 
   /* ================================================================
      RENDER
@@ -1124,181 +1124,187 @@ export function ContractDetailsStep({
       <div className={applicationFlowStepOuterClassName}>
         {/* Contract Details Section — hidden when invoice_only */}
         {!isInvoiceOnly && (
-        <section className={applicationFlowSectionStackClassName}>
-          <div>
-            <h3 className={applicationFlowSectionTitleClassName}>Contract Details</h3>
-            <div className={applicationFlowSectionDividerClassName} />
-          </div>
-
-          <div className={sectionGridClassName}>
-            <Label className={labelInputClassName}>Contract Title</Label>
-            <Input
-              value={formData.contract.title}
-              onChange={(e) => handleInputChange("contract", "title", e.target.value)}
-              disabled={!stepIsEditable}
-              placeholder="eg. Mining Rig Repair 12654"
-              className={inputClassName}
-            />
-
-            <Label className={labelTextareaClassName}>Contract Description</Label>
-            <Textarea
-              value={formData.contract.description}
-              onChange={(e) =>
-                handleInputChange("contract", "description", e.target.value)
-              }
-              disabled={!stepIsEditable}
-              placeholder="eg. Repair and maintenance for 12 mining rigs"
-              className={cn(formTextareaClassName, "min-h-[100px]", !stepIsEditable && formInputDisabledClassName)}
-            />
-
-            <Label className={labelInputClassName}>Contract Number</Label>
-            <Input
-              value={formData.contract.number}
-              onChange={(e) => handleInputChange("contract", "number", e.target.value)}
-              disabled={!stepIsEditable}
-              placeholder="eg. 20212345678"
-              className={inputClassName}
-            />
-
-            <Label className={labelInputClassName}>Contract Value</Label>
-            <div className="h-11 flex items-center">
-              <MoneyInput
-                value={formData.contract.value}
-                onValueChange={(value) => handleInputChange("contract", "value", value)}
-                disabled={!stepIsEditable}
-                placeholder={`eg. ${formatMoney(5000000)}`}
-                prefix="RM"
-                inputClassName={inputClassName}
-              />
+          <section className={applicationFlowSectionStackClassName}>
+            <div>
+              <h3 className={applicationFlowSectionTitleClassName}>Contract Details</h3>
+              <div className={applicationFlowSectionDividerClassName} />
             </div>
 
-            <div className={fieldLabelWithTooltipRowClassName}>
-              <Label className={labelClassName}>Financing Amount</Label>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className={fieldTooltipTriggerClassName}>
-                    <InformationCircleIcon className="h-4 w-4" />
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
-                  This refers to how much financing you would like to apply. The financing amount must not exceed your
-                  contract amount.
-                </TooltipContent>
-              </Tooltip>
-            </div>
-            <div className="space-y-1">
-              <div className="h-11 flex items-center">
-                <MoneyInput
-                  value={formData.contract.financing}
-                onValueChange={(value) => handleInputChange("contract", "financing", value)}
+            <div className={sectionGridClassName}>
+              <Label className={labelInputClassName}>Contract Title</Label>
+              <Input
+                value={formData.contract.title}
+                onChange={(e) => handleInputChange("contract", "title", e.target.value)}
                 disabled={!stepIsEditable}
-                  placeholder={`eg. ${formatMoney(1000000)}`}
-                  prefix="RM"
-                  inputClassName={`${inputClassName} ${financingError ? "border-destructive focus-visible:border-2 focus-visible:border-destructive" : ""}`}
-                />
-              </div>
-              {financingError && (
-                <p className="text-xs text-destructive">
-                  {financingError}
-                </p>
-              )}
-            </div>
-
-            <Label className={labelInputClassName}>Contract Start Date</Label>
-            <div className="space-y-1">
-              <DateInput
-                value={formData.contract.start_date || ""}
-                onChange={(v) => handleInputChange("contract", "start_date", v)}
-                disabled={!stepIsEditable}
-                isInvalid={isStartInvalid}
+                placeholder="eg. Mining Rig Repair 12654"
                 className={inputClassName}
               />
-              {hasSubmitted && !formData.contract.start_date && (
-                <p className="text-xs text-destructive">
-                  Start date is required
-                </p>
-              )}
-              {hasSubmitted && formData.contract.start_date && !isApplicationFlowDateValid(formData.contract.start_date) && (
-                <p className="text-xs text-destructive">
-                  Invalid date
-                </p>
-              )}
-            </div>
 
+              <Label className={labelTextareaClassName}>Contract Description</Label>
+              <Textarea
+                value={formData.contract.description}
+                onChange={(e) => handleInputChange("contract", "description", e.target.value)}
+                disabled={!stepIsEditable}
+                placeholder="eg. Repair and maintenance for 12 mining rigs"
+                className={cn(
+                  formTextareaClassName,
+                  "min-h-[100px]",
+                  !stepIsEditable && formInputDisabledClassName
+                )}
+              />
 
+              <Label className={labelInputClassName}>Contract Number</Label>
+              <Input
+                value={formData.contract.number}
+                onChange={(e) => handleInputChange("contract", "number", e.target.value)}
+                disabled={!stepIsEditable}
+                placeholder="eg. 20212345678"
+                className={inputClassName}
+              />
 
-            <div className={fieldLabelWithTooltipRowClassName}>
-              <Label className={labelClassName}>Contract End Date</Label>
-              {formData.contract.start_date && productMinMonths && (
+              <Label className={labelInputClassName}>Contract Value</Label>
+              <div className="h-11 flex items-center">
+                <MoneyInput
+                  value={formData.contract.value}
+                  onValueChange={(value) => handleInputChange("contract", "value", value)}
+                  disabled={!stepIsEditable}
+                  placeholder={`eg. ${formatMoney(5000000)}`}
+                  prefix="RM"
+                  inputClassName={inputClassName}
+                />
+              </div>
+
+              <div className={fieldLabelWithTooltipRowClassName}>
+                <Label className={labelClassName}>Financing Amount</Label>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className={fieldTooltipTriggerClassName}>
                       <InformationCircleIcon className="h-4 w-4" />
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
-                    {`The contract must run for at least ${productMinMonths} months from the later of today or the contract start date.`}
+                  <TooltipContent
+                    side="top"
+                    sideOffset={2}
+                    className={fieldTooltipContentClassName}
+                  >
+                    This refers to how much financing you would like to apply. The financing amount
+                    must not exceed your contract amount.
                   </TooltipContent>
                 </Tooltip>
-              )}
-            </div>
-            <div className="space-y-1">
-              <DateInput
-                value={formData.contract.end_date || ""}
-                onChange={(v) => handleInputChange("contract", "end_date", v)}
-                disabled={!stepIsEditable}
-                isInvalid={isEndInvalid}
-                className={inputClassName}
-              />
+              </div>
+              <div className="space-y-1">
+                <div className="h-11 flex items-center">
+                  <MoneyInput
+                    value={formData.contract.financing}
+                    onValueChange={(value) => handleInputChange("contract", "financing", value)}
+                    disabled={!stepIsEditable}
+                    placeholder={`eg. ${formatMoney(1000000)}`}
+                    prefix="RM"
+                    inputClassName={`${inputClassName} ${financingError ? "border-destructive focus-visible:border-2 focus-visible:border-destructive" : ""}`}
+                  />
+                </div>
+                {financingError && <p className="text-xs text-destructive">{financingError}</p>}
+              </div>
 
-
-              {hasSubmitted && !formData.contract.end_date && (
-                <p className="text-xs text-destructive">
-                  End date is required
-                </p>
-              )}
-
-              {hasSubmitted && formData.contract.end_date && !isApplicationFlowDateValid(formData.contract.end_date) && (
-                <p className="text-xs text-destructive">
-                  Invalid date
-                </p>
-              )}
-
-              {hasSubmitted && isApplicationFlowDateValid(formData.contract.end_date) && !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) && (
-                <p className="text-xs text-destructive">
-                  End date must be after start date
-                </p>
-              )}
-
-              {hasSubmitted && isApplicationFlowDateValid(formData.contract.end_date) && isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) && isEndDateTooSoon(
-                formData.contract.start_date,
-                formData.contract.end_date,
-                productMinMonths ?? undefined
-              ) && (
-                  <p className="text-xs text-destructive">
-                    {productMinMonths != null
-                      ? `Contract must run at least ${productMinMonths} months from the later of today or the start date. Extend the end date, or in Financing structure choose Invoice-only if you are financing without a long-term contract.`
-                      : "Contract end date is before the minimum period allowed for this product. Extend the end date, or in Financing structure choose Invoice-only if you are financing without a long-term contract."}
-                  </p>
+              <Label className={labelInputClassName}>Contract Start Date</Label>
+              <div className="space-y-1">
+                <DateInput
+                  value={formData.contract.start_date || ""}
+                  onChange={(v) => handleInputChange("contract", "start_date", v)}
+                  disabled={!stepIsEditable}
+                  isInvalid={isStartInvalid}
+                  className={inputClassName}
+                />
+                {hasSubmitted && !formData.contract.start_date && (
+                  <p className="text-xs text-destructive">Start date is required</p>
                 )}
-            </div>
+                {hasSubmitted &&
+                  formData.contract.start_date &&
+                  !isApplicationFlowDateValid(formData.contract.start_date) && (
+                    <p className="text-xs text-destructive">Invalid date</p>
+                  )}
+              </div>
 
-            <Label className={labelTextareaClassName}>Upload Contract</Label>
-            <div className="self-start">
-            <FileUploadArea
-                onFileSelect={(file) => handleFileUpload("contract", file)}
-                isUploading={isUploading.contract}
-                uploadedFile={formData.contract.document}
-                pendingFile={pendingFiles.contract}
-                onRemove={stepIsEditable ? () => {
-                  handleInputChange("contract", "document", null);
-                  setPendingFiles((prev) => ({ ...prev, contract: undefined }));
-                } : undefined}
-                disabled={!stepIsEditable}
-              />
+              <div className={fieldLabelWithTooltipRowClassName}>
+                <Label className={labelClassName}>Contract End Date</Label>
+                {formData.contract.start_date && productMinMonths && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className={fieldTooltipTriggerClassName}>
+                        <InformationCircleIcon className="h-4 w-4" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      side="top"
+                      sideOffset={2}
+                      className={fieldTooltipContentClassName}
+                    >
+                      {`The contract must run for at least ${productMinMonths} months from the later of today or the contract start date.`}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
+              <div className="space-y-1">
+                <DateInput
+                  value={formData.contract.end_date || ""}
+                  onChange={(v) => handleInputChange("contract", "end_date", v)}
+                  disabled={!stepIsEditable}
+                  isInvalid={isEndInvalid}
+                  className={inputClassName}
+                />
+
+                {hasSubmitted && !formData.contract.end_date && (
+                  <p className="text-xs text-destructive">End date is required</p>
+                )}
+
+                {hasSubmitted &&
+                  formData.contract.end_date &&
+                  !isApplicationFlowDateValid(formData.contract.end_date) && (
+                    <p className="text-xs text-destructive">Invalid date</p>
+                  )}
+
+                {hasSubmitted &&
+                  isApplicationFlowDateValid(formData.contract.end_date) &&
+                  !isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) && (
+                    <p className="text-xs text-destructive">End date must be after start date</p>
+                  )}
+
+                {hasSubmitted &&
+                  isApplicationFlowDateValid(formData.contract.end_date) &&
+                  isStartBeforeEnd(formData.contract.start_date, formData.contract.end_date) &&
+                  isEndDateTooSoon(
+                    formData.contract.start_date,
+                    formData.contract.end_date,
+                    productMinMonths ?? undefined
+                  ) && (
+                    <p className="text-xs text-destructive">
+                      {productMinMonths != null
+                        ? `Contract must run at least ${productMinMonths} months from the later of today or the start date. Extend the end date, or in Financing structure choose Invoice-only if you are financing without a long-term contract.`
+                        : "Contract end date is before the minimum period allowed for this product. Extend the end date, or in Financing structure choose Invoice-only if you are financing without a long-term contract."}
+                    </p>
+                  )}
+              </div>
+
+              <Label className={labelTextareaClassName}>Upload Contract</Label>
+              <div className="self-start">
+                <FileUploadArea
+                  onFileSelect={(file) => handleFileUpload("contract", file)}
+                  isUploading={isUploading.contract}
+                  uploadedFile={formData.contract.document}
+                  pendingFile={pendingFiles.contract}
+                  onRemove={
+                    stepIsEditable
+                      ? () => {
+                          handleInputChange("contract", "document", null);
+                          setPendingFiles((prev) => ({ ...prev, contract: undefined }));
+                        }
+                      : undefined
+                  }
+                  disabled={!stepIsEditable}
+                />
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
         )}
 
         {/* Customer Details Section */}
@@ -1327,7 +1333,12 @@ export function ContractDetailsStep({
               onValueChange={(value) => handleInputChange("customer", "entity_type", value)}
               disabled={!stepIsEditable}
             >
-              <SelectTrigger className={cn(formSelectTriggerClassName, !stepIsEditable && formInputDisabledClassName)}>
+              <SelectTrigger
+                className={cn(
+                  formSelectTriggerClassName,
+                  !stepIsEditable && formInputDisabledClassName
+                )}
+              >
                 <SelectValue placeholder="Select entity type" />
               </SelectTrigger>
               <SelectContent>
@@ -1360,9 +1371,7 @@ export function ContractDetailsStep({
               />
               <p className="text-xs text-muted-foreground">12 digits</p>
               {hasSubmitted && !/^\d{12}$/.test(formData.customer.ssm_number) && (
-                <p className="text-xs text-destructive">
-                  SSM number must be 12 digits
-                </p>
+                <p className="text-xs text-destructive">SSM number must be 12 digits</p>
               )}
             </div>
 
@@ -1380,9 +1389,7 @@ export function ContractDetailsStep({
                 className="inline-flex h-5 w-7 shrink-0 items-center justify-center overflow-hidden bg-muted/30 [&_svg]:block [&_svg]:h-full [&_svg]:w-full"
                 aria-hidden
               >
-                {CustomerCountryFlag ? (
-                  <CustomerCountryFlag title={customerCountryName} />
-                ) : null}
+                {CustomerCountryFlag ? <CustomerCountryFlag title={customerCountryName} /> : null}
               </span>
               <select
                 id="contract-customer-country"
@@ -1433,17 +1440,21 @@ This includes:
 
             <Label className={labelTextareaClassName}>Upload Customer Consent</Label>
             <div className="self-start">
-            <FileUploadArea
-              onFileSelect={(file) => handleFileUpload("consent", file)}
-              isUploading={isUploading.consent}
-              uploadedFile={formData.customer.document}
-              pendingFile={pendingFiles.consent}
-              onRemove={stepIsEditable ? () => {
-                handleInputChange("customer", "document", null);
-                setPendingFiles((prev) => ({ ...prev, consent: undefined }));
-              } : undefined}
-              disabled={!stepIsEditable}
-            />
+              <FileUploadArea
+                onFileSelect={(file) => handleFileUpload("consent", file)}
+                isUploading={isUploading.consent}
+                uploadedFile={formData.customer.document}
+                pendingFile={pendingFiles.consent}
+                onRemove={
+                  stepIsEditable
+                    ? () => {
+                        handleInputChange("customer", "document", null);
+                        setPendingFiles((prev) => ({ ...prev, consent: undefined }));
+                      }
+                    : undefined
+                }
+                disabled={!stepIsEditable}
+              />
             </div>
           </div>
         </section>

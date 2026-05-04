@@ -31,27 +31,44 @@ type FinancingTypeStepConfig = {
 /** Product row shape from issuer catalog (workflow-driven display fields). */
 type CatalogProduct = {
   id: string;
-  workflow?: Array<{ name?: string; config?: Record<string, unknown> }>;
+  /** Workflow JSON from API or mock; narrowed where used. */
+  workflow?: unknown[];
   category_name?: string;
   category_display_order?: number | null;
   product_display_order?: number | null;
   created_at?: string;
 };
 
-function financingStepConfig(
-  product: CatalogProduct
-): FinancingTypeStepConfig {
-  const financingStep = product.workflow?.find((step) =>
-    String(step?.name).toLowerCase().includes("financing type")
+function financingStepConfig(product: CatalogProduct): FinancingTypeStepConfig {
+  const steps = Array.isArray(product.workflow) ? product.workflow : [];
+  const financingStep = steps.find((step) => {
+    if (step == null || typeof step !== "object" || Array.isArray(step)) return false;
+    const name = (step as { name?: unknown }).name;
+    return String(name ?? "").toLowerCase().includes("financing type");
+  }) as { config?: unknown } | undefined;
+  const raw = financingStep?.config;
+  return (
+    raw != null && typeof raw === "object" && !Array.isArray(raw)
+      ? (raw as FinancingTypeStepConfig)
+      : {}
   );
-  return (financingStep?.config ?? {}) as FinancingTypeStepConfig;
+}
+
+function firstWorkflowStepDisplayName(product: CatalogProduct): string | undefined {
+  const steps = Array.isArray(product.workflow) ? product.workflow : [];
+  const step0 = steps[0];
+  if (step0 == null || typeof step0 !== "object" || Array.isArray(step0)) return undefined;
+  const raw = (step0 as { config?: unknown }).config;
+  if (raw == null || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const n = (raw as { name?: unknown }).name;
+  return typeof n === "string" ? n : undefined;
 }
 
 /** Lowercase blob for client-side search (name, description, category). */
 function productSearchText(product: CatalogProduct): string {
   const config = financingStepConfig(product);
   const categoryName = product.category_name || config.category || "Other";
-  const name = config.name || (product.workflow?.[0]?.config?.name as string) || "Unnamed Product";
+  const name = config.name || firstWorkflowStepDisplayName(product) || "Unnamed Product";
   const description = config.description || "";
   return `${name} ${description} ${categoryName}`.toLowerCase();
 }
@@ -216,7 +233,7 @@ export function ProductList({
       const categoryDisplayOrder = product.category_display_order ?? config.category_display_order ?? null;
       const productDisplayOrder = product.product_display_order ?? config.product_display_order ?? null;
 
-      const name = config.name || (product.workflow?.[0]?.config?.name as string) || "Unnamed Product";
+      const name = config.name || firstWorkflowStepDisplayName(product) || "Unnamed Product";
       const description = config.description || "";
       const imageUrl = config.image?.s3_key || config.s3_key || "";
 

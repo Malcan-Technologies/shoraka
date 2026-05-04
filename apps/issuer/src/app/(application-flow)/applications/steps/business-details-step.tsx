@@ -1366,7 +1366,13 @@ export function BusinessDetailsStep({
   React.useEffect(() => {
     if (application === undefined || isInitialized) return;
 
-    const saved = application?.business_details;
+    const rawDetails = application?.business_details;
+    const saved =
+      rawDetails != null &&
+      typeof rawDetails === "object" &&
+      !Array.isArray(rawDetails)
+        ? (rawDetails as Record<string, unknown>)
+        : undefined;
     const relational = (application as { application_guarantors?: unknown[] }).application_guarantors;
     const initial = fromSnakeSaved(saved, relational);
     setAboutYourBusiness(initial.aboutYourBusiness);
