@@ -72,12 +72,7 @@ export function FinancingTypeConfig({
   onPendingImageChange?: (file: File | null) => void;
   pendingImageFile?: File | null;
 }) {
-  const [configSnapshot, setConfigSnapshot] = React.useState(() => getConfig(config));
-  React.useEffect(() => {
-    setConfigSnapshot(getConfig(config));
-  }, [config]);
-
-  const current = configSnapshot;
+  const current = React.useMemo(() => getConfig(config), [config]);
   const [previewDataUrl, setPreviewDataUrl] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const base = React.useMemo(() => (config as Record<string, unknown>) ?? {}, [config]);
