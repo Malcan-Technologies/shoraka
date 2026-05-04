@@ -48,9 +48,9 @@ export function ApplicationsTableRow({
           {hasPending ? (
             <span
               className="shrink-0 inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:text-amber-100"
-              title="Director/shareholder verification is not complete."
+              title="Issuer can still act on director/shareholder rows (email, resend, or onboarding before AML blocks)."
             >
-              Director/Shareholder Pending
+              Director/Shareholder action
             </span>
           ) : null}
         </div>

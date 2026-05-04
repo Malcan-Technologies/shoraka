@@ -3,8 +3,9 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
+  canManageDirectorShareholder,
   filterVisiblePeopleRows,
-  isReadyForSubmit,
+  hasActionableDirectorShareholder,
   normalizeRawStatus,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
@@ -34,8 +35,12 @@ export function DirectorShareholderAlertCard({
     () => filterVisiblePeopleRows(visiblePeople).filter((p) => p.entityType === "INDIVIDUAL"),
     [visiblePeople]
   );
-  const hasPending = React.useMemo(() => !isReadyForSubmit(visiblePeople), [visiblePeople]);
-  const completedCount = React.useMemo(
+  const hasPending = React.useMemo(() => hasActionableDirectorShareholder(visiblePeople), [visiblePeople]);
+  const actionableCount = React.useMemo(
+    () => visibleIndividuals.filter((p) => canManageDirectorShareholder(p)).length,
+    [visibleIndividuals]
+  );
+  const submitReadyCount = React.useMemo(
     () =>
       visibleIndividuals.filter((p) => {
         const onboarding = normalizeRawStatus(p.onboarding?.status);
@@ -43,10 +48,9 @@ export function DirectorShareholderAlertCard({
       }).length,
     [visibleIndividuals]
   );
-  const firstNeedSubmit = React.useMemo(() => {
+  const firstNeedAction = React.useMemo(() => {
     for (const p of visibleIndividuals) {
-      const onboarding = normalizeRawStatus(p.onboarding?.status);
-      if (onboarding !== "WAIT_FOR_APPROVAL" && onboarding !== "APPROVED") return p;
+      if (canManageDirectorShareholder(p)) return p;
     }
     return undefined;
   }, [visibleIndividuals]);
@@ -70,20 +74,21 @@ export function DirectorShareholderAlertCard({
           "mb-2 font-bold text-primary"
         )}
       >
-        {"Action required: directors and shareholders onboarding"}
+        {"Some director/shareholder actions are needed"}
       </AlertTitle>
       <AlertDescription>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
           <div className="min-w-0 max-w-[70ch] flex-1 space-y-2">
             <p className="text-[17px] leading-7 font-medium text-primary">
-              Director/Shareholder information updated. Please review.
+              One or more directors or shareholders still need email, resend, or onboarding fixes.
             </p>
             <p className="text-[17px] leading-7 text-foreground">
-              Complete onboarding on your company profile before you submit an application.
+              Open your company profile to resend links, update email, or finish onboarding where allowed.
             </p>
             {visibleIndividuals.length > 0 ? (
               <p className="text-sm text-muted-foreground">
-                {completedCount} of {visibleIndividuals.length} directors/shareholders submit-ready
+                {actionableCount} of {visibleIndividuals.length} can be acted on now · {submitReadyCount} of{" "}
+                {visibleIndividuals.length} submit-ready (onboarding)
               </p>
             ) : null}
           </div>
@@ -107,7 +112,7 @@ export function DirectorShareholderAlertCard({
               variant="action"
               className="h-10 shrink-0 rounded-full px-5 text-sm font-semibold sm:self-center"
               onClick={() => {
-                const matchKey = firstNeedSubmit?.matchKey;
+                const matchKey = firstNeedAction?.matchKey;
                 if (onGoToProfile) {
                   onGoToProfile(matchKey);
                   return;

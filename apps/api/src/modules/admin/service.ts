@@ -66,7 +66,7 @@ import {
   normalizeDirectorShareholderIdKey,
   canManageDirectorShareholder,
   filterVisiblePeopleRows,
-  isReadyForSubmit,
+  hasActionableDirectorShareholder,
   isReadyForFinancialApproval,
   type SoukscoreRiskRating,
 } from "@cashsouk/types";
@@ -3161,7 +3161,7 @@ export class AdminService {
           })
         : [];
     const directorShareholderAmlPending =
-      record.organization_type === "COMPANY" ? !isReadyForSubmit(onboardingPeopleForAml) : false;
+      record.organization_type === "COMPANY" ? hasActionableDirectorShareholder(onboardingPeopleForAml) : false;
 
     return {
       id: record.id,
@@ -4761,7 +4761,7 @@ export class AdminService {
           ctosPartySupplements: extras.ctosPartySupplements,
           corporateEntities: org.corporate_entities ?? null,
         });
-        const pending = !isReadyForSubmit(people);
+        const pending = hasActionableDirectorShareholder(people);
         pendingByOrg.set(oid, pending);
       })
     );

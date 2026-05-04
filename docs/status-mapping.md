@@ -9,12 +9,17 @@ Director and shareholder rows in Admin and Issuer are backed by `people[]` (`App
 - **`screening.status`** — AML / ACURIS-style screening line (from issuer `director_aml_status`, including corporate **business shareholders**).
 - **`onboarding.status`** — Individual **KYC** pipeline status from issuer `director_kyc_status`, or for **corporate** rows the **KYB** status derived from `corporate_entities` (same field name; see **§5. Priority rules**).
 
-The **single badge** next to each person (e.g. “Verified”, “Action Required”) comes from **`getFinalStatusLabel({ screening, onboarding })`** shared by Admin and Issuer:
+The **single badge** next to each person (e.g. “Verified”, “Rejected”, “Expired”) comes from **`getFinalStatusLabel({ screening, onboarding })`** shared by Admin and Issuer:
 
 **File:** `packages/types/src/director-shareholder-final-status.ts`  
-Badge colors: **`getFinalStatusBadgeClassName(tone)`** in the same file.
+Effective token: **`getDirectorShareholderEffectiveStatus`** — if normalized **`screening.status`** (AML) is non-empty, **only AML** drives the badge; otherwise **`onboarding.status`** (KYC/KYB) drives it.  
+Badge colors: **`getFinalStatusBadgeClassName(tone)`** in the same file (`expired` → violet).
 
-It does **not** read the database directly. It only reads **`screening.status`** and **`onboarding.status`** on the row the API (or issuer client) already built. **Both** statuses are combined with fixed priority (rejected/expired → action required; pending-review tokens including plain **`PENDING`**, **`UNRESOLVED`**, and **`NO_MATCH`** → pending review; in-progress-style tokens → in progress; both verified tokens → verified; both empty → not started).
+It does **not** read the database directly. It only reads **`screening.status`** and **`onboarding.status`** on the row the API (or issuer client) already built.
+
+**Resend / notify / edit email** (issuer + admin) uses **`canManageDirectorShareholder`** in `packages/types/src/application-people-display.ts`: blocked when AML is terminal reject (**`REJECTED`**, **`FAILED`**, **`DECLINED`**) or AML is cleared (**`APPROVED`**, **`AML_APPROVED`**, **`CLEAR`**) or onboarding is **`WAIT_FOR_APPROVAL`** / **`APPROVED`**; allowed for onboarding **`REJECTED`**, **`EXPIRED`**, **`TIMEOUT`**, in-progress, empty, etc., when AML is not a hard reject.
+
+**Issuer banner** (`DirectorShareholderAlertCard`) and **admin application list flag** `directorShareholderAmlPending` use **`hasActionableDirectorShareholder`** (any visible row with **`canManageDirectorShareholder`**). **Submit** still uses **`isReadyForSubmit`** (onboarding **`WAIT_FOR_APPROVAL`** / **`APPROVED`** only; AML ignored).
 
 The legacy file `director-shareholder-single-status-display.ts` (AML-wins-KYC helpers) is **not** exported from `@cashsouk/types` and is **not** used for portal badges. Keep the file only as an internal reference if needed.
 
@@ -75,7 +80,7 @@ Any value that ends up in `screening.status` / `onboarding.status` is still norm
 
 **Examples:** `"Rejected"` → `REJECTED`, `"In Progress"` → `IN_PROGRESS`, `"  pending  "` → `PENDING`.
 
-**Where it runs:** When building or overriding rows in `build-people-list.ts` and supplement maps, and inside **`getFinalStatusLabel`** (its own trim / uppercase / underscore pass).
+**Where it runs:** When building or overriding rows in `build-people-list.ts` and supplement maps, and inside **`getDirectorShareholderEffectiveStatus`** / **`getFinalStatusLabel`** (via `normalizeRawStatus`).
 
 ---
 
@@ -94,15 +99,22 @@ Any value that ends up in `screening.status` / `onboarding.status` is still norm
 
 **`normalizeUnifiedPeopleRows`** merges duplicate rows by `matchKey` (union roles, max share, strip auxiliary email fields). Supplement vs issuer is already decided **before** this step: supplement row present → row came entirely from `parseCtosPartySupplement`; otherwise from **`enrichPersonFromIssuerMaps`**.
 
-### 3.3 Single badge (UI) — how `screening` / `onboarding` become one label
+### 3.3 Single badge (UI) — effective status → label
 
 **`getFinalStatusLabel(person)`** in `packages/types/src/director-shareholder-final-status.ts`:
 
-1. Normalize each string: trim, uppercase, spaces → underscores (not `normalizeRawStatus`; self-contained for this badge).
-2. Build the list of non-empty normalized values from **`onboarding.status`** and **`screening.status`**.
-3. Apply priority: rejected/failed/declined → **Action Required**; expired/timeout → **Action Required**; wait-for-approval / pending-approval / under review / risk assessed / plain **`PENDING`** / **`UNRESOLVED`** / **`NO_MATCH`** → **Pending Review**; remaining in-progress-style tokens → **In Progress**; when every non-empty token is approved/aml-approved/clear → **Verified**; both empty → **Not Started**; otherwise → **In Progress**.
+1. Compute **`getDirectorShareholderEffectiveStatus`**: non-empty normalized AML → `{ source: "AML", value }`; else `{ source: "ONBOARDING", value }` (values via **`normalizeRawStatus`**).
+2. Map the **single** effective token:
+   - Empty → **Not Started**
+   - **`EXPIRED`**, **`TIMEOUT`** → **Expired** (recoverable; same resend affordances as onboarding reject when AML allows — see **`canManageDirectorShareholder`**)
+   - **`ONBOARDING`** + **`REJECTED`** → **Action Required** (KYC/KYB reject only)
+   - **`AML`** + **`REJECTED`** / **`FAILED`** / **`DECLINED`** → **Rejected**; **`ONBOARDING`** + **`FAILED`** / **`DECLINED`** → **Rejected**
+   - Pending-review set (incl. **`WAIT_FOR_APPROVAL`**, **`PENDING`**, **`UNRESOLVED`**, **`NO_MATCH`**, …) → **Pending Review**
+   - In-progress set → **In Progress**
+   - **`APPROVED`**, **`AML_APPROVED`**, **`CLEAR`** → **Verified**
+   - Otherwise → **In Progress**
 
-**Badge colors:** `getFinalStatusBadgeClassName(tone)` in the same file (green / red / amber / gray).
+**Badge colors:** `getFinalStatusBadgeClassName(tone)` (green / amber / red / gray / violet for expired).
 
 ### Where Admin and Issuer call the same logic
 
@@ -146,24 +158,23 @@ The tables below describe **`getAmlGroup` / `getKycGroup`** inside `director-sha
 | `IN_PROGRESS`, `PROCESSING`, `ID_UPLOADED`, `LIVENESS_STARTED`, `LIVENESS_PASSED`, `EMAIL_SENT`, `SENT`, `FORM_FILLING`, `PENDING` | `IN_PROGRESS` | In Progress |
 | **Any other non-empty string** | `IN_PROGRESS` | In Progress |
 
-**Note:** The unified badge uses fixed English labels (**Verified**, **Action Required**, **Pending Review**, **In Progress**, **Not Started**), not title-case legacy group names.
+**Note:** The unified badge uses fixed English labels (**Verified**, **Rejected**, **Expired**, **Action Required**, **Pending Review**, **In Progress**, **Not Started**), not title-case legacy group names.
 
 ---
 
-## 5. Priority rules (current): both checks, ordered buckets
+## 5. Priority rules (current): AML-first, then onboarding-only fallback
 
-**Both** `screening.status` and `onboarding.status` contribute to **`getFinalStatusLabel`**. There is **no** “AML string non-empty therefore ignore KYC” rule.
+Only **one** normalized token is evaluated per row: **AML if present**, else **onboarding**.
 
-| Step | Meaning |
+| Rule | Meaning |
 |------|--------|
-| 1 | Worst outcome wins first: any rejected / failed / declined on either side → **Action Required**. |
-| 2 | Then expired / timeout on either side → **Action Required**. |
-| 3 | Then “pending review” tokens (including **`PENDING`**, **`UNRESOLVED`**, and **`NO_MATCH`**) → **Pending Review**. |
-| 4 | Then in-progress family (e.g. **`IN_PROGRESS`**, **`ID_UPLOADED`**, liveness / email / sent tokens) → **In Progress**. |
-| 5 | If every non-empty token is approved / aml-approved / clear → **Verified**. |
-| 6 | If both sides normalize to empty → **Not Started**. |
+| AML non-empty | Badge follows **AML** only (`source: "AML"`). Onboarding is ignored for the label. |
+| AML empty | Badge follows **onboarding** / KYB (`source: "ONBOARDING"`). |
+| Onboarding-only **`REJECTED`** | **Action Required** (distinct from AML **Rejected**). |
+| **`EXPIRED`** / **`TIMEOUT`** | **Expired** on whichever source is effective (typically onboarding when AML is empty). |
 
-**Source of truth (badge):** `packages/types/src/director-shareholder-final-status.ts`.
+**Source of truth (badge):** `packages/types/src/director-shareholder-final-status.ts`.  
+**Source of truth (resend/notify):** `canManageDirectorShareholder` in `application-people-display.ts`.
 
 ---
 
@@ -176,7 +187,7 @@ The tables below describe **`getAmlGroup` / `getKycGroup`** inside `director-sha
 - `director_kyc_status`: `kycStatus` = `APPROVED` → `onboarding.status` → normalized `APPROVED`.
 - `director_aml_status`: `amlStatus` = `Rejected` → `screening.status` → normalized `REJECTED`.
 
-**Unified badge:** `onboarding` = `APPROVED`, `screening` = `REJECTED` → **Action Required** (rejected on either side wins).
+**Unified badge (AML wins):** `screening` = `REJECTED` (non-empty AML) → **Rejected**; onboarding `APPROVED` is not shown on the badge when AML is present.
 
 ---
 
@@ -187,7 +198,7 @@ The tables below describe **`getAmlGroup` / `getKycGroup`** inside `director-sha
 - `corporate_entities` / KYB: e.g. `APPROVED` on KYB DTO → `onboarding.status` → normalized `APPROVED`.
 - `director_aml_status.businessShareholders`: `amlStatus` = `Pending` → `screening.status` → normalized `PENDING`.
 
-**Unified badge:** `onboarding` = `APPROVED`, `screening` = `PENDING` → **Pending Review** (AML still waiting on a decision).
+**Unified badge (AML wins):** `screening` = `PENDING` → **Pending Review** (onboarding `APPROVED` ignored for label while AML is non-empty).
 
 ---
 
@@ -195,17 +206,17 @@ The tables below describe **`getAmlGroup` / `getKycGroup`** inside `director-sha
 
 | Case | Behavior |
 |------|----------|
-| **Missing AML** | Only **`onboarding.status`** tokens drive **`getFinalStatusLabel`**. |
-| **Missing KYC/KYB** | Only **`screening.status`** tokens drive the label. |
-| **Both missing** | **Not Started** (badge always shown). |
-| **Unknown / unlisted non-empty token** (not `PENDING` / `UNRESOLVED` / `NO_MATCH`) | **In Progress** (default branch). |
-| **Supplement replaces issuer for that party** | For that `matchKey`, a `ctos_party_supplements` row makes `people[]` use **only** parsed `onboarding_json` for RegTank ids and statuses; issuer KYC/AML is not merged. |
+| **Missing AML** (empty after normalize) | **`getFinalStatusLabel`** uses **onboarding** only. |
+| **Missing KYC/KYB** but AML present | **AML** only drives the label. |
+| **Both missing** | **Not Started**. |
+| **Unknown / unlisted non-empty token** on the effective source | **In Progress** (default branch). |
+| **Supplement replaces issuer for that party** | For that `matchKey`, screening/onboarding for the row come from parsed supplement JSON for those fields; issuer KYC/AML is not merged into those fields. |
 
 ---
 
 ## Summary
 
-Director/shareholder badges use **`getFinalStatusLabel`**: **both** `screening.status` and `onboarding.status` are normalized and evaluated together with the priority in **§5**. Admin and Issuer import the same helpers from **`@cashsouk/types`**, so the label matches for the same **`people[]`** row.
+Director/shareholder badges use **`getFinalStatusLabel`** with **AML-first** effective status (**`getDirectorShareholderEffectiveStatus`**). Admin and Issuer import the same helpers from **`@cashsouk/types`**, so the label matches for the same **`people[]`** row. **Resend / notify / edit email** follows **`canManageDirectorShareholder`**.
 
 ---
 
@@ -213,7 +224,8 @@ Director/shareholder badges use **`getFinalStatusLabel`**: **both** `screening.s
 
 | Topic | File |
 |------|------|
-| Unified director/shareholder badge | `packages/types/src/director-shareholder-final-status.ts` |
+| Unified director/shareholder badge + effective status | `packages/types/src/director-shareholder-final-status.ts` |
+| Resend / notify / edit-email gate | `packages/types/src/application-people-display.ts` (`canManageDirectorShareholder`) |
 | Legacy AML/KYC-only presentation (unused for portal badge) | `packages/types/src/director-shareholder-single-status-display.ts` |
 | `normalizeRawStatus` | `packages/types/src/status-normalization.ts` |
 | Other RegTank badge classes | `packages/types/src/regtank-onboarding-status.ts` (`regtankDisplayStatusBadgeClass`) |

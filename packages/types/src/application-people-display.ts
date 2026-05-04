@@ -56,7 +56,7 @@ export type ApplicationPersonRow = {
   } | null;
   action?: "SEND_EMAIL" | null;
   /**
-   * AML screening snapshot (e.g. RegTank ACURIS). `status` drives badges with KYC priority rules in UI helpers.
+   * AML screening snapshot (e.g. RegTank ACURIS). When non-empty after normalization it wins over onboarding for the unified badge (`getFinalStatusLabel`).
    * `id` is AML/COD-linked request id when present.
    */
   screening?: {
@@ -298,21 +298,32 @@ export function requiresOnboardingEmail(p: ApplicationPersonRow): boolean {
   return isDirector || (isShareholder && share >= 5);
 }
 
+/** AML terminal: no resend/notify/email edit while cleared or hard-rejected. */
+const AML_STATUSES_BLOCK_MANAGE = new Set([
+  "REJECTED",
+  "FAILED",
+  "DECLINED",
+  "APPROVED",
+  "AML_APPROVED",
+  "CLEAR",
+]);
+
+/** Onboarding frozen after submit to RegTank review or fully done — issuer should not resend from here. */
+const ONBOARDING_STATUSES_BLOCK_MANAGE = new Set(["WAIT_FOR_APPROVAL", "APPROVED"]);
+
 /**
- * SECTION: Unified issuer + admin action gate (email edit, resend, notify)
- * WHY: WAIT_FOR_APPROVAL is the cutoff; AML terminal reject or AML approved overrides; rows before cutoff include webhook REJECTED
+ * SECTION: Unified issuer + admin action gate (email edit, resend, notify, banner)
+ * WHY: One rule: allow when onboarding is actionable (not WFA/APPROVED) and AML is not terminal (not cleared, not reject/fail/decline)
  * INPUT: A single people row
  * OUTPUT: True when the issuer (or admin notify) may edit email, resend onboarding, or send a reminder
- * WHERE USED: Issuer profile, admin table, API notify/resend guards
+ * WHERE USED: Issuer profile, admin table, API notify/resend guards, issuer banner (`hasActionableDirectorShareholder`)
  */
 export function canManageDirectorShareholder(p: ApplicationPersonRow): boolean {
   if (!requiresOnboardingEmail(p)) return false;
   const onboarding = normalizeRawStatus(p.onboarding?.status);
   const screening = normalizeRawStatus(p.screening?.status);
-  if (screening === "REJECTED" || screening === "FAILED" || screening === "DECLINED") return false;
-  if (screening === "APPROVED") return false;
-  if (onboarding === "WAIT_FOR_APPROVAL") return false;
-  if (onboarding === "APPROVED") return false;
+  if (screening && AML_STATUSES_BLOCK_MANAGE.has(screening)) return false;
+  if (ONBOARDING_STATUSES_BLOCK_MANAGE.has(onboarding)) return false;
   return true;
 }
 
@@ -359,10 +370,7 @@ export function isReadyForFinancialApproval(
 ): boolean {
   const individuals = getVisibleIndividualPeopleFromList(people);
   if (individuals.length === 0) return true;
-  return individuals.every((p) => {
-    const aml = normalizeRawStatus(p.screening?.status);
-    return aml === "APPROVED";
-  });
+  return individuals.every((p) => isDirectorShareholderAmlScreeningApproved(p));
 }
 
 /**
@@ -431,7 +439,7 @@ function isAmlApprovedValue(raw: unknown): boolean {
     .trim()
     .toUpperCase()
     .replace(/[\s_]+/g, "_");
-  return compact === "APPROVED";
+  return compact === "APPROVED" || compact === "AML_APPROVED" || compact === "CLEAR";
 }
 
 /** True when AML is cleared using priority: screening.status -> directorAmlStatus. */
