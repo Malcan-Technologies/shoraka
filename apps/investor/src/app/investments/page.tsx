@@ -37,6 +37,25 @@ const MARKETPLACE_SECONDARY_BUTTON_CLASS =
 const DEFAULT_TENOR_DAYS = 30;
 const MARKETPLACE_INDUSTRY_PLACEHOLDER = "Industry";
 const MARKETPLACE_PRODUCT_PLACEHOLDER = "Product name (TBD)";
+const ONBOARDING_INDUSTRY_OPTIONS = [
+  "Agriculture, Forestry, Fishing",
+  "Manufacturing",
+  "Construction",
+  "Wholesale / Retail Trade",
+  "Transportation",
+  "Hospitality",
+  "Food & Beverage",
+  "Information & Communication",
+  "Technology (ICT)",
+  "Insurance",
+  "Legal Accounting",
+  "Education",
+  "Healthcare",
+  "Real Estate",
+  "Public Sector & Government",
+  "Arts, Media & Entertainment",
+  "Others",
+] as const;
 
 function daysUntil(dateValue?: string | null) {
   if (!dateValue) return DEFAULT_TENOR_DAYS;
@@ -92,7 +111,6 @@ export default function InvestmentsPage() {
 
   const [search, setSearch] = useState("");
   const { data, isLoading, error } = useMarketplaceNotes(search);
-  const [activeCategory, setActiveCategory] = useState("All");
   const [industryFilter, setIndustryFilter] = useState("all");
   const [riskFilter, setRiskFilter] = useState("all");
   const [profitFilter, setProfitFilter] = useState("all");
@@ -114,17 +132,6 @@ export default function InvestmentsPage() {
     [data?.notes]
   );
 
-  const categoryTabs = useMemo(() => {
-    const industries = Array.from(new Set(marketplaceNotes.map((note) => note.industry)));
-    return ["All", ...industries];
-  }, [marketplaceNotes]);
-
-  useEffect(() => {
-    if (activeCategory !== "All" && !categoryTabs.includes(activeCategory)) {
-      setActiveCategory("All");
-    }
-  }, [activeCategory, categoryTabs]);
-
   const featuredNotes = useMemo(() => marketplaceNotes.filter((note) => note.isFeatured), [marketplaceNotes]);
 
   const filteredNotes = useMemo(() => {
@@ -136,7 +143,6 @@ export default function InvestmentsPage() {
         note.industry.toLowerCase().includes(query) ||
         note.noteCode.toLowerCase().includes(query);
 
-      const matchesCategory = activeCategory === "All" || note.industry === activeCategory;
       const matchesIndustry = industryFilter === "all" || note.industry === industryFilter;
       const matchesRisk = riskFilter === "all" || note.riskScore === riskFilter;
       const matchesProfit =
@@ -152,14 +158,13 @@ export default function InvestmentsPage() {
 
       return (
         matchesSearch &&
-        matchesCategory &&
         matchesIndustry &&
         matchesRisk &&
         matchesProfit &&
         matchesTenor
       );
     });
-  }, [activeCategory, industryFilter, marketplaceNotes, profitFilter, riskFilter, search, tenorFilter]);
+  }, [industryFilter, marketplaceNotes, profitFilter, riskFilter, search, tenorFilter]);
 
   const visibleNotes = filteredNotes.slice(0, displayCount);
   const hasMoreNotes = displayCount < filteredNotes.length;
@@ -298,38 +303,18 @@ export default function InvestmentsPage() {
         {!isLoading && marketplaceNotes.length > 0 ? (
         <section className="space-y-4">
           <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 md:flex-row md:items-center md:justify-between">
-            <div className="flex flex-wrap items-center gap-1">
-              {categoryTabs.map((category) => (
-                <Button
-                  key={category}
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setActiveCategory(category)}
-                  className={
-                    activeCategory === category
-                      ? "h-8 rounded-md bg-slate-100 px-3 text-xs font-semibold text-slate-900"
-                      : "h-8 rounded-md px-3 text-xs font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-                  }
-                >
-                  {category}
-                </Button>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 md:flex md:items-center">
+            <div className="grid grid-cols-2 gap-2 md:ml-auto md:flex md:items-center">
               <Select value={industryFilter} onValueChange={setIndustryFilter}>
                 <SelectTrigger className="h-9 min-w-[120px] rounded-lg border-slate-200 px-3 text-xs text-slate-700 focus:ring-slate-300">
                   <SelectValue placeholder="Industry" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Industry</SelectItem>
-                  {categoryTabs
-                    .filter((category) => category !== "All")
-                    .map((industry) => (
-                      <SelectItem key={industry} value={industry}>
-                        {industry}
-                      </SelectItem>
-                    ))}
+                  {ONBOARDING_INDUSTRY_OPTIONS.map((industry) => (
+                    <SelectItem key={industry} value={industry}>
+                      {industry}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
 
