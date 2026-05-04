@@ -38,7 +38,7 @@ import { sendOnboardingEmail } from "../../lib/email/ses";
 import { organizationInvitationTemplate } from "../../lib/email/templates";
 import { randomBytes } from "crypto";
 import {
-  canEnterEmailForDirectorShareholder,
+  canManageDirectorShareholder,
   filterVisiblePeopleRows,
   getDirectorShareholderDisplayRows,
   isCtosIndividualKycEligibleRow,
@@ -1728,7 +1728,7 @@ export class OrganizationService {
     const entities = await this.getCorporateEntities(userId, organizationId, portalType);
     const peopleRows = filterVisiblePeopleRows(entities.people ?? []);
     const personRow = peopleRows.find((p) => normalizeDirectorShareholderIdKey(p.matchKey) === pk);
-    if (!personRow || !canEnterEmailForDirectorShareholder(personRow)) {
+    if (!personRow || !canManageDirectorShareholder(personRow)) {
       throw new AppError(
         400,
         "NOT_ALLOWED",

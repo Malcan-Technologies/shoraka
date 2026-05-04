@@ -3,9 +3,9 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import {
-  computeHasPendingDirectorShareholder,
-  isDirectorShareholderAmlScreeningApproved,
-  isReadyOnboardingStatus,
+  canManageDirectorShareholder,
+  filterVisiblePeopleRows,
+  hasActionableDirectorShareholder,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -34,26 +34,20 @@ export function DirectorShareholderAlertCard({
     () => visiblePeople.filter((p) => p.entityType === "INDIVIDUAL"),
     [visiblePeople]
   );
-  const hasPending = React.useMemo(() => {
-    if (visibleIndividualPeople.length === 0) return false;
-    return computeHasPendingDirectorShareholder(visibleIndividualPeople);
-  }, [visibleIndividualPeople]);
+  const hasPending = React.useMemo(
+    () => hasActionableDirectorShareholder(visiblePeople),
+    [visiblePeople]
+  );
   const completedCount = React.useMemo(
-    () =>
-      visibleIndividualPeople.filter(
-        (p) =>
-          isReadyOnboardingStatus(p.onboarding?.status) &&
-          isDirectorShareholderAmlScreeningApproved(p.screening)
-      ).length,
+    () => visibleIndividualPeople.filter((p) => !canManageDirectorShareholder(p)).length,
     [visibleIndividualPeople]
   );
-  const firstNotReady = React.useMemo(() => {
-    for (const p of visibleIndividualPeople) {
-      if (!isReadyOnboardingStatus(p.onboarding?.status)) return p;
-      if (!isDirectorShareholderAmlScreeningApproved(p.screening)) return p;
+  const firstActionable = React.useMemo(() => {
+    for (const p of filterVisiblePeopleRows(visiblePeople)) {
+      if (canManageDirectorShareholder(p)) return p;
     }
     return undefined;
-  }, [visibleIndividualPeople]);
+  }, [visiblePeople]);
 
   if (!enabled) return null;
   if (!hasPending) return null;
@@ -111,7 +105,7 @@ export function DirectorShareholderAlertCard({
               variant="action"
               className="h-10 shrink-0 rounded-full px-5 text-sm font-semibold sm:self-center"
               onClick={() => {
-                const matchKey = firstNotReady?.matchKey;
+                const matchKey = firstActionable?.matchKey;
                 if (onGoToProfile) {
                   onGoToProfile(matchKey);
                   return;

@@ -52,8 +52,7 @@ import {
   getIssuerFinancialTabYears,
   issuerUnauditedPlddForFyEndYear,
   getStepKeyFromStepId,
-  computeHasPendingDirectorShareholder,
-  filterVisiblePeopleRows,
+  hasActionableDirectorShareholder,
 } from "@cashsouk/types";
 import { computeApplicationStatus } from "./lifecycle";
 import * as crypto from "crypto";
@@ -578,9 +577,7 @@ export class ApplicationService {
         ctosPartySupplements: extras.ctosPartySupplements,
         corporateEntities: org.corporate_entities ?? null,
       });
-      const visibleIndividuals = filterVisiblePeopleRows(people).filter((p) => p.entityType === "INDIVIDUAL");
-      directorShareholderAmlPending =
-        visibleIndividuals.length > 0 && computeHasPendingDirectorShareholder(visibleIndividuals);
+      directorShareholderAmlPending = hasActionableDirectorShareholder(people);
     }
 
     return applications.map((application) => ({

@@ -13,14 +13,8 @@ import {
   type DirectorShareholderDisplayRow,
   type GetDirectorShareholderDisplayRowsInput,
 } from "./director-shareholder-display";
-import {
-  getCtosPartySupplementFlatRead,
-  isCtosPartySupplementApprovalLocked,
-} from "./ctos-party-supplement-json";
-import { isPartyTypeA, type CorporateEntitiesShape } from "./director-shareholder-party-type-a";
+import { getCtosPartySupplementFlatRead } from "./ctos-party-supplement-json";
 import { normalizeRawStatus } from "./status-normalization";
-import { isReadyOnboardingStatus } from "./onboarding-readiness";
-
 export type ApplicationPersonRow = {
   /**
    * SOURCE OF TRUTH (CRITICAL)
@@ -185,23 +179,6 @@ export function filterVisiblePeopleRows<T extends PeopleRolesRowInput>(peopleRow
     .filter((p): p is NonNullable<typeof p> => p !== null);
 }
 
-/**
- * Admin Financial section + application listing: true when director/shareholder verification
- * should be treated as incomplete (blocks approve / shows pending chip).
- * Mirrors visible-row rules: {@link filterVisiblePeopleRows}, {@link isReadyOnboardingStatus},
- * {@link isDirectorShareholderAmlScreeningApproved} on each row’s `screening` snapshot.
- */
-export function computeHasPendingDirectorShareholder(
-  people?: ReadonlyArray<ApplicationPersonRow | null | undefined> | null
-): boolean {
-  const list = (people ?? []).filter((p): p is ApplicationPersonRow => p != null);
-  const visible = filterVisiblePeopleRows(list);
-  if (visible.length === 0) return true;
-  const onboardingDoneAll = visible.every((p) => isReadyOnboardingStatus(p.onboarding?.status));
-  const amlDoneAll = visible.every((p) => isDirectorShareholderAmlScreeningApproved(p.screening));
-  return !onboardingDoneAll || !amlDoneAll;
-}
-
 export function formatPeopleRolesLine(p: PeopleRolesRowInput): string {
   const upper = p.roles.map((r) => r.toUpperCase());
   const hasDirector = upper.includes("DIRECTOR");
@@ -310,7 +287,7 @@ export function formatShareOwnershipCell(p: { sharePercentage: number | null }):
  * WHY: Individual director or ≥5% shareholder may receive CTOS party onboarding email
  * INPUT: A single people row
  * OUTPUT: True when role/share rules allow onboarding email for this party
- * WHERE USED: {@link isDirectorShareholderEmailActionable}, issuer and admin UIs
+ * WHERE USED: {@link canManageDirectorShareholder}
  */
 export function requiresOnboardingEmail(p: ApplicationPersonRow): boolean {
   if (p.entityType !== "INDIVIDUAL") return false;
@@ -321,64 +298,34 @@ export function requiresOnboardingEmail(p: ApplicationPersonRow): boolean {
   return isDirector || (isShareholder && share >= 5);
 }
 
-const AML_SCREENING_TERMINAL_REJECT = new Set(["REJECTED", "FAILED", "DECLINED"]);
-
-/** Onboarding states where issuer may edit email, resend onboarding, and admin may send Notify (webhook-driven reject stays here). */
-const ONBOARDING_ACTIONABLE_FOR_ISSUER = new Set([
-  "NOT_STARTED",
-  "IN_PROGRESS",
-  "PROCESSING",
-  "ID_UPLOADED",
-  "LIVENESS_STARTED",
-  "LIVENESS_PASSED",
-  "EMAIL_SENT",
-  "SENT",
-  "FORM_FILLING",
-  "REJECTED",
-]);
-
-function screeningBlocksIssuerDirectorShareholderActions(p: ApplicationPersonRow): boolean {
-  const s = normalizeRawStatus(p.screening?.status);
-  if (!s) return false;
-  if (s === "APPROVED") return true;
-  if (AML_SCREENING_TERMINAL_REJECT.has(s)) return true;
-  return false;
-}
-
-function onboardingAllowsIssuerDirectorShareholderActions(p: ApplicationPersonRow): boolean {
-  const ob = normalizeRawStatus(p.onboarding?.status);
-  if (!ob) return true;
-  if (ob === "WAIT_FOR_APPROVAL" || ob === "APPROVED") return false;
-  return ONBOARDING_ACTIONABLE_FOR_ISSUER.has(ob);
-}
-
 /**
- * SECTION: Unified action gate for issuer email and admin notify
- * WHY: Notify = reminder only; resend = manual; RegTank webhook owns reject status
+ * SECTION: Unified issuer + admin action gate (email edit, resend, notify)
+ * WHY: WAIT_FOR_APPROVAL is the cutoff; AML terminal reject or AML approved overrides; rows before cutoff include webhook REJECTED
  * INPUT: A single people row
- * OUTPUT: True when user should be allowed to action this person (individuals only)
- * WHERE USED: issuer profile + admin director/shareholder table
+ * OUTPUT: True when the issuer (or admin notify) may edit email, resend onboarding, or send a reminder
+ * WHERE USED: Issuer profile, admin table, API notify/resend guards
  */
-export function canEnterEmailForDirectorShareholder(p: ApplicationPersonRow): boolean {
-  if (p.entityType !== "INDIVIDUAL") return false;
-  if (screeningBlocksIssuerDirectorShareholderActions(p)) return false;
-  return onboardingAllowsIssuerDirectorShareholderActions(p);
-}
-
-/**
- * SECTION: Director/shareholder completion gate for email/notify
- * WHY: Email entry and admin notify must follow the same rule
- * INPUT: A single people row
- * OUTPUT: True when person is completed and should not be actioned
- * WHERE USED: issuer email entry + admin notify visibility
- */
-export function isDirectorShareholderCompleted(p: ApplicationPersonRow): boolean {
-  if (p.entityType === "INDIVIDUAL") {
-    return !canEnterEmailForDirectorShareholder(p);
-  }
+export function canManageDirectorShareholder(p: ApplicationPersonRow): boolean {
+  if (!requiresOnboardingEmail(p)) return false;
   const onboarding = normalizeRawStatus(p.onboarding?.status);
   const screening = normalizeRawStatus(p.screening?.status);
-  return onboarding === "APPROVED" || onboarding === "WAIT_FOR_APPROVAL" || screening === "APPROVED";
+  if (screening === "REJECTED" || screening === "FAILED" || screening === "DECLINED") return false;
+  if (screening === "APPROVED") return false;
+  if (onboarding === "WAIT_FOR_APPROVAL") return false;
+  if (onboarding === "APPROVED") return false;
+  return true;
+}
+
+/**
+ * True when any visible row can still receive issuer/admin actions (email, resend, notify).
+ * Uses {@link filterVisiblePeopleRows} then {@link canManageDirectorShareholder}.
+ */
+export function hasActionableDirectorShareholder(
+  people?: ReadonlyArray<ApplicationPersonRow | null | undefined> | null
+): boolean {
+  const list = (people ?? []).filter((p): p is ApplicationPersonRow => p != null);
+  const visible = filterVisiblePeopleRows(list);
+  return visible.some((p) => canManageDirectorShareholder(p));
 }
 
 /**
@@ -431,51 +378,6 @@ export function buildDirectorShareholderDisplayRowForEmailEligibility(
     isShareholder,
     sharePercentage: sharePct,
   };
-}
-
-export type DirectorShareholderEmailActionableContext = {
-  displayRow: DirectorShareholderDisplayRow;
-  latestOnboardingRoot: unknown;
-  /** Issuer profile: true when TYPE A/B supplement path is active. */
-  partySourcePresent: boolean;
-  directorKycStatus: unknown;
-  corporateEntities: CorporateEntitiesShape | null | undefined;
-  /** Issuer: blocks when org id is set and onboarding is not COMPLETED. */
-  blockPartyOnboarding: boolean;
-};
-
-function directorShareholderDisplayRowKycApproved(row: DirectorShareholderDisplayRow): boolean {
-  return normalizeRawStatus(row.status) === "APPROVED";
-}
-
-/**
- * Single gate for issuer email controls and admin Notify: role rules, Type A, CTOS row eligibility,
- * org onboarding gate, and supplement / legacy KYC approval locks.
- */
-export function isDirectorShareholderEmailActionable(
-  person: ApplicationPersonRow,
-  ctx: DirectorShareholderEmailActionableContext
-): boolean {
-  if (!requiresOnboardingEmail(person)) return false;
-  if (!canEnterEmailForDirectorShareholder(person)) return false;
-  if (ctx.partySourcePresent && isPartyTypeA(person, ctx.directorKycStatus, ctx.corporateEntities)) {
-    return false;
-  }
-  if (!isCtosIndividualKycEligibleRow(ctx.displayRow)) return false;
-  if (ctx.blockPartyOnboarding) return false;
-
-  const supplementLocked = isCtosPartySupplementApprovalLocked(ctx.latestOnboardingRoot);
-  if (ctx.partySourcePresent) {
-    if (supplementLocked) return false;
-  } else if (directorShareholderDisplayRowKycApproved(ctx.displayRow) || supplementLocked) {
-    return false;
-  }
-  return true;
-}
-
-/** Backward-compatible alias for existing call sites. */
-export function isNotifyEligible(p: ApplicationPersonRow): boolean {
-  return canEnterEmailForDirectorShareholder(p);
 }
 
 export function shouldShowPeopleSendEmailButton(

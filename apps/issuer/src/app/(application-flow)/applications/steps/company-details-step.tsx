@@ -15,7 +15,7 @@ import * as React from "react";
 import { useOrganization, createApiClient, useAuthToken } from "@cashsouk/config";
 import {
   buildDirectorShareholderDisplayRowForEmailEligibility,
-  canEnterEmailForDirectorShareholder,
+  canManageDirectorShareholder,
   filterVisiblePeopleRows,
   formatPeopleRolesLineTitleCaseWithoutShare,
   formatShareOwnershipCell,
@@ -685,7 +685,7 @@ export function CompanyDetailsStep({
                   onboarding: p.onboarding,
                 });
                 const own = formatShareOwnershipCell(p);
-                const showCompleteOnProfile = canEnterEmailForDirectorShareholder(p);
+                const showCompleteOnProfile = canManageDirectorShareholder(p);
                 const idLabel =
                   (displayRow.idNumber || displayRow.registrationNumber || p.matchKey || "").trim();
                 return (

@@ -64,9 +64,9 @@ import {
   getStepKeyFromStepId,
   isRegtankIso3166Code,
   normalizeDirectorShareholderIdKey,
-  canEnterEmailForDirectorShareholder,
+  canManageDirectorShareholder,
   filterVisiblePeopleRows,
-  computeHasPendingDirectorShareholder,
+  hasActionableDirectorShareholder,
   type SoukscoreRiskRating,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
@@ -2471,7 +2471,7 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Party not found among visible directors/shareholders");
     }
 
-    const emailActionable = canEnterEmailForDirectorShareholder(match);
+    const emailActionable = canManageDirectorShareholder(match);
     if (!emailActionable) {
       throw new AppError(400, "VALIDATION_ERROR", "Not eligible for notify");
     }
@@ -3159,14 +3159,9 @@ export class AdminService {
             corporateEntities: corporateEntitiesRaw ?? null,
           })
         : [];
-    const onboardingVisibleIndividuals =
-      record.organization_type === "COMPANY"
-        ? filterVisiblePeopleRows(onboardingPeopleForAml).filter((p) => p.entityType === "INDIVIDUAL")
-        : [];
     const directorShareholderAmlPending =
       record.organization_type === "COMPANY"
-        ? onboardingVisibleIndividuals.length > 0 &&
-          computeHasPendingDirectorShareholder(onboardingVisibleIndividuals)
+        ? hasActionableDirectorShareholder(onboardingPeopleForAml)
         : false;
 
     return {
@@ -4767,9 +4762,7 @@ export class AdminService {
           ctosPartySupplements: extras.ctosPartySupplements,
           corporateEntities: org.corporate_entities ?? null,
         });
-        const visibleIndividuals = filterVisiblePeopleRows(people).filter((p) => p.entityType === "INDIVIDUAL");
-        const pending =
-          visibleIndividuals.length > 0 && computeHasPendingDirectorShareholder(visibleIndividuals);
+        const pending = hasActionableDirectorShareholder(people);
         pendingByOrg.set(oid, pending);
       })
     );
@@ -5417,11 +5410,7 @@ export class AdminService {
       })),
       corporateEntities: issuerOrg.corporate_entities ?? null,
     });
-    const visibleIndividuals = filterVisiblePeopleRows(people).filter((p) => p.entityType === "INDIVIDUAL");
-    if (
-      visibleIndividuals.length > 0 &&
-      computeHasPendingDirectorShareholder(visibleIndividuals)
-    ) {
+    if (hasActionableDirectorShareholder(people)) {
       throw new AppError(
         400,
         "DIRECTOR_SHAREHOLDER_NOT_READY",
