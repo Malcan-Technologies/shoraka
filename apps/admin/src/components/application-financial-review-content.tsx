@@ -43,11 +43,13 @@ import {
   getLatestThreeCtosYearSlots,
   normalizeFinancialStatementsQuestionnaire,
   normalizeDirectorShareholderIdKey,
+  filterVisiblePeopleRows,
   type ApplicationPersonRow,
   type ColumnComputedMetrics,
   type FinancialStatementsInput,
   type FinancialStatementsQuestionnaire,
 } from "@cashsouk/types";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format, isValid, parse, parseISO } from "date-fns";
 import {
@@ -55,12 +57,32 @@ import {
   useCreateIssuerOrganizationCtosSubjectReport,
   useNotifyIssuerDirectorShareholderActionRequired,
 } from "@/hooks/use-admin-issuer-organization-ctos-mutations";
+import { applicationsKeys } from "@/applications/query-keys";
 import { CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 /** Year row placeholder when no year (em dash). */
 const HEADER_PLACEHOLDER = "\u2014";
+
+const DIRECTOR_SHAREHOLDER_UPDATE_TOAST_DESCRIPTION =
+  "There are updates to director/shareholder information.";
+
+function matchKeysFromPeople(people: ApplicationPersonRow[] | undefined | null): Set<string> {
+  const set = new Set<string>();
+  for (const p of filterVisiblePeopleRows(people ?? [])) {
+    const k = normalizeDirectorShareholderIdKey(p.matchKey) ?? String(p.matchKey ?? "").trim();
+    if (k) set.add(k);
+  }
+  return set;
+}
+
+function hasNewMatchKeysAfterCtos(prev: Set<string>, next: Set<string>): boolean {
+  for (const k of next) {
+    if (!prev.has(k)) return true;
+  }
+  return false;
+}
 
 type CtosFetchState = "not_pulled" | "no_records" | "has_data";
 
@@ -275,6 +297,7 @@ export function ApplicationFinancialReviewContent({
   app,
 }: ApplicationFinancialReviewContentProps) {
   const issuerOrgId = issuerOrganizationId?.trim() ?? "";
+  const queryClient = useQueryClient();
   const { getAccessToken } = useAuthToken();
   const createOrgCtos = useCreateIssuerOrganizationCtosReport(
     issuerOrgId || undefined,
@@ -464,11 +487,19 @@ export function ApplicationFinancialReviewContent({
       toast.error("Issuer organization is missing.");
       return;
     }
+    const prevKeys = matchKeysFromPeople(app.people);
     const t = toast.loading("Fetching CTOS report…");
     createOrgCtos.mutate(undefined, {
       onSuccess: () => {
         toast.dismiss(t);
         toast.success("CTOS report saved.");
+        const cached = queryClient.getQueryData<{ people?: ApplicationPersonRow[] }>(
+          applicationsKeys.detail(applicationId)
+        );
+        const nextKeys = matchKeysFromPeople(cached?.people);
+        if (hasNewMatchKeysAfterCtos(prevKeys, nextKeys)) {
+          toast("New update", { description: DIRECTOR_SHAREHOLDER_UPDATE_TOAST_DESCRIPTION });
+        }
       },
       onError: (e: Error) => {
         toast.dismiss(t);
