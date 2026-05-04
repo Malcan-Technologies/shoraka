@@ -10,7 +10,11 @@ import {
   maturityMeetsMinimumMonthsFrom,
   parseInvoiceMaturityDate,
 } from "@cashsouk/config";
-import { isSoukscoreRiskRating, SOUKSCORE_RISK_RATING_GRADES, type SoukscoreRiskRating } from "@cashsouk/types";
+import {
+  isSoukscoreRiskRating,
+  SOUKSCORE_RISK_RATING_GRADES,
+  type SoukscoreRiskRating,
+} from "@cashsouk/types";
 import { ItemActionDropdown } from "@/components/application-review/item-action-dropdown";
 import { ReviewStepStatusBadge } from "@/components/application-review/review-step-status-badge";
 import { REVIEW_EMPTY_LABEL } from "@/components/application-review/review-section-styles";
@@ -629,7 +633,7 @@ export function InvoiceList({
                                     <p className={applicationTableExpandableLabelClass}>Document</p>
                                     <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                                       <p
-                                        className={`${applicationTableExpandableValueClass} line-clamp-3 min-w-0 w-full max-w-full break-words [overflow-wrap:anywhere]`}
+                                        className={`${applicationTableExpandableValueClass} line-clamp-3 min-w-0 w-full max-w-full [overflow-wrap:anywhere]`}
                                         title={documentName}
                                       >
                                         {documentName}
@@ -700,6 +704,75 @@ export function InvoiceList({
                               <div className="flex flex-col gap-3">
                                 <div className="space-y-3">
                                   <div className={applicationTableExpandableFieldBlockClass}>
+                                    <p className={applicationTableExpandableLabelClass}>Risk Rating</p>
+                                    {isOfferSent ? (
+                                      <p className={applicationTableExpandableValueClass}>
+                                        {(() => {
+                                          const raw = (inv.offer_details as Record<string, unknown> | null)
+                                            ?.risk_rating;
+                                          if (typeof raw === "string" && raw.trim()) return raw.trim();
+                                          const fromState = riskRatingByInvoiceId[inv.id];
+                                          return fromState ?? REVIEW_EMPTY_LABEL;
+                                        })()}
+                                      </p>
+                                    ) : (
+                                      <Select
+                                        value={riskRatingByInvoiceId[inv.id] ?? undefined}
+                                        onValueChange={(value) => {
+                                          if (isSoukscoreRiskRating(value)) {
+                                            setRiskRatingByInvoiceId((prev) => ({
+                                              ...prev,
+                                              [inv.id]: value,
+                                            }));
+                                          }
+                                        }}
+                                        disabled={isRowGreyedOut || isAdminRejected}
+                                      >
+                                        <SelectTrigger aria-label="Risk rating" className={OFFER_CONTROL_WIDTH_CLASS}>
+                                          <SelectValue placeholder="Grade" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {SOUKSCORE_RISK_RATING_GRADES.map((grade) => (
+                                            <SelectItem key={grade} value={grade}>
+                                              {grade}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    )}
+                                  </div>
+                                  <div className={applicationTableExpandableFieldBlockClass}>
+                                    <p className={applicationTableExpandableLabelClass}>
+                                      Profit Rate
+                                    </p>
+                                    {isOfferSent ? (
+                                      <p className={applicationTableExpandableValueClass}>
+                                        {offeredProfitRate != null
+                                          ? `${offeredProfitRate}%`
+                                          : REVIEW_EMPTY_LABEL}
+                                      </p>
+                                    ) : (
+                                      <Select
+                                        value={String(offered.profitRate)}
+                                        onValueChange={(v) =>
+                                          setOffered(inv.id, { profitRate: parseInt(v, 10) })
+                                        }
+                                        disabled={isRowGreyedOut || isAdminRejected}
+                                      >
+                                        <SelectTrigger className={OFFER_CONTROL_WIDTH_CLASS}>
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent className="max-h-[200px]">
+                                          {PROFIT_RATE_OPTIONS.map((p) => (
+                                            <SelectItem key={p} value={String(p)}>
+                                              {p}%
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    )}
+                                  </div>
+                                  <div className={applicationTableExpandableFieldBlockClass}>
                                     <div className="flex items-baseline justify-between gap-2">
                                       <p className={applicationTableExpandableLabelClass}>
                                         Financing Ratio
@@ -765,7 +838,8 @@ export function InvoiceList({
                                               onBlur={() => {
                                                 const draft = financingRatioDraftByInvoiceId[inv.id];
                                                 setFinancingRatioDraftByInvoiceId((prev) => {
-                                                  const { [inv.id]: _removed, ...rest } = prev;
+                                                  const rest = { ...prev };
+                                                  delete rest[inv.id];
                                                   return rest;
                                                 });
                                                 const fallback = offered.ratio;
@@ -802,7 +876,8 @@ export function InvoiceList({
                                                 onValueChange={(v) => {
                                                   setOffered(inv.id, { ratio: v[0] });
                                                   setFinancingRatioDraftByInvoiceId((prev) => {
-                                                    const { [inv.id]: _removed, ...rest } = prev;
+                                                    const rest = { ...prev };
+                                                    delete rest[inv.id];
                                                     return rest;
                                                   });
                                                 }}
@@ -813,77 +888,6 @@ export function InvoiceList({
                                           ) : null}
                                         </div>
                                       </>
-                                    )}
-                                  </div>
-                                  <div className={applicationTableExpandableFieldBlockClass}>
-                                    <p className={applicationTableExpandableLabelClass}>
-                                      Profit Rate
-                                    </p>
-                                    {isOfferSent ? (
-                                      <p className={applicationTableExpandableValueClass}>
-                                        {offeredProfitRate != null
-                                          ? `${offeredProfitRate}%`
-                                          : REVIEW_EMPTY_LABEL}
-                                      </p>
-                                    ) : (
-                                      <Select
-                                        value={String(offered.profitRate)}
-                                        onValueChange={(v) =>
-                                          setOffered(inv.id, { profitRate: parseInt(v, 10) })
-                                        }
-                                        disabled={isRowGreyedOut || isAdminRejected}
-                                      >
-                                        <SelectTrigger className={OFFER_CONTROL_WIDTH_CLASS}>
-                                          <SelectValue />
-                                        </SelectTrigger>
-                                        <SelectContent className="max-h-[200px]">
-                                          {PROFIT_RATE_OPTIONS.map((p) => (
-                                            <SelectItem key={p} value={String(p)}>
-                                              {p}%
-                                            </SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
-                                    )}
-                                  </div>
-                                  {/* SECTION: Risk Rating (Manual SoukScore). WHY: placeholder until automation. INPUT: Soukscore grade. OUTPUT: offer_details.risk_rating. WHERE USED: Send Offer. */}
-                                  <div className={applicationTableExpandableFieldBlockClass}>
-                                    <p className={applicationTableExpandableLabelClass}>Risk Rating</p>
-                                    {isOfferSent ? (
-                                      <p className={applicationTableExpandableValueClass}>
-                                        {(() => {
-                                          const raw = (inv.offer_details as Record<string, unknown> | null)
-                                            ?.risk_rating;
-                                          if (isSoukscoreRiskRating(raw)) return raw;
-                                          const fromState = riskRatingByInvoiceId[inv.id];
-                                          return fromState ?? REVIEW_EMPTY_LABEL;
-                                        })()}
-                                      </p>
-                                    ) : (
-                                      <Select
-                                        value={riskRatingByInvoiceId[inv.id] ?? undefined}
-                                        onValueChange={(value) => {
-                                          console.log("Risk Rating selected:", value);
-                                          if (isSoukscoreRiskRating(value)) {
-                                            setRiskRatingByInvoiceId((prev) => ({
-                                              ...prev,
-                                              [inv.id]: value,
-                                            }));
-                                          }
-                                        }}
-                                        disabled={isRowGreyedOut || isAdminRejected}
-                                      >
-                                        <SelectTrigger aria-label="Risk rating" className={OFFER_CONTROL_WIDTH_CLASS}>
-                                          <SelectValue placeholder="Grade" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          {SOUKSCORE_RISK_RATING_GRADES.map((grade) => (
-                                            <SelectItem key={grade} value={grade}>
-                                              {grade}
-                                            </SelectItem>
-                                          ))}
-                                        </SelectContent>
-                                      </Select>
                                     )}
                                   </div>
                                 </div>

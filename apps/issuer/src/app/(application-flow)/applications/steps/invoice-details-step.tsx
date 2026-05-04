@@ -51,7 +51,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateInput } from "@/app/(application-flow)/applications/components/date-input";
 import { Trash2 } from "lucide-react";
-import { createApiClient, useAuthToken } from "@cashsouk/config";
+import { createApiClient, useAuthToken, ApiClient } from "@cashsouk/config";
 import { toast } from "sonner";
 import { XMarkIcon, CloudArrowUpIcon, InformationCircleIcon } from "@heroicons/react/24/outline";
 import { Slider } from "@cashsouk/ui";
@@ -70,7 +70,17 @@ import {
   fieldTooltipContentClassName,
   fieldTooltipTriggerClassName,
 } from "@/app/(application-flow)/applications/components/form-control";
-import { WithdrawReason } from "@cashsouk/types";
+import {
+  WithdrawReason,
+  Application,
+  Contract,
+  Invoice,
+  InvoiceDetails,
+  InvoiceStatus,
+  Product,
+  ApiResponse,
+  ApiError,
+} from "@cashsouk/types";
 import { StatusBadge } from "../components/invoice-status-badge";
 import { InvoiceErrorCard } from "../components/amendments";
 import { formatMoney, parseMoney } from "@cashsouk/ui";
@@ -107,26 +117,70 @@ interface InvoiceConfig {
   min_months_application_to_maturity?: number | null;
 }
 
+type ApplicationHydrated = Application & {
+  contract_id?: string | null;
+  contract?: Contract;
+  product?: Product;
+};
+
+function isApiSuccess<T>(r: ApiResponse<T> | ApiError): r is ApiResponse<T> {
+  return r.success === true;
+}
+
+function pickInvoiceWorkflowConfig(product: Product | null): Record<string, unknown> | null {
+  if (!product) return null;
+  const workflow = Array.isArray(product.workflow) ? product.workflow : [];
+  const invoiceStep = workflow.find((step) => {
+    if (!step || typeof step !== "object") return false;
+    const s = step as { id?: unknown; name?: unknown; config?: unknown };
+    const idPart = s.id;
+    const namePart = s.name;
+    const idMatch =
+      (typeof idPart === "string" && idPart.includes("invoice_details")) ||
+      Boolean(
+        idPart &&
+          typeof idPart === "object" &&
+          "includes" in idPart &&
+          typeof (idPart as { includes: (sub: string) => boolean }).includes === "function" &&
+          (idPart as { includes: (sub: string) => boolean }).includes("invoice_details")
+      );
+    const nameMatch =
+      (typeof namePart === "string" && namePart.includes("invoice")) ||
+      Boolean(
+        namePart &&
+          typeof namePart === "object" &&
+          "includes" in namePart &&
+          typeof (namePart as { includes: (sub: string) => boolean }).includes === "function" &&
+          (namePart as { includes: (sub: string) => boolean }).includes("invoice")
+      );
+    return idMatch || nameMatch;
+  });
+  if (!invoiceStep || typeof invoiceStep !== "object") return null;
+  const raw = (invoiceStep as { config?: unknown }).config;
+  if (raw == null) return {};
+  if (typeof raw !== "object" || Array.isArray(raw)) return null;
+  return raw as Record<string, unknown>;
+}
+
 /**
  * Resolve invoice config from product.
  * Product is obtained by:
  * 1) looking up application.financing_type.product_id in the provided products array
  * 2) falling back to application.product if present
  */
-function getProductInvoiceConfig(application: any, products: any[] = []): InvoiceConfig | null {
+function getProductInvoiceConfig(
+  application: ApplicationHydrated | null,
+  products: Product[] = []
+): InvoiceConfig | null {
   try {
-    const productId = application?.financing_type?.product_id;
-    let product = null;
-    if (productId && Array.isArray(products)) {
-      product = products.find((p: any) => p.id === productId) ?? null;
+    const ft = application?.financing_type as { product_id?: string } | undefined;
+    const productId = ft?.product_id;
+    let product: Product | null = null;
+    if (productId) {
+      product = products.find((p) => p.id === productId) ?? null;
     }
     if (!product && application?.product) product = application.product;
-    const workflow = product?.workflow || [];
-    const invoiceStep = workflow.find(
-      (step: any) => step.id?.includes?.("invoice_details") || step.name?.includes?.("invoice")
-    );
-    const config = invoiceStep?.config || {};
-    // debug removed
+    const config = pickInvoiceWorkflowConfig(product);
     if (config == null || Object.keys(config).length === 0) return null;
     const minRatio = config.min_financing_ratio_percent;
     const maxRatio = config.max_financing_ratio_percent;
@@ -139,15 +193,16 @@ function getProductInvoiceConfig(application: any, products: any[] = []): Invoic
       minRatio >= 1 &&
       maxRatio <= 100;
     if (!hasValidRatioConfig) return null;
+    const rawMonths = config.min_months_application_to_maturity;
     const applicationMonths =
-      typeof config.min_months_application_to_maturity === "number" &&
-      Number.isFinite(config.min_months_application_to_maturity) &&
-      config.min_months_application_to_maturity > 0
-        ? Math.floor(config.min_months_application_to_maturity)
+      typeof rawMonths === "number" && Number.isFinite(rawMonths) && rawMonths > 0
+        ? Math.floor(rawMonths)
         : null;
+    const minInv = config.min_invoice_value;
+    const maxInv = config.max_invoice_value;
     return {
-      min_invoice_value: config.min_invoice_value ?? null,
-      max_invoice_value: config.max_invoice_value ?? null,
+      min_invoice_value: typeof minInv === "number" && Number.isFinite(minInv) ? minInv : null,
+      max_invoice_value: typeof maxInv === "number" && Number.isFinite(maxInv) ? maxInv : null,
       min_financing_ratio_percent: minRatio,
       max_financing_ratio_percent: maxRatio,
       min_months_application_to_maturity: applicationMonths,
@@ -188,14 +243,20 @@ type LocalInvoice = {
   document?: { file_name: string; file_size?: number; s3_key?: string; uploaded_at?: string } | null;
 };
 
+interface InvoiceRemarkItem {
+  scope?: string;
+  scope_key?: string;
+  remark?: string;
+}
+
 interface InvoiceDetailsStepProps {
   applicationId: string;
-  onDataChange?: (data: any) => void;
+  onDataChange?: (data: Record<string, unknown>) => void;
   readOnly?: boolean;
   isAmendmentMode?: boolean;
   flaggedSections?: Set<string>;
   flaggedItems?: Map<string, Set<string>>;
-  remarks?: { scope?: string; scope_key?: string; remark?: string }[];
+  remarks?: InvoiceRemarkItem[];
 }
 
 export default function InvoiceDetailsStep({
@@ -204,14 +265,13 @@ export default function InvoiceDetailsStep({
   readOnly = false,
   isAmendmentMode = false,
   flaggedSections,
-  flaggedItems: _flaggedItems,
   remarks = [],
 }: InvoiceDetailsStepProps) {
   const devTools = useDevTools();
 
   const [invoices, setInvoices] = React.useState<LocalInvoice[]>([]);
   const [selectedFiles, setSelectedFiles] = React.useState<Record<string, File>>({});
-  const [application, setApplication] = React.useState<any>(null);
+  const [application, setApplication] = React.useState<ApplicationHydrated | null>(null);
   const [lastS3Keys, setLastS3Keys] = React.useState<Record<string, string>>({});
   const [deletedInvoices, setDeletedInvoices] = React.useState<Record<string, { s3_key?: string }>>({});
   const [initialInvoices, setInitialInvoices] = React.useState<Record<string, LocalInvoice>>({});
@@ -234,15 +294,14 @@ export default function InvoiceDetailsStep({
   const invoiceRemarksByIndex = React.useMemo(() => {
     const map = new Map<number, string[]>();
     for (const r of remarks) {
-      const rem = r as { scope?: string; scope_key?: string; remark?: string };
-      if (rem.scope !== "item") continue;
-      const sk = rem.scope_key || "";
+      if (r.scope !== "item") continue;
+      const sk = r.scope_key || "";
       if (!sk.startsWith("invoice_details:") && !sk.startsWith("invoice:")) continue;
       const parts = sk.split(":");
       if (parts.length >= 2) {
         const idx = parseInt(parts[1], 10);
-        if (!Number.isNaN(idx) && idx >= 0 && (rem.remark || "").trim()) {
-          const bullets = parseRemarkBullets(rem.remark || "");
+        if (!Number.isNaN(idx) && idx >= 0 && (r.remark || "").trim()) {
+          const bullets = parseRemarkBullets(r.remark || "");
           if (bullets.length > 0) {
             const existing = map.get(idx) ?? [];
             map.set(idx, [...existing, ...bullets]);
@@ -269,9 +328,8 @@ export default function InvoiceDetailsStep({
         flaggedSections?.has("invoice") ||
         remarks.some(
           (r) =>
-            (r as { scope?: string; scope_key?: string }).scope === "section" &&
-            ((r as { scope_key?: string }).scope_key === "invoice_details" ||
-              (r as { scope_key?: string }).scope_key === "invoice")
+            r.scope === "section" &&
+            (r.scope_key === "invoice_details" || r.scope_key === "invoice")
         )
     );
 
@@ -295,12 +353,11 @@ export default function InvoiceDetailsStep({
       setIsLoadingApplication(true);
       try {
         const apiClient = createApiClient(API_URL, getAccessToken);
-        const resp: any = await apiClient.get(`/v1/applications/${applicationId}`);
-        if (resp.success && mounted) {
-          setApplication(resp.data);
+        const resp = await apiClient.getApplication(applicationId);
+        if (isApiSuccess(resp) && mounted) {
+          setApplication(resp.data as ApplicationHydrated);
         }
-      } catch (err) {
-
+      } catch {
       } finally {
         if (mounted) {
           setIsLoadingApplication(false);
@@ -370,7 +427,7 @@ export default function InvoiceDetailsStep({
     });
   };
 
-  const updateInvoiceField = (id: string, field: keyof LocalInvoice, value: any) => {
+  const updateInvoiceField = <K extends keyof LocalInvoice>(id: string, field: K, value: LocalInvoice[K]) => {
     setInvoices((s) => s.map((inv) => (inv.id === id ? { ...inv, [field]: value } : inv)));
   };
 
@@ -605,8 +662,8 @@ export default function InvoiceDetailsStep({
   let productConfig: InvoiceConfig | null = null;
   try {
     productConfig = getProductInvoiceConfig(application, productsData?.products || []);
-  } catch (err) {
-    validationError = err instanceof Error ? err.message : "Product configuration error";
+  } catch (error: unknown) {
+    validationError = error instanceof Error ? error.message : "Product configuration error";
   }
 
   if (shouldRunValidation) {
@@ -712,7 +769,7 @@ export default function InvoiceDetailsStep({
       let currentS3Key = lastS3Keys[inv.id] || lastS3Keys[invoiceId];
 
       if (!inv.isPersisted) {
-        const createPayload: any = {
+        const createPayload: Parameters<ApiClient["createInvoice"]>[0] = {
           applicationId,
           details: {
             number: inv.number,
@@ -731,12 +788,13 @@ export default function InvoiceDetailsStep({
          * - invoice_only: DO NOT pass contractId (will be null in DB)
          * - existing_contract or new_contract: pass contract_id if it exists
          */
-        if (!isInvoiceOnly && application?.contract_id)
+        if (!isInvoiceOnly && application?.contract_id) {
           createPayload.contractId = application.contract_id;
+        }
 
 
-        const createResp: any = await apiClient.createInvoice(createPayload);
-        if (!createResp?.success) {
+        const createResp = await apiClient.createInvoice(createPayload);
+        if (!createResp.success) {
           throw new Error("Failed to create invoice");
         }
         invoiceId = createResp.data.id;
@@ -747,7 +805,7 @@ export default function InvoiceDetailsStep({
          * For invoice_only: ALWAYS set contractId to null (clear any existing contract_id)
          * For others: only update details, don't touch contractId
          */
-        const updatePayload: any = {
+        const updatePayload: Partial<InvoiceDetails> & { contractId?: string | null } = {
           number: inv.number,
           value: parseMoney(inv.value),
           maturity_date: (() => {
@@ -783,8 +841,11 @@ export default function InvoiceDetailsStep({
         }),
       });
 
-      const urlJson = await urlResp.json();
-      if (!urlJson.success) {
+      const urlJson: {
+        success?: boolean;
+        data?: { uploadUrl: string; s3Key: string };
+      } = await urlResp.json();
+      if (!urlJson.success || !urlJson.data) {
         throw new Error("Failed to get upload URL");
       }
 
@@ -802,7 +863,10 @@ export default function InvoiceDetailsStep({
        *
        * Structure: { document: {...}, contractId: ... }
        */
-      const finalUpdatePayload: any = {
+      const finalUpdatePayload: Partial<InvoiceDetails> & {
+        contractId?: string | null;
+        document?: InvoiceDetails["document"] & { uploaded_at?: string };
+      } = {
         document: {
           file_name: file.name,
           file_size: file.size,
@@ -861,7 +925,7 @@ export default function InvoiceDetailsStep({
       }
       // Also refresh application summary that may include invoice totals.
       queryClient.invalidateQueries({ queryKey: ["application", applicationId] });
-    } catch (err) {
+    } catch {
       // Non-fatal: continue returning persisted snapshot even if invalidation fails.
     }
 
@@ -878,7 +942,7 @@ export default function InvoiceDetailsStep({
     Object.keys(deletedInvoices).length > 0;
 
   React.useEffect(() => {
-    let isValid = shouldRunValidation ? !hasPartialRows && !validationError : true;
+    const isValid = shouldRunValidation ? !hasPartialRows && !validationError : true;
     onDataChange?.({
       invoices,
       totalFinancingAmount,
@@ -902,8 +966,8 @@ export default function InvoiceDetailsStep({
         const isExistingContract = application?.financing_structure?.structure_type === "existing_contract";
         const contractId = application?.contract_id;
 
-        const toLocalInvoice = (it: any): LocalInvoice => {
-          const d = it.details || {};
+        const toLocalInvoice = (it: Invoice & { withdraw_reason?: WithdrawReason | string | null }): LocalInvoice => {
+          const d = it.details;
           const wr = it.withdraw_reason;
           const withdraw_reason =
             wr === WithdrawReason.USER_CANCELLED ||
@@ -915,7 +979,7 @@ export default function InvoiceDetailsStep({
             id: it.id,
             isPersisted: true,
             number: d.number || "",
-            status: it.status || "DRAFT",
+            status: it.status || InvoiceStatus.DRAFT,
             withdraw_reason,
             value: d.value != null ? formatMoney(d.value) : "",
             maturity_date: (() => {
@@ -928,7 +992,8 @@ export default function InvoiceDetailsStep({
             })(),
             financing_ratio_percent: (() => {
               const raw = d.financing_ratio_percent;
-              if (raw == null || raw === "") return 60;
+              if (raw == null) return 60;
+              if (typeof raw === "string" && raw.trim() === "") return 60;
               const n = typeof raw === "number" ? raw : Number(raw);
               return Number.isFinite(n) ? Math.round(n) : 60;
             })(),
@@ -937,7 +1002,7 @@ export default function InvoiceDetailsStep({
                 file_name: d.document.file_name,
                 file_size: d.document.file_size,
                 s3_key: d.document.s3_key,
-                uploaded_at: d.document.uploaded_at,
+                uploaded_at: (d.document as { uploaded_at?: string }).uploaded_at,
               }
               : null,
           };
@@ -945,9 +1010,9 @@ export default function InvoiceDetailsStep({
 
         let mapped: LocalInvoice[];
 
-        const resp: any = await apiClient.getInvoicesByApplication(applicationId);
-        if (!("success" in resp) || !resp.success) return;
-        const items: any[] = resp.data || [];
+        const resp = await apiClient.getInvoicesByApplication(applicationId);
+        if (!isApiSuccess(resp)) return;
+        const items = resp.data;
 
         if (isAmendmentMode) {
           /**
@@ -960,23 +1025,22 @@ export default function InvoiceDetailsStep({
            * EXISTING CONTRACT (non-amendment): Contract invoices (SUBMITTED/APPROVED) + DRAFT.
            * DRAFT can be removed if user switches structure.
            */
-          const contractResp: any = await apiClient.getInvoicesByContract(contractId);
-          const contractItems: any[] =
-            "success" in contractResp && contractResp.success
-              ? (contractResp.data || []).filter(
-                (it: any) => it.status === "APPROVED" || it.status === "SUBMITTED"
-              )
-              : [];
-          const contractIds = new Set(contractItems.map((it: any) => it.id));
-          const appDrafts = (items || []).filter(
-            (it: any) => it.status === "DRAFT" && !contractIds.has(it.id)
+          const contractResp = await apiClient.getInvoicesByContract(contractId);
+          const contractItems = isApiSuccess(contractResp)
+            ? contractResp.data.filter(
+              (it) => it.status === InvoiceStatus.APPROVED || it.status === InvoiceStatus.SUBMITTED
+            )
+            : [];
+          const contractIds = new Set(contractItems.map((it) => it.id));
+          const appDrafts = items.filter(
+            (it) => it.status === InvoiceStatus.DRAFT && !contractIds.has(it.id)
           );
           mapped = [...contractItems.map(toLocalInvoice), ...appDrafts.map(toLocalInvoice)];
         } else {
           /**
            * INVOICE_ONLY / NEW_CONTRACT: DRAFT only (not related to contract).
            */
-          const filtered = items.filter((it: any) => it.status === "DRAFT");
+          const filtered = items.filter((it) => it.status === InvoiceStatus.DRAFT);
           mapped = filtered.map(toLocalInvoice);
         }
 

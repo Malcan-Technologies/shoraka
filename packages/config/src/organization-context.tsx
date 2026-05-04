@@ -9,6 +9,7 @@ import {
   useEffect,
   useMemo,
 } from "react";
+import type { ApplicationPersonRow } from "@cashsouk/types";
 import { createApiClient } from "./api-client";
 import { useAuthToken } from "./auth-context";
 
@@ -85,6 +86,11 @@ export interface Organization {
   isSophisticatedInvestor?: boolean;
   // Issuer-specific flags
   ssmChecked?: boolean;
+  /** Company org: false when any director/shareholder AML screening is not Approved. */
+  directorShareholderSubmitReady?: boolean;
+  directorShareholderSubmitBlockedMessage?: string;
+  /** CTOS-backed party rows with AML screening (issuer company orgs). */
+  people?: ApplicationPersonRow[];
   // Corporate director KYC status (only for COMPANY type)
   directorKycStatus?: {
     corpIndvDirectorCount: number;
@@ -133,6 +139,8 @@ export interface Organization {
     shareholders?: Array<Record<string, unknown>>;
     corporateShareholders?: Array<Record<string, unknown>>;
   };
+  latestOrganizationCtosCompanyJson?: unknown | null;
+  ctosPartySupplements?: ReadonlyArray<{ partyKey: string; onboardingJson?: unknown }>;
 }
 
 interface OrganizationContextType {

@@ -1,5 +1,6 @@
 import { CognitoJwtVerifier } from "aws-jwt-verify";
 import { getEnv } from "../../config/env";
+import { logger } from "../logger";
 
 // Lazy-initialized verifier singleton
 // This avoids calling getEnv() at module load time, which would fail
@@ -55,7 +56,7 @@ export async function verifyCognitoAccessToken(token: string) {
 export async function hydrateVerifier() {
   try {
     await getVerifier().hydrate();
-    console.log("✅ Cognito JWT verifier hydrated successfully");
+    logger.info("Cognito JWT verifier hydrated successfully");
   } catch (error) {
     console.error(
       "⚠️  Failed to hydrate Cognito JWT verifier:",

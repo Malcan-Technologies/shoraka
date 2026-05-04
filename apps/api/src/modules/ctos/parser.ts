@@ -7,6 +7,7 @@
  */
 
 import { parseStringPromise } from "xml2js";
+import { logger } from "../../lib/logger";
 import {
   CTOS_ACCOUNT_NUMERIC_CODENAMES,
   type CtosFinancialYearRow,
@@ -243,7 +244,7 @@ function buildSummaryJsonSlice(
 }
 
 export async function parseCtosReportXml(xmlStr: string): Promise<CtosReportParsed> {
-  console.log("Parsing CTOS XML, byte length:", xmlStr.length);
+  logger.debug({ byteLength: xmlStr.length }, "Parsing CTOS XML");
 
   const parsed = await parseStringPromise(xmlStr, { explicitArray: true });
   const report0 = (parsed as { report?: { enq_report?: unknown[] } })?.report?.enq_report?.[0] as
@@ -337,17 +338,20 @@ export async function parseCtosReportXml(xmlStr: string): Promise<CtosReportPars
       },
       financials_json: [],
     };
-    console.log("CTOS PARSED RESULT:", parsedResultNoEnquiry);
+    logger.debug({ parsedResultNoEnquiry }, "CTOS parsed result (no enquiry)");
     {
       const pe = parsedResultNoEnquiry as unknown as Record<string, unknown>;
       if (pe.entities) {
-        console.log("CTOS MULTIPLE ENTITIES DETECTED:", pe.entities);
+        logger.debug({ entities: pe.entities }, "CTOS multiple entities detected");
       }
     }
-    console.log("CTOS FINAL OUTPUT TO UI (parser, no-enquiry):", {
-      raw_xml_len: parsedResultNoEnquiry.raw_xml.length,
-      has_company_json: Boolean(parsedResultNoEnquiry.company_json),
-    });
+    logger.debug(
+      {
+        raw_xml_len: parsedResultNoEnquiry.raw_xml.length,
+        has_company_json: Boolean(parsedResultNoEnquiry.company_json),
+      },
+      "CTOS parser output summary (no-enquiry)"
+    );
     return parsedResultNoEnquiry;
   }
 
@@ -516,23 +520,26 @@ export async function parseCtosReportXml(xmlStr: string): Promise<CtosReportPars
     },
     financials_json: financialsArray,
   };
-  console.log("CTOS PARSED RESULT:", parsedResultFull);
+  logger.debug({ parsedResultFull }, "CTOS parsed result (full)");
   {
     const pe = parsedResultFull as unknown as Record<string, unknown>;
     if (pe.entities) {
-      console.log("CTOS MULTIPLE ENTITIES DETECTED:", pe.entities);
+      logger.debug({ entities: pe.entities }, "CTOS multiple entities detected");
     }
   }
   if (directors.length > 1) {
-    console.log("CTOS MULTIPLE ENTITIES DETECTED (directors count):", directors.length);
+    logger.debug({ directorsCount: directors.length }, "CTOS multiple directors");
   }
-  console.log("CTOS FINAL OUTPUT TO UI (parser, full):", {
-    person_json: parsedResultFull.person_json != null,
-    company_name:
-      !isIndividual && parsedResultFull.company_json
-        ? (parsedResultFull.company_json as { name?: unknown }).name
-        : null,
-    financials_json_count: parsedResultFull.financials_json.length,
-  });
+  logger.debug(
+    {
+      person_json: parsedResultFull.person_json != null,
+      company_name:
+        !isIndividual && parsedResultFull.company_json
+          ? (parsedResultFull.company_json as { name?: unknown }).name
+          : null,
+      financials_json_count: parsedResultFull.financials_json.length,
+    },
+    "CTOS parser output summary (full)"
+  );
   return parsedResultFull;
 }

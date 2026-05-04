@@ -1,99 +1,247 @@
-name: Deploy All Services to ECR
+name: Deploy Services to ECS
 
 on:
   push:
     branches: [main]
+    paths:
+      - "apps/api/**"
+      - "apps/landing/**"
+      - "apps/investor/**"
+      - "apps/issuer/**"
+      - "apps/admin/**"
+      - "packages/**"
+      - "docs/help/**"
+      - "docker/**"
+      - "infra/ecs-task-definition-*.json"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "tsconfig.json"
+      - "turbo.json"
+      - ".github/workflows/deploy.yml"
   workflow_dispatch:
+    inputs:
+      action:
+        description: "Deployment scope"
+        required: true
+        type: choice
+        default: full
+        options:
+          - changed
+          - full
+          - api
+          - portals
+          - landing
+          - investor
+          - issuer
+          - admin
+          - migrations-only
+      skip_migrations:
+        description: "Skip migrations even when Prisma migration files changed"
+        required: false
+        type: boolean
+        default: false
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   AWS_REGION: ap-southeast-5
+  ECS_CLUSTER: default
+  API_SERVICE: api-cashsouk-09ff
 
 permissions:
   id-token: write
   contents: read
 
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  # ──────────────────────────────────────────────
-  # 1. Detect which services have changes
-  # ──────────────────────────────────────────────
   detect-changes:
+    name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
-      api: ${{ steps.changes.outputs.api }}
-      migrations: ${{ steps.changes.outputs.migrations }}
-      landing: ${{ steps.changes.outputs.landing }}
-      investor: ${{ steps.changes.outputs.investor }}
-      issuer: ${{ steps.changes.outputs.issuer }}
-      admin: ${{ steps.changes.outputs.admin }}
-      any_service: ${{ steps.changes.outputs.any_service }}
+      api: ${{ steps.select.outputs.api }}
+      migrations: ${{ steps.select.outputs.migrations }}
+      landing: ${{ steps.select.outputs.landing }}
+      investor: ${{ steps.select.outputs.investor }}
+      issuer: ${{ steps.select.outputs.issuer }}
+      admin: ${{ steps.select.outputs.admin }}
+      action: ${{ steps.select.outputs.action }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
-      - name: Check for changes
-        id: changes
+      - name: Select deployment targets
+        id: select
+        env:
+          ACTION: ${{ inputs.action || 'changed' }}
+          SKIP_MIGRATIONS: ${{ inputs.skip_migrations || false }}
+          BEFORE_SHA: ${{ github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
-          if git rev-parse HEAD^ >/dev/null 2>&1; then
-            COMPARE="HEAD^"
+          set -euo pipefail
+
+          if [ "$EVENT_NAME" = "push" ] && [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            BASE_SHA="$BEFORE_SHA"
+          elif git rev-parse HEAD^ >/dev/null 2>&1; then
+            BASE_SHA="$(git rev-parse HEAD^)"
           else
-            COMPARE="4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+            BASE_SHA="$(git hash-object -t tree /dev/null)"
           fi
 
-          CHANGED=$(git diff --name-only $COMPARE HEAD)
+          CHANGED_FILES="$(git diff --name-only "$BASE_SHA" HEAD)"
 
-          api=false; migrations=false; landing=false; investor=false; issuer=false; admin=false
+          api_changed=false
+          migrations_changed=false
+          landing_changed=false
+          investor_changed=false
+          issuer_changed=false
+          admin_changed=false
 
-          if echo "$CHANGED" | grep -qE '^apps/api/|^packages/(types|config)/|^docker/api\.Dockerfile'; then
-            api=true
-          fi
-          if echo "$CHANGED" | grep -qE '^apps/api/prisma/(schema\.prisma|migrations/)'; then
+          while IFS= read -r file; do
+            case "$file" in
+              package.json|pnpm-lock.yaml|pnpm-workspace.yaml|tsconfig.json|turbo.json)
+                api_changed=true
+                landing_changed=true
+                investor_changed=true
+                issuer_changed=true
+                admin_changed=true
+                ;;
+            esac
+
+            case "$file" in
+              apps/api/*|packages/types/*|packages/config/*|docker/api.Dockerfile|infra/ecs-task-definition-api.json)
+                api_changed=true
+                ;;
+            esac
+
+            case "$file" in
+              apps/api/prisma/schema.prisma|apps/api/prisma/migrations/*)
+                migrations_changed=true
+                api_changed=true
+                ;;
+            esac
+
+            case "$file" in
+              docker/migrate.Dockerfile|docker/migrate.sh|infra/ecs-task-definition-migrate.json)
+                migrations_changed=true
+                ;;
+            esac
+
+            case "$file" in
+              apps/landing/*|packages/*|docker/landing.Dockerfile|infra/ecs-task-definition-landing.json)
+                landing_changed=true
+                ;;
+            esac
+
+            case "$file" in
+              apps/investor/*|packages/*|docs/help/*|docker/portal-investor.Dockerfile|infra/ecs-task-definition-investor.json)
+                investor_changed=true
+                ;;
+            esac
+
+            case "$file" in
+              apps/issuer/*|packages/*|docs/help/*|docker/portal-issuer.Dockerfile|infra/ecs-task-definition-issuer.json)
+                issuer_changed=true
+                ;;
+            esac
+
+            case "$file" in
+              apps/admin/*|packages/*|docs/help/*|docker/portal-admin.Dockerfile|infra/ecs-task-definition-admin.json)
+                admin_changed=true
+                ;;
+            esac
+          done <<< "$CHANGED_FILES"
+
+          api=false
+          landing=false
+          investor=false
+          issuer=false
+          admin=false
+
+          case "$ACTION" in
+            full)
+              api=true
+              landing=true
+              investor=true
+              issuer=true
+              admin=true
+              ;;
+            api)
+              api=true
+              ;;
+            portals)
+              landing=true
+              investor=true
+              issuer=true
+              admin=true
+              ;;
+            landing)
+              landing=true
+              ;;
+            investor)
+              investor=true
+              ;;
+            issuer)
+              issuer=true
+              ;;
+            admin)
+              admin=true
+              ;;
+            migrations-only)
+              ;;
+            changed|*)
+              api="$api_changed"
+              landing="$landing_changed"
+              investor="$investor_changed"
+              issuer="$issuer_changed"
+              admin="$admin_changed"
+              ;;
+          esac
+
+          migrations=false
+          if [ "$ACTION" = "migrations-only" ]; then
+            migrations=true
+          elif [ "$SKIP_MIGRATIONS" != "true" ] && [ "$migrations_changed" = "true" ]; then
             migrations=true
           fi
-          if echo "$CHANGED" | grep -qE '^apps/landing/|^packages/|^docker/landing\.Dockerfile'; then
-            landing=true
-          fi
-          if echo "$CHANGED" | grep -qE '^apps/investor/|^packages/|^docs/help/|^docker/portal-investor\.Dockerfile'; then
-            investor=true
-          fi
-          if echo "$CHANGED" | grep -qE '^apps/issuer/|^packages/|^docs/help/|^docker/portal-issuer\.Dockerfile'; then
-            issuer=true
-          fi
-          if echo "$CHANGED" | grep -qE '^apps/admin/|^packages/|^docs/help/|^docker/portal-admin\.Dockerfile'; then
-            admin=true
-          fi
 
-          any_service=false
-          if [ "$api" = "true" ] || [ "$landing" = "true" ] || [ "$investor" = "true" ] || [ "$issuer" = "true" ] || [ "$admin" = "true" ]; then
-            any_service=true
-          fi
+          {
+            echo "action=$ACTION"
+            echo "api=$api"
+            echo "migrations=$migrations"
+            echo "landing=$landing"
+            echo "investor=$investor"
+            echo "issuer=$issuer"
+            echo "admin=$admin"
+          } >> "$GITHUB_OUTPUT"
 
-          echo "api=$api" >> $GITHUB_OUTPUT
-          echo "migrations=$migrations" >> $GITHUB_OUTPUT
-          echo "landing=$landing" >> $GITHUB_OUTPUT
-          echo "investor=$investor" >> $GITHUB_OUTPUT
-          echo "issuer=$issuer" >> $GITHUB_OUTPUT
-          echo "admin=$admin" >> $GITHUB_OUTPUT
-          echo "any_service=$any_service" >> $GITHUB_OUTPUT
+          echo "Action: $ACTION"
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+          echo ""
+          echo "Selected services:"
+          echo "  API: $api"
+          echo "  Landing: $landing"
+          echo "  Investor: $investor"
+          echo "  Issuer: $issuer"
+          echo "  Admin: $admin"
+          echo "  Migrations: $migrations"
 
-          echo "Change detection results:"
-          echo "  API: $api | Migrations: $migrations"
-          echo "  Landing: $landing | Investor: $investor | Issuer: $issuer | Admin: $admin"
-
-  # ──────────────────────────────────────────────
-  # 2. API: Build -> Migrate -> Deploy (sequential)
-  # ──────────────────────────────────────────────
-  deploy-api:
+  build-api:
+    name: Build API
     needs: detect-changes
-    if: needs.detect-changes.outputs.api == 'true'
     runs-on: ubuntu-latest
+    if: needs['detect-changes'].outputs.api == 'true'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -102,145 +250,524 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build API image
+      - name: Check ECS status before build
+        env:
+          SERVICE: api-cashsouk-09ff
+        run: |
+          set -euo pipefail
+
+          CLUSTER_STATUS="$(aws ecs describe-clusters --clusters "$ECS_CLUSTER" --region "$AWS_REGION" --query 'clusters[0].status' --output text)"
+          if [ "$CLUSTER_STATUS" != "ACTIVE" ]; then
+            echo "ECS cluster $ECS_CLUSTER is not ACTIVE: $CLUSTER_STATUS"
+            exit 1
+          fi
+
+          SERVICE_JSON="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$SERVICE" --region "$AWS_REGION" --output json)"
+          SERVICE_STATUS="$(echo "$SERVICE_JSON" | jq -r '.services[0].status // "MISSING"')"
+          DEPLOYMENT_COUNT="$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments | length')"
+          PRIMARY_ROLLOUT="$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments[]? | select(.status == "PRIMARY") | .rolloutState // "UNKNOWN"')"
+
+          echo "Service: $SERVICE | Status: $SERVICE_STATUS | Deployments: $DEPLOYMENT_COUNT | Primary rollout: $PRIMARY_ROLLOUT"
+
+          if [ "$SERVICE_STATUS" != "ACTIVE" ] || [ "$PRIMARY_ROLLOUT" = "FAILED" ] || [ "$DEPLOYMENT_COUNT" -gt 1 ]; then
+            echo "ECS service $SERVICE is not ready for deployment"
+            exit 1
+          fi
+
+      - name: Build and push API image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: api-cashsouk
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          echo "Building API image..."
-          docker build -f docker/api.Dockerfile \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          set -euo pipefail
+
+          max_attempts=3
+          attempt=1
+
+          while [ "$attempt" -le "$max_attempts" ]; do
+            echo "Build attempt $attempt of $max_attempts"
+            if docker build -f docker/api.Dockerfile -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" .; then
+              break
+            fi
+
+            if [ "$attempt" -eq "$max_attempts" ]; then
+              echo "Build failed after $max_attempts attempts"
+              exit 1
+            fi
+
+            attempt=$((attempt + 1))
+            sleep 60
+          done
+
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+  build-landing:
+    name: Build Landing
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    if: needs['detect-changes'].outputs.landing == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Check ECS status before build
+        env:
+          SERVICE: landing-cashsouk-1156
+        run: |
+          set -euo pipefail
+
+          CLUSTER_STATUS="$(aws ecs describe-clusters --clusters "$ECS_CLUSTER" --region "$AWS_REGION" --query 'clusters[0].status' --output text)"
+          if [ "$CLUSTER_STATUS" != "ACTIVE" ]; then
+            echo "ECS cluster $ECS_CLUSTER is not ACTIVE: $CLUSTER_STATUS"
+            exit 1
+          fi
+
+          SERVICE_JSON="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$SERVICE" --region "$AWS_REGION" --output json)"
+          SERVICE_STATUS="$(echo "$SERVICE_JSON" | jq -r '.services[0].status // "MISSING"')"
+          DEPLOYMENT_COUNT="$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments | length')"
+          PRIMARY_ROLLOUT="$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments[]? | select(.status == "PRIMARY") | .rolloutState // "UNKNOWN"')"
+
+          echo "Service: $SERVICE | Status: $SERVICE_STATUS | Deployments: $DEPLOYMENT_COUNT | Primary rollout: $PRIMARY_ROLLOUT"
+
+          if [ "$SERVICE_STATUS" != "ACTIVE" ] || [ "$PRIMARY_ROLLOUT" = "FAILED" ] || [ "$DEPLOYMENT_COUNT" -gt 1 ]; then
+            echo "ECS service $SERVICE is not ready for deployment"
+            exit 1
+          fi
+
+      - name: Build and push Landing image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: landing-cashsouk
+          IMAGE_TAG: ${{ github.sha }}
+          NEXT_PUBLIC_COGNITO_USER_POOL_ID: ${{ secrets.NEXT_PUBLIC_COGNITO_USER_POOL_ID }}
+          NEXT_PUBLIC_COGNITO_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_COGNITO_CLIENT_ID }}
+          NEXT_PUBLIC_COGNITO_REGION: ${{ secrets.NEXT_PUBLIC_COGNITO_REGION }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+        run: |
+          set -euo pipefail
+
+          max_attempts=3
+          attempt=1
+
+          while [ "$attempt" -le "$max_attempts" ]; do
+            echo "Build attempt $attempt of $max_attempts"
+            if docker build -f docker/landing.Dockerfile \
+              --build-arg "NEXT_PUBLIC_COGNITO_USER_POOL_ID=$NEXT_PUBLIC_COGNITO_USER_POOL_ID" \
+              --build-arg "NEXT_PUBLIC_COGNITO_CLIENT_ID=$NEXT_PUBLIC_COGNITO_CLIENT_ID" \
+              --build-arg "NEXT_PUBLIC_COGNITO_DOMAIN=auth.cashsouk.com" \
+              --build-arg "NEXT_PUBLIC_COGNITO_REGION=$NEXT_PUBLIC_COGNITO_REGION" \
+              --build-arg "NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL" \
+              --build-arg "NEXT_PUBLIC_INVESTOR_URL=https://investor.cashsouk.com" \
+              --build-arg "NEXT_PUBLIC_ISSUER_URL=https://issuer.cashsouk.com" \
+              --build-arg "NEXT_PUBLIC_ADMIN_URL=https://admin.cashsouk.com" \
+              --build-arg "NEXT_PUBLIC_LANDING_URL=https://cashsouk.com" \
+              --build-arg "NEXT_PUBLIC_COOKIE_DOMAIN=.cashsouk.com" \
+              -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" .; then
+              break
+            fi
+
+            if [ "$attempt" -eq "$max_attempts" ]; then
+              echo "Build failed after $max_attempts attempts"
+              exit 1
+            fi
+
+            attempt=$((attempt + 1))
+            sleep 60
+          done
+
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+  build-investor:
+    name: Build Investor
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    if: needs['detect-changes'].outputs.investor == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Check ECS status before build
+        env:
+          SERVICE: investor-cashsouk-50e5
+        run: |
+          set -euo pipefail
+
+          CLUSTER_STATUS="$(aws ecs describe-clusters --clusters "$ECS_CLUSTER" --region "$AWS_REGION" --query 'clusters[0].status' --output text)"
+          if [ "$CLUSTER_STATUS" != "ACTIVE" ]; then
+            echo "ECS cluster $ECS_CLUSTER is not ACTIVE: $CLUSTER_STATUS"
+            exit 1
+          fi
+
+          SERVICE_JSON="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$SERVICE" --region "$AWS_REGION" --output json)"
+          SERVICE_STATUS="$(echo "$SERVICE_JSON" | jq -r '.services[0].status // "MISSING"')"
+          DEPLOYMENT_COUNT="$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments | length')"
+          PRIMARY_ROLLOUT="$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments[]? | select(.status == "PRIMARY") | .rolloutState // "UNKNOWN"')"
+
+          echo "Service: $SERVICE | Status: $SERVICE_STATUS | Deployments: $DEPLOYMENT_COUNT | Primary rollout: $PRIMARY_ROLLOUT"
+
+          if [ "$SERVICE_STATUS" != "ACTIVE" ] || [ "$PRIMARY_ROLLOUT" = "FAILED" ] || [ "$DEPLOYMENT_COUNT" -gt 1 ]; then
+            echo "ECS service $SERVICE is not ready for deployment"
+            exit 1
+          fi
+
+      - name: Build and push Investor image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: investor-cashsouk
+          IMAGE_TAG: ${{ github.sha }}
+          NEXT_PUBLIC_COGNITO_USER_POOL_ID: ${{ secrets.NEXT_PUBLIC_COGNITO_USER_POOL_ID }}
+          NEXT_PUBLIC_COGNITO_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_COGNITO_CLIENT_ID }}
+          NEXT_PUBLIC_COGNITO_REGION: ${{ secrets.NEXT_PUBLIC_COGNITO_REGION }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+        run: |
+          set -euo pipefail
+
+          max_attempts=3
+          attempt=1
+
+          while [ "$attempt" -le "$max_attempts" ]; do
+            echo "Build attempt $attempt of $max_attempts"
+            if docker build -f docker/portal-investor.Dockerfile \
+              --build-arg "NEXT_PUBLIC_COGNITO_USER_POOL_ID=$NEXT_PUBLIC_COGNITO_USER_POOL_ID" \
+              --build-arg "NEXT_PUBLIC_COGNITO_CLIENT_ID=$NEXT_PUBLIC_COGNITO_CLIENT_ID" \
+              --build-arg "NEXT_PUBLIC_COGNITO_DOMAIN=auth.cashsouk.com" \
+              --build-arg "NEXT_PUBLIC_COGNITO_REGION=$NEXT_PUBLIC_COGNITO_REGION" \
+              --build-arg "NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL" \
+              --build-arg "NEXT_PUBLIC_INVESTOR_URL=https://investor.cashsouk.com" \
+              --build-arg "NEXT_PUBLIC_ISSUER_URL=https://issuer.cashsouk.com" \
+              --build-arg "NEXT_PUBLIC_ADMIN_URL=https://admin.cashsouk.com" \
+              --build-arg "NEXT_PUBLIC_LANDING_URL=https://cashsouk.com" \
+              --build-arg "NEXT_PUBLIC_COOKIE_DOMAIN=.cashsouk.com" \
+              -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" .; then
+              break
+            fi
+
+            if [ "$attempt" -eq "$max_attempts" ]; then
+              echo "Build failed after $max_attempts attempts"
+              exit 1
+            fi
+
+            attempt=$((attempt + 1))
+            sleep 60
+          done
+
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+  build-issuer:
+    name: Build Issuer
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    if: needs['detect-changes'].outputs.issuer == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Check ECS status before build
+        env:
+          SERVICE: issuer-cashsouk-ff47
+        run: |
+          set -euo pipefail
+
+          CLUSTER_STATUS="$(aws ecs describe-clusters --clusters "$ECS_CLUSTER" --region "$AWS_REGION" --query 'clusters[0].status' --output text)"
+          if [ "$CLUSTER_STATUS" != "ACTIVE" ]; then
+            echo "ECS cluster $ECS_CLUSTER is not ACTIVE: $CLUSTER_STATUS"
+            exit 1
+          fi
+
+          SERVICE_JSON="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$SERVICE" --region "$AWS_REGION" --output json)"
+          SERVICE_STATUS="$(echo "$SERVICE_JSON" | jq -r '.services[0].status // "MISSING"')"
+          DEPLOYMENT_COUNT="$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments | length')"
+          PRIMARY_ROLLOUT="$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments[]? | select(.status == "PRIMARY") | .rolloutState // "UNKNOWN"')"
+
+          echo "Service: $SERVICE | Status: $SERVICE_STATUS | Deployments: $DEPLOYMENT_COUNT | Primary rollout: $PRIMARY_ROLLOUT"
+
+          if [ "$SERVICE_STATUS" != "ACTIVE" ] || [ "$PRIMARY_ROLLOUT" = "FAILED" ] || [ "$DEPLOYMENT_COUNT" -gt 1 ]; then
+            echo "ECS service $SERVICE is not ready for deployment"
+            exit 1
+          fi
+
+      - name: Build and push Issuer image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: issuer-cashsouk
+          IMAGE_TAG: ${{ github.sha }}
+          NEXT_PUBLIC_COGNITO_USER_POOL_ID: ${{ secrets.NEXT_PUBLIC_COGNITO_USER_POOL_ID }}
+          NEXT_PUBLIC_COGNITO_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_COGNITO_CLIENT_ID }}
+          NEXT_PUBLIC_COGNITO_REGION: ${{ secrets.NEXT_PUBLIC_COGNITO_REGION }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+        run: |
+          set -euo pipefail
+
+          max_attempts=3
+          attempt=1
+
+          while [ "$attempt" -le "$max_attempts" ]; do
+            echo "Build attempt $attempt of $max_attempts"
+            if docker build -f docker/portal-issuer.Dockerfile \
+              --build-arg "NEXT_PUBLIC_COGNITO_USER_POOL_ID=$NEXT_PUBLIC_COGNITO_USER_POOL_ID" \
+              --build-arg "NEXT_PUBLIC_COGNITO_CLIENT_ID=$NEXT_PUBLIC_COGNITO_CLIENT_ID" \
+              --build-arg "NEXT_PUBLIC_COGNITO_DOMAIN=auth.cashsouk.com" \
+              --build-arg "NEXT_PUBLIC_COGNITO_REGION=$NEXT_PUBLIC_COGNITO_REGION" \
+              --build-arg "NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL" \
+              --build-arg "NEXT_PUBLIC_INVESTOR_URL=https://investor.cashsouk.com" \
+              --build-arg "NEXT_PUBLIC_ISSUER_URL=https://issuer.cashsouk.com" \
+              --build-arg "NEXT_PUBLIC_ADMIN_URL=https://admin.cashsouk.com" \
+              --build-arg "NEXT_PUBLIC_LANDING_URL=https://cashsouk.com" \
+              --build-arg "NEXT_PUBLIC_COOKIE_DOMAIN=.cashsouk.com" \
+              -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" .; then
+              break
+            fi
+
+            if [ "$attempt" -eq "$max_attempts" ]; then
+              echo "Build failed after $max_attempts attempts"
+              exit 1
+            fi
+
+            attempt=$((attempt + 1))
+            sleep 60
+          done
+
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+  build-admin:
+    name: Build Admin
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    if: needs['detect-changes'].outputs.admin == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Check ECS status before build
+        env:
+          SERVICE: admin-cashsouk-544e
+        run: |
+          set -euo pipefail
+
+          CLUSTER_STATUS="$(aws ecs describe-clusters --clusters "$ECS_CLUSTER" --region "$AWS_REGION" --query 'clusters[0].status' --output text)"
+          if [ "$CLUSTER_STATUS" != "ACTIVE" ]; then
+            echo "ECS cluster $ECS_CLUSTER is not ACTIVE: $CLUSTER_STATUS"
+            exit 1
+          fi
+
+          SERVICE_JSON="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$SERVICE" --region "$AWS_REGION" --output json)"
+          SERVICE_STATUS="$(echo "$SERVICE_JSON" | jq -r '.services[0].status // "MISSING"')"
+          DEPLOYMENT_COUNT="$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments | length')"
+          PRIMARY_ROLLOUT="$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments[]? | select(.status == "PRIMARY") | .rolloutState // "UNKNOWN"')"
+
+          echo "Service: $SERVICE | Status: $SERVICE_STATUS | Deployments: $DEPLOYMENT_COUNT | Primary rollout: $PRIMARY_ROLLOUT"
+
+          if [ "$SERVICE_STATUS" != "ACTIVE" ] || [ "$PRIMARY_ROLLOUT" = "FAILED" ] || [ "$DEPLOYMENT_COUNT" -gt 1 ]; then
+            echo "ECS service $SERVICE is not ready for deployment"
+            exit 1
+          fi
+
+      - name: Build and push Admin image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: admin-cashsouk
+          IMAGE_TAG: ${{ github.sha }}
+          NEXT_PUBLIC_COGNITO_USER_POOL_ID: ${{ secrets.NEXT_PUBLIC_COGNITO_USER_POOL_ID }}
+          NEXT_PUBLIC_COGNITO_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_COGNITO_CLIENT_ID }}
+          NEXT_PUBLIC_COGNITO_REGION: ${{ secrets.NEXT_PUBLIC_COGNITO_REGION }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
+        run: |
+          set -euo pipefail
+
+          max_attempts=3
+          attempt=1
+
+          while [ "$attempt" -le "$max_attempts" ]; do
+            echo "Build attempt $attempt of $max_attempts"
+            if docker build -f docker/portal-admin.Dockerfile \
+              --build-arg "NEXT_PUBLIC_COGNITO_USER_POOL_ID=$NEXT_PUBLIC_COGNITO_USER_POOL_ID" \
+              --build-arg "NEXT_PUBLIC_COGNITO_CLIENT_ID=$NEXT_PUBLIC_COGNITO_CLIENT_ID" \
+              --build-arg "NEXT_PUBLIC_COGNITO_DOMAIN=auth.cashsouk.com" \
+              --build-arg "NEXT_PUBLIC_COGNITO_REGION=$NEXT_PUBLIC_COGNITO_REGION" \
+              --build-arg "NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL" \
+              --build-arg "NEXT_PUBLIC_INVESTOR_URL=https://investor.cashsouk.com" \
+              --build-arg "NEXT_PUBLIC_ISSUER_URL=https://issuer.cashsouk.com" \
+              --build-arg "NEXT_PUBLIC_ADMIN_URL=https://admin.cashsouk.com" \
+              --build-arg "NEXT_PUBLIC_LANDING_URL=https://cashsouk.com" \
+              --build-arg "NEXT_PUBLIC_COOKIE_DOMAIN=.cashsouk.com" \
+              -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" .; then
+              break
+            fi
+
+            if [ "$attempt" -eq "$max_attempts" ]; then
+              echo "Build failed after $max_attempts attempts"
+              exit 1
+            fi
+
+            attempt=$((attempt + 1))
+            sleep 60
+          done
+
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+  db-migrations:
+    name: Database Migrations
+    needs: detect-changes
+    runs-on: ubuntu-latest
+    if: needs['detect-changes'].outputs.migrations == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Build and push migration image
-        if: needs.detect-changes.outputs.migrations == 'true'
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: cashsouk-migrate
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          echo "Building migration image..."
-          docker build -f docker/migrate.Dockerfile \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          set -euo pipefail
 
-          echo "Pushing migration image to ECR..."
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker build -f docker/migrate.Dockerfile -t "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" .
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
 
-      - name: Run Database Migrations
-        if: needs.detect-changes.outputs.migrations == 'true'
+      - name: Run database migrations
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          aws logs create-log-group \
-            --log-group-name /ecs/cashsouk-migrate \
-            --region ${{ env.AWS_REGION }} 2>/dev/null || true
+          set -euo pipefail
 
-          TASK_DEF=$(cat infra/ecs-task-definition-migrate.json | jq --arg IMAGE "$ECR_REGISTRY/cashsouk-migrate:$IMAGE_TAG" \
-            '.containerDefinitions[0].image = $IMAGE')
+          aws logs create-log-group --log-group-name /ecs/cashsouk-migrate --region "$AWS_REGION" 2>/dev/null || true
 
-          aws ecs register-task-definition \
+          TASK_DEF="$(jq --arg IMAGE "$ECR_REGISTRY/cashsouk-migrate:$IMAGE_TAG" '.containerDefinitions[0].image = $IMAGE' infra/ecs-task-definition-migrate.json)"
+
+          TASK_DEF_ARN="$(aws ecs register-task-definition \
             --cli-input-json "$TASK_DEF" \
-            --region ${{ env.AWS_REGION }}
+            --region "$AWS_REGION" \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)"
 
-          TASK_ARN=$(aws ecs run-task \
-            --cluster default \
+          SUBNETS="$(aws ecs describe-services \
+            --cluster "$ECS_CLUSTER" \
+            --services "$API_SERVICE" \
+            --region "$AWS_REGION" \
+            --query 'services[0].networkConfiguration.awsvpcConfiguration.subnets' \
+            --output text | tr '\t' ',')"
+
+          SECURITY_GROUPS="$(aws ecs describe-services \
+            --cluster "$ECS_CLUSTER" \
+            --services "$API_SERVICE" \
+            --region "$AWS_REGION" \
+            --query 'services[0].networkConfiguration.awsvpcConfiguration.securityGroups' \
+            --output text | tr '\t' ',')"
+
+          ASSIGN_PUBLIC_IP="$(aws ecs describe-services \
+            --cluster "$ECS_CLUSTER" \
+            --services "$API_SERVICE" \
+            --region "$AWS_REGION" \
+            --query 'services[0].networkConfiguration.awsvpcConfiguration.assignPublicIp' \
+            --output text)"
+
+          if [ -z "$ASSIGN_PUBLIC_IP" ] || [ "$ASSIGN_PUBLIC_IP" = "None" ]; then
+            ASSIGN_PUBLIC_IP="DISABLED"
+          fi
+
+          RUN_TASK_JSON="$(aws ecs run-task \
+            --cluster "$ECS_CLUSTER" \
             --launch-type FARGATE \
-            --task-definition cashsouk-migrate \
-            --network-configuration "awsvpcConfiguration={subnets=[subnet-0b0afc5315186d366,subnet-01ca25e9377340988,subnet-042e311cc1ee5ebdd],securityGroups=[sg-0f699f7ae290e3979],assignPublicIp=ENABLED}" \
-            --region ${{ env.AWS_REGION }} \
-            --query 'tasks[0].taskArn' \
-            --output text)
+            --task-definition "$TASK_DEF_ARN" \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SECURITY_GROUPS],assignPublicIp=$ASSIGN_PUBLIC_IP}" \
+            --region "$AWS_REGION" \
+            --output json)"
 
-          if [ -z "$TASK_ARN" ] || [ "$TASK_ARN" = "None" ]; then
+          FAILURE_REASON="$(echo "$RUN_TASK_JSON" | jq -r '.failures[0].reason // empty')"
+          TASK_ARN="$(echo "$RUN_TASK_JSON" | jq -r '.tasks[0].taskArn // empty')"
+
+          if [ -n "$FAILURE_REASON" ] || [ -z "$TASK_ARN" ]; then
             echo "Failed to start migration task"
+            echo "$RUN_TASK_JSON"
             exit 1
           fi
 
-          echo "Waiting for migrations to complete (Task: $TASK_ARN)..."
+          aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN" --region "$AWS_REGION"
 
-          aws ecs wait tasks-stopped \
-            --cluster default \
-            --tasks $TASK_ARN \
-            --region ${{ env.AWS_REGION }}
-
-          EXIT_CODE=$(aws ecs describe-tasks \
-            --cluster default \
-            --tasks $TASK_ARN \
-            --region ${{ env.AWS_REGION }} \
+          EXIT_CODE="$(aws ecs describe-tasks \
+            --cluster "$ECS_CLUSTER" \
+            --tasks "$TASK_ARN" \
+            --region "$AWS_REGION" \
             --query 'tasks[0].containers[0].exitCode' \
-            --output text)
+            --output text)"
 
-          if [ "$EXIT_CODE" != "0" ] && [ "$EXIT_CODE" != "None" ]; then
+          if [ "$EXIT_CODE" != "0" ]; then
             echo "Migrations failed with exit code $EXIT_CODE"
-            aws ecs describe-tasks \
-              --cluster default \
-              --tasks $TASK_ARN \
-              --region ${{ env.AWS_REGION }} \
-              --query 'tasks[0].containers[0]' || true
-            TASK_ID=$(echo $TASK_ARN | awk -F'/' '{print $NF}')
-            aws logs describe-log-streams \
-              --log-group-name /ecs/cashsouk-migrate \
-              --region ${{ env.AWS_REGION }} \
-              --max-items 5 \
-              --order-by LastEventTime \
-              --descending || true
-            aws logs tail /ecs/cashsouk-migrate \
-              --since 15m \
-              --format short \
-              --region ${{ env.AWS_REGION }} || true
-            exit 1
-          elif [ "$EXIT_CODE" = "None" ]; then
-            echo "Task stopped but exit code is None"
-            aws ecs describe-tasks \
-              --cluster default \
-              --tasks $TASK_ARN \
-              --region ${{ env.AWS_REGION }} \
-              --query 'tasks[0]' || true
+            aws ecs describe-tasks --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN" --region "$AWS_REGION" --query 'tasks[0]' || true
+            aws logs tail /ecs/cashsouk-migrate --since 15m --format short --region "$AWS_REGION" || true
             exit 1
           fi
 
           echo "Migrations completed successfully"
 
-      - name: Push and deploy API
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: api-cashsouk
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          echo "Pushing API image to ECR..."
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
-          aws logs create-log-group --log-group-name /ecs/cashsouk-api --region ${{ env.AWS_REGION }} 2>/dev/null || true
-
-          TEMPLATE=$(cat infra/ecs-task-definition-api.json)
-          NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" '
-            .containerDefinitions[0].image = $IMAGE
-          ')
-          aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} > /dev/null
-
-          aws ecs update-service \
-            --cluster default \
-            --service api-cashsouk-09ff \
-            --task-definition default-api-cashsouk-09ff \
-            --force-new-deployment \
-            --region ${{ env.AWS_REGION }}
-
-          echo "API deployed successfully"
-
-  # ──────────────────────────────────────────────
-  # 3. Frontend services: Build -> Push -> Deploy (parallel)
-  # ──────────────────────────────────────────────
-  deploy-landing:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.landing == 'true'
+  deploy-api:
+    name: Deploy API
+    needs: [detect-changes, build-api, db-migrations]
     runs-on: ubuntu-latest
+    if: |
+      always() &&
+      needs['detect-changes'].outputs.api == 'true' &&
+      needs['build-api'].result == 'success' &&
+      (needs['db-migrations'].result == 'success' || needs['db-migrations'].result == 'skipped')
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
@@ -249,285 +776,299 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build push and deploy Landing
+      - name: Register task definition and deploy API
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: landing-cashsouk
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          echo "Building Landing image..."
-          docker build -f docker/landing.Dockerfile \
-            --build-arg NEXT_PUBLIC_COGNITO_USER_POOL_ID="${{ secrets.NEXT_PUBLIC_COGNITO_USER_POOL_ID }}" \
-            --build-arg NEXT_PUBLIC_COGNITO_CLIENT_ID="${{ secrets.NEXT_PUBLIC_COGNITO_CLIENT_ID }}" \
-            --build-arg NEXT_PUBLIC_COGNITO_DOMAIN="auth.cashsouk.com" \
-            --build-arg NEXT_PUBLIC_COGNITO_REGION="${{ secrets.NEXT_PUBLIC_COGNITO_REGION }}" \
-            --build-arg NEXT_PUBLIC_API_URL="${{ secrets.NEXT_PUBLIC_API_URL }}" \
-            --build-arg NEXT_PUBLIC_INVESTOR_URL="https://investor.cashsouk.com" \
-            --build-arg NEXT_PUBLIC_ISSUER_URL="https://issuer.cashsouk.com" \
-            --build-arg NEXT_PUBLIC_ADMIN_URL="https://admin.cashsouk.com" \
-            --build-arg NEXT_PUBLIC_LANDING_URL="https://cashsouk.com" \
-            --build-arg NEXT_PUBLIC_COOKIE_DOMAIN=".cashsouk.com" \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          set -euo pipefail
 
-          echo "Pushing Landing image to ECR..."
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          IMAGE="$ECR_REGISTRY/api-cashsouk:$IMAGE_TAG"
+          aws logs create-log-group --log-group-name /ecs/cashsouk-api --region "$AWS_REGION" 2>/dev/null || true
 
-          aws logs create-log-group --log-group-name /ecs/cashsouk-landing --region ${{ env.AWS_REGION }} 2>/dev/null || true
+          TASK_DEF="$(jq --arg IMAGE "$IMAGE" --arg FAMILY "default-api-cashsouk-09ff" '.family = $FAMILY | .containerDefinitions[0].image = $IMAGE' infra/ecs-task-definition-api.json)"
+          TASK_DEF_ARN="$(aws ecs register-task-definition --cli-input-json "$TASK_DEF" --region "$AWS_REGION" --query 'taskDefinition.taskDefinitionArn' --output text)"
 
-          TEMPLATE=$(cat infra/ecs-task-definition-landing.json)
-          NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" '
-            .containerDefinitions[0].image = $IMAGE
-          ')
-          aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} > /dev/null
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service api-cashsouk-09ff --task-definition "$TASK_DEF_ARN" --force-new-deployment --region "$AWS_REGION" > /dev/null
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services api-cashsouk-09ff --region "$AWS_REGION"
 
-          aws ecs update-service \
-            --cluster default \
-            --service landing-cashsouk-1156 \
-            --task-definition default-landing-cashsouk-1156 \
-            --force-new-deployment \
-            --region ${{ env.AWS_REGION }}
+          SERVICE_JSON="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services api-cashsouk-09ff --region "$AWS_REGION" --output json)"
+          RUNNING_TASK_DEF="$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .taskDefinition')"
+          ROLLOUT_STATE="$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .rolloutState // "UNKNOWN"')"
+          RUNNING_COUNT="$(echo "$SERVICE_JSON" | jq -r '.services[0].runningCount')"
+          DESIRED_COUNT="$(echo "$SERVICE_JSON" | jq -r '.services[0].desiredCount')"
 
-          echo "Landing deployed successfully"
-
-  deploy-investor:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.investor == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build push and deploy Investor
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: investor-cashsouk
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          echo "Building Investor image..."
-          docker build -f docker/portal-investor.Dockerfile \
-            --build-arg NEXT_PUBLIC_COGNITO_USER_POOL_ID="${{ secrets.NEXT_PUBLIC_COGNITO_USER_POOL_ID }}" \
-            --build-arg NEXT_PUBLIC_COGNITO_CLIENT_ID="${{ secrets.NEXT_PUBLIC_COGNITO_CLIENT_ID }}" \
-            --build-arg NEXT_PUBLIC_COGNITO_DOMAIN="auth.cashsouk.com" \
-            --build-arg NEXT_PUBLIC_COGNITO_REGION="${{ secrets.NEXT_PUBLIC_COGNITO_REGION }}" \
-            --build-arg NEXT_PUBLIC_API_URL="${{ secrets.NEXT_PUBLIC_API_URL }}" \
-            --build-arg NEXT_PUBLIC_INVESTOR_URL="https://investor.cashsouk.com" \
-            --build-arg NEXT_PUBLIC_ISSUER_URL="https://issuer.cashsouk.com" \
-            --build-arg NEXT_PUBLIC_ADMIN_URL="https://admin.cashsouk.com" \
-            --build-arg NEXT_PUBLIC_LANDING_URL="https://cashsouk.com" \
-            --build-arg NEXT_PUBLIC_COOKIE_DOMAIN=".cashsouk.com" \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-
-          echo "Pushing Investor image to ECR..."
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
-          aws logs create-log-group --log-group-name /ecs/cashsouk-investor --region ${{ env.AWS_REGION }} 2>/dev/null || true
-
-          TEMPLATE=$(cat infra/ecs-task-definition-investor.json)
-          NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" '
-            .containerDefinitions[0].image = $IMAGE
-          ')
-          aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} > /dev/null
-
-          aws ecs update-service \
-            --cluster default \
-            --service investor-cashsouk-50e5 \
-            --task-definition default-investor-cashsouk-50e5 \
-            --force-new-deployment \
-            --region ${{ env.AWS_REGION }}
-
-          echo "Investor deployed successfully"
-
-  deploy-issuer:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.issuer == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build push and deploy Issuer
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: issuer-cashsouk
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          echo "Building Issuer image..."
-          docker build -f docker/portal-issuer.Dockerfile \
-            --build-arg NEXT_PUBLIC_COGNITO_USER_POOL_ID="${{ secrets.NEXT_PUBLIC_COGNITO_USER_POOL_ID }}" \
-            --build-arg NEXT_PUBLIC_COGNITO_CLIENT_ID="${{ secrets.NEXT_PUBLIC_COGNITO_CLIENT_ID }}" \
-            --build-arg NEXT_PUBLIC_COGNITO_DOMAIN="auth.cashsouk.com" \
-            --build-arg NEXT_PUBLIC_COGNITO_REGION="${{ secrets.NEXT_PUBLIC_COGNITO_REGION }}" \
-            --build-arg NEXT_PUBLIC_API_URL="${{ secrets.NEXT_PUBLIC_API_URL }}" \
-            --build-arg NEXT_PUBLIC_INVESTOR_URL="https://investor.cashsouk.com" \
-            --build-arg NEXT_PUBLIC_ISSUER_URL="https://issuer.cashsouk.com" \
-            --build-arg NEXT_PUBLIC_ADMIN_URL="https://admin.cashsouk.com" \
-            --build-arg NEXT_PUBLIC_LANDING_URL="https://cashsouk.com" \
-            --build-arg NEXT_PUBLIC_COOKIE_DOMAIN=".cashsouk.com" \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-
-          echo "Pushing Issuer image to ECR..."
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
-          aws logs create-log-group --log-group-name /ecs/cashsouk-issuer --region ${{ env.AWS_REGION }} 2>/dev/null || true
-
-          TEMPLATE=$(cat infra/ecs-task-definition-issuer.json)
-          NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" '
-            .containerDefinitions[0].image = $IMAGE
-          ')
-          aws ecs register-task-definition --cli-input-json "$NEW_TASK_DEF" --region ${{ env.AWS_REGION }} > /dev/null
-
-          aws ecs update-service \
-            --cluster default \
-            --service issuer-cashsouk-ff47 \
-            --task-definition default-issuer-cashsouk-ff47 \
-            --force-new-deployment \
-            --region ${{ env.AWS_REGION }}
-
-          echo "Issuer deployed successfully"
-
-  deploy-admin:
-    needs: detect-changes
-    if: needs.detect-changes.outputs.admin == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build push and deploy Admin
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: admin-cashsouk
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          echo "Building Admin image..."
-          docker build -f docker/portal-admin.Dockerfile \
-            --build-arg NEXT_PUBLIC_COGNITO_USER_POOL_ID="${{ secrets.NEXT_PUBLIC_COGNITO_USER_POOL_ID }}" \
-            --build-arg NEXT_PUBLIC_COGNITO_CLIENT_ID="${{ secrets.NEXT_PUBLIC_COGNITO_CLIENT_ID }}" \
-            --build-arg NEXT_PUBLIC_COGNITO_DOMAIN="auth.cashsouk.com" \
-            --build-arg NEXT_PUBLIC_COGNITO_REGION="${{ secrets.NEXT_PUBLIC_COGNITO_REGION }}" \
-            --build-arg NEXT_PUBLIC_API_URL="${{ secrets.NEXT_PUBLIC_API_URL }}" \
-            --build-arg NEXT_PUBLIC_INVESTOR_URL="https://investor.cashsouk.com" \
-            --build-arg NEXT_PUBLIC_ISSUER_URL="https://issuer.cashsouk.com" \
-            --build-arg NEXT_PUBLIC_ADMIN_URL="https://admin.cashsouk.com" \
-            --build-arg NEXT_PUBLIC_LANDING_URL="https://cashsouk.com" \
-            --build-arg NEXT_PUBLIC_COOKIE_DOMAIN=".cashsouk.com" \
-            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-
-          echo "Pushing Admin image to ECR..."
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
-          aws logs create-log-group --log-group-name /ecs/cashsouk-admin --region ${{ env.AWS_REGION }} 2>/dev/null || true
-
-          TEMPLATE=$(cat infra/ecs-task-definition-admin.json)
-          NEW_TASK_DEF=$(echo $TEMPLATE | jq --arg IMAGE "$ECR_REGISTRY/admin-cashsouk:$IMAGE_TAG" '
-            .family = "default-admin-cashsouk-544e" |
-            .containerDefinitions[0].image = $IMAGE
-          ')
-          TASK_DEF_ARN=$(aws ecs register-task-definition \
-            --cli-input-json "$NEW_TASK_DEF" \
-            --region ${{ env.AWS_REGION }} \
-            --query 'taskDefinition.taskDefinitionArn' \
-            --output text)
-
-          aws ecs update-service \
-            --cluster default \
-            --service admin-cashsouk-544e \
-            --task-definition "$TASK_DEF_ARN" \
-            --force-new-deployment \
-            --region ${{ env.AWS_REGION }}
-
-          aws ecs wait services-stable \
-            --cluster default \
-            --services admin-cashsouk-544e \
-            --region ${{ env.AWS_REGION }}
-
-          RUNNING_TASK_DEF=$(aws ecs describe-services \
-            --cluster default \
-            --services admin-cashsouk-544e \
-            --region ${{ env.AWS_REGION }} \
-            --query 'services[0].deployments[?status==`PRIMARY`].taskDefinition | [0]' \
-            --output text)
-
-          if [ "$RUNNING_TASK_DEF" != "$TASK_DEF_ARN" ]; then
-            echo "Admin deployment did not promote the expected task definition"
-            echo "Expected: $TASK_DEF_ARN"
-            echo "Running:  $RUNNING_TASK_DEF"
+          if [ "$RUNNING_TASK_DEF" != "$TASK_DEF_ARN" ] || [ "$ROLLOUT_STATE" = "FAILED" ] || [ "$RUNNING_COUNT" -lt "$DESIRED_COUNT" ]; then
+            echo "API deployment verification failed"
+            echo "Expected task definition: $TASK_DEF_ARN"
+            echo "Running task definition:  $RUNNING_TASK_DEF"
+            echo "Rollout: $ROLLOUT_STATE | Running: $RUNNING_COUNT | Desired: $DESIRED_COUNT"
             exit 1
           fi
 
-          echo "Admin deployed successfully"
-
-  # ──────────────────────────────────────────────
-  # 4. Summary (waits for all parallel deploys)
-  # ──────────────────────────────────────────────
-  summary:
-    needs:
-      [detect-changes, deploy-api, deploy-landing, deploy-investor, deploy-issuer, deploy-admin]
-    if: always() && needs.detect-changes.result == 'success'
+  deploy-landing:
+    name: Deploy Landing
+    needs: [detect-changes, build-landing]
     runs-on: ubuntu-latest
+    if: always() && needs['detect-changes'].outputs.landing == 'true' && needs['build-landing'].result == 'success'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Register task definition and deploy Landing
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          IMAGE="$ECR_REGISTRY/landing-cashsouk:$IMAGE_TAG"
+          aws logs create-log-group --log-group-name /ecs/cashsouk-landing --region "$AWS_REGION" 2>/dev/null || true
+
+          TASK_DEF="$(jq --arg IMAGE "$IMAGE" --arg FAMILY "default-landing-cashsouk-1156" '.family = $FAMILY | .containerDefinitions[0].image = $IMAGE' infra/ecs-task-definition-landing.json)"
+          TASK_DEF_ARN="$(aws ecs register-task-definition --cli-input-json "$TASK_DEF" --region "$AWS_REGION" --query 'taskDefinition.taskDefinitionArn' --output text)"
+
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service landing-cashsouk-1156 --task-definition "$TASK_DEF_ARN" --force-new-deployment --region "$AWS_REGION" > /dev/null
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services landing-cashsouk-1156 --region "$AWS_REGION"
+
+          SERVICE_JSON="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services landing-cashsouk-1156 --region "$AWS_REGION" --output json)"
+          RUNNING_TASK_DEF="$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .taskDefinition')"
+          ROLLOUT_STATE="$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .rolloutState // "UNKNOWN"')"
+          RUNNING_COUNT="$(echo "$SERVICE_JSON" | jq -r '.services[0].runningCount')"
+          DESIRED_COUNT="$(echo "$SERVICE_JSON" | jq -r '.services[0].desiredCount')"
+
+          if [ "$RUNNING_TASK_DEF" != "$TASK_DEF_ARN" ] || [ "$ROLLOUT_STATE" = "FAILED" ] || [ "$RUNNING_COUNT" -lt "$DESIRED_COUNT" ]; then
+            echo "Landing deployment verification failed"
+            exit 1
+          fi
+
+  deploy-investor:
+    name: Deploy Investor
+    needs: [detect-changes, build-investor]
+    runs-on: ubuntu-latest
+    if: always() && needs['detect-changes'].outputs.investor == 'true' && needs['build-investor'].result == 'success'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Register task definition and deploy Investor
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          IMAGE="$ECR_REGISTRY/investor-cashsouk:$IMAGE_TAG"
+          aws logs create-log-group --log-group-name /ecs/cashsouk-investor --region "$AWS_REGION" 2>/dev/null || true
+
+          TASK_DEF="$(jq --arg IMAGE "$IMAGE" --arg FAMILY "default-investor-cashsouk-50e5" '.family = $FAMILY | .containerDefinitions[0].image = $IMAGE' infra/ecs-task-definition-investor.json)"
+          TASK_DEF_ARN="$(aws ecs register-task-definition --cli-input-json "$TASK_DEF" --region "$AWS_REGION" --query 'taskDefinition.taskDefinitionArn' --output text)"
+
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service investor-cashsouk-50e5 --task-definition "$TASK_DEF_ARN" --force-new-deployment --region "$AWS_REGION" > /dev/null
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services investor-cashsouk-50e5 --region "$AWS_REGION"
+
+          SERVICE_JSON="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services investor-cashsouk-50e5 --region "$AWS_REGION" --output json)"
+          RUNNING_TASK_DEF="$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .taskDefinition')"
+          ROLLOUT_STATE="$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .rolloutState // "UNKNOWN"')"
+          RUNNING_COUNT="$(echo "$SERVICE_JSON" | jq -r '.services[0].runningCount')"
+          DESIRED_COUNT="$(echo "$SERVICE_JSON" | jq -r '.services[0].desiredCount')"
+
+          if [ "$RUNNING_TASK_DEF" != "$TASK_DEF_ARN" ] || [ "$ROLLOUT_STATE" = "FAILED" ] || [ "$RUNNING_COUNT" -lt "$DESIRED_COUNT" ]; then
+            echo "Investor deployment verification failed"
+            exit 1
+          fi
+
+  deploy-issuer:
+    name: Deploy Issuer
+    needs: [detect-changes, build-issuer]
+    runs-on: ubuntu-latest
+    if: always() && needs['detect-changes'].outputs.issuer == 'true' && needs['build-issuer'].result == 'success'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Register task definition and deploy Issuer
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          IMAGE="$ECR_REGISTRY/issuer-cashsouk:$IMAGE_TAG"
+          aws logs create-log-group --log-group-name /ecs/cashsouk-issuer --region "$AWS_REGION" 2>/dev/null || true
+
+          TASK_DEF="$(jq --arg IMAGE "$IMAGE" --arg FAMILY "default-issuer-cashsouk-ff47" '.family = $FAMILY | .containerDefinitions[0].image = $IMAGE' infra/ecs-task-definition-issuer.json)"
+          TASK_DEF_ARN="$(aws ecs register-task-definition --cli-input-json "$TASK_DEF" --region "$AWS_REGION" --query 'taskDefinition.taskDefinitionArn' --output text)"
+
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service issuer-cashsouk-ff47 --task-definition "$TASK_DEF_ARN" --force-new-deployment --region "$AWS_REGION" > /dev/null
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services issuer-cashsouk-ff47 --region "$AWS_REGION"
+
+          SERVICE_JSON="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services issuer-cashsouk-ff47 --region "$AWS_REGION" --output json)"
+          RUNNING_TASK_DEF="$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .taskDefinition')"
+          ROLLOUT_STATE="$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .rolloutState // "UNKNOWN"')"
+          RUNNING_COUNT="$(echo "$SERVICE_JSON" | jq -r '.services[0].runningCount')"
+          DESIRED_COUNT="$(echo "$SERVICE_JSON" | jq -r '.services[0].desiredCount')"
+
+          if [ "$RUNNING_TASK_DEF" != "$TASK_DEF_ARN" ] || [ "$ROLLOUT_STATE" = "FAILED" ] || [ "$RUNNING_COUNT" -lt "$DESIRED_COUNT" ]; then
+            echo "Issuer deployment verification failed"
+            exit 1
+          fi
+
+  deploy-admin:
+    name: Deploy Admin
+    needs: [detect-changes, build-admin]
+    runs-on: ubuntu-latest
+    if: always() && needs['detect-changes'].outputs.admin == 'true' && needs['build-admin'].result == 'success'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Register task definition and deploy Admin
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          IMAGE="$ECR_REGISTRY/admin-cashsouk:$IMAGE_TAG"
+          aws logs create-log-group --log-group-name /ecs/cashsouk-admin --region "$AWS_REGION" 2>/dev/null || true
+
+          TASK_DEF="$(jq --arg IMAGE "$IMAGE" --arg FAMILY "default-admin-cashsouk-544e" '.family = $FAMILY | .containerDefinitions[0].image = $IMAGE' infra/ecs-task-definition-admin.json)"
+          TASK_DEF_ARN="$(aws ecs register-task-definition --cli-input-json "$TASK_DEF" --region "$AWS_REGION" --query 'taskDefinition.taskDefinitionArn' --output text)"
+
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service admin-cashsouk-544e --task-definition "$TASK_DEF_ARN" --force-new-deployment --region "$AWS_REGION" > /dev/null
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services admin-cashsouk-544e --region "$AWS_REGION"
+
+          SERVICE_JSON="$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services admin-cashsouk-544e --region "$AWS_REGION" --output json)"
+          RUNNING_TASK_DEF="$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .taskDefinition')"
+          ROLLOUT_STATE="$(echo "$SERVICE_JSON" | jq -r '.services[0].deployments[] | select(.status == "PRIMARY") | .rolloutState // "UNKNOWN"')"
+          RUNNING_COUNT="$(echo "$SERVICE_JSON" | jq -r '.services[0].runningCount')"
+          DESIRED_COUNT="$(echo "$SERVICE_JSON" | jq -r '.services[0].desiredCount')"
+
+          if [ "$RUNNING_TASK_DEF" != "$TASK_DEF_ARN" ] || [ "$ROLLOUT_STATE" = "FAILED" ] || [ "$RUNNING_COUNT" -lt "$DESIRED_COUNT" ]; then
+            echo "Admin deployment verification failed"
+            exit 1
+          fi
+
+  summary:
+    name: Deployment Summary
+    needs:
+      - detect-changes
+      - build-api
+      - build-landing
+      - build-investor
+      - build-issuer
+      - build-admin
+      - db-migrations
+      - deploy-api
+      - deploy-landing
+      - deploy-investor
+      - deploy-issuer
+      - deploy-admin
+    runs-on: ubuntu-latest
+    if: always()
     steps:
       - name: Deployment summary
         env:
-          API: ${{ needs.detect-changes.outputs.api }}
-          LANDING: ${{ needs.detect-changes.outputs.landing }}
-          INVESTOR: ${{ needs.detect-changes.outputs.investor }}
-          ISSUER: ${{ needs.detect-changes.outputs.issuer }}
-          ADMIN: ${{ needs.detect-changes.outputs.admin }}
-          API_RESULT: ${{ needs.deploy-api.result }}
-          LANDING_RESULT: ${{ needs.deploy-landing.result }}
-          INVESTOR_RESULT: ${{ needs.deploy-investor.result }}
-          ISSUER_RESULT: ${{ needs.deploy-issuer.result }}
-          ADMIN_RESULT: ${{ needs.deploy-admin.result }}
+          DETECT_RESULT: ${{ needs['detect-changes'].result }}
+          ACTION: ${{ needs['detect-changes'].outputs.action }}
+          API: ${{ needs['detect-changes'].outputs.api }}
+          LANDING: ${{ needs['detect-changes'].outputs.landing }}
+          INVESTOR: ${{ needs['detect-changes'].outputs.investor }}
+          ISSUER: ${{ needs['detect-changes'].outputs.issuer }}
+          ADMIN: ${{ needs['detect-changes'].outputs.admin }}
+          MIGRATIONS: ${{ needs['detect-changes'].outputs.migrations }}
+          BUILD_API_RESULT: ${{ needs['build-api'].result }}
+          BUILD_LANDING_RESULT: ${{ needs['build-landing'].result }}
+          BUILD_INVESTOR_RESULT: ${{ needs['build-investor'].result }}
+          BUILD_ISSUER_RESULT: ${{ needs['build-issuer'].result }}
+          BUILD_ADMIN_RESULT: ${{ needs['build-admin'].result }}
+          MIGRATION_RESULT: ${{ needs['db-migrations'].result }}
+          DEPLOY_API_RESULT: ${{ needs['deploy-api'].result }}
+          DEPLOY_LANDING_RESULT: ${{ needs['deploy-landing'].result }}
+          DEPLOY_INVESTOR_RESULT: ${{ needs['deploy-investor'].result }}
+          DEPLOY_ISSUER_RESULT: ${{ needs['deploy-issuer'].result }}
+          DEPLOY_ADMIN_RESULT: ${{ needs['deploy-admin'].result }}
         run: |
-          echo "Deployment completed | Image tag: ${{ github.sha }}"
-          echo ""
-          echo "Service         | Changed | Result"
-          echo "----------------|---------|-------"
-          echo "API             | $API | $API_RESULT"
-          echo "Landing         | $LANDING | $LANDING_RESULT"
-          echo "Investor        | $INVESTOR | $INVESTOR_RESULT"
-          echo "Issuer          | $ISSUER | $ISSUER_RESULT"
-          echo "Admin           | $ADMIN | $ADMIN_RESULT"
+          set -euo pipefail
 
-          FAILED=false
-          for result in "$API_RESULT" "$LANDING_RESULT" "$INVESTOR_RESULT" "$ISSUER_RESULT" "$ADMIN_RESULT"; do
-            if [ "$result" = "failure" ]; then
-              FAILED=true
+          echo "Deployment summary"
+          echo "Image tag: ${{ github.sha }}"
+          echo "Action: ${ACTION:-n/a}"
+          echo ""
+          echo "Service    | Selected | Build              | Deploy"
+          echo "-----------|----------|--------------------|----------------"
+          echo "API        | ${API:-false} | $BUILD_API_RESULT | $DEPLOY_API_RESULT"
+          echo "Landing    | ${LANDING:-false} | $BUILD_LANDING_RESULT | $DEPLOY_LANDING_RESULT"
+          echo "Investor   | ${INVESTOR:-false} | $BUILD_INVESTOR_RESULT | $DEPLOY_INVESTOR_RESULT"
+          echo "Issuer     | ${ISSUER:-false} | $BUILD_ISSUER_RESULT | $DEPLOY_ISSUER_RESULT"
+          echo "Admin      | ${ADMIN:-false} | $BUILD_ADMIN_RESULT | $DEPLOY_ADMIN_RESULT"
+          echo "Migrations | ${MIGRATIONS:-false} | n/a | $MIGRATION_RESULT"
+
+          for result in \
+            "$DETECT_RESULT" \
+            "$BUILD_API_RESULT" \
+            "$BUILD_LANDING_RESULT" \
+            "$BUILD_INVESTOR_RESULT" \
+            "$BUILD_ISSUER_RESULT" \
+            "$BUILD_ADMIN_RESULT" \
+            "$MIGRATION_RESULT" \
+            "$DEPLOY_API_RESULT" \
+            "$DEPLOY_LANDING_RESULT" \
+            "$DEPLOY_INVESTOR_RESULT" \
+            "$DEPLOY_ISSUER_RESULT" \
+            "$DEPLOY_ADMIN_RESULT"; do
+            if [ "$result" = "failure" ] || [ "$result" = "cancelled" ]; then
+              echo "Deployment failed"
+              exit 1
             fi
           done
 
-          if [ "$FAILED" = "true" ]; then
-            echo ""
-            echo "One or more deployments failed"
-            exit 1
+          if [ "${API:-false}" != "true" ] &&
+             [ "${LANDING:-false}" != "true" ] &&
+             [ "${INVESTOR:-false}" != "true" ] &&
+             [ "${ISSUER:-false}" != "true" ] &&
+             [ "${ADMIN:-false}" != "true" ] &&
+             [ "${MIGRATIONS:-false}" != "true" ]; then
+            echo "No deployment targets were selected"
           fi

@@ -40,6 +40,36 @@ export interface UserResponse {
   updated_at: string;
 }
 
+export interface UserOrganizationSummary {
+  id: string;
+  portal: "investor" | "issuer";
+  type: "PERSONAL" | "COMPANY";
+  name: string | null;
+  registrationNumber: string | null;
+  onboardingStatus: string;
+  onboardedAt: string | null;
+  relationship: "owner" | "member";
+  memberRole: string | null;
+  memberCount: number;
+  isSophisticatedInvestor: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserDetailResponse extends Omit<UserResponse, "id"> {
+  stats: {
+    accessLogs: number;
+    investments: number;
+    loans: number;
+    investorOrganizations: number;
+    issuerOrganizations: number;
+  };
+  organizations: {
+    investor: UserOrganizationSummary[];
+    issuer: UserOrganizationSummary[];
+  };
+}
+
 export interface UsersResponse {
   users: UserResponse[];
   pagination: PaginationResponse;
@@ -157,10 +187,33 @@ export interface OnboardingOperationsMetrics {
   approved: number;
   rejected: number;
   expired: number;
-  avgTimeToApprovalMinutes: number | null;
-  avgTimeToApprovalChangePercent: number | null;
-  avgTimeToOnboardingMinutes: number | null;
-  avgTimeToOnboardingChangePercent: number | null;
+}
+
+export interface ApplicationDashboardMetrics {
+  total: number;
+  actionRequired: number;
+  draft: number;
+  contractOrAmendmentCycle: number;
+  approvedCompleted: number;
+  withdrawnRejectedOrArchived: number;
+}
+
+export interface ContractDashboardMetrics {
+  total: number;
+  actionRequired: number;
+  draft: number;
+  offerSent: number;
+  approved: number;
+  rejectedOrWithdrawn: number;
+}
+
+export interface NoteDashboardMetrics {
+  total: number;
+  draft: number;
+  live: number;
+  repaid: number;
+  distressed: number;
+  cancelledOrFailedFunding: number;
 }
 
 export interface DashboardStatsResponse {
@@ -172,6 +225,9 @@ export interface DashboardStatsResponse {
   signupTrends: SignupTrendItem[];
   organizations: OrganizationStats;
   onboardingOperations?: OnboardingOperationsMetrics;
+  applicationMetrics?: ApplicationDashboardMetrics;
+  contractMetrics?: ContractDashboardMetrics;
+  noteMetrics?: NoteDashboardMetrics;
 }
 
 // Admin Management Types
@@ -561,6 +617,48 @@ export interface OrganizationDetailResponse {
     contractId: string | null;
   }[];
 
+  linkedRecords?: {
+    applications: {
+      id: string;
+      status: string;
+      productId: string | null;
+      submittedAt: string | null;
+      createdAt: string;
+      updatedAt: string;
+      contractId: string | null;
+      requestedAmount: number | null;
+    }[];
+    contracts: {
+      id: string;
+      title: string | null;
+      contractNumber: string | null;
+      status: string;
+      createdAt: string;
+      updatedAt: string;
+      contractValue: number | null;
+    }[];
+    notes: {
+      id: string;
+      noteReference: string;
+      title: string;
+      status: string;
+      targetAmount: number;
+      fundedAmount: number;
+      createdAt: string;
+      updatedAt: string;
+    }[];
+    investments: {
+      id: string;
+      status: string;
+      amount: number;
+      noteId: string;
+      noteReference: string;
+      noteTitle: string;
+      committedAt: string;
+      updatedAt: string;
+    }[];
+  };
+
   // Corporate onboarding data (for COMPANY type)
   corporateOnboardingData?: {
     basicInfo?: {
@@ -605,11 +703,22 @@ export interface OrganizationDetailResponse {
   latestOrganizationCtosCompanyJson?: Record<string, unknown> | null;
   ctosPartySupplements?: Array<{ partyKey: string; onboardingJson?: unknown }> | null;
 
+  /** Latest CTOS subject report per party (IC/SSM key); COMPANY issuer/investor org detail. */
+  latestOrganizationCtosSubjectReports?: Array<{
+    id: string;
+    subject_ref: string | null;
+    fetched_at: string;
+    has_report_html: boolean;
+  }> | null;
+
   // Corporate required documents (SSM profile, etc.) — COMPANY only
   corporateRequiredDocuments?: Record<string, unknown>[] | null;
 
   // Director AML screening status — COMPANY only
   directorAmlStatus?: Record<string, unknown> | null;
+
+  /** Unified CTOS-backed people list (COMPANY only); same shape as onboarding application `people`. */
+  people?: import("./application-people-display").ApplicationPersonRow[];
 
   // Director KYC screening status — COMPANY only
   directorKycStatus?: Record<string, unknown> | null;
@@ -736,6 +845,9 @@ export interface OnboardingApplicationResponse {
   /** Latest org-level CTOS `company_json` (subject_ref null); enables CTOS-backed unified KYC/AML in admin onboarding dialog. */
   latestOrganizationCtosCompanyJson?: unknown | null;
   ctosPartySupplements?: OnboardingApplicationCtosPartySupplement[] | null;
+  people?: import("./application-people-display").ApplicationPersonRow[];
+  /** True when any CTOS party row lacks AML screening status Approved. */
+  directorShareholderAmlPending?: boolean;
 }
 
 export interface GetOnboardingApplicationsParams extends PaginationParams {
@@ -1035,6 +1147,8 @@ export interface ApplicationListItem {
   updatedAt: string;
   productId: string | null;
   baseProductId: string | null;
+  /** Derived from issuer org CTOS people + AML screening (not stored on application). */
+  directorShareholderAmlPending?: boolean;
 }
 
 export interface GetAdminApplicationsParams extends PaginationParams {
@@ -1047,6 +1161,18 @@ export interface GetAdminApplicationsParams extends PaginationParams {
 export interface AdminApplicationsResponse {
   applications: ApplicationListItem[];
   pagination: PaginationResponse;
+}
+
+export interface AdminApplicationActionRequiredCountResponse {
+  count: number;
+  breakdown: {
+    submitted: number;
+    underReview: number;
+    resubmitted: number;
+    contractPending: number;
+    contractAccepted: number;
+    invoicePending: number;
+  };
 }
 
 export interface ContractListItem {
@@ -1079,11 +1205,21 @@ export interface AdminContractApplicationSummary {
   requestedAmount: number;
 }
 
+export interface AdminContractNoteSummary {
+  id: string;
+  noteReference: string;
+  title: string;
+  status: string;
+  sourceApplicationId: string;
+  sourceInvoiceId: string | null;
+}
+
 export interface AdminContractDetail {
   id: string;
   contractNumber: string | null;
   title: string | null;
   description: string | null;
+  issuerOrganizationId: string | null;
   issuerOrganizationName: string | null;
   requestedFacility: number;
   approvedFacility: number;
@@ -1096,6 +1232,7 @@ export interface AdminContractDetail {
   offerRespondedByUserName: string | null;
   customerDetails: Record<string, unknown> | null;
   applications: AdminContractApplicationSummary[];
+  notes: AdminContractNoteSummary[];
 }
 
 export interface ApplicationReviewSection {

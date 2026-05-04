@@ -2,13 +2,12 @@
 
 import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { ContractsTable } from "@/contracts/components/contracts-table";
 import { ContractsTableToolbar } from "@/contracts/components/contracts-table-toolbar";
-import { ContractDetailModal } from "@/contracts/components/contract-detail-modal";
 import { useContracts } from "@/contracts/hooks/use-contracts";
 import { contractsKeys } from "@/contracts/query-keys";
 import { DocumentTextIcon } from "@heroicons/react/24/outline";
@@ -18,15 +17,14 @@ const DEFAULT_STATUS_FILTERS = ["SUBMITTED", "OFFER_SENT", "AMENDMENT_REQUESTED"
 
 export default function ContractsPage() {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const searchParams = useSearchParams();
 
   const [searchQuery, setSearchQuery] = React.useState("");
   const [statusFilters, setStatusFilters] = React.useState<string[]>(DEFAULT_STATUS_FILTERS);
 
   const [currentPage, setCurrentPage] = React.useState(1);
-  const [selectedContractId, setSelectedContractId] = React.useState<string | null>(null);
-  const [isDetailModalOpen, setIsDetailModalOpen] = React.useState(false);
-  const pageSize = 10;
+  const pageSize = 20;
 
   const apiParams = React.useMemo(() => {
     const p: GetAdminContractsParams = {
@@ -68,16 +66,14 @@ export default function ContractsPage() {
   React.useEffect(() => {
     const contractId = searchParams.get("contractId");
     if (!contractId) return;
-    setSelectedContractId(contractId);
-    setIsDetailModalOpen(true);
-  }, [searchParams]);
+    router.replace(`/contracts/${encodeURIComponent(contractId)}`);
+  }, [router, searchParams]);
 
   const contracts = data?.contracts || [];
   const totalContracts = data?.pagination.totalCount || 0;
 
   const handleViewDetails = (contract: ContractListItem) => {
-    setSelectedContractId(contract.id);
-    setIsDetailModalOpen(true);
+    router.push(`/contracts/${encodeURIComponent(contract.id)}`);
   };
 
   return (
@@ -91,7 +87,7 @@ export default function ContractsPage() {
         </div>
       </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="max-w-7xl mx-auto w-full px-2 md:px-4 py-8 space-y-8">
+        <div className="w-full px-2 md:px-4 py-8 space-y-8">
           <section className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
@@ -136,11 +132,6 @@ export default function ContractsPage() {
           </section>
         </div>
       </div>
-      <ContractDetailModal
-        contractId={selectedContractId}
-        open={isDetailModalOpen}
-        onOpenChange={setIsDetailModalOpen}
-      />
     </>
   );
 }

@@ -8,14 +8,16 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useIssuerProducts } from "@/hooks/use-products";
 import { useCreateApplication } from "@/hooks/use-applications";
-import { useOrganization } from "@cashsouk/config";
+import { filterVisiblePeopleRows } from "@cashsouk/types";
+import type { Product } from "@cashsouk/types";
+import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
 import { toast } from "sonner";
-import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { useNavigationGuard } from "@/hooks/use-navigation-guard2";
 import { useIssuerUnsavedNavigation } from "@/contexts/issuer-unsaved-navigation-context";
 import { UnsavedChangesModal } from "@/components/unsaved-changes-modal";
 import { VersionMismatchModal } from "@/components/VersionMismatchModal";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DirectorShareholderAlertCard } from "@/components/director-shareholder-alert-card";
 import { ProductList } from "../components/product-list";
 import { ProgressIndicator } from "../components/progress-indicator";
 import { FinancingTypeSkeleton } from "../components/financing-type-skeleton";
@@ -39,6 +41,11 @@ import {
 export default function NewApplicationPage() {
   const router = useRouter();
   const { activeOrganization, isLoading: isOrgLoading } = useOrganization();
+
+  const visiblePeopleForDsAlert = React.useMemo(
+    () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
+    [activeOrganization?.people]
+  );
   const { setTitle } = useHeader();
 
   React.useEffect(() => {
@@ -147,7 +154,7 @@ export default function NewApplicationPage() {
     }
   }, [activeOrganization, isOrgLoading, router]);
 
-  const apiProducts = (productsData as any)?.products || [];
+  const apiProducts: Product[] = productsData?.products ?? [];
   const products = USE_MOCK_FINANCING_TYPE_CATALOG ? MOCK_FINANCING_TYPE_PRODUCTS : apiProducts;
 
   /**
@@ -181,13 +188,13 @@ export default function NewApplicationPage() {
       return [];
     }
 
-    const selectedProduct = products.find((p: any) => p.id === selectedProductId);
+    const selectedProduct = products.find((p: Product) => p.id === selectedProductId);
 
     if (!selectedProduct || !selectedProduct.workflow) {
       return [];
     }
 
-    return selectedProduct.workflow.map((step: any) => step.name);
+    return selectedProduct.workflow.map((step) => String((step as { name?: string }).name ?? ""));
   }, [selectedProductId, products]);
 
 
@@ -250,7 +257,7 @@ export default function NewApplicationPage() {
 
     try {
       const liveResp = await apiClient.getIssuerProductLiveCheck(selectedProductId);
-      const currentProduct = productsData?.products?.find((p: any) => p.id === selectedProductId);
+      const currentProduct = productsData?.products?.find((p: Product) => p.id === selectedProductId);
 
       if (!liveResp.success) {
         setVersionModalReason("PRODUCT_UNAVAILABLE");
@@ -289,7 +296,7 @@ export default function NewApplicationPage() {
       // Clear unsaved and go to step 2 (next step after selecting product)
       setHasUnsavedChanges(false);
       router.push(`/applications/edit/${application.id}?step=2`);
-    } catch (error) {
+    } catch {
       // Error already shown by mutation hook
     }
   };
@@ -334,6 +341,19 @@ export default function NewApplicationPage() {
     <div className="flex flex-col h-full">
       {/* Main content */}
       <main className="flex-1 overflow-y-auto p-4">
+        {activeOrganization.type === "COMPANY" ? (
+          <DirectorShareholderAlertCard
+            visiblePeople={visiblePeopleForDsAlert}
+            issuerOrganizationId={activeOrganization.id}
+            enabled={activeOrganization.onboardingStatus === "COMPLETED"}
+            stickyTop
+            className="mb-4"
+            onGoToProfile={(matchKey) => {
+              const personQuery = matchKey ? `&person=${encodeURIComponent(matchKey)}` : "";
+              requestNavigation(`/profile?focus=directors${personQuery}`);
+            }}
+          />
+        ) : null}
         <div className="max-w-7xl mx-auto w-full px-4 py-8">
           {/* Page Title */}
           <div className="mb-6">

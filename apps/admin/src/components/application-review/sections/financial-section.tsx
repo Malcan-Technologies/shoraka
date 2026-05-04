@@ -7,18 +7,18 @@ import type { ReviewSectionId } from "../section-types";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
 import { ApplicationFinancialReviewComparison } from "@/components/application-financial-review-comparison";
 import {
-  getDirectorShareholderDisplayRows,
-  isCtosIndividualKycEligibleRow,
-  isLegacyCtosPartyKycApproved,
-  normalizeDirectorShareholderIdKey,
+  isDirectorShareholderAmlScreeningApproved,
+  isReadyOnboardingStatus,
+  normalizeRawStatus,
+  filterVisiblePeopleRows,
+  type ApplicationPersonRow,
 } from "@cashsouk/types";
 
 export type FinancialSectionAppSlice = {
+  people?: ApplicationPersonRow[];
   issuer_organization?: {
     id?: string;
     corporate_entities?: unknown;
-    director_kyc_status?: unknown;
-    director_aml_status?: unknown;
     latest_organization_ctos_company_json?: unknown | null;
     latest_organization_ctos_financials_json?: unknown | null;
     latest_organization_ctos_report_id?: string | null;
@@ -30,7 +30,6 @@ export type FinancialSectionAppSlice = {
       fetched_at: string;
       has_report_html: boolean;
     }> | null;
-    ctos_party_supplements?: { party_key: string; onboarding_json?: unknown }[] | null;
   } | null;
   financial_statements?: unknown;
 };
@@ -78,58 +77,73 @@ export function FinancialSection({
   sectionComparison,
   hideSectionComments = false,
 }: FinancialSectionProps) {
-  const kycNotReadyReason = "KYC not completed for all required directors/shareholders";
-  const kycNotReadyTooltip = "Cannot approve until all required KYC is approved";
-  const financialApproveAllowed = (() => {
-    const issuerOrg = app.issuer_organization;
-    if (!issuerOrg) return true;
-    const supplements = Array.isArray(issuerOrg.ctos_party_supplements)
-      ? issuerOrg.ctos_party_supplements
-      : [];
-    const onboardingByPartyKey = new Map<string, Record<string, unknown>>();
-    const supplementPartyKeys = new Set<string>();
-    for (const supplement of supplements) {
-      const key = normalizeDirectorShareholderIdKey(supplement.party_key);
-      if (!key) continue;
-      supplementPartyKeys.add(key);
-      const onboarding =
-        supplement.onboarding_json &&
-        typeof supplement.onboarding_json === "object" &&
-        !Array.isArray(supplement.onboarding_json)
-          ? (supplement.onboarding_json as Record<string, unknown>)
-          : {};
-      onboardingByPartyKey.set(key, onboarding);
-    }
-    const rows = getDirectorShareholderDisplayRows({
-      corporateEntities: issuerOrg.corporate_entities,
-      directorKycStatus: issuerOrg.director_kyc_status,
-      directorAmlStatus: issuerOrg.director_aml_status ?? null,
-      organizationCtosCompanyJson: issuerOrg.latest_organization_ctos_company_json ?? null,
-      ctosPartySupplements: supplements.map((supplement) => ({
-        partyKey: supplement.party_key,
-        onboardingJson: supplement.onboarding_json ?? null,
-      })),
-      sentRowIds: null,
-    });
-    for (const row of rows) {
-      if (!isCtosIndividualKycEligibleRow(row)) continue;
-      const partyKey = normalizeDirectorShareholderIdKey(
-        row.idNumber?.trim() || row.registrationNumber?.trim() || row.enquiryId?.trim() || ""
-      );
-      if (!partyKey) continue;
-      if (isLegacyCtosPartyKycApproved(partyKey, issuerOrg.director_kyc_status)) continue;
-      if (!supplementPartyKeys.has(partyKey)) continue;
-      const onboarding = onboardingByPartyKey.get(partyKey) ?? {};
-      const regtankStatus = String(onboarding.regtankStatus ?? "").trim().toUpperCase();
-      const kycRawStatus =
-        onboarding.kyc && typeof onboarding.kyc === "object" && !Array.isArray(onboarding.kyc)
-          ? String((onboarding.kyc as Record<string, unknown>).rawStatus ?? "").trim().toUpperCase()
-          : "";
-      const approved = regtankStatus === "APPROVED" || kycRawStatus === "APPROVED";
-      if (!approved) return false;
-    }
-    return true;
+  /**
+   * SECTION: Admin unified banner (KYC OR AML pending)
+   * WHY: Admin needs one clear action-required signal for both checks
+   * INPUT: app.people rows (per-person onboarding + screening status)
+   * OUTPUT: boolean hasPending (show banner + disable approve)
+   * WHERE USED: Admin application review → Financial section
+   */
+  const hasPendingDirectorShareholder = (() => {
+    const rawPeople = app.people ?? [];
+    const people = filterVisiblePeopleRows(rawPeople);
+    // No people rows means we do not know KYC/AML states yet.
+    if (people.length === 0) return true;
+
+    const isOnboardingDoneAll = people.every((p) => isReadyOnboardingStatus(p.onboarding?.status));
+    const isAmlDoneAll = people.every((p) => isDirectorShareholderAmlScreeningApproved(p.screening));
+    return !isOnboardingDoneAll || !isAmlDoneAll;
   })();
+
+  const bannerMessage = (() => {
+    const rawPeople = app.people ?? [];
+    const people = filterVisiblePeopleRows(rawPeople);
+    const individuals = people.filter((p) => p.entityType === "INDIVIDUAL");
+
+    const isOnboardingDoneAll = people.every((p) => isReadyOnboardingStatus(p.onboarding?.status));
+    const isAmlDoneAll = people.every((p) => isDirectorShareholderAmlScreeningApproved(p.screening));
+
+    const onboardingPendingCount = individuals.filter((p) => {
+      const onboardingStatus = normalizeRawStatus(p.onboarding?.status);
+      return onboardingStatus !== "APPROVED" && onboardingStatus !== "WAIT_FOR_APPROVAL";
+    }).length;
+
+    const amlPendingCount = individuals.filter((p) => {
+      const amlStatus = normalizeRawStatus(p.screening?.status);
+      return amlStatus !== "APPROVED";
+    }).length;
+
+    const onboardingLabel =
+      onboardingPendingCount === 1
+        ? "director/shareholder onboarding pending"
+        : "director/shareholder onboarding pending";
+
+    const amlLabel =
+      amlPendingCount === 1 ? "director/shareholder under AML review" : "director/shareholder under AML review";
+
+    if (onboardingPendingCount > 0 && amlPendingCount > 0) {
+      return `${onboardingPendingCount} ${onboardingLabel}, ${amlPendingCount} under AML review.`;
+    }
+    if (onboardingPendingCount > 0) {
+      return `${onboardingPendingCount} ${onboardingLabel}.`;
+    }
+    if (amlPendingCount > 0) {
+      return `${amlPendingCount} ${amlLabel}.`;
+    }
+
+    // Counts can be 0 when `app.people` contains non-individual rows.
+    // Pick a context message based on the same KYC/AML pending flags.
+    if (!isOnboardingDoneAll) {
+      return "Some directors/shareholders have not completed onboarding.";
+    }
+    if (!isAmlDoneAll) {
+      return "Director/shareholder AML screening is in progress.";
+    }
+
+    return "Some directors/shareholders have not completed onboarding.";
+  })();
+
+  const bannerTooltip = bannerMessage;
 
   if (sectionComparison) {
     return (
@@ -157,19 +171,19 @@ export function FinancialSection({
       actionLockTooltip={actionLockTooltip}
       sectionStatus={sectionStatus}
       showApprove={true}
-      approveDisabled={!financialApproveAllowed}
-      approveDisabledReason={!financialApproveAllowed ? "KYC not ready" : undefined}
+      approveDisabled={hasPendingDirectorShareholder}
+      approveDisabledReason={hasPendingDirectorShareholder ? bannerMessage : undefined}
       onResetToPending={onResetSectionToPending}
       onApprove={onApprove}
       onReject={onReject}
       onRequestAmendment={onRequestAmendment}
     >
-      {!financialApproveAllowed ? (
+      {hasPendingDirectorShareholder ? (
         <div
           className="rounded-xl border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
-          title={kycNotReadyTooltip}
+          title={bannerTooltip}
         >
-          {kycNotReadyReason}
+          {bannerMessage}
         </div>
       ) : null}
       <ApplicationFinancialReviewContent

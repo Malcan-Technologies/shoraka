@@ -54,25 +54,32 @@ import type {
   OnboardingApprovalStatus,
   OnboardingApplicationResponse,
   OnboardingStatusEnum,
+  UserDetailResponse,
 } from "@cashsouk/types";
 import {
   getSectionForPendingAmendment,
   getSectionForScopeKey,
   parseItemScopeKey,
   REVIEW_SECTION_ORDER,
-  getDirectorShareholderDisplayRows,
-  isCtosIndividualKycEligibleRow,
-  isLegacyCtosPartyKycApproved,
   getStepKeyFromStepId,
   isRegtankIso3166Code,
   normalizeDirectorShareholderIdKey,
+  canEnterEmailForDirectorShareholder,
+  filterVisiblePeopleRows,
+  type ApplicationPersonRow,
   type SoukscoreRiskRating,
+  normalizeRawStatus,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
 import { AMLFetcherService } from "../regtank/aml-fetcher";
 import type { PortalType } from "../regtank/types";
 import { extractCorporateEntities } from "../regtank/helpers/extract-corporate-entities";
 import { extractGovernmentIdFromCorporateUserInfo } from "../regtank/helpers/extract-government-id";
+import { buildAdminPeopleList } from "./build-people-list";
+import {
+  notifyIssuerDirectorShareholderActionRequired,
+  notifyIssuerDirectorShareholderRejected,
+} from "../notification/director-shareholder-notifications";
 import { logApplicationActivity } from "../applications/logs/service";
 import { ActivityPortal } from "../applications/logs/types";
 
@@ -90,6 +97,16 @@ import { getS3ObjectBuffer } from "../../lib/s3/client";
 import { computeSupportingDocumentsSectionStatus } from "../applications/supporting-documents-section-status";
 import { computeInvoiceDetailsSectionStatus } from "../applications/invoice-details-section-status";
 import { assertMaturityForSendInvoiceOffer } from "../products/validate-financial-config";
+
+const APPLICATION_ACTION_REQUIRED_STATUSES = [
+  ApplicationStatus.SUBMITTED,
+  ApplicationStatus.UNDER_REVIEW,
+  ApplicationStatus.RESUBMITTED,
+  ApplicationStatus.CONTRACT_PENDING,
+  ApplicationStatus.CONTRACT_ACCEPTED,
+  ApplicationStatus.INVOICE_PENDING,
+] as const;
+
 type ResubmitComparisonAmendmentRemark = {
   scope: string;
   scope_key: string;
@@ -100,6 +117,63 @@ type ResubmitComparisonAmendmentRemark = {
 
 function isPlainObjectRecord(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === "object" && !Array.isArray(v);
+}
+
+/**
+ * SECTION: Unified KYC/AML pending flag
+ * WHY: Show one action-required state for directors/shareholders
+ * INPUT: Application people rows from CTOS + issuer snapshots
+ * OUTPUT: boolean hasPending (any person has KYC or AML not done)
+ * WHERE USED: Admin applications list badge
+ */
+function hasPendingDirectorShareholderKycOrAml(people: ApplicationPersonRow[]): boolean {
+  const visible = filterVisiblePeopleRows(people);
+  // No visible people means we do not have the needed party status yet → keep action required.
+  if (!visible || visible.length === 0) return true;
+
+  return visible.some((p) => {
+    const onboardingStatus = normalizeRawStatus(p.onboarding?.status);
+    const amlStatus = normalizeRawStatus(p.screening?.status);
+
+    const isOnboardingDone =
+      onboardingStatus === "APPROVED" || onboardingStatus === "WAIT_FOR_APPROVAL";
+    const isAmlDone = amlStatus === "APPROVED";
+
+    // Pending if either KYC or AML is not cleared.
+    return !isOnboardingDone || !isAmlDone;
+  });
+}
+
+/**
+ * SECTION: AML helpers for director/shareholder financial gating
+ * WHY: Keep AML checks consistent and scoped to INDIVIDUAL rows only
+ * INPUT: Application people rows and application status
+ * OUTPUT: booleans for pending/all-approved/final checks
+ * WHERE USED: Admin application list badge + financial tab approval guard
+ */
+function isAmlApprovedPersonStatus(statusRaw: string | null | undefined): boolean {
+  const status = normalizeRawStatus(statusRaw);
+  return status === "APPROVED";
+}
+
+function getVisibleIndividualsForAml(people: ApplicationPersonRow[]): ApplicationPersonRow[] {
+  const visible = filterVisiblePeopleRows(people);
+  return visible.filter((person) => person.entityType === "INDIVIDUAL");
+}
+
+function hasPendingAmlForIndividuals(individuals: ApplicationPersonRow[]): boolean {
+  return individuals.some((person) => !isAmlApprovedPersonStatus(person.screening?.status));
+}
+
+function allAmlApprovedForIndividuals(individuals: ApplicationPersonRow[]): boolean {
+  return (
+    individuals.length > 0 &&
+    individuals.every((person) => isAmlApprovedPersonStatus(person.screening?.status))
+  );
+}
+
+function isFinalApplicationStatusForAmlGuard(status: string | null | undefined): boolean {
+  return status === "APPROVED" || status === "FUNDED" || status === "COMPLETED";
 }
 
 function guarantorNationalityIso2FromSourceData(sourceData: unknown): string | undefined {
@@ -369,6 +443,142 @@ export class AdminService {
    */
   async getUserById(userId: string): Promise<User | null> {
     return this.repository.getUserById(userId);
+  }
+
+  async getUserDetail(userId: string): Promise<UserDetailResponse | null> {
+    const [user, investorOrganizations, issuerOrganizations] = await Promise.all([
+      prisma.user.findUnique({
+        where: { user_id: userId },
+        include: {
+          _count: {
+            select: {
+              access_logs: true,
+              investments: true,
+              loans: true,
+            },
+          },
+        },
+      }),
+      prisma.investorOrganization.findMany({
+        where: {
+          OR: [
+            { owner_user_id: userId },
+            { members: { some: { user_id: userId } } },
+          ],
+        },
+        orderBy: { updated_at: "desc" },
+        select: {
+          id: true,
+          owner_user_id: true,
+          type: true,
+          name: true,
+          registration_number: true,
+          onboarding_status: true,
+          onboarded_at: true,
+          created_at: true,
+          updated_at: true,
+          is_sophisticated_investor: true,
+          members: {
+            where: { user_id: userId },
+            select: { role: true },
+            take: 1,
+          },
+          _count: { select: { members: true } },
+        },
+      }),
+      prisma.issuerOrganization.findMany({
+        where: {
+          OR: [
+            { owner_user_id: userId },
+            { members: { some: { user_id: userId } } },
+          ],
+        },
+        orderBy: { updated_at: "desc" },
+        select: {
+          id: true,
+          owner_user_id: true,
+          type: true,
+          name: true,
+          registration_number: true,
+          onboarding_status: true,
+          onboarded_at: true,
+          created_at: true,
+          updated_at: true,
+          members: {
+            where: { user_id: userId },
+            select: { role: true },
+            take: 1,
+          },
+          _count: { select: { members: true } },
+        },
+      }),
+    ]);
+
+    if (!user) {
+      return null;
+    }
+
+    const mapOrganization = (
+      org: {
+        id: string;
+        owner_user_id: string;
+        type: OrganizationType;
+        name: string | null;
+        registration_number: string | null;
+        onboarding_status: OnboardingStatus;
+        onboarded_at: Date | null;
+        created_at: Date;
+        updated_at: Date;
+        is_sophisticated_investor?: boolean;
+        members: { role: string }[];
+        _count: { members: number };
+      },
+      portal: "investor" | "issuer"
+    ) => ({
+      id: org.id,
+      portal,
+      type: org.type,
+      name: org.name,
+      registrationNumber: org.registration_number,
+      onboardingStatus: org.onboarding_status,
+      onboardedAt: org.onboarded_at?.toISOString() ?? null,
+      relationship: org.owner_user_id === userId ? "owner" as const : "member" as const,
+      memberRole: org.members[0]?.role ?? null,
+      memberCount: org._count.members,
+      isSophisticatedInvestor: org.is_sophisticated_investor ?? false,
+      createdAt: org.created_at.toISOString(),
+      updatedAt: org.updated_at.toISOString(),
+    });
+
+    return {
+      user_id: user.user_id,
+      email: user.email,
+      email_verified: user.email_verified,
+      cognito_sub: user.cognito_sub,
+      cognito_username: user.cognito_username,
+      roles: user.roles,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      phone: user.phone,
+      investor_account: user.investor_account,
+      issuer_account: user.issuer_account,
+      investor_organization_count: investorOrganizations.length,
+      issuer_organization_count: issuerOrganizations.length,
+      password_changed_at: user.password_changed_at?.toISOString() ?? null,
+      created_at: user.created_at.toISOString(),
+      updated_at: user.updated_at.toISOString(),
+      stats: {
+        accessLogs: user._count.access_logs,
+        investments: user._count.investments,
+        loans: user._count.loans,
+        investorOrganizations: investorOrganizations.length,
+        issuerOrganizations: issuerOrganizations.length,
+      },
+      organizations: {
+        investor: investorOrganizations.map((org) => mapOrganization(org, "investor")),
+        issuer: issuerOrganizations.map((org) => mapOrganization(org, "issuer")),
+      },
+    };
   }
 
   /**
@@ -771,10 +981,30 @@ export class AdminService {
       approved: number;
       rejected: number;
       expired: number;
-      avgTimeToApprovalMinutes: number | null;
-      avgTimeToApprovalChangePercent: number | null;
-      avgTimeToOnboardingMinutes: number | null;
-      avgTimeToOnboardingChangePercent: number | null;
+    };
+    applicationMetrics: {
+      total: number;
+      actionRequired: number;
+      draft: number;
+      contractOrAmendmentCycle: number;
+      approvedCompleted: number;
+      withdrawnRejectedOrArchived: number;
+    };
+    contractMetrics: {
+      total: number;
+      actionRequired: number;
+      draft: number;
+      offerSent: number;
+      approved: number;
+      rejectedOrWithdrawn: number;
+    };
+    noteMetrics: {
+      total: number;
+      draft: number;
+      live: number;
+      repaid: number;
+      distressed: number;
+      cancelledOrFailedFunding: number;
     };
   }> {
     const TREND_PERIOD_DAYS = 30;
@@ -787,6 +1017,9 @@ export class AdminService {
       signupTrends,
       organizationStats,
       onboardingOperations,
+      applicationMetrics,
+      contractMetrics,
+      noteMetrics,
     ] = await Promise.all([
       this.repository.getUserStats(),
       this.repository.getCurrentPeriodStats(TREND_PERIOD_DAYS),
@@ -794,6 +1027,9 @@ export class AdminService {
       this.repository.getSignupTrends(TREND_PERIOD_DAYS),
       this.repository.getOrganizationStats(),
       this.repository.getOnboardingOperationsMetrics(),
+      this.repository.getApplicationDashboardMetrics(),
+      this.repository.getContractDashboardMetrics(),
+      this.repository.getNoteDashboardMetrics(),
     ]);
 
     // Calculate percentage changes
@@ -841,6 +1077,9 @@ export class AdminService {
       signupTrends,
       organizations: organizationStats,
       onboardingOperations,
+      applicationMetrics,
+      contractMetrics,
+      noteMetrics,
     };
   }
 
@@ -1774,6 +2013,47 @@ export class AdminService {
       updatedAt: string;
       contractId: string | null;
     }[];
+    linkedRecords: {
+      applications: {
+        id: string;
+        status: string;
+        productId: string | null;
+        submittedAt: string | null;
+        createdAt: string;
+        updatedAt: string;
+        contractId: string | null;
+        requestedAmount: number | null;
+      }[];
+      contracts: {
+        id: string;
+        title: string | null;
+        contractNumber: string | null;
+        status: string;
+        createdAt: string;
+        updatedAt: string;
+        contractValue: number | null;
+      }[];
+      notes: {
+        id: string;
+        noteReference: string;
+        title: string;
+        status: string;
+        targetAmount: number;
+        fundedAmount: number;
+        createdAt: string;
+        updatedAt: string;
+      }[];
+      investments: {
+        id: string;
+        status: string;
+        amount: number;
+        noteId: string;
+        noteReference: string;
+        noteTitle: string;
+        committedAt: string;
+        updatedAt: string;
+      }[];
+    };
     corporateOnboardingData?: {
       basicInfo?: {
         tinNumber?: string;
@@ -1814,10 +2094,17 @@ export class AdminService {
     corporateEntities?: Record<string, unknown> | null;
     latestOrganizationCtosCompanyJson?: Record<string, unknown> | null;
     ctosPartySupplements?: Array<{ partyKey: string; onboardingJson?: unknown }> | null;
+    latestOrganizationCtosSubjectReports?: Array<{
+      id: string;
+      subject_ref: string | null;
+      fetched_at: string;
+      has_report_html: boolean;
+    }>;
     corporateRequiredDocuments?: Record<string, unknown>[] | null;
     directorAmlStatus?: Record<string, unknown> | null;
     directorKycStatus?: Record<string, unknown> | null;
     businessAmlStatus?: Record<string, unknown> | null;
+    people?: import("@cashsouk/types").ApplicationPersonRow[];
   } | null> {
     const org = await this.repository.getOrganizationById(portal, id);
 
@@ -1834,6 +2121,17 @@ export class AdminService {
     let latestOrganizationCtosCompanyJson: Record<string, unknown> | null | undefined = undefined;
     let ctosPartySupplements: Array<{ partyKey: string; onboardingJson?: unknown }> | null | undefined =
       undefined;
+    let investorLatestCtosCompanyJson: Record<string, unknown> | null | undefined = undefined;
+    let investorCtosPartySupplements: Array<{ partyKey: string; onboardingJson?: unknown }> | null | undefined =
+      undefined;
+    let latestOrganizationCtosSubjectReports:
+      | Array<{
+          id: string;
+          subject_ref: string | null;
+          fetched_at: string;
+          has_report_html: boolean;
+        }>
+      | undefined = undefined;
     if (portal === "issuer") {
       const orgService = new OrganizationService();
       const extras = await orgService.getIssuerPartyListExtras(org.id);
@@ -1843,7 +2141,91 @@ export class AdminService {
         partyKey: row.partyKey,
         onboardingJson: row.onboardingJson,
       }));
+      if (org.type === "COMPANY") {
+        latestOrganizationCtosSubjectReports = extras.latestOrganizationCtosSubjectReports;
+      }
     }
+    if (portal === "investor" && org.type === "COMPANY") {
+      const orgService = new OrganizationService();
+      const extras = await orgService.getInvestorPartyListExtras(org.id);
+      investorLatestCtosCompanyJson =
+        (extras.latestOrganizationCtosCompanyJson as Record<string, unknown> | null) ?? null;
+      investorCtosPartySupplements = extras.ctosPartySupplements.map((row) => ({
+        partyKey: row.partyKey,
+        onboardingJson: row.onboardingJson,
+      }));
+      latestOrganizationCtosSubjectReports = extras.latestOrganizationCtosSubjectReports;
+    }
+
+    const [linkedApplications, linkedContracts, linkedNotes, linkedInvestments] = await Promise.all([
+      portal === "issuer"
+        ? prisma.application.findMany({
+            where: { issuer_organization_id: id },
+            orderBy: { created_at: "desc" },
+            select: {
+              id: true,
+              status: true,
+              financing_type: true,
+              submitted_at: true,
+              created_at: true,
+              updated_at: true,
+              contract_id: true,
+              invoices: { select: { details: true } },
+              contract: { select: { contract_details: true } },
+            },
+          })
+        : Promise.resolve([]),
+      portal === "issuer"
+        ? prisma.contract.findMany({
+            where: { issuer_organization_id: id },
+            orderBy: { created_at: "desc" },
+            select: {
+              id: true,
+              status: true,
+              created_at: true,
+              updated_at: true,
+              contract_details: true,
+            },
+          })
+        : Promise.resolve([]),
+      portal === "issuer"
+        ? prisma.note.findMany({
+            where: { issuer_organization_id: id },
+            orderBy: { created_at: "desc" },
+            select: {
+              id: true,
+              note_reference: true,
+              title: true,
+              status: true,
+              target_amount: true,
+              funded_amount: true,
+              created_at: true,
+              updated_at: true,
+            },
+          })
+        : Promise.resolve([]),
+      prisma.noteInvestment.findMany({
+        where:
+          portal === "investor"
+            ? { investor_organization_id: id }
+            : { note: { issuer_organization_id: id } },
+        orderBy: { committed_at: "desc" },
+        select: {
+          id: true,
+          status: true,
+          amount: true,
+          committed_at: true,
+          updated_at: true,
+          note: {
+            select: {
+              id: true,
+              note_reference: true,
+              title: true,
+            },
+          },
+        },
+      }),
+    ]);
 
     return {
       id: org.id,
@@ -1967,10 +2349,28 @@ export class AdminService {
           : undefined,
       ctosPartySupplements:
         org.type === "COMPANY" && portal === "issuer" ? ctosPartySupplements ?? [] : undefined,
+      latestOrganizationCtosSubjectReports:
+        org.type === "COMPANY" ? latestOrganizationCtosSubjectReports ?? [] : undefined,
       corporateRequiredDocuments: org.type === "COMPANY" ? (org.corporate_required_documents as Record<string, unknown>[] | null) : undefined,
       directorAmlStatus: org.type === "COMPANY" ? (org.director_aml_status as Record<string, unknown> | null) : undefined,
       directorKycStatus: org.type === "COMPANY" ? (org.director_kyc_status as Record<string, unknown> | null) : undefined,
       businessAmlStatus: org.type === "COMPANY" ? (org.business_aml_status as Record<string, unknown> | null) : undefined,
+      people:
+        org.type === "COMPANY"
+          ? buildAdminPeopleList({
+              ctos:
+                portal === "issuer"
+                  ? (latestOrganizationCtosCompanyJson ?? null)
+                  : (investorLatestCtosCompanyJson ?? null),
+              issuerDirectorKycStatus: org.director_kyc_status ?? null,
+              issuerDirectorAmlStatus: org.director_aml_status ?? null,
+              ctosPartySupplements:
+                portal === "issuer"
+                  ? (ctosPartySupplements ?? null)
+                  : (investorCtosPartySupplements ?? null),
+              corporateEntities: org.corporate_entities ?? null,
+            })
+          : undefined,
       members: org.members.map((m) => ({
         id: m.id,
         userId: m.user_id,
@@ -2010,7 +2410,200 @@ export class AdminService {
           contractId: app.contract_id,
         }))
         : undefined,
+      linkedRecords: {
+        applications: linkedApplications.map((app) => {
+          const requestedAmount = app.invoices.length > 0
+            ? app.invoices.reduce((sum, invoice) => {
+                const details = isPlainObjectRecord(invoice.details) ? invoice.details : null;
+                const invoiceValue = Number(details?.value ?? 0);
+                const financingRatio = Number(details?.financing_ratio_percent ?? 80);
+                return sum + (invoiceValue * financingRatio) / 100;
+              }, 0)
+            : (() => {
+                const contractDetails = isPlainObjectRecord(app.contract?.contract_details)
+                  ? app.contract.contract_details
+                  : null;
+                const amount = Number(contractDetails?.value ?? contractDetails?.approved_facility ?? 0);
+                return Number.isFinite(amount) && amount > 0 ? amount : null;
+              })();
+          const financingType = isPlainObjectRecord(app.financing_type) ? app.financing_type : null;
+          return {
+            id: app.id,
+            status: app.status,
+            productId:
+              typeof financingType?.product_id === "string" && financingType.product_id.trim().length > 0
+                ? financingType.product_id.trim()
+                : null,
+            submittedAt: app.submitted_at?.toISOString() ?? null,
+            createdAt: app.created_at.toISOString(),
+            updatedAt: app.updated_at.toISOString(),
+            contractId: app.contract_id,
+            requestedAmount: requestedAmount == null ? null : Number(requestedAmount),
+          };
+        }),
+        contracts: linkedContracts.map((contract) => {
+          const details = isPlainObjectRecord(contract.contract_details) ? contract.contract_details : null;
+          const value = Number(details?.value ?? details?.approved_facility ?? 0);
+          return {
+            id: contract.id,
+            title: typeof details?.title === "string" ? details.title : null,
+            contractNumber: typeof details?.number === "string" ? details.number : null,
+            status: contract.status,
+            createdAt: contract.created_at.toISOString(),
+            updatedAt: contract.updated_at.toISOString(),
+            contractValue: Number.isFinite(value) && value > 0 ? value : null,
+          };
+        }),
+        notes: linkedNotes.map((note) => ({
+          id: note.id,
+          noteReference: note.note_reference,
+          title: note.title,
+          status: note.status,
+          targetAmount: Number(note.target_amount),
+          fundedAmount: Number(note.funded_amount),
+          createdAt: note.created_at.toISOString(),
+          updatedAt: note.updated_at.toISOString(),
+        })),
+        investments: linkedInvestments.map((investment) => ({
+          id: investment.id,
+          status: investment.status,
+          amount: Number(investment.amount),
+          noteId: investment.note.id,
+          noteReference: investment.note.note_reference,
+          noteTitle: investment.note.title,
+          committedAt: investment.committed_at.toISOString(),
+          updatedAt: investment.updated_at.toISOString(),
+        })),
+      },
     };
+  }
+
+  /**
+   * Admin-only: notify issuer and resend RegTank onboarding for one director/shareholder (stateless).
+   */
+  async rejectIssuerDirectorShareholderParty(
+    issuerOrganizationId: string,
+    input: { partyKey: string; remark: string }
+  ): Promise<{ requestId: string }> {
+    const org = await prisma.issuerOrganization.findUnique({
+      where: { id: issuerOrganizationId },
+      select: { owner_user_id: true, type: true },
+    });
+    if (!org || org.type !== "COMPANY") {
+      throw new AppError(404, "NOT_FOUND", "Issuer company organization not found");
+    }
+    if (!org.owner_user_id) {
+      throw new AppError(400, "VALIDATION_ERROR", "Organization has no owner");
+    }
+
+    const orgSvc = new OrganizationService();
+    const extras = await orgSvc.getIssuerPartyListExtras(issuerOrganizationId);
+    const fullOrg = await prisma.issuerOrganization.findUnique({
+      where: { id: issuerOrganizationId },
+      select: { corporate_entities: true, director_kyc_status: true, director_aml_status: true },
+    });
+    if (!fullOrg) {
+      throw new AppError(404, "NOT_FOUND", "Organization not found");
+    }
+
+    const people = buildAdminPeopleList({
+      ctos: extras.latestOrganizationCtosCompanyJson ?? null,
+      issuerDirectorKycStatus: fullOrg.director_kyc_status ?? null,
+      issuerDirectorAmlStatus: fullOrg.director_aml_status ?? null,
+      ctosPartySupplements: extras.ctosPartySupplements.map((s) => ({
+        party_key: s.partyKey,
+        onboarding_json: s.onboardingJson,
+      })),
+      corporateEntities: fullOrg.corporate_entities ?? null,
+    });
+    const visible = filterVisiblePeopleRows(people);
+    const want = normalizeDirectorShareholderIdKey(input.partyKey);
+    if (!want) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invalid party key");
+    }
+    const match = visible.find((p) => normalizeDirectorShareholderIdKey(p.matchKey) === want);
+    if (!match) {
+      throw new AppError(404, "NOT_FOUND", "Party not found among visible directors/shareholders");
+    }
+
+    const sendResult = await orgSvc.sendDirectorCtosPartyOnboardingPrivileged(
+      issuerOrganizationId,
+      { partyKey: input.partyKey },
+      input.remark
+    );
+
+    await notifyIssuerDirectorShareholderRejected({
+      issuerOrganizationId,
+      ownerUserId: org.owner_user_id,
+      partyKeyRaw: input.partyKey,
+      personName: match.name,
+    });
+
+    return sendResult;
+  }
+
+  async notifyIssuerDirectorShareholderActionRequired(
+    issuerOrganizationId: string,
+    input: { partyKey: string }
+  ): Promise<{ sent: true }> {
+    const org = await prisma.issuerOrganization.findUnique({
+      where: { id: issuerOrganizationId },
+      select: { owner_user_id: true, type: true },
+    });
+    if (!org || org.type !== "COMPANY") {
+      throw new AppError(404, "NOT_FOUND", "Issuer company organization not found");
+    }
+    if (!org.owner_user_id) {
+      throw new AppError(400, "VALIDATION_ERROR", "Organization has no owner");
+    }
+
+    const orgSvc = new OrganizationService();
+    const extras = await orgSvc.getIssuerPartyListExtras(issuerOrganizationId);
+    const fullOrg = await prisma.issuerOrganization.findUnique({
+      where: { id: issuerOrganizationId },
+      select: {
+        corporate_entities: true,
+        director_kyc_status: true,
+        director_aml_status: true,
+        onboarding_status: true,
+      },
+    });
+    if (!fullOrg) {
+      throw new AppError(404, "NOT_FOUND", "Organization not found");
+    }
+
+    const people = buildAdminPeopleList({
+      ctos: extras.latestOrganizationCtosCompanyJson ?? null,
+      issuerDirectorKycStatus: fullOrg.director_kyc_status ?? null,
+      issuerDirectorAmlStatus: fullOrg.director_aml_status ?? null,
+      ctosPartySupplements: extras.ctosPartySupplements.map((s) => ({
+        party_key: s.partyKey,
+        onboarding_json: s.onboardingJson,
+      })),
+      corporateEntities: fullOrg.corporate_entities ?? null,
+    });
+    const visible = filterVisiblePeopleRows(people);
+    const want = normalizeDirectorShareholderIdKey(input.partyKey);
+    if (!want) {
+      throw new AppError(400, "VALIDATION_ERROR", "Invalid party key");
+    }
+    const match = visible.find((p) => normalizeDirectorShareholderIdKey(p.matchKey) === want);
+    if (!match) {
+      throw new AppError(404, "NOT_FOUND", "Party not found among visible directors/shareholders");
+    }
+
+    const emailActionable = canEnterEmailForDirectorShareholder(match);
+    if (!emailActionable) {
+      throw new AppError(400, "VALIDATION_ERROR", "Not eligible for notify");
+    }
+
+    await notifyIssuerDirectorShareholderActionRequired({
+      issuerOrganizationId,
+      ownerUserId: org.owner_user_id,
+      partyKeyRaw: input.partyKey,
+      personName: match.name,
+    });
+    return { sent: true };
   }
 
   /**
@@ -2239,7 +2832,19 @@ export class AdminService {
     if (!refreshed) {
       return null;
     }
-    return this.mapToOnboardingApplicationResponse(refreshed);
+    const existingResponse = this.mapToOnboardingApplicationResponse(refreshed);
+    const mergedPeople = buildAdminPeopleList({
+      ctos: existingResponse.latestOrganizationCtosCompanyJson,
+      issuerDirectorKycStatus: refreshed.issuer_organization?.director_kyc_status ?? null,
+      issuerDirectorAmlStatus: refreshed.issuer_organization?.director_aml_status ?? null,
+      ctosPartySupplements: refreshed.issuer_organization?.ctos_party_supplements ?? null,
+      corporateEntities: existingResponse.corporateEntities ?? null,
+    });
+
+    return {
+      ...existingResponse,
+      people: mergedPeople,
+    };
   }
 
   /**
@@ -2659,6 +3264,27 @@ export class AdminService {
           }))
         : null;
 
+    const onboardingPeopleForAml =
+      record.organization_type === "COMPANY" && orgForCtos
+        ? buildAdminPeopleList({
+            ctos: latestOrganizationCtosCompanyJson,
+            issuerDirectorKycStatus: directorKycStatusRaw ?? null,
+            issuerDirectorAmlStatus: directorAmlStatusRaw ?? null,
+            ctosPartySupplements:
+              Array.isArray(ctosPartySupplementsRaw) && ctosPartySupplementsRaw.length > 0
+                ? ctosPartySupplementsRaw.map((s: { party_key: string; onboarding_json: unknown }) => ({
+                    party_key: s.party_key,
+                    onboarding_json: s.onboarding_json ?? null,
+                  }))
+                : null,
+            corporateEntities: corporateEntitiesRaw ?? null,
+          })
+        : [];
+    const directorShareholderAmlPending =
+      record.organization_type === "COMPANY"
+        ? hasPendingDirectorShareholderKycOrAml(onboardingPeopleForAml)
+        : false;
+
     return {
       id: record.id,
       userId: record.user.user_id,
@@ -2694,6 +3320,7 @@ export class AdminService {
       corporateEntities,
       latestOrganizationCtosCompanyJson,
       ctosPartySupplements,
+      directorShareholderAmlPending,
     };
   }
 
@@ -4217,6 +4844,7 @@ export class AdminService {
       updatedAt: Date;
       productId: string | null;
       baseProductId: string | null;
+      directorShareholderAmlPending: boolean;
     }[];
     pagination: {
       page: number;
@@ -4228,14 +4856,94 @@ export class AdminService {
     const repository = new AdminRepository();
     const { applications, total } = await repository.getApplications(params);
 
+    const orgService = new OrganizationService();
+    const orgIds = [
+      ...new Set(
+        applications
+          .map((a) => a.issuerOrganizationId)
+          .filter((x): x is string => typeof x === "string" && x.length > 0)
+      ),
+    ];
+    const pendingByOrg = new Map<string, boolean>();
+    await Promise.all(
+      orgIds.map(async (oid) => {
+        const org = await prisma.issuerOrganization.findUnique({
+          where: { id: oid },
+          select: { corporate_entities: true, director_kyc_status: true, director_aml_status: true },
+        });
+        if (!org) {
+          pendingByOrg.set(oid, false);
+          return;
+        }
+        const extras = await orgService.getIssuerPartyListExtras(oid);
+        const people = buildAdminPeopleList({
+          ctos: extras.latestOrganizationCtosCompanyJson ?? null,
+          issuerDirectorKycStatus: org.director_kyc_status ?? null,
+          issuerDirectorAmlStatus: org.director_aml_status ?? null,
+          ctosPartySupplements: extras.ctosPartySupplements,
+          corporateEntities: org.corporate_entities ?? null,
+        });
+        const individuals = getVisibleIndividualsForAml(people);
+        const pending = individuals.length > 0 && hasPendingAmlForIndividuals(individuals);
+        pendingByOrg.set(oid, pending);
+      })
+    );
+
     return {
-      applications,
+      applications: applications.map(({ issuerOrganizationId, ...rest }) => {
+        if (isFinalApplicationStatusForAmlGuard(rest.status)) {
+          return {
+            ...rest,
+            directorShareholderAmlPending: false,
+          };
+        }
+        return {
+          ...rest,
+          directorShareholderAmlPending: issuerOrganizationId
+            ? pendingByOrg.get(issuerOrganizationId) ?? false
+            : false,
+        };
+      }),
       pagination: {
         page: params.page,
         pageSize: params.pageSize,
         totalCount: total,
         totalPages: Math.ceil(total / params.pageSize),
       },
+    };
+  }
+
+  async getApplicationActionRequiredCount() {
+    const [
+      count,
+      submitted,
+      underReview,
+      resubmitted,
+      contractPending,
+      contractAccepted,
+      invoicePending,
+    ] = await Promise.all([
+      prisma.application.count({ where: { status: { in: [...APPLICATION_ACTION_REQUIRED_STATUSES] } } }),
+      prisma.application.count({ where: { status: ApplicationStatus.SUBMITTED } }),
+      prisma.application.count({ where: { status: ApplicationStatus.UNDER_REVIEW } }),
+      prisma.application.count({ where: { status: ApplicationStatus.RESUBMITTED } }),
+      prisma.application.count({ where: { status: ApplicationStatus.CONTRACT_PENDING } }),
+      prisma.application.count({ where: { status: ApplicationStatus.CONTRACT_ACCEPTED } }),
+      prisma.application.count({ where: { status: ApplicationStatus.INVOICE_PENDING } }),
+    ]);
+
+    const breakdown = {
+      submitted,
+      underReview,
+      resubmitted,
+      contractPending,
+      contractAccepted,
+      invoicePending,
+    };
+
+    return {
+      count,
+      breakdown,
     };
   }
 
@@ -4454,8 +5162,35 @@ export class AdminService {
     const orderedVisibleSections = REVIEW_SECTION_ORDER.filter((section) =>
       sectionPolicy.visibleSections.has(section)
     );
+    const issuerOrgForPeople: Record<string, unknown> | null = isPlainObjectRecord(
+      applicationWithIssuerExtras.issuer_organization
+    )
+      ? (applicationWithIssuerExtras.issuer_organization as Record<string, unknown>)
+      : null;
+    const people = buildAdminPeopleList({
+      ctos: issuerOrgForPeople?.latest_organization_ctos_company_json ?? null,
+      issuerDirectorKycStatus: issuerOrgForPeople?.director_kyc_status ?? null,
+      issuerDirectorAmlStatus: issuerOrgForPeople?.director_aml_status ?? null,
+      ctosPartySupplements: Array.isArray(issuerOrgForPeople?.ctos_party_supplements)
+        ? issuerOrgForPeople.ctos_party_supplements
+        : null,
+      corporateEntities: issuerOrgForPeople?.corporate_entities ?? null,
+    });
     return {
       ...applicationWithIssuerExtras,
+      people,
+      linked_notes: await prisma.note.findMany({
+        where: { source_application_id: id },
+        orderBy: { created_at: "desc" },
+        select: {
+          id: true,
+          note_reference: true,
+          title: true,
+          status: true,
+          source_contract_id: true,
+          source_invoice_id: true,
+        },
+      }),
       application_guarantors: this.mapApplicationGuarantorsForAdmin(
         applicationWithIssuerExtras.application_guarantors
       ),
@@ -4500,11 +5235,14 @@ export class AdminService {
       throw new AppError(404, "NOT_FOUND", "Previous revision snapshot not found");
     }
 
-    console.log("[admin] getResubmitComparisonSnapshots", {
-      applicationId,
-      previous_review_cycle: prevCycle,
-      next_review_cycle: nextReviewCycle,
-    });
+    logger.info(
+      {
+        applicationId,
+        previous_review_cycle: prevCycle,
+        next_review_cycle: nextReviewCycle,
+      },
+      "[admin] getResubmitComparisonSnapshots"
+    );
 
     const resubmitLog = await prisma.applicationLog.findFirst({
       where: {
@@ -4663,7 +5401,7 @@ export class AdminService {
     }
 
     if (status === ApplicationStatus.APPROVED) {
-      this.assertLatestCtosPartyKycApproved(application as any);
+      this.assertFinancialReviewDirectorShareholderAmlApproved(application);
       const reviews = (application.application_reviews ?? []) as { section: string; status: string }[];
       const sectionPolicy = await this.getReviewSectionPolicy(application);
       const reviewStatusBySection = new Map<string, string>();
@@ -4769,7 +5507,7 @@ export class AdminService {
     return "Terminal corrections must use a dedicated audited correction flow";
   }
 
-  private assertLatestCtosPartyKycApproved(application: {
+  private assertFinancialReviewDirectorShareholderAmlApproved(application: {
     issuer_organization?: {
       corporate_entities?: unknown;
       director_kyc_status?: unknown;
@@ -4784,59 +5522,22 @@ export class AdminService {
     const supplements = Array.isArray(issuerOrg.ctos_party_supplements)
       ? issuerOrg.ctos_party_supplements
       : [];
-    const onboardingByPartyKey = new Map<string, Record<string, unknown>>();
-    const supplementPartyKeys = new Set<string>();
-    for (const supplement of supplements) {
-      const key = normalizeDirectorShareholderIdKey(supplement.party_key);
-      if (!key) continue;
-      supplementPartyKeys.add(key);
-      const onboarding =
-        supplement.onboarding_json &&
-        typeof supplement.onboarding_json === "object" &&
-        !Array.isArray(supplement.onboarding_json)
-          ? (supplement.onboarding_json as Record<string, unknown>)
-          : {};
-      onboardingByPartyKey.set(key, onboarding);
-    }
-
-    const rows = getDirectorShareholderDisplayRows({
-      corporateEntities: issuerOrg.corporate_entities,
-      directorKycStatus: issuerOrg.director_kyc_status,
-      directorAmlStatus: issuerOrg.director_aml_status ?? null,
-      organizationCtosCompanyJson: issuerOrg.latest_organization_ctos_company_json ?? null,
+    const people = buildAdminPeopleList({
+      ctos: issuerOrg.latest_organization_ctos_company_json ?? null,
+      issuerDirectorKycStatus: issuerOrg.director_kyc_status ?? null,
+      issuerDirectorAmlStatus: issuerOrg.director_aml_status ?? null,
       ctosPartySupplements: supplements.map((supplement) => ({
-        partyKey: supplement.party_key,
-        onboardingJson: supplement.onboarding_json ?? null,
+        party_key: supplement.party_key,
+        onboarding_json: supplement.onboarding_json ?? null,
       })),
-      sentRowIds: null,
+      corporateEntities: issuerOrg.corporate_entities ?? null,
     });
-
-    const notReady: string[] = [];
-    for (const row of rows) {
-      if (!isCtosIndividualKycEligibleRow(row)) continue;
-      const partyKey = normalizeDirectorShareholderIdKey(
-        row.idNumber?.trim() || row.registrationNumber?.trim() || row.enquiryId?.trim() || ""
-      );
-      if (!partyKey) continue;
-      if (isLegacyCtosPartyKycApproved(partyKey, issuerOrg.director_kyc_status)) continue;
-      if (!supplementPartyKeys.has(partyKey)) continue;
-      const onboarding = onboardingByPartyKey.get(partyKey) ?? {};
-      const regtankStatus = String(onboarding.regtankStatus ?? "").trim().toUpperCase();
-      const kycRawStatus =
-        onboarding.kyc && typeof onboarding.kyc === "object" && !Array.isArray(onboarding.kyc)
-          ? String((onboarding.kyc as Record<string, unknown>).rawStatus ?? "").trim().toUpperCase()
-          : "";
-      const approved = regtankStatus === "APPROVED" || kycRawStatus === "APPROVED";
-      if (!approved) {
-        notReady.push(row.name || partyKey);
-      }
-    }
-
-    if (notReady.length > 0) {
+    const individuals = getVisibleIndividualsForAml(people);
+    if (!allAmlApprovedForIndividuals(individuals)) {
       throw new AppError(
         400,
-        "KYC_NOT_READY",
-        `Latest onboarding KYC is not approved for: ${notReady.join(", ")}`
+        "AML_NOT_READY",
+        "All directors/shareholders must complete AML before approval"
       );
     }
   }
@@ -5660,7 +6361,7 @@ export class AdminService {
           ? previousOffer.version
           : 0;
       const now = new Date().toISOString();
-      console.log("Saving risk rating:", riskRating);
+      logger.info({ applicationId, invoiceId, riskRating }, "Saving invoice offer risk rating");
       const offerDetails = {
         requested_amount: requestedAmount,
         offered_amount: offeredAmount,
@@ -5886,7 +6587,7 @@ export class AdminService {
   ) {
     const { repository, application } = await this.prepareForReviewAction(applicationId);
     if (section === "financial") {
-      this.assertLatestCtosPartyKycApproved(application as any);
+      this.assertFinancialReviewDirectorShareholderAmlApproved(application);
     }
     await this.ensureUnderReview(
       repository,

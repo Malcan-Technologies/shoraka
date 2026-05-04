@@ -13,8 +13,8 @@ describe("sendInvoiceOfferSchema", () => {
     expect(parsed.success).toBe(false);
   });
 
-  it("fails when risk_rating is outside Soukscore grades", () => {
-    const parsed = sendInvoiceOfferSchema.safeParse({ ...base, risk_rating: "ZZ" });
+  it("fails when risk_rating is outside allowed grades", () => {
+    const parsed = sendInvoiceOfferSchema.safeParse({ ...base, risk_rating: "C" });
     expect(parsed.success).toBe(false);
   });
 

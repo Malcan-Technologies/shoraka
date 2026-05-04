@@ -17,9 +17,19 @@ const VISIBLE_PRODUCTS_PER_CATEGORY = 8;
  */
 const SHOW_PRODUCT_LIST_EXTENDED_CONTROLS = false;
 
+/** Product row shape from issuer catalog (workflow-driven display fields). */
+type CatalogProduct = {
+  id: string;
+  workflow?: Array<{ name?: string; config?: Record<string, unknown> }>;
+  category_name?: string;
+  category_display_order?: number | null;
+  product_display_order?: number | null;
+  created_at?: string;
+};
+
 /** Lowercase blob for client-side search (name, description, category). */
-function productSearchText(product: any): string {
-  const financingStep = product.workflow?.find((step: any) =>
+function productSearchText(product: CatalogProduct): string {
+  const financingStep = product.workflow?.find((step) =>
     String(step?.name).toLowerCase().includes("financing type")
   );
   const config = financingStep?.config || {};
@@ -133,7 +143,7 @@ function ProductCard({ id, name, description, imageS3Key, isSelected, onSelect, 
  * - onProductSelect: function to call when user selects a product
  */
 interface ProductListProps {
-  products: any[]; // Accept any product structure from API
+  products: CatalogProduct[];
   selectedProductId: string;
   onProductSelect: (productId: string) => void;
   isLoading: boolean;
@@ -182,8 +192,8 @@ export function ProductList({
 
     const map = new Map<string, CatEntry>();
 
-    filteredProducts.forEach((product: any) => {
-      const financingStep = product.workflow?.find((step: any) =>
+    filteredProducts.forEach((product: CatalogProduct) => {
+      const financingStep = product.workflow?.find((step) =>
         String(step?.name).toLowerCase().includes("financing type")
       );
       const config = financingStep?.config || {};

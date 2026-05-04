@@ -14,6 +14,7 @@ import {
   QuestionMarkCircleIcon,
   ArrowTrendingUpIcon,
 } from "@heroicons/react/24/outline";
+
 import { NavUser } from "@/components/nav-user";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
 import { Separator } from "@/components/ui/separator";

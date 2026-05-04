@@ -7,6 +7,7 @@ import { useNotifications } from "@cashsouk/config";
 interface NotificationItem {
   id: string;
   read_at?: string | null;
+  resolved_at?: string | null;
   link_path?: string | null;
   priority?: string;
   created_at?: string;
@@ -33,7 +34,7 @@ export function NotificationBell() {
   });
 
   const handleNotificationClick = (notification: NotificationItem) => {
-    if (!notification.read_at) {
+    if (!notification.read_at && !notification.resolved_at) {
       markAsRead(notification.id);
     }
     if (notification.link_path) {
@@ -101,7 +102,13 @@ export function NotificationBell() {
                   key={notification.id}
                   className={cn(
                     "flex flex-col items-start gap-0.5 p-3 cursor-pointer border-b border-slate-50 last:border-0 focus:bg-slate-100 focus:text-slate-900 outline-none transition-colors",
-                    notification.priority === "CRITICAL" ? "bg-red-100/100" : notification.priority === "WARNING" ? "bg-yellow-100/60" : !notification.read_at ? "bg-slate-50/30" : "bg-white"
+                    notification.priority === "CRITICAL"
+                      ? "bg-red-100/100"
+                      : notification.priority === "WARNING"
+                        ? "bg-yellow-100/60"
+                        : !notification.read_at && !notification.resolved_at
+                          ? "bg-slate-50/30"
+                          : "bg-white"
                   )}
                   onClick={() => handleNotificationClick(notification)}
                 >
@@ -119,7 +126,7 @@ export function NotificationBell() {
                         {notification.message}
                       </p>
                     </div>
-                    {!notification.read_at && (
+                    {!notification.read_at && !notification.resolved_at && (
                       <div className="pt-1 shrink-0">
                         <span className="h-2 w-2 rounded-full bg-accent block shadow-[0_0_0_2px_hsl(var(--accent)/0.1)]" />
                       </div>

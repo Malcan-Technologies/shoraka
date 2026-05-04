@@ -34,7 +34,7 @@ import {
   useOrganizationDetail,
   useUpdateSophisticatedStatus,
 } from "@/hooks/use-organization-detail";
-import type { PortalType } from "@cashsouk/types";
+import { toTitleCase, type PortalType } from "@cashsouk/types";
 import { format } from "date-fns";
 import {
   UserIcon,
@@ -446,13 +446,13 @@ function KycResponseDisplay({
           {data.status && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Status:</span>
-              <Badge className={kycAmlScreeningStatusBadgeClass(data.status)}>{data.status}</Badge>
+              <Badge className={kycAmlScreeningStatusBadgeClass(data.status)}>{toTitleCase(data.status)}</Badge>
             </div>
           )}
           {data.riskLevel && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Risk Level:</span>
-              <Badge className={kycAmlScreeningRiskLevelBadgeClass(data.riskLevel)}>{data.riskLevel}</Badge>
+              <Badge className={kycAmlScreeningRiskLevelBadgeClass(data.riskLevel)}>{toTitleCase(data.riskLevel)}</Badge>
             </div>
           )}
           {data.riskScore && (

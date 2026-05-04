@@ -44,9 +44,9 @@ import {
   ChevronRight,
   Search,
   RotateCcw,
-  Eye,
   Filter,
 } from "lucide-react";
+import { EyeIcon } from "@heroicons/react/24/outline";
 import { format } from "date-fns";
 import {
   Dialog,
@@ -64,6 +64,7 @@ import {
   TableHeader,
   TableRow,
 } from "../../../components/ui/table";
+import { Skeleton } from "../../../components/ui/skeleton";
 
 const TARGET_CONFIG: Record<string, { label: string; color: string }> = {
   ALL_USERS: { label: "All Users", color: "bg-blue-500" },
@@ -80,6 +81,43 @@ const COLOR_MAP: Record<string, string> = {
   "bg-orange-500": "rgb(249 115 22)",
   "bg-gray-500": "rgb(107 114 128)",
 };
+
+function NotificationLogsTableSkeleton() {
+  return (
+    <div className="rounded-2xl border bg-white shadow-sm overflow-hidden">
+      <Table>
+        <TableHeader className="bg-muted/30">
+          <TableRow className="hover:bg-transparent">
+            <TableHead className="text-sm font-semibold">Timestamp</TableHead>
+            <TableHead className="text-sm font-semibold">Admin</TableHead>
+            <TableHead className="text-sm font-semibold">Target</TableHead>
+            <TableHead className="text-sm font-semibold">Type</TableHead>
+            <TableHead className="text-sm font-semibold">Message</TableHead>
+            <TableHead className="text-sm font-semibold">Recipients</TableHead>
+            <TableHead className="text-sm font-semibold">IP Address</TableHead>
+            <TableHead className="text-sm font-semibold">Device</TableHead>
+            <TableHead className="text-sm font-semibold">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {Array.from({ length: 5 }).map((_, index) => (
+            <TableRow key={index}>
+              <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+              <TableCell><Skeleton className="h-5 w-40" /></TableCell>
+              <TableCell><Skeleton className="h-6 w-24 rounded-full" /></TableCell>
+              <TableCell><Skeleton className="h-5 w-28" /></TableCell>
+              <TableCell><Skeleton className="h-5 w-56" /></TableCell>
+              <TableCell><Skeleton className="h-6 w-16 rounded-full" /></TableCell>
+              <TableCell><Skeleton className="h-5 w-24" /></TableCell>
+              <TableCell><Skeleton className="h-5 w-32" /></TableCell>
+              <TableCell><Skeleton className="ml-auto h-8 w-20" /></TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
 
 function getTargetBadge(targetType: string) {
   const config = TARGET_CONFIG[targetType] || {
@@ -321,7 +359,7 @@ export default function NotificationsAdminPage() {
         </div>
       </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="max-w-7xl mx-auto w-full px-2 md:px-4 py-8 space-y-6">
+        <div className="w-full px-2 md:px-4 py-8 space-y-6">
           <p className="text-muted-foreground -mt-4">
             Manage system-wide notification settings and send custom alerts.
           </p>
@@ -825,11 +863,7 @@ export default function NotificationsAdminPage() {
           <Card className="border-none shadow-none bg-transparent">
             <CardContent className="p-0">
               {isLoadingLogs ? (
-                <div className="space-y-4">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="h-16 w-full bg-muted animate-pulse rounded-xl" />
-                  ))}
-                </div>
+                <NotificationLogsTableSkeleton />
               ) : logs.length === 0 ? (
                 <div className="text-center py-20 text-muted-foreground bg-white border rounded-2xl">
                   <History className="h-12 w-12 mx-auto mb-4 opacity-20" />
@@ -924,13 +958,13 @@ export default function NotificationsAdminPage() {
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                className="h-8 gap-1"
+                                className="h-8 px-2"
                                 onClick={() => {
                                   setSelectedLog(log);
                                   setIsLogDetailsOpen(true);
                                 }}
                               >
-                                <Eye className="h-4 w-4" />
+                                <EyeIcon className="h-4 w-4 mr-1" />
                                 View
                               </Button>
                             </TableCell>

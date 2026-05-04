@@ -424,7 +424,7 @@ export function FinancialStatementsStep({
   const [isInitialized, setIsInitialized] = React.useState(false);
   const [hasSubmitted, setHasSubmitted] = React.useState(false);
   const [activeYearTab, setActiveYearTab] = React.useState("");
-  const initialPayloadRef = React.useRef<string>("");
+  const [initialPayloadSnapshot, setInitialPayloadSnapshot] = React.useState("");
 
   const onDataChangeRef = React.useRef(onDataChange);
   React.useEffect(() => {
@@ -445,20 +445,24 @@ export function FinancialStatementsStep({
       if (qNorm) {
         setFyeDateInput(isoToApplicationFlowDateDisplay(qNorm.financial_year_end));
         const built = buildV2ApiPayload(qNorm, map);
-        initialPayloadRef.current = JSON.stringify(built);
+        setInitialPayloadSnapshot(JSON.stringify(built));
         console.log("Financial step loaded v2; years in payload:", Object.keys(saved.unaudited_by_year));
       } else {
-        initialPayloadRef.current = JSON.stringify({
-          questionnaire: { financial_year_end: "" },
-          unaudited_by_year: map,
-        });
+        setInitialPayloadSnapshot(
+          JSON.stringify({
+            questionnaire: { financial_year_end: "" },
+            unaudited_by_year: map,
+          })
+        );
         console.log("Financial step v2 payload missing valid questionnaire; forms only");
       }
     } else {
-      initialPayloadRef.current = JSON.stringify({
-        questionnaire: { financial_year_end: "" },
-        unaudited_by_year: {},
-      });
+      setInitialPayloadSnapshot(
+        JSON.stringify({
+          questionnaire: { financial_year_end: "" },
+          unaudited_by_year: {},
+        })
+      );
       console.log("Financial step empty — start questionnaire");
     }
     setIsInitialized(true);
@@ -554,7 +558,7 @@ export function FinancialStatementsStep({
     };
     let initialParsed: InitialPayloadShape | null = null;
     try {
-      initialParsed = JSON.parse(initialPayloadRef.current) as InitialPayloadShape;
+      initialParsed = JSON.parse(initialPayloadSnapshot) as InitialPayloadShape;
     } catch {
       initialParsed = null;
     }
@@ -579,13 +583,13 @@ export function FinancialStatementsStep({
 
     try {
       const now = JSON.stringify(buildV2ApiPayloadInner());
-      const pendingFull = now !== initialPayloadRef.current;
+      const pendingFull = now !== initialPayloadSnapshot;
       console.log("Financial step pending (v2 payload):", pendingFull);
       return pendingFull;
     } catch {
       return true;
     }
-  }, [isInitialized, questionnaireDto, buildV2ApiPayloadInner, fyeDateInput]);
+  }, [isInitialized, questionnaireDto, buildV2ApiPayloadInner, fyeDateInput, initialPayloadSnapshot]);
 
   /** Full validation: used by saveFunction and inline errors after submit (future date, turnover sign, etc.). */
   const allYearFormsValid = React.useMemo(() => {
@@ -647,7 +651,7 @@ export function FinancialStatementsStep({
     const payload = buildV2ApiPayload(questionnaireDto, formsByYear);
     console.log("Saving financial v2 payload keys:", Object.keys(payload.unaudited_by_year));
     return payload;
-  }, [questionnaireDto, allYearFormsValid, formsByYear, yearsToShow]);
+  }, [questionnaireDto, allYearFormsValid, formsByYear, yearsToShow, fyeDateInput]);
 
   React.useEffect(() => {
     if (!onDataChangeRef.current) return;

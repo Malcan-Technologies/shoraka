@@ -352,7 +352,7 @@ export function AccountTypeSelector({ onBack, onCorporateOnboardingStart }: Acco
         <div className="text-center space-y-2">
           <h2 className="text-xl font-semibold">Choose Account Type</h2>
           <p className="text-[15px] text-muted-foreground">
-            Select how you'd like to invest on CashSouk
+            Select how you&apos;d like to invest on CashSouk
           </p>
         </div>
 

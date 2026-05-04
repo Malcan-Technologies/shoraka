@@ -7,6 +7,7 @@ import type {
   UpdateUserKycInput,
   UpdateUserOnboardingInput,
   UpdateUserProfileInput,
+  UserDetailResponse,
 } from "@cashsouk/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -29,6 +30,27 @@ export function useUsers(params: GetUsersParams) {
   });
 }
 
+export function useUserDetail(userId: string | null) {
+  const { getAccessToken } = useAuthToken();
+  const apiClient = createApiClient(API_URL, getAccessToken);
+
+  return useQuery<UserDetailResponse>({
+    queryKey: ["admin", "user-detail", userId],
+    queryFn: async () => {
+      if (!userId) {
+        throw new Error("User ID is required");
+      }
+      const response = await apiClient.getUser(userId);
+      if (!response.success) {
+        throw new Error(response.error.message);
+      }
+      return response.data.user;
+    },
+    enabled: !!userId,
+    staleTime: 0,
+  });
+}
+
 export function useUpdateUserRoles() {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);
@@ -44,6 +66,7 @@ export function useUpdateUserRoles() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "user-detail"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "admin-users"] });
       toast.success("Roles updated successfully");
     },
@@ -70,6 +93,7 @@ export function useUpdateUserKyc() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "user-detail"] });
     },
   });
 }
@@ -89,6 +113,7 @@ export function useUpdateUserOnboarding() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "user-detail"] });
     },
   });
 }
@@ -108,6 +133,7 @@ export function useUpdateUserProfile() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "user-detail"] });
     },
   });
 }
@@ -127,6 +153,7 @@ export function useUpdateUserId() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "user-detail"] });
     },
   });
 }

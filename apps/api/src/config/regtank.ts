@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { logger } from "../lib/logger";
 
 const regtankEnvSchema = z.object({
   REGTANK_OAUTH_URL: z.string().url().optional(),
@@ -64,11 +65,7 @@ export function getRegTankConfig(): RegTankConfig {
     env.REGTANK_REDIRECT_URL_ISSUER ||
     "https://issuer.cashsouk.com";
 
-  // Log final redirect URLs being used
-  console.log("[RegTank Config] Final Redirect URLs:", {
-    redirectUrlInvestor,
-    redirectUrlIssuer,
-  });
+  logger.info({ redirectUrlInvestor, redirectUrlIssuer }, "[RegTank Config] Final Redirect URLs");
 
   const config: RegTankConfig = {
     oauthUrl:

@@ -39,6 +39,7 @@ import { NoteTermsPanel } from "@/notes/components/note-terms-panel";
 import { NoteTimelinePanel } from "@/notes/components/note-timeline-panel";
 import { SettlementPanel } from "@/notes/components/settlement-panel";
 import { SourceApplicationPanel } from "@/notes/components/source-application-panel";
+import { formatNoteStatus } from "@/notes/utils/format-note-status";
 import { isSoukscoreRiskRating, type NoteDetail, type NoteSettlementPoolSummary } from "@cashsouk/types";
 
 function PageSkeleton() {
@@ -59,7 +60,7 @@ function PageSkeleton() {
 }
 
 function formatStatus(value: string) {
-  return value.replace(/_/g, " ");
+  return formatNoteStatus(value);
 }
 
 function getInvoiceAmount(note: NonNullable<ReturnType<typeof useNoteDetail>["data"]>) {

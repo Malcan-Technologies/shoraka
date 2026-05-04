@@ -44,7 +44,7 @@ export default function OnboardingApprovalPage() {
   const [typeFilter, setTypeFilter] = React.useState<TypeFilter>("all");
   const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("PENDING_ALL");
   const [currentPage, setCurrentPage] = React.useState(1);
-  const pageSize = 10;
+  const pageSize = 20;
 
   const invalidate = useInvalidateOnboardingApplications();
 
@@ -113,7 +113,7 @@ export default function OnboardingApprovalPage() {
         </div>
       </header>
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="max-w-7xl mx-auto w-full px-2 md:px-4 py-8 space-y-6">
+        <div className="w-full px-2 md:px-4 py-8 space-y-6">
           {/* Description */}
           <div className="rounded-2xl border bg-card p-6">
             <h2 className="text-xl font-semibold mb-2">Onboarding Approval Queue</h2>

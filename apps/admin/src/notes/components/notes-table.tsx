@@ -30,7 +30,7 @@ function TableSkeleton() {
     <>
       {Array.from({ length: 5 }).map((_, index) => (
         <TableRow key={index}>
-          {Array.from({ length: 9 }).map((__, cellIndex) => (
+          {Array.from({ length: 10 }).map((__, cellIndex) => (
             <TableCell key={cellIndex}>
               <Skeleton className="h-5 w-24" />
             </TableCell>
@@ -60,23 +60,25 @@ export function NotesTable({
 
   return (
     <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
-      <div className="w-full overflow-hidden">
+      <div className="w-full overflow-x-auto">
         <Table className="w-full table-fixed">
           <colgroup>
-            <col className="w-[10%]" />
-            <col className="w-[22%]" />
-            <col className="w-[12%]" />
+            <col className="w-[9%]" />
+            <col className="w-[19%]" />
+            <col className="w-[7%]" />
+            <col className="w-[11%]" />
             <col className="w-[9%]" />
             <col className="w-[11%]" />
-            <col className="w-[8%]" />
-            <col className="w-[12%]" />
-            <col className="w-[8%]" />
-            <col className="w-[8%]" />
+            <col className="w-[9%]" />
+            <col className="w-[11%]" />
+            <col className="w-[7%]" />
+            <col className="w-[7%]" />
           </colgroup>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead className="truncate">Reference</TableHead>
               <TableHead className="truncate">Note / Invoice</TableHead>
+              <TableHead className="truncate">Risk</TableHead>
               <TableHead className="truncate">Paymaster</TableHead>
               <TableHead className="truncate">Target</TableHead>
               <TableHead className="truncate">Funding</TableHead>
@@ -91,7 +93,7 @@ export function NotesTable({
               <TableSkeleton />
             ) : registryCount === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="py-10 text-center text-muted-foreground">
+                <TableCell colSpan={10} className="py-10 text-center text-muted-foreground">
                   No approved invoices or notes found
                 </TableCell>
               </TableRow>

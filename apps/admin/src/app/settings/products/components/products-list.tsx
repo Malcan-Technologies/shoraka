@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { Product } from "@cashsouk/types";
 import {
   useProducts,
@@ -69,16 +69,17 @@ export function ProductsList() {
     setProductFormOpen(true);
   };
 
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setPage(1);
+  };
+
   const params: UseProductsParams = { page, pageSize, search: search || undefined, active: true };
   const { data, isPending, isError, error } = useProducts(params);
 
   const products = data?.products ?? [];
   const totalCount = data?.pagination.totalCount ?? 0;
   const totalPages = data?.pagination.totalPages ?? 1;
-
-  useEffect(() => {
-    setPage(1);
-  }, [search]);
 
   const handleClearSearch = () => {
     setSearch("");
@@ -124,7 +125,7 @@ export function ProductsList() {
           <Input
             placeholder="Search by name..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleSearchChange(e.target.value)}
             className="pl-9 h-11 rounded-xl"
             aria-label="Search products by name"
           />

@@ -39,7 +39,6 @@ interface UsersTableProps {
   pageSize: number;
   totalUsers: number;
   onPageChange: (page: number) => void;
-  onUserUpdate: (userId: string, updatedUser: Partial<User>) => void;
 }
 
 function TableSkeleton() {
@@ -96,25 +95,7 @@ export function UsersTable({
   pageSize,
   totalUsers,
   onPageChange,
-  onUserUpdate,
 }: UsersTableProps) {
-  const [editingUserId, setEditingUserId] = React.useState<string | null>(null);
-
-  const handleEdit = (userId: string) => {
-    setEditingUserId(userId);
-  };
-
-  const handleSave = (userId: string, updatedUser: Partial<User>) => {
-    // Row component handles its own confirmation dialog
-    // Just update the user data directly
-    onUserUpdate(userId, updatedUser);
-    setEditingUserId(null);
-  };
-
-  const handleCancel = () => {
-    setEditingUserId(null);
-  };
-
   const totalPages = Math.ceil(totalUsers / pageSize);
   const startIndex = (currentPage - 1) * pageSize + 1;
   const endIndex = Math.min(currentPage * pageSize, totalUsers);
@@ -154,10 +135,6 @@ export function UsersTable({
                   <UserTableRow
                     key={user.user_id}
                     user={user}
-                    isEditing={editingUserId === user.user_id}
-                    onEdit={() => handleEdit(user.user_id)}
-                    onSave={(updatedUser) => handleSave(user.user_id, updatedUser)}
-                    onCancel={handleCancel}
                   />
                 ))
               )}

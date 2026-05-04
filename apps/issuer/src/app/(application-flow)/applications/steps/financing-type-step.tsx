@@ -20,14 +20,13 @@ import {
  */
 interface FinancingTypeStepProps {
   initialProductId?: string;
-  onDataChange?: (data: any) => void;
+  onDataChange?: (data: { product_id: string; hasPendingChanges: boolean }) => void;
   readOnly?: boolean;
 }
 
 export function FinancingTypeStep({
   initialProductId,
   onDataChange,
-  readOnly: _readOnly = false,
 }: FinancingTypeStepProps) {
   const devTools = useDevTools();
 
@@ -36,9 +35,12 @@ export function FinancingTypeStep({
     { staleTime: 0, refetchOnMount: true }
   );
 
-  const allProducts =
-    ((productsData as { products?: Array<{ id: string; workflow?: unknown[] }> })?.products ||
-      []) as Array<{ id: string; workflow?: unknown[] }>;
+  const allProducts = React.useMemo(
+    () =>
+      (((productsData as { products?: Array<{ id: string; workflow?: unknown[] }> })?.products ||
+        []) as Array<{ id: string; workflow?: unknown[] }>),
+    [productsData]
+  );
   const productList = React.useMemo(() => {
     if (!initialProductId?.trim()) return [];
     return allProducts.filter((p) => p.id === initialProductId);

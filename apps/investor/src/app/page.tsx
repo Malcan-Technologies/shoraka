@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, startTransition } from "react";
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -56,21 +56,21 @@ function InvestorDashboardContent() {
 
       // If active organization exists and is onboarded, show dashboard
       if (activeOrganization && isOnboarded) {
-        setCheckingOnboarding(false);
+        startTransition(() => setCheckingOnboarding(false));
         hasRedirected.current = false;
         return;
       }
 
       // If active organization is pending approval, show dashboard with limited access
       if (activeOrganization && isPendingApproval) {
-        setCheckingOnboarding(false);
+        startTransition(() => setCheckingOnboarding(false));
         hasRedirected.current = false;
         return;
       }
 
       // If active organization is rejected, show dashboard with rejection notice
       if (activeOrganization && activeOrganization.onboardingStatus === "REJECTED") {
-        setCheckingOnboarding(false);
+        startTransition(() => setCheckingOnboarding(false));
         hasRedirected.current = false;
         return;
       }
@@ -109,7 +109,7 @@ function InvestorDashboardContent() {
         }
       }
     } else if (isAuthenticated === false) {
-      setCheckingOnboarding(false);
+      startTransition(() => setCheckingOnboarding(false));
     }
   }, [
     isAuthenticated,

@@ -5,7 +5,12 @@ import { AppError } from "../../lib/http/error-handler";
 import { logApplicationActivity } from "../applications/logs/service";
 import { ActivityPortal } from "../applications/logs/types";
 import { ApplicationReviewRemark, Contract, Prisma } from "@prisma/client";
-import { ApplicationStatus, ContractStatus, WithdrawReason } from "@cashsouk/types";
+import {
+  ApplicationStatus,
+  ContractStatus,
+  WithdrawReason,
+  parseScopeKey,
+} from "@cashsouk/types";
 import { prisma } from "../../lib/prisma";
 import {
   generateContractDocumentKey,
@@ -134,7 +139,6 @@ export class ContractService {
         const remarks = await prisma.applicationReviewRemark.findMany({
           where: { application_id: applicationId, action_type: "REQUEST_AMENDMENT" } as any,
         });
-        const { parseScopeKey } = require("@cashsouk/types");
         const hasContractRemark = remarks.some((r: ApplicationReviewRemark) => {
           try {
             const p = parseScopeKey(r.scope_key);
@@ -286,7 +290,7 @@ export class ContractService {
 
     try {
       await deleteS3Object(s3Key);
-    } catch (error) {
+    } catch {
       throw new AppError(500, "DELETE_FAILED", "Failed to delete document from S3");
     }
   }

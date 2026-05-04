@@ -44,8 +44,8 @@ import {
   useRefreshCorporateAmlStatus,
 } from "@/hooks/use-onboarding-applications";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getDirectorShareholderDisplayRows, type OnboardingApprovalStatus } from "@cashsouk/types";
-import { UnifiedKycAmlReadonlyRows } from "@cashsouk/ui";
+import { type OnboardingApprovalStatus, getDirectorShareholderSingleStatusPresentation } from "@cashsouk/types";
+import { cn } from "@/lib/utils";
 import {
   UserIcon,
   EnvelopeIcon,
@@ -59,6 +59,69 @@ import {
   StarIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
+import {
+  filterVisiblePeopleRows,
+  formatPeopleRolesLine,
+  type PeopleRolesRowInput,
+} from "@/lib/onboarding-people-display";
+
+type OnboardingPersonRow = PeopleRolesRowInput & {
+  matchKey: string;
+  name: string | null;
+  entityType: "INDIVIDUAL" | "CORPORATE";
+  status: string;
+  screening?: { status?: string | null } | null;
+  onboarding?: { status?: string | null } | null;
+};
+
+function OnboardingPeopleReadonlyCards({
+  rows,
+  isRefreshing,
+}: {
+  rows: OnboardingPersonRow[];
+  isRefreshing: boolean;
+}) {
+  if (rows.length === 0) return null;
+
+  return (
+    <div
+      className={cn("divide-y rounded-lg border bg-card", isRefreshing && "opacity-70")}
+      aria-busy={isRefreshing || undefined}
+    >
+      {rows.map((p) => {
+        const rolesLine = formatPeopleRolesLine(p);
+        const idLine =
+          p.entityType === "CORPORATE" ? `SSM ${p.matchKey}` : `IC ${p.matchKey}`;
+        const pr = getDirectorShareholderSingleStatusPresentation({
+          screening: p.screening,
+          onboarding: p.onboarding,
+        });
+
+        return (
+          <div
+            key={p.matchKey}
+            className="flex flex-col gap-2 p-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+          >
+            <div className="min-w-0 flex-1 space-y-0.5">
+              <p className="text-sm font-medium">{p.name ?? "-"}</p>
+              {rolesLine ? (
+                <p className="text-xs text-muted-foreground tracking-wide">{rolesLine}</p>
+              ) : null}
+              <p className="text-xs text-muted-foreground font-mono break-all">{idLine}</p>
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2 shrink-0 sm:pt-0.5">
+              {pr ? (
+                <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", pr.badgeClassName)}>
+                  {pr.label}
+                </Badge>
+              ) : null}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 interface OnboardingReviewDialogProps {
   onboardingId: string;
@@ -102,25 +165,20 @@ export function OnboardingReviewDialog({
   }, [application]);
 
   const isCompany = application?.type === "COMPANY";
-
-  const corporateUnifiedRows = React.useMemo(() => {
-    if (!application || application.type !== "COMPANY") return [];
-    return getDirectorShareholderDisplayRows({
-      corporateEntities: application.corporateEntities ?? null,
-      directorKycStatus: application.directorKycStatus ?? null,
-      directorAmlStatus: application.directorAmlStatus ?? null,
-      organizationCtosCompanyJson: application.latestOrganizationCtosCompanyJson ?? null,
-      ctosPartySupplements: application.ctosPartySupplements ?? null,
-      sentRowIds: null,
-    });
-  }, [application]);
+  const peopleRows = React.useMemo(() => application?.people ?? [], [application]);
+  const visiblePeopleRows = React.useMemo(() => filterVisiblePeopleRows(peopleRows), [peopleRows]);
+  React.useEffect(() => {
+    console.log("Onboarding dialog people[]:", peopleRows);
+    console.log("Onboarding dialog visible people[]:", visiblePeopleRows);
+  }, [peopleRows, visiblePeopleRows]);
 
   const steps = React.useMemo(() => {
     if (!application) return [];
-    return isCompany
+    const company = application.type === "COMPANY";
+    return company
       ? getCompanyOnboardingSteps(application.onboardingStatus, application.ssmApproved)
       : getPersonalOnboardingSteps(application.onboardingStatus);
-  }, [application, isCompany]);
+  }, [application]);
 
   const hasOnboardingApproval = application?.onboardingApproved ?? false;
   const hasAmlApproval = application?.amlApproved ?? false;
@@ -155,7 +213,6 @@ export function OnboardingReviewDialog({
         toast.success("CTOS Verification approved", {
           description: data.message,
         });
-        onOpenChange(false);
       },
       onError: (error) => {
         toast.error("Failed to approve CTOS Verification", {
@@ -211,7 +268,7 @@ export function OnboardingReviewDialog({
   const handleCombinedRefresh = async () => {
     if (!application) return;
     if (isCompany) {
-      if (application.onboardingStatus === "PENDING_APPROVAL" && application.directorKycStatus) {
+      if (application.onboardingStatus === "PENDING_APPROVAL") {
         try {
           await refreshCorporateMutation.mutateAsync(onboardingId);
           toast.success("Director KYC statuses refreshed");
@@ -221,7 +278,7 @@ export function OnboardingReviewDialog({
           });
         }
       }
-      if (application.onboardingStatus === "PENDING_AML" && application.directorAmlStatus) {
+      if (application.onboardingStatus === "PENDING_AML") {
         try {
           await refreshCorporateAmlMutation.mutateAsync(onboardingId);
           toast.success("Director AML statuses refreshed");
@@ -380,8 +437,8 @@ export function OnboardingReviewDialog({
                 Open Onboarding Review
               </Button>
 
-              {/* Director / shareholder / corporate KYC (unified system truth) */}
-              {isCompany && corporateUnifiedRows.length > 0 && (
+              {/* Director / shareholder list from backend people[] */}
+              {isCompany && visiblePeopleRows.length > 0 && (
                 <>
                   <Separator />
                   <div className="space-y-3">
@@ -399,10 +456,11 @@ export function OnboardingReviewDialog({
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <UnifiedKycAmlReadonlyRows
-                      rows={corporateUnifiedRows}
-                      showKycColumn
-                      showAmlColumn={false}
+                    <p className="text-xs text-muted-foreground">
+                      Note: Shareholders with less than 5% ownership are not displayed here.
+                    </p>
+                    <OnboardingPeopleReadonlyCards
+                      rows={visiblePeopleRows as OnboardingPersonRow[]}
                       isRefreshing={refreshCorporateMutation.isPending}
                     />
                   </div>
@@ -506,8 +564,8 @@ export function OnboardingReviewDialog({
                 {isCompany ? "Open KYB/AML Review" : "Open KYC/AML Review"}
               </Button>
               
-              {/* AML (unified: individuals + corporate shareholders) */}
-              {isCompany && corporateUnifiedRows.length > 0 && (
+              {/* Director / shareholder list from backend people[] */}
+              {isCompany && visiblePeopleRows.length > 0 && (
                 <>
                   <Separator />
                   <div className="space-y-3">
@@ -526,10 +584,11 @@ export function OnboardingReviewDialog({
                         </TooltipContent>
                       </Tooltip>
                     </div>
-                    <UnifiedKycAmlReadonlyRows
-                      rows={corporateUnifiedRows}
-                      showKycColumn={false}
-                      showAmlColumn
+                    <p className="text-xs text-muted-foreground">
+                      Note: Shareholders with less than 5% ownership are not displayed here.
+                    </p>
+                    <OnboardingPeopleReadonlyCards
+                      rows={visiblePeopleRows as OnboardingPersonRow[]}
                       isRefreshing={refreshCorporateAmlMutation.isPending}
                     />
                   </div>
@@ -583,6 +642,20 @@ export function OnboardingReviewDialog({
               <div className="rounded-lg bg-muted/50 p-4 space-y-3">
                 <p className="text-sm font-medium">Approval Checklist:</p>
                 <div className="space-y-2">
+                  {isCompany && (
+                    <div className="flex items-center gap-2">
+                      {hasSsmApproval ? (
+                        <CheckCircleIcon className="h-5 w-5 text-emerald-600" />
+                      ) : (
+                        <XCircleIcon className="h-5 w-5 text-muted-foreground" />
+                      )}
+                      <span
+                        className={`text-sm ${hasSsmApproval ? "text-foreground" : "text-muted-foreground"}`}
+                      >
+                        CTOS Verified
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2">
                     {hasOnboardingApproval ? (
                       <CheckCircleIcon className="h-5 w-5 text-emerald-600" />
@@ -619,20 +692,6 @@ export function OnboardingReviewDialog({
                       Terms & Conditions Accepted
                     </span>
                   </div>
-                  {isCompany && (
-                    <div className="flex items-center gap-2">
-                      {hasSsmApproval ? (
-                        <CheckCircleIcon className="h-5 w-5 text-emerald-600" />
-                      ) : (
-                        <XCircleIcon className="h-5 w-5 text-muted-foreground" />
-                      )}
-                      <span
-                        className={`text-sm ${hasSsmApproval ? "text-foreground" : "text-muted-foreground"}`}
-                      >
-                        CTOS / SSM verified
-                      </span>
-                    </div>
-                  )}
                 </div>
               </div>
 

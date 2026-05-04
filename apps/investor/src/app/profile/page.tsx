@@ -26,6 +26,7 @@ import {
   type BankAccountDetails,
   type UpdateOrganizationProfileInput,
 } from "@cashsouk/config";
+import type { ApplicationPersonRow } from "@cashsouk/types";
 import { useAuth } from "../../lib/auth";
 import { InfoTooltip } from "@cashsouk/ui/info-tooltip";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -520,6 +521,22 @@ export default function ProfilePage() {
             phoneNumber?: string;
           };
           addresses?: {
+            business?: {
+              line1?: string | null;
+              line2?: string | null;
+              city?: string | null;
+              postalCode?: string | null;
+              state?: string | null;
+              country?: string | null;
+            };
+            registered?: {
+              line1?: string | null;
+              line2?: string | null;
+              city?: string | null;
+              postalCode?: string | null;
+              state?: string | null;
+              country?: string | null;
+            };
             businessAddress?: string;
             registeredAddress?: string;
           };
@@ -535,10 +552,7 @@ export default function ProfilePage() {
           shareholders?: Array<Record<string, unknown>>;
           corporateShareholders?: Array<Record<string, unknown>>;
         };
-        directorKycStatus?: unknown;
-        directorAmlStatus?: unknown;
-        latestOrganizationCtosCompanyJson?: unknown | null;
-        ctosPartySupplements?: { partyKey: string; onboardingJson?: unknown }[] | null;
+        people?: ApplicationPersonRow[];
       }>(`/v1/organizations/investor/${activeOrganization.id}`);
       if (!result.success) {
         throw new Error(result.error.message);
@@ -561,7 +575,7 @@ export default function ProfilePage() {
       setAccountType(getBankField(orgData.bankAccountDetails, "Account type") || "Savings");
 
       // Initialize addresses
-      const addresses = orgData.corporateOnboardingData?.addresses as any;
+      const addresses = orgData.corporateOnboardingData?.addresses;
       const business = addresses?.business;
       setBusinessLine1(business?.line1 || "");
       setBusinessLine2(business?.line2 || "");
@@ -715,7 +729,7 @@ export default function ProfilePage() {
 
   const handleCancelAddressesEdit = () => {
     if (orgData) {
-      const addresses = orgData.corporateOnboardingData?.addresses as any;
+      const addresses = orgData.corporateOnboardingData?.addresses;
       const business = addresses?.business;
       setBusinessLine1(business?.line1 || "");
       setBusinessLine2(business?.line2 || "");
@@ -1140,7 +1154,7 @@ export default function ProfilePage() {
                       <h3 className="text-sm font-semibold">Business Address</h3>
                       {!isEditingAddresses ? (
                         <p className="text-sm text-muted-foreground">
-                          {formatAddressDisplay((orgData?.corporateOnboardingData?.addresses as any)?.business)}
+                          {formatAddressDisplay(orgData?.corporateOnboardingData?.addresses?.business)}
                         </p>
                       ) : (
                         <div className="grid gap-4 sm:grid-cols-2">
@@ -1221,7 +1235,7 @@ export default function ProfilePage() {
                       </div>
                       {!isEditingAddresses ? (
                         <p className="text-sm text-muted-foreground">
-                          {formatAddressDisplay((orgData?.corporateOnboardingData?.addresses as any)?.registered)}
+                          {formatAddressDisplay(orgData?.corporateOnboardingData?.addresses?.registered)}
                         </p>
                       ) : (
                         !sameAsBusinessAddress && (
@@ -1396,11 +1410,7 @@ export default function ProfilePage() {
               {/* 4. Directors/Shareholders Section - Only for COMPANY accounts */}
               {!isPersonal && activeOrganization?.id && orgData?.type === "COMPANY" && (
                 <DirectorsShareholdersCard
-                  corporateEntities={orgData.corporateEntities ?? null}
-                  directorKycStatus={orgData.directorKycStatus ?? null}
-                  directorAmlStatus={orgData.directorAmlStatus ?? null}
-                  organizationCtosCompanyJson={orgData.latestOrganizationCtosCompanyJson ?? null}
-                  ctosPartySupplements={orgData.ctosPartySupplements ?? null}
+                  people={orgData.people ?? []}
                 />
               )}
 
@@ -1781,7 +1791,7 @@ export default function ProfilePage() {
             try {
               await leave();
               setConfirmDialog({ open: false, type: null });
-            } catch (error) {
+            } catch {
               // Error is handled by the hook
             }
           }}

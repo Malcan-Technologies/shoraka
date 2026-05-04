@@ -33,25 +33,24 @@ export function DevToolsPanel({
   isPreviewAmendmentActive,
   approvedContractIds = [],
 }: DevToolsPanelProps) {
-  if (process.env.NODE_ENV !== "development") {
-    return null;
-  }
-
   const devTools = useDevTools();
 
   const handleToggleSkeleton = React.useCallback(() => {
+    if (process.env.NODE_ENV !== "development") return;
     const next = !(devTools?.showSkeletonDebug ?? false);
     devTools?.setShowSkeletonDebug(next);
     toast.success(next ? "Step skeleton debug on" : "Step skeleton debug off");
   }, [devTools]);
 
   const handleToggleWizardShell = React.useCallback(() => {
+    if (process.env.NODE_ENV !== "development") return;
     const next = !(devTools?.previewWizardLoadingShell ?? false);
     devTools?.setPreviewWizardLoadingShell(next);
     toast.success(next ? "Wizard loading shell preview on" : "Wizard loading shell preview off");
   }, [devTools]);
 
   const handleAutoFill = React.useCallback(() => {
+    if (process.env.NODE_ENV !== "development") return;
     if (!currentStepKey || !devTools) return;
     const generator = MOCK_GENERATORS[currentStepKey];
     if (!generator) {
@@ -68,11 +67,13 @@ export function DevToolsPanel({
   }, [currentStepKey, devTools]);
 
   const handlePreviewAmendment = React.useCallback(() => {
+    if (process.env.NODE_ENV !== "development") return;
     onPreviewAmendment();
     toast.success(isPreviewAmendmentActive ? "Amendment preview off" : "Amendment preview on");
   }, [onPreviewAmendment, isPreviewAmendmentActive]);
 
   const handleFillEntireApplication = React.useCallback(() => {
+    if (process.env.NODE_ENV !== "development") return;
     if (!devTools) return;
     try {
       const map = generateAllDataForSteps({ approvedContractIds });
@@ -90,6 +91,10 @@ export function DevToolsPanel({
     { label: "Preview Wizard Shell", action: handleToggleWizardShell },
     { label: "Preview Amendment", action: handlePreviewAmendment },
   ];
+
+  if (process.env.NODE_ENV !== "development") {
+    return null;
+  }
 
   return (
     <Card

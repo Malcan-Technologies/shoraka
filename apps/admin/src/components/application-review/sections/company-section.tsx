@@ -143,6 +143,14 @@ export function CompanySection({
   sectionComparison,
   hideSectionComments = false,
 }: CompanySectionProps) {
+  const organizationId =
+    app.issuer_organization_id ?? (app.issuer_organization as { id?: string } | null)?.id ?? null;
+
+  const { data: org, isLoading: isLoadingOrg } = useOrganizationDetail(
+    organizationId ? "issuer" : null,
+    organizationId
+  );
+
   if (sectionComparison) {
     const { beforeApp, afterApp, isPathChanged } = sectionComparison;
     const b = companyDisplayFromSnapshot(beforeApp);
@@ -256,14 +264,6 @@ export function CompanySection({
       </ReviewSectionCard>
     );
   }
-
-  const organizationId =
-    app.issuer_organization_id ?? (app.issuer_organization as { id?: string } | null)?.id ?? null;
-
-  const { data: org, isLoading: isLoadingOrg } = useOrganizationDetail(
-    organizationId ? "issuer" : null,
-    organizationId
-  );
 
   const basicInfo = org?.corporateOnboardingData?.basicInfo;
   const addresses = org?.corporateOnboardingData?.addresses;

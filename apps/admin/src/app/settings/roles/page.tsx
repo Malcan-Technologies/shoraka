@@ -134,8 +134,7 @@ export default function RolesPage() {
   const pendingInvitations = invitationsData?.invitations || [];
   const invitationsTotalPages = invitationsData?.pagination.totalPages || 0;
 
-  const handleUpdateUser = (_userId: string, _updates: Partial<AdminUser>) => {
-    // Optimistic update - the mutation will invalidate and refetch
+  const handleUpdateUser: (userId: string, updates: Partial<AdminUser>) => void = () => {
     refetch();
   };
 
@@ -183,7 +182,7 @@ export default function RolesPage() {
       </header>
 
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <div className="max-w-7xl mx-auto w-full px-2 md:px-4 py-8 space-y-6">
+        <div className="w-full px-2 md:px-4 py-8 space-y-6">
           {/* Page Header */}
           <div className="flex items-center justify-between">
             <div>

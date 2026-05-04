@@ -76,7 +76,7 @@ export default function PlatformFinanceSettingsPage() {
         <h1 className="text-lg font-semibold">Platform Finance Settings</h1>
         <div className="ml-auto"><SystemHealthIndicator /></div>
       </header>
-      <div className="mx-auto w-full max-w-3xl p-6">
+      <div className="w-full p-6">
         <Card>
           <CardHeader>
             <CardTitle>Late Payment and Letter Defaults</CardTitle>

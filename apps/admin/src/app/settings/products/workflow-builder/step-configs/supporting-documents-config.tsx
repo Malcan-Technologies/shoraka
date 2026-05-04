@@ -159,7 +159,7 @@ export function SupportingDocumentsConfig({
     previousS3Key?: string
   ) => void;
 }) {
-  const base = (config as Record<string, unknown>) ?? {};
+  const base = React.useMemo(() => (config as Record<string, unknown>) ?? {}, [config]);
   const [lists, setLists] = React.useState<Record<CategoryKey, SupportingDocItemShape[]>>(() =>
     getConfig(config)
   );

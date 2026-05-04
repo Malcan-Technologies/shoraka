@@ -7,9 +7,9 @@
  */
 
 import {
+  extractGovernmentId,
   getDisplayRoleLabel,
-  governmentIdFromDirectorKycForEod,
-  shouldIncludePerson,
+  mergeCtosDirectorsForVerification,
   type DirectorKycStatus,
   type OnboardingApplicationResponse,
 } from "@cashsouk/types";
@@ -20,11 +20,40 @@ export type OnboardingCtosOrgFetchState = "not_pulled" | "no_record" | "ready";
 export interface CtosOrgDirectorParsed {
   ic_lcno: string | null;
   nic_brno: string | null;
+  brn_ssm: string | null;
   name: string | null;
   position: string | null;
   equity_percentage: number | null;
   equity: number | null;
   party_type: string | null;
+  addr?: string | null;
+  appoint?: string | null;
+  resign_date?: string | null;
+  remark?: string | null;
+}
+
+function getCtosId(x: unknown): string | null {
+  if (!x || typeof x !== "object") return null;
+  const row = x as Record<string, unknown>;
+  const partyType = typeof row.party_type === "string" ? row.party_type.trim().toUpperCase() : "";
+  if (partyType === "I") {
+    const id = row.nic_brno;
+    if (typeof id === "string" && id.trim()) {
+      return id.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+    }
+    return null;
+  }
+  if (partyType === "C") {
+    const id =
+      typeof row.ic_lcno === "string" && row.ic_lcno.trim()
+        ? row.ic_lcno
+        : row.brn_ssm;
+    if (typeof id === "string" && id.trim()) {
+      return id.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+    }
+    return null;
+  }
+  return null;
 }
 
 export interface OnboardingCompanyTable {
@@ -59,18 +88,18 @@ function ctosPositionCode(position: string | null | undefined): string {
   return String(position ?? "").trim().toUpperCase();
 }
 
+/** CTOS director-side codes only (`SC` is not a director code). */
 function isCtosDirectorTableRow(code: string): boolean {
   return code === "DO" || code === "AD" || code === "DS" || code === "AS";
 }
 
+/** CTOS shareholder-side codes only (`SC` is not included here — unchanged qualification rules). */
 function isCtosShareholderTableRow(code: string): boolean {
   return code === "SO" || code === "DS" || code === "AS";
 }
 
 export function primaryCtosIdFromDirectorRow(r: CtosOrgDirectorParsed): string {
-  const a = r.nic_brno != null ? String(r.nic_brno).trim() : "";
-  const b = r.ic_lcno != null ? String(r.ic_lcno).trim() : "";
-  return a || b;
+  return getCtosId(r) ?? "";
 }
 
 export function displayIdFromApp(governmentId: string | null | undefined): string | null {
@@ -90,51 +119,199 @@ function extractCtosOrgDirectorsFromCompanyJson(companyJson: unknown): CtosOrgDi
   for (const d of raw) {
     const x = d as Record<string, unknown>;
     const ptRaw = x.party_type != null ? String(x.party_type).trim() : "";
+    const eqRaw = x.equity_percentage;
+    const equityPct =
+      typeof eqRaw === "number"
+        ? eqRaw
+        : typeof eqRaw === "string"
+          ? Number(eqRaw)
+          : null;
+    const equityNum =
+      typeof equityPct === "number" && Number.isFinite(equityPct) ? equityPct : null;
+    const icLcno =
+      x.ic_lcno != null && String(x.ic_lcno).trim() !== ""
+        ? String(x.ic_lcno)
+        : x.ic_no != null && String(x.ic_no).trim() !== ""
+          ? String(x.ic_no)
+          : null;
     out.push({
-      ic_lcno: x.ic_lcno != null ? String(x.ic_lcno) : null,
+      ic_lcno: icLcno,
       nic_brno: x.nic_brno != null ? String(x.nic_brno) : null,
+      brn_ssm: x.brn_ssm != null ? String(x.brn_ssm) : null,
       name: x.name != null ? String(x.name) : null,
       position: x.position != null ? String(x.position) : null,
-      equity_percentage: typeof x.equity_percentage === "number" ? x.equity_percentage : null,
+      equity_percentage: equityNum,
       equity: typeof x.equity === "number" ? x.equity : null,
       party_type: ptRaw !== "" ? ptRaw : null,
+      addr: x.addr != null ? String(x.addr) : undefined,
+      appoint: x.appoint != null ? String(x.appoint) : undefined,
+      resign_date: x.resign_date != null ? String(x.resign_date) : undefined,
+      remark: x.remark != null ? String(x.remark) : undefined,
     });
   }
   return out;
 }
 
-function appDirectorsFromKyc(directors: DirectorKycStatus[] | undefined): DirectorKycStatus[] {
-  if (!directors?.length) return [];
-  return directors.filter((d) => {
-    const role = String(d.role ?? "");
-    const roleLower = role.toLowerCase();
-    const isDirector = roleLower.includes("director");
-    const isShareholder = roleLower.includes("shareholder");
-    const sharePct = shareholderPctFromAppRole(role);
-    return shouldIncludePerson({
-      type: "INDIVIDUAL",
-      isDirector,
-      isShareholder,
-      sharePercentage: sharePct,
-    }) && isDirector;
-  });
+/**
+ * SECTION: "% of Shares" from corporateEntities formContent only
+ * WHY: Nested personalInfo/formContent/displayAreas hold the field — not role or row.sharePercentage
+ * INPUT: fieldValue from a form row; CE shareholder blobs
+ * OUTPUT: Finite percent or null for map / filter / UI
+ * WHERE USED: buildSharePctMapFromCorporateEntities, synthetic CE shareholder rows
+ */
+
+function parsePctOfSharesFieldValue(value: unknown): number | null {
+  const num =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number(value)
+        : null;
+  if (typeof num !== "number" || !Number.isFinite(num)) return null;
+  return num;
 }
 
-function appShareholdersFromKyc(directors: DirectorKycStatus[] | undefined): DirectorKycStatus[] {
+function findPctOfSharesInFlatContentFields(content: unknown[]): number | null {
+  for (const field of content) {
+    if (!field || typeof field !== "object" || Array.isArray(field)) continue;
+    const f = field as Record<string, unknown>;
+    if (String(f.fieldName ?? "").trim() !== "% of Shares") continue;
+    const pct = parsePctOfSharesFieldValue(f.fieldValue);
+    if (pct !== null) return pct;
+  }
+  return null;
+}
+
+/** Individual: personalInfo.formContent.content[], else root formContent.content (same field list). */
+function sharePctFromIndividualShareholderEntity(p: Record<string, unknown>): number | null {
+  const info = p.personalInfo as Record<string, unknown> | undefined;
+  const fromPersonal = info?.formContent as Record<string, unknown> | undefined;
+  if (Array.isArray(fromPersonal?.content)) {
+    const hit = findPctOfSharesInFlatContentFields(fromPersonal.content as unknown[]);
+    if (hit !== null) return hit;
+  }
+  const rootFc = p.formContent as Record<string, unknown> | undefined;
+  if (Array.isArray(rootFc?.content)) {
+    return findPctOfSharesInFlatContentFields(rootFc.content as unknown[]);
+  }
+  return null;
+}
+
+/** Corporate: BN + "% of Shares" only from formContent.displayAreas[].content[] */
+function corporateBnAndPctOfSharesFromCe(
+  corp: Record<string, unknown>
+): { businessNumber: string | null; pct: number | null } {
+  let businessNumber: string | null = null;
+  let pct: number | null = null;
+  const formContent = corp.formContent as Record<string, unknown> | undefined;
+  const displayAreas = Array.isArray(formContent?.displayAreas) ? formContent.displayAreas : [];
+  for (const area of displayAreas) {
+    if (!area || typeof area !== "object" || Array.isArray(area)) continue;
+    const content = Array.isArray((area as Record<string, unknown>).content)
+      ? ((area as Record<string, unknown>).content as unknown[])
+      : [];
+    const hitPct = findPctOfSharesInFlatContentFields(content);
+    if (hitPct !== null && pct === null) pct = hitPct;
+    for (const field of content) {
+      if (!field || typeof field !== "object" || Array.isArray(field)) continue;
+      const f = field as Record<string, unknown>;
+      if (String(f.fieldName ?? "").trim() !== "Business Number") continue;
+      const raw = String(f.fieldValue ?? "").trim();
+      if (raw && businessNumber === null) businessNumber = raw;
+    }
+  }
+  return { businessNumber, pct };
+}
+
+function sharePctFromCorporateEntityDisplayAreas(corp: Record<string, unknown>): number | null {
+  const { pct } = corporateBnAndPctOfSharesFromCe(corp);
+  return pct;
+}
+
+function governmentIdFromCeShareholder(p: Record<string, unknown>): string | null {
+  const info = p.personalInfo as Record<string, unknown> | undefined;
+  const top = String(info?.governmentIdNumber ?? p.governmentIdNumber ?? "").trim();
+  if (top) return top;
+  const formContent = (info?.formContent ?? p.formContent) as Record<string, unknown> | undefined;
+  const content = Array.isArray(formContent?.content) ? (formContent.content as unknown[]) : [];
+  for (const field of content) {
+    if (!field || typeof field !== "object" || Array.isArray(field)) continue;
+    const f = field as Record<string, unknown>;
+    if (String(f.fieldName ?? "").trim() !== "Government ID Number") continue;
+    const val = String(f.fieldValue ?? "").trim();
+    if (val) return val;
+  }
+  return null;
+}
+
+export function buildSharePctMapFromCorporateEntities(
+  ce: OnboardingApplicationResponse["corporateEntities"]
+): Map<string, number> {
+  const map = new Map<string, number>();
+  if (!ce) return map;
+
+  for (const s of ce.shareholders ?? []) {
+    const p = s as Record<string, unknown>;
+    const pct = sharePctFromIndividualShareholderEntity(p);
+    if (pct === null) continue;
+    const id = normalizeId(governmentIdFromCeShareholder(p));
+    if (id) map.set(id, pct);
+    const eodKey = normalizeId(String(p.eodRequestId ?? "").trim());
+    if (eodKey) map.set(eodKey, pct);
+  }
+
+  for (const c of ce.corporateShareholders ?? []) {
+    const corp = c as Record<string, unknown>;
+    const { businessNumber, pct } = corporateBnAndPctOfSharesFromCe(corp);
+    const key = normalizeId(businessNumber);
+    if (pct === null) continue;
+    if (key) map.set(key, pct);
+    const codKey = normalizeId(String(corp.requestId ?? "").trim());
+    if (codKey) map.set(codKey, pct);
+  }
+
+  return map;
+}
+
+/** Map keys: normalized IC/SSM when present, else normalized eodRequestId (RegTank often has no IC yet). */
+export function lookupSharePctForAppRow(
+  row: DirectorKycStatus,
+  sharePctById: Map<string, number>
+): number | null {
+  const fromGov = normalizeId(row.governmentIdNumber);
+  if (fromGov) {
+    const v = sharePctById.get(fromGov);
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+  }
+  const fromEod = normalizeId(String(row.eodRequestId ?? "").trim());
+  if (!fromEod) return null;
+  const v2 = sharePctById.get(fromEod);
+  return typeof v2 === "number" && Number.isFinite(v2) ? v2 : null;
+}
+
+/** Keep app row in shareholder table: any Shareholder role unless known % is strictly under 5%. */
+function appShareholderRoleShown(
+  d: DirectorKycStatus,
+  sharePctById: Map<string, number>
+): boolean {
+  const roleLower = String(d.role ?? "").toLowerCase();
+  if (!roleLower.includes("shareholder")) return false;
+  const sharePct = lookupSharePctForAppRow(d, sharePctById);
+  if (typeof sharePct === "number" && sharePct < 5) return false;
+  return true;
+}
+
+function appDirectorsFromKyc(directors: DirectorKycStatus[] | undefined): DirectorKycStatus[] {
   if (!directors?.length) return [];
-  return directors.filter((d) => {
-    const role = String(d.role ?? "");
-    const roleLower = role.toLowerCase();
-    const isDirector = roleLower.includes("director");
-    const isShareholder = roleLower.includes("shareholder");
-    const sharePct = shareholderPctFromAppRole(role);
-    return shouldIncludePerson({
-      type: "INDIVIDUAL",
-      isDirector,
-      isShareholder,
-      sharePercentage: sharePct,
-    }) && !isDirector && isShareholder;
-  });
+  return directors.filter((d) => String(d.role ?? "").toLowerCase().includes("director"));
+}
+
+function appShareholdersFromKyc(
+  directors: DirectorKycStatus[] | undefined,
+  sharePctById: Map<string, number>
+): DirectorKycStatus[] {
+  if (!directors?.length) return [];
+  return directors.filter((d) => appShareholderRoleShown(d, sharePctById));
 }
 
 function personNameFromCe(p: Record<string, unknown>): string {
@@ -146,52 +323,18 @@ function personNameFromCe(p: Record<string, unknown>): string {
   return [first, last].filter(Boolean).join(" ").trim();
 }
 
-function ownershipFromCePerson(p: Record<string, unknown>): string | null {
+function issuerIcFromCeFormOnly(p: Record<string, unknown>): string | undefined {
   const info = p.personalInfo as Record<string, unknown> | undefined;
-  const formContent = (info?.formContent ?? p.formContent) as Record<string, unknown> | undefined;
-  const content = Array.isArray(formContent?.content)
-    ? (formContent.content as Array<{ fieldName?: string; fieldValue?: string }>)
-    : [];
-  const shareField = content.find((f) => f.fieldName === "% of Shares");
-  return shareField?.fieldValue ? `${shareField.fieldValue}% ownership` : null;
-}
-
-function issuerIcOrSsmFromCorpPerson(p: Record<string, unknown>): string | undefined {
-  const info = p.personalInfo as Record<string, unknown> | undefined;
-  const fromTop = String(info?.governmentIdNumber ?? "").trim();
-  if (fromTop) return fromTop;
-  const formContent = (info?.formContent ?? p.formContent) as Record<string, unknown> | undefined;
-  const content = Array.isArray(formContent?.content)
-    ? (formContent.content as Array<{ fieldName?: string; fieldValue?: string }>)
-    : [];
-  const idField = content.find((f) => f.fieldName === "Government ID Number");
-  if (idField?.fieldValue) return String(idField.fieldValue).trim();
-  return undefined;
-}
-
-function issuerIcOrSsmForCePersonRow(p: Record<string, unknown>, directorKycJson: unknown): string | undefined {
-  const fromCe = issuerIcOrSsmFromCorpPerson(p);
-  if (fromCe) return fromCe;
-  const eod = String(p.eodRequestId ?? "").trim();
-  return governmentIdFromDirectorKycForEod(directorKycJson, eod) ?? undefined;
+  return extractGovernmentId(info?.formContent) ?? undefined;
 }
 
 function roleForCeShareholder(p: Record<string, unknown>): string {
-  const own = ownershipFromCePerson(p);
-  if (!own) {
-    return getDisplayRoleLabel({
-      isDirector: false,
-      isShareholder: true,
-      sharePercentage: 0,
-    }) || "Shareholder";
-  }
-  const m = /^([\d.]+)/.exec(own);
-  const pct = m ? Number(m[1]) : 0;
+  const pct = sharePctFromIndividualShareholderEntity(p);
   return (
     getDisplayRoleLabel({
       isDirector: false,
       isShareholder: true,
-      sharePercentage: Number.isFinite(pct) ? pct : 0,
+      sharePercentage: typeof pct === "number" ? pct : 0,
     }) || "Shareholder"
   );
 }
@@ -210,16 +353,12 @@ function corpShareholderName(corp: Record<string, unknown>): string {
 }
 
 function corpShareholderBrn(corp: Record<string, unknown>): string | undefined {
-  const formContent = corp.formContent as Record<string, unknown> | undefined;
-  const displayAreas = Array.isArray(formContent?.displayAreas) ? formContent.displayAreas : [];
-  for (const area of displayAreas) {
-    const content = Array.isArray((area as Record<string, unknown>)?.content)
-      ? ((area as Record<string, unknown>).content as Array<{ fieldName?: string; fieldValue?: string }>)
-      : [];
-    const numField = content.find((f) => f.fieldName === "Business Number");
-    if (numField?.fieldValue) return String(numField.fieldValue).trim();
-  }
-  return undefined;
+  const { businessNumber } = corporateBnAndPctOfSharesFromCe(corp);
+  return businessNumber ?? undefined;
+}
+
+function corpShareholderPct(corp: Record<string, unknown>): number | null {
+  return sharePctFromCorporateEntityDisplayAreas(corp);
 }
 
 function corporateEntitiesHasPeople(
@@ -232,9 +371,9 @@ function corporateEntitiesHasPeople(
 
 function directorKycRowsFromCorporateEntities(
   ce: NonNullable<OnboardingApplicationResponse["corporateEntities"]>,
-  directorKycStatus: OnboardingApplicationResponse["directorKycStatus"]
+  _directorKycStatus: OnboardingApplicationResponse["directorKycStatus"]
 ): DirectorKycStatus[] {
-  const kycJson = directorKycStatus as unknown;
+  void _directorKycStatus;
   const rows: DirectorKycStatus[] = [];
   let idx = 0;
   for (const d of ce.directors ?? []) {
@@ -248,7 +387,7 @@ function directorKycRowsFromCorporateEntities(
       email: "",
       role: "Director",
       kycStatus: "APPROVED",
-      governmentIdNumber: issuerIcOrSsmForCePersonRow(p, kycJson),
+      governmentIdNumber: issuerIcFromCeFormOnly(p),
       lastUpdated: new Date(0).toISOString(),
     });
   }
@@ -263,12 +402,13 @@ function directorKycRowsFromCorporateEntities(
       email: "",
       role: roleForCeShareholder(p),
       kycStatus: "APPROVED",
-      governmentIdNumber: issuerIcOrSsmForCePersonRow(p, kycJson),
+      governmentIdNumber: issuerIcFromCeFormOnly(p),
       lastUpdated: new Date(0).toISOString(),
     });
   }
   for (const c of ce.corporateShareholders ?? []) {
     const corp = c as Record<string, unknown>;
+    const pct = corpShareholderPct(corp);
     const codRequestId = String(
       (corp.corporateOnboardingRequest as Record<string, unknown> | undefined)?.requestId ??
         corp.requestId ??
@@ -278,7 +418,10 @@ function directorKycRowsFromCorporateEntities(
       eodRequestId: codRequestId || `ce-corp-${idx++}`,
       name: corpShareholderName(corp),
       email: "",
-      role: "Corporate Shareholder",
+      role:
+        pct !== null && Number.isFinite(pct)
+          ? `Corporate Shareholder (${pct}%)`
+          : "Corporate Shareholder",
       kycStatus: "APPROVED",
       governmentIdNumber: corpShareholderBrn(corp),
       lastUpdated: new Date(0).toISOString(),
@@ -303,24 +446,30 @@ export function getOnboardingPeopleSplit(application: OnboardingApplicationRespo
   shareholders: DirectorKycStatus[];
 } {
   const kycList = effectiveKycDirectors(application);
+  const sharePctById = buildSharePctMapFromCorporateEntities(application.corporateEntities);
   return {
     directors: appDirectorsFromKyc(kycList),
-    shareholders: appShareholdersFromKyc(kycList),
+    shareholders: appShareholdersFromKyc(kycList, sharePctById),
   };
 }
 
+/** Company block uses root `ptype` (not row-level `party_type`). */
 function parseCtosNameReg(companyJson: unknown): { ctosName: string | null; ctosReg: string | null } {
   const cj = companyJson as Record<string, unknown> | null | undefined;
   if (!cj || typeof cj !== "object") return { ctosName: null, ctosReg: null };
   const ctosName = cj.name != null ? String(cj.name) : null;
-  const ctosReg =
-    cj.brn_ssm != null
-      ? String(cj.brn_ssm)
-      : cj.nic_brno != null
-        ? String(cj.nic_brno)
-        : cj.ic_lcno != null
-          ? String(cj.ic_lcno)
-          : null;
+  const partyType = String(cj.ptype ?? "").trim().toUpperCase();
+
+  let ctosReg: string | null = null;
+  if (partyType === "C") {
+    const ic = cj.ic_lcno != null ? String(cj.ic_lcno).trim() : "";
+    const brn = cj.brn_ssm != null ? String(cj.brn_ssm).trim() : "";
+    ctosReg = ic || brn || null;
+  } else if (partyType === "I") {
+    const nb = cj.nic_brno != null ? String(cj.nic_brno).trim() : "";
+    ctosReg = nb || null;
+  }
+
   return { ctosName, ctosReg };
 }
 
@@ -340,23 +489,30 @@ export function companyJsonReadyForCtosCompare(companyJson: unknown): boolean {
   return Array.isArray(cj.directors) && cj.directors.length > 0;
 }
 
-/** Parse % from role like "Shareholder (35%)". Invalid → 0. Corporate without % → 100 (keep visible). */
+/**
+ * SECTION: CTOS equity_percentage → display %
+ * WHY: Missing % keeps the row listed; callers must distinguish null from zero
+ * OUTPUT: Percent 0–100+, or null if absent / invalid on the CTOS row
+ */
+export function ctosResolvedSharePctPercent(r: CtosOrgDirectorParsed): number | null {
+  const raw = r.equity_percentage;
+  if (raw == null) return null;
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return null;
+  if (raw > 0 && raw <= 1) return raw * 100;
+  return raw;
+}
+
+/** Parse % from role like "Shareholder (35%)". Invalid → 0. */
 export function shareholderPctFromAppRole(role: string): number {
-  if (/corporate\s*shareholder/i.test(role)) return 100;
   const m = /\(\s*([\d.]+%?)\s*\)/.exec(role);
   if (!m) return 0;
   const n = parseFloat(String(m[1]).replace("%", ""));
   return Number.isFinite(n) ? n : 0;
 }
 
-/** CTOS equity_percentage: treat 0–1 as fraction of 100. */
+/** Legacy naming: unknown CTOS equity → 0 — prefer ctosResolvedSharePctPercent when null matters. */
 export function shareholderPctFromCtosRow(r: CtosOrgDirectorParsed): number {
-  const a = r.equity_percentage;
-  if (typeof a === "number" && !Number.isNaN(a)) {
-    if (a > 0 && a <= 1) return a * 100;
-    return a;
-  }
-  return 0;
+  return ctosResolvedSharePctPercent(r) ?? 0;
 }
 
 function qualifiesCtosDirector(r: CtosOrgDirectorParsed): boolean {
@@ -365,6 +521,13 @@ function qualifiesCtosDirector(r: CtosOrgDirectorParsed): boolean {
 
 function qualifiesCtosShareholder(r: CtosOrgDirectorParsed): boolean {
   return isCtosShareholderTableRow(ctosPositionCode(r.position));
+}
+
+function qualifiesCtosShareholderListed(r: CtosOrgDirectorParsed): boolean {
+  if (!qualifiesCtosShareholder(r)) return false;
+  const pct = ctosResolvedSharePctPercent(r);
+  if (pct === null) return true;
+  return pct >= 5;
 }
 
 /**
@@ -442,37 +605,30 @@ export function buildOnboardingCtosComparison(
   };
 
   const kycList = effectiveKycDirectors(application);
+  const sharePctById = buildSharePctMapFromCorporateEntities(application.corporateEntities);
   const appDirList = appDirectorsFromKyc(kycList);
-  const appShList = appShareholdersFromKyc(kycList);
+  const appShList = appShareholdersFromKyc(kycList, sharePctById);
   const appShFiltered = appShList;
 
-  const ctosAll = ready && companyJson ? extractCtosOrgDirectorsFromCompanyJson(companyJson) : [];
+  const ctosAll =
+    ready && companyJson
+      ? mergeCtosDirectorsForVerification(extractCtosOrgDirectorsFromCompanyJson(companyJson))
+      : [];
 
-  const used = new Set<number>();
-  const dirPart = partitionPeople(appDirList, ctosAll, qualifiesCtosDirector, used);
-  const shPart = partitionPeople(
-    appShFiltered,
-    ctosAll,
-    (r) => qualifiesCtosShareholder(r) && shareholderPctFromCtosRow(r) >= 5,
-    used
-  );
-
-  const allMatched = new Set([...dirPart.matchedCtosIndices, ...shPart.matchedCtosIndices]);
+  // Keep director/shareholder matching independent so DS/AS rows can appear in both sections.
+  const dirPart = partitionPeople(appDirList, ctosAll, qualifiesCtosDirector, new Set<number>());
+  const shPart = partitionPeople(appShFiltered, ctosAll, qualifiesCtosShareholderListed, new Set<number>());
 
   const directors: OnboardingPeopleBuckets = {
     matched: dirPart.matched,
     onlyApplication: onlyApplicationPeople(appDirList, dirPart.matched),
-    onlyCtos: onlyCtosPeople(ctosAll, qualifiesCtosDirector, allMatched),
+    onlyCtos: onlyCtosPeople(ctosAll, qualifiesCtosDirector, dirPart.matchedCtosIndices),
   };
 
   const shareholders: OnboardingPeopleBuckets = {
     matched: shPart.matched,
     onlyApplication: onlyApplicationPeople(appShFiltered, shPart.matched),
-    onlyCtos: onlyCtosPeople(
-      ctosAll,
-      (r) => qualifiesCtosShareholder(r) && shareholderPctFromCtosRow(r) >= 5,
-      allMatched
-    ),
+    onlyCtos: onlyCtosPeople(ctosAll, qualifiesCtosShareholderListed, shPart.matchedCtosIndices),
   };
 
   if (process.env.NODE_ENV === "development") {

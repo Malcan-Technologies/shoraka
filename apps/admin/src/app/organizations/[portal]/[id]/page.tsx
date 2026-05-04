@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +23,14 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   kycAmlScreeningRiskLevelBadgeClass,
   kycAmlScreeningStatusBadgeClass,
 } from "@/lib/kyc-aml-screening-badge-classes";
@@ -28,12 +38,12 @@ import { SidebarTrigger } from "@/components/ui/sidebar";
 import { SystemHealthIndicator } from "@/components/system-health-indicator";
 import { OrganizationActivityTimeline } from "@/components/organization-activity-timeline";
 import { OrganizationIssuerCtosReportsCard } from "@/components/organization-issuer-ctos-reports-card";
+import { DirectorShareholderTable } from "@/components/admin/director-shareholder-table";
 import {
   useOrganizationDetail,
   useUpdateSophisticatedStatus,
-  useRefreshCorporateEntities,
 } from "@/hooks/use-organization-detail";
-import type { PortalType } from "@cashsouk/types";
+import type { OrganizationDetailResponse, PortalType } from "@cashsouk/types";
 import { format } from "date-fns";
 import {
   UserIcon,
@@ -43,6 +53,7 @@ import {
   DocumentTextIcon,
   CheckCircleIcon,
   ClockIcon,
+  EyeIcon,
   UsersIcon,
   BanknotesIcon,
   ShieldCheckIcon,
@@ -54,10 +65,16 @@ import {
   ShieldExclamationIcon,
   ExclamationTriangleIcon,
   ArrowLeftIcon,
-  ArrowPathIcon,
 } from "@heroicons/react/24/outline";
 import { toast } from "sonner";
+import {
+  normalizeDirectorShareholderIdKey,
+  toTitleCase,
+} from "@cashsouk/types";
+import { createApiClient, formatCurrency, useAuthToken } from "@cashsouk/config";
+import { formatApiErrorMessage } from "@/lib/format-api-error-message";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 function DetailRow({
   label,
   value,
@@ -406,13 +423,13 @@ function KycResponseDisplay({
           {data.status && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Status:</span>
-              <Badge className={kycAmlScreeningStatusBadgeClass(data.status)}>{data.status}</Badge>
+              <Badge className={kycAmlScreeningStatusBadgeClass(data.status)}>{toTitleCase(data.status)}</Badge>
             </div>
           )}
           {data.riskLevel && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Risk Level:</span>
-              <Badge className={kycAmlScreeningRiskLevelBadgeClass(data.riskLevel)}>{data.riskLevel}</Badge>
+              <Badge className={kycAmlScreeningRiskLevelBadgeClass(data.riskLevel)}>{toTitleCase(data.riskLevel)}</Badge>
             </div>
           )}
           {data.riskScore && (
@@ -582,400 +599,198 @@ function formatAddressDisplay(address?: {
   return parts.length > 0 ? parts.join(", ") : "—";
 }
 
-function CorporateEntitiesDisplay({
-  data,
-  onRefresh,
-  isRefreshing,
-}: {
-  data: Record<string, unknown>;
-  onRefresh?: () => void;
-  isRefreshing?: boolean;
-}) {
-  const directors = Array.isArray(data.directors) ? data.directors as Record<string, unknown>[] : [];
-  const shareholders = Array.isArray(data.shareholders) ? data.shareholders as Record<string, unknown>[] : [];
-  const corporateShareholders = Array.isArray(data.corporateShareholders) ? data.corporateShareholders as Record<string, unknown>[] : [];
+type LinkedRecordTab = "all" | "applications" | "contracts" | "notes" | "investments";
+type LinkedRecords = NonNullable<OrganizationDetailResponse["linkedRecords"]>;
 
-  if (directors.length === 0 && shareholders.length === 0 && corporateShareholders.length === 0) return null;
-
-  const renderPerson = (person: Record<string, unknown>, idx: number, isCorporate = false) => {
-    let name: string;
-    let email: string;
-    const status = String(person.status || person.approveStatus || "—");
-    const kycType = person.kycType ? String(person.kycType) : null;
-    const eodRequestId = person.eodRequestId ? String(person.eodRequestId) : null;
-    const corpOnboarding = person.corporateOnboardingRequest as Record<string, unknown> | undefined;
-    const codRequestId = isCorporate
-      ? (person.requestId ? String(person.requestId) : corpOnboarding?.requestId ? String(corpOnboarding.requestId) : null)
-      : null;
-    const docs = (person.documents ?? person.corporateDocumentInfo ?? person.documentInfo) as Record<string, unknown> | undefined;
-
-    if (isCorporate) {
-      const formContent = person.formContent as Record<string, unknown> | undefined;
-      const displayAreas = Array.isArray(formContent?.displayAreas) ? formContent.displayAreas : [];
-      const basicInfo = displayAreas.find(
-        (area: Record<string, unknown>) => area.displayArea === "Basic Information Setting"
-      ) as { content?: Array<{ fieldName?: string; fieldValue?: string }> } | undefined;
-      const content = Array.isArray(basicInfo?.content) ? basicInfo.content : [];
-      const businessNameField = content.find((f: { fieldName?: string }) => f.fieldName === "Business Name");
-      const shareField = content.find((f: { fieldName?: string }) => f.fieldName === "% of Shares");
-      const emailField =
-        content.find((f: { fieldName?: string }) => f.fieldName === "Email") ??
-        content.find((f: { fieldName?: string }) => f.fieldName === "Contact Email") ??
-        content.find((f: { fieldName?: string }) => f.fieldName === "Email Address" || f.fieldName === "Business Email");
-      name = String(
-        businessNameField?.fieldValue || person.companyName || person.businessName || "Unknown"
-      );
-      if (shareField?.fieldValue) {
-        name += ` (${shareField.fieldValue}%)`;
-      }
-      email = String(
-        emailField?.fieldValue || person.email || person.contactEmail || "—"
-      );
-    } else {
-      const info = person.personalInfo as Record<string, unknown> | undefined;
-      name = String(
-        info?.fullName || `${info?.firstName || ""} ${info?.lastName || ""}`.trim() || "Unknown"
-      );
-      email = String(info?.email || "—");
-    }
-
-    let icLabel: string | null = null;
-    if (!isCorporate) {
-      const info = person.personalInfo as Record<string, unknown> | undefined;
-      const fromField = info?.governmentIdNumber
-        ? String(info.governmentIdNumber).trim()
-        : null;
-      const formContent = info?.formContent as
-        | { content?: Array<{ fieldName?: string; fieldValue?: unknown }> }
-        | undefined;
-      const fromForm = formContent?.content?.find((f) => f.fieldName === "Government ID Number")
-        ?.fieldValue;
-      const fromFormStr =
-        fromForm != null && String(fromForm).trim() !== "" ? String(fromForm).trim() : null;
-      icLabel = fromField || fromFormStr;
-    }
-
-    const idLabel = isCorporate ? "COD" : "EOD";
-    const idValue = isCorporate ? codRequestId : eodRequestId;
-    const hasDetails = idValue || typeof docs?.frontDocumentUrl === "string" || typeof docs?.backDocumentUrl === "string";
-
-    return (
-      <div key={idx} className="py-2.5 first:pt-0 last:pb-0 border-b last:border-0">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-sm font-medium">
-              {name}
-              {icLabel && (
-                <span className="font-normal text-muted-foreground">
-                  {" "}
-                  · IC {icLabel}
-                </span>
-              )}
-            </p>
-            <p className="text-xs text-muted-foreground">{email}</p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Badge
-              variant="outline"
-              className={
-                status === "APPROVED" || status === "ID_UPLOADED" || status === "CHECKED"
-                  ? "border-emerald-500/30 text-foreground bg-emerald-500/10 text-[10px]"
-                  : "border-amber-500/30 text-foreground bg-amber-500/10 text-[10px]"
-              }
-            >
-              {status.replace(/_/g, " ")}
-            </Badge>
-            {kycType && (
-              <Badge variant="secondary" className="text-[10px]">
-                {kycType}
-              </Badge>
-            )}
-          </div>
-        </div>
-        {hasDetails && (
-          <div className="flex items-center gap-3 mt-1.5 text-[11px] text-muted-foreground">
-            {idValue && <span className="font-mono">{idLabel}: {idValue}</span>}
-            {typeof docs?.frontDocumentUrl === "string" && (
-              <a
-                href={docs.frontDocumentUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline inline-flex items-center gap-0.5"
-              >
-                <LinkIcon className="h-3 w-3" />
-                Front ID
-              </a>
-            )}
-            {typeof docs?.backDocumentUrl === "string" && (
-              <a
-                href={docs.backDocumentUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline inline-flex items-center gap-0.5"
-              >
-                <LinkIcon className="h-3 w-3" />
-                Back ID
-              </a>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  return (
-    <Card className="rounded-2xl">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <UsersIcon className="h-4 w-4" />
-            Corporate Entities
-          </CardTitle>
-          {onRefresh && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onRefresh}
-              disabled={isRefreshing}
-              className="gap-1.5 h-7"
-            >
-              <ArrowPathIcon
-                className={`h-3.5 w-3.5 ${isRefreshing ? "animate-spin" : ""}`}
-              />
-              Refresh
-            </Button>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-5">
-        {directors.length > 0 && (
-          <div>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-              Directors ({directors.length})
-            </p>
-            <div className="divide-y">
-              {directors.map((p, i) => renderPerson(p, i, false))}
-            </div>
-          </div>
-        )}
-        {shareholders.length > 0 && (
-          <div>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-              Shareholders ({shareholders.length})
-            </p>
-            <div className="divide-y">
-              {shareholders.map((p, i) => renderPerson(p, i, false))}
-            </div>
-          </div>
-        )}
-        {corporateShareholders.length > 0 && (
-          <div>
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-              Corporate Shareholders ({corporateShareholders.length})
-            </p>
-            <div className="divide-y">
-              {corporateShareholders.map((corp, idx) => renderPerson(corp, idx, true))}
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function DirectorStatusDisplay({
-  data,
-  label,
-  icon: Icon,
-  statusKey,
-  filterFn,
-}: {
-  data: Record<string, unknown>;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-  statusKey: "kycStatus" | "amlStatus";
-  filterFn?: (dir: Record<string, unknown>) => boolean;
-}) {
-  const directorsFromData = Array.isArray(data.directors) ? data.directors as Record<string, unknown>[] : [];
-  const individualShareholdersFromData = Array.isArray(data.individualShareholders)
-    ? data.individualShareholders as Record<string, unknown>[]
-    : [];
-  const allDirectors = [...directorsFromData, ...individualShareholdersFromData];
-  const deduplicatedMap = new Map<string, Record<string, unknown>>();
-  for (const dir of allDirectors) {
-    const email = String(dir.email || "").toLowerCase().trim();
-    const role = String(dir.role || "");
-    if (!email) continue;
-    const existing = deduplicatedMap.get(email);
-    if (!existing || role.includes("Shareholder")) {
-      deduplicatedMap.set(email, dir);
-    }
+function statusBadgeClass(status: string) {
+  if (["APPROVED", "COMPLETED", "ACTIVE", "REPAID", "CONFIRMED", "RELEASED"].includes(status)) {
+    return "border-transparent bg-status-success-bg text-status-success-text dark:bg-emerald-950/40 dark:text-emerald-300";
   }
-  const deduplicatedDirectors = Array.from(deduplicatedMap.values());
-  const directors = filterFn ? deduplicatedDirectors.filter(filterFn) : deduplicatedDirectors;
-  const lastSynced = data.lastSyncedAt ? String(data.lastSyncedAt) : null;
-
-  if (directors.length === 0) return null;
-
-  return (
-    <Card className="rounded-2xl">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <Icon className="h-4 w-4" />
-            {label}
-          </CardTitle>
-          {lastSynced && (
-            <span className="text-[10px] text-muted-foreground">
-              Synced {format(new Date(lastSynced), "MMM d, yyyy HH:mm")}
-            </span>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="divide-y">
-          {directors.map((dir, idx) => {
-            const name = String(dir.name || "Unknown");
-            const email = dir.email ? String(dir.email) : null;
-            const rawRole = dir.role ? String(dir.role) : null;
-            const role = rawRole
-              ? [...new Set(rawRole.split(",").map((s) => s.trim()).filter(Boolean))].join(", ")
-              : null;
-            const status = dir[statusKey] ? String(dir[statusKey]) : (dir.amlStatus ? String(dir.amlStatus) : null);
-            const kycId = dir.kycId ? String(dir.kycId) : null;
-            const eodId = dir.eodRequestId ? String(dir.eodRequestId) : null;
-            const governmentIdNumber = dir.governmentIdNumber
-              ? String(dir.governmentIdNumber)
-              : null;
-            const riskLevel = dir.amlRiskLevel ? String(dir.amlRiskLevel) : null;
-            const riskScore = dir.amlRiskScore ? String(dir.amlRiskScore) : null;
-
-            return (
-              <div key={idx} className="py-2.5 first:pt-0 last:pb-0">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">{name}</p>
-                    {email && <p className="text-xs text-muted-foreground">{email}</p>}
-                    {role && <p className="text-xs text-muted-foreground">{role}</p>}
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {status && (
-                      <Badge
-                        variant="outline"
-                        className={
-                          status === "APPROVED" || status === "Approved"
-                            ? "border-emerald-500/30 text-foreground bg-emerald-500/10 text-[10px]"
-                            : status === "REJECTED" || status === "Rejected"
-                              ? "border-red-500/30 text-foreground bg-red-500/10 text-[10px]"
-                              : "border-amber-500/30 text-foreground bg-amber-500/10 text-[10px]"
-                        }
-                      >
-                        {status}
-                      </Badge>
-                    )}
-                    {riskLevel && (
-                      <Badge variant="secondary" className="text-[10px]">
-                        {riskLevel}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground font-mono flex-wrap">
-                  {governmentIdNumber && <span>IC: {governmentIdNumber}</span>}
-                  {kycId && <span>KYC: {kycId}</span>}
-                  {eodId && <span>EOD: {eodId}</span>}
-                  {riskScore && <span>Score: {riskScore}</span>}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
-  );
+  if (["SUBMITTED", "RESUBMITTED", "PUBLISHED", "COMMITTED"].includes(status)) {
+    return "border-transparent bg-status-submitted-bg text-status-submitted-text dark:bg-blue-950/40 dark:text-blue-300";
+  }
+  if (["UNDER_REVIEW", "CONTRACT_PENDING", "CONTRACT_ACCEPTED", "INVOICE_PENDING", "FUNDING", "OPEN"].includes(status)) {
+    return "border-transparent bg-status-in-progress-bg text-status-in-progress-text dark:bg-indigo-950/40 dark:text-indigo-300";
+  }
+  if (["DRAFT", "AMENDMENT_REQUESTED", "ARREARS"].includes(status)) {
+    return "border-transparent bg-status-action-bg text-status-action-text dark:bg-amber-950/40 dark:text-amber-300";
+  }
+  if (["REJECTED", "FAILED", "FAILED_FUNDING", "DEFAULTED", "CANCELLED", "WITHDRAWN"].includes(status)) {
+    return "border-transparent bg-status-rejected-bg text-status-rejected-text dark:bg-red-950/40 dark:text-red-300";
+  }
+  return "border-transparent bg-status-neutral-bg text-status-neutral-text dark:bg-slate-800/50 dark:text-slate-300";
 }
 
-function BusinessShareholderStatusDisplay({
-  data,
-  label,
-  icon: Icon,
+function LinkedRecordsTable({
+  linkedRecords,
+  activeTab,
+  onTabChange,
 }: {
-  data: Record<string, unknown>;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
+  linkedRecords?: LinkedRecords;
+  activeTab: LinkedRecordTab;
+  onTabChange: (tab: LinkedRecordTab) => void;
 }) {
-  const businessShareholders = Array.isArray(data.businessShareholders)
-    ? (data.businessShareholders as Record<string, unknown>[])
-    : [];
-  const lastSynced = data.lastSyncedAt ? String(data.lastSyncedAt) : null;
-
-  if (businessShareholders.length === 0) return null;
+  const records = linkedRecords ?? {
+    applications: [],
+    contracts: [],
+    notes: [],
+    investments: [],
+  };
+  const rows = [
+    ...records.applications.map((record) => ({
+      id: record.id,
+      type: "applications" as const,
+      typeLabel: "Application",
+      title: record.id.slice(-8).toUpperCase(),
+      subtitle: record.productId ? `Product ${record.productId}` : "Application",
+      amount: record.requestedAmount,
+      status: record.status,
+      updatedAt: record.updatedAt,
+      href: record.productId ? `/applications/${encodeURIComponent(record.productId)}/${encodeURIComponent(record.id)}` : null,
+    })),
+    ...records.contracts.map((record) => ({
+      id: record.id,
+      type: "contracts" as const,
+      typeLabel: "Contract",
+      title: record.title ?? record.contractNumber ?? record.id.slice(-8).toUpperCase(),
+      subtitle: record.contractNumber ?? record.id,
+      amount: record.contractValue,
+      status: record.status,
+      updatedAt: record.updatedAt,
+      href: `/contracts/${encodeURIComponent(record.id)}`,
+    })),
+    ...records.notes.map((record) => ({
+      id: record.id,
+      type: "notes" as const,
+      typeLabel: "Note",
+      title: record.noteReference,
+      subtitle: record.title,
+      amount: record.targetAmount,
+      status: record.status,
+      updatedAt: record.updatedAt,
+      href: `/notes/${encodeURIComponent(record.id)}`,
+    })),
+    ...records.investments.map((record) => ({
+      id: record.id,
+      type: "investments" as const,
+      typeLabel: "Investment",
+      title: record.id.slice(-8).toUpperCase(),
+      subtitle: `${record.noteReference} · ${record.noteTitle}`,
+      amount: record.amount,
+      status: record.status,
+      updatedAt: record.updatedAt,
+      href: `/notes/${encodeURIComponent(record.noteId)}`,
+    })),
+  ];
+  const filteredRows = activeTab === "all" ? rows : rows.filter((row) => row.type === activeTab);
+  const tabs: { value: LinkedRecordTab; label: string; count: number }[] = [
+    { value: "all", label: "All", count: rows.length },
+    { value: "applications", label: "Applications", count: records.applications.length },
+    { value: "contracts", label: "Contracts", count: records.contracts.length },
+    { value: "notes", label: "Notes", count: records.notes.length },
+    { value: "investments", label: "Investments", count: records.investments.length },
+  ];
 
   return (
     <Card className="rounded-2xl">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium flex items-center gap-2">
-            <Icon className="h-4 w-4" />
-            {label}
-          </CardTitle>
-          {lastSynced && (
-            <span className="text-[10px] text-muted-foreground">
-              Synced {format(new Date(lastSynced), "MMM d, yyyy HH:mm")}
-            </span>
-          )}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <LinkIcon className="h-4 w-4" />
+              Linked Records
+            </CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Contracts, applications, notes, and investments connected to this organization.
+            </p>
+          </div>
+          <Badge variant="secondary" className="rounded-xl px-3 py-1">
+            {rows.length} {rows.length === 1 ? "record" : "records"}
+          </Badge>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="divide-y">
-          {businessShareholders.map((biz, idx) => {
-            const businessName = String(biz.businessName || "Unknown");
-            const sharePercentage = biz.sharePercentage ? `${biz.sharePercentage}%` : null;
-            const amlStatus = biz.amlStatus ? String(biz.amlStatus) : null;
-            const codRequestId = biz.codRequestId ? String(biz.codRequestId) : null;
-            const kybId = biz.kybId ? String(biz.kybId) : null;
-            const riskLevel = biz.amlRiskLevel ? String(biz.amlRiskLevel) : null;
-            const riskScore = biz.amlRiskScore ? String(biz.amlRiskScore) : null;
-
-            return (
-              <div key={idx} className="py-2.5 first:pt-0 last:pb-0">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium">{businessName}</p>
-                    {sharePercentage && (
-                      <p className="text-xs text-muted-foreground">Shareholding: {sharePercentage}</p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {amlStatus && (
-                      <Badge
-                        variant="outline"
-                        className={
-                          amlStatus === "Approved"
-                            ? "border-emerald-500/30 text-foreground bg-emerald-500/10 text-[10px]"
-                            : amlStatus === "Rejected"
-                              ? "border-red-500/30 text-foreground bg-red-500/10 text-[10px]"
-                              : "border-amber-500/30 text-foreground bg-amber-500/10 text-[10px]"
-                        }
-                      >
-                        {amlStatus}
-                      </Badge>
-                    )}
-                    {riskLevel && (
-                      <Badge variant="secondary" className="text-[10px]">
-                        {riskLevel}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 mt-1 text-[11px] text-muted-foreground font-mono">
-                  {codRequestId && <span>COD: {codRequestId}</span>}
-                  {kybId && <span>KYB: {kybId}</span>}
-                  {riskScore && <span>Score: {riskScore}</span>}
-                </div>
-              </div>
-            );
-          })}
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap gap-2">
+          {tabs.map((tab) => (
+            <Button
+              key={tab.value}
+              type="button"
+              size="sm"
+              variant={activeTab === tab.value ? "default" : "outline"}
+              className="rounded-full"
+              onClick={() => onTabChange(tab.value)}
+            >
+              {tab.label}
+              <span className="ml-2 rounded-full bg-background/20 px-2 py-0.5 text-xs">
+                {tab.count}
+              </span>
+            </Button>
+          ))}
+        </div>
+        <div className="overflow-hidden rounded-xl border">
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead>Type</TableHead>
+                  <TableHead>Reference</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Updated</TableHead>
+                  <TableHead>Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
+                      No linked records found for this filter.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredRows.map((row) => (
+                    <TableRow key={`${row.type}-${row.id}`} className="odd:bg-muted/40 hover:bg-muted">
+                      <TableCell>
+                        <Badge variant="outline">{row.typeLabel}</Badge>
+                      </TableCell>
+                      <TableCell className="min-w-[220px]">
+                        <div className="font-medium">{row.title}</div>
+                        <div className="mt-0.5 max-w-sm truncate font-mono text-xs text-muted-foreground" title={row.subtitle}>
+                          {row.subtitle}
+                        </div>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-sm font-semibold">
+                        {row.amount == null ? "—" : formatCurrency(row.amount)}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={statusBadgeClass(row.status)}>
+                          {toTitleCase(row.status)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-sm text-muted-foreground">
+                        {format(new Date(row.updatedAt), "dd MMM yyyy")}
+                      </TableCell>
+                      <TableCell>
+                        {row.href ? (
+                          <Button asChild variant="ghost" size="sm" className="h-8 px-2">
+                            <Link href={row.href}>
+                              <EyeIcon className="h-4 w-4 mr-1" />
+                              View
+                            </Link>
+                          </Button>
+                        ) : (
+                          <Button variant="ghost" size="sm" className="h-8 px-2" disabled>
+                            <EyeIcon className="h-4 w-4 mr-1" />
+                            View
+                          </Button>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       </CardContent>
     </Card>
@@ -1006,9 +821,73 @@ export default function OrganizationDetailPage() {
   const organizationId = params.id as string;
 
   const { data: org, isLoading, error } = useOrganizationDetail(portal, organizationId);
-  const updateSophisticatedMutation = useUpdateSophisticatedStatus();
-  const refreshCorporateEntitiesMutation = useRefreshCorporateEntities();
+  const { getAccessToken } = useAuthToken();
+  const apiClient = React.useMemo(() => createApiClient(API_URL, getAccessToken), [getAccessToken]);
+  const queryClient = useQueryClient();
 
+  const [ctosFetchSubjectKey, setCtosFetchSubjectKey] = React.useState<string | null>(null);
+  const [linkedRecordsTab, setLinkedRecordsTab] = React.useState<LinkedRecordTab>("all");
+
+  const fetchSubjectCtosMutation = useMutation({
+    mutationFn: async (input: {
+      subjectRef: string;
+      subjectKind: "INDIVIDUAL" | "CORPORATE";
+      displayName: string;
+      idNumber: string;
+    }) => {
+      const idNumber = input.idNumber.trim();
+      const displayName = input.displayName.trim();
+      if (!idNumber || !displayName) {
+        throw new Error("Missing display name or IC/SSM");
+      }
+      const res = await apiClient.createAdminOrganizationCtosSubjectReport(
+        portal as "issuer" | "investor",
+        organizationId,
+        {
+          subjectRef: input.subjectRef,
+          subjectKind: input.subjectKind,
+          enquiryOverride: { displayName, idNumber },
+        }
+      );
+      if (!res.success) throw new Error(formatApiErrorMessage(res.error));
+      return res.data;
+    },
+    onMutate: (input) => {
+      setCtosFetchSubjectKey(input.subjectRef);
+    },
+    onSuccess: async () => {
+      await queryClient.refetchQueries({
+        queryKey: ["admin", "organization-detail", portal, organizationId],
+      });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "organization-ctos-reports-inline", portal, organizationId] });
+      void queryClient.invalidateQueries({ queryKey: ["admin", "organization-ctos-reports", portal, organizationId] });
+      toast.success("CTOS subject report saved.");
+    },
+    onError: (e: Error) => {
+      toast.error(e.message || "CTOS subject request failed");
+    },
+    onSettled: () => {
+      setCtosFetchSubjectKey(null);
+    },
+  });
+  const notifyActionRequiredMutation = useMutation({
+    mutationFn: async (input: { partyKey: string }) => {
+      const res = await apiClient.notifyIssuerDirectorShareholderActionRequired(
+        organizationId,
+        input
+      );
+      if (!res.success) throw new Error(formatApiErrorMessage(res.error));
+      return res.data;
+    },
+    onSuccess: () => {
+      toast.success("Notify sent to issuer.");
+      void queryClient.invalidateQueries({ queryKey: ["admin", "organization-detail", portal, organizationId] });
+    },
+    onError: (e: Error) => {
+      toast.error(e.message || "Notify failed");
+    },
+  });
+  const updateSophisticatedMutation = useUpdateSophisticatedStatus();
   const [showSophisticatedDialog, setShowSophisticatedDialog] = React.useState(false);
   const [pendingSophisticatedStatus, setPendingSophisticatedStatus] = React.useState<boolean | null>(null);
   const [sophisticatedReason, setSophisticatedReason] = React.useState("");
@@ -1142,7 +1021,7 @@ export default function OrganizationDetailPage() {
                             ) : (
                               <Badge variant="secondary" className="text-xs">
                                 <ClockIcon className="h-3 w-3 mr-1" />
-                                {org.onboardingStatus}
+                                {toTitleCase(org.onboardingStatus)}
                               </Badge>
                             )}
                           </div>
@@ -1189,6 +1068,18 @@ export default function OrganizationDetailPage() {
                         value={org.onboardedAt ? format(new Date(org.onboardedAt), "PPpp") : null}
                         icon={CheckCircleIcon}
                       />
+                      <DetailRow
+                        label="Owner"
+                        value={
+                          <Link
+                            href={`/users/${encodeURIComponent(org.owner.userId)}`}
+                            className="hover:text-primary hover:underline"
+                          >
+                            {org.owner.firstName} {org.owner.lastName}
+                          </Link>
+                        }
+                        icon={UserIcon}
+                      />
                       <DetailRow label="Created" value={format(new Date(org.createdAt), "PPpp")} icon={ClockIcon} />
                       <DetailRow label="Updated" value={format(new Date(org.updatedAt), "PPpp")} icon={ClockIcon} />
                     </div>
@@ -1212,71 +1103,11 @@ export default function OrganizationDetailPage() {
                   </CardContent>
                 </Card>
 
-                {/* Applications (issuer only) */}
-                {org.applications && org.applications.length > 0 && (
-                  <Card className="rounded-2xl">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-medium flex items-center gap-2">
-                        <DocumentTextIcon className="h-4 w-4" />
-                        Applications ({org.applications.length})
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-0">
-                      <div className="divide-y">
-                        {org.applications.map((app) => (
-                          <div
-                            key={app.id}
-                            className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0"
-                          >
-                            <div className="flex items-center gap-3 min-w-0">
-                              <Badge
-                                variant="outline"
-                                className={
-                                  app.status === "APPROVED"
-                                    ? "border-emerald-500/30 text-foreground bg-emerald-500/10 text-xs"
-                                    : app.status === "SUBMITTED"
-                                      ? "border-blue-500/30 text-foreground bg-blue-500/10 text-xs"
-                                      : app.status === "REJECTED"
-                                        ? "border-red-500/30 text-foreground bg-red-500/10 text-xs"
-                                        : app.status === "ARCHIVED"
-                                          ? "border-slate-500/30 text-foreground bg-slate-500/10 text-xs"
-                                          : "border-amber-500/30 text-foreground bg-amber-500/10 text-xs"
-                                }
-                              >
-                                {app.status === "DRAFT" && <ClockIcon className="h-3 w-3 mr-1 text-amber-600" />}
-                                {app.status === "SUBMITTED" && <DocumentTextIcon className="h-3 w-3 mr-1 text-blue-600" />}
-                                {app.status === "APPROVED" && <CheckCircleIcon className="h-3 w-3 mr-1 text-emerald-600" />}
-                                {app.status === "REJECTED" && <ExclamationTriangleIcon className="h-3 w-3 mr-1 text-red-600" />}
-                                {app.status === "ARCHIVED" && <DocumentTextIcon className="h-3 w-3 mr-1 text-slate-600" />}
-                                {app.status.charAt(0) + app.status.slice(1).toLowerCase()}
-                              </Badge>
-                              <span className="text-xs text-muted-foreground font-mono truncate">
-                                {app.id}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-3 shrink-0 text-xs text-muted-foreground">
-                              {app.submittedAt && (
-                                <span title={format(new Date(app.submittedAt), "PPpp")}>
-                                  Submitted {format(new Date(app.submittedAt), "MMM d, yyyy")}
-                                </span>
-                              )}
-                              {!app.submittedAt && (
-                                <span title={format(new Date(app.createdAt), "PPpp")}>
-                                  Created {format(new Date(app.createdAt), "MMM d, yyyy")}
-                                </span>
-                              )}
-                              {app.contractId && (
-                                <Badge variant="outline" className="text-[10px] h-5 px-1.5">
-                                  Has Contract
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+                <LinkedRecordsTable
+                  linkedRecords={org.linkedRecords}
+                  activeTab={linkedRecordsTab}
+                  onTabChange={setLinkedRecordsTab}
+                />
 
                 {/* Members + Company Info (or just Members for personal) */}
                 <div className={org.type === "COMPANY" ? "grid grid-cols-1 lg:grid-cols-2 gap-6" : ""}>
@@ -1301,9 +1132,12 @@ export default function OrganizationDetailPage() {
                                   <UserIcon className="h-4 w-4 text-primary" />
                                 </div>
                                 <div>
-                                  <div className="text-sm font-medium">
+                                  <Link
+                                    href={`/users/${encodeURIComponent(member.userId)}`}
+                                    className="text-sm font-medium hover:text-primary hover:underline"
+                                  >
                                     {member.firstName} {member.lastName}
-                                  </div>
+                                  </Link>
                                   <div className="text-xs text-muted-foreground">{member.email}</div>
                                 </div>
                               </div>
@@ -1531,95 +1365,48 @@ export default function OrganizationDetailPage() {
                   </Card>
                 )}
 
-                {/* Corporate entities — Directors & Shareholders (COMPANY only) */}
-                {org.type === "COMPANY" && org.corporateEntities && (
-                  <CorporateEntitiesDisplay
-                    data={org.corporateEntities as Record<string, unknown>}
-                    onRefresh={() =>
-                      refreshCorporateEntitiesMutation.mutate(
-                        { organizationId: org.id, portal },
-                        {
-                          onSuccess: () => toast.success("Corporate entities refreshed"),
-                          onError: (err) =>
-                            toast.error(`Failed to refresh: ${err instanceof Error ? err.message : "Unknown error"}`),
-                        }
-                      )
-                    }
-                    isRefreshing={refreshCorporateEntitiesMutation.isPending}
-                  />
-                )}
-
-                {/* Director & Shareholder KYC & AML Status (COMPANY only) */}
-                {org.type === "COMPANY" &&
-                  (org.directorKycStatus || org.directorAmlStatus) && (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {org.directorKycStatus && (
-                        <>
-                          <DirectorStatusDisplay
-                            data={org.directorKycStatus as Record<string, unknown>}
-                            label="Directors KYC Status"
-                            icon={ShieldCheckIcon}
-                            statusKey="kycStatus"
-                            filterFn={(dir) => {
-                              const role = String(dir.role || "");
-                              return !role.includes("Shareholder");
-                            }}
-                          />
-                          <DirectorStatusDisplay
-                            data={org.directorKycStatus as Record<string, unknown>}
-                            label="Individual Shareholders KYC Status"
-                            icon={ShieldCheckIcon}
-                            statusKey="kycStatus"
-                            filterFn={(dir) => {
-                              const role = String(dir.role || "");
-                              return role.includes("Shareholder");
-                            }}
-                          />
-                        </>
-                      )}
-                      {org.directorAmlStatus && (
-                        <>
-                          <DirectorStatusDisplay
-                            data={org.directorAmlStatus as Record<string, unknown>}
-                            label="Directors AML Status"
-                            icon={ShieldExclamationIcon}
-                            statusKey="amlStatus"
-                            filterFn={(dir) => {
-                              const role = String(dir.role || "");
-                              return !role.includes("Shareholder");
-                            }}
-                          />
-                          <DirectorStatusDisplay
-                            data={org.directorAmlStatus as Record<string, unknown>}
-                            label="Individual Shareholders AML Status"
-                            icon={ShieldExclamationIcon}
-                            statusKey="amlStatus"
-                            filterFn={(dir) => {
-                              const role = String(dir.role || "");
-                              return role.includes("Shareholder");
-                            }}
-                          />
-                          <BusinessShareholderStatusDisplay
-                            data={org.directorAmlStatus as Record<string, unknown>}
-                            label="Business Shareholders AML Status"
-                            icon={BuildingOffice2Icon}
-                          />
-                        </>
-                      )}
-                    </div>
-                  )}
-
-                {/* Business AML Status (COMPANY only) */}
-                {org.type === "COMPANY" && org.businessAmlStatus && (
-                  <JsonDisplay
-                    data={org.businessAmlStatus as Record<string, unknown>}
-                    label={
-                      <span className="flex items-center gap-2">
-                        <ShieldExclamationIcon className="h-4 w-4" />
-                        Business AML Status
-                      </span>
-                    }
-                  />
+                {org.type === "COMPANY" && (
+                  <Card className="rounded-2xl">
+                    <CardHeader className="pb-3">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                          <UsersIcon className="h-4 w-4" />
+                          Directors and Shareholders
+                        </CardTitle>
+                        {null}
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <DirectorShareholderTable
+                        people={org.people ?? []}
+                        portal={portal === "investor" ? "investor" : "issuer"}
+                        organizationId={organizationId}
+                        subjectCtosReports={org.latestOrganizationCtosSubjectReports ?? null}
+                        ctosFetchPendingKey={ctosFetchSubjectKey}
+                        ctosFetchPending={fetchSubjectCtosMutation.isPending}
+                        notifyPending={notifyActionRequiredMutation.isPending}
+                        onFetchSubjectCtos={(person) => {
+                          const idKey = normalizeDirectorShareholderIdKey(person.matchKey);
+                          if (!idKey) {
+                            toast.error("Missing IC / SSM. Cannot fetch CTOS report.");
+                            return;
+                          }
+                          const displayName = person.name?.trim();
+                          if (!displayName) {
+                            toast.error("Missing name. Cannot fetch CTOS report.");
+                            return;
+                          }
+                          fetchSubjectCtosMutation.mutate({
+                            subjectRef: idKey,
+                            subjectKind: person.entityType === "CORPORATE" ? "CORPORATE" : "INDIVIDUAL",
+                            displayName,
+                            idNumber: idKey,
+                          });
+                        }}
+                        onNotify={(person) => notifyActionRequiredMutation.mutate({ partyKey: person.matchKey })}
+                      />
+                    </CardContent>
+                  </Card>
                 )}
 
                 {/* Corporate Required Documents (COMPANY only) */}

@@ -27,7 +27,7 @@
 
 import * as React from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
-import { useAuthToken } from "@cashsouk/config";
+import { useAuthToken, useOrganization } from "@cashsouk/config";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -49,12 +49,17 @@ import { useApprovedContracts } from "@/hooks/use-contracts";
 import { useProducts } from "@/hooks/use-products";
 import { toast } from "sonner";
 import {
+  filterVisiblePeopleRows,
   getStepKeyFromStepId,
   APPLICATION_STEP_KEYS_WITH_UI,
   STEP_KEY_DISPLAY,
   enforceDeclarationsLastAndDropReview,
   type ApplicationStepKey,
+  ApplicationStatus,
+  type Product,
 } from "@cashsouk/types";
+import { areDirectorShareholdersReadyForApplicationSubmit } from "@/lib/director-shareholder-onboarding-ui";
+import { DirectorShareholderAlertCard } from "@/components/director-shareholder-alert-card";
 import { ProgressIndicator } from "../../components/progress-indicator";
 import {
   ApplicationFlowBlockedBackdrop,
@@ -184,9 +189,26 @@ function EditApplicationPageBody() {
   });
 
   /** Approved contracts for Fill Entire Application (existing_contract option). */
-  const { data: approvedContracts = [] } = useApprovedContracts(
-    application?.issuer_organization_id || ""
+  const issuerOrgId = application?.issuer_organization_id ?? "";
+
+  const { data: approvedContracts = [] } = useApprovedContracts(issuerOrgId);
+
+  const { activeOrganization } = useOrganization();
+
+  const issuerVisiblePeopleForAlert = React.useMemo(
+    () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
+    [activeOrganization?.people]
   );
+
+  const directorPartySubmitReady = React.useMemo(() => {
+    if (activeOrganization?.type !== "COMPANY") return true;
+    if (issuerVisiblePeopleForAlert.length === 0) return true;
+    return areDirectorShareholdersReadyForApplicationSubmit({ people: issuerVisiblePeopleForAlert });
+  }, [activeOrganization?.type, issuerVisiblePeopleForAlert]);
+
+  const directorPartySubmitBlockedMessage =
+    activeOrganization?.directorShareholderSubmitBlockedMessage ??
+    "Some directors or shareholders have not finished onboarding. Complete onboarding on your company profile before you submit an application.";
 
   /** Handle application not found */
   React.useEffect(() => {
@@ -245,7 +267,7 @@ function EditApplicationPageBody() {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
   const [amendmentContext, setAmendmentContext] = React.useState<{
     review_cycle: number;
-    remarks: any[];
+    remarks: Array<{ scope: string; scope_key: string; remark: string }>;
   } | null>(null);
   /** Idle: not amendment; loading: fetch in flight; done: context resolved (may be empty on error). */
   const [amendmentContextStatus, setAmendmentContextStatus] = React.useState<
@@ -253,9 +275,14 @@ function EditApplicationPageBody() {
   >("idle");
   const [devPreviewAmendment, setDevPreviewAmendment] = React.useState(false);
 
+  const applicationReviewCycle =
+    application == null
+      ? undefined
+      : (application as { review_cycle?: number }).review_cycle;
+
   /** Returns mock amendment context for DEV preview. Covers section, item, and tab-level remark types. */
   const getMockAmendmentContext = React.useCallback(() => ({
-    review_cycle: (application as { review_cycle?: number })?.review_cycle ?? 1,
+    review_cycle: applicationReviewCycle ?? 1,
     remarks: [
       {
         scope: "section",
@@ -281,14 +308,14 @@ function EditApplicationPageBody() {
         remark: MOCK_DEV_LONG_SUPPORTING_DOCUMENTS_AMENDMENT_REMARK,
       },
     ],
-  }), [(application as { review_cycle?: number })?.review_cycle]);
+  }), [applicationReviewCycle]);
 
   React.useEffect(() => {
     if (!application) return;
 
     if (devPreviewAmendment) {
       setAmendmentContextStatus("done");
-      setAmendmentContext(getMockAmendmentContext() as any);
+      setAmendmentContext(getMockAmendmentContext());
       return;
     }
 
@@ -447,8 +474,7 @@ function EditApplicationPageBody() {
 
   const productWorkflow = React.useMemo(() => {
     if (!effectiveProductId || !productsData?.products) return [];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const product = (productsData.products as any).find((p: { id: string }) => p.id === effectiveProductId);
+    const product = (productsData.products as Product[]).find((p) => p.id === effectiveProductId);
     return (product?.workflow as Record<string, unknown>[] | undefined) || [];
   }, [effectiveProductId, productsData]);
 
@@ -620,7 +646,7 @@ function EditApplicationPageBody() {
     effectiveWorkflow.length > 0 &&
     stepFromUrl === effectiveWorkflow.length;
 
-  const isRealAmendmentMode = (application as any)?.status === "AMENDMENT_REQUESTED";
+  const isRealAmendmentMode = application?.status === ApplicationStatus.AMENDMENT_REQUESTED;
   const isAmendmentModeEffective = isRealAmendmentMode || devPreviewAmendment;
 
   /* ================================================================
@@ -1071,6 +1097,12 @@ function EditApplicationPageBody() {
     }
     if (application?.status === "AMENDMENT_REQUESTED" && !devPreviewAmendment && !allAmendmentStepsAcknowledged) {
       toast.error("Please complete all required amendment updates first");
+      return;
+    }
+    if (!devPreviewAmendment && !directorPartySubmitReady) {
+      toast.error(directorPartySubmitBlockedMessage);
+      isSubmittingRef.current = false;
+      setIsSubmittingApplication(false);
       return;
     }
 
@@ -1571,6 +1603,21 @@ function EditApplicationPageBody() {
     <div className="flex flex-col h-full">
       {/* Main content */}
       <main className="flex-1 overflow-y-auto p-3 sm:p-4">
+        {activeOrganization?.type === "COMPANY" ? (
+          <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 pt-2 sm:pt-3">
+            <DirectorShareholderAlertCard
+              visiblePeople={issuerVisiblePeopleForAlert}
+              issuerOrganizationId={activeOrganization.id}
+              enabled={activeOrganization.onboardingStatus === "COMPLETED"}
+              stickyTop
+              className="mb-2"
+              onGoToProfile={(matchKey) => {
+                const personQuery = matchKey ? `&person=${encodeURIComponent(matchKey)}` : "";
+                void safeNavigate(`/profile?focus=directors${personQuery}`, { leavingPage: true });
+              }}
+            />
+          </div>
+        ) : null}
         <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 py-4 sm:py-8">
           {useWizardContentShell ? (
             <ApplicationFlowBlockedBackdrop>
@@ -1702,6 +1749,7 @@ function EditApplicationPageBody() {
                       application?.status === "AMENDMENT_REQUESTED" &&
                       !allAmendmentStepsAcknowledged) ||
                     (!devPreviewAmendment && !isCurrentStepValid) ||
+                    (!devPreviewAmendment && !directorPartySubmitReady) ||
                     !isStepMapped
                   : updateStepMutation.isPending ||
                     updateStatusMutation.isPending ||

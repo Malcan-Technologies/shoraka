@@ -564,10 +564,8 @@ router.get("/callback", async (req: Request, res: Response) => {
           adminStatus = admin?.status || null;
         } else {
           // For normal flow, prefer admin from user object if available
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          if ((user as any).admin) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            adminStatus = (user as any).admin.status || null;
+          if ((user as { admin?: { status: string } }).admin) {
+            adminStatus = (user as { admin?: { status: string } }).admin?.status || null;
           } else {
             // Fallback: query fresh if admin not in user object
             const admin = await prisma.admin.findUnique({
@@ -970,7 +968,7 @@ router.get("/logout", async (req: Request, res: Response) => {
       } else if (hostname.includes("issuer")) {
         portal = "issuer";
       }
-    } catch (error) {
+    } catch {
       // Ignore URL parsing errors
     }
   }

@@ -5,6 +5,7 @@ import { getRegTankAPIClient } from "./api-client";
 import { AmlIdentityRepository } from "./aml-identity-repository";
 import type { PortalType } from "./types";
 import { extractGovernmentIdFromCorporateUserInfo } from "./helpers/extract-government-id";
+import { mapRegTankKycScreeningStatusToAmlStatus } from "./helpers/regtank-kyc-screening-to-aml-status";
 
 interface DirectorAMLStatus {
   kycId: string;
@@ -241,16 +242,9 @@ export class AMLFetcherService {
           const kycStatusResponse = await this.apiClient.queryKYCStatus(kycId);
           const kycStatusData = Array.isArray(kycStatusResponse) ? kycStatusResponse[0] : kycStatusResponse;
 
-          // Map RegTank status to AML status
-          let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
-          const regTankStatus = kycStatusData?.status?.toUpperCase() || "";
-          if (regTankStatus === "APPROVED") {
-            amlStatus = "Approved";
-          } else if (regTankStatus === "REJECTED") {
-            amlStatus = "Rejected";
-          } else if (regTankStatus === "UNRESOLVED") {
-            amlStatus = "Unresolved";
-          }
+          const amlStatus = mapRegTankKycScreeningStatusToAmlStatus(
+            typeof kycStatusData?.status === "string" ? kycStatusData.status : undefined
+          );
 
           const amlMessageStatus = (kycStatusData?.messageStatus || "PENDING") as "DONE" | "PENDING" | "ERROR";
           const amlRiskScore = kycStatusData?.riskScore ? parseFloat(String(kycStatusData.riskScore)) : null;
@@ -451,16 +445,9 @@ export class AMLFetcherService {
           const kycStatusResponse = await this.apiClient.queryKYCStatus(kycId);
           const kycStatusData = Array.isArray(kycStatusResponse) ? kycStatusResponse[0] : kycStatusResponse;
 
-          // Map RegTank status to AML status
-          let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
-          const regTankStatus = kycStatusData?.status?.toUpperCase() || "";
-          if (regTankStatus === "APPROVED") {
-            amlStatus = "Approved";
-          } else if (regTankStatus === "REJECTED") {
-            amlStatus = "Rejected";
-          } else if (regTankStatus === "UNRESOLVED") {
-            amlStatus = "Unresolved";
-          }
+          const amlStatus = mapRegTankKycScreeningStatusToAmlStatus(
+            typeof kycStatusData?.status === "string" ? kycStatusData.status : undefined
+          );
 
           const amlMessageStatus = (kycStatusData?.messageStatus || "PENDING") as "DONE" | "PENDING" | "ERROR";
           const amlRiskScore = kycStatusData?.riskScore ? parseFloat(String(kycStatusData.riskScore)) : null;
@@ -614,7 +601,7 @@ export class AMLFetcherService {
       }
 
       // Get existing director_aml_status to update businessShareholders array
-      let directorAmlStatus = (org.director_aml_status as any) || { directors: [], businessShareholders: [], lastSyncedAt: new Date().toISOString() };
+      const directorAmlStatus = (org.director_aml_status as any) || { directors: [], businessShareholders: [], lastSyncedAt: new Date().toISOString() };
       if (!directorAmlStatus.businessShareholders || !Array.isArray(directorAmlStatus.businessShareholders)) {
         directorAmlStatus.businessShareholders = [];
       }
@@ -902,7 +889,7 @@ export class AMLFetcherService {
       }
 
       // Merge new AML statuses with existing ones
-      let existingDirectorAmlStatus = (org.director_aml_status as any) || { 
+      const existingDirectorAmlStatus = (org.director_aml_status as any) || { 
         directors: [], 
         businessShareholders: [],
         lastSyncedAt: new Date().toISOString() 

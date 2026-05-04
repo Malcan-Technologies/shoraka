@@ -15,7 +15,7 @@ import {
   BuildingOffice2Icon,
 } from "@heroicons/react/24/outline";
 import { OnboardingReviewDialog } from "./onboarding-review-dialog";
-import type { OnboardingApplicationResponse, OnboardingApprovalStatus } from "@cashsouk/types";
+import { toTitleCase, type OnboardingApplicationResponse, type OnboardingApprovalStatus } from "@cashsouk/types";
 
 interface OnboardingQueueRowProps {
   application: OnboardingApplicationResponse;
@@ -90,7 +90,7 @@ function getStatusBadge(status: OnboardingApprovalStatus) {
         </Badge>
       );
     default:
-      return <Badge variant="secondary">{status}</Badge>;
+      return <Badge variant="secondary">{toTitleCase(String(status))}</Badge>;
   }
 }
 

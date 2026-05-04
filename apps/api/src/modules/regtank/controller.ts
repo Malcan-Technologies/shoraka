@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import { RegTankService } from "./service";
 import { AppError } from "../../lib/http/error-handler";
 import { requireAuth } from "../../lib/auth/middleware";
+import { logger } from "../../lib/logger";
 import {
   startOnboardingSchema,
   organizationIdParamSchema,
@@ -88,8 +89,6 @@ router.post(
         correlationId: res.locals.correlationId,
       });
     } catch (error) {
-      // Log the full error for debugging
-      const logger = require("../../lib/logger").logger;
       logger.error(
         {
           error: error instanceof Error ? error.message : String(error),
@@ -190,8 +189,6 @@ router.post(
         correlationId: res.locals.correlationId,
       });
     } catch (error) {
-      // Log the full error for debugging
-      const logger = require("../../lib/logger").logger;
       logger.error(
         {
           error: error instanceof Error ? error.message : String(error),
@@ -239,7 +236,6 @@ router.post(
         correlationId: res.locals.correlationId,
       });
     } catch (error) {
-      const logger = require("../../lib/logger").logger;
       logger.error(
         {
           error: error instanceof Error ? error.message : String(error),
@@ -320,7 +316,7 @@ router.post(
   "/set-onboarding-settings",
   requireAuth,
   async (req: Request, res: Response, next: NextFunction) => {
-	try {
+    try {
       const body = setOnboardingSettingsSchema.parse(req.body) as SetOnboardingSettingsInput;
 
       await regTankService.setOnboardingSettings({
@@ -339,8 +335,7 @@ router.post(
         },
         correlationId: res.locals.correlationId,
       });
-	} catch (error) {
-      const logger = require("../../lib/logger").logger;
+    } catch (error) {
       logger.error(
         {
           error: error instanceof Error ? error.message : String(error),
@@ -350,8 +345,8 @@ router.post(
         },
         "Error in /v1/regtank/set-onboarding-settings"
       );
-		next(error);
-	}
+      next(error);
+    }
   }
 );
 

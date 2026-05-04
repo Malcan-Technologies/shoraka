@@ -6,7 +6,13 @@
  * WHERE USED: admin routes (org + application for issuer)
  */
 
-import { Prisma, type CtosReport, type InvestorOrganization, type IssuerOrganization } from "@prisma/client";
+import {
+  Prisma,
+  ReviewStepStatus,
+  type CtosReport,
+  type InvestorOrganization,
+  type IssuerOrganization,
+} from "@prisma/client";
 import { prisma } from "../../lib/prisma";
 import { logger } from "../../lib/logger";
 import { AppError } from "../../lib/http/error-handler";
@@ -20,8 +26,109 @@ import {
   resolveCtosSubjectFromOrgJson,
   type CtosSubjectKind,
 } from "./resolve-subject-from-org";
+import { OrganizationService } from "../organization/service";
+import { runIssuerDirectorShareholderNotificationsAfterOrgCtosReportInsert } from "../notification/director-shareholder-notifications";
+import { buildAdminPeopleList } from "../admin/build-people-list";
+import { filterVisiblePeopleRows, normalizeRawStatus, type ApplicationPersonRow } from "@cashsouk/types";
+import { logApplicationActivity } from "../applications/logs/service";
+import { ActivityPortal, ApplicationLogEventType } from "../applications/logs/types";
 
 export type AdminOrgCtosPortal = "issuer" | "investor";
+
+/**
+ * SECTION: AML status helpers for CTOS-triggered financial review reset
+ * WHY: Keep reset condition aligned to screening.status only
+ * INPUT: Application person rows + application status
+ * OUTPUT: booleans for pending/all-approved/final checks
+ * WHERE USED: CTOS org report insert hooks
+ */
+function isAmlApprovedFromScreening(person: ApplicationPersonRow): boolean {
+  return normalizeRawStatus(person.screening?.status) === "APPROVED";
+}
+
+function visibleIndividualsForAml(people: ApplicationPersonRow[]): ApplicationPersonRow[] {
+  return filterVisiblePeopleRows(people).filter((person) => person.entityType === "INDIVIDUAL");
+}
+
+function hasPendingAmlIndividuals(individuals: ApplicationPersonRow[]): boolean {
+  return individuals.some((person) => !isAmlApprovedFromScreening(person));
+}
+
+function isFinalApplicationStatus(status: string | null | undefined): boolean {
+  return status === "APPROVED" || status === "FUNDED" || status === "COMPLETED";
+}
+
+async function resetFinancialReviewAfterCtosUpdateIfNeeded(params: {
+  issuerOrganizationId: string;
+  corporateEntities: Prisma.JsonValue;
+  directorKycStatus: Prisma.JsonValue;
+  directorAmlStatus: Prisma.JsonValue;
+  ctosCompanyJson: Prisma.JsonValue;
+  ctosPartySupplements: { partyKey: string; onboardingJson: unknown }[];
+}): Promise<void> {
+  const people = buildAdminPeopleList({
+    ctos: params.ctosCompanyJson ?? null,
+    issuerDirectorKycStatus: params.directorKycStatus ?? null,
+    issuerDirectorAmlStatus: params.directorAmlStatus ?? null,
+    ctosPartySupplements: params.ctosPartySupplements,
+    corporateEntities: params.corporateEntities ?? null,
+  });
+  const individuals = visibleIndividualsForAml(people);
+  const nowHasPending = hasPendingAmlIndividuals(individuals);
+  if (!nowHasPending) return;
+
+  const applicationsToReset = await prisma.applicationReview.findMany({
+    where: {
+      section: "financial",
+      status: ReviewStepStatus.APPROVED,
+      application: {
+        issuer_organization_id: params.issuerOrganizationId,
+        status: { notIn: ["APPROVED", "COMPLETED"] },
+      },
+    },
+    select: { application_id: true, application: { select: { status: true } } },
+  });
+  const rowsToReset = applicationsToReset.filter(
+    (row) => !isFinalApplicationStatus(row.application?.status ?? null)
+  );
+  if (rowsToReset.length === 0) return;
+
+  await prisma.$transaction(async (tx) => {
+    for (const row of rowsToReset) {
+      await tx.applicationReview.update({
+        where: {
+          application_id_section: { application_id: row.application_id, section: "financial" },
+        },
+        data: {
+          status: ReviewStepStatus.PENDING,
+          reviewer_user_id: null,
+          reviewed_at: null,
+        },
+      });
+      await logApplicationActivity({
+        userId: "system",
+        applicationId: row.application_id,
+        eventType: ApplicationLogEventType.SECTION_REVIEWED_PENDING,
+        portal: ActivityPortal.ADMIN,
+        remark: "Reset due to CTOS update / AML pending",
+        metadata: { scope: "section", scope_key: "financial", old_status: "APPROVED", new_status: "PENDING" },
+      });
+    }
+  });
+}
+
+function fallbackRegistrationNumberFromCorporateOnboardingData(raw: unknown): string | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const basicInfo = (raw as { basicInfo?: unknown }).basicInfo;
+  if (!basicInfo || typeof basicInfo !== "object" || Array.isArray(basicInfo)) return null;
+  const ssmRegistrationNumber = (basicInfo as { ssmRegistrationNumber?: unknown }).ssmRegistrationNumber;
+  const ssmRegisterNumber = (basicInfo as { ssmRegisterNumber?: unknown }).ssmRegisterNumber;
+  const candidate =
+    (typeof ssmRegistrationNumber === "string" ? ssmRegistrationNumber : "") ||
+    (typeof ssmRegisterNumber === "string" ? ssmRegisterNumber : "");
+  const trimmed = candidate.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
 
 const listSelect = {
   id: true,
@@ -184,7 +291,15 @@ export async function fetchAndInsertCtosReport(
     throw new AppError(404, "NOT_FOUND", "Issuer organization not found");
   }
 
-  const innerXml = buildCtosEnquiryXml(cfg, org);
+  const regNoFallback = fallbackRegistrationNumberFromCorporateOnboardingData(
+    (org as { corporate_onboarding_data?: unknown }).corporate_onboarding_data ?? null
+  );
+  const enquiryOrg = {
+    ...org,
+    registration_number: (org.registration_number ?? "").trim() || regNoFallback,
+  };
+
+  const innerXml = buildCtosEnquiryXml(cfg, enquiryOrg);
   let rawXml: string;
   try {
     rawXml = await callCtosSoap(cfg, innerXml);
@@ -209,6 +324,18 @@ export async function fetchAndInsertCtosReport(
 
   const fetchedAt = new Date();
 
+  const orgSvc = new OrganizationService();
+  const beforeExtras = await orgSvc.getIssuerPartyListExtras(issuerOrganizationId);
+  const orgForPeople = await prisma.issuerOrganization.findUnique({
+    where: { id: issuerOrganizationId },
+    select: {
+      owner_user_id: true,
+      corporate_entities: true,
+      director_kyc_status: true,
+      director_aml_status: true,
+    },
+  });
+
   const row = await prisma.ctosReport.create({
     data: {
       issuer_organization_id: issuerOrganizationId,
@@ -230,19 +357,66 @@ export async function fetchAndInsertCtosReport(
     },
   });
 
-  console.log("Inserted CTOS report row:", row.id, "for issuer org:", issuerOrganizationId);
-  console.log("CTOS FINAL OUTPUT TO UI (persisted report row):", {
-    id: row.id,
-    issuer_organization_id: row.issuer_organization_id,
-    fetched_at: row.fetched_at,
-  });
+  if (orgForPeople?.owner_user_id) {
+    try {
+      await runIssuerDirectorShareholderNotificationsAfterOrgCtosReportInsert({
+        issuerOrganizationId,
+        ownerUserId: orgForPeople.owner_user_id,
+        beforeCompanyJson: beforeExtras.latestOrganizationCtosCompanyJson ?? null,
+        afterCompanyJson: row.company_json,
+        newCtosReportId: row.id,
+        corporateEntities: orgForPeople.corporate_entities ?? null,
+        directorKycStatus: orgForPeople.director_kyc_status ?? null,
+        directorAmlStatus: orgForPeople.director_aml_status ?? null,
+        supplements: beforeExtras.ctosPartySupplements,
+      });
+    } catch (e) {
+      logger.warn(
+        {
+          issuerOrganizationId,
+          err: e instanceof Error ? e.message : String(e),
+        },
+        "Director/shareholder notification hook after CTOS org report failed (non-blocking)"
+      );
+    }
+  }
+
+  if (orgForPeople) {
+    await resetFinancialReviewAfterCtosUpdateIfNeeded({
+      issuerOrganizationId,
+      corporateEntities: orgForPeople.corporate_entities ?? null,
+      directorKycStatus: orgForPeople.director_kyc_status ?? null,
+      directorAmlStatus: orgForPeople.director_aml_status ?? null,
+      ctosCompanyJson: row.company_json,
+      ctosPartySupplements: beforeExtras.ctosPartySupplements,
+    });
+  }
+
+  logger.debug(
+    { rowId: row.id, issuerOrganizationId },
+    "Inserted CTOS report row for issuer org"
+  );
+  logger.debug(
+    {
+      id: row.id,
+      issuer_organization_id: row.issuer_organization_id,
+      fetched_at: row.fetched_at,
+    },
+    "CTOS persisted report row summary"
+  );
   return row;
 }
+
+export type FetchCtosReportForAdminOrgOptions = {
+  /** When true, do not run director/shareholder notification/email hook (e.g. admin onboarding review CTOS pull). */
+  skipDirectorShareholderNotifications?: boolean;
+};
 
 export async function fetchAndInsertCtosReportForAdminOrg(
   portal: AdminOrgCtosPortal,
   organizationId: string,
-  correlationId?: string
+  correlationId?: string,
+  options?: FetchCtosReportForAdminOrgOptions
 ): Promise<CtosReport> {
   const cfg = getCtosConfig();
   if (!cfg) {
@@ -250,7 +424,14 @@ export async function fetchAndInsertCtosReportForAdminOrg(
   }
 
   const { enquiryOrg } = await loadOrgForAdminCtos(portal, organizationId);
-  const innerXml = buildCtosEnquiryXml(cfg, enquiryOrg);
+  const regNoFallback = fallbackRegistrationNumberFromCorporateOnboardingData(
+    (enquiryOrg as { corporate_onboarding_data?: unknown }).corporate_onboarding_data ?? null
+  );
+  const enquiryOrgWithFallback = {
+    ...enquiryOrg,
+    registration_number: (enquiryOrg.registration_number ?? "").trim() || regNoFallback,
+  };
+  const innerXml = buildCtosEnquiryXml(cfg, enquiryOrgWithFallback);
   let rawXml: string;
   try {
     rawXml = await callCtosSoap(cfg, innerXml);
@@ -279,6 +460,28 @@ export async function fetchAndInsertCtosReportForAdminOrg(
   }
 
   const fetchedAt = new Date();
+
+  let beforeExtras: Awaited<ReturnType<OrganizationService["getIssuerPartyListExtras"]>> | null = null;
+  let orgForPeople: {
+    owner_user_id: string;
+    corporate_entities: Prisma.JsonValue;
+    director_kyc_status: Prisma.JsonValue;
+    director_aml_status: Prisma.JsonValue;
+  } | null = null;
+  if (portal === "issuer") {
+    const orgSvc = new OrganizationService();
+    beforeExtras = await orgSvc.getIssuerPartyListExtras(organizationId);
+    orgForPeople = await prisma.issuerOrganization.findUnique({
+      where: { id: organizationId },
+      select: {
+        owner_user_id: true,
+        corporate_entities: true,
+        director_kyc_status: true,
+        director_aml_status: true,
+      },
+    });
+  }
+
   const row = await prisma.ctosReport.create({
     data: {
       ...orgFkCreate(portal, organizationId),
@@ -299,14 +502,66 @@ export async function fetchAndInsertCtosReportForAdminOrg(
     },
   });
 
-  console.log("Inserted CTOS report row:", row.id, "portal:", portal, "org:", organizationId);
-  console.log("CTOS FINAL OUTPUT TO UI (persisted report row):", {
-    id: row.id,
-    portal,
-    organizationId,
-    subject_ref: row.subject_ref,
-    fetched_at: row.fetched_at,
-  });
+  if (
+    portal === "issuer" &&
+    beforeExtras &&
+    orgForPeople?.owner_user_id &&
+    !options?.skipDirectorShareholderNotifications
+  ) {
+    try {
+      await runIssuerDirectorShareholderNotificationsAfterOrgCtosReportInsert({
+        issuerOrganizationId: organizationId,
+        ownerUserId: orgForPeople.owner_user_id,
+        beforeCompanyJson: beforeExtras.latestOrganizationCtosCompanyJson ?? null,
+        afterCompanyJson: row.company_json,
+        newCtosReportId: row.id,
+        corporateEntities: orgForPeople.corporate_entities ?? null,
+        directorKycStatus: orgForPeople.director_kyc_status ?? null,
+        directorAmlStatus: orgForPeople.director_aml_status ?? null,
+        supplements: beforeExtras.ctosPartySupplements,
+      });
+    } catch (e) {
+      logger.warn(
+        {
+          portal,
+          organizationId,
+          err: e instanceof Error ? e.message : String(e),
+        },
+        "Director/shareholder notification hook after admin CTOS org report failed (non-blocking)"
+      );
+    }
+  } else if (portal === "issuer" && options?.skipDirectorShareholderNotifications) {
+    logger.info(
+      { organizationId, correlationId },
+      "CTOS org report inserted from admin; skipped director/shareholder notifications (requested)"
+    );
+  }
+
+  if (portal === "issuer" && orgForPeople && beforeExtras) {
+    await resetFinancialReviewAfterCtosUpdateIfNeeded({
+      issuerOrganizationId: organizationId,
+      corporateEntities: orgForPeople.corporate_entities ?? null,
+      directorKycStatus: orgForPeople.director_kyc_status ?? null,
+      directorAmlStatus: orgForPeople.director_aml_status ?? null,
+      ctosCompanyJson: row.company_json,
+      ctosPartySupplements: beforeExtras.ctosPartySupplements,
+    });
+  }
+
+  logger.debug(
+    { rowId: row.id, portal, organizationId },
+    "Inserted CTOS report row (admin org)"
+  );
+  logger.debug(
+    {
+      id: row.id,
+      portal,
+      organizationId,
+      subject_ref: row.subject_ref,
+      fetched_at: row.fetched_at,
+    },
+    "CTOS persisted report row summary (admin org)"
+  );
   return row;
 }
 
@@ -408,19 +663,22 @@ export async function fetchAndInsertCtosSubjectReport(
     },
   });
 
-  console.log(
-    "Inserted CTOS subject report row:",
-    row.id,
-    "subject_ref:",
-    subjectRefPersisted,
-    "issuer org:",
-    issuerOrganizationId
+  logger.debug(
+    {
+      rowId: row.id,
+      subjectRefPersisted,
+      issuerOrganizationId,
+    },
+    "Inserted CTOS subject report row"
   );
-  console.log("CTOS FINAL OUTPUT TO UI (persisted subject report row):", {
-    id: row.id,
-    subject_ref: row.subject_ref,
-    issuer_organization_id: row.issuer_organization_id,
-  });
+  logger.debug(
+    {
+      id: row.id,
+      subject_ref: row.subject_ref,
+      issuer_organization_id: row.issuer_organization_id,
+    },
+    "CTOS persisted subject report row summary"
+  );
   return row;
 }
 
@@ -518,21 +776,23 @@ export async function fetchAndInsertCtosSubjectReportForAdminOrg(
     },
   });
 
-  console.log(
-    "Inserted CTOS subject report row:",
-    row.id,
-    "subject_ref:",
-    subjectRefPersisted,
-    "portal:",
-    portal,
-    "org:",
-    organizationId
+  logger.debug(
+    {
+      rowId: row.id,
+      subjectRefPersisted,
+      portal,
+      organizationId,
+    },
+    "Inserted CTOS subject report row (admin org)"
   );
-  console.log("CTOS FINAL OUTPUT TO UI (persisted subject report row):", {
-    id: row.id,
-    subject_ref: row.subject_ref,
-    portal,
-    organizationId,
-  });
+  logger.debug(
+    {
+      id: row.id,
+      subject_ref: row.subject_ref,
+      portal,
+      organizationId,
+    },
+    "CTOS persisted subject report row summary (admin org)"
+  );
   return row;
 }

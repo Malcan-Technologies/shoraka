@@ -239,7 +239,7 @@ export class AuthService {
             where: { cognito_sub: payload.sub },
           });
           onboardingRole = tokenUser?.roles[0] || user.roles[0] || UserRole.INVESTOR;
-        } catch (error) {
+        } catch {
           onboardingRole = user.roles[0] || UserRole.INVESTOR;
         }
       } else {
@@ -371,7 +371,7 @@ export class AuthService {
             where: { cognito_sub: payload.sub },
           });
           onboardingRole = tokenUser?.roles[0] || user.roles[0] || UserRole.INVESTOR;
-        } catch (error) {
+        } catch {
           onboardingRole = user.roles[0] || UserRole.INVESTOR;
         }
       } else {

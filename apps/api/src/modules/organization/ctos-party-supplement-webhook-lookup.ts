@@ -30,6 +30,9 @@ export function buildWhereCtosPartySupplementByOnboardingJsonOr(
     jsonOr.push({
       onboarding_json: { path: ["referenceId"], equals: webhookReferenceId },
     });
+    jsonOr.push({
+      onboarding_json: { path: ["onboarding", "referenceId"], equals: webhookReferenceId },
+    });
   }
   if (jsonOr.length === 0) {
     return null;

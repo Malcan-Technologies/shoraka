@@ -12,20 +12,26 @@
  */
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { useOrganization, createApiClient, useAuthToken } from "@cashsouk/config";
+import { useOrganization, createApiClient, useAuthToken, type OrganizationMember } from "@cashsouk/config";
 import {
-  getDirectorShareholderDisplayRows,
-  isCtosIndividualKycEligibleRow,
-  isLegacyCtosPartyKycApproved,
-  normalizeDirectorShareholderIdKey,
-  type DirectorShareholderDisplayRow,
+  buildDirectorShareholderDisplayRowForEmailEligibility,
+  canEnterEmailForDirectorShareholder,
+  filterVisiblePeopleRows,
+  formatPeopleRolesLineTitleCaseWithoutShare,
+  formatShareOwnershipCell,
+  getDirectorShareholderSingleStatusPresentation,
+  // getDirectorShareholderStatusTooltip,
 } from "@cashsouk/types";
+import {
+  areDirectorShareholdersReadyForApplicationSubmit,
+} from "@/lib/director-shareholder-onboarding-ui";
 import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
 import { useApplication } from "@/hooks/use-applications";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+// import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -35,7 +41,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CheckCircleIcon, PencilIcon } from "@heroicons/react/24/outline";
+import { PencilIcon } from "@heroicons/react/24/outline";
 import {
   Dialog,
   DialogContent,
@@ -156,20 +162,11 @@ function isValidAddress(addr: Record<string, unknown> | null): boolean {
   return !!(line1 && city && postalCode && state && country);
 }
 
-function directorRowNeedsCompleteOnProfile(row: DirectorShareholderDisplayRow, directorKycStatus: unknown): boolean {
-  if (!isCtosIndividualKycEligibleRow(row)) return false;
-  const pk = normalizeDirectorShareholderIdKey(
-    row.idNumber?.trim() || row.registrationNumber?.trim() || row.enquiryId?.trim() || ""
-  );
-  if (pk && isLegacyCtosPartyKycApproved(pk, directorKycStatus)) return false;
-  const emptyEmail = !row.email.trim();
-  return row.status === "Not Started" || emptyEmail;
-}
-
 const inputClassName = cn(formInputClassName, formInputDisabledClassName);
 const inputClassNameEditable = formInputClassName;
 const labelClassName = formLabelClassName;
 const labelClassNameEditable = formLabelClassName;
+
 export function CompanyDetailsStep({
   applicationId,
   onDataChange,
@@ -201,7 +198,7 @@ export function CompanyDetailsStep({
   const canEditOrganization = React.useMemo(() => {
     if (!activeOrganization || !currentUser) return false;
     if (activeOrganization.isOwner) return true;
-    const currentUserMember = activeOrganization.members?.find((m: any) => m.id === currentUser.userId);
+    const currentUserMember = activeOrganization.members?.find((m: OrganizationMember) => m.id === currentUser.userId);
     return currentUserMember?.role === "ORGANIZATION_ADMIN";
   }, [activeOrganization, currentUser]);
 
@@ -219,23 +216,17 @@ export function CompanyDetailsStep({
   } = useCorporateInfo(organizationId);
   const { data: entitiesData, isLoading: isLoadingEntities } = useCorporateEntities(organizationId);
   const isLoadingData = isLoadingInfo || isLoadingEntities;
-  const router = useRouter();
+  const visiblePeopleRows = React.useMemo(
+    () => filterVisiblePeopleRows(entitiesData?.people ?? []),
+    [entitiesData?.people]
+  );
 
-  const directorShareholderRows = React.useMemo(
+  const directorsPartySubmitReady = React.useMemo(
     () =>
-      getDirectorShareholderDisplayRows({
-        corporateEntities: {
-          directors: entitiesData?.directors ?? [],
-          shareholders: entitiesData?.shareholders ?? [],
-          corporateShareholders: entitiesData?.corporateShareholders ?? [],
-        },
-        directorKycStatus: entitiesData?.directorKycStatus ?? null,
-        directorAmlStatus: entitiesData?.directorAmlStatus ?? null,
-        organizationCtosCompanyJson: entitiesData?.latestOrganizationCtosCompanyJson ?? null,
-        ctosPartySupplements: entitiesData?.ctosPartySupplements ?? null,
-        sentRowIds: null,
+      areDirectorShareholdersReadyForApplicationSubmit({
+        people: entitiesData?.people ?? [],
       }),
-    [entitiesData]
+    [entitiesData?.people]
   );
 
   /* ================================================================
@@ -494,9 +485,10 @@ export function CompanyDetailsStep({
       formState.industry?.trim() &&
       formState.numberOfEmployees?.trim() &&
       formState.bankName?.trim() &&
-      formState.bankAccountNumber?.trim()
+      formState.bankAccountNumber?.trim() &&
+      directorsPartySubmitReady
     );
-  }, [formState]);
+  }, [formState, directorsPartySubmitReady]);
 
   /* ================================================================
      CHANGE DETECTION - Real pending changes logic
@@ -676,54 +668,75 @@ export function CompanyDetailsStep({
         {/* Directors & Shareholders Section */}
         <div className="space-y-3">
           <div>
-            <h3 className={applicationFlowSectionTitleClassName}>{"Director & Shareholders"}</h3>
+            <h3 className={applicationFlowSectionTitleClassName}>Directors & Shareholders</h3>
             <div className={applicationFlowSectionDividerClassName} />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mt-4 px-3 items-center">
-            {directorShareholderRows.length === 0 ? (
+            {visiblePeopleRows.length === 0 ? (
               <p className="text-[17px] leading-7 text-muted-foreground col-span-2">
                 No directors or shareholders found
               </p>
             ) : (
-              directorShareholderRows.map((row) => {
-                const statusVerified = row.status === "KYC Approved";
-                const statusKind = row.type === "COMPANY" ? "KYB" : "KYC";
-                const own = row.ownershipDisplay?.trim() || "—";
-                const showCompleteOnProfile = directorRowNeedsCompleteOnProfile(
-                  row,
-                  entitiesData?.directorKycStatus ?? null
-                );
+              visiblePeopleRows.map((p) => {
+                const displayRow = buildDirectorShareholderDisplayRowForEmailEligibility(p, null);
+                const statusView = getDirectorShareholderSingleStatusPresentation({
+                  screening: p.screening,
+                  onboarding: p.onboarding,
+                });
+                const own = formatShareOwnershipCell(p);
+                const showCompleteOnProfile = canEnterEmailForDirectorShareholder(p);
+                const idLabel =
+                  (displayRow.idNumber || displayRow.registrationNumber || p.matchKey || "").trim();
                 return (
-                  <React.Fragment key={row.id}>
-                    <div className={labelClassName}>{row.role}</div>
+                  <React.Fragment key={p.matchKey}>
+                    <div className={labelClassName}>{formatPeopleRolesLineTitleCaseWithoutShare(p)}</div>
                     <div className="flex flex-col gap-2">
                       <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-3">
-                        <div className="text-[17px] leading-7 font-medium whitespace-nowrap">{row.name}</div>
+                        <div className="flex min-w-0 flex-col">
+                          <span className="text-[17px] leading-7 font-medium truncate">{p.name ?? "—"}</span>
+                          <span className="text-xs text-muted-foreground truncate">{idLabel || "—"}</span>
+                        </div>
                         <div className="h-4 w-px bg-border" />
-                        <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">{own}</div>
+                        <div className="text-[17px] leading-7 text-muted-foreground whitespace-nowrap">
+                          {own || "—"}
+                        </div>
                         <div className="h-4 w-px bg-border" />
-                        {statusVerified ? (
-                          <div className="flex items-center gap-1.5 whitespace-nowrap">
-                            <CheckCircleIcon className="h-4 w-4 text-green-600" />
-                            <span className="text-[17px] leading-7 text-green-600">{statusKind}</span>
-                          </div>
-                        ) : (
-                          <div />
-                        )}
+                        <div className="flex flex-col gap-0.5 min-w-0">
+                          <span className="text-xs text-muted-foreground">Status</span>
+                          {statusView ? (
+                            <>
+                              {/*
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge
+                                    variant="outline"
+                                    className={cn("w-fit border-transparent text-[11px] font-normal", statusView.badgeClassName)}
+                                  >
+                                    {statusView.label}
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>{getDirectorShareholderStatusTooltip(statusView.label)}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                              */}
+                              <Badge
+                                variant="outline"
+                                className={cn("w-fit border-transparent text-[11px] font-normal", statusView.badgeClassName)}
+                              >
+                                {statusView.label}
+                              </Badge>
+                            </>
+                          ) : (
+                            <span className="text-[17px] leading-7 text-muted-foreground truncate">—</span>
+                          )}
+                        </div>
                       </div>
                       {showCompleteOnProfile ? (
-                        <div className="flex justify-end sm:justify-start">
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            className="rounded-xl"
-                            onClick={() => router.push("/profile?focus=directors")}
-                          >
-                            Complete on Profile
-                          </Button>
-                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Submit onboarding on Profile → Directors and shareholders.
+                        </p>
                       ) : null}
                     </div>
                   </React.Fragment>

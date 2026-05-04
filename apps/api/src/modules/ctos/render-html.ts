@@ -55,7 +55,7 @@ export function renderCtosReportHtml(rawXml: string): string | null {
       logger.error({ stderr: r.stderr?.slice?.(0, 500) }, "CTOS XSLT failed");
       return null;
     }
-    console.log("CTOS report HTML rendered via xsltproc");
+      logger.debug("CTOS report HTML rendered via xsltproc");
     return r.stdout || null;
   } finally {
     try {

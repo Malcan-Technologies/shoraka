@@ -1,5 +1,6 @@
 import type { Config } from "tailwindcss";
 import sharedConfig from "@cashsouk/styles/tailwind.config";
+import tailwindcssAnimate from "tailwindcss-animate";
 
 const config: Config = {
     darkMode: ["class"],
@@ -9,7 +10,7 @@ const config: Config = {
     "../../packages/ui/src/**/*.{js,ts,jsx,tsx,mdx}",
     "../../packages/config/src/**/*.{js,ts,jsx,tsx}",
   ],
-    plugins: [require("tailwindcss-animate")],
+    plugins: [tailwindcssAnimate],
     theme: {
     	extend: {
     		borderRadius: {

@@ -105,12 +105,12 @@ export function ResubmitComparisonModal({
   const beforeApp = React.useMemo(() => {
     if (!data?.previous_snapshot || !applicationId) return null;
     return revisionSnapshotToReviewApp(applicationId, data.previous_snapshot as Record<string, unknown>);
-  }, [data?.previous_snapshot, applicationId]);
+  }, [data, applicationId]);
 
   const afterApp = React.useMemo(() => {
     if (!data?.next_snapshot || !applicationId) return null;
     return revisionSnapshotToReviewApp(applicationId, data.next_snapshot as Record<string, unknown>);
-  }, [data?.next_snapshot, applicationId]);
+  }, [data, applicationId]);
 
   const { comparisonBeforeApp, comparisonAfterApp } = React.useMemo(() => {
     if (!beforeApp || !afterApp) {

@@ -8,6 +8,7 @@
 
 import fs from "fs";
 import path from "path";
+import { logger } from "../../lib/logger";
 
 export interface CtosConfig {
   clientId: string;
@@ -43,9 +44,14 @@ export function getCtosConfig(): CtosConfig | null {
   // OUTPUT: console logs only
   // WHERE USED: CTOS integration flow
   // ===============================
-  console.log("CTOS ENV:", process.env.CTOS_ENV);
-  console.log("CTOS BASE URL:", process.env.CTOS_SOAP_URL);
-  console.log("CTOS SSO URL:", process.env.CTOS_TOKEN_URL);
+  logger.debug(
+    {
+      ctosEnv: process.env.CTOS_ENV,
+      soapUrlSet: Boolean(process.env.CTOS_SOAP_URL),
+      tokenUrlSet: Boolean(process.env.CTOS_TOKEN_URL),
+    },
+    "CTOS env snapshot"
+  );
 
   const clientId = process.env.CTOS_CLIENT_ID?.trim();
   const username = process.env.CTOS_USERNAME?.trim();
@@ -68,7 +74,7 @@ export function getCtosConfig(): CtosConfig | null {
     !userId ||
     !privateKeyPem
   ) {
-    console.log("CTOS CONFIG: incomplete or disabled (one or more required values missing)");
+    logger.debug("CTOS config incomplete or disabled (required env vars missing)");
     return null;
   }
 

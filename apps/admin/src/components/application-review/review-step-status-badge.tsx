@@ -10,6 +10,7 @@ import {
   PaperAirplaneIcon,
   XCircleIcon,
 } from "@heroicons/react/24/outline";
+import { toTitleCase } from "@cashsouk/types";
 import { getReviewStatusPresentation } from "./status-presentation";
 
 interface ReviewStepStatusBadgeProps {
@@ -36,6 +37,7 @@ export function ReviewStepStatusBadge({ status, size = "md" }: ReviewStepStatusB
   const isCompact = size === "sm";
   const iconSize = isCompact ? "h-3 w-3" : "h-3.5 w-3.5";
   const sizeClass = isCompact ? "text-[11px] px-1.5 py-0 shrink-0" : "";
+  const displayText = toTitleCase(presentation.label);
 
   return (
     <Badge
@@ -43,7 +45,7 @@ export function ReviewStepStatusBadge({ status, size = "md" }: ReviewStepStatusB
       className={`${presentation.badgeClass} ${sizeClass}`}
     >
       <Icon className={`${iconSize} mr-1 shrink-0 ${presentation.iconClass}`} />
-      {presentation.label}
+      {displayText || presentation.label}
     </Badge>
   );
 }

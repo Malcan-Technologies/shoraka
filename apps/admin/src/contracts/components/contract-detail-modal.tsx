@@ -3,15 +3,8 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@cashsouk/ui";
 import { format } from "date-fns";
 import { formatCurrency } from "@cashsouk/config";
 import { ApplicationStatusBadge } from "@/components/application-review";
@@ -39,10 +32,8 @@ import {
   PaperAirplaneIcon,
 } from "@heroicons/react/24/outline";
 
-interface ContractDetailModalProps {
-  contractId: string | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+interface ContractDetailViewProps {
+  contractId: string;
 }
 
 interface FileDoc {
@@ -142,8 +133,66 @@ function TopMetaItem({
   );
 }
 
-export function ContractDetailModal({ contractId, open, onOpenChange }: ContractDetailModalProps) {
-  const { data, isLoading, error } = useContractDetail(open ? (contractId ?? undefined) : undefined);
+function RelatedRecordLink({
+  label,
+  value,
+  href,
+  display,
+}: {
+  label: string;
+  value: string | null | undefined;
+  href?: string | null;
+  display?: string | null;
+}) {
+  return (
+    <div className="space-y-1">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      {value ? (
+        href ? (
+          <Link
+            href={href}
+            className="group flex min-w-0 items-center gap-1 break-all font-mono text-xs font-medium text-primary underline-offset-4 hover:underline"
+          >
+            <span className="min-w-0 break-all">{display ?? value}</span>
+            <ArrowTopRightOnSquareIcon className="h-3.5 w-3.5 shrink-0 opacity-70 transition-opacity group-hover:opacity-100" />
+          </Link>
+        ) : (
+          <div className="break-all font-mono text-xs font-medium">{display ?? value}</div>
+        )
+      ) : (
+        <div className="text-sm text-muted-foreground">—</div>
+      )}
+    </div>
+  );
+}
+
+function ContractDetailSkeleton() {
+  return (
+    <div className="space-y-6">
+      <Card className="rounded-2xl shadow-sm">
+        <CardContent className="space-y-4 pt-6">
+          <div className="flex items-center gap-4">
+            <Skeleton className="h-12 w-12 rounded-xl" />
+            <div className="space-y-2">
+              <Skeleton className="h-6 w-64" />
+              <Skeleton className="h-5 w-28" />
+            </div>
+          </div>
+          <Skeleton className="h-12 w-full rounded-xl" />
+        </CardContent>
+      </Card>
+      <Skeleton className="h-56 w-full rounded-2xl" />
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Skeleton className="h-56 w-full rounded-2xl" />
+        <Skeleton className="h-56 w-full rounded-2xl" />
+      </div>
+      <Skeleton className="h-64 w-full rounded-2xl" />
+    </div>
+  );
+}
+
+export function ContractDetailView({ contractId }: ContractDetailViewProps) {
+  const { data, isLoading, error } = useContractDetail(contractId);
   const { getAccessToken } = useAuthToken();
   const [isOpeningDocument, setIsOpeningDocument] = React.useState(false);
   const contractDetails = (data?.contractDetails ?? null) as Record<string, unknown> | null;
@@ -184,31 +233,17 @@ export function ContractDetailModal({ contractId, open, onOpenChange }: Contract
   );
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl w-[95vw] p-0 gap-0">
-        <DialogHeader className="px-6 pt-6 pb-4 border-b">
-          <DialogTitle>Contract Details</DialogTitle>
-          <DialogDescription>
-            Full contract information, including linked applications
-          </DialogDescription>
-        </DialogHeader>
+    <div className="space-y-6">
+      {isLoading && <ContractDetailSkeleton />}
 
-        <ScrollArea className="h-[80vh]">
-          <div className="p-6 space-y-6">
-            {isLoading && (
-              <div className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground">
-                Loading contract details...
-              </div>
-            )}
+      {error && (
+        <div className="rounded-2xl border bg-card p-6 text-sm text-destructive">
+          {error instanceof Error ? error.message : "Failed to load contract details"}
+        </div>
+      )}
 
-            {error && (
-              <div className="rounded-2xl border bg-card p-6 text-sm text-destructive">
-                {error instanceof Error ? error.message : "Failed to load contract details"}
-              </div>
-            )}
-
-            {data && (
-              <>
+      {data && (
+        <>
                 <Card className="rounded-2xl shadow-sm">
                   <CardContent className="pt-6 space-y-4">
                     <div className="flex items-start justify-between">
@@ -254,6 +289,61 @@ export function ContractDetailModal({ contractId, open, onOpenChange }: Contract
                     <div className="space-y-0.5">
                       <p className="text-xs text-muted-foreground font-mono">ID: {data.id}</p>
                     </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-2xl shadow-sm">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-medium flex items-center gap-2">
+                      <RectangleStackIcon className="h-4 w-4" />
+                      Related Records
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <RelatedRecordLink
+                      label="Issuer Organization"
+                      value={data.issuerOrganizationId}
+                      href={
+                        data.issuerOrganizationId
+                          ? `/organizations/issuer/${encodeURIComponent(data.issuerOrganizationId)}`
+                          : null
+                      }
+                      display={
+                        data.issuerOrganizationName && data.issuerOrganizationId
+                          ? `${data.issuerOrganizationName} (${data.issuerOrganizationId})`
+                          : data.issuerOrganizationId
+                      }
+                    />
+                    {data.applications.length > 0 ? (
+                      data.applications.map((application) => (
+                        <RelatedRecordLink
+                          key={application.id}
+                          label="Application ID"
+                          value={application.id}
+                          href={
+                            application.productId
+                              ? `/applications/${encodeURIComponent(application.productId)}/${encodeURIComponent(application.id)}`
+                              : null
+                          }
+                          display={application.id}
+                        />
+                      ))
+                    ) : (
+                      <RelatedRecordLink label="Application ID" value={null} />
+                    )}
+                    {data.notes.length > 0 ? (
+                      data.notes.map((note) => (
+                        <RelatedRecordLink
+                          key={note.id}
+                          label="Note ID"
+                          value={note.id}
+                          href={`/notes/${encodeURIComponent(note.id)}`}
+                          display={`${note.noteReference} (${note.id})`}
+                        />
+                      ))
+                    ) : (
+                      <RelatedRecordLink label="Note ID" value={null} />
+                    )}
                   </CardContent>
                 </Card>
 
@@ -516,11 +606,8 @@ export function ContractDetailModal({ contractId, open, onOpenChange }: Contract
                     </Table>
                   </CardContent>
                 </Card>
-              </>
-            )}
-          </div>
-        </ScrollArea>
-      </DialogContent>
-    </Dialog>
+        </>
+      )}
+    </div>
   );
 }

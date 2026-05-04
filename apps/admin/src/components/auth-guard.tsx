@@ -8,15 +8,15 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { isAuthenticated, hasAdminRole } = useAuth();
 
-  // Skip auth guard for callback page - it handles its own logic
-  if (pathname === "/callback") {
-    return <>{children}</>;
-  }
+  const skipGuard = pathname === "/callback";
 
   useEffect(() => {
-    // Auth check is handled in useAuth hook which redirects automatically
-    // This component just shows loading state while checking
-  }, [isAuthenticated, hasAdminRole]);
+    if (skipGuard) return;
+  }, [skipGuard, isAuthenticated, hasAdminRole]);
+
+  if (skipGuard) {
+    return <>{children}</>;
+  }
 
   // Show loading state while checking authentication
   if (isAuthenticated === null || hasAdminRole === null) {

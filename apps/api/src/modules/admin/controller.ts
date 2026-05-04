@@ -42,10 +42,13 @@ import {
   sendInvoiceOfferSchema,
   addPendingAmendmentSchema,
   updatePendingAmendmentSchema,
+  rejectIssuerDirectorShareholderSchema,
+  notifyIssuerDirectorShareholderActionRequiredSchema,
   createCtosSubjectReportSchema,
   resubmitComparisonQuerySchema,
 } from "./schemas";
 import { prisma } from "../../lib/prisma";
+import { logger } from "../../lib/logger";
 import {
   listCtosReportsForIssuerOrg,
   listCtosReportsForAdminOrg,
@@ -155,7 +158,7 @@ router.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = req.params;
-      const user = await adminService.getUserById(id);
+      const user = await adminService.getUserDetail(id);
 
       if (!user) {
         throw new AppError(404, "NOT_FOUND", "User not found");
@@ -507,6 +510,56 @@ router.post(
 
       const result = await adminService.refreshOrganizationCorporateEntities(id, portal);
 
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(
+        error instanceof AppError
+          ? error
+          : error instanceof Error
+            ? new AppError(400, "VALIDATION_ERROR", error.message)
+            : error
+      );
+    }
+  }
+);
+
+router.post(
+  "/organizations/issuer/:id/director-shareholders/notify-action-required",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const body = notifyIssuerDirectorShareholderActionRequiredSchema.parse(req.body);
+      const result = await adminService.notifyIssuerDirectorShareholderActionRequired(id, body);
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(
+        error instanceof AppError
+          ? error
+          : error instanceof Error
+            ? new AppError(400, "VALIDATION_ERROR", error.message)
+            : error
+      );
+    }
+  }
+);
+
+router.post(
+  "/organizations/issuer/:id/director-shareholders/reject",
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { id } = req.params;
+      const body = rejectIssuerDirectorShareholderSchema.parse(req.body);
+      const result = await adminService.rejectIssuerDirectorShareholderParty(id, body);
       res.json({
         success: true,
         data: result,
@@ -1931,6 +1984,24 @@ router.get(
   }
 );
 
+router.get(
+  "/applications/action-count",
+  requireRole(UserRole.ADMIN),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await adminService.getApplicationActionRequiredCount();
+
+      res.json({
+        success: true,
+        data: result,
+        correlationId: res.locals.correlationId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 /**
  * @swagger
  * /v1/admin/contracts:
@@ -2076,10 +2147,10 @@ router.get(
   "/applications/:id/resubmit-comparison",
   requireRole(UserRole.ADMIN),
   async (req: Request, res: Response, next: NextFunction) => {
-    console.log("[admin] resubmit-comparison request", {
+    logger.info({
       applicationId: req.params.id,
       query: req.query,
-    });
+    }, "[admin] resubmit-comparison request");
     try {
       const { id } = req.params;
       const { reviewCycle } = resubmitComparisonQuerySchema.parse(req.query);
@@ -2240,7 +2311,15 @@ router.post(
           throw new AppError(404, "NOT_FOUND", "Organization not found");
         }
       }
-      const row = await fetchAndInsertCtosReportForAdminOrg(orgPortal, id, res.locals.correlationId);
+      const body = (req.body && typeof req.body === "object" && !Array.isArray(req.body)
+        ? (req.body as Record<string, unknown>)
+        : {}) as { skipDirectorShareholderNotifications?: unknown };
+      const skipDirectorShareholderNotifications =
+        body.skipDirectorShareholderNotifications === true ||
+        body.skipDirectorShareholderNotifications === "true";
+      const row = await fetchAndInsertCtosReportForAdminOrg(orgPortal, id, res.locals.correlationId, {
+        skipDirectorShareholderNotifications,
+      });
       res.status(201).json({
         success: true,
         data: ctosRowPublicSummary(row),

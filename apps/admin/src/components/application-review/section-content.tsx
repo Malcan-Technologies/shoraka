@@ -45,6 +45,7 @@ export interface PendingAmendmentItem {
 
 export type ReviewApplicationView = {
   id?: string;
+  people?: import("@cashsouk/types").ApplicationPersonRow[];
   created_at?: string;
   /** When present (e.g. live admin detail), used with workflow to filter review tabs. */
   visible_review_sections?: unknown;
@@ -82,8 +83,6 @@ export type ReviewApplicationView = {
     corporateOnboardingData?: Record<string, unknown> | null;
     bank_account_details?: Record<string, unknown> | null;
     bankAccountDetails?: Record<string, unknown> | null;
-    director_kyc_status?: unknown;
-    director_aml_status?: unknown;
     business_aml_status?: unknown;
     latest_organization_ctos_company_json?: unknown | null;
     latest_organization_ctos_financials_json?: unknown | null;
@@ -96,7 +95,6 @@ export type ReviewApplicationView = {
       fetched_at: string;
       has_report_html: boolean;
     }> | null;
-    ctos_party_supplements?: { party_key: string; onboarding_json?: unknown }[] | null;
   } | null;
 };
 
@@ -109,6 +107,11 @@ export type SectionContentComparison = {
 export interface SectionContentProps {
   descriptor: ReviewTabDescriptor;
   app: ReviewApplicationView;
+  /**
+   * Same id as the application detail route / `useApplicationDetail` query key.
+   * When set (live review page), Financial tab CTOS hooks refetch the correct cache entry.
+   */
+  liveApplicationId?: string;
   isReviewable: boolean;
   approveSectionPending: boolean;
   approveItemPending: boolean;
@@ -169,6 +172,7 @@ export interface SectionContentProps {
 export function SectionContent({
   descriptor,
   app,
+  liveApplicationId,
   isReviewable,
   approveSectionPending,
   approveItemPending,
@@ -222,7 +226,7 @@ export function SectionContent({
     case "financial":
       return (
         <FinancialSection
-          applicationId={app.id ?? ""}
+          applicationId={liveApplicationId ?? app.id ?? ""}
           issuerOrganizationId={app.issuer_organization_id ?? app.issuer_organization?.id ?? null}
           app={app}
           section={section}

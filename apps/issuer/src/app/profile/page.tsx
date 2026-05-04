@@ -31,6 +31,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAccountDocuments } from "../../hooks/use-account-documents";
 import { useOrganizationMembers } from "../../hooks/use-organization-members";
 import { useOrganizationInvitations } from "../../hooks/use-organization-invitations";
+import { filterVisiblePeopleRows } from "@cashsouk/types";
+import { DirectorShareholderAlertCard } from "../../components/director-shareholder-alert-card";
 import { CorporateInfoCard } from "../../components/corporate-info-card";
 import { DirectorShareholdersUnifiedSection } from "../../components/director-shareholders-unified-section";
 import { InviteMemberDialog } from "../../components/invite-member-dialog";
@@ -384,6 +386,12 @@ export default function ProfilePage() {
     organizations,
     updateOrganizationProfile,
   } = useOrganization();
+
+  const visiblePeopleForDsAlert = React.useMemo(
+    () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
+    [activeOrganization?.people]
+  );
+
   const queryClient = useQueryClient();
   const apiClient = createApiClient(API_URL, getAccessToken);
 
@@ -427,10 +435,6 @@ export default function ProfilePage() {
     },
     staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
-
-  // Temporary debug: log current user (who is performing actions)
-  // eslint-disable-next-line no-console
-  console.log("DEBUG currentUser:", currentUser);
 
   // Check if current user is admin (owner or has ORGANIZATION_ADMIN role)
   const isCurrentUserAdmin = React.useMemo(() => {
@@ -525,6 +529,22 @@ export default function ProfilePage() {
             phoneNumber?: string;
           };
           addresses?: {
+            business?: {
+              line1?: string | null;
+              line2?: string | null;
+              city?: string | null;
+              postalCode?: string | null;
+              state?: string | null;
+              country?: string | null;
+            };
+            registered?: {
+              line1?: string | null;
+              line2?: string | null;
+              city?: string | null;
+              postalCode?: string | null;
+              state?: string | null;
+              country?: string | null;
+            };
             businessAddress?: string;
             registeredAddress?: string;
           };
@@ -540,10 +560,7 @@ export default function ProfilePage() {
           shareholders?: Array<Record<string, unknown>>;
           corporateShareholders?: Array<Record<string, unknown>>;
         };
-        directorKycStatus?: unknown;
-        directorAmlStatus?: Record<string, unknown> | null;
-        latestOrganizationCtosCompanyJson?: unknown | null;
-        ctosPartySupplements?: { partyKey: string; onboardingJson?: unknown }[] | null;
+        people?: import("@cashsouk/types").ApplicationPersonRow[];
       }>(`/v1/organizations/issuer/${activeOrganization.id}`);
       if (!result.success) {
         throw new Error(result.error.message);
@@ -556,6 +573,7 @@ export default function ProfilePage() {
 
   const searchParams = useSearchParams();
   const focusDirectors = searchParams.get("focus") === "directors";
+  const focusedPersonKey = searchParams.get("person");
   const directorsSectionRef = React.useRef<HTMLDivElement>(null);
 
   React.useEffect(() => {
@@ -580,7 +598,7 @@ export default function ProfilePage() {
       setAccountType(getBankField(orgData.bankAccountDetails, "Account type") || "Savings");
 
       // Initialize addresses
-      const addresses = orgData.corporateOnboardingData?.addresses as any;
+      const addresses = orgData.corporateOnboardingData?.addresses;
       const business = addresses?.business;
       setBusinessLine1(business?.line1 || "");
       setBusinessLine2(business?.line2 || "");
@@ -730,7 +748,7 @@ export default function ProfilePage() {
 
   const handleCancelAddressesEdit = () => {
     if (orgData) {
-      const addresses = orgData.corporateOnboardingData?.addresses as any;
+      const addresses = orgData.corporateOnboardingData?.addresses;
       const business = addresses?.business;
       setBusinessLine1(business?.line1 || "");
       setBusinessLine2(business?.line2 || "");
@@ -832,6 +850,14 @@ export default function ProfilePage() {
   )}
             </div>
           </div>
+
+          {!isPersonal ? (
+            <DirectorShareholderAlertCard
+              visiblePeople={visiblePeopleForDsAlert}
+              issuerOrganizationId={activeOrganization?.id}
+              enabled={activeOrganization?.onboardingStatus === "COMPLETED"}
+            />
+          ) : null}
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -1061,9 +1087,7 @@ export default function ProfilePage() {
                       <h3 className="text-sm font-semibold">Business Address</h3>
                       {!isEditingAddresses ? (
                         <p className="text-sm text-muted-foreground">
-                          {formatAddressDisplay(
-                            (orgData?.corporateOnboardingData?.addresses as any)?.business
-                          )}
+                          {formatAddressDisplay(orgData?.corporateOnboardingData?.addresses?.business)}
                         </p>
                       ) : (
                         <div className="grid gap-4 sm:grid-cols-2">
@@ -1149,9 +1173,7 @@ export default function ProfilePage() {
                       </div>
                       {!isEditingAddresses ? (
                         <p className="text-sm text-muted-foreground">
-                          {formatAddressDisplay(
-                            (orgData?.corporateOnboardingData?.addresses as any)?.registered
-                          )}
+                          {formatAddressDisplay(orgData?.corporateOnboardingData?.addresses?.registered)}
                         </p>
                       ) : (
                         !sameAsBusinessAddress && (
@@ -1327,13 +1349,10 @@ export default function ProfilePage() {
                   <DirectorShareholdersUnifiedSection
                     organizationId={activeOrganization.id}
                     organizationOnboardingStatus={orgData.onboardingStatus}
-                    corporateEntities={orgData.corporateEntities ?? {}}
-                    directorKycStatus={orgData.directorKycStatus ?? null}
-                    directorAmlStatus={orgData.directorAmlStatus ?? null}
-                    organizationCtosCompanyJson={orgData.latestOrganizationCtosCompanyJson ?? null}
-                    ctosPartySupplements={orgData.ctosPartySupplements ?? null}
+                    people={orgData.people ?? []}
                     highlightActionRequiredRows
                     autoFocusFirstEmptyEmail={focusDirectors}
+                    focusedMatchKey={focusedPersonKey}
                   />
                 </div>
               )}
@@ -1721,7 +1740,7 @@ export default function ProfilePage() {
             try {
               await leave();
               setConfirmDialog({ open: false, type: null });
-            } catch (error) {
+            } catch {
               // Error is handled by the hook
             }
           }}

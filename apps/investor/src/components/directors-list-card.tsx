@@ -56,7 +56,7 @@ export function DirectorsListCard({ organizationId }: DirectorsListCardProps) {
         </div>
       </div>
       <div className="p-6 space-y-4">
-        {directors.map((director: any, index: number) => (
+        {directors.map((director, index) => (
           <div key={index} className="rounded-lg border bg-card p-4">
             <div className="flex items-start justify-between mb-3">
               <div className="flex-1">

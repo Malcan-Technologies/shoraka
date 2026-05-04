@@ -12,6 +12,7 @@ import {
   OrganizationType,
   OnboardingStatus,
   ApplicationStatus,
+  NoteStatus,
   ReviewSection,
   ReviewStepStatus,
 } from "@prisma/client";
@@ -1791,11 +1792,9 @@ export class AdminRepository {
    * Categories (based on organization onboarding_status):
    * - inProgress: PENDING or IN_PROGRESS (user still completing onboarding)
    * - pending: PENDING_APPROVAL or PENDING_AML (waiting for admin action)
-   * - approved: COMPLETED (onboarding fully complete, has onboarded_at date)
-   * - rejected: Count from regtank_onboarding (not tracked at org level)
-   * - expired: Count from regtank_onboarding (not tracked at org level)
-   *
-   * Average time to approval: created_at to onboarded_at
+   * - approved: COMPLETED (onboarding fully complete)
+   * - rejected: REJECTED at organization level
+   * - expired: regtank_onboarding rows with EXPIRED status
    */
   async getOnboardingOperationsMetrics(): Promise<{
     inProgress: number;
@@ -1803,10 +1802,6 @@ export class AdminRepository {
     approved: number;
     rejected: number;
     expired: number;
-    avgTimeToApprovalMinutes: number | null;
-    avgTimeToApprovalChangePercent: number | null;
-    avgTimeToOnboardingMinutes: number | null;
-    avgTimeToOnboardingChangePercent: number | null;
   }> {
     // Count organizations by onboarding_status from both investor and issuer tables
     const [
@@ -1883,238 +1878,135 @@ export class AdminRepository {
     const pendingCount = investorPending + issuerPending;
     const approvedCount = investorApproved + issuerApproved;
 
-    // Calculate average time to approval for completed organizations
-    // Time is measured from created_at to onboarded_at
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const sixtyDaysAgo = new Date();
-    sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-
-    // Get completed organizations from current period (last 30 days)
-    // Include regtank_onboarding to get completed_at for approval time calculation
-    // Use admin_approved_at as fallback filter since onboarded_at might not be set on older records
-    // Exclude records where both timestamps are null (shouldn't happen for COMPLETED, but just in case)
-    const [currentInvestorCompleted, currentIssuerCompleted] = await Promise.all([
-      prisma.investorOrganization.findMany({
-        where: {
-          onboarding_status: OnboardingStatus.COMPLETED,
-          OR: [{ onboarded_at: { not: null } }, { admin_approved_at: { not: null } }],
-          AND: {
-            OR: [
-              { onboarded_at: { gte: thirtyDaysAgo } },
-              { admin_approved_at: { gte: thirtyDaysAgo } },
-            ],
-          },
-        },
-        select: {
-          created_at: true,
-          onboarded_at: true,
-          admin_approved_at: true,
-          regtank_onboarding: {
-            where: { status: { in: ["APPROVED", "COMPLETED"] } },
-            orderBy: { completed_at: "desc" },
-            take: 1,
-            select: { completed_at: true, webhook_payloads: true },
-          },
-        },
-      }),
-      prisma.issuerOrganization.findMany({
-        where: {
-          onboarding_status: OnboardingStatus.COMPLETED,
-          OR: [{ onboarded_at: { not: null } }, { admin_approved_at: { not: null } }],
-          AND: {
-            OR: [
-              { onboarded_at: { gte: thirtyDaysAgo } },
-              { admin_approved_at: { gte: thirtyDaysAgo } },
-            ],
-          },
-        },
-        select: {
-          created_at: true,
-          onboarded_at: true,
-          admin_approved_at: true,
-          regtank_onboarding: {
-            where: { status: { in: ["APPROVED", "COMPLETED"] } },
-            orderBy: { completed_at: "desc" },
-            take: 1,
-            select: { completed_at: true, webhook_payloads: true },
-          },
-        },
-      }),
-    ]);
-
-    const currentPeriodCompleted = [...currentInvestorCompleted, ...currentIssuerCompleted];
-
-    // Get completed organizations from previous period (30-60 days ago)
-    // Use admin_approved_at as fallback filter since onboarded_at might not be set on older records
-    // Exclude records where both timestamps are null
-    const [previousInvestorCompleted, previousIssuerCompleted] = await Promise.all([
-      prisma.investorOrganization.findMany({
-        where: {
-          onboarding_status: OnboardingStatus.COMPLETED,
-          OR: [{ onboarded_at: { not: null } }, { admin_approved_at: { not: null } }],
-          AND: {
-            OR: [
-              { onboarded_at: { gte: sixtyDaysAgo, lt: thirtyDaysAgo } },
-              { admin_approved_at: { gte: sixtyDaysAgo, lt: thirtyDaysAgo } },
-            ],
-          },
-        },
-        select: {
-          created_at: true,
-          onboarded_at: true,
-          admin_approved_at: true,
-          regtank_onboarding: {
-            where: { status: { in: ["APPROVED", "COMPLETED"] } },
-            orderBy: { completed_at: "desc" },
-            take: 1,
-            select: { completed_at: true, webhook_payloads: true },
-          },
-        },
-      }),
-      prisma.issuerOrganization.findMany({
-        where: {
-          onboarding_status: OnboardingStatus.COMPLETED,
-          OR: [{ onboarded_at: { not: null } }, { admin_approved_at: { not: null } }],
-          AND: {
-            OR: [
-              { onboarded_at: { gte: sixtyDaysAgo, lt: thirtyDaysAgo } },
-              { admin_approved_at: { gte: sixtyDaysAgo, lt: thirtyDaysAgo } },
-            ],
-          },
-        },
-        select: {
-          created_at: true,
-          onboarded_at: true,
-          admin_approved_at: true,
-          regtank_onboarding: {
-            where: { status: { in: ["APPROVED", "COMPLETED"] } },
-            orderBy: { completed_at: "desc" },
-            take: 1,
-            select: { completed_at: true, webhook_payloads: true },
-          },
-        },
-      }),
-    ]);
-
-    const previousPeriodCompleted = [...previousInvestorCompleted, ...previousIssuerCompleted];
-
-    // Helper function to extract WAIT_FOR_APPROVAL timestamp from webhook payloads
-    const getSubmittedAtFromWebhooks = (webhookPayloads: unknown[] | null): Date | null => {
-      if (!webhookPayloads || !Array.isArray(webhookPayloads)) return null;
-      for (const payload of webhookPayloads) {
-        if (payload && typeof payload === "object" && !Array.isArray(payload)) {
-          const payloadObj = payload as Record<string, unknown>;
-          const payloadStatus = (payloadObj.status as string)?.toUpperCase();
-          if (payloadStatus === "WAIT_FOR_APPROVAL" && payloadObj.timestamp) {
-            return new Date(payloadObj.timestamp as string);
-          }
-        }
-      }
-      return null;
-    };
-
-    // Calculate average time to approval (WAIT_FOR_APPROVAL webhook timestamp to admin_approved_at)
-    // This measures how long admin takes to approve after user submits for approval
-    // Falls back to completed_at if no WAIT_FOR_APPROVAL webhook found
-    let avgTimeToApprovalMinutes: number | null = null;
-    const currentWithApproval = currentPeriodCompleted.filter((org) => {
-      if (!org.admin_approved_at) return false;
-      const regtankOnboarding = org.regtank_onboarding[0];
-      if (!regtankOnboarding) return false;
-      // Check for WAIT_FOR_APPROVAL webhook timestamp or fall back to completed_at
-      const submittedAt = getSubmittedAtFromWebhooks(
-        regtankOnboarding.webhook_payloads as unknown[]
-      );
-      return submittedAt || regtankOnboarding.completed_at;
-    });
-    if (currentWithApproval.length > 0) {
-      const totalMinutes = currentWithApproval.reduce((sum, org) => {
-        const regtankOnboarding = org.regtank_onboarding[0]!;
-        // Use WAIT_FOR_APPROVAL timestamp if available, otherwise fall back to completed_at
-        const submittedAt =
-          getSubmittedAtFromWebhooks(regtankOnboarding.webhook_payloads as unknown[]) ||
-          regtankOnboarding.completed_at!;
-        const diffMs = org.admin_approved_at!.getTime() - submittedAt.getTime();
-        return sum + diffMs / 1000 / 60;
-      }, 0);
-      avgTimeToApprovalMinutes = Math.round(totalMinutes / currentWithApproval.length);
-    }
-
-    // Calculate average time to approval change percent
-    let avgTimeToApprovalChangePercent: number | null = null;
-    const previousWithApproval = previousPeriodCompleted.filter((org) => {
-      if (!org.admin_approved_at) return false;
-      const regtankOnboarding = org.regtank_onboarding[0];
-      if (!regtankOnboarding) return false;
-      const submittedAt = getSubmittedAtFromWebhooks(
-        regtankOnboarding.webhook_payloads as unknown[]
-      );
-      return submittedAt || regtankOnboarding.completed_at;
-    });
-    if (previousWithApproval.length > 0 && avgTimeToApprovalMinutes !== null) {
-      const previousTotalMinutes = previousWithApproval.reduce((sum, org) => {
-        const regtankOnboarding = org.regtank_onboarding[0]!;
-        const submittedAt =
-          getSubmittedAtFromWebhooks(regtankOnboarding.webhook_payloads as unknown[]) ||
-          regtankOnboarding.completed_at!;
-        const diffMs = org.admin_approved_at!.getTime() - submittedAt.getTime();
-        return sum + diffMs / 1000 / 60;
-      }, 0);
-      const previousAvg = previousTotalMinutes / previousWithApproval.length;
-      if (previousAvg > 0) {
-        avgTimeToApprovalChangePercent = Math.round(
-          ((avgTimeToApprovalMinutes - previousAvg) / previousAvg) * 100
-        );
-      }
-    }
-
-    // Calculate average time to onboarding (created_at to onboarded_at or admin_approved_at)
-    // This measures total time from organization creation to fully onboarded
-    // Use admin_approved_at as fallback for older records where onboarded_at might not be set
-    let avgTimeToOnboardingMinutes: number | null = null;
-    const currentWithOnboarding = currentPeriodCompleted.filter(
-      (org) => org.onboarded_at || org.admin_approved_at
-    );
-    if (currentWithOnboarding.length > 0) {
-      const totalMinutes = currentWithOnboarding.reduce((sum, org) => {
-        const completedAt = org.onboarded_at || org.admin_approved_at;
-        const diffMs = completedAt!.getTime() - org.created_at.getTime();
-        return sum + diffMs / 1000 / 60;
-      }, 0);
-      avgTimeToOnboardingMinutes = Math.round(totalMinutes / currentWithOnboarding.length);
-    }
-
-    // Calculate average time to onboarding change percent
-    let avgTimeToOnboardingChangePercent: number | null = null;
-    const previousWithOnboarding = previousPeriodCompleted.filter(
-      (org) => org.onboarded_at || org.admin_approved_at
-    );
-    if (previousWithOnboarding.length > 0 && avgTimeToOnboardingMinutes !== null) {
-      const previousTotalMinutes = previousWithOnboarding.reduce((sum, org) => {
-        const completedAt = org.onboarded_at || org.admin_approved_at;
-        const diffMs = completedAt!.getTime() - org.created_at.getTime();
-        return sum + diffMs / 1000 / 60;
-      }, 0);
-      const previousAvg = previousTotalMinutes / previousWithOnboarding.length;
-      if (previousAvg > 0) {
-        avgTimeToOnboardingChangePercent = Math.round(
-          ((avgTimeToOnboardingMinutes - previousAvg) / previousAvg) * 100
-        );
-      }
-    }
-
     return {
       inProgress: inProgressCount,
       pending: pendingCount,
       approved: approvedCount,
       rejected: rejectedCount,
       expired: expiredCount,
-      avgTimeToApprovalMinutes,
-      avgTimeToApprovalChangePercent,
-      avgTimeToOnboardingMinutes,
-      avgTimeToOnboardingChangePercent,
+    };
+  }
+
+  /**
+   * Financing application counts for the admin operations dashboard.
+   * `actionRequired` matches the admin applications list "needs attention" filter.
+   */
+  async getApplicationDashboardMetrics(): Promise<{
+    total: number;
+    actionRequired: number;
+    draft: number;
+    contractOrAmendmentCycle: number;
+    approvedCompleted: number;
+    withdrawnRejectedOrArchived: number;
+  }> {
+    const ACTION_REQUIRED: ApplicationStatus[] = [
+      ApplicationStatus.SUBMITTED,
+      ApplicationStatus.UNDER_REVIEW,
+      ApplicationStatus.RESUBMITTED,
+      ApplicationStatus.CONTRACT_PENDING,
+      ApplicationStatus.CONTRACT_ACCEPTED,
+      ApplicationStatus.INVOICE_PENDING,
+    ];
+    const CONTRACT_OR_AMENDMENT: ApplicationStatus[] = [
+      ApplicationStatus.CONTRACT_SENT,
+      ApplicationStatus.INVOICES_SENT,
+      ApplicationStatus.AMENDMENT_REQUESTED,
+    ];
+    const APPROVED_DONE: ApplicationStatus[] = [
+      ApplicationStatus.APPROVED,
+      ApplicationStatus.COMPLETED,
+    ];
+    const TERMINAL: ApplicationStatus[] = [
+      ApplicationStatus.WITHDRAWN,
+      ApplicationStatus.REJECTED,
+      ApplicationStatus.ARCHIVED,
+    ];
+
+    const [
+      total,
+      actionRequired,
+      draft,
+      contractOrAmendmentCycle,
+      approvedCompleted,
+      withdrawnRejectedOrArchived,
+    ] = await Promise.all([
+      prisma.application.count(),
+      prisma.application.count({ where: { status: { in: ACTION_REQUIRED } } }),
+      prisma.application.count({ where: { status: ApplicationStatus.DRAFT } }),
+      prisma.application.count({ where: { status: { in: CONTRACT_OR_AMENDMENT } } }),
+      prisma.application.count({ where: { status: { in: APPROVED_DONE } } }),
+      prisma.application.count({ where: { status: { in: TERMINAL } } }),
+    ]);
+
+    return {
+      total,
+      actionRequired,
+      draft,
+      contractOrAmendmentCycle,
+      approvedCompleted,
+      withdrawnRejectedOrArchived,
+    };
+  }
+
+  /**
+   * Contract counts for the admin operations dashboard.
+   * `actionRequired` covers contracts admins need to act on (SUBMITTED, AMENDMENT_REQUESTED).
+   */
+  async getContractDashboardMetrics(): Promise<{
+    total: number;
+    actionRequired: number;
+    draft: number;
+    offerSent: number;
+    approved: number;
+    rejectedOrWithdrawn: number;
+  }> {
+    const ACTION_REQUIRED = ["SUBMITTED", "AMENDMENT_REQUESTED"] as const;
+    const REJECTED_OR_WITHDRAWN = ["REJECTED", "WITHDRAWN"] as const;
+
+    const [total, actionRequired, draft, offerSent, approved, rejectedOrWithdrawn] =
+      await Promise.all([
+        prisma.contract.count(),
+        prisma.contract.count({ where: { status: { in: [...ACTION_REQUIRED] } } }),
+        prisma.contract.count({ where: { status: "DRAFT" } }),
+        prisma.contract.count({ where: { status: "OFFER_SENT" } }),
+        prisma.contract.count({ where: { status: "APPROVED" } }),
+        prisma.contract.count({ where: { status: { in: [...REJECTED_OR_WITHDRAWN] } } }),
+      ]);
+
+    return { total, actionRequired, draft, offerSent, approved, rejectedOrWithdrawn };
+  }
+
+  /**
+   * Note counts for the admin operations dashboard (lifecycle buckets).
+   */
+  async getNoteDashboardMetrics(): Promise<{
+    total: number;
+    draft: number;
+    live: number;
+    repaid: number;
+    distressed: number;
+    cancelledOrFailedFunding: number;
+  }> {
+    const LIVE: NoteStatus[] = [NoteStatus.PUBLISHED, NoteStatus.FUNDING, NoteStatus.ACTIVE];
+    const DISTRESSED: NoteStatus[] = [NoteStatus.ARREARS, NoteStatus.DEFAULTED];
+    const CLOSED_OTHER: NoteStatus[] = [NoteStatus.CANCELLED, NoteStatus.FAILED_FUNDING];
+
+    const [total, draft, live, repaid, distressed, cancelledOrFailedFunding] = await Promise.all([
+      prisma.note.count(),
+      prisma.note.count({ where: { status: NoteStatus.DRAFT } }),
+      prisma.note.count({ where: { status: { in: LIVE } } }),
+      prisma.note.count({ where: { status: NoteStatus.REPAID } }),
+      prisma.note.count({ where: { status: { in: DISTRESSED } } }),
+      prisma.note.count({ where: { status: { in: CLOSED_OTHER } } }),
+    ]);
+
+    return {
+      total,
+      draft,
+      live,
+      repaid,
+      distressed,
+      cancelledOrFailedFunding,
     };
   }
 
@@ -2124,6 +2016,7 @@ export class AdminRepository {
   async getApplications(params: GetAdminApplicationsQuery): Promise<{
     applications: {
       id: string;
+      issuerOrganizationId: string;
       issuerOrganizationName: string | null;
       financingTypeLabel: string;
       financingStructureLabel: string;
@@ -2190,6 +2083,7 @@ export class AdminRepository {
         include: {
           issuer_organization: {
             select: {
+              id: true,
               name: true,
             },
           },
@@ -2215,21 +2109,22 @@ export class AdminRepository {
       // Calculate from invoices if available
       if (app.invoices && app.invoices.length > 0) {
         requestedAmount = app.invoices.reduce((sum, inv) => {
-          const details = inv.details as any;
-          const invoiceValue = parseFloat(details?.value || 0);
-          const financingRatio = parseFloat(details?.financing_ratio_percent || 80);
+          const details = inv.details as Record<string, unknown> | null;
+          const invoiceValue = Number(details?.value ?? 0);
+          const financingRatio = Number(details?.financing_ratio_percent ?? 80);
           return sum + (invoiceValue * financingRatio) / 100;
         }, 0);
       } else if (app.contract?.contract_details) {
         // Fallback to contract value if no invoices
-        const contractDetails = app.contract.contract_details as any;
-        requestedAmount = parseFloat(
-          contractDetails?.value || contractDetails?.approved_facility || 0
-        );
+        const contractDetails = app.contract.contract_details as Record<string, unknown> | null;
+        requestedAmount = Number(contractDetails?.value ?? contractDetails?.approved_facility ?? 0);
       }
 
-      const financingType = app.financing_type as any;
-      const productLabel = financingType?.product_name || "Financing Product";
+      const financingType = app.financing_type as Record<string, unknown> | null;
+      const productLabel =
+        typeof financingType?.product_name === "string" && financingType.product_name.trim().length > 0
+          ? financingType.product_name
+          : "Financing Product";
 
       // Financing Structure Label: Contract Financing if New or Existing Contract; Invoice Financing if Invoice Only
       const structure = app.financing_structure as { structure_type?: string } | null;
@@ -2250,6 +2145,7 @@ export class AdminRepository {
 
       return {
         id: app.id,
+        issuerOrganizationId: app.issuer_organization.id,
         issuerOrganizationName: app.issuer_organization.name,
         financingTypeLabel: productLabel,
         financingStructureLabel,
@@ -2389,6 +2285,15 @@ export class AdminRepository {
       updatedAt: Date;
       requestedAmount: number;
     }[];
+    issuerOrganizationId: string | null;
+    notes: {
+      id: string;
+      noteReference: string;
+      title: string;
+      status: string;
+      sourceApplicationId: string;
+      sourceInvoiceId: string | null;
+    }[];
   } | null> {
     const contract = await prisma.contract.findUnique({
       where: { id },
@@ -2472,12 +2377,26 @@ export class AdminRepository {
     });
 
     const userIds = [sentByUserId, respondedByUserId].filter((id): id is string => Boolean(id));
-    const users = userIds.length
-      ? await prisma.user.findMany({
-          where: { user_id: { in: userIds } },
-          select: { user_id: true, first_name: true, last_name: true, email: true },
-        })
-      : [];
+    const [users, notes] = await Promise.all([
+      userIds.length
+        ? prisma.user.findMany({
+            where: { user_id: { in: userIds } },
+            select: { user_id: true, first_name: true, last_name: true, email: true },
+          })
+        : Promise.resolve([]),
+      prisma.note.findMany({
+        where: { source_contract_id: id },
+        orderBy: { created_at: "desc" },
+        select: {
+          id: true,
+          note_reference: true,
+          title: true,
+          status: true,
+          source_application_id: true,
+          source_invoice_id: true,
+        },
+      }),
+    ]);
     const userNameById = new Map(
       users.map((user) => {
         const fullName = [user.first_name, user.last_name].filter(Boolean).join(" ").trim();
@@ -2493,6 +2412,7 @@ export class AdminRepository {
           : null,
       title: typeof contractDetails.title === "string" ? contractDetails.title : null,
       description: typeof contractDetails.description === "string" ? contractDetails.description : null,
+      issuerOrganizationId: contract.issuer_organization_id,
       issuerOrganizationName: contract.issuer_organization?.name ?? null,
       requestedFacility: Number.isFinite(requestedFacility) ? requestedFacility : 0,
       approvedFacility:
@@ -2512,6 +2432,14 @@ export class AdminRepository {
         : null,
       customerDetails: contract.customer_details ? customerDetails : null,
       applications,
+      notes: notes.map((note) => ({
+        id: note.id,
+        noteReference: note.note_reference,
+        title: note.title,
+        status: note.status,
+        sourceApplicationId: note.source_application_id,
+        sourceInvoiceId: note.source_invoice_id,
+      })),
     };
   }
 

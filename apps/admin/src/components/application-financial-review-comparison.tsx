@@ -347,8 +347,6 @@ export function ApplicationFinancialReviewComparison({
     financial_statements?: unknown;
     issuer_organization?: {
       corporate_entities?: unknown;
-      director_kyc_status?: unknown;
-      director_aml_status?: unknown;
     } | null;
   };
   afterApp: typeof beforeApp;

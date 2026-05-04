@@ -26,12 +26,14 @@ export function ApplicationsTableRow({
   application,
   onViewDetails,
 }: ApplicationsTableRowProps) {
+  const hasPending = Boolean(application.directorShareholderAmlPending);
+
   return (
     <TableRow className={applicationTableRowClass}>
       {/* Reference */}
-      <TableCell className={applicationTableCellClass}>
-        <div className="flex items-center gap-2">
-          <span className="truncate max-w-[100px]" title={application.id}>
+      <TableCell className={`${applicationTableCellClass} min-w-0 overflow-hidden truncate font-mono text-xs`}>
+        <div className="min-w-0">
+          <span className="block truncate" title={application.id}>
             {application.id.slice(-8).toUpperCase()}
           </span>
         </div>
@@ -39,8 +41,15 @@ export function ApplicationsTableRow({
 
       {/* Applicant */}
       <TableCell className={applicationTableCellClass}>
-        <div className="font-medium truncate max-w-[200px]" title={application.issuerOrganizationName || ""}>
-          {application.issuerOrganizationName || "Unnamed Organization"}
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
+          <div className="font-medium truncate max-w-[200px]" title={application.issuerOrganizationName || ""}>
+            {application.issuerOrganizationName || "Unnamed Organization"}
+          </div>
+          {hasPending ? (
+            <span className="shrink-0 inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:text-amber-100">
+              Director/Shareholder Action Required
+            </span>
+          ) : null}
         </div>
       </TableCell>
 
