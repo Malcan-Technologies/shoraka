@@ -9,7 +9,7 @@ Director and shareholder rows in Admin and Issuer are backed by `people[]` (`App
 - **`screening.status`** — AML / ACURIS-style screening line (from issuer `director_aml_status`, including corporate **business shareholders**).
 - **`onboarding.status`** — Individual **KYC** pipeline status from issuer `director_kyc_status`, or for **corporate** rows the **KYB** status derived from `corporate_entities` (same field name; see **§5. Priority rules**).
 
-The **single badge** next to each person (e.g. “Verified”, “Rejected”, “Expired”) comes from **`getFinalStatusLabel({ screening, onboarding })`** shared by Admin and Issuer:
+The **single badge** next to each person (e.g. “Verified”, “Rejected”, “Expired”) comes from **`getFinalStatusLabel({ screening, onboarding })`** shared by Admin and Issuer. Admin **onboarding approval** (step before AML) passes **`{ displayMode: "kyc_only" }`** so the badge reflects **onboarding/KYC only**; elsewhere the default is **AML-first**.
 
 **File:** `packages/types/src/director-shareholder-final-status.ts`  
 Effective token: **`getDirectorShareholderEffectiveStatus`** — if normalized **`screening.status`** (AML) is non-empty, **only AML** drives the badge; otherwise **`onboarding.status`** (KYC/KYB) drives it.  

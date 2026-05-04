@@ -1,9 +1,9 @@
 /**
  * SECTION: Director/shareholder unified badge
- * WHY: AML drives the visible status when present; onboarding fills gaps; resend rules live in application-people-display
+ * WHY: Default AML-first for portals; admin onboarding-approval step can show KYC-only before AML review
  * INPUT: screening (AML) + onboarding (KYC/KYB) on a people row
  * OUTPUT: label + tone for Badge
- * WHERE USED: Admin table, issuer profile, investor cards, onboarding status rows
+ * WHERE USED: Admin table, issuer profile, investor cards, onboarding review dialog
  */
 
 import { normalizeRawStatus } from "./status-normalization";
@@ -11,6 +11,13 @@ import { normalizeRawStatus } from "./status-normalization";
 export type DirectorShareholderFinalStatusTone = "success" | "warning" | "danger" | "neutral" | "expired";
 
 export type DirectorShareholderEffectiveStatusSource = "AML" | "ONBOARDING";
+
+/** `aml_first`: screening wins when non-empty. `kyc_only`: badge from onboarding/KYB only (admin step 3 — onboarding approval). */
+export type DirectorShareholderFinalStatusDisplayMode = "aml_first" | "kyc_only";
+
+export type GetFinalStatusLabelOptions = {
+  displayMode?: DirectorShareholderFinalStatusDisplayMode;
+};
 
 const PENDING_REVIEW = new Set([
   "WAIT_FOR_APPROVAL",
@@ -55,11 +62,11 @@ export function getDirectorShareholderEffectiveStatus(
   return { source: "ONBOARDING", value: onboarding };
 }
 
-export function getFinalStatusLabel(person: DirectorShareholderStatusPerson): {
-  label: string;
-  tone: DirectorShareholderFinalStatusTone;
-} {
-  const { source, value } = getDirectorShareholderEffectiveStatus(person);
+function labelFromEffective(effective: {
+  source: DirectorShareholderEffectiveStatusSource;
+  value: string;
+}): { label: string; tone: DirectorShareholderFinalStatusTone } {
+  const { source, value } = effective;
 
   if (!value) {
     return { label: "Not Started", tone: "neutral" };
@@ -93,6 +100,17 @@ export function getFinalStatusLabel(person: DirectorShareholderStatusPerson): {
   }
 
   return { label: "In Progress", tone: "warning" };
+}
+
+export function getFinalStatusLabel(
+  person: DirectorShareholderStatusPerson,
+  options?: GetFinalStatusLabelOptions
+): { label: string; tone: DirectorShareholderFinalStatusTone } {
+  const effective =
+    options?.displayMode === "kyc_only"
+      ? { source: "ONBOARDING" as const, value: normalizeRawStatus(person.onboarding?.status) }
+      : getDirectorShareholderEffectiveStatus(person);
+  return labelFromEffective(effective);
 }
 
 export function getFinalStatusBadgeClassName(tone: DirectorShareholderFinalStatusTone): string {

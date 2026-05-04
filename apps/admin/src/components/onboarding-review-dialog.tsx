@@ -96,10 +96,13 @@ function OnboardingPeopleReadonlyCards({
         const rolesLine = formatPeopleRolesLine(p);
         const idLine =
           p.entityType === "CORPORATE" ? `SSM ${p.matchKey}` : `IC ${p.matchKey}`;
-        const finalStatus = getFinalStatusLabel({
-          screening: p.screening,
-          onboarding: p.onboarding,
-        });
+        const finalStatus = getFinalStatusLabel(
+          {
+            screening: p.screening,
+            onboarding: p.onboarding,
+          },
+          { displayMode: "kyc_only" }
+        );
 
         return (
           <div
