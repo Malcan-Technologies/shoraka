@@ -9,7 +9,7 @@
 import { prisma } from "../../lib/prisma";
 import { AppError } from "../../lib/http/error-handler";
 import {
-  canEnterEmailForDirectorShareholder,
+  computeHasPendingDirectorShareholder,
   filterVisiblePeopleRows,
   type ApplicationPersonRow,
 } from "@cashsouk/types";
@@ -17,12 +17,10 @@ import { OrganizationService } from "../organization/service";
 import { buildAdminPeopleList } from "../admin/build-people-list";
 
 const DIRECTOR_SHAREHOLDER_PENDING_MESSAGE =
-  "Some directors or shareholders have not finished onboarding. Complete onboarding on your company profile before you submit an application.";
+  "Director/Shareholder information updated. Please review. Complete onboarding on your company profile before you submit an application.";
 
-function peopleHavePendingOnboarding(visible: ApplicationPersonRow[]): boolean {
-  const individuals = visible.filter((p) => p.entityType === "INDIVIDUAL");
-  if (individuals.length === 0) return false;
-  return individuals.some((p) => canEnterEmailForDirectorShareholder(p));
+function peopleHavePendingDirectorShareholder(visible: ApplicationPersonRow[]): boolean {
+  return computeHasPendingDirectorShareholder(visible);
 }
 
 export async function getIssuerDirectorShareholderSubmitReadiness(issuerOrganizationId: string): Promise<{
@@ -67,7 +65,7 @@ export async function assertIssuerOrgDirectorShareholderOnboardingReady(
   if (visibleIndividuals.length === 0) {
     return;
   }
-  if (peopleHavePendingOnboarding(visibleIndividuals)) {
+  if (peopleHavePendingDirectorShareholder(visible)) {
     throw new AppError(400, "DIRECTOR_SHAREHOLDER_PENDING", DIRECTOR_SHAREHOLDER_PENDING_MESSAGE);
   }
 }

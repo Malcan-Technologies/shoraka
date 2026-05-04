@@ -1,7 +1,7 @@
 /**
  * SECTION: Issuer director/shareholder notifications (Option A)
- * WHY: Alert issuer on AML-driven mismatch transitions and admin reject — no workflow state.
- * WHERE USED: After issuer org CTOS report insert; AML/supplement updates; admin reject route.
+ * WHY: Alert issuer on AML-driven mismatch transitions — no workflow state.
+ * WHERE USED: After issuer org CTOS report insert; AML/supplement updates.
  */
 
 import {
@@ -241,7 +241,7 @@ export async function runIssuerDirectorShareholderNotificationsAfterOrgCtosRepor
 }
 
 /**
- * Recompute from DB and resolve mismatch + per-party rejected rows when AML is fully clear for visible people.
+ * Recompute from DB and resolve mismatch notifications when AML and onboarding are fully clear for visible people.
  */
 export async function runIssuerDirectorShareholderNotificationResolutionFromDb(
   issuerOrganizationId: string
@@ -299,43 +299,6 @@ async function resolveIssuerDirectorShareholderNotificationsIfCleared(params: {
     },
     data: { resolved_at: new Date() },
   });
-
-  await prisma.notification.updateMany({
-    where: {
-      user_id: ownerUserId,
-      notification_type_id: NotificationTypeIds.DIRECTOR_SHAREHOLDER_REJECTED,
-      resolved_at: null,
-      metadata: {
-        path: ["issuerOrganizationId"],
-        equals: issuerOrganizationId,
-      },
-    },
-    data: { resolved_at: new Date() },
-  });
-}
-
-export async function notifyIssuerDirectorShareholderRejected(params: {
-  issuerOrganizationId: string;
-  ownerUserId: string;
-  partyKeyRaw: string;
-  personName?: string | null;
-}): Promise<void> {
-  const pk = normalizeDirectorShareholderIdKey(params.partyKeyRaw);
-  if (!pk || !params.ownerUserId?.trim()) {
-    logger.warn({ issuerOrganizationId: params.issuerOrganizationId }, "DS rejected notification skipped: invalid key");
-    return;
-  }
-
-  const notificationService = new NotificationService();
-  await notificationService.sendTyped(
-    params.ownerUserId,
-    NotificationTypeIds.DIRECTOR_SHAREHOLDER_REJECTED,
-    {
-      issuerOrganizationId: params.issuerOrganizationId,
-      partyKey: pk,
-      personName: params.personName ?? undefined,
-    }
-  );
 }
 
 export async function notifyIssuerDirectorShareholderActionRequired(params: {

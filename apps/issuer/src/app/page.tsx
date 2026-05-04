@@ -178,7 +178,6 @@ function IssuerDashboardContent() {
           {activeOrganization?.type === "COMPANY" ? (
             <DirectorShareholderAlertCard
               visiblePeople={visiblePeopleForDsAlert}
-              issuerOrganizationId={activeOrganization.id}
               enabled={activeOrganization.onboardingStatus === "COMPLETED"}
             />
           ) : null}

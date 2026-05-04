@@ -24,6 +24,15 @@ export function ctosPositionDirectorShareholderFlags(position: string | undefine
     case "SC":
       return { isDirector: false, isShareholder: false };
     default:
+      if (pos.includes("DIRECTOR") && !pos.includes("SHAREHOLDER")) {
+        return { isDirector: true, isShareholder: false };
+      }
+      if (pos.includes("SHAREHOLDER") && !pos.includes("DIRECTOR")) {
+        return { isDirector: false, isShareholder: true };
+      }
+      if (pos.includes("DIRECTOR") && pos.includes("SHAREHOLDER")) {
+        return { isDirector: true, isShareholder: true };
+      }
       return { isDirector: false, isShareholder: false };
   }
 }

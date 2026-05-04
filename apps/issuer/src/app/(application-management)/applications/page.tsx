@@ -722,7 +722,6 @@ export default function ApplicationsPage() {
       {activeOrganization?.type === "COMPANY" && dsOnboardingPending ? (
         <DirectorShareholderAlertCard
           visiblePeople={visiblePeopleForDsGating}
-          issuerOrganizationId={activeOrganization.id}
           enabled={activeOrganization.onboardingStatus === "COMPLETED"}
           stickyTop
           className="mb-4"

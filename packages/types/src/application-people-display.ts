@@ -321,6 +321,50 @@ export function requiresOnboardingEmail(p: ApplicationPersonRow): boolean {
   return isDirector || (isShareholder && share >= 5);
 }
 
+const AML_SCREENING_TERMINAL_REJECT = new Set(["REJECTED", "FAILED", "DECLINED"]);
+
+/** Onboarding states where issuer may edit email, resend onboarding, and admin may send Notify (webhook-driven reject stays here). */
+const ONBOARDING_ACTIONABLE_FOR_ISSUER = new Set([
+  "NOT_STARTED",
+  "IN_PROGRESS",
+  "PROCESSING",
+  "ID_UPLOADED",
+  "LIVENESS_STARTED",
+  "LIVENESS_PASSED",
+  "EMAIL_SENT",
+  "SENT",
+  "FORM_FILLING",
+  "REJECTED",
+]);
+
+function screeningBlocksIssuerDirectorShareholderActions(p: ApplicationPersonRow): boolean {
+  const s = normalizeRawStatus(p.screening?.status);
+  if (!s) return false;
+  if (s === "APPROVED") return true;
+  if (AML_SCREENING_TERMINAL_REJECT.has(s)) return true;
+  return false;
+}
+
+function onboardingAllowsIssuerDirectorShareholderActions(p: ApplicationPersonRow): boolean {
+  const ob = normalizeRawStatus(p.onboarding?.status);
+  if (!ob) return true;
+  if (ob === "WAIT_FOR_APPROVAL" || ob === "APPROVED") return false;
+  return ONBOARDING_ACTIONABLE_FOR_ISSUER.has(ob);
+}
+
+/**
+ * SECTION: Unified action gate for issuer email and admin notify
+ * WHY: Notify = reminder only; resend = manual; RegTank webhook owns reject status
+ * INPUT: A single people row
+ * OUTPUT: True when user should be allowed to action this person (individuals only)
+ * WHERE USED: issuer profile + admin director/shareholder table
+ */
+export function canEnterEmailForDirectorShareholder(p: ApplicationPersonRow): boolean {
+  if (p.entityType !== "INDIVIDUAL") return false;
+  if (screeningBlocksIssuerDirectorShareholderActions(p)) return false;
+  return onboardingAllowsIssuerDirectorShareholderActions(p);
+}
+
 /**
  * SECTION: Director/shareholder completion gate for email/notify
  * WHY: Email entry and admin notify must follow the same rule
@@ -329,20 +373,12 @@ export function requiresOnboardingEmail(p: ApplicationPersonRow): boolean {
  * WHERE USED: issuer email entry + admin notify visibility
  */
 export function isDirectorShareholderCompleted(p: ApplicationPersonRow): boolean {
+  if (p.entityType === "INDIVIDUAL") {
+    return !canEnterEmailForDirectorShareholder(p);
+  }
   const onboarding = normalizeRawStatus(p.onboarding?.status);
   const screening = normalizeRawStatus(p.screening?.status);
   return onboarding === "APPROVED" || onboarding === "WAIT_FOR_APPROVAL" || screening === "APPROVED";
-}
-
-/**
- * SECTION: Unified action gate for issuer email and admin notify
- * WHY: Keep CTA behavior identical across portals
- * INPUT: A single people row
- * OUTPUT: True when user should be allowed to action this person
- * WHERE USED: issuer profile + admin director/shareholder table
- */
-export function canEnterEmailForDirectorShareholder(p: ApplicationPersonRow): boolean {
-  return p.entityType === "INDIVIDUAL" && !isDirectorShareholderCompleted(p);
 }
 
 /**
@@ -421,6 +457,7 @@ export function isDirectorShareholderEmailActionable(
   ctx: DirectorShareholderEmailActionableContext
 ): boolean {
   if (!requiresOnboardingEmail(person)) return false;
+  if (!canEnterEmailForDirectorShareholder(person)) return false;
   if (ctx.partySourcePresent && isPartyTypeA(person, ctx.directorKycStatus, ctx.corporateEntities)) {
     return false;
   }
