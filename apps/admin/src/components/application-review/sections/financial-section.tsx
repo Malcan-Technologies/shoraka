@@ -6,7 +6,11 @@ import { ReviewSectionCard } from "../review-section-card";
 import type { ReviewSectionId } from "../section-types";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
 import { ApplicationFinancialReviewComparison } from "@/components/application-financial-review-comparison";
-import { computeHasPendingDirectorShareholder, type ApplicationPersonRow } from "@cashsouk/types";
+import {
+  computeHasPendingDirectorShareholder,
+  filterVisiblePeopleRows,
+  type ApplicationPersonRow,
+} from "@cashsouk/types";
 
 const DIRECTOR_SHAREHOLDER_PENDING_LABEL = "Director/Shareholder Pending";
 const DIRECTOR_SHAREHOLDER_PENDING_TOOLTIP =
@@ -75,7 +79,11 @@ export function FinancialSection({
   sectionComparison,
   hideSectionComments = false,
 }: FinancialSectionProps) {
-  const hasPendingDirectorShareholder = computeHasPendingDirectorShareholder(app.people);
+  const visibleIndividuals = filterVisiblePeopleRows(app.people ?? []).filter(
+    (p) => p.entityType === "INDIVIDUAL"
+  );
+  const hasPendingDirectorShareholder =
+    visibleIndividuals.length > 0 && computeHasPendingDirectorShareholder(visibleIndividuals);
 
   if (sectionComparison) {
     return (

@@ -65,7 +65,7 @@ export async function assertIssuerOrgDirectorShareholderOnboardingReady(
   if (visibleIndividuals.length === 0) {
     return;
   }
-  if (peopleHavePendingDirectorShareholder(visible)) {
+  if (peopleHavePendingDirectorShareholder(visibleIndividuals)) {
     throw new AppError(400, "DIRECTOR_SHAREHOLDER_PENDING", DIRECTOR_SHAREHOLDER_PENDING_MESSAGE);
   }
 }

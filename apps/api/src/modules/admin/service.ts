@@ -3159,9 +3159,14 @@ export class AdminService {
             corporateEntities: corporateEntitiesRaw ?? null,
           })
         : [];
+    const onboardingVisibleIndividuals =
+      record.organization_type === "COMPANY"
+        ? filterVisiblePeopleRows(onboardingPeopleForAml).filter((p) => p.entityType === "INDIVIDUAL")
+        : [];
     const directorShareholderAmlPending =
       record.organization_type === "COMPANY"
-        ? computeHasPendingDirectorShareholder(onboardingPeopleForAml)
+        ? onboardingVisibleIndividuals.length > 0 &&
+          computeHasPendingDirectorShareholder(onboardingVisibleIndividuals)
         : false;
 
     return {
@@ -4762,7 +4767,9 @@ export class AdminService {
           ctosPartySupplements: extras.ctosPartySupplements,
           corporateEntities: org.corporate_entities ?? null,
         });
-        const pending = computeHasPendingDirectorShareholder(people);
+        const visibleIndividuals = filterVisiblePeopleRows(people).filter((p) => p.entityType === "INDIVIDUAL");
+        const pending =
+          visibleIndividuals.length > 0 && computeHasPendingDirectorShareholder(visibleIndividuals);
         pendingByOrg.set(oid, pending);
       })
     );
@@ -5410,7 +5417,11 @@ export class AdminService {
       })),
       corporateEntities: issuerOrg.corporate_entities ?? null,
     });
-    if (computeHasPendingDirectorShareholder(people)) {
+    const visibleIndividuals = filterVisiblePeopleRows(people).filter((p) => p.entityType === "INDIVIDUAL");
+    if (
+      visibleIndividuals.length > 0 &&
+      computeHasPendingDirectorShareholder(visibleIndividuals)
+    ) {
       throw new AppError(
         400,
         "DIRECTOR_SHAREHOLDER_NOT_READY",

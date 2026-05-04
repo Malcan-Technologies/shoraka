@@ -2,7 +2,12 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { canEnterEmailForDirectorShareholder, type ApplicationPersonRow } from "@cashsouk/types";
+import {
+  computeHasPendingDirectorShareholder,
+  isDirectorShareholderAmlScreeningApproved,
+  isReadyOnboardingStatus,
+  type ApplicationPersonRow,
+} from "@cashsouk/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -29,13 +34,26 @@ export function DirectorShareholderAlertCard({
     () => visiblePeople.filter((p) => p.entityType === "INDIVIDUAL"),
     [visiblePeople]
   );
-  const notReadyPeople = React.useMemo(
-    () => visibleIndividualPeople.filter((p) => canEnterEmailForDirectorShareholder(p)),
+  const hasPending = React.useMemo(() => {
+    if (visibleIndividualPeople.length === 0) return false;
+    return computeHasPendingDirectorShareholder(visibleIndividualPeople);
+  }, [visibleIndividualPeople]);
+  const completedCount = React.useMemo(
+    () =>
+      visibleIndividualPeople.filter(
+        (p) =>
+          isReadyOnboardingStatus(p.onboarding?.status) &&
+          isDirectorShareholderAmlScreeningApproved(p.screening)
+      ).length,
     [visibleIndividualPeople]
   );
-  const hasPending = notReadyPeople.length > 0;
-  const completedCount = visibleIndividualPeople.length - notReadyPeople.length;
-  const firstNotReady = notReadyPeople[0];
+  const firstNotReady = React.useMemo(() => {
+    for (const p of visibleIndividualPeople) {
+      if (!isReadyOnboardingStatus(p.onboarding?.status)) return p;
+      if (!isDirectorShareholderAmlScreeningApproved(p.screening)) return p;
+    }
+    return undefined;
+  }, [visibleIndividualPeople]);
 
   if (!enabled) return null;
   if (!hasPending) return null;
