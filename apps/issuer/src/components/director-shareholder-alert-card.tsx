@@ -36,10 +36,6 @@ export function DirectorShareholderAlertCard({
     [visiblePeople]
   );
   const hasPending = React.useMemo(() => hasActionableDirectorShareholder(visiblePeople), [visiblePeople]);
-  const actionableCount = React.useMemo(
-    () => visibleIndividuals.filter((p) => canManageDirectorShareholder(p)).length,
-    [visibleIndividuals]
-  );
   const submitReadyCount = React.useMemo(
     () =>
       visibleIndividuals.filter((p) => {
@@ -74,21 +70,18 @@ export function DirectorShareholderAlertCard({
           "mb-2 font-bold text-primary"
         )}
       >
-        {"Some director/shareholder actions are needed"}
+        {"Action required: directors and shareholders onboarding"}
       </AlertTitle>
       <AlertDescription>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
           <div className="min-w-0 max-w-[70ch] flex-1 space-y-2">
-            <p className="text-[17px] leading-7 font-medium text-primary">
-              One or more directors or shareholders still need email, resend, or onboarding fixes.
-            </p>
             <p className="text-[17px] leading-7 text-foreground">
-              Open your company profile to resend links, update email, or finish onboarding where allowed.
+              Some directors or shareholders have not finished onboarding. Complete onboarding on your
+              company profile before you submit an application.
             </p>
             {visibleIndividuals.length > 0 ? (
               <p className="text-sm text-muted-foreground">
-                {actionableCount} of {visibleIndividuals.length} can be acted on now · {submitReadyCount} of{" "}
-                {visibleIndividuals.length} submit-ready (onboarding)
+                {submitReadyCount} of {visibleIndividuals.length} directors/shareholders completed
               </p>
             ) : null}
           </div>
