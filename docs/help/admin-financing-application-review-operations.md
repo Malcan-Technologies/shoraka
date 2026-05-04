@@ -1,6 +1,6 @@
 ---
 title: "Financing Application Review: Operations Guide"
-description: Admin application review workflow: tab gating, section and line-item actions, amendments, contract and invoice offers, and status interpretation.
+description: "Admin application review workflow: tab gating, section and line-item actions, amendments, contract and invoice offers, and status interpretation."
 category: Application Review
 tags:
   - admin

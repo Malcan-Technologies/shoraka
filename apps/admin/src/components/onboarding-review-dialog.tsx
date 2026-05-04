@@ -175,10 +175,6 @@ export function OnboardingReviewDialog({
   const isCompany = application?.type === "COMPANY";
   const peopleRows = application?.people ?? [];
   const visiblePeopleRows = React.useMemo(() => filterVisiblePeopleRows(peopleRows), [peopleRows]);
-  React.useEffect(() => {
-    console.log("Onboarding dialog people[]:", peopleRows);
-    console.log("Onboarding dialog visible people[]:", visiblePeopleRows);
-  }, [peopleRows, visiblePeopleRows]);
 
   const steps = React.useMemo(() => {
     if (!application) return [];

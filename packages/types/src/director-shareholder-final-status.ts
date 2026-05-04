@@ -1,10 +1,4 @@
-/**
- * SECTION: Unified director/shareholder status badge (display only)
- * WHY: One label from onboarding (KYC/KYB) + screening (AML), no AML-over-KYC priority.
- * INPUT: person.onboarding?.status, person.screening?.status
- * OUTPUT: { label, tone } and optional Tailwind badge fragment
- * WHERE USED: Admin director table, onboarding review dialog; issuer unified section, company details step.
- */
+/** Unified director/shareholder badge from onboarding + screening (display only). */
 
 export type DirectorShareholderFinalStatusTone = "success" | "warning" | "danger" | "neutral";
 

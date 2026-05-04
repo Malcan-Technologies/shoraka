@@ -108,10 +108,17 @@ export function OnboardingStatusCard({
   const corporateUnifiedRows = React.useMemo(() => {
     if (organization.type !== "COMPANY") return [];
     const people = orgWithPeople.people ?? [];
-    return filterVisiblePeopleRows(people).map((person) =>
-      buildDirectorShareholderDisplayRowForEmailEligibility(person, null)
-    );
+    return filterVisiblePeopleRows(people).map((person) => ({
+      ...buildDirectorShareholderDisplayRowForEmailEligibility(person, null),
+      __person: person,
+    }));
   }, [organization, orgWithPeople.people]);
+
+  const showCorporatePeopleStatus =
+    organization.type === "COMPANY" &&
+    (organization.onboardingStatus === "PENDING_APPROVAL" ||
+      organization.onboardingStatus === "PENDING_AML") &&
+    corporateUnifiedRows.length > 0;
 
   const handleRefreshAml = async () => {
     if (!organization.id) return;
@@ -217,62 +224,38 @@ export function OnboardingStatusCard({
         </div>
       </div>
       
-      {/* Corporate Onboarding Details Card - Show in PENDING_APPROVAL */}
-      {organization.type === "COMPANY" &&
-        organization.onboardingStatus === "PENDING_APPROVAL" &&
-        corporateUnifiedRows.length > 0 && (
-          <Card className="mt-6">
-            <CardHeader className="pb-4">
-              <CardTitle className="text-base">KYC Verification Status</CardTitle>
-              <CardDescription>
-                Your directors/shareholders are completing their KYC verification.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <UnifiedKycAmlReadonlyRows
-                rows={corporateUnifiedRows}
-                showKycColumn
-                showAmlColumn={false}
-              />
-            </CardContent>
-          </Card>
-        )}
-
-      {/* Corporate Onboarding Details Card - Show in PENDING_AML */}
-      {organization.type === "COMPANY" &&
-        organization.onboardingStatus === "PENDING_AML" &&
-        corporateUnifiedRows.length > 0 && (
-          <Card className="mt-6">
-            <CardHeader className="pb-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <CardTitle className="text-base">AML Screening Status</CardTitle>
-                  <CardDescription>
-                    Your directors/shareholders are completing their AML screening.
-                  </CardDescription>
-                </div>
+      {showCorporatePeopleStatus ? (
+        <Card className="mt-6">
+          <CardHeader className="pb-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <CardTitle className="text-base">Directors and shareholders</CardTitle>
+                <CardDescription>
+                  Combined verification status for each party (identity checks and screening).
+                </CardDescription>
+              </div>
+              {organization.onboardingStatus === "PENDING_AML" ? (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleRefreshAml}
                   disabled={isRefreshing}
-                  className="gap-2"
+                  className="gap-2 shrink-0"
                 >
                   <ArrowPathIcon className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
                   Refresh
                 </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <UnifiedKycAmlReadonlyRows
-                rows={corporateUnifiedRows}
-                showKycColumn={false}
-                showAmlColumn
-                isRefreshing={isRefreshing}
-              />
-            </CardContent>
-          </Card>
-        )}
+              ) : null}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <UnifiedKycAmlReadonlyRows
+              rows={corporateUnifiedRows}
+              isRefreshing={organization.onboardingStatus === "PENDING_AML" && isRefreshing}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
     </div>
   );
 }

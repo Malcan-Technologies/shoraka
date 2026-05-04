@@ -16,7 +16,7 @@ Badge colors: **`getFinalStatusBadgeClassName(tone)`** in the same file.
 
 It does **not** read the database directly. It only reads **`screening.status`** and **`onboarding.status`** on the row the API (or issuer client) already built. **Both** statuses are combined with fixed priority (rejected/expired → action required; explicit pending-review tokens → pending review; plain `PENDING` → in progress; both verified tokens → verified; both empty → not started).
 
-The legacy helper `getDirectorShareholderSingleStatusPresentation` (AML-wins-KYC) remains in `director-shareholder-single-status-display.ts` for backward compatibility but is **not** used for director/shareholder badges in the portals.
+The legacy file `director-shareholder-single-status-display.ts` (AML-wins-KYC helpers) is **not** exported from `@cashsouk/types` and is **not** used for portal badges. Keep the file only as an internal reference if needed.
 
 ---
 
@@ -75,7 +75,7 @@ Any value that ends up in `screening.status` / `onboarding.status` is still norm
 
 **Examples:** `"Rejected"` → `REJECTED`, `"In Progress"` → `IN_PROGRESS`, `"  pending  "` → `PENDING`.
 
-**Where it runs:** On `screening.status` and `onboarding.status` **inside** `getDirectorShareholderSingleStatusPresentation`, and earlier when building/overriding rows in `build-people-list.ts` and supplement maps.
+**Where it runs:** When building or overriding rows in `build-people-list.ts` and supplement maps, and inside **`getFinalStatusLabel`** (its own trim / uppercase / underscore pass).
 
 ---
 
@@ -112,8 +112,10 @@ Any value that ends up in `screening.status` / `onboarding.status` is still norm
 | Issuer unified director/shareholders | `apps/issuer/src/components/director-shareholders-unified-section.tsx` |
 | Issuer company application step | `apps/issuer/src/app/(application-flow)/applications/steps/company-details-step.tsx` |
 | Admin onboarding review people cards | `apps/admin/src/components/onboarding-review-dialog.tsx` |
+| Issuer / investor onboarding dashboard (company, pending approval or AML) | `apps/issuer/src/components/onboarding-status-card.tsx`, `apps/investor/src/components/onboarding-status-card.tsx` via **`UnifiedKycAmlReadonlyRows`** (`packages/ui`) |
+| Investor profile directors and shareholders | `apps/investor/src/components/directors-shareholders-card.tsx` |
 
-All import **`getFinalStatusLabel`** / **`getFinalStatusBadgeClassName`** from **`@cashsouk/types`**.
+All import **`getFinalStatusLabel`** / **`getFinalStatusBadgeClassName`** from **`@cashsouk/types`** (or the UI wrapper that calls them).
 
 ---
 
