@@ -66,9 +66,8 @@ import {
   normalizeDirectorShareholderIdKey,
   canEnterEmailForDirectorShareholder,
   filterVisiblePeopleRows,
-  type ApplicationPersonRow,
+  computeHasPendingDirectorShareholder,
   type SoukscoreRiskRating,
-  normalizeRawStatus,
 } from "@cashsouk/types";
 import { OrganizationService } from "../organization/service";
 import { AMLFetcherService } from "../regtank/aml-fetcher";
@@ -117,59 +116,6 @@ type ResubmitComparisonAmendmentRemark = {
 
 function isPlainObjectRecord(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === "object" && !Array.isArray(v);
-}
-
-/**
- * SECTION: Unified KYC/AML pending flag
- * WHY: Show one action-required state for directors/shareholders
- * INPUT: Application people rows from CTOS + issuer snapshots
- * OUTPUT: boolean hasPending (any person has KYC or AML not done)
- * WHERE USED: Admin applications list badge
- */
-function hasPendingDirectorShareholderKycOrAml(people: ApplicationPersonRow[]): boolean {
-  const visible = filterVisiblePeopleRows(people);
-  // No visible people means we do not have the needed party status yet → keep action required.
-  if (!visible || visible.length === 0) return true;
-
-  return visible.some((p) => {
-    const onboardingStatus = normalizeRawStatus(p.onboarding?.status);
-    const amlStatus = normalizeRawStatus(p.screening?.status);
-
-    const isOnboardingDone =
-      onboardingStatus === "APPROVED" || onboardingStatus === "WAIT_FOR_APPROVAL";
-    const isAmlDone = amlStatus === "APPROVED";
-
-    // Pending if either KYC or AML is not cleared.
-    return !isOnboardingDone || !isAmlDone;
-  });
-}
-
-/**
- * SECTION: AML helpers for director/shareholder financial gating
- * WHY: Keep AML checks consistent and scoped to INDIVIDUAL rows only
- * INPUT: Application people rows and application status
- * OUTPUT: booleans for pending/all-approved/final checks
- * WHERE USED: Admin application list badge + financial tab approval guard
- */
-function isAmlApprovedPersonStatus(statusRaw: string | null | undefined): boolean {
-  const status = normalizeRawStatus(statusRaw);
-  return status === "APPROVED";
-}
-
-function getVisibleIndividualsForAml(people: ApplicationPersonRow[]): ApplicationPersonRow[] {
-  const visible = filterVisiblePeopleRows(people);
-  return visible.filter((person) => person.entityType === "INDIVIDUAL");
-}
-
-function hasPendingAmlForIndividuals(individuals: ApplicationPersonRow[]): boolean {
-  return individuals.some((person) => !isAmlApprovedPersonStatus(person.screening?.status));
-}
-
-function allAmlApprovedForIndividuals(individuals: ApplicationPersonRow[]): boolean {
-  return (
-    individuals.length > 0 &&
-    individuals.every((person) => isAmlApprovedPersonStatus(person.screening?.status))
-  );
 }
 
 function isFinalApplicationStatusForAmlGuard(status: string | null | undefined): boolean {
@@ -3282,7 +3228,7 @@ export class AdminService {
         : [];
     const directorShareholderAmlPending =
       record.organization_type === "COMPANY"
-        ? hasPendingDirectorShareholderKycOrAml(onboardingPeopleForAml)
+        ? computeHasPendingDirectorShareholder(onboardingPeopleForAml)
         : false;
 
     return {
@@ -4883,8 +4829,7 @@ export class AdminService {
           ctosPartySupplements: extras.ctosPartySupplements,
           corporateEntities: org.corporate_entities ?? null,
         });
-        const individuals = getVisibleIndividualsForAml(people);
-        const pending = individuals.length > 0 && hasPendingAmlForIndividuals(individuals);
+        const pending = computeHasPendingDirectorShareholder(people);
         pendingByOrg.set(oid, pending);
       })
     );
@@ -5532,12 +5477,11 @@ export class AdminService {
       })),
       corporateEntities: issuerOrg.corporate_entities ?? null,
     });
-    const individuals = getVisibleIndividualsForAml(people);
-    if (!allAmlApprovedForIndividuals(individuals)) {
+    if (computeHasPendingDirectorShareholder(people)) {
       throw new AppError(
         400,
-        "AML_NOT_READY",
-        "All directors/shareholders must complete AML before approval"
+        "DIRECTOR_SHAREHOLDER_NOT_READY",
+        "Director/shareholder verification must be complete before this action."
       );
     }
   }

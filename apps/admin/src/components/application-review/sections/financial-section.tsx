@@ -6,15 +6,11 @@ import { ReviewSectionCard } from "../review-section-card";
 import type { ReviewSectionId } from "../section-types";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
 import { ApplicationFinancialReviewComparison } from "@/components/application-financial-review-comparison";
-import {
-  isDirectorShareholderAmlScreeningApproved,
-  isReadyOnboardingStatus,
-  filterVisiblePeopleRows,
-  type ApplicationPersonRow,
-} from "@cashsouk/types";
+import { computeHasPendingDirectorShareholder, type ApplicationPersonRow } from "@cashsouk/types";
 
-const FINANCIAL_DIRECTOR_SHAREHOLDER_BANNER =
-  "There are updates to director/shareholder information.";
+const DIRECTOR_SHAREHOLDER_PENDING_LABEL = "Director/Shareholder Pending";
+const DIRECTOR_SHAREHOLDER_PENDING_TOOLTIP =
+  "Director/shareholder verification is not complete.";
 
 export type FinancialSectionAppSlice = {
   people?: ApplicationPersonRow[];
@@ -79,23 +75,7 @@ export function FinancialSection({
   sectionComparison,
   hideSectionComments = false,
 }: FinancialSectionProps) {
-  /**
-   * SECTION: Admin unified banner (KYC OR AML pending)
-   * WHY: Admin needs one clear action-required signal for both checks
-   * INPUT: app.people rows (per-person onboarding + screening status)
-   * OUTPUT: boolean hasPending (show banner + disable approve)
-   * WHERE USED: Admin application review → Financial section
-   */
-  const hasPendingDirectorShareholder = (() => {
-    const rawPeople = app.people ?? [];
-    const people = filterVisiblePeopleRows(rawPeople);
-    // No people rows means we do not know KYC/AML states yet.
-    if (people.length === 0) return true;
-
-    const isOnboardingDoneAll = people.every((p) => isReadyOnboardingStatus(p.onboarding?.status));
-    const isAmlDoneAll = people.every((p) => isDirectorShareholderAmlScreeningApproved(p.screening));
-    return !isOnboardingDoneAll || !isAmlDoneAll;
-  })();
+  const hasPendingDirectorShareholder = computeHasPendingDirectorShareholder(app.people);
 
   if (sectionComparison) {
     return (
@@ -125,7 +105,7 @@ export function FinancialSection({
       showApprove={true}
       approveDisabled={hasPendingDirectorShareholder}
       approveDisabledReason={
-        hasPendingDirectorShareholder ? FINANCIAL_DIRECTOR_SHAREHOLDER_BANNER : undefined
+        hasPendingDirectorShareholder ? DIRECTOR_SHAREHOLDER_PENDING_TOOLTIP : undefined
       }
       onResetToPending={onResetSectionToPending}
       onApprove={onApprove}
@@ -135,9 +115,9 @@ export function FinancialSection({
       {hasPendingDirectorShareholder ? (
         <div
           className="rounded-xl border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
-          title={FINANCIAL_DIRECTOR_SHAREHOLDER_BANNER}
+          title={DIRECTOR_SHAREHOLDER_PENDING_TOOLTIP}
         >
-          {FINANCIAL_DIRECTOR_SHAREHOLDER_BANNER}
+          {DIRECTOR_SHAREHOLDER_PENDING_LABEL}
         </div>
       ) : null}
       <ApplicationFinancialReviewContent

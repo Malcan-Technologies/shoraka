@@ -52,9 +52,7 @@ import {
   getIssuerFinancialTabYears,
   issuerUnauditedPlddForFyEndYear,
   getStepKeyFromStepId,
-  filterVisiblePeopleRows,
-  type ApplicationPersonRow,
-  normalizeRawStatus,
+  computeHasPendingDirectorShareholder,
 } from "@cashsouk/types";
 import { computeApplicationStatus } from "./lifecycle";
 import * as crypto from "crypto";
@@ -147,22 +145,6 @@ function financialToNum(v: unknown): number {
   if (typeof v === "number" && !Number.isNaN(v)) return v;
   const n = Number(String(v).replace(/,/g, ""));
   return Number.isNaN(n) ? 0 : n;
-}
-
-/**
- * SECTION: AML helpers for issuer application list badge
- * WHY: Keep AML badge logic aligned with screening.status and final-status skip
- * INPUT: Application people rows + application status
- * OUTPUT: pending AML boolean per application
- * WHERE USED: listByOrganization()
- */
-function isAmlApproved(person: ApplicationPersonRow): boolean {
-  return normalizeRawStatus(person.screening?.status) === "APPROVED";
-}
-
-function hasPendingAmlForIndividuals(people: ApplicationPersonRow[]): boolean {
-  const individuals = filterVisiblePeopleRows(people).filter((person) => person.entityType === "INDIVIDUAL");
-  return individuals.length > 0 && individuals.some((person) => !isAmlApproved(person));
 }
 
 function isFinalApplicationStatus(status: string | null | undefined): boolean {
@@ -595,7 +577,7 @@ export class ApplicationService {
         ctosPartySupplements: extras.ctosPartySupplements,
         corporateEntities: org.corporate_entities ?? null,
       });
-      directorShareholderAmlPending = hasPendingAmlForIndividuals(people);
+      directorShareholderAmlPending = computeHasPendingDirectorShareholder(people);
     }
 
     return applications.map((application) => ({

@@ -46,8 +46,11 @@ export function ApplicationsTableRow({
             {application.issuerOrganizationName || "Unnamed Organization"}
           </div>
           {hasPending ? (
-            <span className="shrink-0 inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:text-amber-100">
-              Director/Shareholder Action Required
+            <span
+              className="shrink-0 inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:text-amber-100"
+              title="Director/shareholder verification is not complete."
+            >
+              Director/Shareholder Pending
             </span>
           ) : null}
         </div>

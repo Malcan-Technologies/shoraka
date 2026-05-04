@@ -846,7 +846,9 @@ export interface OnboardingApplicationResponse {
   latestOrganizationCtosCompanyJson?: unknown | null;
   ctosPartySupplements?: OnboardingApplicationCtosPartySupplement[] | null;
   people?: import("./application-people-display").ApplicationPersonRow[];
-  /** True when any CTOS party row lacks AML screening status Approved. */
+  /**
+   * Derived from unified `people` for the org (same rule as financing application list / Financial section).
+   */
   directorShareholderAmlPending?: boolean;
 }
 
@@ -1147,7 +1149,10 @@ export interface ApplicationListItem {
   updatedAt: string;
   productId: string | null;
   baseProductId: string | null;
-  /** Derived from issuer org CTOS people + AML screening (not stored on application). */
+  /**
+   * Derived from issuer org unified `people` list (not stored on application).
+   * True when any visible party is not onboarding-ready or AML not approved — same rule as admin Financial section.
+   */
   directorShareholderAmlPending?: boolean;
 }
 
