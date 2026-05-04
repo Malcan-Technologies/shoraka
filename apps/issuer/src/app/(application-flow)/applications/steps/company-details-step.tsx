@@ -15,7 +15,6 @@ import * as React from "react";
 import { useOrganization, createApiClient, useAuthToken } from "@cashsouk/config";
 import {
   buildDirectorShareholderDisplayRowForEmailEligibility,
-  canManageDirectorShareholder,
   filterVisiblePeopleRows,
   formatPeopleRolesLineTitleCaseWithoutShare,
   formatShareOwnershipCell,
@@ -685,7 +684,6 @@ export function CompanyDetailsStep({
                   onboarding: p.onboarding,
                 });
                 const own = formatShareOwnershipCell(p);
-                const showCompleteOnProfile = canManageDirectorShareholder(p);
                 const idLabel =
                   (displayRow.idNumber || displayRow.registrationNumber || p.matchKey || "").trim();
                 return (
@@ -715,11 +713,6 @@ export function CompanyDetailsStep({
                           </Badge>
                         </div>
                       </div>
-                      {showCompleteOnProfile ? (
-                        <p className="text-sm text-muted-foreground">
-                          Submit onboarding on Profile → Directors and shareholders.
-                        </p>
-                      ) : null}
                     </div>
                   </React.Fragment>
                 );
