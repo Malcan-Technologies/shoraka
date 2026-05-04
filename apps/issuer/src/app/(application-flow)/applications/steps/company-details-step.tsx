@@ -21,9 +21,6 @@ import {
   getFinalStatusBadgeClassName,
   getFinalStatusLabel,
 } from "@cashsouk/types";
-import {
-  areDirectorShareholdersReadyForApplicationSubmit,
-} from "@/lib/director-shareholder-onboarding-ui";
 import { useCorporateInfo } from "@/hooks/use-corporate-info";
 import { useCorporateEntities } from "@/hooks/use-corporate-entities";
 import { useApplication } from "@/hooks/use-applications";
@@ -217,14 +214,6 @@ export function CompanyDetailsStep({
   const isLoadingData = isLoadingInfo || isLoadingEntities;
   const visiblePeopleRows = React.useMemo(
     () => filterVisiblePeopleRows(entitiesData?.people ?? []),
-    [entitiesData?.people]
-  );
-
-  const directorsPartySubmitReady = React.useMemo(
-    () =>
-      areDirectorShareholdersReadyForApplicationSubmit({
-        people: entitiesData?.people ?? [],
-      }),
     [entitiesData?.people]
   );
 
@@ -473,6 +462,7 @@ export function CompanyDetailsStep({
      VALIDITY CHECK - Compute from current state
      ================================================================ */
 
+  /** Form-only: director/shareholder RegTank readiness is enforced on final submit (declarations), not here. */
   const isValid = React.useMemo(() => {
     return !!(
       isValidAddress(formState.businessAddress) &&
@@ -484,10 +474,9 @@ export function CompanyDetailsStep({
       formState.industry?.trim() &&
       formState.numberOfEmployees?.trim() &&
       formState.bankName?.trim() &&
-      formState.bankAccountNumber?.trim() &&
-      directorsPartySubmitReady
+      formState.bankAccountNumber?.trim()
     );
-  }, [formState, directorsPartySubmitReady]);
+  }, [formState]);
 
   /* ================================================================
      CHANGE DETECTION - Real pending changes logic
