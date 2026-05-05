@@ -11,6 +11,7 @@ import {
 } from "./types";
 import { logger } from "../../lib/logger";
 import { AppError } from "../../lib/http/error-handler";
+import { parseStrictRegTankFormId } from "./form-id";
 
 /**
  * RegTank API Client
@@ -168,22 +169,49 @@ export class RegTankAPIClient {
     const endpoint = "/v3/onboarding/indv/request";
     const method = "POST";
     const url = `${this.config.apiBaseUrl}${endpoint}`;
-    const payloadForLog = {
+    const payload: RegTankIndividualOnboardingRequest = {
       ...request,
+      ...(request.formId === undefined || request.formId === null
+        ? {}
+        : { formId: parseStrictRegTankFormId(request.formId) }),
+    };
+    const bodyJson = JSON.stringify(payload);
+
+    const payloadForLog = {
+      ...payload,
       email: "[redacted]",
       governmentIdNumber: "[redacted]",
     };
     logger.debug({ method, url }, "RegTank API request");
     logger.debug({ payload: payloadForLog }, "RegTank individual onboarding payload");
 
-    const regTankReply = await this.makeRequest<RegTankOnboardingResponse>(endpoint, {
-      method,
-      body: JSON.stringify(request),
+    console.log("[RegTank] POST /v3/onboarding/indv/request — payload (remove after debug)", {
+      url,
+      body: JSON.parse(bodyJson) as Record<string, unknown>,
     });
 
-    logger.debug({ reply: regTankReply }, "RegTank individual onboarding reply");
+    try {
+      const regTankReply = await this.makeRequest<RegTankOnboardingResponse>(endpoint, {
+        method,
+        body: bodyJson,
+      });
 
-    return regTankReply;
+      logger.debug({ reply: regTankReply }, "RegTank individual onboarding reply");
+
+      console.log(
+        "\n---------- [RegTank API client] /v3/onboarding/indv/request — HTTP 200 body (returning to caller; SES not involved here) ----------"
+      );
+      console.log(JSON.stringify(regTankReply, null, 2));
+      if (regTankReply && typeof regTankReply === "object" && "verifyLink" in regTankReply) {
+        console.log("[RegTank API client] verifyLink only:", (regTankReply as { verifyLink?: string }).verifyLink);
+      }
+      console.log("---------- [RegTank API client] end response log ----------\n");
+
+      return regTankReply;
+    } catch (err) {
+      console.log("[RegTank] POST /v3/onboarding/indv/request — error (remove after debug)", err);
+      throw err;
+    }
   }
 
   /**
@@ -245,16 +273,31 @@ export class RegTankAPIClient {
       body.email = options.email;
     }
 
-    return this.makeRequest<RegTankOnboardingResponse>(
-      "/v3/onboarding/indv/restart",
-      {
+    const restartPath = "/v3/onboarding/indv/restart";
+    const restartUrl = `${this.config.apiBaseUrl}${restartPath}`;
+    const restartBody = JSON.stringify(body);
+
+    console.log("[RegTank] POST /v3/onboarding/indv/restart — payload (remove after debug)", {
+      url: restartUrl,
+      body: JSON.parse(restartBody) as Record<string, unknown>,
+    });
+
+    try {
+      const restartReply = await this.makeRequest<RegTankOnboardingResponse>(restartPath, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(body),
-      }
-    );
+        body: restartBody,
+      });
+
+      console.log("[RegTank] POST /v3/onboarding/indv/restart — response (remove after debug)", restartReply);
+
+      return restartReply;
+    } catch (err) {
+      console.log("[RegTank] POST /v3/onboarding/indv/restart — error (remove after debug)", err);
+      throw err;
+    }
   }
 
   /**

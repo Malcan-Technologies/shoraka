@@ -50,6 +50,7 @@ import {
 } from "@cashsouk/types";
 import { buildAdminPeopleList } from "../admin/build-people-list";
 import { RegTankAPIClient } from "../regtank/api-client";
+import { ensureRegTankFormId } from "../regtank/form-id";
 import type { RegTankIndividualOnboardingRequest } from "../regtank/types";
 import { listLatestCtosSubjectReportsForAdminOrg } from "../ctos/ctos-report-service";
 
@@ -1797,7 +1798,7 @@ export class OrganizationService {
     }
 
     const { forename, surname } = splitForenameSurname(target.name);
-    const formId = parseInt(process.env.REGTANK_ISSUER_PERSONAL_FORM_ID || "1015495", 10);
+    const formId = ensureRegTankFormId(process.env.REGTANK_ISSUER_PERSONAL_FORM_ID, 1015495);
     const referenceId = buildSafeReferenceId(organizationId, pk);
     const onboardingRequest: RegTankIndividualOnboardingRequest = {
       email: supplementEmail,
@@ -1853,11 +1854,33 @@ export class OrganizationService {
     const sendHistory = parseSendTimestampsFromSupplementJson(prevRoot);
     try {
       logger.info({ referenceId }, "RegTank director onboarding referenceId");
+      console.log("[Director CTOS onboarding] request before RegTank (remove after debug)", {
+        organizationId,
+        partyKey: pk,
+        onboardingRequest,
+      });
       const regTankResponse = await regTankApi.createIndividualOnboarding(onboardingRequest);
       requestId = regTankResponse.requestId;
       verifyLink =
         typeof regTankResponse.verifyLink === "string" ? regTankResponse.verifyLink.trim() : "";
+
+      console.log(
+        "\n========== [Director CTOS] STAGE 1: RegTank HTTP OK — verify link (NOT emailed yet, DB not updated yet) =========="
+      );
+      console.log("[Director CTOS] STAGE 1 raw regTankResponse:", JSON.stringify(regTankResponse, null, 2));
+      console.log("[Director CTOS] STAGE 1 requestId:", requestId);
+      console.log("[Director CTOS] STAGE 1 verifyLink:", verifyLink);
+      console.log("[Director CTOS] STAGE 1 will email later to:", supplementEmail);
+      console.log(
+        "========== [Director CTOS] end STAGE 1 ==========\n"
+      );
     } catch (e) {
+      console.log("[Director CTOS onboarding] RegTank error (remove after debug)", {
+        organizationId,
+        partyKey: pk,
+        error: e instanceof Error ? e.message : String(e),
+        onboardingRequest,
+      });
       logger.error(
         { organizationId, partyKey: pk, error: e instanceof Error ? e.message : String(e) },
         "RegTank director onboarding failed"
@@ -1892,12 +1915,25 @@ export class OrganizationService {
 
     if (verifyLink) {
       try {
+        console.log(
+          "\n========== [Director CTOS] STAGE 2: DB updated — about to call SES (same verifyLink as STAGE 1) =========="
+        );
+        console.log("[Director CTOS] STAGE 2 verifyLink:", verifyLink);
+        console.log("[Director CTOS] STAGE 2 SES to:", supplementEmail);
+        console.log("========== [Director CTOS] end STAGE 2 — calling sendOnboardingEmail now ==========\n");
         await sendOnboardingEmail({ to: supplementEmail, verifyLink });
         logger.info(
           { organizationId, partyKey: pk, userId, requestId, portalType },
           "Director CTOS onboarding verify link sent via SES"
         );
+        console.log(
+          "\n========== [Director CTOS] STAGE 3: SES sendOnboardingEmail finished OK ==========\n"
+        );
       } catch (sesErr) {
+        console.log("[Director CTOS onboarding] SES error (remove after debug)", {
+          to: supplementEmail,
+          error: sesErr instanceof Error ? sesErr.message : String(sesErr),
+        });
         logger.error(
           {
             organizationId,
@@ -1908,6 +1944,11 @@ export class OrganizationService {
         );
       }
     } else {
+      console.log("[Director CTOS onboarding] no verifyLink, SES skipped (remove after debug)", {
+        organizationId,
+        partyKey: pk,
+        requestId,
+      });
       logger.warn(
         { organizationId, partyKey: pk, requestId },
         "RegTank returned no verifyLink; skipped SES onboarding email"
