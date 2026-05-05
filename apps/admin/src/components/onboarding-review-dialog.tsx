@@ -81,9 +81,12 @@ type OnboardingPersonRow = PeopleRolesRowInput & {
 function OnboardingPeopleReadonlyCards({
   rows,
   isRefreshing,
+  finalStatusDisplayMode,
 }: {
   rows: OnboardingPersonRow[];
   isRefreshing: boolean;
+  /** Onboarding approval: KYC-only. AML step: AML-first so badges match RegTank screening, not identity onboarding. */
+  finalStatusDisplayMode: "kyc_only" | "aml_first";
 }) {
   if (rows.length === 0) return null;
 
@@ -101,7 +104,7 @@ function OnboardingPeopleReadonlyCards({
             screening: p.screening,
             onboarding: p.onboarding,
           },
-          { displayMode: "kyc_only" }
+          { displayMode: finalStatusDisplayMode === "kyc_only" ? "kyc_only" : undefined }
         );
 
         return (
@@ -469,6 +472,7 @@ export function OnboardingReviewDialog({
                     <OnboardingPeopleReadonlyCards
                       rows={visiblePeopleRows as OnboardingPersonRow[]}
                       isRefreshing={refreshCorporateMutation.isPending}
+                      finalStatusDisplayMode="kyc_only"
                     />
                   </div>
                 </>
@@ -597,6 +601,7 @@ export function OnboardingReviewDialog({
                     <OnboardingPeopleReadonlyCards
                       rows={visiblePeopleRows as OnboardingPersonRow[]}
                       isRefreshing={refreshCorporateAmlMutation.isPending}
+                      finalStatusDisplayMode="aml_first"
                     />
                   </div>
                 </>
