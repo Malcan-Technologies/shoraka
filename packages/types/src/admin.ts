@@ -849,7 +849,7 @@ export interface OnboardingApplicationResponse {
   ctosPartySupplements?: OnboardingApplicationCtosPartySupplement[] | null;
   people?: import("./application-people-display").ApplicationPersonRow[];
   /**
-   * Derived from unified `people`: true when `hasActionableDirectorShareholder` (same as resend/notify gate). Name retained for API compatibility.
+   * Derived from unified `people` via `computeHasPendingDirectorShareholder` (onboarding + AML complete for visible parties). Name retained for API compatibility; not the same as issuer `hasActionableDirectorShareholder` / resend banner.
    */
   directorShareholderAmlPending?: boolean;
 }
@@ -1152,7 +1152,7 @@ export interface ApplicationListItem {
   productId: string | null;
   baseProductId: string | null;
   /**
-   * Derived from issuer org unified `people` (not stored on application). True when `hasActionableDirectorShareholder` — issuer may resend/notify per row. Property name is legacy.
+   * Derived from issuer org unified `people` (not stored on application). True when `computeHasPendingDirectorShareholder` — verification incomplete for Financial approve. Property name is legacy.
    */
   directorShareholderAmlPending?: boolean;
 }

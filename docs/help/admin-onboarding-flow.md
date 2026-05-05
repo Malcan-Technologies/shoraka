@@ -73,6 +73,6 @@ For investor onboarding, verify:
 - Issuer onboarding fee: RM 150, paid before issuer onboarding begins.
 - Issuer application fee: RM 50, paid when submitting each financing application after payment gateway support is ready.
 - Investor onboarding fee: none.
-- Investor activation deposit: minimum RM 100 after onboarding approval; this deposit can be used for investments.
+- Investor activation deposit: minimum RM 100 after onboarding approval. This deposit can be used for investments.
 - Application fees, onboarding fees, and investor deposits must not be mixed with note repayment or investor settlement accounting.
 
