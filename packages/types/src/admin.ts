@@ -781,6 +781,8 @@ export interface BusinessShareholderAmlStatus {
   businessName: string;
   sharePercentage?: number | null;
   amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
+  /** RegTank KYB screening status string; preferred over `amlStatus` for display and people merge. */
+  rawStatus?: string | null;
   amlMessageStatus: "DONE" | "PENDING" | "ERROR";
   amlRiskScore: number | null;
   amlRiskLevel: string | null;

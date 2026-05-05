@@ -209,11 +209,17 @@ function collectDirectorAmlIndividualEntries(
   return [...dirs, ...sh];
 }
 
+/** Prefer RegTank `rawStatus` (KYB/KYC screening string) over bucketed `amlStatus` when present. */
+function issuerAmlRowScreeningRawForDisplay(row: Record<string, unknown>): string {
+  const raw = String(row.rawStatus ?? "").trim();
+  if (raw) return raw;
+  return String(row.amlStatus ?? "").trim();
+}
+
 function legacyAmlRawFromMatch(match: Record<string, unknown> | null): string | null {
   if (!match) return null;
-  const amlSt = match.amlStatus;
-  if (amlSt == null || String(amlSt).trim() === "") return null;
-  return String(amlSt).trim();
+  const pick = issuerAmlRowScreeningRawForDisplay(match);
+  return pick || null;
 }
 
 /**
@@ -312,13 +318,20 @@ function findLegacyBusinessKycAmlByStrictReg(
       for (const a of amlBiz) {
         const aKyb = String(a.kybId ?? "").trim();
         const aCod = String(a.codRequestId ?? "").trim();
-        if (kybId && aKyb === kybId && a.amlStatus != null && String(a.amlStatus).trim() !== "") {
-          amlRaw = String(a.amlStatus).trim();
-          break;
+        const ar = a as Record<string, unknown>;
+        if (kybId && aKyb === kybId) {
+          const pick = issuerAmlRowScreeningRawForDisplay(ar);
+          if (pick) {
+            amlRaw = pick;
+            break;
+          }
         }
-        if (codId && aCod === codId && a.amlStatus != null && String(a.amlStatus).trim() !== "") {
-          amlRaw = String(a.amlStatus).trim();
-          break;
+        if (codId && aCod === codId) {
+          const pick = issuerAmlRowScreeningRawForDisplay(ar);
+          if (pick) {
+            amlRaw = pick;
+            break;
+          }
         }
       }
     }
@@ -1179,10 +1192,7 @@ function buildOnboardingDisplayRows(
 
     const amlRec = corporateAmlMap.get(regKey);
     const kybRec = corporateKybMap.get(regKey) ?? c;
-    const amlStRaw =
-      amlRec && amlRec.amlStatus != null && String(amlRec.amlStatus).trim() !== ""
-        ? String(amlRec.amlStatus).trim()
-        : "";
+    const amlStRaw = amlRec ? issuerAmlRowScreeningRawForDisplay(amlRec) : "";
     const amlLine = amlStRaw ? normalizeRawStatus(amlStRaw) || undefined : undefined;
     const kybDto = kybRec.kybRequestDto as Record<string, unknown> | undefined;
     const kybStRaw =
@@ -1196,19 +1206,13 @@ function buildOnboardingDisplayRows(
     }
     const status = statusBase;
     const displayName = String(c.companyName ?? c.businessName ?? "").trim() || getCorpDisplayName(corp);
-    console.log("[CORP STATUS]", {
-      name: displayName,
-      matchKey: regKey,
-      aml: amlRec && amlRec.amlStatus != null ? String(amlRec.amlStatus) : null,
-      kyb: kybDto?.status != null ? String(kybDto.status) : kybRec.status != null ? String(kybRec.status) : null,
-    });
 
     const id = `onb-corp-${regKey}`;
     const email = String(c.email ?? "").trim();
     const corpOwn = ownershipFromCorpShareholder(corp);
     rows.push({
       id,
-      name: getCorpDisplayName(corp),
+      name: displayName,
       role: roleLabel,
       type: "COMPANY",
       idNumber: null,

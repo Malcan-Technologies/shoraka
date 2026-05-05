@@ -311,6 +311,8 @@ export class AMLSyncService {
         const kybResponse = await this.apiClient.queryKYBStatus(mapping.kyb_id);
         const kybStatusData = Array.isArray(kybResponse) ? kybResponse[0] : kybResponse;
 
+        const kybStatusRaw =
+          typeof kybStatusData?.status === "string" ? kybStatusData.status.trim() : "";
         const amlStatus = this.mapKYBStatusToAML(kybStatusData?.status);
         const amlMessageStatus = (kybStatusData?.messageStatus || "PENDING") as "DONE" | "PENDING" | "ERROR";
         const amlRiskScore = kybStatusData?.corporateRiskScore?.score 
@@ -325,6 +327,7 @@ export class AMLSyncService {
           businessName: mapping.business_name,
           sharePercentage: null, // Will be extracted from corporate_entities if needed
           amlStatus,
+          rawStatus: kybStatusRaw || null,
           amlMessageStatus,
           amlRiskScore,
           amlRiskLevel,
@@ -551,6 +554,7 @@ export class AMLSyncService {
         businessName: s.businessName,
         sharePercentage: s.sharePercentage,
         amlStatus: s.amlStatus,
+        rawStatus: typeof s.rawStatus === "string" && s.rawStatus.trim() ? s.rawStatus.trim() : undefined,
         amlMessageStatus: s.amlMessageStatus,
         amlRiskScore: s.amlRiskScore,
         amlRiskLevel: s.amlRiskLevel,
@@ -610,6 +614,7 @@ export class AMLSyncService {
         businessName: s.businessName,
         sharePercentage: s.sharePercentage,
         amlStatus: s.amlStatus,
+        rawStatus: typeof s.rawStatus === "string" && s.rawStatus.trim() ? s.rawStatus.trim() : undefined,
         amlMessageStatus: s.amlMessageStatus,
         amlRiskScore: s.amlRiskScore,
         amlRiskLevel: s.amlRiskLevel,

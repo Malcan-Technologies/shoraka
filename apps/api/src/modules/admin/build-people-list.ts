@@ -42,9 +42,13 @@ function strField(r: UnknownRecord | undefined, key: string): string {
   return typeof v === "string" ? v.trim() : "";
 }
 
+/** KYB / RegTank screening: prefer `rawStatus` (e.g. "No Match") over bucketed `amlStatus` when both exist. */
 function amlSanitizedStatus(row: UnknownRecord | undefined): string | null {
-  const raw = strField(row, "amlStatus");
-  return raw ? normalizeRawStatus(raw) || null : null;
+  if (!row) return null;
+  const fromRaw = strField(row, "rawStatus");
+  if (fromRaw) return normalizeRawStatus(fromRaw) || null;
+  const fromAml = strField(row, "amlStatus");
+  return fromAml ? normalizeRawStatus(fromAml) || null : null;
 }
 
 function kycSanitizedStatus(row: UnknownRecord | undefined): string | null {

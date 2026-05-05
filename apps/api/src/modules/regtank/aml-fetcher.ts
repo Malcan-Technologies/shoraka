@@ -27,6 +27,7 @@ interface BusinessShareholderAMLStatus {
   businessName: string;
   sharePercentage?: number | null;
   amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
+  rawStatus?: string | null;
   amlMessageStatus: "DONE" | "PENDING" | "ERROR";
   amlRiskScore: number | null;
   amlRiskLevel: string | null;
@@ -679,9 +680,11 @@ export class AMLFetcherService {
           // Step 7: Always fetch fresh AML status from KYB API with retry logic
           // RegTank may need time to process KYB requests, especially when first entering AML stage
           const kybStatusResponse = await this.queryKYBStatusWithRetry(extractedKybId);
-          
+
+          const kybStatusRaw =
+            typeof kybStatusResponse?.status === "string" ? kybStatusResponse.status.trim() : "";
           let amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending" = "Pending";
-          const kybStatus = kybStatusResponse.status?.toUpperCase() || "";
+          const kybStatus = kybStatusRaw.toUpperCase();
           if (kybStatus === "APPROVED") {
             amlStatus = "Approved";
           } else if (kybStatus === "REJECTED") {
@@ -721,6 +724,7 @@ export class AMLFetcherService {
             businessName: (shareholder as any).businessName || (shareholder as any).name || "Unknown",
             sharePercentage: sharePercentage ? parseFloat(String(sharePercentage)) : null,
             amlStatus,
+            rawStatus: kybStatusRaw || null,
             amlMessageStatus,
             amlRiskScore,
             amlRiskLevel,
