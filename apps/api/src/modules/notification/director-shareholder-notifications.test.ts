@@ -31,7 +31,6 @@ jest.mock("../organization/service", () => ({
 
 import { prisma } from "../../lib/prisma";
 import {
-  notifyIssuerDirectorShareholderRejected,
   runIssuerDirectorShareholderNotificationResolutionFromDb,
   runIssuerDirectorShareholderNotificationsAfterOrgCtosReportInsert,
 } from "./director-shareholder-notifications";
@@ -40,7 +39,7 @@ const CTOS_ONE_DIRECTOR = {
   directors: [
     {
       party_type: "I",
-      position: "Director",
+      position: "DO",
       nic_brno: "901234567890",
       name: "Test Director",
       equity_percentage: null,
@@ -54,7 +53,7 @@ const CTOS_DIRECTOR_A_ONLY = {
   directors: [
     {
       party_type: "I",
-      position: "Director",
+      position: "DO",
       nic_brno: "901234567890",
       name: "Director A",
       equity_percentage: null,
@@ -68,14 +67,14 @@ const CTOS_DIRECTORS_A_AND_B = {
   directors: [
     {
       party_type: "I",
-      position: "Director",
+      position: "DO",
       nic_brno: "901234567890",
       name: "Director A",
       equity_percentage: null,
     },
     {
       party_type: "I",
-      position: "Director",
+      position: "DO",
       nic_brno: "801234567890",
       name: "Director B",
       equity_percentage: null,
@@ -199,33 +198,5 @@ describe("director-shareholder-notifications", () => {
     await runIssuerDirectorShareholderNotificationResolutionFromDb("org-1");
 
     expect(prisma.notification.updateMany).not.toHaveBeenCalled();
-  });
-
-  it("sendTyped is not called for rejected notify with invalid party key", async () => {
-    await notifyIssuerDirectorShareholderRejected({
-      issuerOrganizationId: "org-1",
-      ownerUserId: "user-1",
-      partyKeyRaw: "   ",
-      personName: "X",
-    });
-    expect(sendTyped).not.toHaveBeenCalled();
-  });
-
-  it("sendTyped creates rejected notification for valid party", async () => {
-    await notifyIssuerDirectorShareholderRejected({
-      issuerOrganizationId: "org-1",
-      ownerUserId: "user-1",
-      partyKeyRaw: "901234567890",
-      personName: "Jane",
-    });
-    expect(sendTyped).toHaveBeenCalledWith(
-      "user-1",
-      NotificationTypeIds.DIRECTOR_SHAREHOLDER_REJECTED,
-      expect.objectContaining({
-        issuerOrganizationId: "org-1",
-        partyKey: "901234567890",
-        personName: "Jane",
-      })
-    );
   });
 });

@@ -1611,7 +1611,6 @@ function EditApplicationPageBody() {
           <div className="max-w-7xl mx-auto w-full px-2 sm:px-4 pt-2 sm:pt-3">
             <DirectorShareholderAlertCard
               visiblePeople={issuerVisiblePeopleForAlert}
-              issuerOrganizationId={activeOrganization.id}
               enabled={activeOrganization.onboardingStatus === "COMPLETED"}
               stickyTop
               className="mb-2"

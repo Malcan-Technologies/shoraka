@@ -44,7 +44,11 @@ import {
   useRefreshCorporateAmlStatus,
 } from "@/hooks/use-onboarding-applications";
 import { Skeleton } from "@/components/ui/skeleton";
-import { type OnboardingApprovalStatus, getDirectorShareholderSingleStatusPresentation } from "@cashsouk/types";
+import {
+  type OnboardingApprovalStatus,
+  getFinalStatusBadgeClassName,
+  getFinalStatusLabel,
+} from "@cashsouk/types";
 import { cn } from "@/lib/utils";
 import {
   UserIcon,
@@ -92,10 +96,13 @@ function OnboardingPeopleReadonlyCards({
         const rolesLine = formatPeopleRolesLine(p);
         const idLine =
           p.entityType === "CORPORATE" ? `SSM ${p.matchKey}` : `IC ${p.matchKey}`;
-        const pr = getDirectorShareholderSingleStatusPresentation({
-          screening: p.screening,
-          onboarding: p.onboarding,
-        });
+        const finalStatus = getFinalStatusLabel(
+          {
+            screening: p.screening,
+            onboarding: p.onboarding,
+          },
+          { displayMode: "kyc_only" }
+        );
 
         return (
           <div
@@ -110,11 +117,15 @@ function OnboardingPeopleReadonlyCards({
               <p className="text-xs text-muted-foreground font-mono break-all">{idLine}</p>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2 shrink-0 sm:pt-0.5">
-              {pr ? (
-                <Badge variant="outline" className={cn("border-transparent text-[11px] font-normal", pr.badgeClassName)}>
-                  {pr.label}
-                </Badge>
-              ) : null}
+              <Badge
+                variant="outline"
+                className={cn(
+                  "border-transparent text-[11px] font-normal",
+                  getFinalStatusBadgeClassName(finalStatus.tone)
+                )}
+              >
+                {finalStatus.label}
+              </Badge>
             </div>
           </div>
         );
@@ -167,10 +178,6 @@ export function OnboardingReviewDialog({
   const isCompany = application?.type === "COMPANY";
   const peopleRows = React.useMemo(() => application?.people ?? [], [application]);
   const visiblePeopleRows = React.useMemo(() => filterVisiblePeopleRows(peopleRows), [peopleRows]);
-  React.useEffect(() => {
-    console.log("Onboarding dialog people[]:", peopleRows);
-    console.log("Onboarding dialog visible people[]:", visiblePeopleRows);
-  }, [peopleRows, visiblePeopleRows]);
 
   const steps = React.useMemo(() => {
     if (!application) return [];

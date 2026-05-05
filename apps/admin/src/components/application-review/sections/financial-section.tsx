@@ -6,13 +6,8 @@ import { ReviewSectionCard } from "../review-section-card";
 import type { ReviewSectionId } from "../section-types";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
 import { ApplicationFinancialReviewComparison } from "@/components/application-financial-review-comparison";
-import {
-  isDirectorShareholderAmlScreeningApproved,
-  isReadyOnboardingStatus,
-  normalizeRawStatus,
-  filterVisiblePeopleRows,
-  type ApplicationPersonRow,
-} from "@cashsouk/types";
+import { computeHasPendingDirectorShareholder, type ApplicationPersonRow } from "@cashsouk/types";
+import { ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT } from "@/lib/admin-director-shareholder-review-message";
 
 export type FinancialSectionAppSlice = {
   people?: ApplicationPersonRow[];
@@ -77,73 +72,7 @@ export function FinancialSection({
   sectionComparison,
   hideSectionComments = false,
 }: FinancialSectionProps) {
-  /**
-   * SECTION: Admin unified banner (KYC OR AML pending)
-   * WHY: Admin needs one clear action-required signal for both checks
-   * INPUT: app.people rows (per-person onboarding + screening status)
-   * OUTPUT: boolean hasPending (show banner + disable approve)
-   * WHERE USED: Admin application review → Financial section
-   */
-  const hasPendingDirectorShareholder = (() => {
-    const rawPeople = app.people ?? [];
-    const people = filterVisiblePeopleRows(rawPeople);
-    // No people rows means we do not know KYC/AML states yet.
-    if (people.length === 0) return true;
-
-    const isOnboardingDoneAll = people.every((p) => isReadyOnboardingStatus(p.onboarding?.status));
-    const isAmlDoneAll = people.every((p) => isDirectorShareholderAmlScreeningApproved(p.screening));
-    return !isOnboardingDoneAll || !isAmlDoneAll;
-  })();
-
-  const bannerMessage = (() => {
-    const rawPeople = app.people ?? [];
-    const people = filterVisiblePeopleRows(rawPeople);
-    const individuals = people.filter((p) => p.entityType === "INDIVIDUAL");
-
-    const isOnboardingDoneAll = people.every((p) => isReadyOnboardingStatus(p.onboarding?.status));
-    const isAmlDoneAll = people.every((p) => isDirectorShareholderAmlScreeningApproved(p.screening));
-
-    const onboardingPendingCount = individuals.filter((p) => {
-      const onboardingStatus = normalizeRawStatus(p.onboarding?.status);
-      return onboardingStatus !== "APPROVED" && onboardingStatus !== "WAIT_FOR_APPROVAL";
-    }).length;
-
-    const amlPendingCount = individuals.filter((p) => {
-      const amlStatus = normalizeRawStatus(p.screening?.status);
-      return amlStatus !== "APPROVED";
-    }).length;
-
-    const onboardingLabel =
-      onboardingPendingCount === 1
-        ? "director/shareholder onboarding pending"
-        : "director/shareholder onboarding pending";
-
-    const amlLabel =
-      amlPendingCount === 1 ? "director/shareholder under AML review" : "director/shareholder under AML review";
-
-    if (onboardingPendingCount > 0 && amlPendingCount > 0) {
-      return `${onboardingPendingCount} ${onboardingLabel}, ${amlPendingCount} under AML review.`;
-    }
-    if (onboardingPendingCount > 0) {
-      return `${onboardingPendingCount} ${onboardingLabel}.`;
-    }
-    if (amlPendingCount > 0) {
-      return `${amlPendingCount} ${amlLabel}.`;
-    }
-
-    // Counts can be 0 when `app.people` contains non-individual rows.
-    // Pick a context message based on the same KYC/AML pending flags.
-    if (!isOnboardingDoneAll) {
-      return "Some directors/shareholders have not completed onboarding.";
-    }
-    if (!isAmlDoneAll) {
-      return "Director/shareholder AML screening is in progress.";
-    }
-
-    return "Some directors/shareholders have not completed onboarding.";
-  })();
-
-  const bannerTooltip = bannerMessage;
+  const hasPendingDirectorShareholder = computeHasPendingDirectorShareholder(app.people);
 
   if (sectionComparison) {
     return (
@@ -172,18 +101,14 @@ export function FinancialSection({
       sectionStatus={sectionStatus}
       showApprove={true}
       approveDisabled={hasPendingDirectorShareholder}
-      approveDisabledReason={hasPendingDirectorShareholder ? bannerMessage : undefined}
       onResetToPending={onResetSectionToPending}
       onApprove={onApprove}
       onReject={onReject}
       onRequestAmendment={onRequestAmendment}
     >
       {hasPendingDirectorShareholder ? (
-        <div
-          className="rounded-xl border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
-          title={bannerTooltip}
-        >
-          {bannerMessage}
+        <div className="rounded-xl border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+          {ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT}
         </div>
       ) : null}
       <ApplicationFinancialReviewContent

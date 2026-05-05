@@ -35,8 +35,6 @@ export const NotificationTypeIds = {
 
   /** Issuer: CTOS/AML snapshot shows director/shareholder verification needed (event only). */
   DIRECTOR_SHAREHOLDER_MISMATCH: 'director_shareholder_mismatch',
-  /** Issuer: admin asked party to correct and resubmit (event only). */
-  DIRECTOR_SHAREHOLDER_REJECTED: 'director_shareholder_rejected',
   /** Issuer: admin requests onboarding action for one eligible party. */
   DIRECTOR_SHAREHOLDER_ACTION_REQUIRED: 'director_shareholder_action_required',
 
@@ -140,11 +138,6 @@ export interface NotificationPayloads {
   };
   [NotificationTypeIds.DIRECTOR_SHAREHOLDER_MISMATCH]: {
     issuerOrganizationId: string;
-  };
-  [NotificationTypeIds.DIRECTOR_SHAREHOLDER_REJECTED]: {
-    issuerOrganizationId: string;
-    partyKey: string;
-    personName?: string;
   };
   [NotificationTypeIds.DIRECTOR_SHAREHOLDER_ACTION_REQUIRED]: {
     issuerOrganizationId: string;
@@ -333,16 +326,7 @@ export const NOTIFICATION_TEMPLATES: {
   [NotificationTypeIds.DIRECTOR_SHAREHOLDER_MISMATCH]: {
     title: 'Directors/Shareholders Update Required',
     message: () =>
-      'We found differences in your directors/shareholders. Please review and complete verification.',
-    linkPath: () => '/profile',
-    portal: 'issuer',
-  },
-  [NotificationTypeIds.DIRECTOR_SHAREHOLDER_REJECTED]: {
-    title: 'Action Required: Director/Shareholder Update',
-    message: (data) => {
-      const who = data.personName?.trim() ? ` (${data.personName.trim()})` : '';
-      return `This individual${who} requires correction. Please review and resubmit their details.`;
-    },
+      'Director/Shareholder information updated. Please review. Complete verification on your company profile.',
     linkPath: () => '/profile',
     portal: 'issuer',
   },

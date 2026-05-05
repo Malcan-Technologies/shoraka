@@ -336,7 +336,6 @@ export default function NewApplicationPage() {
         {activeOrganization.type === "COMPANY" ? (
           <DirectorShareholderAlertCard
             visiblePeople={visiblePeopleForDsAlert}
-            issuerOrganizationId={activeOrganization.id}
             enabled={activeOrganization.onboardingStatus === "COMPLETED"}
             stickyTop
             className="mb-4"

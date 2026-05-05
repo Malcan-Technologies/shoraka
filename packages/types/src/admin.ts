@@ -781,6 +781,8 @@ export interface BusinessShareholderAmlStatus {
   businessName: string;
   sharePercentage?: number | null;
   amlStatus: "Unresolved" | "Approved" | "Rejected" | "Pending";
+  /** RegTank KYB screening status string; preferred over `amlStatus` for display and people merge. */
+  rawStatus?: string | null;
   amlMessageStatus: "DONE" | "PENDING" | "ERROR";
   amlRiskScore: number | null;
   amlRiskLevel: string | null;
@@ -846,7 +848,9 @@ export interface OnboardingApplicationResponse {
   latestOrganizationCtosCompanyJson?: unknown | null;
   ctosPartySupplements?: OnboardingApplicationCtosPartySupplement[] | null;
   people?: import("./application-people-display").ApplicationPersonRow[];
-  /** True when any CTOS party row lacks AML screening status Approved. */
+  /**
+   * Derived from unified `people` via `computeHasPendingDirectorShareholder` (onboarding + AML complete for visible parties). Name retained for API compatibility; not the same as issuer `hasActionableDirectorShareholder` / resend banner.
+   */
   directorShareholderAmlPending?: boolean;
 }
 
@@ -1147,7 +1151,9 @@ export interface ApplicationListItem {
   updatedAt: string;
   productId: string | null;
   baseProductId: string | null;
-  /** Derived from issuer org CTOS people + AML screening (not stored on application). */
+  /**
+   * Derived from issuer org unified `people` (not stored on application). True when `computeHasPendingDirectorShareholder` — verification incomplete for Financial approve. Property name is legacy.
+   */
   directorShareholderAmlPending?: boolean;
 }
 
