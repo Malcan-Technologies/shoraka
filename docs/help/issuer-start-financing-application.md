@@ -17,7 +17,7 @@ Until you submit, the application stays **Draft**. You can leave and come back l
 
 After submit, the team reviews the request. Funding is not guaranteed.
 
-You need a verified organization with onboarding **Completed** before **Get Financed** is available. Platform fees may apply when payment is turned on for application submission.
+You need a verified organization with onboarding **Completed** before **Get Financed** is available. For **company** accounts, the **CashSouk** team or the portal may ask you to add or update **directors**, **shareholders**, or other **parties** (for example new parties or details aligned with **SSM**). Complete those steps in **Profile** when prompted, or you can be blocked at **Submit** or during review. Platform fees may apply when payment is turned on for application submission.
 
 ## Start from Get Financed
 
