@@ -29,6 +29,7 @@ import {
   issuerNotesRouter,
   marketplaceRouter,
   platformFinanceSettingsRouter,
+  publicMarketplaceRouter,
   withdrawalsRouter,
 } from "./modules/notes/controller";
 export function registerRoutes(app: Application): void {
@@ -135,6 +136,9 @@ export function registerRoutes(app: Application): void {
     v1Router.use("/investor", requireAuth, investorNotesRouter);
     v1Router.use("/issuer", requireAuth, issuerNotesRouter);
   }
+
+  // Public marketplace preview for landing pages (read-only)
+  v1Router.use("/public/marketplace", publicMarketplaceRouter);
 
   // Site documents routes (authenticated users)
   v1Router.use("/documents", requireAuth, siteDocumentUserRouter);

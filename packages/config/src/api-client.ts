@@ -2209,6 +2209,20 @@ export class ApiClient {
     return this.get<NotesResponse>(`/v1/marketplace/notes?${queryParams.toString()}`);
   }
 
+  async getPublicMarketplaceNotes(params: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    featuredOnly?: boolean;
+  } = {}): Promise<ApiResponse<NotesResponse> | ApiError> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("page", String(params.page ?? 1));
+    queryParams.append("pageSize", String(params.pageSize ?? 12));
+    if (params.search) queryParams.append("search", params.search);
+    if (params.featuredOnly) queryParams.append("featuredOnly", "true");
+    return this.get<NotesResponse>(`/v1/public/marketplace/notes?${queryParams.toString()}`);
+  }
+
   async getMarketplaceNote(id: string): Promise<ApiResponse<MarketplaceNoteDetail> | ApiError> {
     return this.get<MarketplaceNoteDetail>(`/v1/marketplace/notes/${id}`);
   }

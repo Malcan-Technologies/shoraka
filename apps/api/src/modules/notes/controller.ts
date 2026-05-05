@@ -53,6 +53,7 @@ function send(res: Response, data: unknown, status = 200) {
 
 export const adminNotesRouter = Router();
 export const marketplaceRouter = Router();
+export const publicMarketplaceRouter = Router();
 export const issuerNotesRouter = Router();
 export const investorNotesRouter = Router();
 
@@ -362,6 +363,24 @@ marketplaceRouter.post("/notes/:id/investments", async (req: Request, res: Respo
     const { id } = idParamSchema.parse(req.params);
     const input = createInvestmentSchema.parse(req.body);
     send(res, await noteService.createInvestment(id, input, getActor(req, res, "INVESTOR")), 201);
+  } catch (error) {
+    next(error);
+  }
+});
+
+publicMarketplaceRouter.get("/notes", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const params = getNotesQuerySchema.parse(req.query);
+    send(res, await noteService.listMarketplace(params));
+  } catch (error) {
+    next(error);
+  }
+});
+
+publicMarketplaceRouter.get("/notes/:id", async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = idParamSchema.parse(req.params);
+    send(res, await noteService.getMarketplaceNoteDetail(id));
   } catch (error) {
     next(error);
   }
