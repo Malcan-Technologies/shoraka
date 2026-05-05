@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useMemo, useState } from "react";
+import Link from "next/link";
 import { ChevronDown, ChevronUp, MoreVertical, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,105 +15,36 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { useRouter } from "next/navigation";
-import { useOrganization } from "@cashsouk/config";
-import { useOrganizationApplications } from "@/hooks/use-applications";
 import { useProducts } from "@/hooks/use-products";
+import { useIssuerDashboard } from "@/hooks/use-issuer-dashboard";
 import { getOfferStatus, type OfferStatus } from "@/lib/offer-utils";
 import { ReviewOfferModal } from "@/components/review-offer-modal";
 import { formatMoneyDisplay } from "@cashsouk/ui";
-import type { Application, Contract, ContractDetails, Invoice, InvoiceDetails, Product } from "@cashsouk/types";
-
-/* Loose shapes: persisted JSON may include legacy/extra keys beyond shared types. */
-type LooseContractDetails = Partial<ContractDetails> & {
-  customer?: string;
-  status?: string;
-};
-
-type LooseInvoiceDetails = Partial<InvoiceDetails> & {
-  invoiceNo?: string | number;
-  invoiceValue?: number;
-  financing_amount?: number;
-  financingAmount?: number;
-  maturityDate?: string;
-  submission_date?: string;
-  submissionDate?: string;
-  status?: string;
-};
-
-/* ============================================================
-   Badge helpers
-============================================================ */
-
-function contractBadge(status: string) {
-  if (status === "Amendment required") {
-    return (
-      <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">Amendment required</Badge>
-    );
-  }
-  return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Active</Badge>;
-}
-
-function invoiceBadge(status: string) {
-  switch (status) {
-    case "Draft":
-      return <Badge variant="secondary">Draft</Badge>;
-    case "In progress":
-      return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">In progress</Badge>;
-    case "Funded":
-      return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">Funded</Badge>;
-    case "Completed":
-      return (
-        <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Completed</Badge>
-      );
-    case "Unsuccessful":
-      return <Badge className="bg-red-100 text-red-600 hover:bg-red-100">Unsuccessful</Badge>;
-  }
-}
+import type { Product } from "@cashsouk/types";
+import type { IssuerDashboardContract, IssuerDashboardData, IssuerDashboardInvoice } from "@/types/issuer-dashboard";
+import { asContractForModal, asInvoiceForModal } from "@/types/issuer-dashboard";
+import {
+  formatStatus,
+  resolveFundingProgressPercent,
+  resolveFundingStatusText,
+  resolveInvoiceCardBadge,
+  type InvoiceCardBadgeKind,
+} from "@/lib/issuer-dashboard-labels";
 
 function offerBadge(offerStatus: OfferStatus) {
   if (!offerStatus) return null;
-
   if (offerStatus === "Offer expired") {
-    return (
-      <Badge className="bg-gray-100 text-gray-700 hover:bg-gray-100">
-        Offer expired
-      </Badge>
-    );
+    return <Badge className="bg-gray-100 text-gray-700 hover:bg-gray-100">Offer expired</Badge>;
   }
-
   return (
-    <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
-      Offer received
-    </Badge>
+    <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Offer received</Badge>
   );
 }
 
-function formatStatus(raw?: string | null) {
-  if (!raw) return "";
-  // Normalize variants like "DRAFT", "IN_PROGRESS", "In progress" -> "In progress"
-  const s = String(raw).replace(/_/g, " ").toLowerCase();
-  return s
-    .split(" ")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
-
-function ReviewOfferButton({
-  show,
-  onClick,
-}: {
-  show: boolean;
-  onClick?: () => void;
-}) {
+function ReviewOfferButton({ show, onClick }: { show: boolean; onClick?: () => void }) {
   if (!show) return null;
-
   return (
-    <Button
-      type="button"
-      size="sm"
-      className="h-8 rounded-md px-3 text-xs font-medium"
-      onClick={onClick}
-    >
+    <Button type="button" size="sm" className="h-8 rounded-md px-3 text-xs font-medium" onClick={onClick}>
       Review offer
     </Button>
   );
@@ -124,22 +56,16 @@ function formatMoney(value: unknown) {
 
 function formatDate(value: unknown) {
   if (value === null || value === undefined) return "NA";
-
-  // If already a Date
   let d: Date | null = null;
   if (value instanceof Date) d = value;
   else if (typeof value === "number") d = new Date(value);
   else if (typeof value === "string") {
-    // Try ISO first, then common formats
     const trimmed = value.trim();
-    // If string contains only digits (timestamp)
-    if (/^\d+$/.test(trimmed)) {
-      d = new Date(Number(trimmed));
-    } else {
+    if (/^\d+$/.test(trimmed)) d = new Date(Number(trimmed));
+    else {
       const parsed = Date.parse(trimmed);
       if (!Number.isNaN(parsed)) d = new Date(parsed);
       else {
-        // Fallback: try replace - with / to handle some formats
         const alt = trimmed.replace(/-/g, "/");
         const parsed2 = Date.parse(alt);
         if (!Number.isNaN(parsed2)) d = new Date(parsed2);
@@ -148,114 +74,120 @@ function formatDate(value: unknown) {
   } else {
     d = new Date(String(value));
   }
-
   if (!d || Number.isNaN(d.getTime())) return "NA";
-
   const dd = String(d.getDate()).padStart(2, "0");
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const yyyy = d.getFullYear();
   return `${dd}/${mm}/${yyyy}`;
 }
 
-/* ============================================================
-   Flatten & group by product
-============================================================ */
-
-type ApplicationWithRelations = Application & {
-  invoices?: Invoice[];
-  contract?: Contract | null;
-  financing_type?: { product_id?: string };
-  submission_date?: string | null;
-};
-
-type FlatContract = {
-  id: string;
-  applicationId: string;
-  productId: string;
-  contract: Contract;
-  applicationStatus: string;
-  submissionDate?: string | null;
-};
-
-type FlatInvoice = {
-  id: string;
-  applicationId: string;
-  productId: string;
-  invoice: Invoice;
-  applicationStatus: string;
-  applicationSubmittedAt?: string | null;
-};
-
-function flattenAndGroupByProduct(applications: ApplicationWithRelations[]) {
-  const contracts: FlatContract[] = [];
-  const invoices: FlatInvoice[] = [];
-
-  for (const app of applications || []) {
-    const productId = app.financing_type?.product_id ?? "";
-    if (!productId) continue;
-    const appStatus = app.status ?? "";
-    const submittedAt = app.submitted_at ?? app.submission_date ?? app.created_at ?? null;
-
-    if (app.contract) {
-      contracts.push({
-        id: app.contract.id,
-        applicationId: app.id,
-        productId,
-        contract: app.contract,
-        applicationStatus: String(appStatus),
-        submissionDate: submittedAt,
-      });
-    }
-
-    for (const inv of app.invoices || []) {
-      invoices.push({
-        id: inv.id,
-        applicationId: app.id,
-        productId,
-        invoice: inv,
-        applicationStatus: String(appStatus),
-        applicationSubmittedAt: submittedAt,
-      });
-    }
+function issuerInvoiceBadge(kind: InvoiceCardBadgeKind) {
+  switch (kind) {
+    case "draft":
+      return <Badge variant="secondary">Draft</Badge>;
+    case "pending_approval":
+      return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Pending approval</Badge>;
+    case "amendment":
+      return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">Amendment requested</Badge>;
+    case "approved":
+      return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">Approved</Badge>;
+    case "in_progress":
+      return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Funding in progress</Badge>;
+    case "minimum_funding":
+      return (
+        <Badge className="border border-primary/40 bg-primary/5 text-primary hover:bg-primary/5">
+          Minimum funding reached
+        </Badge>
+      );
+    case "funded":
+      return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">Funded</Badge>;
+    case "active":
+      return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Active</Badge>;
+    case "completed":
+      return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Completed</Badge>;
+    case "unsuccessful":
+      return <Badge className="bg-red-100 text-red-600 hover:bg-red-100">Unsuccessful</Badge>;
+    default:
+      return <Badge variant="outline">In progress</Badge>;
   }
+}
 
-  const sortBySubmissionDesc = (a: { submissionDate?: string | null }, b: { submissionDate?: string | null }) => {
-    const da = a.submissionDate ? new Date(a.submissionDate).getTime() : 0;
-    const db = b.submissionDate ? new Date(b.submissionDate).getTime() : 0;
-    return db - da;
-  };
-
-  contracts.sort(sortBySubmissionDesc);
-  invoices.sort((a, b) => {
-    const da = a.applicationSubmittedAt ? new Date(a.applicationSubmittedAt).getTime() : 0;
-    const db = b.applicationSubmittedAt ? new Date(b.applicationSubmittedAt).getTime() : 0;
-    return db - da;
-  });
-
-  const productGroups: Record<string, { contracts: FlatContract[]; invoices: FlatInvoice[] }> = {};
-  for (const c of contracts) {
-    if (!productGroups[c.productId]) {
-      productGroups[c.productId] = { contracts: [], invoices: [] };
-    }
-    productGroups[c.productId].contracts.push(c);
+function contractStatusBadge(status: string) {
+  const label = formatStatus(status);
+  if (label.toLowerCase().includes("amendment")) {
+    return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">Amendment required</Badge>;
   }
-  for (const inv of invoices) {
-    if (!productGroups[inv.productId]) {
-      productGroups[inv.productId] = { contracts: [], invoices: [] };
-    }
-    productGroups[inv.productId].invoices.push(inv);
+  if (label.toLowerCase().includes("draft") || label.toLowerCase().includes("pending")) {
+    return <Badge variant="secondary">{label || "Draft"}</Badge>;
   }
+  return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">{label || "Active"}</Badge>;
+}
 
+function groupDashboardByProduct(dashboard: IssuerDashboardData) {
+  const productGroups: Record<string, { contracts: IssuerDashboardContract[]; invoices: IssuerDashboardInvoice[] }> =
+    {};
+  for (const c of dashboard.contracts) {
+    const pid = c.productId?.trim() ? c.productId : "_none";
+    if (!productGroups[pid]) productGroups[pid] = { contracts: [], invoices: [] };
+    productGroups[pid].contracts.push(c);
+  }
+  for (const inv of dashboard.invoices) {
+    const pid = inv.productId?.trim() ? inv.productId : "_none";
+    if (!productGroups[pid]) productGroups[pid] = { contracts: [], invoices: [] };
+    productGroups[pid].invoices.push(inv);
+  }
   return productGroups;
 }
 
-/* ============================================================
-   Main
-============================================================ */
+function CollapsibleCategory({
+  title,
+  children,
+  defaultOpen = true,
+  filters,
+}: {
+  title: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  filters?: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="px-6 space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <h4 className="text-[15px] font-semibold">{title}</h4>
+        <div className="flex items-center gap-2">
+          <div className="hidden sm:flex items-center gap-2">{filters}</div>
+          <Separator orientation="vertical" className="mx-1 h-6" />
+          <button
+            type="button"
+            onClick={() => setOpen(!open)}
+            className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-muted"
+            aria-label={open ? "Collapse" : "Expand"}
+          >
+            {open ? (
+              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            )}
+          </button>
+        </div>
+      </div>
+      {open && <div className="space-y-4">{children}</div>}
+    </div>
+  );
+}
 
-export function FinancingSection() {
-  const { activeOrganization } = useOrganization();
-  const { data: applications = [] } = useOrganizationApplications(activeOrganization?.id);
+export function FilterButton({ label }: { label: string }) {
+  return (
+    <Button variant="outline" size="sm" className="h-8 text-xs font-medium gap-1 px-3">
+      <FunnelIcon className="h-3.5 w-3.5" />
+      {label}
+    </Button>
+  );
+}
+
+export function FinancingSection({ organizationId }: { organizationId?: string }) {
+  const { data: dashboard, isLoading, isError, error, refetch } = useIssuerDashboard(organizationId);
   const { data: productsData } = useProducts({ page: 1, pageSize: 100, search: "", activeOnly: true });
   const products = useMemo(() => productsData?.products ?? [], [productsData]);
 
@@ -279,10 +211,7 @@ export function FinancingSection() {
     return map;
   }, [products]);
 
-  const productGroups = useMemo(
-    () => flattenAndGroupByProduct(applications as ApplicationWithRelations[]),
-    [applications]
-  );
+  const productGroups = useMemo(() => (dashboard ? groupDashboardByProduct(dashboard) : {}), [dashboard]);
 
   type ProductOrStub = Product | { id: string; name: string };
 
@@ -294,6 +223,7 @@ export function FinancingSection() {
     const productIdsFromProducts = new Set(fromProducts.map((p: Product) => p.id));
     const orphanIds = Object.keys(productGroups).filter(
       (pid) =>
+        pid !== "_none" &&
         !productIdsFromProducts.has(pid) &&
         (productGroups[pid]?.contracts?.length ?? 0) + (productGroups[pid]?.invoices?.length ?? 0) > 0
     );
@@ -303,6 +233,39 @@ export function FinancingSection() {
     ] as ProductOrStub[];
   }, [products, productGroups, productNameMap]);
 
+  if (!organizationId) {
+    return null;
+  }
+
+  if (isLoading) {
+    return (
+      <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground">
+        Loading financing data…
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-6 space-y-3">
+        <p className="font-medium text-destructive">Could not load financing</p>
+        <p className="text-sm text-muted-foreground">{error instanceof Error ? error.message : "Unknown error"}</p>
+        <Button type="button" variant="outline" size="sm" onClick={() => refetch()}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  if (!dashboard || productsWithData.length === 0) {
+    return (
+      <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground">
+        No financing activity yet. Use <span className="font-medium text-foreground">Get Financed</span> to start an
+        application.
+      </div>
+    );
+  }
+
   return (
     <>
       <ReviewOfferModal
@@ -311,200 +274,135 @@ export function FinancingSection() {
         context={offerModalContext}
       />
       <div className="space-y-6">
-      {productsWithData.map((product: ProductOrStub) => {
-        const group = productGroups[product.id] ?? { contracts: [], invoices: [] };
-        const productName =
-          productNameMap.get(product.id) ??
-          ("name" in product ? product.name : undefined) ??
-          `Product ${product.id}`;
+        {productsWithData.map((product: ProductOrStub) => {
+          const group = productGroups[product.id] ?? { contracts: [], invoices: [] };
+          const productName =
+            productNameMap.get(product.id) ??
+            ("name" in product ? product.name : undefined) ??
+            `Product ${product.id}`;
 
-        return (
-          <Card key={product.id} className="rounded-xl border border-gray-200 shadow-sm">
-            <div className="px-6 py-5">
-              <div className="flex items-center gap-3">
-                <FileText className="h-5 w-5 text-muted-foreground" />
-                <h3 className="font-semibold text-[15px] leading-6">{productName}</h3>
+          return (
+            <Card key={product.id} className="rounded-xl border border-gray-200 shadow-sm">
+              <div className="px-6 py-5">
+                <div className="flex items-center gap-3">
+                  <FileText className="h-5 w-5 text-muted-foreground" />
+                  <h3 className="font-semibold text-[15px] leading-6">{productName}</h3>
+                </div>
               </div>
-            </div>
 
-            <div className="px-6 pb-6 space-y-8">
-              <CollapsibleCategory
-                title="Contract financing"
-                defaultOpen
-                filters={
-                  <>
-                    <FilterButton label="Status" />
-                    <FilterButton label="Date" />
-                    <FilterButton label="Customer" />
-                  </>
-                }
-              >
-                <div className="space-y-4">
-                  {group.contracts.length > 0 ? (
-                    group.contracts.map((c) => (
-                      <ContractCard
-                        key={c.id}
-                        item={c.contract}
-                        applicationId={c.applicationId}
-                        offerStatus={getOfferStatus(c.contract)}
-                        onReviewOffer={() =>
-                          setOfferModalContext({
-                            type: "contract",
-                            applicationId: c.applicationId,
-                            contract: c.contract,
-                          })
-                        }
-                      />
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground py-4">No contract financing</p>
-                  )}
-                </div>
-              </CollapsibleCategory>
+              <div className="px-6 pb-6 space-y-8">
+                <CollapsibleCategory
+                  title="Contract financing"
+                  defaultOpen
+                  filters={
+                    <>
+                      <FilterButton label="Status" />
+                      <FilterButton label="Date" />
+                      <FilterButton label="Customer" />
+                    </>
+                  }
+                >
+                  <div className="space-y-4">
+                    {group.contracts.length > 0 ? (
+                      group.contracts.map((c) => {
+                        const modalContract = asContractForModal(c.contractForModal);
+                        const offerStatus = getOfferStatus(modalContract);
+                        return (
+                          <DashboardContractCard
+                            key={c.id}
+                            row={c}
+                            productName={productName}
+                            offerStatus={offerStatus}
+                            onReviewOffer={() =>
+                              setOfferModalContext({
+                                type: "contract",
+                                applicationId: c.applicationId,
+                                contract: modalContract,
+                              })
+                            }
+                          />
+                        );
+                      })
+                    ) : (
+                      <p className="text-sm text-muted-foreground py-4">No contract financing</p>
+                    )}
+                  </div>
+                </CollapsibleCategory>
 
-              <CollapsibleCategory
-                title="Invoice financing"
-                defaultOpen
-                filters={
-                  <>
-                    <FilterButton label="Status" />
-                    <FilterButton label="Date" />
-                    <FilterButton label="Customer" />
-                  </>
-                }
-              >
-                <div className="space-y-4">
-                  {group.invoices.length > 0 ? (
-                    group.invoices.map((inv) => (
-                      <InvoiceCard
-                        key={inv.id}
-                        item={inv.invoice}
-                        applicationSubmittedAt={inv.applicationSubmittedAt}
-                        applicationId={inv.applicationId}
-                        offerStatus={getOfferStatus(inv.invoice)}
-                        onReviewOffer={() =>
-                          setOfferModalContext({
-                            type: "invoice",
-                            applicationId: inv.applicationId,
-                            invoiceId: inv.id,
-                            invoice: inv.invoice,
-                          })
-                        }
-                      />
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground py-4">No invoice financing</p>
-                  )}
-                </div>
-              </CollapsibleCategory>
-            </div>
-          </Card>
-        );
-      })}
-    </div>
+                <CollapsibleCategory
+                  title="Invoice financing"
+                  defaultOpen
+                  filters={
+                    <>
+                      <FilterButton label="Status" />
+                      <FilterButton label="Date" />
+                      <FilterButton label="Customer" />
+                    </>
+                  }
+                >
+                  <div className="space-y-4">
+                    {group.invoices.length > 0 ? (
+                      group.invoices.map((inv) => {
+                        const modalInvoice = asInvoiceForModal(inv.invoiceForModal);
+                        const offerStatus = getOfferStatus(modalInvoice);
+                        return (
+                          <DashboardInvoiceCard
+                            key={inv.id}
+                            row={inv}
+                            offerStatus={offerStatus}
+                            onReviewOffer={() =>
+                              setOfferModalContext({
+                                type: "invoice",
+                                applicationId: inv.applicationId,
+                                invoiceId: inv.id,
+                                invoice: modalInvoice,
+                              })
+                            }
+                          />
+                        );
+                      })
+                    ) : (
+                      <p className="text-sm text-muted-foreground py-4">No invoice financing</p>
+                    )}
+                  </div>
+                </CollapsibleCategory>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
     </>
   );
 }
 
-/* ============================================================
-   Category header: filters + separator + chevron far right
-============================================================ */
-
-function CollapsibleCategory({
-  title,
-  children,
-  defaultOpen = true,
-  filters,
-}: {
-  title: string;
-  children: React.ReactNode;
-  defaultOpen?: boolean;
-  filters?: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-
-  return (
-    <div className="px-6 space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <h4 className="text-[15px] font-semibold">{title}</h4>
-
-        <div className="flex items-center gap-2">
-          <div className="hidden sm:flex items-center gap-2">{filters}</div>
-
-          <Separator orientation="vertical" className="mx-1 h-6" />
-
-          <button
-            type="button"
-            onClick={() => setOpen(!open)}
-            className="h-8 w-8 inline-flex items-center justify-center rounded-md hover:bg-muted"
-            aria-label={open ? "Collapse" : "Expand"}
-          >
-            {open ? (
-              <ChevronUp className="h-4 w-4 text-muted-foreground" />
-            ) : (
-              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-            )}
-          </button>
-        </div>
-      </div>
-
-      {open && <div className="space-y-4">{children}</div>}
-    </div>
-  );
-}
-
-type InvoiceCardModel = Invoice & {
-  maturityDate?: string | null;
-  submissionDate?: string | null;
-  noteNo?: string | null;
-  customer?: string | null;
-  fundingDeadline?: string | null;
-  progress?: number | string;
-  fundingLabel?: string | null;
-};
-
-/* ============================================================
-   Cards: grid layout -> content | right column | action column
-============================================================ */
-
-function ContractCard({
-  item,
-  applicationId,
+function DashboardContractCard({
+  row,
+  productName,
   offerStatus,
   onReviewOffer,
 }: {
-  item: Contract & { activeNotes?: unknown };
-  applicationId: string;
+  row: IssuerDashboardContract;
+  productName: string;
   offerStatus: OfferStatus;
   onReviewOffer: () => void;
 }) {
   const router = useRouter();
-  const details = (item.contract_details ?? {}) as LooseContractDetails;
-  const customer = item.customer_details?.name ?? details.customer ?? "-";
-  const start = details?.start_date;
-  const end = details?.end_date;
-  const approved = details?.approved_facility ?? 0;
-  const utilised = details?.utilized_facility ?? 0;
+  const approved = row.approvedFacilityAmount != null ? Number(row.approvedFacilityAmount) : 0;
+  const utilised = row.utilizedFacilityAmount != null ? Number(row.utilizedFacilityAmount) : 0;
   const utilisationPct = approved > 0 ? Math.round((utilised / approved) * 100) : 0;
 
   return (
     <Card className="rounded-lg border border-border bg-muted/40 shadow-none">
       <div className="px-5 py-4 space-y-4">
-
-        {/* HEADER */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0">
-            <FileText className="h-4 w-4 text-muted-foreground" />
-
+          <div className="flex items-center gap-2 min-w-0 flex-wrap">
+            <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
             <p className="text-sm font-medium truncate">
-              Contract :{" "}
-              <span className="font-semibold">{details?.title ?? item.id}</span>
+              Contract : <span className="font-semibold">{row.title}</span>
             </p>
-
-            <span className="ml-2">{contractBadge(formatStatus(item.status) || formatStatus(details.status))}</span>
+            <span className="ml-2">{contractStatusBadge(row.contractStatus)}</span>
             {offerBadge(offerStatus)}
           </div>
-
           <div className="flex items-center gap-2 shrink-0">
             <ReviewOfferButton show={offerStatus === "Offer received"} onClick={onReviewOffer} />
             <DropdownMenu>
@@ -513,8 +411,13 @@ function ContractCard({
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-44">
-                <DropdownMenuItem onClick={() => applicationId && router.push(`/applications/edit/${applicationId}`)}>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem asChild>
+                  <Link href={`/financing/contracts/${row.id}`}>View details</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => row.applicationId && router.push(`/applications/edit/${row.applicationId}`)}
+                >
                   Make amendment
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -522,913 +425,173 @@ function ContractCard({
           </div>
         </div>
 
-        {/* BODY */}
-        <div className="grid grid-cols-[1fr_320px] gap-8 items-start">
-
-          {/* LEFT */}
-          <div className="space-y-2">
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-8 items-start">
+          <div className="space-y-2 text-sm">
+            <p>
+              <span className="text-muted-foreground">Product</span>{" "}
+              <span className="font-medium text-foreground">{productName}</span>
+            </p>
             <div>
               <p className="text-xs text-muted-foreground">Customer</p>
-              <p className="text-[17px] leading-7 font-medium text-foreground">
-                {customer ?? "NA"}
-              </p>
+              <p className="text-[17px] leading-7 font-medium text-foreground">{row.customerName ?? "-"}</p>
             </div>
-
             <div>
               <p className="text-xs text-muted-foreground">Contract period</p>
               <p className="text-[17px] leading-7 font-medium text-foreground">
-                {start || end
-                  ? start && end
-                    ? `${formatDate(start)} to ${formatDate(end)}`
-                    : `${formatDate(start ?? end)}`
-                  : "NA"}
+                {row.contractStartDate && row.contractEndDate
+                  ? `${formatDate(row.contractStartDate)} to ${formatDate(row.contractEndDate)}`
+                  : row.contractStartDate || row.contractEndDate
+                    ? `${formatDate(row.contractStartDate ?? row.contractEndDate)}`
+                    : "NA"}
               </p>
             </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Active notes</p>
+              <p className="text-[17px] leading-7 font-medium text-foreground">{row.activeNotesCount}</p>
+            </div>
+          </div>
 
-            {item.activeNotes !== undefined && (
-              <div>
-                <p className="text-xs text-muted-foreground">Active notes</p>
-                <p className="text-[17px] leading-7 font-medium text-foreground">
-                  {String(item.activeNotes)}
-                </p>
+          <div className="flex flex-col justify-between h-full">
+            <div className="space-y-3 pt-2 md:pt-4">
+              <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                <div className="h-1.5 bg-foreground rounded-full" style={{ width: `${utilisationPct}%` }} />
               </div>
-            )}
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Utilized {formatMoney(utilised)}</span>
+                <span>Available {row.availableFacilityAmount != null ? formatMoney(row.availableFacilityAmount) : "NA"}</span>
+              </div>
+              <div className="flex justify-between">
+                <div>
+                  <p className="text-[17px] leading-7 font-medium text-foreground">{formatMoney(utilised)}</p>
+                  <p className="text-xs text-muted-foreground">(Utilised facility)</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[17px] leading-7 font-medium text-foreground">{formatMoney(approved)}</p>
+                  <p className="text-xs text-muted-foreground">(Approved facility)</p>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-4">
+              <Link href={`/financing/contracts/${row.id}`} className="text-xs font-medium text-primary hover:underline">
+                View details →
+              </Link>
+            </div>
           </div>
-
-          {/* RIGHT */}
-    <div className="flex flex-col justify-between h-full">
-
-      {/* TOP CONTENT */}
-      <div className="space-y-3 pt-4">
-
-        {/* Progress */}
-        <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-          <div
-            className="h-1.5 bg-foreground rounded-full"
-            style={{ width: `${utilisationPct}%` }}
-          />
-        </div>
-
-        {/* Numbers left & right */}
-        <div className="flex justify-between">
-          <div>
-            <p className="text-[17px] leading-7 font-medium text-foreground">
-              {formatMoney(utilised)}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              (Utilised facility)
-            </p>
-          </div>
-
-          <div className="text-right">
-            <p className="text-[17px] leading-7 font-medium text-foreground">
-              {formatMoney(approved)}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              (Approved facility)
-            </p>
-          </div>
-        </div>
-
-      </div>
-
-      {/* BOTTOM ACTION */}
-      <div className="flex justify-end pt-4">
-        <button
-          type="button"
-          onClick={() => applicationId && router.push(`/applications/edit/${applicationId}`)}
-          className="text-xs font-medium text-primary hover:underline"
-        >
-          Make amendment →
-        </button>
-      </div>
-
-    </div>
         </div>
       </div>
     </Card>
   );
 }
 
-export function InvoiceCard({
-  item,
-  applicationSubmittedAt,
-  applicationId,
+export function DashboardInvoiceCard({
+  row,
   offerStatus,
   onReviewOffer,
 }: {
-  item: InvoiceCardModel;
-  applicationSubmittedAt?: string | null;
-  applicationId?: string;
+  row: IssuerDashboardInvoice;
   offerStatus: OfferStatus;
   onReviewOffer: () => void;
 }) {
   const router = useRouter();
-  const details = (item.details ?? {}) as LooseInvoiceDetails;
-  const invoiceNumber = details.number ?? details.invoiceNo ?? item.id;
-  const invoiceValue = details.value ?? details.invoiceValue ?? null;
-  const ratioRaw = details.financing_ratio_percent;
-  const ratioParsed =
-    ratioRaw === undefined || ratioRaw === null
-      ? NaN
-      : typeof ratioRaw === "number"
-        ? Number.isFinite(ratioRaw)
-          ? ratioRaw
-          : NaN
-        : (() => {
-            const normalized = String(ratioRaw).replace(/,/g, "").trim();
-            if (normalized === "") return NaN;
-            const n = Number(normalized);
-            return Number.isFinite(n) ? n : NaN;
-          })();
-  const financingAmount =
-    details.financing_amount ??
-    details.financingAmount ??
-    (typeof invoiceValue === "number" && Number.isFinite(ratioParsed)
-      ? Math.round((invoiceValue * ratioParsed) / 100)
-      : undefined);
-  const maturityDate = details.maturity_date ?? details.maturityDate ?? item.maturityDate ?? null;
-  const submissionDate =
-    details.submission_date ??
-    details.submissionDate ??
-    item.submissionDate ??
-    item.created_at ??
-    applicationSubmittedAt ??
-    null;
-  const status = formatStatus(item.status ?? details.status);
+  const badgeKind = resolveInvoiceCardBadge(row.note, row.invoiceStatus);
+  const progress = resolveFundingProgressPercent(row.note);
+  const fundingLabel = resolveFundingStatusText(row.note);
+  const noteRef = row.note?.noteReference ?? "-";
+  const invDetails = asInvoiceForModal(row.invoiceForModal)?.details;
+  const maturityRaw = invDetails?.maturity_date ?? row.note?.maturityDate ?? null;
 
   return (
     <Card className="rounded-lg border border-border bg-muted/40 shadow-none">
       <div className="px-5 py-4 space-y-4">
-
-        {/* HEADER */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0">
-            <FileText className="h-4 w-4 text-muted-foreground" />
-
+          <div className="flex items-center gap-2 min-w-0 flex-wrap">
+            <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
             <p className="text-sm font-medium truncate">
-              Invoice no :{" "}
-              <span className="font-semibold">{invoiceNumber}</span>
+              Invoice no : <span className="font-semibold">{row.invoiceNumber}</span>
             </p>
-
-            <span className="ml-2">{invoiceBadge(status)}</span>
+            <span className="ml-2">{issuerInvoiceBadge(badgeKind)}</span>
             {offerBadge(offerStatus)}
           </div>
-
           <div className="flex items-center gap-2 shrink-0">
-            <ReviewOfferButton
-              show={offerStatus === "Offer received"}
-              onClick={onReviewOffer}
-            />
-
+            <ReviewOfferButton show={offerStatus === "Offer received"} onClick={onReviewOffer} />
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="rounded-full h-8 w-8"
-                >
+                <Button variant="ghost" size="icon" className="rounded-full h-8 w-8">
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-
-              <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem
-                  onClick={() => applicationId && router.push(`/applications/edit/${applicationId}`)}
+                  onClick={() => row.applicationId && router.push(`/applications/edit/${row.applicationId}`)}
                 >
                   Make amendment
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => row.applicationId && router.push(`/applications/edit/${row.applicationId}`)}
+                >
+                  View details
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </div>
 
-        {/* BODY */}
-        <div className="grid grid-cols-[1fr_320px] gap-8 items-start">
-
-          {/* LEFT */}
+        <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-8 items-start">
           <div className="space-y-2">
             <div>
               <p className="text-xs text-muted-foreground">Note no</p>
-              <p className="text-[17px] leading-7 font-medium text-foreground">
-                {item.noteNo ?? "NA"}
-              </p>
+              <p className="text-[17px] leading-7 font-medium text-foreground">{noteRef}</p>
             </div>
-
             <div>
               <p className="text-xs text-muted-foreground">Customer</p>
-              <p className="text-[17px] leading-7 font-medium text-foreground">
-                {item.customer ?? "NA"}
-              </p>
+              <p className="text-[17px] leading-7 font-medium text-foreground">{row.customerName ?? "-"}</p>
             </div>
-
             <div>
               <p className="text-xs text-muted-foreground">Invoice value</p>
-              <p className="text-[17px] leading-7 font-medium text-foreground">
-                {formatMoney(invoiceValue)}
-              </p>
+              <p className="text-[17px] leading-7 font-medium text-foreground">{formatMoney(row.invoiceValue)}</p>
             </div>
-
             <div>
-              <p className="text-xs text-muted-foreground">
-                Financing amount
-              </p>
-              <p className="text-[17px] leading-7 font-medium text-foreground">
-                {formatMoney(financingAmount)}
-              </p>
+              <p className="text-xs text-muted-foreground">Financing amount</p>
+              <p className="text-[17px] leading-7 font-medium text-foreground">{formatMoney(row.financingAmount)}</p>
             </div>
+            {row.note?.marketplaceStatusLabel ? (
+              <p className="text-xs text-muted-foreground">
+                Marketplace:{" "}
+                <span className="font-medium text-foreground">{row.note.marketplaceStatusLabel}</span>
+              </p>
+            ) : null}
           </div>
 
-          {/* RIGHT */}
           <div className="space-y-3">
-
             <div className="space-y-1">
               <div>
-                <p className="text-xs text-muted-foreground">
-                  Submission date
-                </p>
+                <p className="text-xs text-muted-foreground">Submission date</p>
+                <p className="text-[17px] leading-7 font-medium text-foreground">{formatDate(row.submissionDate)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Funding deadline</p>
                 <p className="text-[17px] leading-7 font-medium text-foreground">
-                  {formatDate(submissionDate)}
+                  {row.note?.fundingDeadline ? formatDate(row.note.fundingDeadline) : "NA"}
                 </p>
               </div>
-
               <div>
-                <p className="text-xs text-muted-foreground">
-                  Funding deadline
-                </p>
-                <p className="text-[17px] leading-7 font-medium text-foreground">
-                  {formatDate(item.fundingDeadline)}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  Maturity date
-                </p>
-                <p className="text-[17px] leading-7 font-medium text-foreground">
-                  {formatDate(maturityDate)}
-                </p>
+                <p className="text-xs text-muted-foreground">Maturity date</p>
+                <p className="text-[17px] leading-7 font-medium text-foreground">{formatDate(maturityRaw)}</p>
               </div>
             </div>
 
-            {/* Progress */}
             <div className="space-y-2 pt-4">
               <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
                 <div
                   className="h-1.5 bg-foreground rounded-full"
-                  style={{
-                    width: `${Math.min(100, Math.max(0, Number(item.progress ?? 0)))}%`,
-                  }}
+                  style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
                 />
               </div>
-
-              <p className="text-xs text-muted-foreground">
-                {(() => {
-                  // normalize funding label display per requested examples
-                  const prog = typeof item.progress === "number" ? item.progress : Number(item.progress);
-                  if (prog === 0) return "funding status (Not yet started)";
-                  if (prog === 75) return "funding status: (75%)";
-                  if (item.fundingLabel) return item.fundingLabel;
-                  if (!Number.isNaN(prog)) return `funding status: (${prog}%)`;
-                  return "funding status (Not yet started)";
-                })()}
-              </p>
+              <p className="text-xs text-muted-foreground">{fundingLabel}</p>
             </div>
-
           </div>
         </div>
       </div>
     </Card>
-  )
-}
-
-/* ============================================================
-   Bits
-============================================================ */
-
-export function FilterButton({ label }: { label: string }) {
-  return (
-    <Button variant="outline" size="sm" className="h-8 text-xs font-medium gap-1 px-3">
-      <FunnelIcon className="h-3.5 w-3.5" />
-      {label}
-    </Button>
   );
 }
-
-
-// "use client"
-
-// import { useState } from "react"
-// import {
-//   ChevronDown,
-//   ChevronUp,
-//   MoreVertical,
-//   FileText,
-// } from "lucide-react"
-// import { Button } from "@/components/ui/button"
-// import { Badge } from "@/components/ui/badge"
-// import { Card } from "@/components/ui/card"
-// import { FunnelIcon } from "@heroicons/react/24/outline"
-
-// /* ============================================================
-//    Mock Application Data (Application Level)
-// ============================================================ */
-
-// const mockApplications = [
-//   {
-//     id: "app1",
-//     title: "Mining Rig Repair 12654",
-//     status: "Active",
-//     contracts: [
-//       {
-//         id: "c1",
-//         title: "Mining Rig Repair 12654",
-//         customer: "Petronas Chemical Bhd",
-//         period: "01/01/2026 to 31/12/2026",
-//         utilised: "RM 10,000",
-//         approved: "RM 50,000",
-//       },
-//     ],
-//     invoices: [
-//       {
-//         id: "i1",
-//         invoiceNo: "INV-11110",
-//         status: "Draft",
-//         submissionDate: "03/02/2026",
-//         maturityDate: "31/07/2026",
-//         invoiceValue: "RM 40,000",
-//         financingAmount: "RM 30,000",
-//         progress: 0,
-//       },
-//       {
-//         id: "i2",
-//         invoiceNo: "INV-11109",
-//         status: "In progress",
-//         submissionDate: "03/01/2026",
-//         maturityDate: "31/06/2026",
-//         invoiceValue: "RM 20,000",
-//         financingAmount: "RM 15,000",
-//         progress: 75,
-//       },
-//     ],
-//   },
-// ]
-
-// /* ============================================================
-//    Status Badge Helpers
-// ============================================================ */
-
-// function contractBadge(status: string) {
-//   return (
-//     <Badge className="bg-green-100 text-green-700">
-//       {status}
-//     </Badge>
-//   )
-// }
-
-// function invoiceBadge(status: string) {
-//   switch (status) {
-//     case "Draft":
-//       return <Badge variant="secondary">Draft</Badge>
-//     case "In progress":
-//       return <Badge className="bg-green-100 text-green-700">In progress</Badge>
-//     case "Funded":
-//       return <Badge className="bg-blue-100 text-blue-700">Funded</Badge>
-//     case "Completed":
-//       return <Badge className="bg-emerald-100 text-emerald-700">Completed</Badge>
-//     case "Unsuccessful":
-//       return <Badge className="bg-red-100 text-red-600">Unsuccessful</Badge>
-//     default:
-//       return null
-//   }
-// }
-
-// /* ============================================================
-//    Main Component
-// ============================================================ */
-
-// export function FinancingSection() {
-//   const [openApplicationId, setOpenApplicationId] = useState<string | null>(
-//     mockApplications[0].id
-//   )
-
-//   return (
-//     <div className="space-y-6">
-
-//       {mockApplications.map((app) => {
-//         const isOpen = openApplicationId === app.id
-
-//         return (
-//           <Card
-//             key={app.id}
-//             className="rounded-xl border border-gray-200 shadow-sm"
-//           >
-//             {/* APPLICATION HEADER */}
-//             <div
-//               onClick={() => setOpenApplicationId(isOpen ? null : app.id)}
-//               className="flex items-center justify-between p-6 cursor-pointer select-none border-b border-muted"
-//             >
-//               <div className="flex items-center gap-3">
-//                 <FileText className="h-5 w-5 text-muted-foreground" />
-//                 <h3 className="font-semibold text-base">
-//                   {app.title}
-//                 </h3>
-//                 {contractBadge(app.status)}
-//               </div>
-
-//               {isOpen ? (
-//                 <ChevronUp className="h-5 w-5 text-muted-foreground" />
-//               ) : (
-//                 <ChevronDown className="h-5 w-5 text-muted-foreground" />
-//               )}
-//             </div>
-
-//             {/* APPLICATION BODY */}
-//             {isOpen && (
-//               <div className="px-6 pb-6 space-y-10">
-
-//                 {/* CONTRACT SECTION */}
-//                 <CollapsibleCategory title="Contract financing" filters={["Status", "Date", "Customer"]} >
-//                   {app.contracts.map((c) => (
-//                     <Card
-//                       key={c.id}
-//                       className="p-6 rounded-xl border border-gray-200"
-//                     >
-//                       <div className="flex justify-between">
-//                         <div className="space-y-3">
-//                           <p className="text-sm font-semibold">
-//                             Contract : {c.title}
-//                           </p>
-//                           <p className="text-sm text-muted-foreground">
-//                             Customer : {c.customer}
-//                           </p>
-//                           <p className="text-sm text-muted-foreground">
-//                             Contract period : {c.period}
-//                           </p>
-//                         </div>
-
-//                         <div className="w-[320px] space-y-3">
-//                           <div className="h-2 bg-gray-200 rounded-full">
-//                             <div className="h-2 bg-black rounded-full w-[40%]" />
-//                           </div>
-//                           <div className="flex justify-between text-sm text-muted-foreground">
-//                             <span>{c.utilised}</span>
-//                             <span>{c.approved}</span>
-//                           </div>
-//                         </div>
-
-//                         <Button
-//                           variant="ghost"
-//                           size="icon"
-//                           className="rounded-full h-9 w-9 ml-4"
-//                         >
-//                           <MoreVertical className="h-4 w-4" />
-//                         </Button>
-//                       </div>
-//                     </Card>
-//                   ))}
-//                 </CollapsibleCategory>
-
-//                 {/* INVOICE SECTION */}
-//                 <CollapsibleCategory title="Invoice financing" filters={["Status", "Submission date"]}>
-//                   {app.invoices.map((inv) => (
-//                     <Card
-//                       key={inv.id}
-//                       className="p-6 rounded-xl border border-gray-200"
-//                     >
-//                       <div className="flex justify-between">
-//                         <div className="space-y-4 flex-1">
-//                           <div className="flex items-center gap-3">
-//                             <p className="text-sm font-medium">
-//                               Invoice no :{" "}
-//                               <span className="font-semibold">
-//                                 {inv.invoiceNo}
-//                               </span>
-//                             </p>
-//                             {invoiceBadge(inv.status)}
-//                           </div>
-
-//                           <div className="space-y-1">
-//                             <p className="text-sm text-muted-foreground">
-//                               Invoice value : {inv.invoiceValue}
-//                             </p>
-//                             <p className="text-sm text-muted-foreground">
-//                               Financing amount : {inv.financingAmount}
-//                             </p>
-//                           </div>
-//                         </div>
-
-//                         <div className="w-[320px] space-y-3">
-//                           <p className="text-sm text-muted-foreground">
-//                             Submission date: {inv.submissionDate}
-//                           </p>
-//                           <p className="text-sm text-muted-foreground">
-//                             Maturity date: {inv.maturityDate}
-//                           </p>
-
-//                           <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-//                             <div
-//                               className="h-2 bg-black rounded-full"
-//                               style={{ width: `${inv.progress}%` }}
-//                             />
-//                           </div>
-//                         </div>
-
-//                         <Button
-//                           variant="ghost"
-//                           size="icon"
-//                           className="rounded-full h-9 w-9 ml-4"
-//                         >
-//                           <MoreVertical className="h-4 w-4" />
-//                         </Button>
-//                       </div>
-//                     </Card>
-//                   ))}
-//                 </CollapsibleCategory>
-
-//               </div>
-//             )}
-//           </Card>
-//         )
-//       })}
-//     </div>
-//   )
-// }
-
-// /* ============================================================
-//    Collapsible Category Component
-// ============================================================ */
-
-// function CollapsibleCategory({
-//   title,
-//   children,
-//   filters,
-// }: {
-//   title: string
-//   children: React.ReactNode
-//   filters?: string[]
-// }) {
-//   const [open, setOpen] = useState(true)
-
-//   return (
-//     <div className="space-y-4">
-//       {/* HEADER (no underline) */}
-//       <div className="flex items-center justify-between">
-//         {/* LEFT: Title */}
-//         <h4 className="text-sm font-semibold text-foreground">{title}</h4>
-
-//         {/* RIGHT: Filters + Separator + Chevron */}
-//         <div className="flex items-center">
-//           {/* Filters (do not toggle collapse) */}
-//           {filters && (
-//             <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-//               {filters.map((filter) => (
-//                 <FilterButton key={filter} label={filter} />
-//               ))}
-//             </div>
-//           )}
-
-//           {/* Vertical Separator */}
-//           <div className="mx-3 h-6 w-px bg-border" />
-
-//           {/* Chevron (toggles collapse) */}
-//           <button
-//             type="button"
-//             onClick={() => setOpen(!open)}
-//             className="flex items-center justify-center h-8 w-8 rounded-md hover:bg-muted transition"
-//           >
-//             {open ? (
-//               <ChevronUp className="h-4 w-4 text-muted-foreground" />
-//             ) : (
-//               <ChevronDown className="h-4 w-4 text-muted-foreground" />
-//             )}
-//           </button>
-//         </div>
-//       </div>
-
-//       {/* BODY */}
-//       {open && <div className="space-y-4">{children}</div>}
-//     </div>
-//   )
-// }
-
-
-// function FilterButton({ label }: { label: string }) {
-//   return (
-//     <Button
-//       variant="outline"
-//       size="sm"
-//       className="h-8 text-xs font-medium gap-1 px-3"
-//     >
-//       <FunnelIcon className="h-3.5 w-3.5" />
-//       {label}
-//     </Button>
-//   )
-// }
-
-
-
-// "use client"
-
-// import { useState } from "react"
-// import { ChevronDown, ChevronUp, MoreVertical, FileText } from "lucide-react"
-// import { Button } from "@/components/ui/button"
-// import { Badge } from "@/components/ui/badge"
-// import { Card } from "@/components/ui/card"
-
-// /* ============================================================
-//    Types
-// ============================================================ */
-
-// type ContractStatus = "Active" | "Amendment required"
-// type InvoiceStatus =
-//   | "Draft"
-//   | "In progress"
-//   | "Funded"
-//   | "Completed"
-//   | "Unsuccessful"
-
-// /* ============================================================
-//    Mock Data
-// ============================================================ */
-
-// const mockContracts = [
-//   {
-//     id: "c1",
-//     title: "Mining Rig Repair 12654",
-//     customer: "Petronas Chemical Bhd",
-//     period: "01/01/2026 to 31/12/2026",
-//     utilised: "RM 10,000",
-//     approved: "RM 50,000",
-//     status: "Active" as ContractStatus,
-//   },
-//   {
-//     id: "c2",
-//     title: "Development of Gate Valve",
-//     customer: "Petronas Chemical Bhd",
-//     period: "01/01/2026 to 31/12/2026",
-//     utilised: "RM 10,000",
-//     approved: "RM 50,000",
-//     status: "Active" as ContractStatus,
-//   },
-// ]
-
-// const mockInvoices = [
-//   {
-//     id: "i1",
-//     invoiceNo: "INV-11110",
-//     status: "Draft" as InvoiceStatus,
-//     submissionDate: "03/02/2026",
-//     maturityDate: "31/07/2026",
-//     invoiceValue: "RM 40,000",
-//     financingAmount: "RM 30,000",
-//     progress: 0,
-//     label: "Funding status (Not yet started)",
-//   },
-//   {
-//     id: "i2",
-//     invoiceNo: "INV-11109",
-//     status: "In progress" as InvoiceStatus,
-//     submissionDate: "03/01/2026",
-//     maturityDate: "31/06/2026",
-//     invoiceValue: "RM 20,000",
-//     financingAmount: "RM 15,000",
-//     progress: 75,
-//     label: "Funding status (75%)",
-//   },
-// ]
-
-// /* ============================================================
-//    Badge Helpers
-// ============================================================ */
-
-// function contractBadge(status: ContractStatus) {
-//   if (status === "Active")
-//     return <Badge className="bg-green-100 text-green-700">Active</Badge>
-
-//   return (
-//     <Badge className="bg-red-100 text-red-600">
-//       Amendment required
-//     </Badge>
-//   )
-// }
-
-// function invoiceBadge(status: InvoiceStatus) {
-//   switch (status) {
-//     case "Draft":
-//       return <Badge variant="secondary">Draft</Badge>
-//     case "In progress":
-//       return <Badge className="bg-green-100 text-green-700">In progress</Badge>
-//     case "Funded":
-//       return <Badge className="bg-blue-100 text-blue-700">Funded</Badge>
-//     case "Completed":
-//       return <Badge className="bg-emerald-100 text-emerald-700">Completed</Badge>
-//     case "Unsuccessful":
-//       return <Badge className="bg-red-100 text-red-600">Unsuccessful</Badge>
-//   }
-// }
-
-// /* ============================================================
-//    Component
-// ============================================================ */
-
-// export function FinancingSection() {
-//   const [contractOpen, setContractOpen] = useState(true)
-//   const [invoiceOpen, setInvoiceOpen] = useState(true)
-
-//   return (
-//     <div className="space-y-10">
-
-//       {/* ======================================================
-//          CONTRACT SECTION
-//       ====================================================== */}
-
-//       <div>
-//         <SectionHeader
-//           title="Contract financing"
-//           open={contractOpen}
-//           onToggle={() => setContractOpen(!contractOpen)}
-//         />
-
-//         {contractOpen && (
-//           <div className="space-y-4 mt-4">
-//             {mockContracts.map((c) => (
-//               <Card
-//                 key={c.id}
-//                 className="p-6 rounded-xl border border-gray-200 shadow-sm"
-//               >
-//                 <div className="flex justify-between">
-//                   <div className="space-y-3">
-//                     <div className="flex items-center gap-3">
-//                       <FileText className="h-4 w-4 text-muted-foreground" />
-//                       <p className="font-semibold text-sm">
-//                         Contract : {c.title}
-//                       </p>
-//                       {contractBadge(c.status)}
-//                     </div>
-
-//                     <p className="text-sm text-muted-foreground">
-//                       Customer : {c.customer}
-//                     </p>
-
-//                     <p className="text-sm text-muted-foreground">
-//                       Contract period : {c.period}
-//                     </p>
-//                   </div>
-
-//                   <div className="w-[320px] space-y-3">
-//                     <div className="h-2 bg-gray-200 rounded-full">
-//                       <div className="h-2 bg-black rounded-full w-[40%]" />
-//                     </div>
-
-//                     <div className="flex justify-between text-sm">
-//                       <span className="text-muted-foreground">
-//                         {c.utilised}
-//                       </span>
-//                       <span className="text-muted-foreground">
-//                         {c.approved}
-//                       </span>
-//                     </div>
-
-//                     <div className="text-right">
-//                       <Button variant="link" className="text-primary p-0">
-//                         View details →
-//                       </Button>
-//                     </div>
-//                   </div>
-
-//                   <Button
-//                     variant="ghost"
-//                     size="icon"
-//                     className="rounded-full h-9 w-9 ml-4"
-//                   >
-//                     <MoreVertical className="h-4 w-4" />
-//                   </Button>
-//                 </div>
-//               </Card>
-//             ))}
-//           </div>
-//         )}
-//       </div>
-
-//       {/* ======================================================
-//          INVOICE SECTION
-//       ====================================================== */}
-
-//       <div>
-//         <SectionHeader
-//           title="Invoice financing"
-//           open={invoiceOpen}
-//           onToggle={() => setInvoiceOpen(!invoiceOpen)}
-//         />
-
-//         {invoiceOpen && (
-//           <div className="space-y-4 mt-4">
-//             {mockInvoices.map((inv) => (
-//               <Card
-//                 key={inv.id}
-//                 className="p-6 rounded-xl border border-gray-200 shadow-sm"
-//               >
-//                 <div className="flex justify-between">
-//                   <div className="space-y-4 flex-1">
-//                     <div className="flex items-center gap-3">
-//                       <FileText className="h-4 w-4 text-muted-foreground" />
-//                       <p className="text-sm font-medium">
-//                         Invoice no :{" "}
-//                         <span className="font-semibold">
-//                           {inv.invoiceNo}
-//                         </span>
-//                       </p>
-//                       {invoiceBadge(inv.status)}
-//                     </div>
-
-//                     <div className="space-y-1">
-//                       <p className="text-sm text-muted-foreground">
-//                         Invoice value :{" "}
-//                         <span className="font-medium text-foreground">
-//                           {inv.invoiceValue}
-//                         </span>
-//                       </p>
-//                       <p className="text-sm text-muted-foreground">
-//                         Financing amount :{" "}
-//                         <span className="font-medium text-foreground">
-//                           {inv.financingAmount}
-//                         </span>
-//                       </p>
-//                     </div>
-//                   </div>
-
-//                   <div className="w-[320px] space-y-3">
-//                     <div className="text-sm text-muted-foreground space-y-1">
-//                       <p>
-//                         Submission date:{" "}
-//                         <span className="text-foreground font-medium">
-//                           {inv.submissionDate}
-//                         </span>
-//                       </p>
-//                       <p>
-//                         Maturity date:{" "}
-//                         <span className="text-foreground font-medium">
-//                           {inv.maturityDate}
-//                         </span>
-//                       </p>
-//                     </div>
-
-//                     <div className="space-y-2">
-//                       <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-//                         <div
-//                           className="h-2 bg-black rounded-full"
-//                           style={{ width: `${inv.progress}%` }}
-//                         />
-//                       </div>
-//                       <p className="text-xs text-muted-foreground">
-//                         {inv.label}
-//                       </p>
-//                     </div>
-//                   </div>
-
-//                   <Button
-//                     variant="ghost"
-//                     size="icon"
-//                     className="rounded-full h-9 w-9 ml-4"
-//                   >
-//                     <MoreVertical className="h-4 w-4" />
-//                   </Button>
-//                 </div>
-//               </Card>
-//             ))}
-//           </div>
-//         )}
-//       </div>
-//     </div>
-//   )
-// }
-
-// /* ============================================================
-//    Reusable Section Header
-// ============================================================ */
-
-// function SectionHeader({
-//   title,
-//   open,
-//   onToggle,
-// }: {
-//   title: string
-//   open: boolean
-//   onToggle: () => void
-// }) {
-//   return (
-//     <div
-//       onClick={onToggle}
-//       className="flex items-center justify-between cursor-pointer select-none"
-//     >
-//       <h3 className="text-lg font-semibold">{title}</h3>
-
-//       {open ? (
-//         <ChevronUp className="h-5 w-5 text-muted-foreground" />
-//       ) : (
-//         <ChevronDown className="h-5 w-5 text-muted-foreground" />
-//       )}
-//     </div>
-//   )
-// }

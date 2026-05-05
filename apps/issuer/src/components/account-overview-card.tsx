@@ -14,10 +14,10 @@ import { cn } from "@/lib/utils";
 
 interface AccountOverviewCardProps {
   isDisabled?: boolean;
-  successRate?: number;
-  activeFinancing?: number;
-  activeNotes?: number;
-  completedNotes?: number;
+  successRate?: number | null;
+  activeFinancing?: number | string | null;
+  activeNotes?: number | null;
+  completedNotes?: number | null;
 }
 
 const chartConfig = {
@@ -34,21 +34,35 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
+function formatCurrency(value: number) {
+  return `RM ${value.toLocaleString("en-MY")}`;
+}
+
 export function AccountOverviewCard({
   isDisabled = false,
-  successRate = 90,
-  activeFinancing = 200000,
-  activeNotes = 8,
-  completedNotes = 17,
+  successRate = null,
+  activeFinancing = null,
+  activeNotes = null,
+  completedNotes = null,
 }: AccountOverviewCardProps) {
-  const chartData = [
-    { name: "success", value: successRate, fill: "var(--color-success)" },
-    { name: "remaining", value: 100 - successRate, fill: "var(--color-remaining)" },
-  ];
+  const rate = successRate != null && Number.isFinite(successRate) ? Math.max(0, Math.min(100, successRate)) : null;
+  const chartData =
+    rate != null
+      ? [
+          { name: "success", value: rate, fill: "var(--color-success)" },
+          { name: "remaining", value: 100 - rate, fill: "var(--color-remaining)" },
+        ]
+      : [
+          { name: "success", value: 0, fill: "var(--color-remaining)" },
+          { name: "remaining", value: 100, fill: "var(--color-remaining)" },
+        ];
 
-  const formatCurrency = (value: number) => {
-    return `RM ${value.toLocaleString("en-MY")}`;
-  };
+  const activeFinancingDisplay =
+    activeFinancing == null
+      ? "Not available"
+      : typeof activeFinancing === "number"
+        ? formatCurrency(activeFinancing)
+        : `RM ${activeFinancing}`;
 
   return (
     <Card className={cn("w-full bg-muted/50", isDisabled && "opacity-50 pointer-events-none")}>
@@ -89,7 +103,7 @@ export function AccountOverviewCard({
                               y={(viewBox.cy || 0) - 6}
                               className="fill-foreground text-2xl font-bold"
                             >
-                              {successRate}%
+                              {rate != null ? `${rate}%` : "—"}
                             </tspan>
                             <tspan
                               x={viewBox.cx}
@@ -111,15 +125,19 @@ export function AccountOverviewCard({
           <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="rounded-lg border bg-background p-4">
               <p className="text-sm text-muted-foreground mb-1">Active financing</p>
-              <p className="text-2xl font-bold">{formatCurrency(activeFinancing)}</p>
+              <p className="text-2xl font-bold">{activeFinancingDisplay}</p>
             </div>
             <div className="rounded-lg border bg-background p-4">
               <p className="text-sm text-muted-foreground mb-1">Active notes</p>
-              <p className="text-2xl font-bold">{activeNotes}</p>
+              <p className="text-2xl font-bold">
+                {activeNotes != null ? activeNotes : "Not available"}
+              </p>
             </div>
             <div className="rounded-lg border bg-background p-4">
               <p className="text-sm text-muted-foreground mb-1">Completed notes</p>
-              <p className="text-2xl font-bold">{completedNotes}</p>
+              <p className="text-2xl font-bold">
+                {completedNotes != null ? completedNotes : "Not available"}
+              </p>
             </div>
           </div>
         </div>

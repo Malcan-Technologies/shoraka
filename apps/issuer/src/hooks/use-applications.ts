@@ -49,6 +49,7 @@ export function useCreateApplication() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applications"] });
+      queryClient.invalidateQueries({ queryKey: ["issuer-dashboard"] });
     },
     onError: (error: Error) => {
       toast.error("Failed to create application", {
@@ -73,6 +74,8 @@ export function useUpdateApplicationStep() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["application", variables.id] });
+      queryClient.invalidateQueries({ queryKey: ["applications"] });
+      queryClient.invalidateQueries({ queryKey: ["issuer-dashboard"] });
     },
     onError: (error: Error) => {
       toast.error("Failed to save progress", {
@@ -98,6 +101,7 @@ export function useUpdateApplicationStatus() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["application", variables.id] });
       queryClient.invalidateQueries({ queryKey: ["applications"] });
+      queryClient.invalidateQueries({ queryKey: ["issuer-dashboard"] });
     },
     onError: (error: Error) => {
       toast.error("Failed to update application status", {
@@ -130,6 +134,7 @@ export function useResubmitApplication() {
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ["application", id] });
       queryClient.invalidateQueries({ queryKey: ["applications"] });
+      queryClient.invalidateQueries({ queryKey: ["issuer-dashboard"] });
     },
     onError: (error: Error) => {
       toast.error("Failed to resubmit", {
@@ -154,6 +159,7 @@ export function useArchiveApplication() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["applications"] });
+      queryClient.invalidateQueries({ queryKey: ["issuer-dashboard"] });
     },
     onError: (error: Error) => {
       toast.error("Failed to archive application", {
@@ -179,6 +185,7 @@ export function useDeleteDraftApplication() {
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ["application", id] });
       queryClient.invalidateQueries({ queryKey: ["applications"] });
+      queryClient.invalidateQueries({ queryKey: ["issuer-dashboard"] });
     },
     onError: (error: Error) => {
       toast.error("Failed to delete draft", {
@@ -209,6 +216,7 @@ export function useCancelApplication() {
       } else {
         queryClient.invalidateQueries({ queryKey: ["applications"] });
       }
+      queryClient.invalidateQueries({ queryKey: ["issuer-dashboard"] });
     },
     onError: (error: Error) => {
       toast.error("Failed to withdraw application", {
@@ -248,6 +256,7 @@ export function useWithdrawInvoice() {
       } else {
         queryClient.invalidateQueries({ queryKey: ["applications"] });
       }
+      queryClient.invalidateQueries({ queryKey: ["issuer-dashboard"] });
     },
     onError: (error: Error) => {
       toast.error("Failed to withdraw invoice", {
@@ -285,6 +294,8 @@ export function useWithdrawContract() {
       } else {
         queryClient.invalidateQueries({ queryKey: ["applications"] });
       }
+      queryClient.invalidateQueries({ queryKey: ["issuer-dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["issuer-dashboard-contract"] });
     },
     onError: (error: Error) => {
       toast.error("Failed to withdraw contract", {
@@ -338,6 +349,8 @@ export function useAcceptContractOffer() {
       }
       queryClient.invalidateQueries({ queryKey: ["applications"] });
       await queryClient.refetchQueries({ queryKey: ["applications"] });
+      queryClient.invalidateQueries({ queryKey: ["issuer-dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["issuer-dashboard-contract"] });
     },
     onError: (error: Error) => {
       toast.error("Failed to accept offer", { description: error.message });
@@ -373,6 +386,8 @@ export function useRejectContractOffer() {
       }
       queryClient.invalidateQueries({ queryKey: ["applications"] });
       await queryClient.refetchQueries({ queryKey: ["applications"] });
+      queryClient.invalidateQueries({ queryKey: ["issuer-dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["issuer-dashboard-contract"] });
     },
     onError: (error: Error) => {
       toast.error("Failed to decline offer", { description: error.message });
@@ -399,6 +414,8 @@ export function useAcceptInvoiceOffer() {
       }
       queryClient.invalidateQueries({ queryKey: ["applications"] });
       await queryClient.refetchQueries({ queryKey: ["applications"] });
+      queryClient.invalidateQueries({ queryKey: ["issuer-dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["issuer-dashboard-contract"] });
     },
     onError: (error: Error) => {
       toast.error("Failed to accept offer", { description: error.message });
@@ -436,6 +453,8 @@ export function useRejectInvoiceOffer() {
       }
       queryClient.invalidateQueries({ queryKey: ["applications"] });
       await queryClient.refetchQueries({ queryKey: ["applications"] });
+      queryClient.invalidateQueries({ queryKey: ["issuer-dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["issuer-dashboard-contract"] });
     },
     onError: (error: Error) => {
       toast.error("Failed to decline offer", { description: error.message });
