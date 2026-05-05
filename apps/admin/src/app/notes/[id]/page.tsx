@@ -21,7 +21,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -111,22 +110,6 @@ function BucketPayoutCard({ label, value }: { label: string; value: number }) {
   );
 }
 
-function toDateTimeLocal(value: string | null) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const timezoneOffsetMs = date.getTimezoneOffset() * 60_000;
-  const local = new Date(date.getTime() - timezoneOffsetMs);
-  return local.toISOString().slice(0, 16);
-}
-
-function fromDateTimeLocal(value: string) {
-  if (!value.trim()) return null;
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toISOString();
-}
-
 type ConfirmableNoteAction = "publish" | "unpublish" | "closeFunding" | "failFunding";
 
 const noteActionCopy: Record<
@@ -177,9 +160,6 @@ export default function NoteDetailPage() {
   const updateNoteFeatured = useUpdateNoteFeatured();
   const [pendingAction, setPendingAction] = React.useState<ConfirmableNoteAction | null>(null);
   const [featuredEnabled, setFeaturedEnabled] = React.useState(false);
-  const [featuredRank, setFeaturedRank] = React.useState("");
-  const [featuredFrom, setFeaturedFrom] = React.useState("");
-  const [featuredUntil, setFeaturedUntil] = React.useState("");
 
   const handleAction = async (label: string, action: () => Promise<unknown>) => {
     try {
@@ -240,45 +220,23 @@ export default function NoteDetailPage() {
   React.useEffect(() => {
     if (!note) return;
     setFeaturedEnabled(note.isFeatured);
-    setFeaturedRank(note.featuredRank != null ? String(note.featuredRank) : "");
-    setFeaturedFrom(toDateTimeLocal(note.featuredFrom));
-    setFeaturedUntil(toDateTimeLocal(note.featuredUntil));
   }, [note]);
 
-  const isFeaturedDirty =
-    note != null &&
-    (featuredEnabled !== note.isFeatured ||
-      (featuredRank.trim() === "" ? null : Number(featuredRank)) !== note.featuredRank ||
-      fromDateTimeLocal(featuredFrom) !== note.featuredFrom ||
-      fromDateTimeLocal(featuredUntil) !== note.featuredUntil);
-
-  const handleSaveFeatured = async () => {
+  const handleToggleFeatured = async (nextValue: boolean) => {
     if (!note) return;
-    if (featuredEnabled && featuredRank.trim() !== "" && !Number.isInteger(Number(featuredRank))) {
-      toast.error("Featured rank must be a whole number");
-      return;
-    }
-    if (featuredEnabled && featuredFrom && !fromDateTimeLocal(featuredFrom)) {
-      toast.error("Featured start datetime is invalid");
-      return;
-    }
-    if (featuredEnabled && featuredUntil && !fromDateTimeLocal(featuredUntil)) {
-      toast.error("Featured end datetime is invalid");
-      return;
-    }
+    const previousValue = featuredEnabled;
+    setFeaturedEnabled(nextValue);
     try {
       await updateNoteFeatured.mutateAsync({
         id: note.id,
         input: {
-          isFeatured: featuredEnabled,
-          featuredRank: featuredEnabled && featuredRank.trim() !== "" ? Number(featuredRank) : null,
-          featuredFrom: featuredEnabled ? fromDateTimeLocal(featuredFrom) : null,
-          featuredUntil: featuredEnabled ? fromDateTimeLocal(featuredUntil) : null,
+          isFeatured: nextValue,
         },
       });
-      toast.success("Featured settings updated");
+      toast.success(nextValue ? "Note marked as featured" : "Note removed from featured");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to update featured settings");
+      setFeaturedEnabled(previousValue);
+      toast.error(err instanceof Error ? err.message : "Failed to update featured status");
     }
   };
 
@@ -405,7 +363,7 @@ export default function NoteDetailPage() {
                     <div>
                       <h3 className="text-base font-semibold">Featured Marketplace Placement</h3>
                       <p className="text-sm text-muted-foreground">
-                        Curate this note for featured slots with rank and schedule controls.
+                        Toggle this note as featured in the investor marketplace.
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -413,55 +371,10 @@ export default function NoteDetailPage() {
                       <Switch
                         id="note-featured-toggle"
                         checked={featuredEnabled}
-                        onCheckedChange={setFeaturedEnabled}
+                        onCheckedChange={(checked) => void handleToggleFeatured(Boolean(checked))}
                         disabled={updateNoteFeatured.isPending}
                       />
                     </div>
-                  </div>
-                  <div className="grid gap-3 md:grid-cols-3">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="note-featured-rank">Priority Rank</Label>
-                      <Input
-                        id="note-featured-rank"
-                        type="number"
-                        min={1}
-                        step={1}
-                        placeholder="e.g. 1"
-                        value={featuredRank}
-                        onChange={(event) => setFeaturedRank(event.target.value)}
-                        disabled={!featuredEnabled || updateNoteFeatured.isPending}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="note-featured-from">Featured From</Label>
-                      <Input
-                        id="note-featured-from"
-                        type="datetime-local"
-                        value={featuredFrom}
-                        onChange={(event) => setFeaturedFrom(event.target.value)}
-                        disabled={!featuredEnabled || updateNoteFeatured.isPending}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="note-featured-until">Featured Until</Label>
-                      <Input
-                        id="note-featured-until"
-                        type="datetime-local"
-                        value={featuredUntil}
-                        onChange={(event) => setFeaturedUntil(event.target.value)}
-                        disabled={!featuredEnabled || updateNoteFeatured.isPending}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex justify-end">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => void handleSaveFeatured()}
-                      disabled={!isFeaturedDirty || updateNoteFeatured.isPending}
-                    >
-                      {updateNoteFeatured.isPending ? "Saving..." : "Save Featured Settings"}
-                    </Button>
                   </div>
                 </CardContent>
               </Card>
