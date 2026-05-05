@@ -43,6 +43,24 @@ function IssuerDashboardContent() {
     [activeOrganization?.people]
   );
 
+  const { data: issuerDashboard } = useIssuerDashboard(activeOrganization?.id);
+
+  const orgDisplayName = useMemo(() => {
+    if (!activeOrganization) return "";
+    if (activeOrganization.firstName && activeOrganization.lastName) {
+      return `${activeOrganization.firstName} ${activeOrganization.lastName}`;
+    }
+    if (activeOrganization.type === "COMPANY" && activeOrganization.name) {
+      return activeOrganization.name;
+    }
+    return activeOrganization.type === "PERSONAL" ? "Personal Account" : "Company Account";
+  }, [activeOrganization]);
+
+  const displayName = useMemo(
+    () => issuerDashboard?.user.displayName?.trim() || orgDisplayName,
+    [issuerDashboard?.user.displayName, orgDisplayName]
+  );
+
   // Determine whether the dashboard can be shown (derived, no setState needed)
   const canShowDashboard = useMemo(() => {
     if (!isAuthenticated || isOrgLoading) return false;
@@ -141,28 +159,6 @@ function IssuerDashboardContent() {
   if (!isAuthenticated) {
     return null;
   }
-
-  // Get display name from organization - use firstName + lastName from RegTank data
-  const getDisplayName = () => {
-    if (!activeOrganization) return "";
-
-    // Use firstName + lastName if available (from RegTank onboarding)
-    if (activeOrganization.firstName && activeOrganization.lastName) {
-      return `${activeOrganization.firstName} ${activeOrganization.lastName}`;
-    }
-
-    // Fallback to organization name for company accounts
-    if (activeOrganization.type === "COMPANY" && activeOrganization.name) {
-      return activeOrganization.name;
-    }
-
-    // Default fallback
-    return activeOrganization.type === "PERSONAL" ? "Personal Account" : "Company Account";
-  };
-
-  const orgDisplayName = getDisplayName();
-  const { data: issuerDashboard } = useIssuerDashboard(activeOrganization?.id);
-  const displayName = issuerDashboard?.user.displayName?.trim() || orgDisplayName;
 
   // Determine current onboarding step
   const steps = activeOrganization ? getOnboardingSteps(activeOrganization) : [];
