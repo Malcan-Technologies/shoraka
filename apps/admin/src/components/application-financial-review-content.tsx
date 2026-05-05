@@ -43,7 +43,7 @@ import {
   getLatestThreeCtosYearSlots,
   normalizeFinancialStatementsQuestionnaire,
   normalizeDirectorShareholderIdKey,
-  filterVisiblePeopleRows,
+  shouldNotifyIssuerDirectorShareholderAfterOrgCtosFromResolvedPeopleSnapshots,
   type ApplicationPersonRow,
   type ColumnComputedMetrics,
   type FinancialStatementsInput,
@@ -65,22 +65,6 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 /** Year row placeholder when no year (em dash). */
 const HEADER_PLACEHOLDER = "\u2014";
-
-function matchKeysFromPeople(people: ApplicationPersonRow[] | undefined | null): Set<string> {
-  const set = new Set<string>();
-  for (const p of filterVisiblePeopleRows(people ?? [])) {
-    const k = normalizeDirectorShareholderIdKey(p.matchKey) ?? String(p.matchKey ?? "").trim();
-    if (k) set.add(k);
-  }
-  return set;
-}
-
-function hasNewMatchKeysAfterCtos(prev: Set<string>, next: Set<string>): boolean {
-  for (const k of next) {
-    if (!prev.has(k)) return true;
-  }
-  return false;
-}
 
 type CtosFetchState = "not_pulled" | "no_records" | "has_data";
 
@@ -485,17 +469,28 @@ export function ApplicationFinancialReviewContent({
       toast.error("Issuer organization is missing.");
       return;
     }
-    const prevKeys = matchKeysFromPeople(app.people);
     const t = toast.loading("Fetching CTOS report…");
     createOrgCtos.mutate(undefined, {
       onSuccess: () => {
         toast.dismiss(t);
         toast.success("CTOS report saved.");
-        const cached = queryClient.getQueryData<{ people?: ApplicationPersonRow[] }>(
-          applicationsKeys.detail(applicationId)
-        );
-        const nextKeys = matchKeysFromPeople(cached?.people);
-        if (hasNewMatchKeysAfterCtos(prevKeys, nextKeys)) {
+        const cached = queryClient.getQueryData<{
+          people?: ApplicationPersonRow[];
+          issuer_organization?: Record<string, unknown>;
+        }>(applicationsKeys.detail(applicationId));
+        const org = (cached?.issuer_organization ?? app.issuer_organization) as Record<string, unknown> | undefined;
+        if (
+          shouldNotifyIssuerDirectorShareholderAfterOrgCtosFromResolvedPeopleSnapshots({
+            beforePeople: app.people,
+            afterPeople: cached?.people,
+            issuerDirectorKycStatus: org?.director_kyc_status ?? null,
+            issuerDirectorAmlStatus: org?.director_aml_status ?? null,
+            ctosPartySupplements: (org?.ctos_party_supplements as
+              | Array<{ party_key?: string | null; partyKey?: string | null }>
+              | null
+              | undefined) ?? null,
+          })
+        ) {
           toast("New update", { description: ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT });
         }
       },
