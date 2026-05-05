@@ -1,172 +1,205 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { FileText, MoreVertical } from "lucide-react";
 import { useParams } from "next/navigation";
-import type { ContractDetails, CustomerDetails, Invoice } from "@cashsouk/types";
-import { useContract } from "@/hooks/use-contracts";
-import { useInvoicesByContract } from "@/hooks/use-invoices";
-import { FilterButton } from "@/components/dashboard/financing-section";
-
-/* ============================================================
-   PAGE
-============================================================ */
+import { useOrganization } from "@cashsouk/config";
+import { useHeader } from "@cashsouk/ui";
+import { useIssuerDashboardContract } from "@/hooks/use-issuer-dashboard";
+import { FilterButton, DashboardInvoiceCard } from "@/components/dashboard/financing-section";
+import { ReviewOfferModal } from "@/components/review-offer-modal";
+import { getOfferStatus } from "@/lib/offer-utils";
+import { formatStatus } from "@/lib/issuer-dashboard-labels";
+import { asInvoiceForModal } from "@/types/issuer-dashboard";
+import type { Invoice } from "@cashsouk/types";
 
 export default function ContractDetailsPage() {
   const params = useParams();
   const contractId = params.id as string;
+  const { activeOrganization } = useOrganization();
+  const orgId = activeOrganization?.id;
+  const { setTitle } = useHeader();
+  const [offerModalContext, setOfferModalContext] = useState<Parameters<typeof ReviewOfferModal>[0]["context"]>(null);
 
-  const { data: contract } = useContract(contractId);
-  const { data: invoices = [] } = useInvoicesByContract(contractId);
+  useEffect(() => {
+    setTitle("Contract");
+  }, [setTitle]);
 
-  const contractDetails = (contract?.contract_details ?? {}) as ContractDetails;
-  const customerDetails = (contract?.customer_details ?? {}) as CustomerDetails;
-  const approved = contractDetails.approved_facility ?? 0;
-  const utilised = contractDetails.utilized_facility ?? 0;
+  const { data, isLoading, isError, error } = useIssuerDashboardContract(orgId, contractId);
+
+  const row = data?.contract ?? null;
+  const invoices = data?.invoices ?? [];
+
+  const approved = row?.approvedFacilityAmount != null ? Number(row.approvedFacilityAmount) : 0;
+  const utilised = row?.utilizedFacilityAmount != null ? Number(row.utilizedFacilityAmount) : 0;
   const utilisationPct = approved > 0 ? Math.round((utilised / approved) * 100) : 0;
+
+  if (!orgId) {
+    return (
+      <div className="flex-1 px-8 pt-6 pb-12">
+        <p className="text-muted-foreground">Select an organization to view this contract.</p>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex-1 px-8 pt-6 pb-12 flex items-center justify-center min-h-[240px] text-muted-foreground">
+        Loading contract…
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="flex-1 px-8 pt-6 pb-12">
+        <p className="text-destructive font-medium">Could not load contract</p>
+        <p className="text-sm text-muted-foreground mt-2">{error instanceof Error ? error.message : "Unknown error"}</p>
+      </div>
+    );
+  }
+
+  if (!row) {
+    return (
+      <div className="flex-1 px-8 pt-6 pb-12">
+        <p className="text-muted-foreground">Contract not found or you do not have access.</p>
+      </div>
+    );
+  }
+
+  const stats = row.invoiceStats;
 
   return (
     <div className="flex-1 px-8 pt-6 pb-12 space-y-8">
-
-      {/* CONTRACT SUMMARY CARD */}
+      <ReviewOfferModal
+        open={offerModalContext !== null}
+        onOpenChange={(open) => !open && setOfferModalContext(null)}
+        context={offerModalContext}
+      />
       <Card className="rounded-xl border border-gray-200 shadow-sm">
         <div className="px-8 py-7 space-y-6">
-
-          {/* HEADER */}
           <div className="flex items-start justify-between">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <FileText className="h-5 w-5 text-muted-foreground" />
               <p className="text-[15px] font-medium">
-                Contract :{" "}
-                <span className="font-semibold">{contractDetails.title ?? `Contract ${contractId}`}</span>
+                Contract : <span className="font-semibold">{row.title}</span>
               </p>
               <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
-                {contract?.status ?? "DRAFT"}
+                {formatStatus(row.contractStatus)}
               </Badge>
             </div>
-
             <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
               <MoreVertical className="h-4 w-4" />
             </Button>
           </div>
 
-          {/* CONTRACT INFO + FACILITY */}
-          <div className="grid grid-cols-[1fr_420px] gap-10">
-
-            {/* LEFT */}
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-10">
             <div className="space-y-3 text-sm text-muted-foreground">
               <p>
                 Product : <span className="text-foreground font-medium">Contract Financing</span>
               </p>
               <p>
-                Customer : <span className="text-foreground font-medium">{customerDetails.name ?? "-"}</span>
+                Customer : <span className="text-foreground font-medium">{row.customerName ?? "-"}</span>
               </p>
               <p>
                 Contract period :{" "}
                 <span className="text-foreground font-medium">
-                  {contractDetails.start_date && contractDetails.end_date ? `${contractDetails.start_date} to ${contractDetails.end_date}` : "-"}
+                  {row.contractStartDate && row.contractEndDate
+                    ? `${row.contractStartDate} to ${row.contractEndDate}`
+                    : "-"}
                 </span>
               </p>
             </div>
 
-            {/* RIGHT */}
             <div className="space-y-4">
-
               <p className="text-xs text-right text-muted-foreground">
-                Available facility : {contractDetails.available_facility ?? "-"}
+                Available facility :{" "}
+                {row.availableFacilityAmount != null ? `RM ${row.availableFacilityAmount}` : "-"}
               </p>
-
-              <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
-                <div className="h-2 bg-black rounded-full" style={{ width: `${utilisationPct}%` }} />
+              <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                <div className="h-2 bg-foreground rounded-full" style={{ width: `${utilisationPct}%` }} />
               </div>
-
               <div className="flex justify-between text-sm">
                 <div>
                   <p className="font-medium text-foreground">{utilised}</p>
-                  <p className="text-xs text-muted-foreground">
-                    (Utilized facility)
-                  </p>
+                  <p className="text-xs text-muted-foreground">(Utilized facility)</p>
                 </div>
-
                 <div className="text-right">
                   <p className="font-medium text-foreground">{approved}</p>
-                  <p className="text-xs text-muted-foreground">
-                    (Approved facility)
-                  </p>
+                  <p className="text-xs text-muted-foreground">(Approved facility)</p>
                 </div>
               </div>
-
             </div>
           </div>
 
           <Separator />
 
-          {/* METRICS SECTION */}
-          <div className="grid grid-cols-2 gap-10 items-start">
-
-            {/* TOTAL + METRIC CARDS */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-10 items-start">
             <div className="space-y-3">
-              <p className="text-sm font-medium text-foreground">Total no. of invoices : {invoices.length}</p>
-
+              <p className="text-sm font-medium text-foreground">Total no. of invoices : {stats.total}</p>
               <div className="grid grid-cols-3 gap-4">
-                <MetricBox label="Approved" value={`${invoices.filter((i: Invoice) => i.status === "APPROVED").length}`} />
-                <MetricBox label="Rejected" value={`${invoices.filter((i: Invoice) => i.status === "REJECTED").length}`} />
-                <MetricBox label="Unfinanced" value={`${invoices.filter((i: Invoice) => i.status !== "APPROVED" && i.status !== "REJECTED").length}`} />
+                <MetricBox label="Approved" value={`${stats.approved}`} />
+                <MetricBox label="Rejected" value={`${stats.rejected}`} />
+                <MetricBox label="Unfinanced" value={`${stats.unfinanced}`} />
               </div>
             </div>
 
-            {/* BREAKDOWN — 3x2 GRID */}
             <div className="space-y-3">
-              <p className="text-sm font-medium text-foreground">
-                Breakdown of approved invoices
-              </p>
-
-              <div className="grid grid-cols-3 gap-x-6 gap-y-3 text-xs text-muted-foreground">
-                <BreakdownItem label="Funding in progress" value={`${invoices.filter((i: Invoice) => i.status === "SUBMITTED").length}`} />
-                <BreakdownItem label="Active notes" value="0" />
-                <BreakdownItem label="Completed notes" value={`${invoices.filter((i: Invoice) => i.status === "APPROVED").length}`} />
-                <BreakdownItem label="Unsuccessful raise" value={`${invoices.filter((i: Invoice) => i.status === "REJECTED").length}`} />
-                <BreakdownItem label="Disputed notes" value="0" />
+              <p className="text-sm font-medium text-foreground">Breakdown of approved invoices</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-xs text-muted-foreground">
+                <BreakdownItem label="Funding in progress" value={`${stats.fundingInProgress}`} />
+                <BreakdownItem label="Active notes" value={`${stats.activeNotes}`} />
+                <BreakdownItem label="Completed notes" value={`${stats.completedNotes}`} />
+                <BreakdownItem label="Unsuccessful raise" value={`${stats.unsuccessfulRaise}`} />
+                <BreakdownItem
+                  label="Disputed notes"
+                  value={stats.disputedNotes == null ? "Not available" : `${stats.disputedNotes}`}
+                />
               </div>
             </div>
-
           </div>
-
         </div>
       </Card>
 
-      {/* INVOICE SECTION */}
       <div className="space-y-4">
-
-        {/* HEADER WITH FILTERS */}
         <div className="flex items-center justify-between">
           <h3 className="text-[15px] font-semibold">Invoices</h3>
-
           <div className="flex items-center gap-3">
             <FilterButton label="Status" />
             <FilterButton label="Submission date" />
           </div>
         </div>
 
-        {/* INVOICE CARDS */}
-        <InvoiceCard />
-        <InvoiceCard />
-        <InvoiceCard />
-        <InvoiceCard />
-        <InvoiceCard />
-
+        {invoices.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No invoices for this contract.</p>
+        ) : (
+          invoices.map((inv) => {
+            const modalInvoice = asInvoiceForModal(inv.invoiceForModal) as Invoice;
+            return (
+              <DashboardInvoiceCard
+                key={inv.id}
+                row={inv}
+                offerStatus={getOfferStatus(modalInvoice)}
+                onReviewOffer={() =>
+                  setOfferModalContext({
+                    type: "invoice",
+                    applicationId: inv.applicationId,
+                    invoiceId: inv.id,
+                    invoice: modalInvoice,
+                  })
+                }
+              />
+            );
+          })
+        )}
       </div>
-
     </div>
   );
 }
-
-/* ============================================================
-   COMPONENTS
-============================================================ */
 
 function MetricBox({ label, value }: { label: string; value: string }) {
   return (
@@ -179,93 +212,9 @@ function MetricBox({ label, value }: { label: string; value: string }) {
 
 function BreakdownItem({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between">
+    <div className="flex justify-between gap-4">
       <span>{label}</span>
-      <span className="font-medium text-foreground">{value}</span>
+      <span className="font-medium text-foreground shrink-0">{value}</span>
     </div>
-  );
-}
-
-// function FilterButton({ label }: { label: string }) {
-//   return (
-//     <Button
-//       variant="outline"
-//       size="sm"
-//       className="h-8 text-xs font-medium gap-1 px-3"
-//     >
-//       <FunnelIcon className="h-3.5 w-3.5" />
-//       {label}
-//     </Button>
-//   );
-// }
-
-// please import from other pages
-function InvoiceCard() {
-  return (
-    <Card className="rounded-xl border border-gray-200 shadow-sm">
-      <div className="px-8 py-6 space-y-5">
-
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <FileText className="h-4 w-4 text-muted-foreground" />
-            <p className="text-sm font-medium">
-              Invoice no : <span className="font-semibold">INV-11110</span>
-            </p>
-            <Badge variant="secondary">Draft</Badge>
-          </div>
-
-          <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">
-            <MoreVertical className="h-4 w-4" />
-          </Button>
-        </div>
-
-        <div className="grid grid-cols-[1fr_420px] gap-10">
-
-          <div className="space-y-3 text-sm text-muted-foreground">
-            <p>
-              Note no : <span className="text-foreground font-medium">-</span>
-            </p>
-            <p>
-              Invoice value :{" "}
-              <span className="text-foreground font-medium">RM 40,000</span>
-            </p>
-            <p>
-              Financing amount :{" "}
-              <span className="text-foreground font-medium">RM 30,000</span>
-            </p>
-          </div>
-
-          <div className="space-y-3 text-sm text-muted-foreground">
-            <p>
-              Submission date :{" "}
-              <span className="text-foreground font-medium">
-                03/02/2026
-              </span>
-            </p>
-            <p>
-              Funding deadline :{" "}
-              <span className="text-foreground font-medium">NA</span>
-            </p>
-            <p>
-              Maturity date :{" "}
-              <span className="text-foreground font-medium">
-                31/07/2026
-              </span>
-            </p>
-
-            <div className="space-y-2 pt-2">
-              <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
-                <div className="h-2 bg-black rounded-full w-0" />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Funding status (Not yet started)
-              </p>
-            </div>
-
-          </div>
-
-        </div>
-      </div>
-    </Card>
   );
 }
