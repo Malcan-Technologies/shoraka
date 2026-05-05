@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { useHeader } from "@cashsouk/ui";
 import { useOrganization } from "@cashsouk/config";
-import { MagnifyingGlassIcon } from "@heroicons/react/24/outline";
+import { MagnifyingGlassIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -105,17 +106,43 @@ function toMarketplaceNote(note: NoteListItem): MarketplaceNote {
 
 export default function InvestmentsPage() {
   const { setTitle } = useHeader();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { activeOrganization } = useOrganization();
   const { data: portfolio } = useInvestorPortfolio();
   const commitInvestment = useCommitInvestment();
   const availableBalance = Number(portfolio?.availableBalance ?? 0);
 
-  const [search, setSearch] = useState("");
-  const { data, isLoading, error } = useMarketplaceNotes({ search, page: 1, pageSize: 100 });
-  const [industryFilter, setIndustryFilter] = useState("all");
-  const [riskFilter, setRiskFilter] = useState("all");
-  const [profitFilter, setProfitFilter] = useState("all");
-  const [tenorFilter, setTenorFilter] = useState("all");
+  const initialSearch = searchParams.get("q") ?? "";
+  const initialIndustryParam = searchParams.get("industry");
+  const initialRiskParam = searchParams.get("risk");
+  const initialProfitParam = searchParams.get("profit");
+  const initialTenorParam = searchParams.get("tenor");
+
+  const initialIndustry =
+    initialIndustryParam && ONBOARDING_INDUSTRY_OPTIONS.includes(initialIndustryParam as (typeof ONBOARDING_INDUSTRY_OPTIONS)[number])
+      ? initialIndustryParam
+      : "all";
+  const initialRisk =
+    initialRiskParam && SOUKSCORE_RISK_RATING_GRADES.includes(initialRiskParam as (typeof SOUKSCORE_RISK_RATING_GRADES)[number])
+      ? initialRiskParam
+      : "all";
+  const initialProfit =
+    initialProfitParam && ["low", "mid", "high"].includes(initialProfitParam)
+      ? initialProfitParam
+      : "all";
+  const initialTenor =
+    initialTenorParam && ["short", "medium", "long"].includes(initialTenorParam)
+      ? initialTenorParam
+      : "all";
+
+  const [search, setSearch] = useState(initialSearch);
+  const [debouncedSearch, setDebouncedSearch] = useState(initialSearch);
+  const [industryFilter, setIndustryFilter] = useState(initialIndustry);
+  const [riskFilter, setRiskFilter] = useState(initialRisk);
+  const [profitFilter, setProfitFilter] = useState(initialProfit);
+  const [tenorFilter, setTenorFilter] = useState(initialTenor);
   const [displayCount, setDisplayCount] = useState(6);
 
   const [activeNote, setActiveNote] = useState<MarketplaceNote | null>(null);
@@ -128,14 +155,56 @@ export default function InvestmentsPage() {
     setTitle("Investments");
   }, [setTitle]);
 
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 350);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    const trimmedSearch = search.trim();
+    if (trimmedSearch) params.set("q", trimmedSearch);
+    if (industryFilter !== "all") params.set("industry", industryFilter);
+    if (riskFilter !== "all") params.set("risk", riskFilter);
+    if (profitFilter !== "all") params.set("profit", profitFilter);
+    if (tenorFilter !== "all") params.set("tenor", tenorFilter);
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [industryFilter, pathname, profitFilter, riskFilter, router, search, tenorFilter]);
+
+  const {
+    data: featuredData,
+    isLoading: isFeaturedLoading,
+    error: featuredError,
+  } = useMarketplaceNotes({ page: 1, pageSize: 100, featuredOnly: true });
+  const {
+    data: listData,
+    isLoading: isListLoading,
+    error: listError,
+  } = useMarketplaceNotes({ page: 1, pageSize: 100 });
+
+  const isLoading = isFeaturedLoading || isListLoading;
+  const error = listError ?? featuredError;
+
   const marketplaceNotes = useMemo(
-    () => (data?.notes ?? []).map((note) => toMarketplaceNote(note)),
-    [data?.notes]
+    () => (listData?.notes ?? []).map((note) => toMarketplaceNote(note)),
+    [listData?.notes]
   );
+  const normalizedSearchQuery = debouncedSearch.trim().toLowerCase();
+
+  function matchesMarketplaceSearch(note: MarketplaceNote) {
+    if (normalizedSearchQuery.length === 0) return true;
+    return (
+      note.title.toLowerCase().includes(normalizedSearchQuery) ||
+      note.industry.toLowerCase().includes(normalizedSearchQuery) ||
+      note.noteCode.toLowerCase().includes(normalizedSearchQuery)
+    );
+  }
 
   const featuredNotes = useMemo(
     () =>
-      marketplaceNotes
+      (featuredData?.notes ?? [])
+        .map((note) => toMarketplaceNote(note))
         .filter((note) => note.isFeatured)
         .sort((left, right) => {
           const leftRank = left.featuredRank ?? Number.MAX_SAFE_INTEGER;
@@ -143,19 +212,13 @@ export default function InvestmentsPage() {
           if (leftRank !== rightRank) return leftRank - rightRank;
           return left.title.localeCompare(right.title);
         }),
-    [marketplaceNotes]
+    [featuredData?.notes]
   );
   const featuredPreviewNotes = featuredNotes.slice(0, 6);
 
   const filteredNotes = useMemo(() => {
     return marketplaceNotes.filter((note) => !note.isFeatured).filter((note) => {
-      const query = search.trim().toLowerCase();
-      const matchesSearch =
-        query.length === 0 ||
-        note.title.toLowerCase().includes(query) ||
-        note.industry.toLowerCase().includes(query) ||
-        note.noteCode.toLowerCase().includes(query);
-
+      const matchesSearch = matchesMarketplaceSearch(note);
       const matchesIndustry = industryFilter === "all" || note.industry === industryFilter;
       const matchesRisk = riskFilter === "all" || note.riskScore === riskFilter;
       const matchesProfit =
@@ -177,10 +240,16 @@ export default function InvestmentsPage() {
         matchesTenor
       );
     });
-  }, [industryFilter, marketplaceNotes, profitFilter, riskFilter, search, tenorFilter]);
+  }, [industryFilter, marketplaceNotes, normalizedSearchQuery, profitFilter, riskFilter, tenorFilter]);
 
   const visibleNotes = filteredNotes.slice(0, displayCount);
   const hasMoreNotes = displayCount < filteredNotes.length;
+  const hasActiveFilters =
+    search.trim().length > 0 ||
+    industryFilter !== "all" ||
+    riskFilter !== "all" ||
+    profitFilter !== "all" ||
+    tenorFilter !== "all";
 
   function openInvestDialog(note: MarketplaceNote) {
     if (!note.investable) return;
@@ -274,9 +343,19 @@ export default function InvestmentsPage() {
             <Input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by investment notes, industry, company"
-              className="h-11 rounded-xl border-slate-200 bg-white pl-9 text-sm text-slate-700 placeholder:text-slate-500 focus-visible:ring-slate-300"
+              placeholder="Search by investment notes, industry, or company"
+              className="h-11 rounded-xl border-slate-200 bg-white pl-9 pr-10 text-sm text-slate-700 placeholder:text-slate-500 focus-visible:ring-slate-300"
             />
+            {search.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded text-slate-400 hover:text-slate-700"
+                aria-label="Clear search"
+              >
+                <XMarkIcon className="h-4 w-4" />
+              </button>
+            ) : null}
           </div>
           <div className="flex w-full flex-col items-stretch gap-3 md:w-auto md:items-end">
             <div className="text-sm font-medium text-slate-700 md:text-base md:text-right">
@@ -299,28 +378,21 @@ export default function InvestmentsPage() {
           </div>
         ) : null}
 
-        {!isLoading && marketplaceNotes.length > 0 ? (
+        {!isLoading && featuredNotes.length > 0 ? (
           <section className="space-y-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:p-6">
             <div>
-              <div>
               <h2 className="text-3xl font-bold tracking-tight text-slate-900">Featured investment opportunities</h2>
               <p className="mt-1 text-sm text-slate-500">Top picks curated for you</p>
-              </div>
             </div>
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {featuredPreviewNotes.map((note) => (
                 <MarketplaceMockNoteCard key={note.id} note={note} onInvest={openInvestDialog} />
               ))}
-              {featuredPreviewNotes.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-8 text-sm text-slate-500">
-                  No featured notes are available right now.
-                </div>
-              ) : null}
             </div>
           </section>
         ) : null}
 
-        {!isLoading && marketplaceNotes.length > 0 ? (
+        {!isLoading && (marketplaceNotes.length > 0 || hasActiveFilters) ? (
         <section className="space-y-4">
           <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 md:flex-row md:items-center md:justify-between">
             <div className="grid grid-cols-2 gap-2 md:ml-auto md:flex md:items-center">
@@ -398,9 +470,15 @@ export default function InvestmentsPage() {
         </section>
         ) : null}
 
-        {!isLoading && !error && marketplaceNotes.length === 0 ? (
+        {!isLoading && !error && marketplaceNotes.length === 0 && featuredNotes.length === 0 ? (
           <div className="rounded-2xl border border-dashed p-10 text-center text-muted-foreground">
             No marketplace notes are available right now.
+          </div>
+        ) : null}
+
+        {!isLoading && !error && visibleNotes.length === 0 && hasActiveFilters ? (
+          <div className="rounded-2xl border border-dashed p-10 text-center text-muted-foreground">
+            No notes match your current search and filters.
           </div>
         ) : null}
       </div>

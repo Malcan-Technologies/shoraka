@@ -41,11 +41,36 @@ export class NoteRepository {
 
     const and: Prisma.NoteWhereInput[] = [];
     if (search) {
+      const query = search.trim();
+      const jsonSearchVariants = [...new Set([
+        query,
+        query.toLowerCase(),
+        query.toUpperCase(),
+        query.replace(/\b\w/g, (char) => char.toUpperCase()),
+      ])];
       and.push({
         OR: [
-          { title: { contains: search, mode: "insensitive" } },
-          { note_reference: { contains: search, mode: "insensitive" } },
-          { source_application_id: { contains: search, mode: "insensitive" } },
+          { title: { contains: query, mode: "insensitive" } },
+          { note_reference: { contains: query, mode: "insensitive" } },
+          { source_application_id: { contains: query, mode: "insensitive" } },
+          ...jsonSearchVariants.map((variant) => ({
+            issuer_snapshot: {
+              path: ["name"],
+              string_contains: variant,
+            },
+          })),
+          ...jsonSearchVariants.map((variant) => ({
+            issuer_snapshot: {
+              path: ["industry"],
+              string_contains: variant,
+            },
+          })),
+          ...jsonSearchVariants.map((variant) => ({
+            paymaster_snapshot: {
+              path: ["name"],
+              string_contains: variant,
+            },
+          })),
         ],
       });
     }
