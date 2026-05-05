@@ -1,71 +1,128 @@
-# Marketplace wiring and minimal investor balance
+# Marketplace feature and account balances
 
-This guide describes the investor marketplace quick-commit flow and the minimal transaction-backed balance used for interaction testing.
+This guide explains how the investor marketplace works end to end and how investor account balances are debited and credited through note lifecycle events.
 
-## Overview
+## Feature scope
 
-- **Marketplace list** (`apps/investor/src/app/investments/page.tsx`): lists published notes from `GET /v1/marketplace/notes`, filters locally, and commits investments from the confirm dialog via `POST /v1/marketplace/notes/:id/investments`.
-- **Available balance** is read from `GET /v1/investor/portfolio` (`availableBalance`). The header shows this value instead of a hardcoded amount.
-- **Portfolio totals**: `portfolioTotal` = `availableBalance` + `totalInvestment` (sum of `NoteInvestment` rows in `COMMITTED` or `CONFIRMED` for accessible orgs). This matches the account overview donut chart on the home page.
+- Investor marketplace browsing and commit flow.
+- Investor portfolio totals and available balance.
+- Admin note actions that impact investor balances.
+- Transaction and ledger records used for audit and reconciliation.
 
-## Data model (API / Prisma)
+## Main user flow
+
+1. Investor opens marketplace (`apps/investor/src/app/investments/page.tsx`) and loads published open notes from `GET /v1/marketplace/notes`.
+2. Investor selects a note and commits from the UI dialog via `POST /v1/marketplace/notes/:id/investments`.
+3. API creates a `note_investments` row and debits the investor organization's `available_amount` in the same transaction.
+4. Admin closes funding (`/v1/admin/notes/:id/funding/close`) or fails funding (`/v1/admin/notes/:id/funding/fail`).
+5. During servicing, repayment and settlement are handled in note operations.
+6. When settlement is posted (`/v1/admin/notes/:id/settlements/:settlementId/post`), investor balances are credited with principal + net profit allocation.
+
+## API endpoints involved
+
+### Marketplace and portfolio
+
+- `GET /v1/marketplace/notes`
+- `GET /v1/marketplace/notes/:id`
+- `POST /v1/marketplace/notes/:id/investments`
+- `GET /v1/investor/portfolio`
+- `GET /v1/investor/investments`
+
+### Admin note actions affecting balances
+
+- `POST /v1/admin/notes/:id/funding/fail` (releases committed capital back to investors)
+- `POST /v1/admin/notes/:id/settlements/:settlementId/post` (releases principal + net profit back to investors)
+
+### Dev-only testing endpoint
+
+- `POST /v1/investor/balance/test-topup` (guarded by env flag)
+
+## Data model
 
 | Table | Purpose |
 | ----- | ------- |
-| `investor_balances` | One row per `investor_organization_id`; `available_amount` is the spendable pool cash for commits. |
-| `investor_balance_transactions` | Append-only `IN` / `OUT` rows (balance increases vs decreases) with `source`: `MANUAL_TOPUP`, `NOTE_INVESTMENT_COMMIT`, `NOTE_INVESTMENT_RELEASE`. |
+| `investor_balances` | One row per investor organization with spendable cash in `available_amount`. |
+| `investor_balance_transactions` | Append-only movement log using `IN` and `OUT` direction with source attribution. |
+| `note_investments` | Investment commitment records linked to notes and investor organizations. |
+| `note_settlements` | Settlement snapshots, approvals, and posting state used to derive investor payout allocations. |
+| `note_ledger_entries` | Note-level operational bucket ledger (Investor Pool, Repayment Pool, Operating, Ta'widh, Gharamah). |
 
-Money fields use `numeric(18,6)` (Prisma `Decimal`).
+All money columns use `numeric(18,6)` through Prisma `Decimal`.
 
-## Commit flow
+## Balance movement rules
 
-1. Investor must have access to `investorOrganizationId` and `deposit_received` on the org (unchanged).
-2. Note must be `PUBLISHED` with `funding_status` `OPEN` and remaining capacity (unchanged).
-3. In the same DB transaction as `NoteInvestment` creation, the API debits `available_amount` by the commit amount. If the debit would go negative, the API returns `422` with `INSUFFICIENT_INVESTOR_BALANCE` and rolls back.
+### 1) Commit investment
 
-## Funding failure release
+- Trigger: `POST /v1/marketplace/notes/:id/investments`
+- Preconditions:
+  - investor org is owned/member-accessible by actor
+  - `deposit_received = true`
+  - note is `PUBLISHED` and `funding_status = OPEN`
+  - amount respects remaining capacity and minimum ticket
+- Result:
+  - `investor_balances.available_amount` decreases
+  - transaction row written as:
+    - `direction = OUT`
+    - `source = NOTE_INVESTMENT_COMMIT`
 
-When admin **fails funding** on a note, committed investments are marked `RELEASED` and each affected org receives a **credit** of the investment amount (`NOTE_INVESTMENT_RELEASE`), restoring pool cash for interaction testing.
+### 2) Funding failure release
 
-## Test top-up (non-production)
+- Trigger: `POST /v1/admin/notes/:id/funding/fail`
+- Result:
+  - committed investments become `RELEASED`
+  - each affected investor org is credited by committed amount
+  - transaction row written as:
+    - `direction = IN`
+    - `source = NOTE_INVESTMENT_RELEASE`
 
-Enable only when you intentionally allow fake credits (e.g. local or staging). This flag is enforced by the API route; never set in production.
+### 3) Settlement payout release
+
+- Trigger: `POST /v1/admin/notes/:id/settlements/:settlementId/post`
+- Result:
+  - settlement allocations are read from `note_settlements.preview_snapshot.allocations`
+  - each investor org receives `principal + profitNet`
+  - transaction row written as:
+    - `direction = IN`
+    - `source = NOTE_INVESTMENT_RELEASE`
+    - metadata includes `releaseReason = SETTLEMENT_PAYOUT`, `settlementId`, `principal`, `profitNet`
+  - note moves to `REPAID` and servicing `SETTLED`
+  - related `note_investments` move to `SETTLED`
+
+## Portfolio numbers shown in investor app
+
+`GET /v1/investor/portfolio` returns:
+
+- `availableBalance`: sum of accessible org `investor_balances.available_amount`
+- `totalInvestment`: sum of `note_investments.amount` in `COMMITTED` or `CONFIRMED`
+- `portfolioTotal`: `availableBalance + totalInvestment`
+- `investmentCount`: count of matching investment rows
+
+This is what powers the account overview figures in investor UI.
+
+## Dev top-up (non-production only)
+
+Enable only for local/staging testing:
 
 ```bash
 INVESTOR_BALANCE_TEST_TOPUP_ENABLED=true
 ```
 
-**Investor UI:** The marketplace header includes a dashed **Dev only** panel with preset top-up buttons next to available balance. Calls succeed only when the API flag is `true`; otherwise the API returns `TEST_TOPUP_DISABLED`. **Removing for production:** delete `apps/investor/src/app/investments/_components/investments-dev-balance-topup.tsx` and remove its import/usage from `apps/investor/src/app/investments/page.tsx`.
+When this endpoint is used, the API also posts an `INVESTOR_POOL` ledger credit so bucket reporting stays aligned with simulated inflow.
 
-**Request** (investor JWT):
+Do not enable this flag in production.
 
-```http
-POST /v1/investor/balance/test-topup
-Content-Type: application/json
+## Key implementation files
 
-{
-  "investorOrganizationId": "<org-cuid>",
-  "amount": 50000
-}
-```
+- `apps/investor/src/app/investments/page.tsx`
+- `apps/investor/src/investments/hooks/use-marketplace-notes.ts`
+- `apps/api/src/modules/notes/controller.ts`
+- `apps/api/src/modules/notes/service.ts`
+- `apps/api/src/modules/notes/investor-balance.ts`
+- `apps/api/prisma/schema.prisma`
+- `packages/config/src/api-client.ts`
 
-**Response**: same shape as `GET /v1/investor/portfolio` after the credit.
+## Current constraints
 
-Never enable this in production without additional controls.
-
-When this test top-up is used, the API also writes a matching `note_ledger_entries` credit into the `INVESTOR_POOL` bucket so admin bucket balances remain aligned with the simulated deposit inflow.
-
-## Shared types and SDK
-
-- `InvestorPortfolioResponse` in `packages/types` (`investor` portfolio fields).
-- `ApiClient.getInvestorPortfolio()` and `postInvestorBalanceTestTopup()` in `packages/config`.
-
-## Known limitations (this phase)
-
-- No real payment rail or bank deposit reconciliation; `MANUAL_TOPUP` is for testing only.
-- Balance is **not** automatically adjusted when notes repay or settle; that remains tied to the broader note ledger and future wallet work.
-- Existing orgs have **no** balance row until first top-up or credit; effective available balance is treated as `0` until then.
-
-## Tests
-
-- `apps/api/src/modules/notes/investor-balance.test.ts` — unit coverage for debit success / insufficient funds path (mocked transaction client).
+- No real bank rail reconciliation in this flow; production top-ups should come from controlled finance operations, not test endpoints.
+- `investor_balance_transactions.source` currently uses `NOTE_INVESTMENT_RELEASE` for both funding-fail release and settlement payout release; reporting can distinguish by metadata but not by enum value yet.
+- If an org has never received any balance movement, it may not have a row until first upsert path creates it.

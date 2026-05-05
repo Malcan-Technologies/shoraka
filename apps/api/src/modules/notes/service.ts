@@ -98,6 +98,38 @@ function toNumber(value: unknown): number {
   return 0;
 }
 
+type SettlementAllocation = {
+  investmentId: string;
+  investorOrganizationId: string;
+  principal: number;
+  profitNet: number;
+};
+
+function resolveSettlementAllocations(snapshot: unknown): SettlementAllocation[] {
+  if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return [];
+  const allocations = (snapshot as Record<string, unknown>).allocations;
+  if (!Array.isArray(allocations)) return [];
+
+  return allocations.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [];
+    const allocation = entry as Record<string, unknown>;
+    if (
+      typeof allocation.investmentId !== "string" ||
+      typeof allocation.investorOrganizationId !== "string"
+    ) {
+      return [];
+    }
+    return [
+      {
+        investmentId: allocation.investmentId,
+        investorOrganizationId: allocation.investorOrganizationId,
+        principal: toNumber(allocation.principal),
+        profitNet: toNumber(allocation.profitNet),
+      },
+    ];
+  });
+}
+
 /** Standard marketplace ticket floor (MYR). When remaining capacity is smaller, min commit equals remainder. */
 const MARKETPLACE_MIN_COMMIT_MYR = 100;
 
@@ -1502,6 +1534,7 @@ export class NoteService {
     await assertRepaymentReceiptLedgerComplete(settlement.note_id, resolveNoteSettlementAmount(settlement.note));
 
     await prisma.$transaction(async (tx) => {
+      const settlementAllocations = resolveSettlementAllocations(settlement.preview_snapshot);
       await this.postSettlementLedger(tx, settlement, actor);
       await tx.noteSettlement.update({
         where: { id: settlementId },
@@ -1511,6 +1544,23 @@ export class NoteService {
           idempotency_key: `settlement:${settlementId}`,
         },
       });
+      for (const allocation of settlementAllocations) {
+        const releasedAmount = allocation.principal + allocation.profitNet;
+        if (releasedAmount <= 0) continue;
+        await creditInvestorBalance(tx, {
+          investorOrganizationId: allocation.investorOrganizationId,
+          amount: releasedAmount,
+          source: InvestorBalanceTransactionSource.NOTE_INVESTMENT_RELEASE,
+          noteId: id,
+          noteInvestmentId: allocation.investmentId,
+          metadata: {
+            releaseReason: "SETTLEMENT_PAYOUT",
+            settlementId,
+            principal: allocation.principal,
+            profitNet: allocation.profitNet,
+          },
+        });
+      }
       await tx.note.update({
         where: { id },
         data: {
@@ -1526,7 +1576,10 @@ export class NoteService {
         },
         data: { status: NoteInvestmentStatus.SETTLED },
       });
-      await this.logEvent(tx, id, "SETTLEMENT_POSTED", actor, { settlementId });
+      await this.logEvent(tx, id, "SETTLEMENT_POSTED", actor, {
+        settlementId,
+        investorPayoutCount: settlementAllocations.length,
+      });
     });
     return this.getAdminNoteDetail(id);
   }
