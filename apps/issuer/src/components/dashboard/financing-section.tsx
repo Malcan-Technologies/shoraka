@@ -20,16 +20,30 @@ import { useProducts } from "@/hooks/use-products";
 import { getOfferStatus, type OfferStatus } from "@/lib/offer-utils";
 import { ReviewOfferModal } from "@/components/review-offer-modal";
 import { formatMoneyDisplay } from "@cashsouk/ui";
+import type { Application, Contract, ContractDetails, Invoice, InvoiceDetails, Product } from "@cashsouk/types";
 
-/* ============================================================
-   Real data (applications for active organization)
-============================================================ */
+/* Loose shapes: persisted JSON may include legacy/extra keys beyond shared types. */
+type LooseContractDetails = Partial<ContractDetails> & {
+  customer?: string;
+  status?: string;
+};
+
+type LooseInvoiceDetails = Partial<InvoiceDetails> & {
+  invoiceNo?: string | number;
+  invoiceValue?: number;
+  financing_amount?: number;
+  financingAmount?: number;
+  maturityDate?: string;
+  submission_date?: string;
+  submissionDate?: string;
+  status?: string;
+};
 
 /* ============================================================
    Badge helpers
 ============================================================ */
 
-function contractBadge(status: any) {
+function contractBadge(status: string) {
   if (status === "Amendment required") {
     return (
       <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">Amendment required</Badge>
@@ -38,7 +52,7 @@ function contractBadge(status: any) {
   return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Active</Badge>;
 }
 
-function invoiceBadge(status: any) {
+function invoiceBadge(status: string) {
   switch (status) {
     case "Draft":
       return <Badge variant="secondary">Draft</Badge>;
@@ -108,7 +122,7 @@ function formatMoney(value: unknown) {
   return formatMoneyDisplay(value, "NA");
 }
 
-function formatDate(value: any) {
+function formatDate(value: unknown) {
   if (value === null || value === undefined) return "NA";
 
   // If already a Date
@@ -147,11 +161,18 @@ function formatDate(value: any) {
    Flatten & group by product
 ============================================================ */
 
+type ApplicationWithRelations = Application & {
+  invoices?: Invoice[];
+  contract?: Contract | null;
+  financing_type?: { product_id?: string };
+  submission_date?: string | null;
+};
+
 type FlatContract = {
   id: string;
   applicationId: string;
   productId: string;
-  contract: any;
+  contract: Contract;
   applicationStatus: string;
   submissionDate?: string | null;
 };
@@ -160,12 +181,12 @@ type FlatInvoice = {
   id: string;
   applicationId: string;
   productId: string;
-  invoice: any;
+  invoice: Invoice;
   applicationStatus: string;
   applicationSubmittedAt?: string | null;
 };
 
-function flattenAndGroupByProduct(applications: any[]) {
+function flattenAndGroupByProduct(applications: ApplicationWithRelations[]) {
   const contracts: FlatContract[] = [];
   const invoices: FlatInvoice[] = [];
 
@@ -181,7 +202,7 @@ function flattenAndGroupByProduct(applications: any[]) {
         applicationId: app.id,
         productId,
         contract: app.contract,
-        applicationStatus: appStatus,
+        applicationStatus: String(appStatus),
         submissionDate: submittedAt,
       });
     }
@@ -192,7 +213,7 @@ function flattenAndGroupByProduct(applications: any[]) {
         applicationId: app.id,
         productId,
         invoice: inv,
-        applicationStatus: appStatus,
+        applicationStatus: String(appStatus),
         applicationSubmittedAt: submittedAt,
       });
     }
@@ -235,23 +256,23 @@ function flattenAndGroupByProduct(applications: any[]) {
 export function FinancingSection() {
   const { activeOrganization } = useOrganization();
   const { data: applications = [] } = useOrganizationApplications(activeOrganization?.id);
-  const { data: productsData } = useProducts({ page: 1, pageSize: 100, search: "", activeOnly: true } as any);
-  const products = (productsData as any)?.products || [];
+  const { data: productsData } = useProducts({ page: 1, pageSize: 100, search: "", activeOnly: true });
+  const products = useMemo(() => productsData?.products ?? [], [productsData]);
 
   const [offerModalContext, setOfferModalContext] = useState<Parameters<typeof ReviewOfferModal>[0]["context"]>(null);
   const offerModalOpen = offerModalContext !== null;
 
   const productNameMap = useMemo(() => {
     const map = new Map<string, string>();
-    products.forEach((p: any) => {
-      const financingStep = p.workflow?.find((step: any) =>
-        String(step?.name).toLowerCase().includes("financing type")
-      );
+    type WorkflowStep = { name?: string; config?: { name?: string } };
+    products.forEach((p: Product) => {
+      const workflow = (p.workflow ?? []) as WorkflowStep[];
+      const financingStep = workflow.find((step) => String(step?.name).toLowerCase().includes("financing type"));
       const name =
         financingStep?.config?.name ||
-        p.workflow?.[0]?.config?.name ||
-        p.name ||
-        p.title ||
+        workflow[0]?.config?.name ||
+        (p as Product & { name?: string; title?: string }).name ||
+        (p as Product & { name?: string; title?: string }).title ||
         `Product ${p.id}`;
       map.set(p.id, name);
     });
@@ -259,24 +280,27 @@ export function FinancingSection() {
   }, [products]);
 
   const productGroups = useMemo(
-    () => flattenAndGroupByProduct(applications),
+    () => flattenAndGroupByProduct(applications as ApplicationWithRelations[]),
     [applications]
   );
 
+  type ProductOrStub = Product | { id: string; name: string };
+
   const productsWithData = useMemo(() => {
     const fromProducts = products.filter(
-      (p: any) =>
+      (p: Product) =>
         (productGroups[p.id]?.contracts?.length ?? 0) + (productGroups[p.id]?.invoices?.length ?? 0) > 0
     );
-    const productIdsFromProducts = new Set(fromProducts.map((p: any) => p.id));
+    const productIdsFromProducts = new Set(fromProducts.map((p: Product) => p.id));
     const orphanIds = Object.keys(productGroups).filter(
-      (pid) => !productIdsFromProducts.has(pid) &&
-        ((productGroups[pid]?.contracts?.length ?? 0) + (productGroups[pid]?.invoices?.length ?? 0) > 0)
+      (pid) =>
+        !productIdsFromProducts.has(pid) &&
+        (productGroups[pid]?.contracts?.length ?? 0) + (productGroups[pid]?.invoices?.length ?? 0) > 0
     );
     return [
       ...fromProducts,
       ...orphanIds.map((id) => ({ id, name: productNameMap.get(id) ?? `Product ${id}` })),
-    ];
+    ] as ProductOrStub[];
   }, [products, productGroups, productNameMap]);
 
   return (
@@ -287,9 +311,12 @@ export function FinancingSection() {
         context={offerModalContext}
       />
       <div className="space-y-6">
-      {productsWithData.map((product: any) => {
+      {productsWithData.map((product: ProductOrStub) => {
         const group = productGroups[product.id] ?? { contracts: [], invoices: [] };
-        const productName = productNameMap.get(product.id) ?? product.name ?? `Product ${product.id}`;
+        const productName =
+          productNameMap.get(product.id) ??
+          ("name" in product ? product.name : undefined) ??
+          `Product ${product.id}`;
 
         return (
           <Card key={product.id} className="rounded-xl border border-gray-200 shadow-sm">
@@ -426,6 +453,16 @@ function CollapsibleCategory({
   );
 }
 
+type InvoiceCardModel = Invoice & {
+  maturityDate?: string | null;
+  submissionDate?: string | null;
+  noteNo?: string | null;
+  customer?: string | null;
+  fundingDeadline?: string | null;
+  progress?: number | string;
+  fundingLabel?: string | null;
+};
+
 /* ============================================================
    Cards: grid layout -> content | right column | action column
 ============================================================ */
@@ -436,14 +473,14 @@ function ContractCard({
   offerStatus,
   onReviewOffer,
 }: {
-  item: any;
+  item: Contract & { activeNotes?: unknown };
   applicationId: string;
   offerStatus: OfferStatus;
   onReviewOffer: () => void;
 }) {
   const router = useRouter();
-  const details = item.contract_details ?? {};
-  const customer = item.customer_details?.name ?? details?.customer ?? "-";
+  const details = (item.contract_details ?? {}) as LooseContractDetails;
+  const customer = item.customer_details?.name ?? details.customer ?? "-";
   const start = details?.start_date;
   const end = details?.end_date;
   const approved = details?.approved_facility ?? 0;
@@ -464,7 +501,7 @@ function ContractCard({
               <span className="font-semibold">{details?.title ?? item.id}</span>
             </p>
 
-            <span className="ml-2">{contractBadge(formatStatus(item.status) || formatStatus(details?.status))}</span>
+            <span className="ml-2">{contractBadge(formatStatus(item.status) || formatStatus(details.status))}</span>
             {offerBadge(offerStatus)}
           </div>
 
@@ -512,7 +549,7 @@ function ContractCard({
               <div>
                 <p className="text-xs text-muted-foreground">Active notes</p>
                 <p className="text-[17px] leading-7 font-medium text-foreground">
-                  {item.activeNotes}
+                  {String(item.activeNotes)}
                 </p>
               </div>
             )}
@@ -580,21 +617,35 @@ export function InvoiceCard({
   offerStatus,
   onReviewOffer,
 }: {
-  item: any;
+  item: InvoiceCardModel;
   applicationSubmittedAt?: string | null;
   applicationId?: string;
   offerStatus: OfferStatus;
   onReviewOffer: () => void;
 }) {
   const router = useRouter();
-  const details = item.details ?? {};
+  const details = (item.details ?? {}) as LooseInvoiceDetails;
   const invoiceNumber = details.number ?? details.invoiceNo ?? item.id;
   const invoiceValue = details.value ?? details.invoiceValue ?? null;
+  const ratioRaw = details.financing_ratio_percent;
+  const ratioParsed =
+    ratioRaw === undefined || ratioRaw === null
+      ? NaN
+      : typeof ratioRaw === "number"
+        ? Number.isFinite(ratioRaw)
+          ? ratioRaw
+          : NaN
+        : (() => {
+            const normalized = String(ratioRaw).replace(/,/g, "").trim();
+            if (normalized === "") return NaN;
+            const n = Number(normalized);
+            return Number.isFinite(n) ? n : NaN;
+          })();
   const financingAmount =
     details.financing_amount ??
     details.financingAmount ??
-    (typeof invoiceValue === "number" && typeof details.financing_ratio_percent === "number"
-      ? Math.round((invoiceValue * details.financing_ratio_percent) / 100)
+    (typeof invoiceValue === "number" && Number.isFinite(ratioParsed)
+      ? Math.round((invoiceValue * ratioParsed) / 100)
       : undefined);
   const maturityDate = details.maturity_date ?? details.maturityDate ?? item.maturityDate ?? null;
   const submissionDate =
@@ -725,7 +776,9 @@ export function InvoiceCard({
               <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
                 <div
                   className="h-1.5 bg-foreground rounded-full"
-                  style={{ width: `${item.progress}%` }}
+                  style={{
+                    width: `${Math.min(100, Math.max(0, Number(item.progress ?? 0)))}%`,
+                  }}
                 />
               </div>
 

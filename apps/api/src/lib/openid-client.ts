@@ -67,10 +67,7 @@ export async function initializeOpenIdClient(): Promise<Client> {
     return client;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error(
-      { error: errorMessage, issuerUrl },
-      "Failed to initialize OpenID Client"
-    );
+    logger.error({ error: errorMessage, issuerUrl }, "Failed to initialize OpenID Client");
     throw error;
   }
 }
@@ -83,4 +80,3 @@ export function getOpenIdClient(): Client {
 }
 
 export { generators };
-

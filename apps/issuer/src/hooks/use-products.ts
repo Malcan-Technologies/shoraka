@@ -1,5 +1,6 @@
 import { createApiClient, useAuthToken } from "@cashsouk/config";
 import { useQuery } from "@tanstack/react-query";
+import type { UseQueryOptions } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { toast } from "sonner";
 import type { GetProductsParams, GetProductsResponse } from "@cashsouk/types";
@@ -8,7 +9,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export function useProducts(
   params: GetProductsParams & { activeOnly?: boolean },
-  queryOptions?: any
+  queryOptions?: Omit<UseQueryOptions<GetProductsResponse>, "queryKey" | "queryFn">
 ) {
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(API_URL, getAccessToken);

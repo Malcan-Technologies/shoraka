@@ -64,6 +64,11 @@ interface ApiApplication {
   financing_structure?: { structure_type?: string } | null;
   created_at?: string;
   updated_at?: string;
+  submitted_at?: string | null;
+  contract_id?: string;
+  issuer_organization_id?: string;
+  company_details?: Record<string, unknown>;
+  review_and_submit?: Record<string, unknown>;
   contract?: ApiContract | null;
   invoices?: ApiInvoice[];
   application_review_remarks?: ApiReviewRemark[];
@@ -261,7 +266,7 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
 
   const contractDetails = (contract?.contract_details ?? {}) as Record<string, unknown>;
   const customerDetails = (contract?.customer_details ?? {}) as Record<string, unknown>;
-  const companyDetails = (api as any).company_details ?? {};
+  const companyDetails = api.company_details ?? {};
   const customer = String(customerDetails.customer_name ?? customerDetails.name ?? companyDetails.customer_name ?? companyDetails.company_name ?? "—") || "—";
   const contractTitle = (contractDetails.title ? String(contractDetails.title) : contractDetails.contract_title ? String(contractDetails.contract_title) : null) as string | null;
 
@@ -276,16 +281,16 @@ function prepareApplication(api: ApiApplication): NormalizedApplication {
   if (approvedVal > 0) {
     approvedFacility = formatCurrency(approvedVal);
   } else if (contractStatus === "APPROVED") {
-    const ras = (api as any).review_and_submit as Record<string, unknown> | undefined;
+    const ras = api.review_and_submit;
     if (ras?.approved_facility != null) approvedFacility = formatCurrency(Number(ras.approved_facility));
   }
 
   const created = api.created_at ? new Date(api.created_at) : new Date();
   const updated = api.updated_at ? new Date(api.updated_at) : created;
-  const submittedAt = (api as any).submitted_at != null ? String((api as any).submitted_at) : null;
+  const submittedAt = api.submitted_at != null ? String(api.submitted_at) : null;
 
-  const contractId = (contract as ApiContract & { id?: string })?.id ?? (api as any).contract_id ?? null;
-  const issuerOrganizationId = (api as any).issuer_organization_id as string | undefined;
+  const contractId = (contract as ApiContract & { id?: string })?.id ?? api.contract_id ?? null;
+  const issuerOrganizationId = api.issuer_organization_id;
 
   /** Offer expiry: from contract or first invoice with offer. */
   let expiresAt: string | null | undefined;
@@ -359,7 +364,7 @@ export function useApplicationsData(options?: UseApplicationsDataOptions): {
     if (debugMockApplications && debugMockApplications.length > 0) {
       list = debugMockApplications;
     } else {
-      list = (apiApplications as any[]).map((app) => prepareApplication(app));
+      list = apiApplications.map((app) => prepareApplication(app as ApiApplication));
     }
     const visible = list.filter((a) => a.status !== "archived");
     return sort(visible);

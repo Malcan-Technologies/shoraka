@@ -35,6 +35,66 @@ function normalizedForCompare(value: string): string {
 
 const yesNoRadioScaleClass = "inline-block scale-[0.88] origin-left";
 
+function ComparisonYesNoCell({
+  value,
+  side,
+  valuesDiffer,
+}: {
+  value: boolean | null;
+  side: "before" | "after";
+  valuesDiffer: boolean;
+}) {
+  const shell = comparisonCellSurfaceShellClass;
+  const changedHighlight =
+    valuesDiffer &&
+    (side === "before" ? comparisonSurfaceChangedBeforeClass : comparisonSurfaceChangedAfterClass);
+  return (
+    <div
+      className={cn(
+        shell,
+        "items-start justify-start",
+        side === "before" ? "text-muted-foreground" : "text-foreground",
+        changedHighlight
+      )}
+    >
+      <span className={yesNoRadioScaleClass}>
+        <YesNoRadioDisplay value={value} comparisonMuted={side === "before"} />
+      </span>
+    </div>
+  );
+}
+
+function ComparisonTextCell({
+  value,
+  side,
+  multiline,
+  valuesDiffer,
+}: {
+  value: string;
+  side: "before" | "after";
+  multiline?: boolean;
+  valuesDiffer: boolean;
+}) {
+  const shell = multiline ? comparisonCellSurfaceMultilineShellClass : comparisonCellSurfaceShellClass;
+  const strikeThrough = side === "before" && valuesDiffer && !valueLooksEmpty(value);
+  const changedHighlight =
+    valuesDiffer &&
+    (side === "before" ? comparisonSurfaceChangedBeforeClass : comparisonSurfaceChangedAfterClass);
+  const tone = side === "before" ? "text-muted-foreground" : "text-foreground";
+  return (
+    <div className={cn(shell, tone, changedHighlight)}>
+      <span
+        className={cn(
+          strikeThrough &&
+            "line-through decoration-muted-foreground/80 decoration-1 [text-decoration-skip-ink:none]"
+        )}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
 /**
  * SECTION: Yes/No comparison row
  * WHY: Matches issuer/admin Yes–No radios instead of plain "Yes"/"No" text.
@@ -62,27 +122,6 @@ export function ComparisonYesNoRadioRow({
   const valuesDiffer = beforeValue !== afterValue;
   const labelForAria = typeof label === "string" ? label : "Yes or no field";
 
-  const Cell = ({ value, side }: { value: boolean | null; side: "before" | "after" }) => {
-    const shell = comparisonCellSurfaceShellClass;
-    const changedHighlight =
-      valuesDiffer &&
-      (side === "before" ? comparisonSurfaceChangedBeforeClass : comparisonSurfaceChangedAfterClass);
-    return (
-      <div
-        className={cn(
-          shell,
-          "items-start justify-start",
-          side === "before" ? "text-muted-foreground" : "text-foreground",
-          changedHighlight
-        )}
-      >
-        <span className={yesNoRadioScaleClass}>
-          <YesNoRadioDisplay value={value} comparisonMuted={side === "before"} />
-        </span>
-      </div>
-    );
-  };
-
   return (
     <div
       className="py-2 space-y-3"
@@ -96,10 +135,10 @@ export function ComparisonYesNoRadioRow({
       <p className={reviewLabelClass}>{label}</p>
       <div className={comparisonSplitRowGridClass}>
         <div className={comparisonSplitBeforeColClass}>
-          <Cell value={beforeValue} side="before" />
+          <ComparisonYesNoCell value={beforeValue} side="before" valuesDiffer={valuesDiffer} />
         </div>
         <div className={comparisonSplitAfterColClass}>
-          <Cell value={afterValue} side="after" />
+          <ComparisonYesNoCell value={afterValue} side="after" valuesDiffer={valuesDiffer} />
         </div>
       </div>
     </div>
@@ -121,28 +160,6 @@ export function ComparisonFieldRow({
 }) {
   const valuesDiffer = normalizedForCompare(before) !== normalizedForCompare(after);
 
-  const Cell = ({ value, side }: { value: string; side: "before" | "after" }) => {
-    const shell = multiline ? comparisonCellSurfaceMultilineShellClass : comparisonCellSurfaceShellClass;
-    const strikeThrough =
-      side === "before" && valuesDiffer && !valueLooksEmpty(value);
-    const changedHighlight =
-      valuesDiffer &&
-      (side === "before" ? comparisonSurfaceChangedBeforeClass : comparisonSurfaceChangedAfterClass);
-    const tone = side === "before" ? "text-muted-foreground" : "text-foreground";
-    return (
-      <div className={cn(shell, tone, changedHighlight)}>
-        <span
-          className={cn(
-            strikeThrough &&
-              "line-through decoration-muted-foreground/80 decoration-1 [text-decoration-skip-ink:none]"
-          )}
-        >
-          {value}
-        </span>
-      </div>
-    );
-  };
-
   return (
     <div
       className="py-2 space-y-3"
@@ -154,10 +171,20 @@ export function ComparisonFieldRow({
       <p className={reviewLabelClass}>{label}</p>
       <div className={comparisonSplitRowGridClass}>
         <div className={comparisonSplitBeforeColClass}>
-          <Cell value={before} side="before" />
+          <ComparisonTextCell
+            value={before}
+            side="before"
+            multiline={multiline}
+            valuesDiffer={valuesDiffer}
+          />
         </div>
         <div className={comparisonSplitAfterColClass}>
-          <Cell value={after} side="after" />
+          <ComparisonTextCell
+            value={after}
+            side="after"
+            multiline={multiline}
+            valuesDiffer={valuesDiffer}
+          />
         </div>
       </div>
     </div>

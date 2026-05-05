@@ -521,6 +521,22 @@ export default function ProfilePage() {
             phoneNumber?: string;
           };
           addresses?: {
+            business?: {
+              line1?: string | null;
+              line2?: string | null;
+              city?: string | null;
+              postalCode?: string | null;
+              state?: string | null;
+              country?: string | null;
+            };
+            registered?: {
+              line1?: string | null;
+              line2?: string | null;
+              city?: string | null;
+              postalCode?: string | null;
+              state?: string | null;
+              country?: string | null;
+            };
             businessAddress?: string;
             registeredAddress?: string;
           };
@@ -559,7 +575,7 @@ export default function ProfilePage() {
       setAccountType(getBankField(orgData.bankAccountDetails, "Account type") || "Savings");
 
       // Initialize addresses
-      const addresses = orgData.corporateOnboardingData?.addresses as any;
+      const addresses = orgData.corporateOnboardingData?.addresses;
       const business = addresses?.business;
       setBusinessLine1(business?.line1 || "");
       setBusinessLine2(business?.line2 || "");
@@ -713,7 +729,7 @@ export default function ProfilePage() {
 
   const handleCancelAddressesEdit = () => {
     if (orgData) {
-      const addresses = orgData.corporateOnboardingData?.addresses as any;
+      const addresses = orgData.corporateOnboardingData?.addresses;
       const business = addresses?.business;
       setBusinessLine1(business?.line1 || "");
       setBusinessLine2(business?.line2 || "");
@@ -1138,7 +1154,7 @@ export default function ProfilePage() {
                       <h3 className="text-sm font-semibold">Business Address</h3>
                       {!isEditingAddresses ? (
                         <p className="text-sm text-muted-foreground">
-                          {formatAddressDisplay((orgData?.corporateOnboardingData?.addresses as any)?.business)}
+                          {formatAddressDisplay(orgData?.corporateOnboardingData?.addresses?.business)}
                         </p>
                       ) : (
                         <div className="grid gap-4 sm:grid-cols-2">
@@ -1219,7 +1235,7 @@ export default function ProfilePage() {
                       </div>
                       {!isEditingAddresses ? (
                         <p className="text-sm text-muted-foreground">
-                          {formatAddressDisplay((orgData?.corporateOnboardingData?.addresses as any)?.registered)}
+                          {formatAddressDisplay(orgData?.corporateOnboardingData?.addresses?.registered)}
                         </p>
                       ) : (
                         !sameAsBusinessAddress && (
@@ -1775,7 +1791,7 @@ export default function ProfilePage() {
             try {
               await leave();
               setConfirmDialog({ open: false, type: null });
-            } catch (error) {
+            } catch {
               // Error is handled by the hook
             }
           }}

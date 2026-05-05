@@ -65,13 +65,22 @@ export interface Investment {
 
 export type ActivityCategory = "organization";
 
+/** Serializable JSON (Prisma `Json` / API); use for activity payloads and similar blobs. */
+export type JsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
 export interface Activity {
   id: string;
   user_id: string;
   category: ActivityCategory;
   event_type: string; // Displayed as "Event" in UI
   activity: string;   // Displayed as "Activity" in UI (human-readable)
-  metadata: any | null;
+  metadata: JsonValue | null;
   ip_address: string | null;
   user_agent: string | null;
   device_info: string | null;
@@ -179,17 +188,17 @@ export interface Application {
   product_version: number;
   status: ApplicationStatus;
   last_completed_step: number;
-  financing_type?: any;
-  financing_structure?: any;
-  contract_details?: any;
-  invoice_details?: any;
-  company_details?: any;
-  business_details?: any;
+  financing_type?: JsonValue | null;
+  financing_structure?: JsonValue | null;
+  contract_details?: JsonValue | null;
+  invoice_details?: JsonValue | null;
+  company_details?: JsonValue | null;
+  business_details?: JsonValue | null;
   /** Present when loaded via GET /applications/:id (relational guarantors for hydration). */
   application_guarantors?: unknown[];
-  supporting_documents?: any;
-  declarations?: any;
-  review_and_submit?: any;
+  supporting_documents?: JsonValue | null;
+  declarations?: JsonValue | null;
+  review_and_submit?: JsonValue | null;
   created_at: string;
   updated_at: string;
   submitted_at?: string | null;
@@ -203,7 +212,7 @@ export interface CreateApplicationInput {
 export interface UpdateApplicationStepInput {
   stepNumber: number;
   stepId: string;
-  data: Record<string, any>;
+  data: Record<string, unknown>;
   forceRewindToStep?: number;
 }
 
@@ -212,7 +221,7 @@ export interface Product {
   base_id?: string | null;
   version: number;
   status?: string;
-  workflow: any[];
+  workflow: JsonValue[];
   offer_expiry_days?: number | null;
   created_at: string;
   updated_at: string;
@@ -309,7 +318,8 @@ export interface InvoiceDetails {
   number: string;
   value: number;
   maturity_date: string;
-  financing_ratio_percent?: number;
+  /** May be string from JSON/API; normalize when mapping to UI. */
+  financing_ratio_percent?: number | string;
   document?: {
     s3_key: string;
     file_name: string;

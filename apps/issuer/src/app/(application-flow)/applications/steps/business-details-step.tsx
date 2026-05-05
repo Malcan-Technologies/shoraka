@@ -252,6 +252,17 @@ function booleanToYesNo(v: boolean | string | undefined): YesNo | "" {
   return "";
 }
 
+function coerceSavedString(v: unknown): string {
+  return typeof v === "string" ? v : "";
+}
+
+function booleanToYesNoUnknown(v: unknown): YesNo | "" {
+  if (typeof v === "boolean" || typeof v === "string") {
+    return booleanToYesNo(v);
+  }
+  return booleanToYesNo(undefined);
+}
+
 function makeClientId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
@@ -459,39 +470,56 @@ function fromSnakeSaved(
   saved: BusinessDetailsSnake | Record<string, unknown> | null | undefined,
   relationalGuarantors?: unknown
 ): BusinessDetailsPayload {
-  const raw = saved as any;
-  const a = raw?.about_your_business ?? raw?.aboutYourBusiness;
-  const w = raw?.why_raising_funds ?? raw?.whyRaisingFunds;
+  const raw = saved as Record<string, unknown>;
+  const a = (raw?.about_your_business ?? raw?.aboutYourBusiness) as Record<string, unknown> | undefined;
+  const w = (raw?.why_raising_funds ?? raw?.whyRaisingFunds) as Record<string, unknown> | undefined;
   const relational = guarantorsFromRelationalRows(relationalGuarantors ?? []);
   const jsonGuarantors = parseGuarantorsFromRaw(raw?.guarantors);
   const mergedGuarantors = relational.length > 0 ? relational : jsonGuarantors;
+  const supportingRaw = w?.supporting_documents ?? w?.supportingDocuments;
+  const amountRaw = w?.amount_raised ?? w?.amountRaised;
   return {
     aboutYourBusiness: {
-      whatDoesCompanyDo: a?.what_does_company_do ?? a?.whatDoesCompanyDo ?? "",
-      mainCustomers: a?.main_customers ?? a?.mainCustomers ?? "",
-      singleCustomerOver50Revenue: booleanToYesNo(a?.single_customer_over_50_revenue ?? a?.singleCustomerOver50Revenue),
+      whatDoesCompanyDo:
+        coerceSavedString(a?.what_does_company_do) || coerceSavedString(a?.whatDoesCompanyDo),
+      mainCustomers: coerceSavedString(a?.main_customers) || coerceSavedString(a?.mainCustomers),
+      singleCustomerOver50Revenue: booleanToYesNoUnknown(
+        a?.single_customer_over_50_revenue ?? a?.singleCustomerOver50Revenue
+      ),
     },
     whyRaisingFunds: {
-      financingFor: w?.financing_for ?? w?.financingFor ?? "",
-      howFundsUsed: w?.how_funds_used ?? w?.howFundsUsed ?? "",
-      businessPlan: w?.business_plan ?? w?.businessPlan ?? "",
-      risksDelayRepayment: w?.risks_delay_repayment ?? w?.risksDelayRepayment ?? "",
-      backupPlan: w?.backup_plan ?? w?.backupPlan ?? "",
-      raisingOnOtherP2P: booleanToYesNo(w?.raising_on_other_p2p ?? w?.raisingOnOtherP2P),
-      platformName: w?.platform_name ?? w?.platformName ?? "",
-      amountRaised: w?.amount_raised != null || w?.amountRaised != null ? formatMoney(w?.amount_raised ?? w?.amountRaised) : "",
-      sameInvoiceUsed: booleanToYesNo(w?.same_invoice_used ?? w?.sameInvoiceUsed),
-      accountingSoftware: w?.accounting_software ?? w?.accountingSoftware ?? "",
-      supportingDocuments: Array.isArray(w?.supporting_documents ?? w?.supportingDocuments)
-        ? (w?.supporting_documents ?? w?.supportingDocuments).map((doc: any) => ({
-            file_name: String(doc?.file_name ?? doc?.fileName ?? "document.pdf"),
-            file_size: Number(doc?.file_size ?? doc?.fileSize ?? 0),
-            s3_key: typeof doc?.s3_key === "string" ? doc.s3_key : undefined,
-            uploaded_at: String(doc?.uploaded_at ?? doc?.uploadedAt ?? new Date().toISOString()),
-          }))
+      financingFor: coerceSavedString(w?.financing_for) || coerceSavedString(w?.financingFor),
+      howFundsUsed: coerceSavedString(w?.how_funds_used) || coerceSavedString(w?.howFundsUsed),
+      businessPlan: coerceSavedString(w?.business_plan) || coerceSavedString(w?.businessPlan),
+      risksDelayRepayment:
+        coerceSavedString(w?.risks_delay_repayment) || coerceSavedString(w?.risksDelayRepayment),
+      backupPlan: coerceSavedString(w?.backup_plan) || coerceSavedString(w?.backupPlan),
+      raisingOnOtherP2P: booleanToYesNoUnknown(w?.raising_on_other_p2p ?? w?.raisingOnOtherP2P),
+      platformName: coerceSavedString(w?.platform_name) || coerceSavedString(w?.platformName),
+      amountRaised:
+        amountRaw != null && amountRaw !== ""
+          ? formatMoney(
+              typeof amountRaw === "number"
+                ? amountRaw
+                : parseMoney(coerceSavedString(amountRaw) || String(amountRaw))
+            )
+          : "",
+      sameInvoiceUsed: booleanToYesNoUnknown(w?.same_invoice_used ?? w?.sameInvoiceUsed),
+      accountingSoftware:
+        coerceSavedString(w?.accounting_software) || coerceSavedString(w?.accountingSoftware),
+      supportingDocuments: Array.isArray(supportingRaw)
+        ? supportingRaw.map((doc: unknown) => {
+            const d = doc as Record<string, unknown>;
+            return {
+              file_name: String(d?.file_name ?? d?.fileName ?? "document.pdf"),
+              file_size: Number(d?.file_size ?? d?.fileSize ?? 0),
+              s3_key: typeof d?.s3_key === "string" ? d.s3_key : undefined,
+              uploaded_at: String(d?.uploaded_at ?? d?.uploadedAt ?? new Date().toISOString()),
+            };
+          })
         : [],
     },
-    declarationConfirmed: raw?.declaration_confirmed ?? raw?.declarationConfirmed ?? false,
+    declarationConfirmed: Boolean(raw?.declaration_confirmed ?? raw?.declarationConfirmed),
     guarantors: mergedGuarantors,
   };
 }
@@ -575,7 +603,7 @@ interface BusinessDetailsStepProps {
   applicationId: string;
   /** Business & guarantor step config from the active product workflow (e.g. guarantor agreement template). */
   stepConfig?: Record<string, unknown>;
-  onDataChange?: (data: any) => void;
+  onDataChange?: (data: Record<string, unknown>) => void;
   readOnly?: boolean;
 }
 
@@ -1324,10 +1352,12 @@ export function BusinessDetailsStep({
       prev.map((row, i) => {
         if (i !== index) return row;
         if (row.guarantorType === "individual") {
-          const { guarantorAgreement: _a, ...rest } = row;
+          const { guarantorAgreement, ...rest } = row;
+          void guarantorAgreement;
           return rest as GuarantorIndividualRow;
         }
-        const { guarantorAgreement: _b, ...rest } = row;
+        const { guarantorAgreement, ...rest } = row;
+        void guarantorAgreement;
         return rest as GuarantorCompanyRow;
       })
     );
@@ -1336,7 +1366,13 @@ export function BusinessDetailsStep({
   React.useEffect(() => {
     if (application === undefined || isInitialized) return;
 
-    const saved = application?.business_details;
+    const rawDetails = application?.business_details;
+    const saved =
+      rawDetails != null &&
+      typeof rawDetails === "object" &&
+      !Array.isArray(rawDetails)
+        ? (rawDetails as Record<string, unknown>)
+        : undefined;
     const relational = (application as { application_guarantors?: unknown[] }).application_guarantors;
     const initial = fromSnakeSaved(saved, relational);
     setAboutYourBusiness(initial.aboutYourBusiness);
@@ -1440,11 +1476,12 @@ export function BusinessDetailsStep({
     return false;
   }, [initialWhySupportingDocuments, whyRaisingFunds.supportingDocuments]);
 
-  async function uploadGuarantorAgreementFilesAndDeletes(
+  const uploadGuarantorAgreementFilesAndDeletes = React.useCallback(
+    async (
     token: string,
     guarantorsIn: GuarantorFormRow[],
     pendingSnap: Array<{ index: number; file: File; client_id: string }>
-  ): Promise<GuarantorFormRow[]> {
+  ): Promise<GuarantorFormRow[]> => {
     const uploadedByClientId = new Map<
       string,
       { s3_key: string; file_name: string; file_size: number; uploaded_at: string }
@@ -1541,9 +1578,11 @@ export function BusinessDetailsStep({
     }
 
     return next;
-  }
+  },
+    [applicationId]
+  );
 
-  async function uploadWhySectionSupportingDocuments(guarantorsIn: GuarantorFormRow[]) {
+  const uploadWhySectionSupportingDocuments = React.useCallback(async (guarantorsIn: GuarantorFormRow[]) => {
     const token = await getAccessToken();
     if (!token) {
       throw new Error("Authentication required to upload supporting documents.");
@@ -1658,7 +1697,17 @@ export function BusinessDetailsStep({
     initialPayloadRef.current = JSON.stringify(nextPayload);
     initialGuarantorRowsForAgreementCleanup.current = guarantorsIn.map((g) => ({ ...g }));
     return nextPayload;
-  }
+  },
+    [
+      getAccessToken,
+      applicationId,
+      pendingSupportingDocuments,
+      whyRaisingFunds,
+      initialWhySupportingDocuments,
+      aboutYourBusiness,
+      declarationConfirmed,
+    ]
+  );
 
   React.useEffect(() => {
     if (!onDataChangeRef.current || !isInitialized) return;
@@ -1723,8 +1772,15 @@ export function BusinessDetailsStep({
     validateBusinessDetails,
     pendingSupportingDocuments.length,
     hasRemovedSupportingDocuments,
-    pendingGuarantorAgreements.length,
+    pendingGuarantorAgreements,
     hasRemovedGuarantorAgreements,
+    aboutYourBusiness,
+    declarationConfirmed,
+    getAccessToken,
+    guarantors,
+    uploadGuarantorAgreementFilesAndDeletes,
+    uploadWhySectionSupportingDocuments,
+    whyRaisingFunds,
   ]);
 
   const addWhySectionSupportingPdfFiles = React.useCallback((files: File[]) => {

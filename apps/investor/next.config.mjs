@@ -1,12 +1,13 @@
-const path = require("path");
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const monorepoRoot = path.join(/* turbopackIgnore: true */ __dirname, "../..");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
-  outputFileTracingRoot: path.join(__dirname, "../.."),
-  outputFileTracingIncludes: {
-    "/*": ["../../docs/help/**/*.md"],
-  },
+  outputFileTracingRoot: monorepoRoot,
   transpilePackages: [
     "@cashsouk/ui",
     "@cashsouk/styles",
@@ -41,4 +42,4 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+export default nextConfig;

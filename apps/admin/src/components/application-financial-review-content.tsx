@@ -424,7 +424,7 @@ export function ApplicationFinancialReviewContent({
       const { bs, pl } = financialFormToBsPl(input);
       return computeColumnMetrics(bs, pl, g);
     });
-  }, [columns, byYear, turnovers, turnoverByYear, hasIssuerFinancialData, unauditedByYear]);
+  }, [columns, byYear, turnoverByYear, hasIssuerFinancialData, unauditedByYear]);
 
   const getFsCol = React.useCallback(
     (idx: number): Record<string, unknown> | null => {

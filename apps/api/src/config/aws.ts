@@ -55,4 +55,3 @@ export function getCognitoIssuerUrl(): string {
   const config = getCognitoConfig();
   return `https://cognito-idp.${config.region}.amazonaws.com/${config.userPoolId}`;
 }
-

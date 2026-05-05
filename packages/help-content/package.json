@@ -5,6 +5,8 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "scripts": {
+    "generate": "node scripts/generate-help-articles.mjs",
+    "build": "node scripts/generate-help-articles.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

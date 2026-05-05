@@ -55,6 +55,8 @@ import {
   STEP_KEY_DISPLAY,
   enforceDeclarationsLastAndDropReview,
   type ApplicationStepKey,
+  ApplicationStatus,
+  type Product,
 } from "@cashsouk/types";
 import { areDirectorShareholdersReadyForApplicationSubmit } from "@/lib/director-shareholder-onboarding-ui";
 import { DirectorShareholderAlertCard } from "@/components/director-shareholder-alert-card";
@@ -265,7 +267,7 @@ function EditApplicationPageBody() {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
   const [amendmentContext, setAmendmentContext] = React.useState<{
     review_cycle: number;
-    remarks: any[];
+    remarks: Array<{ scope: string; scope_key: string; remark: string }>;
   } | null>(null);
   /** Idle: not amendment; loading: fetch in flight; done: context resolved (may be empty on error). */
   const [amendmentContextStatus, setAmendmentContextStatus] = React.useState<
@@ -273,9 +275,14 @@ function EditApplicationPageBody() {
   >("idle");
   const [devPreviewAmendment, setDevPreviewAmendment] = React.useState(false);
 
+  const applicationReviewCycle =
+    application == null
+      ? undefined
+      : (application as { review_cycle?: number }).review_cycle;
+
   /** Returns mock amendment context for DEV preview. Covers section, item, and tab-level remark types. */
   const getMockAmendmentContext = React.useCallback(() => ({
-    review_cycle: (application as { review_cycle?: number })?.review_cycle ?? 1,
+    review_cycle: applicationReviewCycle ?? 1,
     remarks: [
       {
         scope: "section",
@@ -301,14 +308,14 @@ function EditApplicationPageBody() {
         remark: MOCK_DEV_LONG_SUPPORTING_DOCUMENTS_AMENDMENT_REMARK,
       },
     ],
-  }), [(application as { review_cycle?: number })?.review_cycle]);
+  }), [applicationReviewCycle]);
 
   React.useEffect(() => {
     if (!application) return;
 
     if (devPreviewAmendment) {
       setAmendmentContextStatus("done");
-      setAmendmentContext(getMockAmendmentContext() as any);
+      setAmendmentContext(getMockAmendmentContext());
       return;
     }
 
@@ -435,17 +442,21 @@ function EditApplicationPageBody() {
     return () => window.removeEventListener("storage", read);
   }, []);
 
+  const savedStructureType = (
+    application?.financing_structure as
+      | { structure_type?: "new_contract" | "existing_contract" | "invoice_only" }
+      | null
+      | undefined
+  )?.structure_type;
+
   const isStructureResolved =
-    sessionStructureType !== null ||
-    application?.financing_structure?.structure_type !== undefined;
+    sessionStructureType !== null || savedStructureType !== undefined;
 
   const effectiveStructureType = React.useMemo(() => {
     if (sessionStructureType !== null) return sessionStructureType;
-    if (application?.financing_structure?.structure_type) {
-      return application.financing_structure.structure_type;
-    }
+    if (savedStructureType) return savedStructureType;
     return null;
-  }, [sessionStructureType, application]);
+  }, [sessionStructureType, savedStructureType]);
 
   /* ================================================================
      PRODUCT & WORKFLOW DERIVATION
@@ -467,8 +478,7 @@ function EditApplicationPageBody() {
 
   const productWorkflow = React.useMemo(() => {
     if (!effectiveProductId || !productsData?.products) return [];
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const product = (productsData.products as any).find((p: { id: string }) => p.id === effectiveProductId);
+    const product = (productsData.products as Product[]).find((p) => p.id === effectiveProductId);
     return (product?.workflow as Record<string, unknown>[] | undefined) || [];
   }, [effectiveProductId, productsData]);
 
@@ -640,7 +650,7 @@ function EditApplicationPageBody() {
     effectiveWorkflow.length > 0 &&
     stepFromUrl === effectiveWorkflow.length;
 
-  const isRealAmendmentMode = (application as any)?.status === "AMENDMENT_REQUESTED";
+  const isRealAmendmentMode = application?.status === ApplicationStatus.AMENDMENT_REQUESTED;
   const isAmendmentModeEffective = isRealAmendmentMode || devPreviewAmendment;
 
   /* ================================================================
@@ -1129,7 +1139,7 @@ function EditApplicationPageBody() {
       } else {
         await updateStatusMutation.mutateAsync({
           id: applicationId,
-          status: "SUBMITTED",
+          status: ApplicationStatus.SUBMITTED,
         });
         successPendingNav = true;
       }

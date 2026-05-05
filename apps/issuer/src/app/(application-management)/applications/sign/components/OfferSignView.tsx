@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 
 type OfferSignViewProps = {
   type: "contract" | "invoice";
-  record: any;
+  record: { id?: string };
 };
 
 export function OfferSignView({ type, record }: OfferSignViewProps) {

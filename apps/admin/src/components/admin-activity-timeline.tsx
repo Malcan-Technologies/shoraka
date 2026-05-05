@@ -37,7 +37,7 @@
  import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
  import { ScrollArea } from "@/components/ui/scroll-area";
  import { Skeleton } from "@cashsouk/ui";
- import { useApplicationLogs } from "@/hooks/use-application-logs";
+ import { useApplicationLogs, type ApplicationLogEntry } from "@/hooks/use-application-logs";
  import { formatDistanceToNow, format } from "date-fns";
 import {
   ChevronDownIcon,
@@ -140,7 +140,7 @@ interface AdminActivityTimelineProps {
   visibleReviewSections?: unknown;
 }
 
-function getEventIcon(eventType: string) {
+function getEventIcon(eventType: string): React.ReactElement {
   switch (eventType) {
     case "APPLICATION_CREATED":
       return <PlayIcon className="h-3.5 w-3.5 text-blue-600" />;
@@ -348,9 +348,7 @@ export function AdminActivityTimeline({
    */
   const { data, isLoading, error } = useApplicationLogs(applicationId);
 
-  // Flattened logs (useApplicationLogs returns an array)
-  // Cast to any[] because server hook returns a minimal shape; UI reads optional fields.
-  const logs: any[] = React.useMemo(() => data ?? [], [data]) as any[];
+  const logs: ApplicationLogEntry[] = React.useMemo(() => data ?? [], [data]);
 
   const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
   const [comparisonModalOpen, setComparisonModalOpen] = React.useState(false);
@@ -438,13 +436,18 @@ export function AdminActivityTimeline({
                     {visibleLogs.map((log, index) => {
                       const eventType = log.event_type;
                       const isFirst = index === 0;
-                      const actorName = (log.metadata && (log.metadata.actorName || log.metadata.organizationName)) || "System";
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      const actorRaw = log.metadata
+                        ? (log.metadata.actorName ?? log.metadata.organizationName)
+                        : undefined;
+                      const actorName =
+                        typeof actorRaw === "string" && actorRaw.trim() !== ""
+                          ? actorRaw
+                          : "System";
                       const metadata = log.metadata as ActivityMetadata | null;
                       // Prefer canonical top-level fields only.
                       // Server stores remark/entity_id at top-level. Do NOT read from metadata.
-                      const remark = (log as any).remark;
-                      const entityId = (log as any).entityId ?? undefined;
+                      const remark = log.remark;
+                      const entityId = log.entityId ?? undefined;
                       const resubmitChanges =
                         eventType === "APPLICATION_RESUBMITTED"
                           ? metadata?.resubmit_changes
@@ -475,7 +478,7 @@ export function AdminActivityTimeline({
                             </div>
 
                             {/* Activity text */}
-                            {log.activity && (
+                            {log.activity != null && (
                                 <p
                                   className={`text-xs text-muted-foreground mt-0.5 ${
                                     eventType === "APPLICATION_RESUBMITTED"
@@ -483,7 +486,11 @@ export function AdminActivityTimeline({
                                       : "line-clamp-2"
                                   }`}
                                 >
-                                  {log.activity}
+                                  {typeof log.activity === "string"
+                                    ? log.activity
+                                    : typeof log.activity === "number" || typeof log.activity === "boolean"
+                                      ? String(log.activity)
+                                      : JSON.stringify(log.activity)}
                                 </p>
                             )}
 

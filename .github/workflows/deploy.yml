@@ -10,7 +10,6 @@ on:
       - "apps/issuer/**"
       - "apps/admin/**"
       - "packages/**"
-      - "docs/help/**"
       - "docker/**"
       - "infra/ecs-task-definition-*.json"
       - "package.json"
@@ -138,19 +137,19 @@ jobs:
             esac
 
             case "$file" in
-              apps/investor/*|packages/*|docs/help/*|docker/portal-investor.Dockerfile|infra/ecs-task-definition-investor.json)
+              apps/investor/*|packages/*|docker/portal-investor.Dockerfile|infra/ecs-task-definition-investor.json)
                 investor_changed=true
                 ;;
             esac
 
             case "$file" in
-              apps/issuer/*|packages/*|docs/help/*|docker/portal-issuer.Dockerfile|infra/ecs-task-definition-issuer.json)
+              apps/issuer/*|packages/*|docker/portal-issuer.Dockerfile|infra/ecs-task-definition-issuer.json)
                 issuer_changed=true
                 ;;
             esac
 
             case "$file" in
-              apps/admin/*|packages/*|docs/help/*|docker/portal-admin.Dockerfile|infra/ecs-task-definition-admin.json)
+              apps/admin/*|packages/*|docker/portal-admin.Dockerfile|infra/ecs-task-definition-admin.json)
                 admin_changed=true
                 ;;
             esac

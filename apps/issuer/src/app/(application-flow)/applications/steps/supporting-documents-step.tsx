@@ -166,6 +166,59 @@ function collectS3KeysBySlot(files: Record<string, UploadRecord[]>): Map<string,
   return result;
 }
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
+type WorkflowSupportingStepConfig = {
+  config?: Record<string, unknown>;
+};
+
+type RawWorkflowDoc = {
+  name?: string;
+  allow_multiple?: boolean;
+  template?: { s3_key?: string };
+  allowed_types?: unknown;
+  required?: boolean;
+};
+
+export type SupportingCategoryDocument = {
+  title: string;
+  allowMultiple: boolean;
+  template?: { s3_key?: string };
+  allowedTypes: string[];
+  required: boolean;
+};
+
+export type SupportingCategory = {
+  groupKey: string;
+  name: string;
+  documents: SupportingCategoryDocument[];
+};
+
+type SavedFileRef = {
+  file_name?: string;
+  file_size?: number;
+  s3_key?: string;
+  uploaded_at?: string;
+};
+
+type SavedSupportingDocument = {
+  files?: SavedFileRef[];
+  file?: SavedFileRef;
+};
+
+type SavedSupportingCategory = {
+  name: string;
+  documents: SavedSupportingDocument[];
+};
+
+type AmendmentRemarkItem = {
+  scope?: string;
+  scope_key?: string;
+  remark?: string;
+};
+
 function computeRemovedS3Keys(
   initialFiles: Record<string, UploadRecord[]>,
   currentFiles: Record<string, UploadRecord[]>
@@ -189,15 +242,13 @@ export function SupportingDocumentsStep({
   onDataChange,
   readOnly = false,
   amendmentRemarks = [],
-  isAmendmentMode: _isAmendmentMode = false,
-  flaggedSections: _flaggedSections,
   flaggedItems,
 }: {
   applicationId: string;
-  stepConfig?: any;
-  onDataChange?: (data: any) => void;
+  stepConfig?: WorkflowSupportingStepConfig;
+  onDataChange?: (data: Record<string, unknown>) => void;
   readOnly?: boolean;
-  amendmentRemarks?: { scope?: string; scope_key?: string; remark?: string }[];
+  amendmentRemarks?: AmendmentRemarkItem[];
   isAmendmentMode?: boolean;
   flaggedSections?: Set<string>;
   flaggedItems?: Map<string, Set<string>>;
@@ -286,15 +337,14 @@ export function SupportingDocumentsStep({
   const flaggedDocRemarks = React.useMemo(() => {
     const map = new Map<string, string>();
     for (const r of amendmentRemarks) {
-      const rem = r as { scope?: string; scope_key?: string; remark?: string };
-      if (rem.scope !== "item" || !rem.scope_key?.startsWith("supporting_documents:")) continue;
-      const text = (rem.remark || "").trim();
-      if (text) map.set(rem.scope_key, text);
+      if (r.scope !== "item" || !r.scope_key?.startsWith("supporting_documents:")) continue;
+      const text = (r.remark || "").trim();
+      if (text) map.set(r.scope_key, text);
     }
     return map;
   }, [amendmentRemarks]);
 
-  const categories = React.useMemo(() => {
+  const categories = React.useMemo((): SupportingCategory[] => {
     const config = stepConfig?.config;
 
     // Guard: no config or invalid shape
@@ -308,7 +358,7 @@ export function SupportingDocumentsStep({
           .replace(/_/g, " ")
           .replace(/\b\w/g, (c) => c.toUpperCase()),
 
-        documents: (docs as any[]).map((doc) => ({
+        documents: (docs as RawWorkflowDoc[]).map((doc) => ({
           title: doc?.name ?? "—",
           allowMultiple: doc?.allow_multiple === true,
           template: doc?.template,
@@ -342,7 +392,7 @@ export function SupportingDocumentsStep({
 
 
   /** Canonical file structure: file_name, file_size, s3_key, uploaded_at (ISO string). */
-  const buildDataToSave = (
+  const buildDataToSave = React.useCallback((
     files: Record<string, UploadRecord[]>,
     uploadResults: Map<
       string,
@@ -350,9 +400,9 @@ export function SupportingDocumentsStep({
     > = new Map()
   ) => {
     return {
-      categories: categories.map((category: any, categoryIndex: number) => ({
+      categories: categories.map((category, categoryIndex: number) => ({
         name: category.name,
-        documents: category.documents.map((document: any, documentIndex: number) => {
+        documents: category.documents.map((document, documentIndex: number) => {
           const key = `${categoryIndex}-${documentIndex}`;
           const mode = getUploadMode(categoryIndex, documentIndex);
           const existingFiles = files[key] ?? [];
@@ -402,11 +452,11 @@ export function SupportingDocumentsStep({
         }),
       })),
     };
-  };
+  }, [categories, getUploadMode]);
 
   React.useEffect(() => {
     const allExpanded: Record<number, boolean> = {};
-    categories.forEach((_: any, index: number) => {
+    categories.forEach((_category, index: number) => {
       allExpanded[index] = true;
     });
     setExpandedCategories(allExpanded);
@@ -420,32 +470,32 @@ export function SupportingDocumentsStep({
       return;
     }
 
-    let data = application.supporting_documents;
+    let data: unknown = application.supporting_documents;
     if (typeof data === "string") {
       try {
-        data = JSON.parse(data);
+        data = JSON.parse(data) as unknown;
       } catch {
         return;
       }
     }
-    if (data?.supporting_documents) {
+    if (isRecord(data) && "supporting_documents" in data) {
       data = data.supporting_documents;
     }
 
-    if (!data?.categories) {
+    if (!isRecord(data) || !Array.isArray(data.categories)) {
       return;
     }
 
     const loadedFiles: Record<string, UploadRecord[]> = {};
 
-    data.categories.forEach((savedCategory: any) => {
+    (data.categories as SavedSupportingCategory[]).forEach((savedCategory) => {
       const categoryIndex = categories.findIndex(
-        (cat: any) => cat.name === savedCategory.name
+        (cat) => cat.name === savedCategory.name
       );
       if (categoryIndex === -1) return;
 
       savedCategory.documents.forEach(
-        (savedDocument: any, documentIndex: number) => {
+        (savedDocument, documentIndex: number) => {
 
           const key = `${categoryIndex}-${documentIndex}`;
 
@@ -456,9 +506,12 @@ export function SupportingDocumentsStep({
               : [];
           const normalized = list
             .filter(
-              (f: any) => typeof f?.s3_key === "string" && typeof f?.file_name === "string"
+              (f): f is SavedFileRef & { s3_key: string; file_name: string } =>
+                isRecord(f) &&
+                typeof f.s3_key === "string" &&
+                typeof f.file_name === "string"
             )
-            .map((f: any) => ({
+            .map((f) => ({
               name: f.file_name,
               size: f.file_size ?? 0,
               uploadedAt: f.uploaded_at ?? new Date().toISOString(),
@@ -505,15 +558,15 @@ export function SupportingDocumentsStep({
       clientId,
     }));
 
-    setSelectedFiles((prev: any) => ({
+    setSelectedFiles((prev: Record<string, PendingUpload[]>) => ({
       ...prev,
       [key]:
         mode === "multiple"
           ? [...pending, ...(prev[key] ?? [])]
           : pending,
     }));
-    setUploadedFiles((prev: any) => {
-      const current = (prev[key] ?? []) as UploadRecord[];
+    setUploadedFiles((prev: Record<string, UploadRecord[]>) => {
+      const current = prev[key] ?? [];
       return {
         ...prev,
         [key]:
@@ -685,10 +738,10 @@ export function SupportingDocumentsStep({
     uploadFilesRef.current = uploadFilesToS3;
   }, [uploadFilesToS3]);
 
-  const hasDocumentFile = (categoryIndex: number, documentIndex: number) => {
+  const hasDocumentFile = React.useCallback((categoryIndex: number, documentIndex: number) => {
     const key = `${categoryIndex}-${documentIndex}`;
     return (uploadedFiles[key] ?? []).length > 0;
-  };
+  }, [uploadedFiles]);
 
   const areAllFilesUploaded = React.useMemo(() => {
     if (categories.length === 0) return true;
@@ -701,7 +754,7 @@ export function SupportingDocumentsStep({
       }
     }
     return true;
-  }, [categories, uploadedFiles]);
+  }, [categories, hasDocumentFile]);
 
   React.useEffect(() => {
     if (!onDataChange) return;
@@ -738,7 +791,7 @@ export function SupportingDocumentsStep({
   const handleRemoveFile = (categoryIndex: number, documentIndex: number, fileIndex: number) => {
     const key = `${categoryIndex}-${documentIndex}`;
 
-    setUploadedFiles((prev: any) => {
+    setUploadedFiles((prev: Record<string, UploadRecord[]>) => {
       const newFiles = { ...prev };
       const nextList = [...(newFiles[key] ?? [])];
       nextList.splice(fileIndex, 1);
@@ -749,7 +802,7 @@ export function SupportingDocumentsStep({
       }
       return newFiles;
     });
-    setSelectedFiles((prev: any) => {
+    setSelectedFiles((prev: Record<string, PendingUpload[]>) => {
       const newFiles = { ...prev };
       const nextList = [...(newFiles[key] ?? [])];
       const fileToRemove = (uploadedFiles[key] ?? [])[fileIndex];
@@ -785,7 +838,7 @@ export function SupportingDocumentsStep({
         <SupportingDocumentsSkeleton />
       ) : (
         <>
-          {categories.map((category: any, categoryIndex: number) => {
+          {categories.map((category, categoryIndex: number) => {
             const isExpanded = expandedCategories[categoryIndex] ?? true;
             const requiredInCategory = category.documents.filter(
               (d: { required?: boolean }) => d.required !== false
@@ -840,7 +893,7 @@ export function SupportingDocumentsStep({
 
                 {isExpanded ? (
                   <div className="divide-y divide-border bg-background">
-                    {category.documents.map((document: any, documentIndex: number) => {
+                    {category.documents.map((document, documentIndex: number) => {
                       const key = `${categoryIndex}-${documentIndex}`;
                       const mode = getUploadMode(categoryIndex, documentIndex);
                       const isUploaded = hasDocumentFile(categoryIndex, documentIndex);
@@ -849,7 +902,7 @@ export function SupportingDocumentsStep({
                       const hasFiles = fileList.length > 0;
                       const templateS3Key = document.template?.s3_key;
                       const groupKey =
-                        (category as { groupKey?: string }).groupKey ??
+                        category.groupKey ??
                         Object.keys(stepConfig?.config || {})[categoryIndex] ??
                         "";
                       const slug =

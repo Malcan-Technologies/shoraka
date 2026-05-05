@@ -88,7 +88,7 @@ export function InvoiceDetailsConfig({
       const next = { ...current.raw, ...updates } as Record<string, unknown>;
       onChange(next);
     },
-    [config, onChange, current]
+    [onChange, current]
   );
 
   return (

@@ -1,6 +1,7 @@
  "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { Skeleton } from "../../../../components/ui/skeleton";
 import { useS3ViewUrl } from "../../../../hooks/use-s3";
 
@@ -25,8 +26,8 @@ export function ProductImagePreview({ s3Key, alt }: { s3Key?: string; alt?: stri
   }
 
   return (
-    <div className="w-14 h-14 rounded-xl border border-input bg-muted overflow-hidden flex items-center justify-center shrink-0">
-      <img src={imageUrl} alt={alt || ""} className="w-full h-full object-contain" />
+    <div className="relative w-14 h-14 rounded-xl border border-input bg-muted overflow-hidden flex items-center justify-center shrink-0">
+      <Image src={imageUrl} alt={alt || ""} width={56} height={56} className="object-contain" unoptimized />
     </div>
   );
 }

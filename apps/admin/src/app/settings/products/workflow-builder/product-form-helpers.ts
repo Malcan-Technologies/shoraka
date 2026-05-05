@@ -109,7 +109,8 @@ export function buildPayloadFromSteps(steps: unknown[]): Step[] {
       };
     }
 
-    const { _pendingImage: _, ...configForApi } = config;
+    const configForApi = { ...config } as Record<string, unknown>;
+    delete configForApi._pendingImage;
     return { ...step, config: configForApi };
   });
 }

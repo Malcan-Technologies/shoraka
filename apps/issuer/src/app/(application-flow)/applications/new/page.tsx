@@ -9,6 +9,7 @@ import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import { useIssuerProducts } from "@/hooks/use-products";
 import { useCreateApplication } from "@/hooks/use-applications";
 import { filterVisiblePeopleRows } from "@cashsouk/types";
+import type { Product } from "@cashsouk/types";
 import { createApiClient, useAuthToken, useOrganization } from "@cashsouk/config";
 import { toast } from "sonner";
 import { useNavigationGuard } from "@/hooks/use-navigation-guard2";
@@ -63,7 +64,6 @@ export default function NewApplicationPage() {
     },
     { staleTime: 0, refetchOnMount: true }
   );
-
 
   // Hook to create application
   const createApplicationMutation = useCreateApplication();
@@ -123,12 +123,7 @@ export default function NewApplicationPage() {
       tryNavigate: tryNavigateInternalLinks,
     });
     return () => setIssuerUnsavedNavGuard(null);
-  }, [
-    activeOrganization,
-    hasUnsavedChanges,
-    tryNavigateInternalLinks,
-    setIssuerUnsavedNavGuard,
-  ]);
+  }, [activeOrganization, hasUnsavedChanges, tryNavigateInternalLinks, setIssuerUnsavedNavGuard]);
 
   const { getAccessToken } = useAuthToken();
   const apiClient = createApiClient(undefined, getAccessToken);
@@ -153,7 +148,7 @@ export default function NewApplicationPage() {
     }
   }, [activeOrganization, isOrgLoading, router]);
 
-  const apiProducts = (productsData as any)?.products || [];
+  const apiProducts: Product[] = productsData?.products ?? [];
   const products = USE_MOCK_FINANCING_TYPE_CATALOG ? MOCK_FINANCING_TYPE_PRODUCTS : apiProducts;
 
   /**
@@ -187,15 +182,14 @@ export default function NewApplicationPage() {
       return [];
     }
 
-    const selectedProduct = products.find((p: any) => p.id === selectedProductId);
+    const selectedProduct = products.find((p) => p.id === selectedProductId);
 
     if (!selectedProduct || !selectedProduct.workflow) {
       return [];
     }
 
-    return selectedProduct.workflow.map((step: any) => step.name);
+    return selectedProduct.workflow.map((step) => String((step as { name?: string }).name ?? ""));
   }, [selectedProductId, products]);
-
 
   // Don't render main content until org is resolved and verified (includes initial load after refresh)
   if (isOrgLoading || !activeOrganization || activeOrganization.onboardingStatus !== "COMPLETED") {
@@ -214,7 +208,6 @@ export default function NewApplicationPage() {
       </div>
     );
   }
-
 
   /**
    * When user selects a product
@@ -256,7 +249,7 @@ export default function NewApplicationPage() {
 
     try {
       const liveResp = await apiClient.getIssuerProductLiveCheck(selectedProductId);
-      const currentProduct = productsData?.products?.find((p: any) => p.id === selectedProductId);
+      const currentProduct = productsData?.products?.find((p) => p.id === selectedProductId);
 
       if (!liveResp.success) {
         setVersionModalReason("PRODUCT_UNAVAILABLE");
@@ -295,7 +288,7 @@ export default function NewApplicationPage() {
       // Clear unsaved and go to step 2 (next step after selecting product)
       setHasUnsavedChanges(false);
       router.push(`/applications/edit/${application.id}?step=2`);
-    } catch (error) {
+    } catch {
       // Error already shown by mutation hook
     }
   };
@@ -335,7 +328,7 @@ export default function NewApplicationPage() {
   }
 
   // (unsaved modal will be rendered inside returned JSX)
- 
+
   return (
     <div className="flex flex-col h-full">
       {/* Main content */}
@@ -355,9 +348,7 @@ export default function NewApplicationPage() {
         <div className="max-w-7xl mx-auto w-full px-4 py-8">
           {/* Page Title */}
           <div className="mb-6">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
-              Select financing type
-            </h1>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Select financing type</h1>
             <p className="text-[15px] leading-7 text-muted-foreground mt-1">
               Browse and invest in verified financing opportunities from your dashboard
             </p>
@@ -365,11 +356,7 @@ export default function NewApplicationPage() {
 
           {/* Progress Indicator */}
           {workflowSteps.length > 0 && (
-            <ProgressIndicator
-              steps={workflowSteps}
-              currentStep={1}
-              isLoading={false}
-            />
+            <ProgressIndicator steps={workflowSteps} currentStep={1} isLoading={false} />
           )}
         </div>
 
@@ -383,11 +370,12 @@ export default function NewApplicationPage() {
               <p className="font-semibold">Development: mock product catalog</p>
               <p className="mt-1 text-[15px] leading-7 opacity-95">
                 Sorting matches the live app: categories use{" "}
-                <span className="font-mono text-xs">category_display_order</span> (lower first; missing → last), then
-                name. Products inside a category use{" "}
-                <span className="font-mono text-xs">product_display_order</span> (lower first; missing → last), then{" "}
-                <span className="font-mono text-xs">created_at</span>. New products from admin get the next order values
-                from the API when created. Save and Continue is disabled until you turn the mock off.
+                <span className="font-mono text-xs">category_display_order</span> (lower first;
+                missing → last), then name. Products inside a category use{" "}
+                <span className="font-mono text-xs">product_display_order</span> (lower first;
+                missing → last), then <span className="font-mono text-xs">created_at</span>. New
+                products from admin get the next order values from the API when created. Save and
+                Continue is disabled until you turn the mock off.
               </p>
             </div>
           ) : null}

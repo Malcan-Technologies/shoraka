@@ -22,9 +22,10 @@ import {
   formSelectTriggerClassName,
 } from "@/app/(application-flow)/applications/components/form-control";
 import { cn } from "@/lib/utils";
-import { FinancingStructureSkeleton } from "@/app/(application-flow)/applications/components/financing-structure-skeleton";
+import type { Contract } from "@cashsouk/types";
 import { SelectionCard } from "@/app/(application-flow)/applications/components/selection-card";
 import { useDevTools } from "@/app/(application-flow)/applications/components/dev-tools-context";
+import { FinancingStructureSkeleton } from "@/app/(application-flow)/applications/components/financing-structure-skeleton";
 
 /**
  * FINANCING STRUCTURE STEP
@@ -43,7 +44,7 @@ type FinancingStructureType = "new_contract" | "existing_contract" | "invoice_on
 
 interface FinancingStructureStepProps {
   applicationId: string;
-  onDataChange?: (data: any) => void;
+  onDataChange?: (data: Record<string, unknown>) => void;
   readOnly?: boolean;
 }
 
@@ -98,7 +99,7 @@ export function FinancingStructureStep({
    *
    * What: Stable callback ref for `onDataChange`.
    * Why: Avoid effect re-runs when parent passes a new function identity.
-   * Data: `onDataChange?: (data: any) => void`.
+   * Data: `onDataChange?: (data: Record<string, unknown>) => void`.
    */
   const onDataChangeRef = React.useRef(onDataChange);
   React.useEffect(() => {
@@ -111,10 +112,13 @@ export function FinancingStructureStep({
   React.useEffect(() => {
     if (!application || isInitialized) return;
 
-    const savedData = application.financing_structure as any;
+    const savedData = application.financing_structure as
+      | Record<string, unknown>
+      | null
+      | undefined;
 
-    const initialType = savedData?.structure_type ?? "new_contract";
-    const initialContractId = savedData?.existing_contract_id ?? "";
+    const initialType = (savedData?.structure_type as FinancingStructureType | undefined) ?? "new_contract";
+    const initialContractId = (savedData?.existing_contract_id as string | undefined) ?? "";
 
     setSelectedStructure(initialType);
     setSelectedContractId(initialContractId);
@@ -149,9 +153,9 @@ export function FinancingStructureStep({
     };
 
     // If existing contract is selected, provide the details for autofill
-    let additionalData: any = {};
+    let additionalData: Record<string, unknown> = {};
     if (selectedStructure === "existing_contract" && selectedContractId) {
-      const contract = approvedContracts.find((c: any) => c.id === selectedContractId);
+      const contract = approvedContracts.find((c: Contract) => c.id === selectedContractId);
       if (contract) {
         additionalData = {
           autofillContract: {
@@ -169,9 +173,9 @@ export function FinancingStructureStep({
     // Normalize missing DB values to the UI defaults so initial-load
     // equality checks are correct and we don't mark the step as dirty
     // when the DB has no financing_structure record yet.
-    const savedStructure = application?.financing_structure as any;
-    const savedType = savedStructure?.structure_type ?? "new_contract";
-    const savedContractId = savedStructure?.existing_contract_id ?? "";
+    const savedStructure = application?.financing_structure as Record<string, unknown> | null | undefined;
+    const savedType = (savedStructure?.structure_type as FinancingStructureType | undefined) ?? "new_contract";
+    const savedContractId = (savedStructure?.existing_contract_id as string | undefined) ?? "";
 
     const structureChanged =
       savedType !== selectedStructure ||
@@ -282,9 +286,9 @@ export function FinancingStructureStep({
                 </SelectTrigger>
 
                 <SelectContent>
-                  {approvedContracts.map((contract: any) => (
+                  {approvedContracts.map((contract: Contract) => (
                     <SelectItem key={contract.id} value={contract.id}>
-                      {(contract.contract_details as any)?.title || "Untitled Contract"}
+                      {contract.contract_details?.title ?? "Untitled Contract"}
                     </SelectItem>
                   ))}
                 </SelectContent>

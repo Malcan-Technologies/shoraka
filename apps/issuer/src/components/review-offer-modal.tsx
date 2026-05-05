@@ -32,6 +32,7 @@ import {
 } from "@/hooks/use-applications";
 import { toast } from "sonner";
 import { formatMoneyDisplay } from "@cashsouk/ui";
+import type { Contract, Invoice } from "@cashsouk/types";
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return "—";
@@ -45,8 +46,8 @@ function formatDate(value: string | null | undefined): string {
 }
 
 type OfferContext =
-  | { type: "contract"; applicationId: string; contract: { offer_details?: Record<string, unknown> | null } }
-  | { type: "invoice"; applicationId: string; invoiceId: string; invoice: { offer_details?: Record<string, unknown> | null } };
+  | { type: "contract"; applicationId: string; contract: Contract }
+  | { type: "invoice"; applicationId: string; invoiceId: string; invoice: Invoice };
 
 interface ReviewOfferModalProps {
   open: boolean;
