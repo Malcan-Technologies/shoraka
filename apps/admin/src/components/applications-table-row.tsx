@@ -16,6 +16,10 @@ import {
   applicationTableCellNumericClass,
   applicationTableCellCenterClass,
 } from "./application-review/application-table-styles";
+import {
+  ADMIN_DIRECTOR_SHAREHOLDER_PENDING_LABEL,
+  ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT,
+} from "@/lib/admin-director-shareholder-review-message";
 
 interface ApplicationsTableRowProps {
   application: ApplicationListItem;
@@ -48,9 +52,9 @@ export function ApplicationsTableRow({
           {hasPending ? (
             <span
               className="shrink-0 inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:text-amber-100"
-              title="Issuer can still act on director/shareholder rows (email, resend, or onboarding before AML blocks)."
+              title={ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT}
             >
-              Director/Shareholder action
+              {ADMIN_DIRECTOR_SHAREHOLDER_PENDING_LABEL}
             </span>
           ) : null}
         </div>

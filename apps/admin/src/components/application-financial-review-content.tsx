@@ -59,14 +59,12 @@ import {
 } from "@/hooks/use-admin-issuer-organization-ctos-mutations";
 import { applicationsKeys } from "@/applications/query-keys";
 import { CTOS_ACTION_BUTTON_COMPACT_CLASSNAME, CTOS_CONFIRM, CTOS_UI } from "@/lib/ctos-ui-labels";
+import { ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT } from "@/lib/admin-director-shareholder-review-message";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 /** Year row placeholder when no year (em dash). */
 const HEADER_PLACEHOLDER = "\u2014";
-
-const DIRECTOR_SHAREHOLDER_UPDATE_TOAST_DESCRIPTION =
-  "There are updates to director/shareholder information.";
 
 function matchKeysFromPeople(people: ApplicationPersonRow[] | undefined | null): Set<string> {
   const set = new Set<string>();
@@ -498,7 +496,7 @@ export function ApplicationFinancialReviewContent({
         );
         const nextKeys = matchKeysFromPeople(cached?.people);
         if (hasNewMatchKeysAfterCtos(prevKeys, nextKeys)) {
-          toast("New update", { description: DIRECTOR_SHAREHOLDER_UPDATE_TOAST_DESCRIPTION });
+          toast("New update", { description: ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT });
         }
       },
       onError: (e: Error) => {

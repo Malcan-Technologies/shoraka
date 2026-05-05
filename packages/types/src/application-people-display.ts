@@ -15,6 +15,7 @@ import {
 } from "./director-shareholder-display";
 import { getCtosPartySupplementFlatRead } from "./ctos-party-supplement-json";
 import { normalizeRawStatus } from "./status-normalization";
+import { isReadyOnboardingStatus } from "./onboarding-readiness";
 export type ApplicationPersonRow = {
   /**
    * SOURCE OF TRUTH (CRITICAL)
@@ -177,6 +178,23 @@ export function filterVisiblePeopleRows<T extends PeopleRolesRowInput>(peopleRow
       return { ...p, roles: nextRoles };
     })
     .filter((p): p is NonNullable<typeof p> => p !== null);
+}
+
+/**
+ * Admin Financial section + application listing: true when director/shareholder verification
+ * should be treated as incomplete (blocks approve / shows pending chip).
+ * Mirrors visible-row rules: {@link filterVisiblePeopleRows}, {@link isReadyOnboardingStatus},
+ * {@link isDirectorShareholderAmlScreeningApproved} on each row’s `screening` snapshot.
+ */
+export function computeHasPendingDirectorShareholder(
+  people?: ReadonlyArray<ApplicationPersonRow | null | undefined> | null
+): boolean {
+  const list = (people ?? []).filter((p): p is ApplicationPersonRow => p != null);
+  const visible = filterVisiblePeopleRows(list);
+  if (visible.length === 0) return true;
+  const onboardingDoneAll = visible.every((p) => isReadyOnboardingStatus(p.onboarding?.status));
+  const amlDoneAll = visible.every((p) => isDirectorShareholderAmlScreeningApproved(p.screening));
+  return !onboardingDoneAll || !amlDoneAll;
 }
 
 export function formatPeopleRolesLine(p: PeopleRolesRowInput): string {

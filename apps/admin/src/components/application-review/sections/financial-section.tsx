@@ -6,11 +6,8 @@ import { ReviewSectionCard } from "../review-section-card";
 import type { ReviewSectionId } from "../section-types";
 import { SectionComments, type SectionCommentItem } from "../section-comments";
 import { ApplicationFinancialReviewComparison } from "@/components/application-financial-review-comparison";
-import { isReadyForFinancialApproval, type ApplicationPersonRow } from "@cashsouk/types";
-
-const DIRECTOR_SHAREHOLDER_PENDING_LABEL = "Director/Shareholder AML Pending";
-const DIRECTOR_SHAREHOLDER_PENDING_TOOLTIP =
-  "AML screening must be approved for all directors/shareholders before Financial can be approved.";
+import { computeHasPendingDirectorShareholder, type ApplicationPersonRow } from "@cashsouk/types";
+import { ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT } from "@/lib/admin-director-shareholder-review-message";
 
 export type FinancialSectionAppSlice = {
   people?: ApplicationPersonRow[];
@@ -75,7 +72,7 @@ export function FinancialSection({
   sectionComparison,
   hideSectionComments = false,
 }: FinancialSectionProps) {
-  const hasPendingDirectorShareholder = !isReadyForFinancialApproval(app.people ?? []);
+  const hasPendingDirectorShareholder = computeHasPendingDirectorShareholder(app.people);
 
   if (sectionComparison) {
     return (
@@ -104,20 +101,14 @@ export function FinancialSection({
       sectionStatus={sectionStatus}
       showApprove={true}
       approveDisabled={hasPendingDirectorShareholder}
-      approveDisabledReason={
-        hasPendingDirectorShareholder ? DIRECTOR_SHAREHOLDER_PENDING_TOOLTIP : undefined
-      }
       onResetToPending={onResetSectionToPending}
       onApprove={onApprove}
       onReject={onReject}
       onRequestAmendment={onRequestAmendment}
     >
       {hasPendingDirectorShareholder ? (
-        <div
-          className="rounded-xl border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
-          title={DIRECTOR_SHAREHOLDER_PENDING_TOOLTIP}
-        >
-          {DIRECTOR_SHAREHOLDER_PENDING_LABEL}
+        <div className="rounded-xl border border-amber-300/60 bg-amber-50/70 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+          {ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT}
         </div>
       ) : null}
       <ApplicationFinancialReviewContent

@@ -71,11 +71,11 @@ import {
   XCircleIcon,
 } from "@heroicons/react/24/outline";
 import { formatCurrency, useAuthToken, readInvoiceMaturityMonthsFromWorkflow } from "@cashsouk/config";
+import { computeHasPendingDirectorShareholder, type ApplicationPersonRow } from "@cashsouk/types";
 import {
-  filterVisiblePeopleRows,
-  normalizeRawStatus,
-  type ApplicationPersonRow,
-} from "@cashsouk/types";
+  ADMIN_DIRECTOR_SHAREHOLDER_PENDING_LABEL,
+  ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT,
+} from "@/lib/admin-director-shareholder-review-message";
 import { ApplicationStatusBadge } from "@/components/application-review";
 import JSZip from "jszip";
 
@@ -214,8 +214,9 @@ export default function DynamicApplicationDetailPage() {
     "AMENDMENT_REQUESTED",
   ];
   const isReviewable = !!app && REVIEWABLE_STATUSES.includes(app.status);
-  const isFinalApplicationForAmlGate =
-    app?.status === "APPROVED" || app?.status === "COMPLETED";
+  const isFinalApplicationForAmlGate = ["APPROVED", "FUNDED", "COMPLETED"].includes(
+    String(app?.status ?? "")
+  );
   const applicationContractId =
     (app as { contract_id?: string | null } | null)?.contract_id ??
     (app?.contract as { id?: string | null } | null)?.id ??
@@ -690,20 +691,13 @@ export default function DynamicApplicationDetailPage() {
                   </div>
                   <ApplicationStatusBadge status={app.status} size="lg" />
                   {!isFinalApplicationForAmlGate &&
-                  (() => {
-                    const visibleIndividuals = filterVisiblePeopleRows(
-                      applicationPeople
-                    ).filter((person) => person.entityType === "INDIVIDUAL");
-                    return (
-                      visibleIndividuals.length > 0 &&
-                      visibleIndividuals.some(
-                        (person) => normalizeRawStatus(person.screening?.status) !== "APPROVED"
-                      )
-                    );
-                  })() ? (
-                    <Badge variant="secondary" className="rounded-full text-xs font-semibold">
-                      Pending Director/Shareholder AML
-                    </Badge>
+                  computeHasPendingDirectorShareholder(applicationPeople) ? (
+                    <span
+                      className="shrink-0 inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-900 dark:text-amber-100"
+                      title={ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT}
+                    >
+                      {ADMIN_DIRECTOR_SHAREHOLDER_PENDING_LABEL}
+                    </span>
                   ) : null}
                 </div>
                 {isReviewable ? (
