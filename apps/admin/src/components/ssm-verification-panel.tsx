@@ -517,12 +517,10 @@ function DirectorBucketsBlock({
   const hasAnyApp = applicationRows.length > 0;
   const hasAnyCtos = ctosRows.length > 0;
 
-  const ctosDirectorsEmptyDescription =
+  const ctosDirectorEmpty =
     ctosOrgState === "not_pulled"
-      ? "Pull an SSM report first. Director lines from the extract will show here after a successful fetch."
-      : ctosOrgState === "no_record"
-        ? `The stored report has no director rows. Try “${CTOS_UI.fetchReport}” again or check the extract in RegTank.`
-        : "This extract has no director rows to compare.";
+      ? { title: "No directors fetched", description: "Click Fetch report to get the latest SSM data." }
+      : { title: "No directors found", description: "Try fetching again or open the report to check the details." };
 
   return (
     <div className="space-y-3">
@@ -532,8 +530,8 @@ function DirectorBucketsBlock({
           !hasAnyApp ? (
             <CompareEmptyState
               icon={UserGroupIcon}
-              title="No directors on the application"
-              description="RegTank did not return director rows for this company, or none are in scope yet. You can still verify company details and use amendment if the user must update directors."
+              title="No directors listed"
+              description="Use Amendment if the applicant needs to update this information."
             />
           ) : (
             <AppDirectorTable rows={applicationRows} />
@@ -543,8 +541,8 @@ function DirectorBucketsBlock({
           !hasAnyCtos ? (
             <CompareEmptyState
               icon={InboxIcon}
-              title="No director data from SSM"
-              description={ctosDirectorsEmptyDescription}
+              title={ctosDirectorEmpty.title}
+              description={ctosDirectorEmpty.description}
             />
           ) : (
             <CtosDirectorTable rows={ctosRows} />
@@ -570,12 +568,14 @@ function ShareholderBucketsBlock({
   const hasAnyApp = applicationRows.length > 0;
   const hasAnyCtos = ctosRows.length > 0;
 
-  const ctosShEmptyDescription =
+  const ctosShareholderEmpty =
     ctosOrgState === "not_pulled"
-      ? "Pull an SSM report first. Shareholding lines from the extract will appear here after fetch."
-      : ctosOrgState === "no_record"
-        ? "The stored report has no shareholder-position rows in this snapshot. Try fetching again or review the report."
-        : "This extract has no shareholder-position rows listed after filtering under-5% positions.";
+      ? { title: "No shareholders fetched", description: "Click Fetch report to get the latest SSM data." }
+      : {
+          title: "No shareholders found",
+          description:
+            "Shareholders below 5% are hidden from this view. Try fetching again or open the report to check the details.",
+        };
 
   return (
     <div className="space-y-3">
@@ -585,8 +585,8 @@ function ShareholderBucketsBlock({
           !hasAnyApp ? (
             <CompareEmptyState
               icon={UserGroupIcon}
-              title="No shareholder rows on the application"
-              description="No shareholder rows remain after skipping under‑5% entries (directors-only stay in Directors). Missing “%” in the grid still lists the row."
+              title="No shareholders listed"
+              description="Shareholders below 5% are hidden from this view. Use Amendment if the applicant needs to update this information."
             />
           ) : (
             <AppShareholderTable rows={applicationRows} sharePctById={appSharePctById} />
@@ -596,8 +596,8 @@ function ShareholderBucketsBlock({
           !hasAnyCtos ? (
             <CompareEmptyState
               icon={InboxIcon}
-              title="No shareholder data from SSM"
-              description={ctosShEmptyDescription}
+              title={ctosShareholderEmpty.title}
+              description={ctosShareholderEmpty.description}
             />
           ) : (
             <CtosShareholderTable rows={ctosRows} />
@@ -949,14 +949,14 @@ export function SSMVerificationPanel({
               useOrgCtosFlow && orgFetchState === "not_pulled" ? (
                 <CompareEmptyState
                   icon={DocumentTextIcon}
-                  title="No SSM company data yet"
-                  description={`Click “${CTOS_UI.fetchReport}” to pull the latest extract. Name and SSM number from the report will show here under Onboarding for review.`}
+                  title="No company data fetched"
+                  description="Click Fetch report to get the latest SSM data."
                 />
               ) : useOrgCtosFlow && orgFetchState === "no_record" ? (
                 <CompareEmptyState
                   icon={ExclamationTriangleIcon}
-                  title="No company block in this report"
-                  description={`The latest stored report does not include a usable company extract. Try “${CTOS_UI.fetchReport}” again, or open the full report if ${CTOS_UI.viewReport} is available.`}
+                  title="No company data found"
+                  description="Try fetching again or open the report to check the details."
                 />
               ) : (
                 <div className={compareTableWrap}>
