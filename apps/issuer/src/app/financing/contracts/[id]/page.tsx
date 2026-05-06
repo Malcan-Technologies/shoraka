@@ -13,7 +13,10 @@ import { useIssuerDashboardContract } from "@/hooks/use-issuer-dashboard";
 import { FilterButton, DashboardInvoiceCard } from "@/components/dashboard/financing-section";
 import { ReviewOfferModal } from "@/components/review-offer-modal";
 import { getOfferStatus } from "@/lib/offer-utils";
-import { formatStatus } from "@/lib/issuer-dashboard-labels";
+import {
+  getIssuerFinancingStatusPresentation,
+  resolveIssuerContractDashboardBadge,
+} from "@/lib/issuer-dashboard-labels";
 import { asInvoiceForModal } from "@/types/issuer-dashboard";
 import type { Invoice } from "@cashsouk/types";
 
@@ -72,6 +75,7 @@ export default function ContractDetailsPage() {
   }
 
   const stats = row.invoiceStats;
+  const contractPresentation = getIssuerFinancingStatusPresentation(resolveIssuerContractDashboardBadge(row.contractStatus));
 
   return (
     <div className="flex-1 px-8 pt-6 pb-12 space-y-8">
@@ -88,8 +92,8 @@ export default function ContractDetailsPage() {
               <p className="text-[15px] font-medium">
                 Contract : <span className="font-semibold">{row.title ?? "-"}</span>
               </p>
-              <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
-                {formatStatus(row.contractStatus)}
+              <Badge variant={contractPresentation.variant} className={contractPresentation.className || undefined}>
+                {contractPresentation.label}
               </Badge>
             </div>
             <Button variant="ghost" size="icon" className="rounded-full h-9 w-9">

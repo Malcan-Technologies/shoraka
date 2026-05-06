@@ -24,11 +24,12 @@ import type { Product } from "@cashsouk/types";
 import type { IssuerDashboardContract, IssuerDashboardData, IssuerDashboardInvoice } from "@/types/issuer-dashboard";
 import { asContractForModal, asInvoiceForModal } from "@/types/issuer-dashboard";
 import {
-  formatStatus,
+  getIssuerFinancingStatusPresentation,
   resolveFundingProgressPercent,
   resolveFundingStatusText,
-  resolveInvoiceCardBadge,
-  type InvoiceCardBadgeKind,
+  resolveIssuerContractDashboardBadge,
+  resolveIssuerInvoiceDashboardBadge,
+  type IssuerFinancingStatusKind,
 } from "@/lib/issuer-dashboard-labels";
 
 function offerBadge(offerStatus: OfferStatus) {
@@ -81,46 +82,13 @@ function formatDate(value: unknown) {
   return `${dd}/${mm}/${yyyy}`;
 }
 
-function issuerInvoiceBadge(kind: InvoiceCardBadgeKind) {
-  switch (kind) {
-    case "draft":
-      return <Badge variant="secondary">Draft</Badge>;
-    case "pending_approval":
-      return <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">Pending approval</Badge>;
-    case "amendment":
-      return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">Amendment requested</Badge>;
-    case "approved":
-      return <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">Approved</Badge>;
-    case "in_progress":
-      return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Funding in progress</Badge>;
-    case "minimum_funding":
-      return (
-        <Badge className="border border-primary/40 bg-primary/5 text-primary hover:bg-primary/5">
-          Minimum funding reached
-        </Badge>
-      );
-    case "funded":
-      return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">Funded</Badge>;
-    case "active":
-      return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Active</Badge>;
-    case "completed":
-      return <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Completed</Badge>;
-    case "unsuccessful":
-      return <Badge className="bg-red-100 text-red-600 hover:bg-red-100">Unsuccessful</Badge>;
-    default:
-      return <Badge variant="outline">In progress</Badge>;
-  }
-}
-
-function contractStatusBadge(status: string) {
-  const label = formatStatus(status);
-  if (label.toLowerCase().includes("amendment")) {
-    return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">Amendment required</Badge>;
-  }
-  if (label.toLowerCase().includes("draft") || label.toLowerCase().includes("pending")) {
-    return <Badge variant="secondary">{label || "Draft"}</Badge>;
-  }
-  return <Badge className="bg-green-100 text-green-700 hover:bg-green-100">{label || "Active"}</Badge>;
+function IssuerFinancingStatusBadge({ kind }: { kind: IssuerFinancingStatusKind }) {
+  const p = getIssuerFinancingStatusPresentation(kind);
+  return (
+    <Badge variant={p.variant} className={p.className}>
+      {p.label}
+    </Badge>
+  );
 }
 
 function groupDashboardByProduct(dashboard: IssuerDashboardData) {
@@ -397,7 +365,9 @@ function DashboardContractCard({
             <p className="text-sm font-medium truncate">
               Contract : <span className="font-semibold">{row.title ?? "-"}</span>
             </p>
-            <span className="ml-2">{contractStatusBadge(row.contractStatus)}</span>
+            <span className="ml-2">
+              <IssuerFinancingStatusBadge kind={resolveIssuerContractDashboardBadge(row.contractStatus)} />
+            </span>
             {offerBadge(offerStatus)}
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -486,7 +456,7 @@ export function DashboardInvoiceCard({
   onReviewOffer: () => void;
 }) {
   const router = useRouter();
-  const badgeKind = resolveInvoiceCardBadge(row.note, row.invoiceStatus);
+  const badgeKind = resolveIssuerInvoiceDashboardBadge(row.note, row.invoiceStatus);
   const progress = resolveFundingProgressPercent(row.note);
   const fundingLabel = resolveFundingStatusText(row.note);
   const noteRef = row.note?.noteReference ?? "-";
@@ -502,7 +472,9 @@ export function DashboardInvoiceCard({
             <p className="text-sm font-medium truncate">
               Invoice no : <span className="font-semibold">{row.invoiceNumber}</span>
             </p>
-            <span className="ml-2">{issuerInvoiceBadge(badgeKind)}</span>
+            <span className="ml-2">
+              <IssuerFinancingStatusBadge kind={badgeKind} />
+            </span>
             {offerBadge(offerStatus)}
           </div>
           <div className="flex items-center gap-2 shrink-0">
