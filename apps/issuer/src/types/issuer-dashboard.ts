@@ -37,7 +37,7 @@ export type IssuerDashboardContract = {
   applicationId: string;
   productId: string;
   contractForModal: unknown;
-  title: string;
+  title: string | null;
   productName: string | null;
   customerName: string | null;
   contractStartDate: string | null;

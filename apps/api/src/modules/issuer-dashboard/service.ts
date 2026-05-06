@@ -70,7 +70,8 @@ export type IssuerDashboardContractDto = {
   productId: string;
   /** JSON-serialized contract row for issuer offer modal (dates as ISO strings). */
   contractForModal: unknown;
-  title: string;
+  /** From `contract_details.title` only; null when missing. */
+  title: string | null;
   productName: string | null;
   customerName: string | null;
   contractStartDate: string | null;
@@ -299,12 +300,16 @@ export class IssuerDashboardService {
 
       const activeNotesOnContract = contractNotes.filter((n) => n.status === NoteStatus.ACTIVE).length;
 
+      const titleRaw = details?.title;
+      const contractTitle =
+        typeof titleRaw === "string" && titleRaw.trim().length > 0 ? titleRaw.trim() : null;
+
       contractsOut.push({
         id: c.id,
         applicationId: app.id,
         productId,
         contractForModal: jsonForModal(c),
-        title: (details?.title as string | undefined) ?? c.id,
+        title: contractTitle,
         productName: null,
         customerName: (customer?.name as string | undefined) ?? null,
         contractStartDate: (details?.start_date as string | undefined) ?? null,
@@ -332,6 +337,10 @@ export class IssuerDashboardService {
     for (const app of applications) {
       const financing = asRecord(app.financing_type);
       const productId = (financing?.product_id as string | undefined) ?? "";
+      const invoiceCustomerName = app.contract
+        ? ((asRecord(app.contract.customer_details)?.name as string | undefined) ?? null)
+        : null;
+
       for (const inv of app.invoices) {
         const details = asRecord(inv.details);
         const invNote = notesByInvoiceId.get(inv.id) ?? null;
@@ -358,7 +367,7 @@ export class IssuerDashboardService {
           invoiceForModal: jsonForModal(inv),
           invoiceStatus: inv.status,
           invoiceNumber: (details?.number as string | undefined) ?? inv.id,
-          customerName: (details?.customer as string | undefined) ?? (details?.customer_name as string | undefined) ?? null,
+          customerName: invoiceCustomerName,
           invoiceValue: invVal !== null ? invVal.toFixed(2) : null,
           financingAmount,
           submissionDate: inv.created_at.toISOString(),
