@@ -170,8 +170,8 @@ export function getCompanyOnboardingSteps(onboardingStatus: string, ssmApproved:
     },
     {
       id: "ssm",
-      label: "CTOS Verification",
-      description: "Verify company against CTOS records",
+      label: "SSM Verification",
+      description: "Verify company against SSM records",
       status: "pending",
     },
     {

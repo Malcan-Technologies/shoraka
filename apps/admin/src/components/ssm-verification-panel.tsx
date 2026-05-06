@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * SECTION: CTOS / company registry verification (onboarding admin)
- * WHY: Manual CTOS fetch; application vs CTOS shown in separate blocks for admin review
- * INPUT: onboarding application + org CTOS list API (issuer or investor company)
- * OUTPUT: stacked Onboarding + CTOS tables (neutral compare UI), attestation, approve / reject / RegTank amendment
+ * SECTION: SSM / company registry verification (onboarding admin)
+ * WHY: Manual org report fetch; application vs registry extract in separate blocks for admin review
+ * INPUT: onboarding application + org report list API (issuer or investor company)
+ * OUTPUT: stacked Onboarding + SSM-side tables, attestation, approve / reject / RegTank amendment
  * WHERE USED: OnboardingReviewDialog (PENDING_SSM_REVIEW)
  */
 
@@ -34,7 +34,6 @@ import { cn } from "@/lib/utils";
 import { formatApiErrorMessage } from "@/lib/format-api-error-message";
 import {
   CTOS_ACTION_BUTTON_COMPACT_CLASSNAME,
-  CTOS_CONFIRM,
   CTOS_FETCH_BUTTON_CLASSNAME,
   CTOS_UI,
 } from "@/lib/ctos-ui-labels";
@@ -77,11 +76,19 @@ import {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
+/** Onboarding fetch dialog only (financial/business screens keep CTOS-named shared copy). */
+const SSM_ONBOARDING_FETCH_CONFIRM = {
+  title: "Fetch SSM report?",
+  organizationDescription:
+    "This runs a new SSM enquiry for the organization and saves the result. After it succeeds, the new copy appears in history and any screen that uses this data can read it.",
+  cancel: "Cancel",
+} as const;
+
 /**
- * CTOS verification mock for local UI work.
+ * SSM verification mock for local UI work.
  * - "off": real list API + fetch mutation.
- * - "demo": fake report with people rows (matched, app-only, CTOS-only).
- * - "empty": no KYC people and no reports → empty states everywhere (company CTOS = not pulled).
+ * - "demo": fake report with people rows (matched, app-only, SSM-only).
+ * - "empty": no KYC people and no reports → empty states everywhere (company extract = not pulled).
  */
 type MockOnboardingCtosMode = "off" | "demo" | "empty";
 
@@ -91,7 +98,7 @@ const MOCK_ONBOARDING_CTOS_MODE = "off" as MockOnboardingCtosMode;
 const useMockOnboardingCtos = MOCK_ONBOARDING_CTOS_MODE !== "off";
 const mockOnboardingCtosEmpty = MOCK_ONBOARDING_CTOS_MODE === "empty";
 
-/** Eod ids: mirrored to CTOS in mock except these (demo “only on application”). */
+/** Eod ids: mirrored to extract side in mock except these (demo “only on application”). */
 const MOCK_APP_ONLY_EOD_IDS = new Set(["mock-app-only-dir", "mock-app-only-sh"]);
 
 /** Mock preview: zero directors/shareholders so compare tables use empty states. */
@@ -106,7 +113,7 @@ function emptyDirectorKycForMockPreview(): CorporateDirectorData {
   };
 }
 
-/** When the real application has no people rows, inject KYC rows so mock tables show matched + app-only + CTOS-only. */
+/** When the real application has no people rows, inject KYC rows so mock tables show matched + app-only + SSM-only. */
 function syntheticDemoDirectorKycForMock(): CorporateDirectorData {
   const t = new Date(0).toISOString();
   return {
@@ -203,7 +210,7 @@ function buildMockOrgCtosReports(application: OnboardingApplicationResponse): Ad
     {
       nic_brno: "550055005505",
       ic_lcno: null,
-      name: "CTOS-only Director Demo",
+      name: "SSM-only Director Demo",
       position: "DO",
       equity_percentage: null,
       equity: null,
@@ -212,7 +219,7 @@ function buildMockOrgCtosReports(application: OnboardingApplicationResponse): Ad
     {
       nic_brno: "440044004404",
       ic_lcno: null,
-      name: "CTOS-only Shareholder Demo",
+      name: "SSM-only Shareholder Demo",
       position: "SO",
       equity_percentage: 18,
       equity: null,
@@ -257,7 +264,7 @@ function buildMockOrgCtosReports(application: OnboardingApplicationResponse): Ad
 
 const tableBase = "w-full min-w-[20rem] table-fixed text-sm";
 
-/** Same shell for onboarding vs CTOS tables — matches card-in-step pattern from onboarding review. */
+/** Same shell for onboarding vs registry-extract tables — matches card-in-step pattern from onboarding review. */
 const compareTableWrap = "rounded-lg border border-border bg-card overflow-x-auto shadow-sm";
 
 const compareTableHeaderRow = "bg-muted/60 hover:bg-muted/60 border-b border-border";
@@ -274,7 +281,7 @@ const compareTdMutedRight = "px-3 py-2.5 text-sm text-muted-foreground text-righ
 const comparePairTitleClass = "text-base font-semibold text-foreground";
 const compareSectionHeadingClass = "text-sm font-semibold text-foreground";
 
-/** One card: Onboarding on top, CTOS below — vertical only. */
+/** One card: Onboarding on top, SSM-side extract below — vertical only. */
 function ComparePairSection({
   onboarding,
   ctos,
@@ -291,7 +298,7 @@ function ComparePairSection({
             {onboarding}
           </div>
           <div className="space-y-3 bg-muted/20 p-4 md:p-5 dark:bg-muted/10">
-            <CardTitle className={comparePairTitleClass}>CTOS</CardTitle>
+            <CardTitle className={comparePairTitleClass}>SSM</CardTitle>
             {ctos}
           </div>
         </div>
@@ -326,7 +333,7 @@ function CompareEmptyState({
   );
 }
 
-/** Matched pairs first (same row order on both sides), then application-only, then CTOS-only. */
+/** Matched pairs first (same row order on both sides), then application-only, then extract-only. */
 function orderedCompareRows(buckets: OnboardingPeopleBuckets): {
   applicationRows: DirectorKycStatus[];
   ctosRows: CtosOrgDirectorParsed[];
@@ -512,7 +519,7 @@ function DirectorBucketsBlock({
 
   const ctosDirectorsEmptyDescription =
     ctosOrgState === "not_pulled"
-      ? "Pull a CTOS report first. Director lines from the extract will show here after a successful fetch."
+      ? "Pull an SSM report first. Director lines from the extract will show here after a successful fetch."
       : ctosOrgState === "no_record"
         ? `The stored report has no director rows. Try “${CTOS_UI.fetchReport}” again or check the extract in RegTank.`
         : "This extract has no director rows to compare.";
@@ -536,7 +543,7 @@ function DirectorBucketsBlock({
           !hasAnyCtos ? (
             <CompareEmptyState
               icon={InboxIcon}
-              title="No director data from CTOS"
+              title="No director data from SSM"
               description={ctosDirectorsEmptyDescription}
             />
           ) : (
@@ -565,7 +572,7 @@ function ShareholderBucketsBlock({
 
   const ctosShEmptyDescription =
     ctosOrgState === "not_pulled"
-      ? "Pull a CTOS report first. Shareholding lines from the extract will appear here after fetch."
+      ? "Pull an SSM report first. Shareholding lines from the extract will appear here after fetch."
       : ctosOrgState === "no_record"
         ? "The stored report has no shareholder-position rows in this snapshot. Try fetching again or review the report."
         : "This extract has no shareholder-position rows listed after filtering under-5% positions.";
@@ -589,7 +596,7 @@ function ShareholderBucketsBlock({
           !hasAnyCtos ? (
             <CompareEmptyState
               icon={InboxIcon}
-              title="No shareholder data from CTOS"
+              title="No shareholder data from SSM"
               description={ctosShEmptyDescription}
             />
           ) : (
@@ -652,10 +659,10 @@ export function SSMVerificationPanel({
       void queryClient.invalidateQueries({
         queryKey: ["admin", "organization-ctos-reports", application.portal, orgId],
       });
-      toast.success("CTOS report saved.");
+      toast.success("SSM report saved.");
     },
     onError: (e: Error) => {
-      toast.error(e.message || "CTOS request failed");
+      toast.error(e.message || "SSM request failed");
     },
   });
 
@@ -759,7 +766,7 @@ export function SSMVerificationPanel({
       });
       return;
     }
-    const t = toast.loading("Fetching CTOS report…");
+    const t = toast.loading("Fetching SSM report…");
     fetchCtosMutation.mutate(undefined, {
       onSettled: () => toast.dismiss(t),
     });
@@ -799,7 +806,7 @@ export function SSMVerificationPanel({
               <CardTitle className="text-lg flex flex-wrap items-center gap-2">
                 <BuildingOffice2Icon className="h-5 w-5 shrink-0" aria-hidden />
                 <span className="flex items-center gap-0.5">
-                  CTOS Verification
+                  SSM Verification
                   {useOrgCtosFlow ? (
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -808,13 +815,13 @@ export function SSMVerificationPanel({
                             fieldTooltipTriggerClassName,
                             "inline-flex shrink-0 rounded-sm"
                           )}
-                          aria-label="About CTOS data on this screen"
+                          aria-label="About SSM data on this screen"
                         >
                           <InformationCircleIcon className="h-4 w-4" aria-hidden />
                         </span>
                       </TooltipTrigger>
                       <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
-                        CTOS data comes from the latest stored report. It can list people who are not on the onboarding
+                        SSM-side data comes from the latest stored report. It can list people who are not on the onboarding
                         application. You approve manually with the checkbox.
                       </TooltipContent>
                     </Tooltip>
@@ -892,14 +899,14 @@ export function SSMVerificationPanel({
             <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100">
               {mockOnboardingCtosEmpty ? (
                 <>
-                  Mock CTOS mode <span className="font-mono text-xs">empty</span>: no onboarding people and no stored
+                  Mock SSM mode <span className="font-mono text-xs">empty</span>: no onboarding people and no stored
                   report — you should see empty states in every compare block. Use{" "}
                   <span className="font-mono text-xs">demo</span> for populated sample rows.
                 </>
               ) : (
                 <>
-                  Mock CTOS mode <span className="font-mono text-xs">demo</span>: fake list and extract (matched,
-                  onboarding-only, CTOS-only rows). Use <span className="font-mono text-xs">empty</span> for an all-empty
+                  Mock SSM mode <span className="font-mono text-xs">demo</span>: fake list and extract (matched,
+                  onboarding-only, SSM-only rows). Use <span className="font-mono text-xs">empty</span> for an all-empty
                   preview. Set <span className="font-mono text-xs">off</span> in{" "}
                   <span className="font-mono text-xs">ssm-verification-panel.tsx</span> for real data.
                 </>
@@ -909,7 +916,7 @@ export function SSMVerificationPanel({
 
           {useOrgCtosFlow && !useMockOnboardingCtos && ctosQuery.isError ? (
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-              {(ctosQuery.error as Error)?.message ?? "Could not load CTOS."}
+              {(ctosQuery.error as Error)?.message ?? "Could not load SSM data."}
             </div>
           ) : null}
 
@@ -940,8 +947,8 @@ export function SSMVerificationPanel({
               useOrgCtosFlow && orgFetchState === "not_pulled" ? (
                 <CompareEmptyState
                   icon={DocumentTextIcon}
-                  title="No CTOS company data yet"
-                  description={`Click “${CTOS_UI.fetchReport}” to pull the latest extract. Name and SSM number from CTOS will show here under Onboarding for review.`}
+                  title="No SSM company data yet"
+                  description={`Click “${CTOS_UI.fetchReport}” to pull the latest extract. Name and SSM number from the report will show here under Onboarding for review.`}
                 />
               ) : useOrgCtosFlow && orgFetchState === "no_record" ? (
                 <CompareEmptyState
@@ -1001,7 +1008,7 @@ export function SSMVerificationPanel({
                   className="text-sm font-normal text-foreground leading-snug cursor-pointer"
                 >
                   {useOrgCtosFlow
-                    ? "I have verified this company against CTOS records."
+                    ? "I have verified this company against SSM records."
                     : "I have verified this company against SSM records."}
                 </Label>
               </div>
@@ -1032,7 +1039,7 @@ export function SSMVerificationPanel({
                   className="w-full sm:flex-1 rounded-full gap-2 shadow-sm min-w-[12rem]"
                 >
                   <CheckCircleIcon className="h-5 w-5 shrink-0" aria-hidden />
-                  {useOrgCtosFlow ? "Approve CTOS Verification" : "Approve SSM Verification"}
+                  Approve SSM Verification
                 </Button>
                 <Button
                   type="button"
@@ -1079,12 +1086,12 @@ export function SSMVerificationPanel({
         <AlertDialog open={getLatestConfirmOpen} onOpenChange={setGetLatestConfirmOpen}>
           <AlertDialogContent className="rounded-xl">
             <AlertDialogHeader>
-              <AlertDialogTitle>{CTOS_CONFIRM.title}</AlertDialogTitle>
-              <AlertDialogDescription>{CTOS_CONFIRM.organizationDescription}</AlertDialogDescription>
+              <AlertDialogTitle>{SSM_ONBOARDING_FETCH_CONFIRM.title}</AlertDialogTitle>
+              <AlertDialogDescription>{SSM_ONBOARDING_FETCH_CONFIRM.organizationDescription}</AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel className="rounded-lg" disabled={fetchCtosMutation.isPending}>
-                {CTOS_CONFIRM.cancel}
+                {SSM_ONBOARDING_FETCH_CONFIRM.cancel}
               </AlertDialogCancel>
               <AlertDialogAction
                 className={cn(buttonVariants({ variant: "secondary" }), "rounded-lg")}
@@ -1093,7 +1100,7 @@ export function SSMVerificationPanel({
                   onConfirmGetLatestReport();
                 }}
               >
-                {CTOS_CONFIRM.primaryAction}
+                {CTOS_UI.fetchReport}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
