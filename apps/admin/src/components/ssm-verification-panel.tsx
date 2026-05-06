@@ -1013,36 +1013,44 @@ export function SSMVerificationPanel({
                 </Label>
               </div>
 
-              <div className="flex w-full flex-wrap items-center justify-between gap-3 gap-y-3">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="lg"
-                  className="shrink-0 rounded-full gap-2"
-                  disabled={disabled}
-                  onClick={onTriggerAmendment}
-                >
-                  <ArrowTopRightOnSquareIcon className="h-5 w-5 shrink-0" aria-hidden />
-                  Amendment
-                </Button>
-                <div className="ml-auto flex shrink-0 items-center gap-2">
+              <div className="flex w-full flex-wrap items-center justify-between gap-3">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="lg"
+                      className="shrink-0 rounded-full gap-2"
+                      disabled={disabled}
+                      aria-label="Amendment. Opens RegTank to request applicant updates."
+                      onClick={onTriggerAmendment}
+                    >
+                      <ArrowTopRightOnSquareIcon className="h-5 w-5 shrink-0" aria-hidden />
+                      Amendment
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" sideOffset={6} className={fieldTooltipContentClassName}>
+                    Opens RegTank to request applicant updates.
+                  </TooltipContent>
+                </Tooltip>
+                <div className="ml-auto flex shrink-0 items-center gap-3">
                   <Button
                     type="button"
                     variant="outline"
                     size="lg"
                     onClick={onReject}
                     disabled={disabled}
-                    className="rounded-full border-destructive text-destructive hover:bg-destructive/10"
+                    className="rounded-full border-input bg-background text-muted-foreground shadow-sm hover:border-destructive/50 hover:bg-destructive/10 hover:text-destructive"
                   >
                     Reject
                   </Button>
                   <Button
                     type="button"
-                    variant="default"
+                    variant="action"
                     size="lg"
                     onClick={onApprove}
                     disabled={!canApprove || disabled}
-                    className="rounded-full gap-2 shadow-sm"
+                    className="rounded-full gap-2"
                   >
                     <CheckCircleIcon className="h-5 w-5 shrink-0" aria-hidden />
                     Approve
