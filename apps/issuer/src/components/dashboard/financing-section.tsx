@@ -311,7 +311,6 @@ export function FinancingSection({ organizationId }: { organizationId?: string }
                           <DashboardContractCard
                             key={c.id}
                             row={c}
-                            productName={productName}
                             offerStatus={offerStatus}
                             onReviewOffer={() =>
                               setOfferModalContext({
@@ -377,12 +376,10 @@ export function FinancingSection({ organizationId }: { organizationId?: string }
 
 function DashboardContractCard({
   row,
-  productName,
   offerStatus,
   onReviewOffer,
 }: {
   row: IssuerDashboardContract;
-  productName: string;
   offerStatus: OfferStatus;
   onReviewOffer: () => void;
 }) {
@@ -427,10 +424,6 @@ function DashboardContractCard({
 
         <div className="grid grid-cols-1 md:grid-cols-[1fr_320px] gap-8 items-start">
           <div className="space-y-2 text-sm">
-            <p>
-              <span className="text-muted-foreground">Product</span>{" "}
-              <span className="font-medium text-foreground">{productName}</span>
-            </p>
             <div>
               <p className="text-xs text-muted-foreground">Customer</p>
               <p className="text-[17px] leading-7 font-medium text-foreground">{row.customerName ?? "-"}</p>
