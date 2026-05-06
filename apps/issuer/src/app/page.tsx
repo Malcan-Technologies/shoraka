@@ -15,7 +15,9 @@ import { OnboardingStatusCard, getOnboardingSteps } from "../components/onboardi
 import { TermsAcceptanceCard } from "../components/terms-acceptance-card";
 import { AccountOverviewCard } from "../components/account-overview-card";
 import { RepaymentPerformanceCard } from "../components/repayment-performance-card";
+import { FinancingSection } from "../components/dashboard/financing-section";
 import { useHeader } from "@cashsouk/ui";
+import { useIssuerDashboard } from "../hooks/use-issuer-dashboard";
 
 function IssuerDashboardContent() {
   const { setTitle } = useHeader();
@@ -39,6 +41,24 @@ function IssuerDashboardContent() {
   const visiblePeopleForDsAlert = useMemo(
     () => filterVisiblePeopleRows(activeOrganization?.people ?? []),
     [activeOrganization?.people]
+  );
+
+  const { data: issuerDashboard } = useIssuerDashboard(activeOrganization?.id);
+
+  const orgDisplayName = useMemo(() => {
+    if (!activeOrganization) return "";
+    if (activeOrganization.firstName && activeOrganization.lastName) {
+      return `${activeOrganization.firstName} ${activeOrganization.lastName}`;
+    }
+    if (activeOrganization.type === "COMPANY" && activeOrganization.name) {
+      return activeOrganization.name;
+    }
+    return activeOrganization.type === "PERSONAL" ? "Personal Account" : "Company Account";
+  }, [activeOrganization]);
+
+  const displayName = useMemo(
+    () => issuerDashboard?.user.displayName?.trim() || orgDisplayName,
+    [issuerDashboard?.user.displayName, orgDisplayName]
   );
 
   // Determine whether the dashboard can be shown (derived, no setState needed)
@@ -140,26 +160,6 @@ function IssuerDashboardContent() {
     return null;
   }
 
-  // Get display name from organization - use firstName + lastName from RegTank data
-  const getDisplayName = () => {
-    if (!activeOrganization) return "";
-
-    // Use firstName + lastName if available (from RegTank onboarding)
-    if (activeOrganization.firstName && activeOrganization.lastName) {
-      return `${activeOrganization.firstName} ${activeOrganization.lastName}`;
-    }
-
-    // Fallback to organization name for company accounts
-    if (activeOrganization.type === "COMPANY" && activeOrganization.name) {
-      return activeOrganization.name;
-    }
-
-    // Default fallback
-    return activeOrganization.type === "PERSONAL" ? "Personal Account" : "Company Account";
-  };
-
-  const displayName = getDisplayName();
-
   // Determine current onboarding step
   const steps = activeOrganization ? getOnboardingSteps(activeOrganization) : [];
   const allStepsComplete = activeOrganization ? steps.every((step) => step.isCompleted) : false;
@@ -244,23 +244,39 @@ function IssuerDashboardContent() {
           {/* Welcome Section - only shown when all steps are complete */}
           {allStepsComplete && (
             <>
-              <section className="flex items-start justify-between">
+              <section className="flex items-start justify-between gap-4 flex-col sm:flex-row sm:items-start">
                 <div>
                   <h2 className="text-2xl font-bold mb-2">Welcome back, {displayName}!</h2>
                   <p className="text-[17px] leading-7 text-muted-foreground">
-                    Manage your financing requests and track your applications from your dashboard.
+                    Manage your financing applications from this dashboard.
                   </p>
                 </div>
-                <Button asChild className="gap-2">
+                <Button asChild className="gap-2 shrink-0">
                   <Link href="/applications/new">
                     <PlusIcon className="h-4 w-4" />
-                    Get Financed
+                    Apply for financing
                   </Link>
                 </Button>
               </section>
 
-              <AccountOverviewCard isDisabled={!isAccountEnabled} />
-              <RepaymentPerformanceCard isDisabled={!isAccountEnabled} />
+              <AccountOverviewCard
+                isDisabled={!isAccountEnabled}
+                successRate={issuerDashboard?.overview.successRatePercent ?? null}
+                activeFinancing={issuerDashboard?.overview.activeFinancingAmount ?? null}
+                activeNotes={issuerDashboard?.overview.activeNotesCount ?? null}
+                completedNotes={issuerDashboard?.overview.completedNotesCount ?? null}
+              />
+              <RepaymentPerformanceCard
+                isDisabled={!isAccountEnabled}
+                onTimeRate={issuerDashboard?.repaymentPerformance.onTimePercent ?? null}
+                pastDueDays={issuerDashboard?.repaymentPerformance.pastDueDays ?? null}
+                lateDays={issuerDashboard?.repaymentPerformance.averageLateDays ?? null}
+              />
+
+              <section className="space-y-3">
+                <h3 className="text-xl font-semibold">Financing</h3>
+                <FinancingSection organizationId={activeOrganization?.id} />
+              </section>
             </>
           )}
         </div>
