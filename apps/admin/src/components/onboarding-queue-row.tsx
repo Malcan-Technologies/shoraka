@@ -48,7 +48,7 @@ function getStatusBadge(status: OnboardingApprovalStatus) {
       return (
         <Badge variant="outline" className="border-amber-600/30 text-foreground bg-amber-600/10">
           <ExclamationTriangleIcon className="h-3 w-3 mr-1 text-amber-600" />
-          Pending SSM Review
+          Pending SSM
         </Badge>
       );
     case "PENDING_FINAL_APPROVAL":

@@ -246,7 +246,7 @@ export default function OnboardingApprovalPage() {
                   </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="PENDING_AML">Pending AML</DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="PENDING_SSM_REVIEW">
-                    Pending SSM Review
+                    Pending SSM
                   </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="PENDING_FINAL_APPROVAL">
                     Pending Final Approval
