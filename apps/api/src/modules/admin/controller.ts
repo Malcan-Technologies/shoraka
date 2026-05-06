@@ -385,7 +385,17 @@ router.get(
  *         name: onboardingStatus
  *         schema:
  *           type: string
- *           enum: [PENDING, COMPLETED]
+ *           enum:
+ *             [
+ *               PENDING,
+ *               IN_PROGRESS,
+ *               PENDING_APPROVAL,
+ *               PENDING_AML,
+ *               PENDING_SSM_REVIEW,
+ *               PENDING_FINAL_APPROVAL,
+ *               COMPLETED,
+ *               REJECTED,
+ *             ]
  *     responses:
  *       200:
  *         description: Organizations list with pagination
