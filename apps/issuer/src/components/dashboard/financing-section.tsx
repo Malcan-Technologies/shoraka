@@ -398,7 +398,7 @@ function DashboardContractCard({
           <div className="flex items-center gap-2 min-w-0 flex-wrap">
             <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
             <p className="text-sm font-medium truncate">
-              Contract : <span className="font-semibold">{row.title}</span>
+              Contract : <span className="font-semibold">{row.title ?? "-"}</span>
             </p>
             <span className="ml-2">{contractStatusBadge(row.contractStatus)}</span>
             {offerBadge(offerStatus)}

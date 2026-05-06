@@ -86,7 +86,7 @@ export default function ContractDetailsPage() {
             <div className="flex items-center gap-2 flex-wrap">
               <FileText className="h-5 w-5 text-muted-foreground" />
               <p className="text-[15px] font-medium">
-                Contract : <span className="font-semibold">{row.title}</span>
+                Contract : <span className="font-semibold">{row.title ?? "-"}</span>
               </p>
               <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
                 {formatStatus(row.contractStatus)}
