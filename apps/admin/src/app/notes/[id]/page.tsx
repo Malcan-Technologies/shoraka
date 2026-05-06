@@ -376,7 +376,7 @@ export default function NoteDetailPage() {
                       />
                     </div>
                   </div>
-                </CardContent>
+                  image.png                </CardContent>
               </Card>
 
               <div className="flex flex-wrap items-center gap-2">

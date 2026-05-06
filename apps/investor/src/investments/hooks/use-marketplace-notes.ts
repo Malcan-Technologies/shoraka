@@ -9,6 +9,7 @@ export const marketplaceKeys = {
     [...marketplaceKeys.all, "list", params] as const,
   detail: (id?: string) => [...marketplaceKeys.all, "detail", id] as const,
   portfolio: ["investor-portfolio"] as const,
+  investorInvestments: ["investor-investments"] as const,
 };
 
 function useMarketplaceApiClient() {
@@ -86,6 +87,18 @@ export function useInvestorPortfolio() {
     queryKey: marketplaceKeys.portfolio,
     queryFn: async () => {
       const response = await apiClient.getInvestorPortfolio();
+      if (!response.success) throw new Error(response.error.message);
+      return response.data;
+    },
+  });
+}
+
+export function useInvestorInvestments() {
+  const apiClient = useMarketplaceApiClient();
+  return useQuery({
+    queryKey: marketplaceKeys.investorInvestments,
+    queryFn: async () => {
+      const response = await apiClient.getInvestorInvestments();
       if (!response.success) throw new Error(response.error.message);
       return response.data;
     },

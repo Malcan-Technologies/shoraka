@@ -13,6 +13,8 @@ import { OnboardingStatusCard, getOnboardingSteps } from "../components/onboardi
 import { TermsAcceptanceCard } from "../components/terms-acceptance-card";
 import { DepositCard } from "../components/deposit-card";
 import { AccountOverviewCard } from "../components/account-overview-card";
+import { PortfolioOverviewCard } from "../components/portfolio-overview-card";
+import { DashboardInvestmentsSection } from "../components/dashboard-investments-section";
 import { useHeader } from "@cashsouk/ui";
 
 function InvestorDashboardContent() {
@@ -289,6 +291,13 @@ function InvestorDashboardContent() {
 
           {/* Account Overview Card - always visible, disabled when onboarding incomplete */}
           <AccountOverviewCard isDisabled={!isAccountEnabled} />
+
+          {isAccountEnabled && (
+            <>
+              <PortfolioOverviewCard />
+              <DashboardInvestmentsSection />
+            </>
+          )}
         </div>
       </div>
     </>
