@@ -1016,7 +1016,7 @@ export function SSMVerificationPanel({
               <div className="flex w-full flex-wrap items-center justify-between gap-3 gap-y-3">
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="secondary"
                   size="lg"
                   className="shrink-0 rounded-full gap-2"
                   disabled={disabled}
