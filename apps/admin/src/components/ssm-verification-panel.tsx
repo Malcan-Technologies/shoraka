@@ -821,8 +821,8 @@ export function SSMVerificationPanel({
                         </span>
                       </TooltipTrigger>
                       <TooltipContent side="top" sideOffset={2} className={fieldTooltipContentClassName}>
-                        SSM-side data comes from the latest stored report. It can list people who are not on the onboarding
-                        application. You approve manually with the checkbox.
+                        SSM data comes from the latest fetched report and may include people not listed in onboarding.
+                        Review the differences before approving.
                       </TooltipContent>
                     </Tooltip>
                   ) : null}
