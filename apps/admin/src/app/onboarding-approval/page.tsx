@@ -118,9 +118,10 @@ export default function OnboardingApprovalPage() {
           <div className="rounded-2xl border bg-card p-6">
             <h2 className="text-xl font-semibold mb-2">Onboarding Approval Queue</h2>
             <p className="text-muted-foreground text-[15px] leading-relaxed">
-              Review and approve user onboarding applications. Personal applications go directly to
-              RegTank for approval. Company applications include an SSM verification step after AML
-              screening.
+              Review and approve onboarding applications from investors and issuers. Personal
+              applications are handled in RegTank first, then return here for final approval. Company
+              applications include an admin SSM verification step alongside RegTank onboarding and AML
+              screening before final approval.
             </p>
           </div>
 
