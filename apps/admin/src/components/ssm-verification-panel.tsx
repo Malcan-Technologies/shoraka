@@ -1009,50 +1009,45 @@ export function SSMVerificationPanel({
                   htmlFor="ctos-confirmed"
                   className="text-sm font-normal text-foreground leading-snug cursor-pointer"
                 >
-                  {useOrgCtosFlow
-                    ? "I have verified this company against SSM records."
-                    : "I have verified this company against SSM records."}
+                  I have verified this company against SSM records.
                 </Label>
               </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start">
-                <div className="flex w-full flex-col gap-1 sm:w-auto sm:shrink-0">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="lg"
-                    className="w-full rounded-full gap-2 sm:w-auto shrink-0"
-                    disabled={disabled}
-                    onClick={onTriggerAmendment}
-                  >
-                    <ArrowTopRightOnSquareIcon className="h-5 w-5 shrink-0" aria-hidden />
-                    Request Amendment (Open RegTank)
-                  </Button>
-                  <p className="text-xs text-muted-foreground sm:max-w-xs">
-                    Opens RegTank where you can request the applicant to amend their onboarding details.
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  variant="default"
-                  size="lg"
-                  onClick={onApprove}
-                  disabled={!canApprove || disabled}
-                  className="w-full sm:flex-1 rounded-full gap-2 shadow-sm min-w-[12rem]"
-                >
-                  <CheckCircleIcon className="h-5 w-5 shrink-0" aria-hidden />
-                  Approve SSM Verification
-                </Button>
+              <div className="flex w-full flex-wrap items-center justify-between gap-3 gap-y-3">
                 <Button
                   type="button"
                   variant="outline"
                   size="lg"
-                  onClick={onReject}
+                  className="shrink-0 rounded-full gap-2"
                   disabled={disabled}
-                  className="w-full sm:w-auto shrink-0 rounded-full border-destructive text-destructive hover:bg-destructive/10"
+                  onClick={onTriggerAmendment}
                 >
-                  Reject
+                  <ArrowTopRightOnSquareIcon className="h-5 w-5 shrink-0" aria-hidden />
+                  Amendment
                 </Button>
+                <div className="ml-auto flex shrink-0 items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    onClick={onReject}
+                    disabled={disabled}
+                    className="rounded-full border-destructive text-destructive hover:bg-destructive/10"
+                  >
+                    Reject
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="default"
+                    size="lg"
+                    onClick={onApprove}
+                    disabled={!canApprove || disabled}
+                    className="rounded-full gap-2 shadow-sm"
+                  >
+                    <CheckCircleIcon className="h-5 w-5 shrink-0" aria-hidden />
+                    Approve
+                  </Button>
+                </div>
               </div>
             </div>
           ) : null}
