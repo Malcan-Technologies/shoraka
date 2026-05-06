@@ -890,7 +890,7 @@ export function SSMVerificationPanel({
               </div>
               {useOrgCtosFlow && showLastPullCaption ? (
                 <p className="w-full text-right text-xs text-muted-foreground tabular-nums leading-snug">
-                  Last fetched: {lastPullAtFormatted ?? "Never"}
+                  Last fetched: {lastPullAtFormatted ?? "\u2014"}
                 </p>
               ) : null}
             </div>
