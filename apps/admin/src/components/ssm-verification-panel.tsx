@@ -834,8 +834,14 @@ export function SSMVerificationPanel({
                   : "Compare the application with your SSM or registry checks."}
               </CardDescription>
             </div>
-            <div className="flex flex-col items-stretch gap-2 sm:items-end">
-              <div className="flex flex-wrap items-center justify-end gap-2">
+            <div
+              className={cn(
+                useOrgCtosFlow
+                  ? "inline-flex w-fit max-w-full flex-col items-end gap-1.5 self-end sm:self-start"
+                  : "flex flex-col gap-1.5 items-stretch sm:items-end"
+              )}
+            >
+              <div className="flex flex-wrap items-end justify-end gap-2">
                 {isAlreadyVerified ? (
                   <Badge variant="secondary" className="gap-1 border border-primary/20 bg-primary/5 text-primary">
                     <CheckCircleIcon className="h-3.5 w-3.5" aria-hidden />
@@ -843,7 +849,23 @@ export function SSMVerificationPanel({
                   </Badge>
                 ) : null}
                 {useOrgCtosFlow ? (
-                  <>
+                  <div className="flex flex-col items-end gap-2">
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="sm"
+                      className={cn(CTOS_FETCH_BUTTON_CLASSNAME, ctosHeaderReportButtonClassName)}
+                      disabled={
+                        disabled ||
+                        useMockOnboardingCtos ||
+                        fetchCtosMutation.isPending ||
+                        ctosListLoading
+                      }
+                      onClick={() => setGetLatestConfirmOpen(true)}
+                    >
+                      <DocumentTextIcon className="h-4 w-4 shrink-0" aria-hidden />
+                      {fetchCtosMutation.isPending ? CTOS_UI.fetching : CTOS_UI.fetchReport}
+                    </Button>
                     <Button
                       type="button"
                       variant="outline"
@@ -863,33 +885,13 @@ export function SSMVerificationPanel({
                       <ArrowTopRightOnSquareIcon className="h-4 w-4 shrink-0" aria-hidden />
                       {CTOS_UI.viewReport}
                     </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      className={cn(CTOS_FETCH_BUTTON_CLASSNAME, ctosHeaderReportButtonClassName)}
-                      disabled={
-                        disabled ||
-                        useMockOnboardingCtos ||
-                        fetchCtosMutation.isPending ||
-                        ctosListLoading
-                      }
-                      onClick={() => setGetLatestConfirmOpen(true)}
-                    >
-                      <DocumentTextIcon className="h-4 w-4 shrink-0" aria-hidden />
-                      {fetchCtosMutation.isPending ? CTOS_UI.fetching : CTOS_UI.fetchReport}
-                    </Button>
-                  </>
+                  </div>
                 ) : null}
               </div>
-              {showLastPullCaption ? (
-                lastPullAtFormatted ? (
-                  <p className="text-xs text-muted-foreground text-right tabular-nums">
-                    Last report pulled {lastPullAtFormatted}
-                  </p>
-                ) : (
-                  <p className="text-xs text-muted-foreground text-right">No report on file yet.</p>
-                )
+              {useOrgCtosFlow && showLastPullCaption ? (
+                <p className="w-full text-right text-xs text-muted-foreground tabular-nums leading-snug">
+                  Last fetched: {lastPullAtFormatted ?? "Never"}
+                </p>
               ) : null}
             </div>
           </div>
