@@ -135,7 +135,7 @@ export function DirectorShareholderTable({
               <TableHead>Share %</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>RegTank</TableHead>
-              <TableHead>CTOS</TableHead>
+              <TableHead title="Fetch or view the CTOS report for this person.">CTOS</TableHead>
               <TableHead>Notify</TableHead>
             </TableRow>
           </TableHeader>
@@ -257,7 +257,7 @@ export function DirectorShareholderTable({
                           void openSubjectReportHtml(latestReport.id);
                         }}
                       >
-                        View Report
+                        View report
                       </Button>
                     </div>
                     </div>

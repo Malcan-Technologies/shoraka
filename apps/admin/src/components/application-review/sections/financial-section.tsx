@@ -82,7 +82,7 @@ export interface FinancialSectionProps {
 
 /**
  * SECTION: Financial CTOS header controls
- * WHY: Show CTOS “View report” / “Fetch report” and “Last fetch” in the Financial header.
+ * WHY: Show organization CTOS “Fetch org report” / “View org report” and “Last fetch” in the Financial header.
  * INPUT: applicationId, issuerOrganizationId, and the Financial section app slice.
  * OUTPUT: A header-right React node (buttons + last fetch line + confirm dialog).
  * WHERE USED: Rendered inside `ReviewSectionCard` via its `headerRight` prop.
@@ -177,6 +177,9 @@ function FinancialCtosHeaderControls({
   return (
     <>
       <div className="flex flex-col items-end gap-1">
+        <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          Organization CTOS
+        </div>
         <div className="flex items-center gap-2">
           <Button
             variant="secondary"
@@ -185,7 +188,7 @@ function FinancialCtosHeaderControls({
             disabled={createOrgCtos.isPending || !issuerOrgId}
             onClick={() => setOrgCtosConfirmOpen(true)}
           >
-            {createOrgCtos.isPending ? CTOS_UI.fetching : CTOS_UI.fetchReport}
+            {createOrgCtos.isPending ? CTOS_UI.fetching : "Fetch org report"}
           </Button>
           <Button
             variant="outline"
@@ -194,7 +197,7 @@ function FinancialCtosHeaderControls({
             disabled={!app.issuer_organization?.latest_organization_ctos_has_report_html}
             onClick={() => void openFullReport()}
           >
-            {CTOS_UI.viewReport}
+            {"View org report"}
           </Button>
         </div>
         <p className="m-0 text-right text-xs text-muted-foreground tabular-nums leading-snug">
