@@ -870,23 +870,6 @@ export default function OrganizationDetailPage() {
       setCtosFetchSubjectKey(null);
     },
   });
-  const notifyActionRequiredMutation = useMutation({
-    mutationFn: async (input: { partyKey: string }) => {
-      const res = await apiClient.notifyIssuerDirectorShareholderActionRequired(
-        organizationId,
-        input
-      );
-      if (!res.success) throw new Error(formatApiErrorMessage(res.error));
-      return res.data;
-    },
-    onSuccess: () => {
-      toast.success("Notify sent to issuer.");
-      void queryClient.invalidateQueries({ queryKey: ["admin", "organization-detail", portal, organizationId] });
-    },
-    onError: (e: Error) => {
-      toast.error(e.message || "Notify failed");
-    },
-  });
   const updateSophisticatedMutation = useUpdateSophisticatedStatus();
   const [showSophisticatedDialog, setShowSophisticatedDialog] = React.useState(false);
   const [pendingSophisticatedStatus, setPendingSophisticatedStatus] = React.useState<boolean | null>(null);
@@ -1384,7 +1367,6 @@ export default function OrganizationDetailPage() {
                         subjectCtosReports={org.latestOrganizationCtosSubjectReports ?? null}
                         ctosFetchPendingKey={ctosFetchSubjectKey}
                         ctosFetchPending={fetchSubjectCtosMutation.isPending}
-                        notifyPending={notifyActionRequiredMutation.isPending}
                         onFetchSubjectCtos={(person) => {
                           const idKey = normalizeDirectorShareholderIdKey(person.matchKey);
                           if (!idKey) {
@@ -1403,7 +1385,6 @@ export default function OrganizationDetailPage() {
                             idNumber: idKey,
                           });
                         }}
-                        onNotify={(person) => notifyActionRequiredMutation.mutate({ partyKey: person.matchKey })}
                       />
                     </CardContent>
                   </Card>

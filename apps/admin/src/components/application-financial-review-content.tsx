@@ -41,10 +41,7 @@ import {
 } from "@cashsouk/types";
 import { toast } from "sonner";
 import { format, isValid, parse, parseISO } from "date-fns";
-import {
-  useCreateIssuerOrganizationCtosSubjectReport,
-  useNotifyIssuerDirectorShareholderActionRequired,
-} from "@/hooks/use-admin-issuer-organization-ctos-mutations";
+import { useCreateIssuerOrganizationCtosSubjectReport } from "@/hooks/use-admin-issuer-organization-ctos-mutations";
 import { ADMIN_DIRECTOR_SHAREHOLDER_REVIEW_HINT } from "@/lib/admin-director-shareholder-review-message";
 
 /** Year row placeholder when no year (em dash). */
@@ -264,10 +261,6 @@ export function ApplicationFinancialReviewContent({
 }: ApplicationFinancialReviewContentProps) {
   const issuerOrgId = issuerOrganizationId?.trim() ?? "";
   const createSubjectReport = useCreateIssuerOrganizationCtosSubjectReport(
-    issuerOrgId || undefined,
-    applicationId
-  );
-  const notifyActionRequired = useNotifyIssuerDirectorShareholderActionRequired(
     issuerOrgId || undefined,
     applicationId
   );
@@ -776,7 +769,6 @@ export function ApplicationFinancialReviewContent({
           subjectCtosReports={app.issuer_organization?.latest_organization_ctos_subject_reports ?? null}
           ctosFetchPending={createSubjectReport.isPending}
           ctosFetchPendingKey={subjectCtosFetchKey}
-          notifyPending={notifyActionRequired.isPending}
           onFetchSubjectCtos={(person) => {
             const idKey = normalizeDirectorShareholderIdKey(person.matchKey);
             if (!idKey) {
@@ -802,15 +794,6 @@ export function ApplicationFinancialReviewContent({
               }
             );
           }}
-          onNotify={(person) =>
-            notifyActionRequired.mutate(
-              { partyKey: person.matchKey },
-              {
-                onSuccess: () => toast.success("Notify sent to issuer."),
-                onError: (err: unknown) => toast.error(err instanceof Error ? err.message : "Notify failed"),
-              }
-            )
-          }
         />
       </ReviewFieldBlock>
 

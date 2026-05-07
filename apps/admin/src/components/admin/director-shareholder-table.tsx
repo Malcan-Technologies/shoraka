@@ -6,7 +6,6 @@ import { useAuthToken } from "@cashsouk/config";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 // import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { DirectorShareholderNotifyButton } from "@/components/director-shareholder-notify-button";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,7 +25,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  canManageDirectorShareholder,
   filterVisiblePeopleRows,
   formatSharePercentageCell,
   formatPeopleRolesLineWithoutShare,
@@ -61,7 +59,7 @@ type PendingCtosSubjectFetch = {
  * SECTION: Shared Director/Shareholder table
  * WHY: Keep all pages identical and read only from people.
  * INPUT: people rows + portal/org context + actions.
- * OUTPUT: merged table rows, notify, CTOS fetch modal.
+ * OUTPUT: merged table rows, CTOS fetch modal.
  * WHERE USED: Admin financial and organization detail pages.
  */
 export function DirectorShareholderTable({
@@ -70,21 +68,17 @@ export function DirectorShareholderTable({
   organizationId,
   ctosFetchPendingKey,
   ctosFetchPending,
-  notifyPending,
   subjectCtosReports,
   onFetchSubjectCtos,
-  onNotify,
 }: {
   people: ApplicationPersonRow[];
   portal: "issuer" | "investor";
   organizationId: string;
   ctosFetchPendingKey?: string | null;
   ctosFetchPending?: boolean;
-  notifyPending?: boolean;
   /** Latest CTOS report per party (matches `subject_ref` from API to IC/SSM). */
   subjectCtosReports?: CtosSubjectReportListItem[] | null;
   onFetchSubjectCtos?: (person: ApplicationPersonRow) => void;
-  onNotify?: (person: ApplicationPersonRow) => void;
 }) {
   const { getAccessToken } = useAuthToken();
   const [pendingCtosSubjectFetch, setPendingCtosSubjectFetch] = React.useState<PendingCtosSubjectFetch | null>(null);
@@ -136,12 +130,10 @@ export function DirectorShareholderTable({
               <TableHead>Status</TableHead>
               <TableHead>RegTank</TableHead>
               <TableHead title="Fetch or view the CTOS report for this person.">CTOS</TableHead>
-              <TableHead>Notify</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.map((p) => {
-              const canNotify = canManageDirectorShareholder(p);
               const finalStatus = getFinalStatusLabel({
                 screening: p.screening,
                 onboarding: p.onboarding,
@@ -260,17 +252,6 @@ export function DirectorShareholderTable({
                             }`
                           : "Last fetched: —"}
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col items-start gap-1">
-                      {canNotify && onNotify ? (
-                        <DirectorShareholderNotifyButton
-                          rowActionable={true}
-                          disabled={notifyPending === true}
-                          onNotify={() => onNotify(p)}
-                        />
-                      ) : null}
                     </div>
                   </TableCell>
                 </TableRow>
